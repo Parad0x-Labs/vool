@@ -1430,6 +1430,14 @@ def model_visible_specs(
         expansions = turn_family_expansions(source_context)
     for family in expansions:
         _add_family(family)
+    # The families the model EXPANDED this turn lead the list, so the resolved-family cap
+    # (3) can never truncate away a family the model explicitly asked to see: whatever
+    # other families the words resolved, the expanded ones fill first and the others fill
+    # only what is left (the seating order below enforces the same law).
+    if expansions:
+        expansion_set = set(expansions)
+        families = ([f for f in families if f in expansion_set]
+                    + [f for f in families if f not in expansion_set])
 
     families = families[:_MAX_RESOLVED_FAMILIES]
     explicit = explicit[: len(explicit)]  # bounded upstream by the signal resolver
@@ -1499,7 +1507,7 @@ def model_visible_specs(
         if _intent_available(intent):
             _seat(intent)
 
-    # -- Step 4: Round-robin family fill from ranked available candidates --
+    # -- Step 4: Expanded families drain first, then round-robin the rest --
     family_queues: list[list[CapabilityCandidate]] = []
     for family in families:
         result = discover(
@@ -1510,8 +1518,25 @@ def model_visible_specs(
             offline_mode=offline_mode,
         )
         family_queues.append([c for c in result.candidates if c.available])
-    while len(result_specs) < seat_budget and any(family_queues):
-        for queue in family_queues:
+    # The family the model asked to expand WINS the budget: its ranked queue drains in
+    # full (still bounded by the hard cap) before the families the words resolved get a
+    # single seat. Round-robin shared the bonus evenly, and under the read-only-first
+    # ranking with declaration-order tie-breaks that evicted exactly the long-tail tools
+    # (agenda, notes writes, reminders) the expansion existed to expose: measured on the
+    # served rig, "summarize my notes from this week" after capability.expand_family
+    # {"family":"operator"} seated only 11 of the 20 operator tools beside web and token.
+    expansion_set = {family for family in expansions if family in families}
+    expanded_queues = [queue for family, queue in zip(families, family_queues, strict=True)
+                       if family in expansion_set]
+    rest = [queue for family, queue in zip(families, family_queues, strict=True)
+            if family not in expansion_set]
+    for queue in expanded_queues:
+        while queue and len(result_specs) < seat_budget:
+            candidate = queue.pop(0)
+            if _intent_available(candidate.tool_intent):
+                _seat(candidate.tool_intent, candidate)
+    while len(result_specs) < seat_budget and any(rest):
+        for queue in rest:
             if queue and len(result_specs) < seat_budget:
                 candidate = queue.pop(0)
                 if _intent_available(candidate.tool_intent):
