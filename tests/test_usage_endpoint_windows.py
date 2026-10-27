@@ -26,7 +26,7 @@ def _reset() -> None:
 
 
 def _usage(query):
-    res = dispatch_get(path="/api/runtime/usage", query=query, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+    res = dispatch_get(path="/api/runtime/usage", query=query, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1")
     return json.loads(res.body.decode("utf-8"))
 
 

@@ -27,6 +27,7 @@ from core.remote_fetch_policy import (
 )
 from core.remote_fetch_policy import (
     remote_fetch_forbidden,
+    remote_turn_active,
 )
 from core.source_credibility import evaluate_source_domain
 from core.weather_result_contract import WeatherResult
@@ -131,11 +132,15 @@ def _open_remote(request: Any, *, timeout: float):
     socket. Refusal raises rather than returning empty, so a caller that ignores it fails closed
     instead of silently reporting "no results" for a request that was never allowed to run.
     """
+    if remote_turn_active():
+        raise RemoteFetchRefusedError("owner_local_required")
 
     return _open_remote_door(request, timeout=timeout)
 
 
 def _provider_order() -> list[str]:
+    if remote_turn_active():
+        return []
     allowed = policy_engine.allowed_web_engines()
     allowed_set = set(allowed)
     env_raw = str(os.getenv("WEB_SEARCH_PROVIDER_ORDER", "")).strip()
@@ -166,6 +171,8 @@ def keyed_search_api_providers() -> tuple[str, ...]:
     the chain at all, so it can never spend a turn's budget only to report that it lacks a
     credential.
     """
+    if remote_turn_active():
+        return ()
     if remote_fetch_forbidden():
         return ()
     try:
@@ -213,6 +220,8 @@ def _search_api_hits(provider: str, query: str, *, max_hits: int, timeout_s: flo
     The key is read at call time and never held anywhere in this module: it goes from the
     credential store into the request the client builds, and nothing else in the path sees it.
     """
+    if remote_turn_active():
+        return []
     from core.credential_store import get_credential
     from core.search_providers import config_for
     from tools.web.search_api_client import search as _search_api
@@ -268,7 +277,20 @@ _BROWSER_SEARCH_MIN_BUDGET_S = 10.0
 _BROWSER_SEARCH_MAX_TIMEOUT_S = 20.0
 
 
+def _browser_may_read_hit(hit_url: str, final_url: str) -> bool:
+    """A search hit is never handed to the browser, until the browser checks every address it reaches.
+
+    The browser resolves names and follows redirects on its own, so a hit that served the checked
+    fetch a short page could send the browser to this computer or its local network. Research reads
+    hits only through the checked, pinned fetch; a page that needs JavaScript keeps its snippet.
+    """
+    del hit_url, final_url
+    return False
+
+
 def _should_try_browser() -> bool:
+    if remote_turn_active():
+        return False
     env_value = str(os.getenv("ALLOW_BROWSER_FALLBACK", "")).lower()
     if env_value:
         return env_value in {"1", "true", "yes"}
@@ -2065,6 +2087,8 @@ def lookup_live_quotes(query: str, *, timeout_s: float = 8.0) -> list[LiveQuoteR
     kinds gets both. Falls back to the single-result path only when NEITHER multi-path finds
     anything, so a plain single-asset query behaves exactly as before.
     """
+    if remote_turn_active():
+        return []
     results: list[LiveQuoteResult] = []
     seen_keys: set[str] = set()
 
@@ -2096,6 +2120,8 @@ def lookup_live_quotes(query: str, *, timeout_s: float = 8.0) -> list[LiveQuoteR
 
 
 def lookup_live_quote(query: str, *, timeout_s: float = 8.0) -> LiveQuoteResult | None:
+    if remote_turn_active():
+        return None
     coin_id = _looks_like_price_query(query)
     if coin_id:
         try:
@@ -2593,6 +2619,8 @@ def structured_weather_lookup(location: str, *, timeout_s: float = 8.0) -> Weath
     typed fields; a mismatch or failure on the first provider falls through to it instead of
     becoming "no observation returned".
     """
+    if remote_turn_active():
+        return None
     clean_location = str(location or "").strip()
     if not clean_location or not _is_plausible_weather_location(clean_location):
         return None
@@ -3055,6 +3083,8 @@ def web_research(
     browser_engine: str | None = None,
     evidence_screenshot_dir: str | None = None,
 ) -> ResearchResult:
+    if remote_turn_active():
+        return ResearchResult(query=query, provider="disabled", hits=[], pages=[], notes=["owner_local_required"], ts_utc=time.time())
     notes: list[str] = []
     hits: list[WebHit] = []
     pages: list[PageEvidence] = []
@@ -3286,13 +3316,24 @@ def web_research(
             notes.append("deadline_exhausted:pages")
             break
         try:
-            fetched = http_fetch_text(hit.url, timeout_s=max(2.0, min(fetch_timeout_s, _remaining())))
+            # A search hit is a page some engine returned, so it is public by nature: a hit (or the
+            # page its redirects land on) that points at this computer or its local network is a
+            # poisoned result, and reading it would put the owner's own services into the answer.
+            # Every hop uses checked, pinned public addresses without a proxy. A refused hit
+            # is never handed to the browser. Remote turns cannot enter research at all.
+            fetched = http_fetch_text(hit.url, timeout_s=max(2.0, min(fetch_timeout_s, _remaining())), not_local=True)
             status = str(fetched.get("status") or "fetch_error")
             text = str(fetched.get("text") or "")
             html_text = str(fetched.get("html") or "")
             final_url = str(fetched.get("final_url") or hit.url)
 
-            if _should_try_browser() and _needs_browser(status, text) and _remaining() >= _BROWSER_MIN_BUDGET_S:
+            if (
+                status != "private_target_refused"
+                and _browser_may_read_hit(hit.url, final_url)
+                and _should_try_browser()
+                and _needs_browser(status, text)
+                and _remaining() >= _BROWSER_MIN_BUDGET_S
+            ):
                 screenshot_path = None
                 if evidence_screenshot_dir:
                     os.makedirs(evidence_screenshot_dir, exist_ok=True)
@@ -3436,6 +3477,8 @@ def _browser_search_hits(query: str, *, max_hits: int, timeout_s: float) -> list
     The `engine` recorded on each hit names the search engine that answered, so a downstream reader
     can tell a DuckDuckGo render from a Bing render.
     """
+    if remote_turn_active():
+        return []
 
     from tools.web.browser_search import browser_search as run_browser_search
 

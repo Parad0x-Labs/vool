@@ -6,6 +6,8 @@ on:
     paths:
       - 'installer/bundle/build_linux_bundle.sh'
       - 'installer/bundle/linux/**'
+      - 'installer/build_update_payload.py'
+      - 'core/updater/archive.py'
       - 'installer/stamp_build_source.py'
       - 'ops/linux_bundle_smoke.py'
       - 'tests/test_linux_bundle_packaging.py'
@@ -38,10 +40,23 @@ jobs:
           uv run --no-project --with pytest==9.1.1 --with pyyaml python -m pytest --noconftest -q tests/test_linux_bundle_packaging.py
       - name: Build self-contained Linux x86_64 tarball
         run: bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/linux-release"
+      - name: In-app update payload for installed packages (the same package, zipped for the signed feed)
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/linux-release"
+          tarball="$(ls vool-*-linux-x86_64.tar.gz)"
+          version="${tarball#vool-}"; version="${version%-beta-linux-x86_64.tar.gz}"
+          mkdir "$RUNNER_TEMP/package-extract"
+          tar -xzf "$tarball" -C "$RUNNER_TEMP/package-extract"
+          (cd "$GITHUB_WORKSPACE" && python3 -m installer.build_update_payload --platform linux-x64-bundle \
+            --version "$version" --source "$RUNNER_TEMP/package-extract/${tarball%.tar.gz}" --out "$RUNNER_TEMP/linux-release")
+          for f in *-package-update.zip; do sha256sum "$f" > "$f.sha256"; done
       - uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64-package
-          path: ${{ runner.temp }}/linux-release/vool-*-linux-x86_64.tar.gz*
+          path: |
+            ${{ runner.temp }}/linux-release/vool-*-linux-x86_64.tar.gz*
+            ${{ runner.temp }}/linux-release/vool-*-linux-x86_64-package-update.zip*
           if-no-files-found: error
 
   smoke:
@@ -97,4 +112,4 @@ jobs:
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes 'Release artifacts awaiting final approval.'
           fi
-          gh release upload "$RELEASE_TAG" assets/*.tar.gz assets/*.sha256
+          gh release upload "$RELEASE_TAG" assets/*.tar.gz assets/*-package-update.zip assets/*.sha256

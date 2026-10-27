@@ -52,11 +52,12 @@ def _post(path, body, headers=None):
         runtime=_rt(),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
 
 
 def _get(path, query=None):
-    return dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _body(response):

@@ -861,7 +861,9 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
             # live, so 'option 2, propose ...' redoes this part with a different slot.
             part_raw = raw + ", option 1"
         if kind == "save_note":
-            part_intent = OperatorActionIntent(kind=kind, raw_text=raw)
+            # A save that points back at the answer before it keeps that answer (core.operator.notes).
+            carried = {"note_body": intent.note_body, "target_label": intent.target_label} if intent.kind == "save_note" else {}
+            part_intent = OperatorActionIntent(kind=kind, raw_text=raw, **carried)
             try:
                 note_result = _handle_save_note(part_intent, task_id=task_id, session_id=session_id)
             except Exception as exc:

@@ -564,7 +564,8 @@ class UpdateFlow:
         try:
             if staged_bundle.exists():
                 shutil.rmtree(staged_bundle)
-            bundle_dir = extract_update_zip(staged_artifact, staged_bundle)
+            bundle_dir = extract_update_zip(staged_artifact, staged_bundle,
+                                            case_sensitive_names=self.platform == platform_registry.LINUX_BUNDLE_X64)
         except Exception as exc:
             with contextlib.suppress(Exception):
                 shutil.rmtree(staged_bundle, ignore_errors=True)
@@ -581,6 +582,18 @@ class UpdateFlow:
                     raise ValueError("the Mac payload does not match the signed build commit")
             except (OSError, ValueError) as exc:
                 return self._abort(f"incompatible Mac payload: {exc}", fault=UpdateFault.VERIFICATION_FAILED)
+        if self.platform == platform_registry.LINUX_BUNDLE_X64:
+            try:
+                version = (bundle_dir / "VERSION").read_text(encoding="utf-8").strip()
+                commit = (bundle_dir / "SOURCE_COMMIT").read_text(encoding="utf-8").strip()
+                if version != manifest.version + "-beta":
+                    raise ValueError(f"the package is {version or 'unversioned'}, the signed offer is {manifest.version}")
+                if manifest.build_commit and commit != manifest.build_commit:
+                    raise ValueError("the package does not match the signed build commit")
+            except (OSError, ValueError) as exc:
+                with contextlib.suppress(Exception):
+                    shutil.rmtree(staged_bundle, ignore_errors=True)
+                return self._abort(f"incompatible Linux package: {exc}", fault=UpdateFault.VERIFICATION_FAILED)
         require_notarization = None
         waiver = ""
         trust_policy = "platform-default"

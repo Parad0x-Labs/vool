@@ -66,6 +66,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PATCH_FLOORS = {
     "urllib3": ("#59/#60/#61", "GHSA-8988-9cw3-xx77 / GHSA-vxq7-64xx-v4gw / GHSA-gh4c-6fx4-qh6g", "2.8.0"),
     "datasets": ("#62", "GHSA-379c-qx7v-6h59", "5.0.1"),
+    "filelock": ("3 alerts (uv.lock, 2026-10-26)", "Dependabot filelock advisories", "4.2.1"),
 }
 
 #: Alert #46: accelerate has NO first patched version upstream. The lock holds the contained

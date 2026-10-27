@@ -58,11 +58,11 @@ if ($LASTEXITCODE -ne 0) { throw "Embedded Python pip bootstrap failed." }
 # is available in the embedded Python. pywebview+pythonnet drive the native WebView2 app window
 # (vool_window.py). Still no heavy ML training stack.
 & $py -m pip install --no-warn-script-location -q `
-    "setuptools>=83.0.0" wheel
+    "setuptools>=84.1.0" wheel
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python setuptools/wheel bootstrap failed." }
 & $py -m pip install --no-build-isolation --no-warn-script-location -q `
     pydantic "cryptography>=50.0.0" "anyio>=4.14.2" requests pynacl keyring psutil pyyaml "starlette>=1.3.1,<2.0" "uvicorn>=0.30,<1.0" solders `
-    pywebview pythonnet "pypdf==6.21.1" "xlrd==2.0.2"
+    pywebview pythonnet "pypdf==6.21.2" "xlrd==2.0.2"
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python runtime dependency installation failed." }
 & $py -m pip check
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python dependency check failed." }

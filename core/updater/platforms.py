@@ -2,7 +2,8 @@
 
 The manifest, decision, download, migration, journal, health and rollback machinery is
 platform-neutral and shared by every OS. What is NOT shared is the actual installer:
-verifying and swapping an app on disk is platform work. macOS arm64/Intel bundles and installer-source Linux x64 have real installers.
+verifying and swapping an app on disk is platform work. macOS arm64/Intel bundles, installer-source Linux x64
+and the per-user Linux x64 package have real installers.
 Windows and Linux arm64 remain unavailable until their own installer journey is
 implemented and tested. Artifact selection always requires the exact OS/architecture.
 """
@@ -65,6 +66,30 @@ def platform_key(platform: str | None = None, machine: str | None = None) -> str
     return f"{os_name}-{arch}"
 
 
+#: The per-user Linux package (the release tarball's install.sh). Its own artifact key: installer-source
+#: Linux installs keep ``linux-x64`` and its source payload; a package update is a whole package.
+LINUX_BUNDLE_X64 = "linux-x64-bundle"
+
+
+def linux_bundle_root(source_root: Path | None = None) -> Path | None:
+    """The owned package root (``~/.local/share/vool``) when this code runs from an installed Linux package.
+
+    The package installer lays code out as ``<root>/versions/<40-hex>/app`` beside its marker file
+    ``<root>/.vool-linux-bundle``; anything else (a source checkout, a Mac bundle) answers None.
+    """
+    import re
+
+    app = Path(source_root) if source_root is not None else Path(__file__).resolve().parents[2]
+    package = app.parent
+    root = package.parent.parent
+    if app.name != "app" or package.parent.name != "versions" or not re.fullmatch(r"[0-9a-f]{40}", package.name):
+        return None
+    marker = root / ".vool-linux-bundle"
+    if marker.is_symlink() or not marker.is_file() or not (package / "SOURCE_COMMIT").is_file():
+        return None
+    return root
+
+
 @dataclass(frozen=True)
 class BundleVerification:
     ok: bool
@@ -116,6 +141,10 @@ def _default_registry() -> dict[str, type]:
         from core.updater.linux import LinuxSourceInstaller
 
         register_installer("linux-x64", LinuxSourceInstaller)
+    if LINUX_BUNDLE_X64 not in _BUILDERS:
+        from core.updater.linux import LinuxBundleInstaller
+
+        register_installer(LINUX_BUNDLE_X64, LinuxBundleInstaller)
     return _BUILDERS
 
 
@@ -130,10 +159,12 @@ def supported_platforms() -> tuple[str, ...]:
 
 
 __all__ = [
+    "LINUX_BUNDLE_X64",
     "BundleVerification",
     "PlatformInstaller",
     "SwapOutcome",
     "installer_for",
+    "linux_bundle_root",
     "platform_key",
     "register_installer",
     "supported_platforms",

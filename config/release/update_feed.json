@@ -2,9 +2,10 @@
   "manifest_url": "https://github.com/Parad0x-Labs/vool/releases/latest/download/manifest.json",
   "app_path": "",
   "channel": "beta",
+  "auto_check": true,
   "allow_publisher_verified_adhoc": true,
   "health_url": "http://127.0.0.1:11435/healthz",
   "helper_script": "",
   "check_interval_seconds": 86400,
-  "_comment": "Beta updates use this repository’s normal Latest GitHub release and a pinned public publisher key. Empty pins fail closed. The Mac launcher supplies its live bundle/helper/health paths; installed Linux discovers its receipt. Publisher-verified ad-hoc Mac bundles require both Ed25519 signatures, SHA-256 and deep strict codesign; a certificate-signed running app still requires Gatekeeper acceptance. See docs/RELEASE_KEY_CEREMONY.md."
+  "_comment": "Beta updates use this repository’s normal Latest GitHub release and a pinned public publisher key. Empty pins fail closed. auto_check: once the owner turns on \u201cGo online on its own\u201d, VOOL checks this feed on its own (daily); while that switch is off nothing is fetched. The Mac launcher supplies its live bundle/helper/health paths; installed Linux discovers its receipt. Publisher-verified ad-hoc Mac bundles require both Ed25519 signatures, SHA-256 and deep strict codesign; a certificate-signed running app still requires Gatekeeper acceptance. See docs/RELEASE_KEY_CEREMONY.md."
 }

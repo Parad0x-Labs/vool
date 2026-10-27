@@ -68,6 +68,7 @@ def _sessions_payload() -> dict:
         query={},
         runtime=RuntimeServices(),
         model_name="test-model",
+        client_host="127.0.0.1",
     )
     return json.loads(res.body.decode("utf-8"))
 

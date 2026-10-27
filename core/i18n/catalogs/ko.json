@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, other {개인정보 보호 정책에 따라 답변 {n}개는 포함되지 않았습니다.}}",
     "online_access.open_setting": "‘스스로 온라인 연결’ 열기",
     "update.online_off": "온라인 접근이 꺼져 있어 VOOL이 업데이트를 확인하지 않습니다.",
+    "update.checks_off": "업데이트 확인 꺼짐",
     "vcs.online_off": "온라인 접근이 꺼져 있어 VOOL이 인터넷의 캘린더를 읽지 않습니다. 이 컴퓨터의 캘린더는 계속 작동합니다.",
     "chat.no_model.line_text": "VOOL이 답하려면 AI 모델이 필요합니다. 설정은 2분 정도 걸립니다.",
     "chat.no_model.reply_body": "설정은 2분 정도 걸립니다. 설정을 열고 VOOL이 어디에서 생각할지 고르세요. 이 컴퓨터에 Ollama 같은 모델 앱이 이미 있다면 그 앱을 열고 다시 물어보세요.",
@@ -2849,7 +2850,7 @@
     "settings.row.live_browser.help": "실행 전에 각 작업을 확인하세요. 페이지 스크립트는 꺼져 있습니다. 결제에는 지갑을 사용하세요.",
     "settings.row.live_browser.label": "브라우저"
   },
-  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
+  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -36,13 +36,15 @@ def forward(
     *,
     approval_context: Mapping[str, Any] | None = None,
     projection: str = "api",
-    client_host: str = "127.0.0.1",
+    client_host: str = "",
     headers: Mapping[str, Any] | None = None,
 ) -> tuple[int, Any]:
     """Execute one registry command for a legacy surface → (status, payload).
 
     ``client_host`` carries the transport peer so owner-local gates inside the
-    lifted authorities evaluate the REAL TCP fact, never a default.
+    lifted authorities evaluate the REAL TCP fact, never a default: a caller that names
+    none is an unknown peer, which those gates refuse. In-process owner callers name
+    ``core.request_trust.IN_PROCESS_OWNER_PEER`` explicitly.
     """
     envelope = execute_command(
         command_id,

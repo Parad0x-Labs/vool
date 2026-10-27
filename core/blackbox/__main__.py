@@ -38,10 +38,13 @@ def main(argv: list[str] | None = None) -> int:
 
     from core.command_registry.execute import ExecutionContext, execute_command
     from core.command_registry.legacy import envelope_payload, envelope_status
+    from core.request_trust import in_process_owner_extra
 
     def _run(command_id: str, input_data: dict, approval: dict | None = None) -> int:
         envelope = execute_command(
-            command_id, input_data, context=ExecutionContext(projection="cli", approval_context=approval)
+            command_id,
+            input_data,
+            context=ExecutionContext(projection="cli", approval_context=approval, extra=in_process_owner_extra()),
         )
         status = envelope_status(envelope)
         payload = envelope_payload(envelope)

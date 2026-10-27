@@ -36,12 +36,25 @@ def main() -> int:
     command = [sys.executable, "-B", "-E", "-s", "-m", "apps.vool_api_server", "--bind", "127.0.0.1", "--port", str(args.port)]
     if args.headless:
         os.execv(sys.executable, command)
-    # Never open a page served by an unknown port occupant, or stop that process.
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", args.port))
-    process = subprocess.Popen(command)
     origin = f"http://127.0.0.1:{args.port}"
     expected = (root / "SOURCE_COMMIT").read_text().strip()
+    # Never open a page served by an unknown port occupant, or stop that process. This exact package
+    # already serving (an update restarts it in the background) is not unknown: open its chat.
+    try:
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", args.port))
+    except OSError:
+        try:
+            with urllib.request.urlopen(origin + "/healthz", timeout=3) as response:
+                health = json.load(response)
+        except (OSError, ValueError, urllib.error.URLError):
+            health = {}
+        if health.get("ok") is True and (health.get("runtime") or {}).get("commit_full") == expected:
+            if not webbrowser.open(origin + "/chat"):
+                print(f"Open {origin}/chat in your browser.", file=sys.stderr)
+            return 0
+        raise
+    process = subprocess.Popen(command)
 
     def stop(_signum: int, _frame: object) -> None:
         process.terminate()

@@ -1,0 +1,177 @@
+name: In-app update journey
+
+# The release gate for "a new version is out": a person on the previous release sees the update
+# notice and one Update press installs it, on Apple Silicon, Intel and Linux. Every job installs a
+# released package in a disposable home and drives the app's own update surface with
+# ops/update_journey.py (notice, Update, restart on the new build, data kept).
+#
+# linux-package  this commit as the installed package, updated to the same commit one patch version
+#                higher through a throwaway-key test feed; plus a broken update that must restore itself.
+# mac (live)     the previous published release updated from the LIVE feed and its real publisher key.
+# mac (gate)     with to_tag (a draft release holding the new Mac update ZIPs): the previous release updated
+#                to those exact ZIP bytes through a throwaway-key test feed, before anything is published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: 'Installed release to update from (default: the release before the latest)'
+        required: false
+      to_tag:
+        description: 'Gate mode: the DRAFT release whose Mac update ZIPs to install (empty = live feed)'
+        required: false
+  pull_request:
+    paths:
+      - 'core/updater/**'
+      - 'config/release/update_feed.json'
+      - 'installer/build_update_payload.py'
+      - 'installer/bundle/linux/**'
+      - 'ops/update_journey.py'
+      - '.github/workflows/update-journey.yml'
+
+permissions:
+  contents: write  # reading a draft release's assets in gate mode; nothing is written
+
+jobs:
+  linux-package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.11.1'
+      - name: Build this commit and the same commit one patch version higher
+        run: |
+          set -euo pipefail
+          git config user.name journey && git config user.email journey@localhost
+          current="$(python3 -c 'import json; print(json.load(open("config/release/update_channel.json"))["release_version"].removesuffix("-beta"))')"
+          next="$(python3 -c "v='$current'.split('.'); v[2]=str(int(v[2])+1); print('.'.join(v))")"
+          echo "OLD_VERSION=$current" >> "$GITHUB_ENV"; echo "NEW_VERSION=$next" >> "$GITHUB_ENV"
+          bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/old"
+          git worktree add "$RUNNER_TEMP/next" HEAD
+          cd "$RUNNER_TEMP/next"
+          sed -i "s/^version = \"$current\"/version = \"$next\"/" pyproject.toml
+          python3 - "$current" "$next" <<'PY'
+          import re, sys
+          old, new = sys.argv[1:]
+          lock = open("uv.lock").read()
+          lock = re.sub(r'(\[\[package\]\]\nname = "vool"\nversion = )"' + re.escape(old) + '"', r'\1"' + new + '"', lock)
+          open("uv.lock", "w").write(lock)
+          PY
+          sed -i "s/VOOL_VERSION = \"$current\"/VOOL_VERSION = \"$next\"/" core/app_version.py
+          sed -i "s/$current-beta/$next-beta/" config/release/update_channel.json config/release/update_channel.sample.json
+          git commit -qam "journey: $next (never pushed)"
+          echo "NEW_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/new"
+      - name: Update payloads (the real one, and one whose new version cannot start)
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/x"
+          tar -xzf "$RUNNER_TEMP/new/vool-$NEW_VERSION-beta-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/x"
+          pkg="$RUNNER_TEMP/x/vool-$NEW_VERSION-beta-linux-x86_64"
+          python3 -m installer.build_update_payload --platform linux-x64-bundle --version "$NEW_VERSION" --source "$pkg" --out "$RUNNER_TEMP/payload"
+          cp -a "$pkg" "$RUNNER_TEMP/broken"
+          sed -i '1i raise SystemExit("journey: this build is broken on purpose")' "$RUNNER_TEMP/broken/app/apps/vool_api_server.py"
+          (cd "$RUNNER_TEMP/broken" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          python3 -m installer.build_update_payload --platform linux-x64-bundle --version "$NEW_VERSION" --source "$RUNNER_TEMP/broken" --out "$RUNNER_TEMP/payload-broken"
+          for kind in payload payload-broken; do
+            uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py make-feed --out "$RUNNER_TEMP/feed-$kind" \
+              --version "$NEW_VERSION" --commit "$NEW_COMMIT" --artifact "linux-x64-bundle=$(ls "$RUNNER_TEMP/$kind"/*.zip)"
+          done
+      - name: Journey - notice without a Check press, one Update press, restart, data kept
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
+            --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload" \
+            --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey"
+      - name: Journey - a new version that cannot start restores the previous one by itself
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
+            --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload-broken" \
+            --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-broken" --broken-update
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: update-journey-linux
+          path: |
+            ${{ runner.temp }}/journey*/journey.json
+            ${{ runner.temp }}/journey*/app.log
+          if-no-files-found: warn
+
+  mac:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            key: macos-arm64
+          - runner: macos-15-intel
+            arch: x86_64
+            key: macos-x64
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pick the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_TAG: ${{ inputs.from_tag }}
+          TO_TAG: ${{ inputs.to_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FROM_TAG" ]]; then
+            if [[ -n "$TO_TAG" ]]; then
+              FROM_TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+            else
+              FROM_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=10" \
+                -q '[.[] | select(.draft == false and .prerelease == false)][1].tag_name')"
+            fi
+          fi
+          echo "FROM_TAG=$FROM_TAG" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
+          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" --pattern "VOOL-*-macos-${{ matrix.arch }}.dmg" --dir "$RUNNER_TEMP/old"
+          if [[ -n "$TO_TAG" ]]; then
+            gh release download "$TO_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/new" \
+              --pattern "VOOL-*-macos-${{ matrix.arch }}-update.zip" --pattern "BUILD_MANIFEST-macos-${{ matrix.arch }}.json"
+            build="$(ls "$RUNNER_TEMP"/new/BUILD_MANIFEST-*.json)"
+          else
+            curl -fsSL -o "$RUNNER_TEMP/new/manifest.json" "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/manifest.json"
+            build="$RUNNER_TEMP/new/manifest.json"
+          fi
+          python3 - "$build" "$FROM_TAG" >> "$GITHUB_ENV" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          version = str(data["version"]).removesuffix("-beta")
+          print(f"NEW_VERSION={version}")
+          print(f"NEW_COMMIT={data.get('build_commit') or data.get('exact_sha')}")
+          old = tuple(int(p) for p in sys.argv[2].removeprefix("v").split("-")[0].split("."))
+          # Releases before 0.7.5 check only after one Check press; later ones check on their own.
+          print(f"EXPECT_NOTICE={'press' if old < (0, 7, 5) else 'auto'}")
+          PY
+          cat "$GITHUB_ENV"
+      - name: Test feed with the exact new ZIP bytes (gate mode)
+        if: inputs.to_tag != ''
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" -q install cryptography
+          "$RUNNER_TEMP/venv/bin/python" ops/update_journey.py make-feed --out "$RUNNER_TEMP/feed" \
+            --version "$NEW_VERSION" --commit "$NEW_COMMIT" \
+            --artifact "${{ matrix.key }}=$(ls "$RUNNER_TEMP"/new/*-update.zip)"
+          echo "FEED=$RUNNER_TEMP/feed" >> "$GITHUB_ENV"
+          echo "PY=$RUNNER_TEMP/venv/bin/python" >> "$GITHUB_ENV"
+      - name: Journey on ${{ matrix.arch }} - notice, one Update press, restart on the new build, data kept
+        run: |
+          set -euo pipefail
+          "${PY:-/usr/bin/python3}" ops/update_journey.py --platform macos --old "$(ls "$RUNNER_TEMP"/old/*.dmg)" \
+            --feed "${FEED:-live}" --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" \
+            --expect-notice "$EXPECT_NOTICE" --scratch "$RUNNER_TEMP/journey"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: update-journey-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/journey/journey.json
+            ${{ runner.temp }}/journey/app.log
+            ~/Library/Application Support/VOOL/runtime/data/update_v2/transactions/
+            ~/Library/Application Support/VOOL/runtime/data/update_v2/workers/*/worker.log
+          if-no-files-found: warn

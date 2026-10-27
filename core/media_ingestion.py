@@ -48,6 +48,13 @@ def ingest_media_evidence(
 ) -> list[dict[str, Any]]:
     source_context = dict(source_context or {})
     fetch_text_references = bool(source_context.get("fetch_text_references")) and policy_engine.allow_web_fallback()
+    # A turn from another device (core.request_trust.turn_is_remote) may still have a public link it
+    # sent summarized, but only as a public page: never this computer, its local network or a
+    # redirect into either, and never through a browser on this computer (a browser follows
+    # redirects and loads sub-resources that cannot be pinned to checked public addresses).
+    from core.request_trust import turn_is_remote
+
+    public_only = turn_is_remote(source_context)
     # ONE budget for the whole turn, shared by every origin, and enforced HERE so a library caller
     # invoking this function directly is bounded without needing `VoolAgent` or the channel gateway
     # in front of it. The loop below normalizes, fetches and PERSISTS each surviving item, so an
@@ -66,7 +73,7 @@ def ingest_media_evidence(
 
     ingested: list[dict[str, Any]] = []
     for item in raw_items:
-        evidence = _normalize_item(item, fetch_text_reference=fetch_text_references)
+        evidence = _normalize_item(item, fetch_text_reference=fetch_text_references, public_only=public_only)
         if not evidence:
             continue
         record_media_evidence(
@@ -204,7 +211,7 @@ def _neutral_metadata(value: Any, *, depth: int = 0) -> Any:
     return _INVALID_METADATA
 
 
-def _normalize_item(item: Any, *, fetch_text_reference: bool = False) -> MediaEvidence | None:
+def _normalize_item(item: Any, *, fetch_text_reference: bool = False, public_only: bool = False) -> MediaEvidence | None:
     if not isinstance(item, Mapping):
         return None
     try:
@@ -238,7 +245,7 @@ def _normalize_item(item: Any, *, fetch_text_reference: bool = False) -> MediaEv
         if normalized_metadata is not _INVALID_METADATA:
             metadata[key] = normalized_metadata
     if fetch_text_reference and reference and media_kind == "text" and not text and not caption and not transcript and not blocked:
-        fetched = _fetch_reference_text(reference)
+        fetched = _fetch_public_reference_text(reference) if public_only else _fetch_reference_text(reference)
         text = fetched.get("text", text)
         metadata.update(
             {
@@ -285,6 +292,19 @@ def _domain_from_reference(reference: str) -> str:
 
 
 def _fetch_reference_text(reference: str) -> dict[str, Any]:
+    """The owner's own turn: the page through the one door, then the browser fallback if allowed."""
+
+    return _fetch_reference(reference, public_only=False)
+
+
+def _fetch_public_reference_text(reference: str) -> dict[str, Any]:
+    """A turn from another device: the page as a public page only (core.remote_turn_fetch, every
+    redirect hop checked), and never the browser on this computer."""
+
+    return _fetch_reference(reference, public_only=True)
+
+
+def _fetch_reference(reference: str, *, public_only: bool) -> dict[str, Any]:
     # R2b2b: the page transport goes through the ONE door, which refuses a
     # fetch with no active ledger. Media ingestion runs both inside turns
     # (the scope defers to the turn's ledger) and on its own background
@@ -307,7 +327,7 @@ def _fetch_reference_text(reference: str) -> dict[str, Any]:
 
     try:
         with named_background_effect_scope("media.ingest.fetch"):
-            fetched = http_fetch_text(reference)
+            fetched = http_fetch_text(reference, public_only=True) if public_only else http_fetch_text(reference)
     except Exception as exc:
         return {"status": f"fetch_error:{type(exc).__name__}", "text": "", "used_browser": False, "final_url": reference}
 
@@ -315,7 +335,7 @@ def _fetch_reference_text(reference: str) -> dict[str, Any]:
     text = str(fetched.get("text") or "")
     if status == "ok" and len(text.strip()) >= 600:
         return {"status": status, "text": text[:200000], "used_browser": False, "final_url": reference}
-    if not policy_engine.allow_browser_fallback():
+    if public_only or not policy_engine.allow_browser_fallback():
         return {"status": status, "text": text[:200000], "used_browser": False, "final_url": reference}
 
     rendered = browser_render(reference, engine=policy_engine.browser_engine())

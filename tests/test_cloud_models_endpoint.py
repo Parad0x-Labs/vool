@@ -51,7 +51,7 @@ def _rt() -> RuntimeServices:
 
 
 def _models(query=None):
-    res = dispatch_get(path="/api/cloud/models", query=query or {}, runtime=_rt(), model_name="vool")
+    res = dispatch_get(path="/api/cloud/models", query=query or {}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     return json.loads(res.body.decode("utf-8"))
 
 
