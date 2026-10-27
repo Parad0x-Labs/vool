@@ -627,6 +627,12 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
     if not skill.body.strip():
         problems.append("body is empty - there are no instructions to inject")
 
+    optional_tools = frozenset({
+        "x.usage", "x.search", "x.trending", "x.user", "x.user_posts", "x.post",
+        "x.action.propose", "x.action.status", "x.feedback.save", "x.feedback.list", "x.results",
+        "operator.save_note", "operator.find_notes", "operator.show_note",
+    })
+    unavailable_tools: list[str] = []
     unknown_tools: list[str] = []
     required_actions: dict[str, tuple[str, ...]] = {}
     if skill.allowed_tools:
@@ -648,7 +654,12 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
                 if str(contract.source or "").startswith("plugin:"):
                     contracts.setdefault(str(contract.intent), contract)
             known = set(contracts)
-            unknown_tools = [t for t in skill.allowed_tools if t not in known]
+            unknown_tools = [t for t in skill.allowed_tools if t not in known and t not in optional_tools]
+            unavailable_tools = [
+                t for t in skill.allowed_tools
+                if (t not in known and t in optional_tools)
+                or (t in known and not bool(getattr(contracts[t], "supported", False)))
+            ]
             for tool in skill.allowed_tools:
                 actions = tuple(getattr(contracts.get(tool), "permission_actions", ()) or ())
                 if actions:
@@ -689,6 +700,7 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
         "native_control_overlaps": boundaries["native_control_overlaps"],
         "allowed_tools": list(skill.allowed_tools),
         "unknown_tools": unknown_tools,
+        "unavailable_tools": unavailable_tools,
         "triggers": list(skill.triggers),
         "declared_permissions": list(skill.permissions),
         "preview_markdown": preview_markdown,
@@ -904,6 +916,7 @@ def install_skill(
             "sha256": hashlib.sha256(data).hexdigest(),
             "version": recorded["version"],
             "active": True,
+            "unavailable_tools": list(verdict.get("unavailable_tools") or []),
             "note": "the loader picks this up on the next turn; no restart is needed",
         }
 

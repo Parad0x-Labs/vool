@@ -12,9 +12,10 @@ from typing import Any
 X_READ_INTENTS = frozenset({
     "x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists", "x.usage",
     "x.spaces", "x.dms", "x.account", "x.api.catalog", "x.api.receipts", "x.api.request",
+    "x.feedback.list", "x.results", "x.replies.unanswered",
 })
 X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status", "x.bookmarks"})
-X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS
+X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS | {"x.feedback.save"}
 
 
 def _bool(value: Any) -> bool:
@@ -30,6 +31,8 @@ def _result(intent: str, outcome: Any, *, keys: tuple[str, ...]):
     payload = {key: data.get(key) for key in keys if key in data}
     if not outcome.ok and outcome.status != "no_results":
         payload["error"] = outcome.message
+        if outcome.status == "rate_limited":
+            payload["reset_at"] = data.get("reset_at")
     return RuntimeExecutionResult(
         handled=True,
         ok=bool(outcome.ok),
@@ -98,6 +101,44 @@ def _run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: d
             return _result(intent, outcome, keys=("action",))
         except (InvalidXRequest, x_capabilities.XCapabilityRefused) as exc:
             return _result(intent, x_api.XResult(False, getattr(exc, "status", "invalid_request"), str(exc)), keys=())
+    if intent in {"x.feedback.save", "x.feedback.list"}:
+        from core import x_feedback, x_voice_profile
+
+        if intent == "x.feedback.save":
+            from core.blackbox.coverage.recorder import workspace_root_from_context
+            from core.runtime_execution_tools import with_mutation_coverage
+            from core.runtime_paths import active_vool_home
+
+            def save_rating():
+                data = x_feedback.save_from_turn(args, source_context)
+                outcome = x_api.XResult(bool(data.get("ok")), str(data.get("status") or "executed"),
+                                       "Rating saved." if data.get("ok") else "No rating was saved.", data)
+                return _result(intent, outcome, keys=("id", "rating"))
+
+            result = with_mutation_coverage(
+                intent, args, source_context=source_context,
+                workspace_root=workspace_root_from_context(source_context) or active_vool_home(),
+                handler=save_rating,
+            )
+            return result
+        else:
+            scope = x_voice_profile.turn_scope(source_context)
+            data = x_feedback.inspect(scope)
+            data = {"ok": data["ok"], "status": data.get("status", "executed"), "summary": x_feedback.summary(scope) if data["ok"] else ""}
+        outcome = x_api.XResult(bool(data.get("ok")), str(data.get("status") or "executed"),
+                               "Rating saved." if data.get("status") == "saved" else
+                               ("Your ratings." if data.get("ok") else "No rating was saved."), data)
+        return _result(intent, outcome, keys=("id", "rating", "summary"))
+    if intent == "x.replies.unanswered":
+        from core.x_results import unanswered
+
+        return _result(intent, unanswered(str(args.get("post") or ""), next_token=str(args.get("next_token") or ""),
+                                         max_results=args.get("max_results", 25)),
+                       keys=("posts", "next_token", "coverage", "answer_status", "reset_at"))
+    if intent == "x.results":
+        from core.x_results import results
+
+        return _result(intent, results(args.get("posts")), keys=("posts", "comparisons", "deleted", "unavailable", "reset_at"))
     if intent == "x.search":
         if str(args.get("mode") or "").strip().lower() == "counts":
             outcome = x_api.count_posts(str(args.get("query") or ""), token=str(args.get("token") or ""),

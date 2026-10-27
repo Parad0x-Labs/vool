@@ -3606,10 +3606,14 @@ function widgetXActivity(host) {
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
-      const summary = xActionSummary(a);
+      const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
       card.appendChild(el('strong', null, summary));
-       if (a.kind === 'api') xApiProposalDetails(card, a);
-       else if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
+      if (a.kind === 'api') {
+        xApiProposalDetails(card, a);
+      } else {
+        card.appendChild(Object.assign(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'), { dir: 'ltr' }));
+        if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
+      }
       const t = a.target || {};
       const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
       if (t.text) card.appendChild(Object.assign(el('p', 'subtle x-action-target', reply
@@ -3637,6 +3641,7 @@ function widgetXActivity(host) {
       yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
       no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));
       row.appendChild(yes); row.appendChild(no); card.appendChild(row);
+      if (window.VoolXSocial) window.VoolXSocial.rating(card, a);
       host.appendChild(card);
     });
     host.appendChild(el('h4', 'row-label', T('xact.usage_title', 'X usage this month')));
@@ -3687,15 +3692,23 @@ function widgetXActivity(host) {
       recent.forEach(a => {
         const line = el('p', 'subtle');
         const word = X_STATE_WORDS[a.state];
-        line.textContent = xActionSummary(a) + ' · ' + (a.kind === 'api'
+        const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
+        const state = a.kind === 'api'
           ? xApiActionMessage({ ok: a.state === 'sent', j: { action: a } }, a)
-          : (a.message || (word ? T(word[0], word[1]) : a.state)));
+          : (window.VoolXSocial ? window.VoolXSocial.state(a) : (word ? T(word[0], word[1]) : a.message || a.state));
+        line.textContent = summary + ' · ' + state;
         const url = (a.result || {}).url;
-        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, xActionSummary(a))); }
+        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, summary)); }
         host.appendChild(line);
-        xApiReceiptDetails(host, a);
-        xApiCleanupControl(host, a, draw);
+        if (a.kind === 'api') {
+          xApiReceiptDetails(host, a);
+          xApiCleanupControl(host, a, draw);
+        } else if (a.state === 'sent' && window.VoolXSocial) window.VoolXSocial.rating(host, a);
       });
+    }
+    if (window.VoolXSocial) {
+      const scopes = new Set(['global', ...[...pending,...recent].map(a => a.feedback_scope || 'global')]);
+      await window.VoolXSocial.managers(host, scopes);
     }
     showNote();
   };
@@ -6847,6 +6860,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
     from core.x_settings_fragment import X_FEATURES_JS
+    from core.x_social_fragment import render_x_social_fragment
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
@@ -6854,7 +6868,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
+        + "\n" + render_x_social_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the

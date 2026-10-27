@@ -221,6 +221,19 @@ def supersede_closed_action(conn, row, *, now_iso):
     payload = json.loads(row['payload_json'] or '{}')
     if payload.get('event_type') != 'task_pending_approval':
         return False
+    if payload.get("x_action_id"):
+        from core import x_actions
+
+        try:
+            with x_actions._lock:
+                action = x_actions._current()["actions"].get(payload["x_action_id"], {})
+                if action.get("state") == "pending" and action.get("owner_local_chat") is True:
+                    return False
+        except (RuntimeError, OSError):
+            return False  # unknown stays visible; never claim approval was resolved
+        conn.execute('UPDATE notification_items SET superseded_at = ? WHERE notification_id = ?',
+                     (now_iso, row['notification_id']))
+        return True
     from core.mode_permission_policy import approval_is_pending
     token = payload.get('approval_id')
     if token and approval_is_pending(token):

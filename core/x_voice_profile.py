@@ -293,14 +293,25 @@ def voice_segment_for_turn(
     from core.tool_demand_signals import resolve_demand_signals
 
     demands = resolve_demand_signals(str(user_text or ""))
+    from core.x_feedback import summary as feedback_summary
+
+    feedback = feedback_summary(turn_scope(source_context), home=home) if any(
+        intent.startswith("editorial.") for intent in demands.explicit_intents
+    ) else ""
     if VOICE_INTENT not in demands.explicit_intents:
-        return ""
+        return feedback
 
     scope = turn_scope(source_context)
     state = _scope_state(_read_store(home), scope)
-    samples = [s for s in state["samples"] if str(s.get("text") or "").strip()]
+    from core.x_feedback import inspect as inspect_feedback
+
+    ratings = inspect_feedback(scope, home=home)
+    active_rating_ids = {row["id"] for row in ratings["entries"]} if ratings["ok"] and not ratings.get("paused") else set()
+    samples = [s for s in state["samples"] if str(s.get("text") or "").strip()
+               and (not str(s.get("source") or "").startswith("x-feedback:")
+                    or str(s["source"]).split(":", 1)[1] in active_rating_ids)]
     if not samples or state.get("paused"):
-        return ""
+        return feedback
 
     excerpts = []
     for sample in list(reversed(samples))[:MAX_EXCERPTS]:
@@ -325,7 +336,7 @@ def voice_segment_for_turn(
             return ""
     except Exception:
         return ""
-    return segment
+    return (segment + ("\n" + feedback if feedback else ""))[:MAX_PROMPT_CHARS]
 
 
 __all__ = [

@@ -3317,6 +3317,7 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
     actions that act as the user are only PROPOSED here and go out after the user approves them in
     the app (core.x_actions)."""
     from core import x_oauth2
+    from core.x_feedback import mutation_declaration
 
     bookmarks_connected = x_oauth2.connected()
     page = {"max_results": "int optional", "next_token": "string optional (from the previous page)"}
@@ -3356,6 +3357,14 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             side_effect_class="read_only", permission_actions=("read_files",), approval_requirement="none",
             timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
             error_contract="returns_structured_error_result"),
+        _x_read_contract(
+            "x.replies.unanswered", "Read comments on one own post with no answer observed in a complete recent own-reply search. Partial candidate pages are labelled. Draft and propose each reply separately; every reply needs its own app approval. No sends or automatic proposals.",
+            "x.replies.unanswered", "read unanswered comments on own posts", {"post": "string", **page},
+            {"posts": "list", "coverage": "string", "answer_status": "string", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.results", "Refresh observed views and interactions of up to ten own posts, storing IDs and numbers only. Missing metrics are not available. Comparisons require equal ages. No automatic retry.",
+            "x.results", "observe own-post results at comparable ages", {"posts": "list[string] optional, own post IDs"},
+            {"posts": "list", "comparisons": "list", "deleted": "list", "unavailable": "list", "reset_at": "integer|null"}, connected),
         _x_read_contract(
             "x.search",
             "Search X posts. Give `token` (a contract address, a $CASHTAG or a coin name) or a raw X `query` "
@@ -3447,6 +3456,21 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             "x.read_account", "read the connected X account's mutes, blocks, trends and X's usage count",
             {"kind": "string (muted|blocked|trends|x_usage)", **page},
             {"users": "list", "trends": "list", "x_usage": "object"}, connected),
+        RuntimeToolContract(
+            intent='x.feedback.save', description='Record an explicit 1-10 rating and verbatim user comment. A short reply such as 7 is accepted only when the stored previous assistant message in this owner-local chat asked to rate its draft; the server selects that draft, so omit text and action_id. Otherwise require explicit N/10 with action_id from this chat or text quoted in the user turn. Never infer a rating.', tool_surface="x", capability_id='x.feedback.save',
+            capability_claim='Record an explicit 1-10 rating and verbatim user comment. A short reply such as 7 is accepted only when the stored previous assistant message in this owner-local chat asked to rate its draft; the server selects that draft, so omit text and action_id. Otherwise require explicit N/10 with action_id from this chat or text quoted in the user turn. Never infer a rating.', supported=True, unsupported_reason="", input_schema={'rating': 'integer 1-10', 'comment': 'string optional, verbatim user comment', 'action_id': 'string optional', 'text': 'string optional, exact user-quoted draft', 'kind': 'string optional'}, output_schema={'id': 'string', 'rating': 'integer'},
+            side_effect_class='workspace_write', permission_actions=('create_files', 'modify_files'), approval_requirement="runtime_policy",
+            mutation=mutation_declaration(),
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
+            intent='x.feedback.list', description='Bounded best and worst ratings with comments for this project and global guidance.', tool_surface="x", capability_id='x.feedback.list',
+            capability_claim='Bounded best and worst ratings with comments for this project and global guidance.', supported=True, unsupported_reason="", input_schema={}, output_schema={'summary': 'string'},
+            side_effect_class='read_only', permission_actions=('read_files',), approval_requirement="none",
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result",
+        ),
         RuntimeToolContract(
             intent="x.usage",
             description="How much of the X API the user's keys used this month (requests, posts and accounts "

@@ -201,6 +201,11 @@ def public(action: dict[str, Any], *, for_settings: bool = False, include_result
                           include_result=include_result)
     if for_settings and action.get("state") == "pending":
         shown["hash"] = action.get("hash")
+    if for_settings:
+        from core.x_platform_policy import weighted_length
+
+        shown.update(account=action.get("account"), feedback_scope=action.get("feedback_scope", "global"),
+                     weighted_length=weighted_length(str(action.get("text") or "")))
     return shown
 
 
@@ -245,6 +250,7 @@ def _who(target: dict[str, Any]) -> str:
 def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None = None):
     """Freeze one action for the user to approve. Reads the target from X; sends nothing."""
     from core import x_api, x_capabilities
+    from core.x_voice_profile import turn_scope
 
     args = dict(arguments or {})
     kind = str(args.get("kind") or "").strip().lower()
@@ -356,6 +362,13 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             payload["list_id"] = lid
     except x_api.XReadError as exc:
         return _result(False, exc.status, exc.message + " Nothing was proposed.")
+    from core.turn_contract import PRINCIPAL_OWNER_LOCAL, TurnRequest
+
+    turn = (source_context or {}).get("turn_request")
+    owner_chat = bool(isinstance(turn, TurnRequest) and turn.trust_principal == PRINCIPAL_OWNER_LOCAL
+                      and (turn.surface == "desktop" or
+                           (turn.surface == "api" and (source_context or {}).get("_desktop_ui_request") is True))
+                      and (source_context or {}).get("turn_author", "owner") == "owner")
     now = time.time()
     action = {
         "id": "xa_" + secrets.token_hex(8), "kind": kind, "payload": payload,
@@ -363,6 +376,9 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         "nonce": (nonce := secrets.token_hex(16)), "hash": _digest(payload, nonce), "target": target, "state": "pending", "created_at": now, "updated_at": now,
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
         "session": _session(source_context),
+        "feedback_scope": turn_scope(source_context),
+        "owner_local_chat": owner_chat,
+        "request_id": turn.request_id if isinstance(turn, TurnRequest) else "",
     }
     action["summary"] = summary(action)
     from core.x_request_gateway import legacy_descriptor
@@ -388,6 +404,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
                            "Approve or decline some in Settings > API Keys > X first. Nothing was proposed.")
         state["actions"][action["id"]] = action
         _save(state)
+    _notify_chat_proposal(action, source_context or {})
     note = x_usage.action_refusal()
     message = (f"{action['summary']} is ready and waiting for your approval. Nothing has been sent to X. "
                "Approve or decline it in Settings > API Keys > X.")
@@ -687,7 +704,7 @@ def recent(limit: int = 10) -> list[dict[str, Any]]:
     state = _current()
     done = [a for a in state["actions"].values() if a.get("state") != "pending"]
     done.sort(key=lambda a: float(a.get("updated_at") or 0), reverse=True)
-    return [public(a) for a in done[:limit]]
+    return [public(a, for_settings=True) for a in done[:limit]]
 
 
 def _session(source_context: dict[str, Any] | None) -> str:
@@ -1085,6 +1102,11 @@ def approve(action_id: Any, *, expected_hash: Any = None, ui_locale: str = 'en')
                   "url": x_api.post_url(handle if x_api._HANDLE_RE.fullmatch(handle) else "i", str(data_part["id"]))}
     elif isinstance(data_part, dict):
         result = {k: v for k, v in data_part.items() if isinstance(v, (bool, int)) and k != "url"}
+    # A 2xx status without the expected receipt does not prove publication.
+    if action["kind"] in _TEXT_KINDS and not result.get("post_id"):
+        action = _finish(action, state="unknown", message="X did not return a post receipt. "
+                         "It may or may not have gone out: check X before trying again.")
+        return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
     done = "sent" if action["kind"] in _TEXT_KINDS or action["kind"] == "dm" else "done"
     message = "Sent to X." if done == "sent" else "Done on X."
     if action["kind"] in _SEALED_RESULT_KINDS:
@@ -1152,3 +1174,37 @@ def handle(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 
 
 __all__ = ["KINDS", "approve", "decline", "handle", "overview", "pending", "propose", "public", "recent", "status_for_model"]
+
+
+def chat_cards(session_id: str, request_id: str) -> dict[str, Any]:
+    """Only the guarded owner-local HTTP surface calls this; never a model tool."""
+    if not session_id or not request_id:
+        return {"ok": False, "cards": []}
+    try:
+        state = _current()
+        cards = [public(a, for_settings=True) for a in state["actions"].values()
+                 if a.get("owner_local_chat") is True and a.get("session") == session_id
+                 and a.get("request_id") == request_id and a.get("state") in {"pending", "sending", "sent", "unknown", "failed", "expired", "declined"}]
+        return {"ok": True, "cards": cards}
+    except RuntimeError:
+        return {"ok": False, "cards": []}
+
+
+def _notify_chat_proposal(action: dict[str, Any], context: dict[str, Any]) -> None:
+    if not action.get("owner_local_chat"):
+        return
+    try:
+        from core.i18n.catalog import catalog_for
+        from core.operator import notification_center
+
+        catalog = catalog_for(str(context.get("ui_locale") or "en"))
+        notification_center.record_item(
+            dedupe_key="x-action:" + action["id"], source_kind="background_run",
+            title=catalog.format("xact.waiting_title", count=1),
+            body=catalog.text("xact.section_title"), session_id=action["session"],
+            payload={"event_type": "task_pending_approval", "section": "needs", "status": "needs approval",
+                     "x_action_id": action["id"], "request_id": action["request_id"], "audio_eligible": False},
+        )
+    except Exception:
+        # Notification delivery cannot change a frozen proposal or its send decision.
+        return
