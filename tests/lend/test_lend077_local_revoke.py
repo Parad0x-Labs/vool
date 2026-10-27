@@ -201,3 +201,43 @@ def test_t6_running_host_job_keeps_running_and_records_revoked_once(homes):
     assert state['state'] == 'revoked' and state['receipt']['result_digest'] is None
     assert isinstance(state['receipt']['seconds'], (int, float)) and state['receipt']['seconds'] > 0
     assert not list((homes[1]/'lend').glob('worker-*'))
+
+
+def test_t7_local_discard_waits_for_the_drop_actor_lock(homes):
+    import fcntl
+    from threading import Event, Thread
+
+    from core.drop.service import discard_local_invite_tokens
+    from core.lend.terms import parse_link
+
+    _, a, b, relay = homes
+    for home in (a, b):
+        ok(homes, home, 'settings', door='drop', enabled=True, relay=str(relay), allow_digest=False)
+        ok(homes, home, 'settings', enabled=True)
+    guest = ok(homes, b, 'identity', door='drop')['fingerprint']
+    link = ok(homes, a, 'invite', fingerprint=guest, confirmed=True,
+              terms=ok(homes, a, 'status')['defaults'])['link']
+    token = parse_link(link, now=now_ms())['drop'].rsplit('/', 1)[1]
+    assert token in drop_invite_tokens(a)
+
+    done = Event()
+
+    def discard():
+        try:
+            discard_local_invite_tokens(a, (token,))
+        finally:
+            done.set()
+
+    holder = (a/'drop'/'actor.lock').open('a+')
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        worker = Thread(target=discard)
+        worker.start()
+        assert not done.wait(.5)
+        assert token in drop_invite_tokens(a)
+        fcntl.flock(holder, fcntl.LOCK_UN)
+        assert done.wait(5)
+        worker.join(5)
+    finally:
+        holder.close()
+    assert token not in drop_invite_tokens(a)
