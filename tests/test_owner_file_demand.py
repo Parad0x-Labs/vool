@@ -117,3 +117,16 @@ def test_a_picture_the_owner_has_is_a_file_not_an_image_prompt(text, brief):
     from core.creative_director import detect_creative_brief
 
     assert (detect_creative_brief(text) is not None) is brief
+
+
+@pytest.mark.parametrize(("text", "generates"), [
+    ("give me the photos from my downloads folder, 5 days old at most", False),
+    ("give me the picture day4 from downloads", False),
+    ("give me a photo of a cat", True),
+    ("give me a picture of my dog", True),
+    ("generate an image of my downloads folder as a cartoon", True),
+])
+def test_fetching_the_owners_pictures_is_not_making_one(text, generates):
+    from core.execution.constants import image_generation_intent
+
+    assert (image_generation_intent(text) is not None) is generates

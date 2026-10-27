@@ -3097,7 +3097,11 @@
     "phone.setup.advanced": "Advanced",
     "phone.setup.approvals": "Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.",
     "phone.ui.approve_on_computer": "Approve this on your computer. Your phone answers only what it asked for itself.",
-    "phone.ui.approvals_hint": "Actions your phone asked for can be allowed here. Payments are approved on your computer."
+    "phone.ui.approvals_hint": "Actions your phone asked for can be allowed here. Payments are approved on your computer.",
+    "phone.ui.from_your_computer": "From your computer",
+    "phone.ui.saving": "Saving…",
+    "phone.ui.saved_on_phone": "Saved on this phone.",
+    "phone.ui.save_file_failed": "Could not save this file. Try again."
   },
   "html_keys": [
     "bypass.modal_limits",

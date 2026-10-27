@@ -103,11 +103,16 @@ def closed_semantic_contract_covers_turn(
     # conditional ACK belongs to the file read, not to an independent planner task.
     if heartbeat_poll_fast_path(raw, source_context=source_context) is not None:
         return True
-    from core.execution.constants import machine_kind_listing_covers_turn
+    from core.execution.constants import machine_kind_listing_covers_turn, machine_send_to_phone_intent
 
     # "the pictures in my Downloads from the last 2 days" is one deterministic listing even when
     # the user spreads it over a comma or two; planned by the conductor its age was cut off.
     if machine_kind_listing_covers_turn(raw):
+        return True
+    # "send me the newest screenshot from my downloads to my phone" is one find-and-send.
+    from core.request_trust import REMOTE_DEVICE_KEY
+
+    if machine_send_to_phone_intent(raw, phone_turn=bool((source_context or {}).get(REMOTE_DEVICE_KEY))) is not None:
         return True
     semantic_preflight = _preflight_for_text(raw, preflight)
     literal = parse_raw_output_contract(raw)

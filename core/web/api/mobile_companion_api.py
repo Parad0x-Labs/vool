@@ -66,6 +66,7 @@ them, and none could (the action catalog cannot name them).
 from __future__ import annotations
 
 import base64
+import contextlib
 import copy
 import hashlib
 import hmac
@@ -149,6 +150,8 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "chats.cancel",
     "attachments.limits",
     "attachments.upload",
+    "files.list",
+    "files.fetch",
     "approvals.pending",
     "approvals.resolve",
     "status.snapshot",
@@ -1360,6 +1363,31 @@ def _action_attachments_upload(params: dict[str, Any], *, service: MobileCompani
     return 201, {"attachment": record}
 
 
+def _action_files_list(params: dict[str, Any], *, device: dict[str, Any], **_kw):
+    """Files the computer sent this phone ("send day4.jpg to my phone") that it can still save."""
+    from core.mobile_companion import outgoing_files
+
+    return 200, {"files": outgoing_files.listing(str(device.get("device_id") or ""))}
+
+
+def _action_files_fetch(params: dict[str, Any], *, service: MobileCompanionService, device: dict[str, Any], **_kw):
+    """One 768 KiB piece of a file sent to THIS phone; another phone's file is not found."""
+    from core.mobile_companion import outgoing_files
+
+    device_id = str(device.get("device_id") or "")
+    offset = _clamp_int(params.get("offset"), default=0, lo=0, hi=outgoing_files.MAX_BYTES)
+    try:
+        record, data = outgoing_files.chunk(device_id, str(params.get("file_id") or ""), offset)
+    except outgoing_files.SendRefused as refused:
+        return 404, {"error": refused.code, "message": refused.message}
+    if offset == 0:
+        service.store.append_receipt("file.fetched_by_phone", device_id=device_id,
+                                     detail={"file_id": record["id"], "size_bytes": record["size_bytes"]})
+    return 200, {"file": record, "offset": offset, "next_offset": offset + len(data),
+                 "content_b64": base64.b64encode(data).decode("ascii"),
+                 "done": not data or offset + len(data) >= int(record["size_bytes"])}
+
+
 _COMPUTER_ONLY_APPROVAL_ACTIONS = frozenset({
     "access_secrets", "financial_or_paid_actions", "change_settings", "change_security_settings",
     "change_provider_configuration", "unknown_side_effect",
@@ -1548,6 +1576,8 @@ _ACTION_HANDLERS: dict[str, Callable[..., tuple[int, dict[str, Any]]]] = {
     "chats.cancel": _action_chats_cancel,
     "attachments.limits": _action_attachments_limits,
     "attachments.upload": _action_attachments_upload,
+    "files.list": _action_files_list,
+    "files.fetch": _action_files_fetch,
     "approvals.pending": _action_approvals_pending,
     "approvals.resolve": _action_approvals_resolve,
     "proof.get": _action_proof_get,
@@ -1703,6 +1733,10 @@ def revoke_device(service: MobileCompanionService, device_id: str, *, reason: st
     )
     if rec is not None:
         store.append_receipt("device.revoked", device_id=device_id, detail={"reason": reason or "revoked by operator"})
+        with contextlib.suppress(Exception):
+            from core.mobile_companion.outgoing_files import forget_device
+
+            forget_device(device_id)
         if previous.get("status") == "active" and previous.get("sealed_protocol"):
             from core.mobile_companion.device_notices import record as record_notice
             record_notice(service, device_id, "device_revoked")

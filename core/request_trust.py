@@ -321,7 +321,8 @@ PHONE_PATH_TOOLS = {
     "workspace.search_text": "workspace", "workspace.write_file": "workspace",
     "workspace.replace_in_file": "workspace", "workspace.ensure_directory": "workspace",
     "machine.list_directory": "machine", "machine.read_file": "machine", "machine.ensure_directory": "machine",
-    "machine.write_file": "machine", "pdf.extract_text": "absolute", "pdf.ocr": "absolute",
+    "machine.write_file": "machine", "machine.send_to_phone": "machine", "pdf.extract_text": "absolute",
+    "pdf.ocr": "absolute",
 }
 PHONE_FOLDER_TOOLS = frozenset({*PHONE_PATH_TOOLS, "file.deliver"})
 PHONE_FOLDERS_ONLY = "phone_folders_only"

@@ -25,6 +25,7 @@ from core.execution.constants import (
     machine_file_search_intent,
     machine_folder_size_intent,
     machine_kind_listing_intent,
+    machine_send_to_phone_intent,
     machine_place_file_read_path,
     machine_folder_audit_intent,
     machine_folder_search_intent,
@@ -1580,6 +1581,54 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
     )
 
 
+def _phone_turn(source_context: dict | None) -> bool:
+    from core.request_trust import REMOTE_DEVICE_KEY, turn_is_remote
+
+    return bool(isinstance(source_context, dict) and source_context.get(REMOTE_DEVICE_KEY) and turn_is_remote(source_context))
+
+
+def send_file_to_phone(request: Any, *, source_context: dict | None) -> Any:
+    """Find the one file the user named (or the newest of a kind) and send it to their phone.
+
+    Several matches are listed for the user to pick; nothing is sent then. ``None`` when no tool
+    ran, so the turn continues.
+    """
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    context = dict(source_context or {})
+    if request.path:
+        return execute_authorized_runtime_tool("machine.send_to_phone", {"path": request.path}, source_context=context)
+    if request.listing is not None:
+        listed = list_files_of_kind(request.listing._replace(limit=1), source_context=source_context)
+        if listed is None or not getattr(listed, "ok", False):
+            return listed
+        entries = list((getattr(listed, "details", None) or {}).get("entries") or [])
+        if not entries:
+            return listed  # "No PDFs in ~/Downloads." is the answer
+        return execute_authorized_runtime_tool("machine.send_to_phone", {"path": entries[0]["path"]}, source_context=context)
+    found = find_named_files(request.search, source_context=source_context)
+    if found is None or not getattr(found, "ok", False):
+        return found
+    matches = list((getattr(found, "details", None) or {}).get("matches") or [])
+    names = {name.lower() for name in request.search[1]}
+    exact = [path for path in matches
+             if os.path.basename(path).lower() in names or os.path.splitext(os.path.basename(path))[0].lower() in names]
+    picked = exact if len(exact) == 1 else matches if len(matches) == 1 else []
+    if picked:
+        return execute_authorized_runtime_tool("machine.send_to_phone", {"path": picked[0]}, source_context=context)
+    if not matches:
+        return found  # the plain miss says what was searched
+    home = os.path.expanduser("~")
+    shown = [("~" + path[len(home):]) if path.startswith(home + os.sep) else path for path in (exact or matches)[:10]]
+    lines = [f"I found {len(exact or matches)} files that could be it, so I sent nothing yet. Which one should go to your phone?"]
+    lines.extend(f"- {path}" for path in shown)
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="needs_choice", response_text="\n".join(lines),
+        details={**(getattr(found, "details", None) or {}), "matches": matches},
+    )
+
+
 _DOCUMENT_SUFFIXES = (".pdf", ".doc", ".docx", ".pages", ".txt", ".rtf", ".md", ".odt", ".xls", ".xlsx", ".numbers",
                       ".csv", ".ppt", ".pptx", ".key")
 
@@ -2057,6 +2106,20 @@ def maybe_handle_direct_machine_read_request(
                 source_context=source_context,
                 intent="machine.list_processes",
                 execution=execution,
+                reason="machine_read_fast_path",
+            )
+    # "send day4.jpg to my phone": find that one file and hand it to the paired phone.
+    to_phone = machine_send_to_phone_intent(user_input, phone_turn=_phone_turn(source_context))
+    if to_phone is not None:
+        sent = send_file_to_phone(to_phone, source_context=source_context)
+        if sent is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.send_to_phone",
+                execution=sent,
                 reason="machine_read_fast_path",
             )
     # "the pictures in my Downloads from the last two days" is one KIND of file in one folder.

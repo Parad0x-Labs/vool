@@ -1279,7 +1279,7 @@ def machine_kind_listing_intent(text: str) -> KindListing | None:
 _LISTING_CLAUSE_SPLIT_RE = re.compile(r"[.!?;]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+and\s+(?:then\s+)?", re.IGNORECASE)
 _AGE_FILLER_RE = re.compile(
     r"\b(?:please|pls|only|just|old|ones?|that\s+are|which\s+are|are|newer\s+than|not\s+older\s+than|"
-    r"no\s+older\s+than|recent|from|the|of)\b",
+    r"no\s+older\s+than|recent|from|the|of|at\s+most|at\s+the\s+most|max(?:imum)?|tops|or\s+(?:less|newer|younger))\b",
     re.IGNORECASE,
 )
 _RESULTS_CLAUSE_RE = re.compile(
@@ -1322,6 +1322,58 @@ def machine_kind_listing_covers_turn(text: str) -> bool:
                 continue
         return False
     return listing_seen
+
+
+class SendToPhone(NamedTuple):
+    """A file to send to the owner's phone: a direct path, a named-file search, or the newest of a kind."""
+
+    path: str = ""
+    search: tuple[str, tuple[str, ...], str] | None = None
+    listing: KindListing | None = None
+
+
+_SEND_LEAD_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
+    r"(?P<verb>send|get|move|copy|put|transfer|share|forward|bring|text|airdrop)\s+(?P<me>me\s+)?",
+    re.I,
+)
+_TO_PHONE_RE = re.compile(
+    r"[\s,]*\b(?:to|onto|on|over\s+to|into)\s+(?:my|the|this)\s+(?:phone|iphone|android|mobile|cell(?:\s*phone)?|smartphone)\b",
+    re.I,
+)
+_SEND_TAIL_RE = re.compile(r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now|asap)?[\s,.!?]*$", re.I)
+_SEND_PATH_RE = re.compile(r"^(?:~|/)[^\s]*$")
+
+
+def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> SendToPhone | None:
+    """What to send when the WHOLE message asks for a file on this computer to go to the owner's phone.
+
+    "send day4.jpg to my phone", "get the picture named day4 in downloads onto my phone", "send me
+    the newest screenshot from my downloads to my phone"; on a turn that came from the phone itself,
+    "send me day4.jpg" too. Anything more ("... and tell bob") is not this.
+    """
+    raw = " ".join(str(text or "").split())
+    lead = _SEND_LEAD_RE.match(raw)
+    if not lead:
+        return None
+    rest = raw[lead.end():]
+    to_phone = _TO_PHONE_RE.search(rest)
+    if to_phone:
+        rest = rest[: to_phone.start()] + " " + rest[to_phone.end():]
+    elif not (phone_turn and lead.group("me") and lead.group("verb").lower() in {"send", "get", "bring", "forward"}):
+        return None
+    rest = _SEND_TAIL_RE.sub("", rest).strip(" ,")
+    if not rest or re.search(r"\b(?:and|then|also)\b", rest, re.I):
+        return None
+    if _SEND_PATH_RE.match(rest):
+        return SendToPhone(path=rest)
+    search = machine_file_search_intent("find " + rest)
+    if search is not None:
+        return SendToPhone(search=search)
+    listing = machine_kind_listing_intent("show me " + rest)
+    if listing is not None and listing.limit == 1:
+        return SendToPhone(listing=listing)
+    return None
 
 
 _FOLDER_SIZE_RE = re.compile(
@@ -2473,6 +2525,12 @@ _IMAGE_REQUEST_VERB_RE = re.compile(
 )
 
 
+_IMAGE_FETCH_VERB_RE = re.compile(
+    r"^\s*(?:(?:please|pls|can\s+you|could\s+you|would\s+you)[\s,]+)*(?:give|get|send|show|find|fetch|grab|bring|pull\s+up)\b",
+    re.IGNORECASE,
+)
+
+
 def image_generation_intent(text: str) -> str | None:
     """Return a requested image prompt; mentions of creating images are information."""
     from core.instructional_request import requested_action_clauses
@@ -2483,6 +2541,14 @@ def image_generation_intent(text: str) -> str | None:
         # description inside the depicted subject does not cancel the request.
         if _IMAGE_GEN_ADVISORY_RE.match(raw) or _IMAGE_GEN_FIGURATIVE_RE.match(raw):
             continue
+        # "give me the photos from my downloads folder" asks for pictures the owner HAS: measured
+        # 2026-10-27, it asked to generate an image of "from my downloads folder". A retrieval verb
+        # on the owner's own files is a file ask; "draw / make / give me a picture of my dog" is not.
+        if _IMAGE_FETCH_VERB_RE.match(raw):
+            from core.tool_demand_signals import owner_file_demand
+
+            if owner_file_demand(raw):
+                continue
         prompt = ""
         if _IMAGE_GEN_ACTION_RE.search(raw):
             match = _IMAGE_GEN_PROMPT_RE.search(raw)

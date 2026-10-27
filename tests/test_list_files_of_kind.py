@@ -52,6 +52,7 @@ def test_not_a_kind_listing(text):
     ("show me the pictures in my downloads", True),
     ("find pictures in downloads from yesterday please", True),
     ("list the pdfs on my desktop and show me the list", True),
+    ("give me the photos from my downloads folder, 5 days old at most", True),
     ("show me the pictures in my downloads and what's the weather in Paris", False),
     ("list the videos on my desktop. also what is 2+2", False),
     ("show me the photos in downloads, then tell me a joke", False),

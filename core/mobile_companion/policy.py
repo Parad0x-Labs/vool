@@ -38,6 +38,9 @@ ACTIONS = {
     "proof.get": "history",
     "attachments.limits": "attachments",
     "attachments.upload": "attachments",
+    # Files the computer sent this phone: the send itself was the owner's (or an allowed turn's).
+    "files.list": "chat",
+    "files.fetch": "chat",
     "approvals.pending": "history",
     # A phone answers only the approvals its own turns raised, for tools it was allowed to use.
     "approvals.resolve": "computer_tools",

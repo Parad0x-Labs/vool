@@ -107,6 +107,17 @@ export interface SendResult {
   model: string | null;
 }
 
+/** A file the computer sent to this phone ("send day4.jpg to my phone"); kept 24 hours. */
+export interface SentFile {
+  id: string;
+  name: string;
+  media_type: string;
+  size_bytes: number;
+  sha256: string;
+  sent_at: number;
+  expires_at: number;
+}
+
 export interface AttachmentRecord {
   id: string;
   session_id: string;

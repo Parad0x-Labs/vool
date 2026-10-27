@@ -3419,6 +3419,8 @@ def _dispatch_runtime_tool(
             return _covered(lambda: _machine_move_path(arguments, workspace_root=workspace_root))
         if intent == "machine.read_file":
             return _read_machine_file(arguments)
+        if intent == "machine.send_to_phone":
+            return _machine_send_to_phone(arguments, source_context=source_context)
         if intent == "machine.ensure_directory":
             return _covered(lambda: _ensure_machine_directory(arguments))
         if intent == "machine.write_file":
@@ -5468,6 +5470,64 @@ def _list_machine_directory(
                 truncated=bool(dropped),
                 directories_only=directories_only,
                 entries=entries,
+            ),
+        },
+    )
+
+
+def _machine_send_to_phone(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Copy one file from a safe local folder for the owner's paired phone to save.
+
+    A phone turn sends to the phone that asked (its folder fence already checked the path); the
+    owner's own session sends to the one paired phone. Nothing leaves this computer until that
+    phone fetches it (core.mobile_companion.outgoing_files).
+    """
+    from core.mobile_companion import outgoing_files
+    from core.request_trust import remote_turn_device, turn_is_remote
+
+    def refused(status: str, text: str) -> RuntimeExecutionResult:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status=status, response_text=text,
+            details={"observation": _tool_observation(intent="machine.send_to_phone", tool_surface="machine", ok=False, status=status)},
+        )
+
+    if not policy_engine.get("filesystem.allow_read_workspace", True):
+        return refused("disabled", "Safe local file reads are disabled by policy.")
+    if turn_is_remote(source_context):
+        device = remote_turn_device(source_context)
+        if device is None:
+            return refused("no_phone", "Files can only be sent to a paired VOOL phone app.")
+    else:
+        device = outgoing_files.paired_phone()
+        if device is None:
+            return refused("no_phone", "No phone is paired. Pair the VOOL app on your phone in Settings, then ask again."
+                           if not outgoing_files.paired_phones() else
+                           "More than one phone is paired. Ask from the phone that should get it.")
+    try:
+        target = _resolve_machine_directory(arguments.get("path"))
+    except ValueError:
+        requested = " ".join(str(arguments.get("path") or "").split())[:200] or "that file"
+        return refused("not_allowed", f"I can't send `{requested}`: it is outside the folders I may read.")
+    if not target.is_file():
+        return refused("not_found", f"There is no file at `{_home_relative_label(target)}`.")
+    try:
+        sent = outgoing_files.send(str(device.get("device_id") or ""), target,
+                                   session_id=str((source_context or {}).get("session_id") or ""))
+    except outgoing_files.SendRefused as refusal:
+        return refused(refusal.code, refusal.message)
+    size = int(sent["size_bytes"])
+    shown = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{max(1, size // 1024)} KB"
+    phone = str(device.get("label") or device.get("name") or "your phone")
+    return RuntimeExecutionResult(
+        handled=True,
+        ok=True,
+        status="executed",
+        response_text=f"Sent {sent['name']} ({shown}) to {phone}. Open Files from your computer in the VOOL app to save it.",
+        details={
+            "sent": sent,
+            "observation": _tool_observation(
+                intent="machine.send_to_phone", tool_surface="machine", ok=True, status="executed",
+                path=_home_relative_label(target), name=sent["name"], size_bytes=size, sha256=sent["sha256"],
             ),
         },
     )

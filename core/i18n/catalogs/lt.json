@@ -3097,7 +3097,11 @@
     "phone.setup.advanced": "Išplėstinės",
     "phone.setup.approvals": "Mokėjimai patvirtinami jūsų kompiuteryje. Veiksmus, kurių paprašė telefonas, galima leisti telefone.",
     "phone.ui.approve_on_computer": "Patvirtinkite tai kompiuteryje. Telefonas atsako tik į tai, ko paprašė pats.",
-    "phone.ui.approvals_hint": "Veiksmus, kurių paprašė telefonas, galite leisti čia. Mokėjimai patvirtinami jūsų kompiuteryje."
+    "phone.ui.approvals_hint": "Veiksmus, kurių paprašė telefonas, galite leisti čia. Mokėjimai patvirtinami jūsų kompiuteryje.",
+    "phone.ui.from_your_computer": "Iš jūsų kompiuterio",
+    "phone.ui.saving": "Išsaugoma…",
+    "phone.ui.saved_on_phone": "Išsaugota šiame telefone.",
+    "phone.ui.save_file_failed": "Nepavyko išsaugoti šio failo. Bandykite dar kartą."
   },
   "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
   "generator": {

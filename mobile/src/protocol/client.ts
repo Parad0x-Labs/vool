@@ -14,7 +14,7 @@ import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
-  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences,
+  PollResult, SendResult, StatusSnapshot, TurnProof, AttachmentRecord, NotificationPreferences, SentFile,
 } from "./models.ts";
 
 export interface DeviceCredentials {
@@ -172,6 +172,24 @@ export class MobileCompanionClient {
       ability: opts.ability,
     });
     return r.attachment;
+  }
+
+  async listSentFiles(): Promise<SentFile[]> {
+    const r = await this.request<{ files: SentFile[] }>("files.list");
+    return r.files ?? [];
+  }
+
+  /** The whole file the computer sent, as base64: pieces are a multiple of 3 bytes, so they join as text. */
+  async fetchSentFile(fileId: string): Promise<{ file: SentFile; base64: string }> {
+    let offset = 0;
+    const parts: string[] = [];
+    for (;;) {
+      const r = await this.request<{ file: SentFile; content_b64: string; next_offset: number; done: boolean }>(
+        "files.fetch", {file_id: fileId, offset});
+      parts.push(r.content_b64);
+      if (r.done || r.next_offset <= offset) return { file: r.file, base64: parts.join("") };
+      offset = r.next_offset;
+    }
   }
 
   checkAbility(ability: "camera" | "photos" | "location" | "microphone"): Promise<{allowed:boolean}> {

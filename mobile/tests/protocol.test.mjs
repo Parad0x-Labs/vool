@@ -226,3 +226,29 @@ test("the QR and the connection address parse on React Native's stub URL", () =>
     globalThis.URL = RealURL;
   }
 });
+
+test("a file the computer sent arrives whole from its pieces", async () => {
+  const { MobileCompanionClient } = await import("../src/protocol/client.ts");
+  const bytes = Uint8Array.from({ length: 2000 }, (_, i) => (i * 7) % 256);
+  const piece = 768; // the desktop's pieces are a multiple of 3 bytes
+  const asked = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    asked.push(body.params.offset);
+    const start = body.params.offset;
+    const data = bytes.slice(start, start + piece);
+    const result = {
+      file: { id: "out_" + "a".repeat(32), name: "day4.jpg", media_type: "image/jpeg", size_bytes: bytes.length },
+      offset: start, next_offset: start + data.length, done: start + data.length >= bytes.length,
+      content_b64: Buffer.from(data).toString("base64"),
+    };
+    return { status: 200, json: async () => ({ ok: true, result }) };
+  };
+  const client = new MobileCompanionClient({
+    deviceId: "dev", grantId: "g", grantSecret: "s", baseUrl: "http://127.0.0.1:1", desktopFingerprint: "f",
+    deviceSeedHex: "11".repeat(32),
+  }, { fetchImpl });
+  const got = await client.fetchSentFile("out_" + "a".repeat(32));
+  assert.deepEqual(asked, [0, 768, 1536]);
+  assert.deepEqual(new Uint8Array(Buffer.from(got.base64, "base64")), bytes);
+});

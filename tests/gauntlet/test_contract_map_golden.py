@@ -82,6 +82,11 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'machine.list_processes': ('read_only', 'none'),
     'machine.move_path': ('workspace_write', 'explicit_user_opt_in'),
     'machine.read_file': ('read_only', 'none'),
+    # machine.send_to_phone (phone lane, 2026-10-27): reads one file from the same safe roots as
+    # machine.read_file and copies it into the runtime's OWN data directory for the owner's paired
+    # phone to pull over its sealed link -- in-app state (like file.deliver), permission-wise a read,
+    # so no wider than machine.read_file, whose answer already reaches that phone.
+    'machine.send_to_phone': ('creative_state', 'none'),
     'machine.write_file': ('workspace_write', 'runtime_policy'),
     'marketplace.purchase_knowledge': ('credit_spend', 'explicit_user_opt_in'),
     'marketplace.search_listings': ('read_only', 'none'),
@@ -389,7 +394,8 @@ def test_contract_map_and_list_agree():
     # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 204
+    # 204 -> 205: machine.send_to_phone, a file from the safe folders to the owner's paired phone.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 205
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

@@ -667,6 +667,7 @@ _LEGACY_INTENT_TO_CAPABILITY: dict[str, str] = {
     "machine.list_processes": "filesystem.read",
     "machine.host_state": "filesystem.read",
     "machine.read_file": "filesystem.read",
+    "machine.send_to_phone": "filesystem.read",
     "machine.ensure_directory": "filesystem.write",
     "machine.write_file": "filesystem.write",
     "machine.move_path": "filesystem.write",

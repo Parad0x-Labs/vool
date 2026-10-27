@@ -2,6 +2,7 @@ import {errorText, tr} from "../i18n/index.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import PhoneAbilities from "./PhoneAbilities.tsx";
+import FromComputer from "./FromComputer.tsx";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
@@ -27,6 +28,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   const [notice, setNotice] = useState("");
   const [progress, setProgress] = useState("");
   const [proof, setProof] = useState("");
+  const [filesKey, setFilesKey] = useState(0);
   const hadHistory = useRef(false);
   const activeRef = useRef(activeChat);
   activeRef.current = activeChat;
@@ -73,6 +75,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
           .then(value => setProof(value.state)).catch(() => setProof(""));
       }
       void refreshRef.current();
+      setFilesKey(key => key + 1);
     }), [client, outbox]);
 
   useEffect(() => {
@@ -147,6 +150,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
           value={search} onChangeText={setSearch} />
         {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
         {queued.length ? <Text style={styles.pendingAttachments}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
+        <FromComputer client={client} refreshKey={filesKey} />
         <Pressable
           style={styles.newChat}
           onPress={() => {
@@ -176,6 +180,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
         <Text style={styles.back}>{tr("Chats")}</Text>
       </Pressable>
       {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
+      <FromComputer client={client} refreshKey={filesKey} />
       <ScrollView style={styles.messages}>
         {messages.map((m, i) => (
           <View key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}>

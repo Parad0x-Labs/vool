@@ -1190,6 +1190,8 @@ def owner_file_intents(text: str) -> tuple[str, ...]:
     seats, so "which apps are installed" had no inspect_specs.
     """
     cleaned = " ".join(str(text or "").split())
+    if re.search(r"\b(?:phone|iphone|android|mobile)\b", cleaned, re.I):
+        return ("machine.find_file", "machine.send_to_phone", "machine.list_directory")
     if re.search(r"\b(?:free\s+up|space|big(?:gest)?|large(?:st)?|huge|heavy|taking\s+up)\b", cleaned, re.I):
         return ("machine.find_largest", "machine.disk_usage", "machine.find_file")
     if re.search(r"\b(?:apps?|applications?|programs?|installed|name|version|mac\s*os|specs?|model|ram|chip|processor|cpu|serial)\b", cleaned, re.I):
