@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 from collections import OrderedDict
 from pathlib import Path
@@ -21,6 +22,7 @@ from core.execution.constants import (
     machine_diagnostics_intent,
     machine_disk_scope,
     machine_display_intent,
+    machine_file_search_intent,
     machine_folder_audit_intent,
     machine_folder_search_intent,
     machine_host_state_intent,
@@ -1491,6 +1493,82 @@ def _render_machine_specs_correction_response(execution: Any) -> str:
     return "\n".join(lines)
 
 
+_FILE_KIND_SUFFIXES = {
+    "image": (".png", ".jpg", ".jpeg", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp"),
+    "pdf": (".pdf",),
+    "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"),
+    "audio": (".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff"),
+}
+
+
+def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context: dict | None) -> Any:
+    """Run ``machine.find_file`` for each name the user gave, then keep the kind and place they named.
+
+    Returns one result whose text lists what was found, or the plain miss; ``None`` when the tool
+    did not run (refused or unavailable), so the turn continues as before.
+    """
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    kind, names, place = search
+    names = tuple(names)[:3]  # each name is one bounded walk
+    matches: list[str] = []
+    timed_out = False
+    truncated = False
+    first_details: dict[str, Any] = {}
+    for name in names:
+        execution = execute_authorized_runtime_tool("machine.find_file", {"name": name}, source_context=dict(source_context or {}))
+        if execution is None or not getattr(execution, "ok", False):
+            if matches:
+                break
+            return execution  # a refusal is the answer (it says why); None lets the turn continue
+        details = getattr(execution, "details", None) or {}
+        first_details = first_details or dict(details)
+        observation = details.get("observation") or {}
+        timed_out = timed_out or bool(observation.get("timed_out"))
+        truncated = truncated or bool(observation.get("truncated"))
+        matches.extend(path for path in details.get("matches") or [] if path not in matches)
+    suffixes = _FILE_KIND_SUFFIXES.get(kind)
+    if suffixes:
+        matches = [path for path in matches if path.lower().endswith(suffixes)]
+    where = f"~/{place}" if place else "Desktop, Downloads and Documents"
+    elsewhere = False
+    if place:
+        home = os.path.expanduser("~")
+        root = os.path.realpath(os.path.join(home, place))
+        in_place = [path for path in matches if os.path.realpath(path).startswith(root + os.sep)]
+        elsewhere = bool(matches) and not in_place
+        matches = in_place or matches
+    asked = " or ".join(f"'{name}'" for name in names)
+    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(kind, "file")
+    if matches:
+        plural = "s" if len(matches) != 1 else ""
+        if elsewhere and truncated:
+            head = f"None of the files I checked for {asked} is a {noun} in {where}. Other {noun}s that match:"
+        elif elsewhere:
+            head = f"Nothing in {where}, but I found {len(matches)} {noun}{plural} matching {asked} elsewhere:"
+        else:
+            head = f"Found {len(matches)} {noun}{plural} matching {asked}:"
+        lines = [head]
+        lines.extend(f"- {path}" for path in matches[:20])
+    elif truncated:
+        lines = [f"So many files match {asked} that the search stopped before finding a {noun} in {where}; "
+                 "give a longer part of the name."]
+    else:
+        lines = [f"No {noun} matching {asked} found in {where}."]
+    if truncated and matches:
+        lines.append("More files match than were checked; give a longer part of the name to narrow it.")
+    if timed_out:
+        lines.append("The search hit its time limit, so deeper folders were not fully scanned.")
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text="\n".join(lines),
+        details={**first_details, "matches": matches,
+                 "observation": {**(first_details.get("observation") or {}), "intent": "machine.find_file",
+                                 "match_count": len(matches), "query": list(names), "kind": kind, "place": place,
+                                 "timed_out": timed_out, "truncated": truncated}},
+    )
+
+
 def _looks_like_machine_download_title_followup(
     user_input: str,
     *,
@@ -1757,6 +1835,21 @@ def maybe_handle_direct_machine_read_request(
                 confidence=0.96,
                 source_context=source_context,
                 reason="folder_audit_fast_path",
+            )
+    # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
+    # folder search below can read "Downloads folder" as the thing being looked for.
+    file_search = None if email_owns_folder_reference else machine_file_search_intent(user_input)
+    if file_search is not None:
+        found = find_named_files(file_search, source_context=source_context)
+        if found is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_file",
+                execution=found,
+                reason="machine_read_fast_path",
             )
     # Local folder search ("find my dropbox folder") is the same shape: a read-only
     # deterministic machine tool whose text is the answer, rendered directly.

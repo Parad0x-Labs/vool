@@ -1215,6 +1215,12 @@ _FIND_FOLDER_TIME_BUDGET_S = 10.0
 _FIND_FILE_MAX_MATCHES = 25
 
 
+def _squeezed_word_match(squeezed_needle: str, lowered_name: str) -> bool:
+    """``"day4"`` matches ``Day_4.png`` / ``day 4.jpg`` from a word start, never inside ``holiday4``."""
+    words = [word for word in re.split(r"[^0-9a-z]+", lowered_name) if word]
+    return any("".join(words[index:]).startswith(squeezed_needle) for index in range(len(words)))
+
+
 def _machine_find_file(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
@@ -1246,6 +1252,8 @@ def _machine_find_file(
             details={},
         )
     needle = name.lower()
+    # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
+    squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
     roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
@@ -1297,7 +1305,9 @@ def _machine_find_file(
                             scanned_dirs += 1
                             queue.append((entry.path, depth + 1))
                         continue
-                    if needle in lowered_name:
+                    if needle in lowered_name or (
+                        len(squeezed_needle) >= 2 and _squeezed_word_match(squeezed_needle, lowered_name)
+                    ):
                         if not _first_visit(entry.path):
                             continue
                         matches.append(entry.path)
