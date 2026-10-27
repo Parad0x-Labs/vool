@@ -3619,6 +3619,16 @@ def _planned_batch_label(planned_actions: tuple[dict[str, str], ...]) -> str:
     return "planned workspace changes" if setup else "planned changes"
 
 
+def _raising_device(source_context: dict[str, Any] | None) -> str:
+    from core.request_trust import OWNER_LOCAL_KEY, REMOTE_DEVICE_KEY
+
+    context = source_context if isinstance(source_context, dict) else {}
+    device_id = context.get(REMOTE_DEVICE_KEY)
+    if context.get(OWNER_LOCAL_KEY) is True or not isinstance(device_id, str):
+        return ""
+    return device_id
+
+
 def _new_approval_request(
     *,
     session_id: str,
@@ -3706,6 +3716,9 @@ def _new_approval_request(
             "batch_fingerprints": tuple(batch_fingerprints),
             "remaining_batch": (),
             "status": "pending",
+            # The paired phone whose turn raised this, stamped by the server (REMOTE_DEVICE_KEY):
+            # only that phone may answer it from the phone (core.web.api.mobile_companion_api).
+            "remote_device": _raising_device(source_context),
         }
         # Mirror the pending prompt durably so a restart cannot silently erase it.
         _persist_pending_approvals_locked()

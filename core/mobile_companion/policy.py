@@ -39,7 +39,8 @@ ACTIONS = {
     "attachments.limits": "attachments",
     "attachments.upload": "attachments",
     "approvals.pending": "history",
-    "approvals.resolve": "tool_approval",
+    # A phone answers only the approvals its own turns raised, for tools it was allowed to use.
+    "approvals.resolve": "computer_tools",
     "wallet.status": "wallet_view",
     "wallet.balances": "wallet_view",
     "wallet.receipts": "wallet_view",
@@ -93,7 +94,7 @@ def refusal(device, action):
         right = ACTIONS.get(action)
         if right and not enabled(device, right):
             return "phone_right_off_or_expired"
-        if action == "wallet.approve" or (action == "approvals.resolve"):
+        if action == "wallet.approve":
             return "approval_key_unproven_use_computer"
     return ""
 
@@ -212,6 +213,11 @@ def update(service, body):
         expiries.setdefault("payment_propose", time.time() + 30 * 86400)
         if changes.get("payment_propose") and "payment_propose" not in given:
             expiries["payment_propose"] = time.time() + 30 * 86400
+    extra = {}
+    if "file_scope" in body:
+        extra["file_scope"] = _file_scope(body["file_scope"])
+    if "cloud_monthly_usd" in body:
+        extra["cloud_monthly_usd"] = _cloud_monthly(body["cloud_monthly_usd"])
     previous_rules = current.get("rules") or {}
     for name in _RENEWED_ON_ENABLE:
         # Switched on now, or on with no live expiry: 30 days. A save that only re-sends an
@@ -226,13 +232,85 @@ def update(service, body):
         right_expiry=expiries,
         payment_cap=cap,
         permission_revision=int(current.get("permission_revision") or 0) + 1,
+        **extra,
     )
     if not current.get("notification_state"):
         service.store.edit_notifications(device_id, lambda _state, _device: None)
     service.store.append_receipt(
-        "device.rules_changed", device_id=device_id, detail={"rules": rules, "right_expiry": expiries}
+        "device.rules_changed", device_id=device_id, detail={"rules": rules, "right_expiry": expiries, **extra}
     )
-    return {"rules": rules, "right_expiry": expiries, "payment_cap": cap}
+    return {"rules": rules, "right_expiry": expiries, "payment_cap": cap, **extra}
+
+
+def system_area(path):
+    """Whether ``path`` is outside the owner's home folder or inside its Library (keychains, mail,
+    browser data, app settings). A phone never reaches those, whatever it was allowed."""
+    from pathlib import Path
+
+    try:
+        home = Path.home().resolve()
+    except (OSError, RuntimeError):
+        return True
+    target = Path(path)
+    if target != home and home not in target.parents:
+        return True
+    library = home / "Library"
+    return target == library or library in target.parents
+
+
+#: How many folders one phone may be limited to.
+MAX_PHONE_FOLDERS = 20
+
+
+def _file_scope(value):
+    """``{"mode": "all"}`` or ``{"mode": "folders", "folders": [...]}`` with each folder an existing
+    folder on this computer, stored fully resolved so a later symlink swap cannot widen it."""
+    from pathlib import Path
+
+    from core.runtime_state_protection import refusal as protected_refusal
+
+    if not isinstance(value, dict) or value.get("mode") not in {"all", "folders"}:
+        raise ValueError("Choose all files or chosen folders for this phone.")
+    if value["mode"] == "all":
+        if set(value) != {"mode"}:
+            raise ValueError("Choose all files or chosen folders for this phone.")
+        return {"mode": "all"}
+    folders = value.get("folders")
+    if set(value) != {"mode", "folders"} or not isinstance(folders, list) or not folders:
+        raise ValueError("Choose at least one folder for this phone.")
+    if len(folders) > MAX_PHONE_FOLDERS:
+        raise ValueError(f"Choose up to {MAX_PHONE_FOLDERS} folders for this phone.")
+    chosen = []
+    for raw in folders:
+        candidate = Path(str(raw if isinstance(raw, str) else "").strip()).expanduser()
+        if not str(raw or "").strip() or not candidate.is_absolute():
+            raise ValueError("Choose each folder by its full location on this computer.")
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            raise ValueError(f"VOOL could not find the folder {candidate}.") from None
+        if not resolved.is_dir():
+            raise ValueError(f"{candidate} is not a folder.")
+        if protected_refusal(resolved, write=False):
+            raise ValueError(f"{candidate} holds VOOL's own data. Choose another folder.")
+        if system_area(resolved):
+            raise ValueError(f"{candidate} belongs to the system. Choose a folder in your home folder.")
+        if str(resolved) not in chosen:
+            chosen.append(str(resolved))
+    return {"mode": "folders", "folders": chosen}
+
+
+#: The highest monthly cloud limit a phone can be given; the computer's own cloud limits still apply.
+MAX_PHONE_CLOUD_MONTHLY_USD = 10000.0
+
+
+def _cloud_monthly(value):
+    """A positive monthly cloud limit in US dollars, or ``None`` for the computer's own limits only."""
+    if value is None:
+        return None
+    if type(value) not in (int, float) or not math.isfinite(value) or value < 0.01 or value > MAX_PHONE_CLOUD_MONTHLY_USD:
+        raise ValueError("Enter a monthly cloud limit of at least 0.01 dollars.")
+    return round(float(value), 2)
 
 
 def switch_off(service, device, params):

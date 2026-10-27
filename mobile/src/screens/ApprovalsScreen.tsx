@@ -44,6 +44,19 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
     return () => clearInterval(timer);
   }, [refresh]);
 
+  const [busy, setBusy] = useState("");
+  const answer = useCallback(async (approvalId: string, decision: "allow" | "deny") => {
+    setBusy(approvalId);
+    try {
+      await client.resolveApproval(approvalId, decision, "once");
+      await refresh();
+    } catch (exc) {
+      if (!guard(exc)) setError(errorText(exc));
+    } finally {
+      setBusy("");
+    }
+  }, [client, guard, refresh]);
+
   if (error) return <View><Text style={styles.resource}>{error}</Text>
     <Pressable style={styles.button} onPress={() => void refresh()}><Text style={styles.approveText}>{tr("Refresh")}</Text></Pressable></View>;
 
@@ -56,7 +69,7 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>{tr("Nothing waiting for your approval")}</Text>
         <Text style={styles.emptyHint}>
-          {tr("Payments and actions must be approved on your computer in this version.")}</Text>
+          {tr("Actions your phone asked for can be allowed here. Payments are approved on your computer.")}</Text>
       </View>
     );
   }
@@ -79,7 +92,20 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
             {a.reversible === false ? tr("Irreversible") : tr("Reversible")}
           </Text>
           {a.diff_preview ? <Text style={styles.diff} numberOfLines={8}>{a.diff_preview}</Text> : null}
-          <Text style={styles.resource}>{tr("Payments and actions must be approved on your computer in this version.")}</Text>
+          {a.phone_may_answer ? (
+            <View style={styles.buttons}>
+              <Pressable style={[styles.button, styles.refuse]} disabled={busy === a.approval_id}
+                onPress={() => void answer(a.approval_id, "deny")}>
+                <Text style={styles.refuseText}>{tr("Deny")}</Text>
+              </Pressable>
+              <Pressable style={[styles.button, styles.approve]} disabled={busy === a.approval_id}
+                onPress={() => void answer(a.approval_id, "allow")}>
+                <Text style={styles.approveText}>{tr("Allow once")}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.resource}>{tr("Approve this on your computer. Your phone answers only what it asked for itself.")}</Text>
+          )}
         </View>
       ))}
     </ScrollView>

@@ -23,6 +23,7 @@ common = [
     "xact.decline",
     "addons.cancel",
     "permissions.deny",
+    "permissions.allow_once",
     "setup.copy.back",
     "notif.save",
     "attach.retry",

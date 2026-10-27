@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +23,11 @@ class SpendLimits:
     # transaction that reserves the dollars (see reserve_spend). ``None`` leaves the count
     # ungated, which is what every caller that only cares about dollars wants.
     daily_call_cap: int | None = None
+    # Who this call is spent for, when one of the owner's devices has its own monthly limit (a
+    # paired phone: ``"phone:<device_id>"``). Its month's total is checked against
+    # ``spender_monthly_usd`` in the same transaction, on top of the caps above.
+    spender: str = ""
+    spender_monthly_usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +77,16 @@ def _init_table() -> None:
             );
             """
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(model_spend_reservations)").fetchall()}
+        if "spender" not in columns:
+            try:
+                conn.execute("ALTER TABLE model_spend_reservations ADD COLUMN spender TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as exc:  # another process added it first
+                if "duplicate column" not in str(exc).lower():
+                    raise
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_model_spend_spender ON model_spend_reservations(spender, created_ts)"
+        )
         conn.commit()
     finally:
         conn.close()
@@ -109,6 +125,14 @@ def reserve_spend(
         for projected, cap, reason in checks:
             if cap <= 0 or projected > float(cap) + 1e-9:
                 raise PermissionError(reason)
+        spender = str(limits.spender or "")
+        if limits.spender_monthly_usd is not None:
+            spender_cap = float(limits.spender_monthly_usd)
+            spender_total = _committed_and_reserved(
+                conn, "spender = ? AND created_ts >= ?", (spender, month_start)
+            ) if spender else 0.0
+            if not spender or spender_cap <= 0 or spender_total + amount > spender_cap + 1e-9:
+                raise PermissionError("device_monthly_spend_cap_exceeded")
         # The call-count cap is checked HERE, inside the BEGIN IMMEDIATE that reserves the
         # dollars, and the row inserted below is the increment. Previously the count was read
         # (cloud_escalation_policy.used_today) and written (record_escalation) on either side of
@@ -134,11 +158,11 @@ def reserve_spend(
         conn.execute(
             """INSERT INTO model_spend_reservations
             (reservation_id, model_call_id, task_id, subtask_id, model_id, reserved_usd,
-             actual_usd, status, billing_ambiguous, created_ts, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 0, 'reserved', 0, ?, ?, ?)""",
+             actual_usd, status, billing_ambiguous, created_ts, created_at, updated_at, spender)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 'reserved', 0, ?, ?, ?, ?)""",
             (
                 reservation.reservation_id, model_call_id, task_id, subtask_id, model_id,
-                amount, ts, now_iso, now_iso,
+                amount, ts, now_iso, now_iso, spender,
             ),
         )
         conn.commit()
@@ -262,14 +286,19 @@ def record_supplemental_charge(
         ts = datetime.now(timezone.utc).timestamp()
         now_iso = datetime.fromtimestamp(ts, timezone.utc).isoformat()
         reservation_id = f"spend-reservation-{uuid.uuid4().hex}"
+        # A retry's charge counts against the same device limit as the call it retried.
+        parent = conn.execute(
+            "SELECT spender FROM model_spend_reservations WHERE model_call_id = ?", (model_call_id,)
+        ).fetchone()
         conn.execute(
             """INSERT INTO model_spend_reservations
             (reservation_id, model_call_id, task_id, subtask_id, model_id, reserved_usd,
-             actual_usd, status, billing_ambiguous, created_ts, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             actual_usd, status, billing_ambiguous, created_ts, created_at, updated_at, spender)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 reservation_id, supplemental_id, task_id or "unknown_task", SUPPLEMENTAL_SUBTASK_ID, model_id,
                 hold, actual or 0.0, status, int(actual is None), ts, now_iso, now_iso,
+                str(parent["spender"] or "") if parent is not None else "",
             ),
         )
         _record_invocation(conn, model_call_id, invocation, ledger_call_id=supplemental_id, usd=actual, flagged=flagged)
@@ -422,6 +451,20 @@ def unresolved_spend_today(*, now: float | None = None) -> float:
         conn.close()
 
 
+def spender_month_total(spender: str, *, now: float | None = None) -> float:
+    """Known charges plus open holds booked for ``spender`` in the current UTC month."""
+    if not spender:
+        return 0.0
+    _init_table()
+    ts = datetime.now(timezone.utc).timestamp() if now is None else float(now)
+    month_start = datetime.fromtimestamp(ts, timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+    conn = get_connection()
+    try:
+        return _committed_and_reserved(conn, "spender = ? AND created_ts >= ?", (str(spender), month_start))
+    finally:
+        conn.close()
+
+
 def _committed_and_reserved(conn, where: str, params: tuple[object, ...]) -> float:
     row = conn.execute(
         f"""SELECT COALESCE(SUM(actual_usd + CASE WHEN status IN ('reserved', 'billing_ambiguous') THEN reserved_usd ELSE 0 END), 0)
@@ -441,6 +484,7 @@ __all__ = [
     "release_spend",
     "reserve_spend",
     "settle_spend",
+    "spender_month_total",
     "unresolved_spend_today",
     "unverified_supplemental_charges",
 ]

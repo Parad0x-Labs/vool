@@ -312,6 +312,31 @@ REMOTE_GRANT_REFUSAL_TEXT = {
     ),
 }
 
+#: A phone limited to chosen folders runs only these: file tools whose every path argument is checked
+#: against the folders (core.runtime_execution_tools.phone_folder_refusal), and building a download
+#: from text the model writes. Commands, apps, accounts and machine-wide searches cannot be held to
+#: a folder, so they stay off for such a phone.
+PHONE_PATH_TOOLS = {
+    "workspace.list_files": "workspace", "workspace.list_tree": "workspace", "workspace.read_file": "workspace",
+    "workspace.search_text": "workspace", "workspace.write_file": "workspace",
+    "workspace.replace_in_file": "workspace", "workspace.ensure_directory": "workspace",
+    "machine.list_directory": "machine", "machine.read_file": "machine", "machine.ensure_directory": "machine",
+    "machine.write_file": "machine", "pdf.extract_text": "absolute", "pdf.ocr": "absolute",
+}
+PHONE_FOLDER_TOOLS = frozenset({*PHONE_PATH_TOOLS, "file.deliver"})
+PHONE_FOLDERS_ONLY = "phone_folders_only"
+PHONE_FOLDERS_ONLY_TEXT = (
+    "This phone can only open and change files in the folders you chose: {folders}. Apps, commands "
+    "and accounts stay off. Change this in VOOL Settings on your computer."
+)
+PHONE_SYSTEM_AREA_TEXT = (
+    "Your phone can't open the system's own folders or your home Library, where keychains, mail and "
+    "app settings live. Everything else you allowed stays open to it."
+)
+PHONE_NO_FOLDERS_TEXT = (
+    "This phone has no folders to use yet. Choose folders for it in VOOL Settings on your computer."
+)
+
 _TRUSTED_REMOTE_DEVICE: contextvars.ContextVar[str] = contextvars.ContextVar("vool_trusted_remote_device", default="")
 
 
@@ -335,31 +360,64 @@ def stamp_remote_device(source_context: dict[str, Any]) -> None:
         source_context[REMOTE_DEVICE_KEY] = device_id
 
 
+def remote_turn_device(source_context: Any) -> dict[str, Any] | None:
+    """The live record of the paired phone this turn came from, or ``None``, failing closed."""
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    device_id = sc.get(REMOTE_DEVICE_KEY)
+    if not isinstance(device_id, str) or not device_id:
+        return None
+    try:
+        from core.mobile_companion.listener import load_settings
+        from core.web.api.mobile_companion_api import mobile_companion_service
+
+        if not load_settings().get("enabled"):
+            return None
+        device = mobile_companion_service().store.device(device_id) or {}
+        if device.get("status") != "active" or device.get("kind") == "bot" or not device.get("sealed_protocol"):
+            return None
+        return device
+    except Exception:
+        return None
+
+
 def remote_turn_has_grant(source_context: Any, grant: str) -> bool:
     """Whether the paired phone this turn came from currently holds ``grant``, failing closed."""
 
     if grant not in REMOTE_GRANT_REFUSAL_TEXT:
         return False
-    sc = source_context if isinstance(source_context, dict) else {}
-    device_id = sc.get(REMOTE_DEVICE_KEY)
-    if not isinstance(device_id, str) or not device_id:
+    device = remote_turn_device(source_context)
+    if device is None:
         return False
     try:
-        from core.mobile_companion.listener import load_settings
         from core.mobile_companion.policy import enabled
-        from core.web.api.mobile_companion_api import mobile_companion_service
 
-        if not load_settings().get("enabled"):
-            return False
-        device = mobile_companion_service().store.device(device_id) or {}
-        return (
-            device.get("status") == "active"
-            and device.get("kind") != "bot"
-            and bool(device.get("sealed_protocol"))
-            and enabled(device, grant)
-        )
+        return enabled(device, grant)
     except Exception:
         return False
+
+
+def remote_turn_folders(source_context: Any) -> tuple[str, ...] | None:
+    """The folders a phone limited to chosen folders may use, or ``None`` when no folder limit applies.
+
+    Only meaningful once ``computer_tools`` was granted. A record that cannot be read as a valid
+    scope limits the phone to no folder at all, never to the whole computer.
+    """
+
+    device = remote_turn_device(source_context)
+    if device is None:
+        return ()
+    scope = device.get("file_scope")
+    if scope is None:
+        return None
+    if not isinstance(scope, dict) or scope.get("mode") not in {"all", "folders"}:
+        return ()
+    if scope["mode"] == "all":
+        return None
+    folders = scope.get("folders")
+    if not isinstance(folders, list) or not all(isinstance(item, str) and item for item in folders):
+        return ()
+    return tuple(folders)
 
 
 def turn_may_spend_owner_keys(source_context: Any) -> bool:
@@ -432,7 +490,18 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
         return REMOTE_MONEY_REFUSAL_TEXT
     if grant == _OWNER:
         return REMOTE_OWNER_ONLY_TEXT
+    if (grant == REMOTE_GRANT_COMPUTER and remote_turn_has_grant(sc, grant)
+            and _outside_folder_tools(intent, sc)):
+        return phone_folders_text(remote_turn_folders(sc) or ())
     return REMOTE_GRANT_REFUSAL_TEXT[grant]
+
+
+def phone_folders_text(folders: tuple[str, ...]) -> str:
+    """What the phone reads when a tool would reach past the folders the owner chose."""
+
+    if not folders:
+        return PHONE_NO_FOLDERS_TEXT
+    return PHONE_FOLDERS_ONLY_TEXT.format(folders=", ".join(folders))
 
 
 def turn_is_remote(source_context: Any) -> bool:
@@ -458,8 +527,17 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
         return ""
     grant = _remote_intent_grant(intent)
     if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(source_context, grant):
+        if grant == REMOTE_GRANT_COMPUTER and _outside_folder_tools(intent, source_context):
+            return PHONE_FOLDERS_ONLY
         return ""
     return "owner_local_required"
+
+
+def _outside_folder_tools(intent: str, source_context: Any) -> bool:
+    """A phone limited to chosen folders may run only the file tools whose paths are checked
+    against those folders (core.runtime_execution_tools.phone_folder_refusal)."""
+
+    return remote_turn_folders(source_context) is not None and str(intent or "").strip() not in PHONE_FOLDER_TOOLS
 
 
 def strip_reserved_trust_keys(source_context: Any) -> dict[str, Any]:
@@ -518,6 +596,10 @@ __all__ = [
     "IN_PROCESS_OWNER_PEER",
     "OWNER_LOCAL_CAPABILITIES",
     "OWNER_LOCAL_KEY",
+    "PHONE_FOLDERS_ONLY",
+    "PHONE_FOLDER_TOOLS",
+    "PHONE_PATH_TOOLS",
+    "PHONE_SYSTEM_AREA_TEXT",
     "REMOTE_DEVICE_KEY",
     "REMOTE_GRANT_COMPUTER",
     "REMOTE_GRANT_PAID",
@@ -531,6 +613,9 @@ __all__ = [
     "in_process_owner_source_context",
     "is_loopback_host",
     "owner_peer_for_turn",
+    "phone_folders_text",
+    "remote_turn_device",
+    "remote_turn_folders",
     "remote_turn_has_grant",
     "remote_turn_lacks",
     "remote_turn_refusal_text",

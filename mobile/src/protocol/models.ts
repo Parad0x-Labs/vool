@@ -135,6 +135,8 @@ export interface PendingApproval {
   diff_preview: string | null;
   raised_at: number | string | null;
   expires_at: number | string | null;
+  /** True when this phone's own turn asked for it and the phone may answer it here. */
+  phone_may_answer?: boolean;
 }
 
 export interface ApprovalRecord {

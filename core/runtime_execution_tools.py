@@ -3704,6 +3704,78 @@ def _dispatch_runtime_tool(
     )
 
 
+def _phone_path_target(kind: str, raw: Any, *, source_context: dict[str, Any] | None) -> Path:
+    """Where the dispatch below will resolve ``raw``, by the same resolver it uses."""
+
+    if kind == "workspace":
+        return _resolve_workspace_path(raw, workspace_root=_workspace_root(source_context)).resolve()
+    if kind == "machine":
+        return _resolve_safe_machine_directory(raw).resolve()
+    candidate = Path(str(raw or "").strip()).expanduser()
+    if not candidate.is_absolute():
+        raise ValueError("relative path")
+    return candidate.resolve()
+
+
+def _in_workspace(target: Path, source_context: dict[str, Any] | None) -> bool:
+    root = _workspace_root(source_context).resolve()
+    return target == root or root in target.parents
+
+
+def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> str:
+    """``""`` unless this turn is a phone and the tool's path reaches past what the phone may use.
+
+    Every path the tool names (its ``path``, or the default it falls back to) is resolved the way
+    its handler resolves it, symlinks followed. It must never be the system or the home Library, and
+    for a phone held to chosen folders it must sit inside one of them. A path that cannot be resolved
+    the same way is refused.
+    """
+
+    from core.mobile_companion.policy import system_area
+    from core.request_trust import (
+        PHONE_PATH_TOOLS,
+        PHONE_SYSTEM_AREA_TEXT,
+        phone_folders_text,
+        remote_turn_folders,
+        turn_is_remote,
+    )
+
+    if not turn_is_remote(source_context):
+        return ""
+    kind = PHONE_PATH_TOOLS.get(str(intent or "").strip())
+    if kind is None:
+        # file.deliver builds a download from text; it reads nothing on this computer. Every other
+        # tool a phone runs was already admitted by the remote-turn fence for its class.
+        return ""
+    args = arguments if isinstance(arguments, dict) else {}
+    folders = remote_turn_folders(source_context)
+    refused = PHONE_SYSTEM_AREA_TEXT if folders is None else phone_folders_text(folders)
+    pattern = str(args.get("glob") or "")
+    if ".." in Path(pattern).parts or pattern.startswith(("/", "~")):
+        return refused
+    try:
+        target = _phone_path_target(kind, args.get("path"), source_context=source_context)
+    except (ValueError, OSError, RuntimeError):
+        # The workspace and machine handlers use this same resolver and refuse the path in their own
+        # words; a PDF path the check cannot resolve is one its handler would resolve differently.
+        return "" if folders is None and kind != "absolute" else refused
+    from core.runtime_state_protection import refusal as _protected_refusal
+
+    if _protected_refusal(target, write=False):
+        return refused
+    if system_area(target) and not (folders is None and _in_workspace(target, source_context)):
+        return PHONE_SYSTEM_AREA_TEXT
+    if folders is None:
+        return ""
+    for folder in folders:
+        # Stored resolved when the owner chose it; compared as stored, so a folder later swapped
+        # for a symlink cannot widen what the phone reaches.
+        root = Path(folder)
+        if target == root or root in target.parents:
+            return ""
+    return refused
+
+
 def execute_runtime_tool(
     intent: str,
     arguments: dict[str, Any],
@@ -3751,6 +3823,26 @@ def execute_runtime_tool(
                     ok=False,
                     status=remote_refusal,
                     reason=remote_refusal,
+                ),
+            },
+        )
+
+    folder_refusal = phone_folder_refusal(intent, arguments, source_context=source_context)
+    if folder_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="phone_folders_only",
+            response_text=folder_refusal,
+            details={
+                "reason": "phone_folders_only",
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="owner_local_gate",
+                    ok=False,
+                    status="phone_folders_only",
+                    reason="phone_folders_only",
                 ),
             },
         )

@@ -16,7 +16,9 @@ def test_phone_fields_stay_inside_card_at_desktop_and_narrow_widths(rig, tmp_pat
             page = browser.new_page(viewport={'width':1280,'height':1000})
             page.goto(base+'/settings#phone')
             page.locator('[data-group="phone"]').click()
-            page.locator('.phone-device .phone-cap input').first.wait_for()
+            # Single permissions sit under Advanced, below the three-choice setup; open it to measure both.
+            page.locator('.phone-device .phone-advanced summary').first.click()
+            page.locator('.phone-device .phone-advanced .phone-cap input').first.wait_for()
             shots = Path(os.environ.get('VOOL_PHONE_SHOTS_DIR') or tmp_path)
             for width in (1280, 820, 600):
                 page.set_viewport_size({'width':width,'height':1000})
@@ -28,7 +30,7 @@ def test_phone_fields_stay_inside_card_at_desktop_and_narrow_widths(rig, tmp_pat
                     }).map(input=>({label:input.getAttribute('aria-label'),width:input.offsetWidth}));
                 })''')
                 assert not overflow, (width, overflow)
-                page.locator('.phone-device .phone-cap input').last.scroll_into_view_if_needed()
+                page.locator('.phone-device .phone-advanced .phone-cap input').last.scroll_into_view_if_needed()
                 page.screenshot(path=str(shots/f'fix1-phone-settings-{width}.png'),full_page=True)
         finally:
             browser.close()

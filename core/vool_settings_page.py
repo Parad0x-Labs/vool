@@ -1089,6 +1089,13 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .phone-settings-panel input.inp, .phone-settings-panel select.inp {box-sizing:border-box; width:100%; min-width:0; max-width:100%;}
 .phone-expiry {display:grid; min-width:0;}
 .phone-actions {display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.phone-quick {display:grid; gap:12px; margin:14px 0;}
+.phone-quick-group {border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:grid; gap:8px; min-width:0;}
+.phone-quick-lead {font-weight:600;}
+.phone-quick textarea {width:100%; box-sizing:border-box; resize:vertical;}
+.phone-quick > .btn.primary {justify-self:start; min-width:140px;}
+.phone-advanced {margin-top:10px;}
+.phone-advanced > summary {cursor:pointer;}
 .phone-unfreeze {display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
 .phone-settings-panel > .inp {margin:10px 0;}
 @media(max-width:650px) {.phone-rights{grid-template-columns:1fr}.phone-cap{grid-template-columns:1fr}}
@@ -5168,6 +5175,9 @@ function widgetAutomaticChecks(stack) {
 
 let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
 const phoneBotPairing = {};
+/* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
+let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
+const phonePrepared = {};
 function redrawPhoneSettings() {
   const host = phoneSettingsNode && phoneSettingsNode.parentElement;
   if (host) {phoneSettingsNode=null; host.replaceChildren(); widgetPhoneAccess(host);}
@@ -5291,13 +5301,93 @@ function widgetPhoneAccess(host) {
       }catch(e){note.textContent=e.message;section.disabled=false;}
     };
   }
+  /* Quick setup: models, files, payments, then Done. Saved through the same device_rules door as Advanced. */
+  function phoneQuickSetup(device) {
+    const rules=device.rules || {}, until=device.right_expiry || {};
+    const on=name=>!!rules[name] && !(until[name] && until[name]*1000<=Date.now());
+    const box=el('div','phone-quick');
+    if(setupFor===device.device_id) box.appendChild(el('p','phone-quick-lead',T('phone.setup.connected','Your phone is connected. Choose what it may do, then press Done.')));
+    let groupCount=0;
+    function group(title,choices,current) {
+      const set=el('fieldset','phone-quick-group'); set.appendChild(el('legend','',title)); box.appendChild(set);
+      const name='phone-quick-'+device.device_id+'-'+(groupCount++); const radios={};
+      choices.forEach(([value,label])=>{const line=el('label','phone-right');const radio=el('input');radio.type='radio';radio.name=name;radio.value=value;radio.checked=value===current;radios[value]=radio;line.append(radio,document.createTextNode(' '+label));set.appendChild(line);});
+      return {set,radios,value:()=>Object.keys(radios).find(k=>radios[k].checked)};
+    }
+    function field(set,label,input,wide) {const line=el('label',wide?'phone-expiry':'phone-cap',label);line.appendChild(input);set.appendChild(line);return line;}
+    const models=group(T('phone.setup.models','Models'),[['local',T('phone.setup.models_local','This computer only')],['cloud',T('phone.setup.models_cloud','Cloud models too')]],on('paid_services')?'cloud':'local');
+    const monthly=el('input','inp');monthly.inputMode='decimal';monthly.placeholder=T('phone.setup.no_phone_limit','No phone limit');
+    if(typeof device.cloud_monthly_usd==='number')monthly.value=String(device.cloud_monthly_usd);
+    const monthlyLine=field(models.set,T('phone.setup.monthly','Monthly cloud limit for this phone (US dollars)'),monthly);
+    if(typeof device.cloud_spent_month_usd==='number'&&device.cloud_spent_month_usd>0)models.set.appendChild(el('p','help',tfmt('phone.setup.spent','Spent this month: {amount} dollars',{amount:device.cloud_spent_month_usd.toFixed(2)})));
+    models.set.appendChild(el('p','help',T('phone.setup.models_help','Cloud models use your paid models and paid search. The computer’s own cloud limits always apply too.')));
+    const scope=device.file_scope || {};
+    const files=group(T('phone.setup.files','Files'),[['none',T('phone.setup.files_none','None')],['folders',T('phone.setup.files_folders','Only the folders I choose')],['all',T('phone.setup.files_all','Everything on this computer')]],
+      !on('computer_tools')?'none':(scope.mode==='folders'?'folders':'all'));
+    const folders=el('textarea','inp');folders.rows=3;folders.value=(scope.folders || []).join('\n');folders.placeholder='~/Documents';
+    folders.setAttribute('aria-label',T('phone.setup.folders','Folders, one per line'));
+    const folderLine=field(files.set,T('phone.setup.folders','Folders, one per line'),folders,true);
+    const quickAdd=el('div','phone-actions');['~/Documents','~/Desktop','~/Downloads'].forEach(path=>{const add=el('button','btn',path);add.type='button';add.onclick=()=>{const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.includes(path))list.push(path);folders.value=list.join('\n');};quickAdd.appendChild(add);});
+    files.set.appendChild(quickAdd);
+    files.set.appendChild(el('p','help',T('phone.setup.files_help','Only the folders I choose: the phone can open and change files there, and nothing else. Everything: files, apps, commands and your accounts on this computer.')));
+    const pays=group(T('phone.setup.payments','Payments'),[['off',T('phone.setup.payments_off','Off')],['on',T('phone.setup.payments_on','On, with limits')]],on('payment_propose')?'on':'off');
+    const payBox=el('div','phone-quick-pay');pays.set.appendChild(payBox);
+    const payAccount=accountSelect((device.payment_cap || {}).wallet_id);payBox.appendChild(payAccount);
+    const cap=device.payment_cap_display || {};
+    function amountInput(label,value){const input=el('input','inp');input.inputMode='decimal';input.value=value || '';field(payBox,label,input);return input;}
+    const per=amountInput(T('phone.per_payment','Per-payment maximum'),cap.per_payment), daily=amountInput(T('phone.per_day','Daily maximum'),cap.daily);
+    const pin=el('input','inp');pin.type='password';pin.autocomplete='off';pin.placeholder=T('phone.credential','Wallet PIN or password');payBox.appendChild(pin);
+    payBox.appendChild(el('p','help',T('phone.setup.payments_help','Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.')));
+    function sync(){monthlyLine.hidden=models.value()!=='cloud';folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
+    [models,files,pays].forEach(g=>Object.values(g.radios).forEach(r=>r.addEventListener('change',sync)));sync();
+    box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.')));
+    const prepared=phonePrepared[device.device_id];
+    if(prepared){
+      const report=el('div','phone-quick-ready');report.setAttribute('role','status');box.appendChild(report);
+      if(prepared.checking)report.appendChild(el('p','help',T('phone.setup.checking','Checking the folders. If your Mac asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.')));
+      else if(prepared.failed)report.appendChild(el('p','help',T('phone.setup.check_failed','VOOL could not check the folders. Press Done again to retry.')));
+      else {
+        const waiting=(prepared.folders || []).filter(f=>f.state!=='ready');
+        report.appendChild(el('p','help',waiting.length?T('phone.setup.not_ready','These folders are not open to VOOL yet. Allow VOOL in System Settings, Privacy & Security, Files and Folders, then press Done again:'):T('phone.setup.ready','Saved. Your phone is ready.')));
+        waiting.forEach(f=>report.appendChild(el('p','help',f.folder)));
+      }
+    }
+    const done=el('button','btn primary',T('phone.setup.done','Done'));done.type='button';box.appendChild(done);
+    const say=el('div','state idle');say.setAttribute('role','status');box.appendChild(say);
+    done.onclick=()=>{
+      say.textContent='';
+      const payOn=pays.value()==='on', cloud=models.value()==='cloud', fileChoice=files.value();
+      const body={operation:'device_rules',device_id:device.device_id,expected_permission_revision:device.permission_revision || 0,
+        rules:{chat:true,history:true,attachments:true,alerts:true,paid_services:cloud,computer_tools:fileChoice!=='none',payment_propose:payOn,wallet_view:payOn || on('wallet_view')}};
+      if(cloud){const text=monthly.value.trim().replace(',','.');if(text){const value=Number(text);if(!(value>=0.01)){say.textContent=T('phone.setup.bad_limit','Enter a monthly limit in dollars, like 20.');return;}body.cloud_monthly_usd=value;}else body.cloud_monthly_usd=null;}
+      if(fileChoice==='all')body.file_scope={mode:'all'};
+      if(fileChoice==='folders'){const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.length){say.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}body.file_scope={mode:'folders',folders:list};}
+      if(payOn && (!on('payment_propose') || per.value!==(cap.per_payment || '') || daily.value!==(cap.daily || '') || payAccount.value!==((device.payment_cap || {}).wallet_id || '') || pin.value)){
+        const selected=accounts.find(a=>a.wallet_id===payAccount.value);if(!selected){say.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=pin.value;body.payment_cap_human={wallet_id:payAccount.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      pin.value='';done.disabled=true;
+      save(body).then(async()=>{
+        setupFor='';
+        if(fileChoice==='none')return;
+        phonePrepared[device.device_id]={checking:true};redrawPhoneSettings();
+        try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'prepare_folders',device_id:device.device_id})});const j=await r.json();
+          phonePrepared[device.device_id]=r.ok&&j.ok?{folders:j.folders}:{failed:true};}catch(_){phonePrepared[device.device_id]={failed:true};}
+        redrawPhoneSettings();
+      }).catch(e=>{say.textContent=e.message;done.disabled=false;});
+    };
+    return box;
+  }
   (src.devices || []).forEach(device => {
     const row=el('section','phone-device'); row.dataset.device=device.device_id;
     const isBot=device.kind==='bot';
     row.appendChild(el('h3','',device.name || T('phone.device','Phone')));
     row.appendChild(el('p','help', T('phone.paired','Paired') + ': ' + (device.paired_at ? new Date(device.paired_at).toLocaleString() : '') + ' · ' + T('phone.last_seen','Last seen') + ': ' + (device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '')));
     if (device.status !== 'active') {row.appendChild(el('p','help',T('phone.unpaired','Unpaired'))); stack.appendChild(row); return;}
-    const rightsGrid=el('div','phone-rights'); row.appendChild(rightsGrid);
+    /* A phone opens on the three plain choices; every single right stays under Advanced. */
+    const holder=isBot?row:el('details','phone-advanced');
+    if(!isBot){row.appendChild(phoneQuickSetup(device));holder.appendChild(el('summary','',T('phone.setup.advanced','Advanced')));row.appendChild(holder);}
+    const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
     if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to this bot in a private conversation within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
       if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
@@ -5311,18 +5401,19 @@ function widgetPhoneAccess(host) {
       expiry.dataset.initial=expiry.value;
       expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
     });
-    if(!isBot)row.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
-    row.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.approve_on_pc','Payments and actions must be approved on your computer in this version.')));
+    if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
+    holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
     if(isBot)botNotices(row,device);
-    const account=accountSelect((device.payment_cap || {}).wallet_id); row.appendChild(account);
-    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); row.appendChild(line); return input;}
+    const account=accountSelect((device.payment_cap || {}).wallet_id); holder.appendChild(account);
+    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); holder.appendChild(line); return input;}
     const cap=device.payment_cap_display || {};
     const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
     const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
-    row.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s native asset. Both limits must be lower than the wallet’s limits.')));
-    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); row.appendChild(credential);
+    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s native asset. Both limits must be lower than the wallet’s limits.')));
+    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); holder.appendChild(credential);
+    const saveActions=el('div','phone-actions'); holder.appendChild(saveActions);
+    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);
     const actions=el('div','phone-actions'); row.appendChild(actions);
-    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; actions.appendChild(saveButton);
     saveButton.onclick=()=> {
       const rules=Object.fromEntries(Object.entries(boxes).map(([k,v])=>[k,v.checked]));
       const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
@@ -5338,6 +5429,7 @@ function widgetPhoneAccess(host) {
     const revoke=el('button','btn',isBot?T('phone.bot_disconnect','Disconnect chat app'):T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);
     revoke.onclick=async()=>{revoke.disabled=true;try {const r=await fetch(isBot?url:'/api/mobile/devices/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isBot?{operation:'bot_disconnect',platform:device.platform}:{device_id:device.device_id})});if(!r.ok)throw new Error();delete phoneBotPairing[device.platform];state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(_){note.textContent=T('settings.switch.no_answer','Not saved — VOOL did not answer.');revoke.disabled=false;}};
     stack.appendChild(row);
+    if(setupFor===device.device_id) setTimeout(()=>row.scrollIntoView({block:'start'}),0);
   });
   pair.onclick = async () => {
     pair.disabled = true;

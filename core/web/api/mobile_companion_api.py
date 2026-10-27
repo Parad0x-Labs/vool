@@ -66,6 +66,7 @@ them, and none could (the action catalog cannot name them).
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -539,7 +540,59 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         "permission_revision": int(rec.get("permission_revision") or 0),
         "payment_cap": dict(rec.get("payment_cap") or {}),
         "payment_cap_display": cap_display(rec.get("payment_cap") or {}),
+        "file_scope": copy.deepcopy(rec.get("file_scope")) if isinstance(rec.get("file_scope"), dict) else None,
+        "cloud_monthly_usd": rec.get("cloud_monthly_usd"),
+        "cloud_spent_month_usd": _phone_cloud_spent(rec),
     }
+
+
+#: How long one folder may wait on the system's own access question before the owner is told.
+_PREPARE_WAIT_SECONDS = 20.0
+
+
+def prepare_phone_folders(device: dict[str, Any]) -> list[dict[str, str]]:
+    """Open each folder this phone may use once, on the computer, and say which ones VOOL can use."""
+    from core.runtime_execution_tools import _safe_machine_roots
+
+    scope = device.get("file_scope") or {}
+    if not (device.get("rules") or {}).get("computer_tools"):
+        return []
+    paths = list(scope.get("folders") or []) if scope.get("mode") == "folders" else [str(p) for p in _safe_machine_roots()]
+    report = []
+    deadline = time.monotonic() + 60.0
+    for path in paths[:20]:
+        if time.monotonic() >= deadline:
+            report.append({"folder": path, "state": "waiting"})
+            continue
+        outcome: dict[str, str] = {}
+
+        def look(target=path, out=outcome):
+            try:
+                with os.scandir(target) as entries:
+                    next(entries, None)
+                out["state"] = "ready"
+            except PermissionError:
+                out["state"] = "blocked"
+            except OSError:
+                out["state"] = "missing"
+
+        worker = threading.Thread(target=look, daemon=True)
+        worker.start()
+        worker.join(max(0.0, min(_PREPARE_WAIT_SECONDS, deadline - time.monotonic())))
+        report.append({"folder": path, "state": outcome.get("state", "waiting")})
+    return report
+
+
+def _phone_cloud_spent(rec: dict[str, Any]) -> float | None:
+    """What this phone's cloud calls cost this month, for Settings; ``None`` when unreadable."""
+    if rec.get("kind") == "bot":
+        return None
+    try:
+        from core.model_spend_ledger import spender_month_total
+
+        return round(spender_month_total(f"phone:{rec.get('device_id')}"), 4)
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1307,7 +1360,33 @@ def _action_attachments_upload(params: dict[str, Any], *, service: MobileCompani
     return 201, {"attachment": record}
 
 
-def _action_approvals_pending(params: dict[str, Any], **_kw):
+_COMPUTER_ONLY_APPROVAL_ACTIONS = frozenset({
+    "access_secrets", "financial_or_paid_actions", "change_settings", "change_security_settings",
+    "change_provider_configuration", "unknown_side_effect",
+})
+#: What a phone may grant when it answers its own approval: this action, or the rest of the same request
+#: or task. A project-wide grant stays on the computer.
+_PHONE_APPROVAL_SCOPES = frozenset({"once", "task", "request"})
+
+
+def _phone_may_answer(approval: dict[str, Any], device: dict[str, Any]) -> bool:
+    """Whether this phone may answer ``approval``: its own turn raised it, for a tool the phone's
+    "Use tools on my computer" right covers right now. Payments are never approved from the phone."""
+    from core.request_trust import REMOTE_DEVICE_KEY, REMOTE_GRANT_COMPUTER, _remote_intent_grant, remote_turn_has_grant
+
+    device_id = str(device.get("device_id") or "")
+    if not device_id or approval.get("remote_device") != device_id:
+        return False
+    # What changes VOOL itself, its keys or providers, touches secrets or money, or is not known,
+    # is approved on the computer whatever tool asked for it.
+    if set(approval.get("actions") or ()) & _COMPUTER_ONLY_APPROVAL_ACTIONS:
+        return False
+    if _remote_intent_grant(str(approval.get("intent") or "")) != REMOTE_GRANT_COMPUTER:
+        return False
+    return remote_turn_has_grant({REMOTE_DEVICE_KEY: device_id}, REMOTE_GRANT_COMPUTER)
+
+
+def _action_approvals_pending(params: dict[str, Any], *, device: dict[str, Any] | None = None, **_kw):
     # mode_permission_policy has no public list API (prompts normally ride the
     # turn stream). Reading the module's own state under its own lock — no
     # writes, no edits to that module — is the narrowest honest reader.
@@ -1337,6 +1416,7 @@ def _action_approvals_pending(params: dict[str, Any], **_kw):
                 "diff_preview": diff_preview[:1024],
                 "raised_at": approval.get("raised_at"),
                 "expires_at": approval.get("expires_at"),
+                "phone_may_answer": bool(device) and _phone_may_answer(approval, device),
             })
     rows.sort(key=lambda r: float(r.get("expires_at") or 0))
     return 200, {"approvals": rows, "needs_approval": bool(rows)}
@@ -1357,8 +1437,15 @@ def _action_approvals_resolve(
     scope = str(params.get("scope") or "once").strip().lower()
     if not approval_id or decision not in {"allow", "deny"}:
         return 400, {"error": "approval_id and decision (allow|deny) are required"}
-    if scope not in {"once", "task", "request", "project"}:
-        return 400, {"error": "scope must be one of once|task|request|project"}
+    if scope not in _PHONE_APPROVAL_SCOPES:
+        return 400, {"error": "scope must be one of once|task|request"}
+    import core.mode_permission_policy as mpp
+
+    mpp._ensure_approvals_restored()
+    with mpp._LOCK:
+        pending = dict(mpp._APPROVALS.get(approval_id) or {})
+    if not _phone_may_answer(pending, device):
+        return 403, {"error": "approve_on_computer"}
     approval = resolve_approval(approval_id, decision=decision, scope=scope)
     if approval is None:
         return 409, {"error": "approval is missing, stale, expired, or already resolved"}
@@ -1682,10 +1769,29 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
     exp.textContent = "Expires in " + m + ":" + (s < 10 ? "0" : "") + s;
     return true;
   }
+  function paired(deviceId) {
+    // The phone is in: hand over to its three-choice setup in Settings on this computer.
+    clearInterval(watch);
+    card.innerHTML = "";
+    var h = document.createElement("h1"); h.textContent = "Phone connected";
+    var p = document.createElement("p"); p.className = "lead"; p.textContent = "Next, choose what your phone may do.";
+    var go = document.createElement("button"); go.type = "button"; go.textContent = "Choose";
+    var next = "/settings?phone_setup=" + encodeURIComponent(deviceId) + "#phone";
+    go.addEventListener("click", function () { window.location.href = next; });
+    card.append(h, p, go);
+    setTimeout(function () { window.location.href = next; }, 1500);
+  }
+  var watch = null;
   if (payload.status && payload.status !== "waiting") {
     gone("This code was already used or closed.");
   } else if (tick()) {
     var timer = setInterval(function () { if (!tick()) clearInterval(timer); }, 1000);
+    watch = setInterval(function () {
+      fetch("/api/mobile/pairing/status?pairing_id=" + encodeURIComponent(payload.pid))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.status === "claimed" && d.device_id) paired(d.device_id); })
+        .catch(function () {});
+    }, 2000);
   }
   document.getElementById("again").addEventListener("click", function () {
     var btn = this, say = document.getElementById("againSay");
@@ -1939,6 +2045,13 @@ def handle_mobile_companion_post(
             service.store.append_receipt("payments.freeze_changed", detail={"frozen": limits.is_frozen(), "via": "computer",
                 **({"legacy_mirror": "not_updated"} if body["operation"] == "freeze" and not mirrored else {})})
             return _json(200, {"ok": True, "frozen": limits.is_frozen()})
+        if body.get("operation") == "prepare_folders":
+            # Run while the owner is at the computer, right after setup: the first look into each
+            # folder is when macOS asks whether VOOL may use it, so the phone never waits on that.
+            device = service.store.device(str(body.get("device_id") or "")) or {}
+            if device.get("status") != "active" or device.get("kind") == "bot":
+                return _err(400, "phone_rules_refused", "This phone is no longer paired.")
+            return _json(200, {"ok": True, "folders": prepare_phone_folders(device)})
         if body.get("operation") == "device_rules":
             from core.mobile_companion.policy import update
             from core.wallet.errors import WalletFault

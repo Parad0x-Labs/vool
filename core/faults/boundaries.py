@@ -147,7 +147,7 @@ BOUNDARIES: tuple[FailureBoundary, ...] = (
             kind="reservation denial codes",
             codes=("usepod_route_not_approved", "usepod_route_state_unavailable", "per_call_spend_cap_exceeded",
                    "per_task_spend_cap_exceeded", "daily_spend_cap_exceeded", "monthly_spend_cap_exceeded",
-                   "daily_call_cap_exceeded", "cloud_policy_unreadable", "not_owner_local", "reservation_unavailable"),
+                   "device_monthly_spend_cap_exceeded", "daily_call_cap_exceeded", "cloud_policy_unreadable", "not_owner_local", "reservation_unavailable"),
             declared_in="core/paid_call_reservation.py + core/model_spend_ledger.py",
         ),
         mapped_at="denial['reason'] set by the refusing authority, carried verbatim to the blocked-pin terminal",

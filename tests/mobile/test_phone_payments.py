@@ -205,14 +205,15 @@ def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money):
             page.goto(desktop[0] + "/settings#phone")
             page.locator('[data-group="phone"]').click()
             row = page.locator('[data-device="'+phone[3]["device_id"]+'"]')
+            row.locator('.phone-advanced summary').click()  # single permissions sit under Advanced
             row.locator('[data-right="wallet_view"]').check()
             row.locator('[data-right="payment_propose"]').check()
             assert row.locator('[data-right="wallet_view"]').is_checked()
             assert row.locator('[data-right="payment_approve"]').is_disabled()
-            fields = row.locator('.phone-cap input')
+            fields = row.locator('.phone-advanced .phone-cap input')
             fields.nth(0).fill("0.01")
             fields.nth(1).fill("0.015")
-            row.locator('input[type="password"]').fill(PIN)
+            row.locator('.phone-advanced input[type="password"]').fill(PIN)
             assert row.locator('[data-right="wallet_view"]').is_checked()
             assert row.locator('[data-right="payment_propose"]').is_checked()
             with page.expect_response(lambda response: response.url.endswith('/api/mobile/settings') and response.request.method == 'POST') as saved_response:
