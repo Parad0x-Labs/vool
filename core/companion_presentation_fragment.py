@@ -1563,7 +1563,7 @@ function vnOpenCharacterLab() {
   const copy = document.createElement("div");
   const title = document.createElement("h3"); title.id = "vnLabTitle"; title.textContent = "Character Lab";
   const sub = document.createElement("p"); sub.className = "vn-lab-sub";
-  sub.textContent = "Original pixel family · ten companions, plus ten remastered · cosmetic only. Runtime state and outcome truth never change.";
+  sub.textContent = "Pick a companion. It only changes how your pet looks, never what it reports.";
   copy.appendChild(title); copy.appendChild(sub); head.appendChild(copy);
   const close = document.createElement("button"); close.type = "button"; close.className = "vn-lab-close";
   close.setAttribute("aria-label", "Close Character Lab"); close.textContent = "×"; close.addEventListener("click", vnCloseCharacterLab);
@@ -1574,8 +1574,9 @@ function vnOpenCharacterLab() {
     const key = keys[i], meta = window.VoolCompanionWorld.characters[key];
     const card = document.createElement("button"); card.type = "button";
     card.className = "vn-character-card" + (vnPos.personality === key ? " selected" : "");
+    card.setAttribute("aria-label", meta.name + (meta.note ? ", " + meta.note : ""));
     card.setAttribute("aria-pressed", vnPos.personality === key ? "true" : "false");
-    const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48;
+    const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48; preview.setAttribute("aria-hidden", "true");
     const label = document.createElement("b"); label.textContent = meta.name;
     /* Every pet is an authored drawing with its own baked palette, so the note comes from the
        renderer's own registry rather than a table that would drift as the roster grows. */

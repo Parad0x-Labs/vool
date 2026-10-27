@@ -143,3 +143,39 @@ def test_the_raven_looks_left(tmp_path):
     beak = [(x, y) for y in range(48) for x in range(48)
             if grid[y][x] and grid[y][x].lower() in {"#e0a64c", "#ffd98a", "#a8722a"}]
     assert beak and sum(x for x, _ in beak) / len(beak) < 24
+
+
+@requires_node
+def test_no_remastered_pet_brings_a_ground_slab(tmp_path):
+    assert "Ground" not in REMASTER_JS
+    frames = _render(tmp_path, ["idle", "success", "failure"], list(REMASTER_ROSTER))
+    for key, grid in frames.items():
+        for y in (44, 45, 46, 47):
+            run = max_run = 0
+            for x in range(48):
+                run = run + 1 if grid[y][x] else 0
+                max_run = max(max_run, run)
+            assert max_run < 30, f"{key}: row {y} is a {max_run}px slab"
+
+
+@requires_node
+def test_one_draw_is_cheap(tmp_path):
+    """Masks are cached, so a warm draw of any remastered pet stays far below a frame budget."""
+    world = tmp_path / "world.js"
+    world.write_text(COMPANION_WORLD_JS)
+    driver = tmp_path / "time.js"
+    driver.write_text(HARNESS.read_text().split("const out = {};")[0] + """
+const ctx = makeCtx(48, 48);
+const rmIds = W.petIds().filter((i) => i.indexOf('rm_') === 0);
+const worst = {};
+for (const id of rmIds) {
+  for (let t = 0; t < 3000; t += 40) W.drawPet(ctx, id, 'tool', 'code', t, {});
+  const s = process.hrtime.bigint();
+  for (let t = 0; t < 3000; t += 10) { ctx._px.length = 0; W.drawPet(ctx, id, 'tool', 'code', t, {}); }
+  worst[id] = Number(process.hrtime.bigint() - s) / 1e6 / 300;
+}
+console.log(JSON.stringify(worst));
+""")
+    out = subprocess.run([NODE, str(driver), str(world)], capture_output=True, text=True, check=True).stdout
+    per_draw = json.loads(out.strip().splitlines()[-1])
+    assert max(per_draw.values()) < 3.0, per_draw

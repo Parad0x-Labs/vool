@@ -62,8 +62,8 @@ MUTATIONS = [
     (
         "RC-2a ground slab reintroduced in the shared creature renderer",
         "core/companion_art_fragment.py",
-        " g.clearRect(0,0,48,48);\n def.draw(g,pal,P,t);",
-        " g.clearRect(0,0,48,48);aRect(g,0,42,48,6,'#20232b');\n def.draw(g,pal,P,t);",
+        " g.clearRect(0,0,48,48);\n def.draw(g,pal,P,t,reduced);",
+        " g.clearRect(0,0,48,48);aRect(g,0,42,48,6,'#20232b');\n def.draw(g,pal,P,t,reduced);",
         f"{TESTS}::test_desktop_surface_suppresses_the_full_width_ground_bar",
         "a full-width platform would return under every pet in both hosts",
     ),

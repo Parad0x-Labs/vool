@@ -507,8 +507,8 @@ law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
   eq(new Set(labels).size, 20, "every companion is its own character, not a recolour of another");
   ["MORROW BEETLE","CLOCKWORK RAVEN","STONE GOLEM","TIDE WISP","SPARK","RASCAL","PRIME","PRISM","VEIL","EMBER"]
     .forEach(function (name) {
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("REMASTERED") < 0; }), true, name + " is offered in the chooser");
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("REMASTERED") >= 0; }), true, name + " is offered again as a remastered pet");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("Remastered") < 0; }), true, name + " is offered in the chooser");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("Remastered") >= 0; }), true, name + " is offered again as a remastered pet");
     });
   eq(packGrid.children.length, 4, "the four authoritative cosmetic packs are selectable");
   VC.chooseCharacter("spark"); VC.choosePack("default");
