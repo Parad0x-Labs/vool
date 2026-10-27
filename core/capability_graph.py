@@ -1452,14 +1452,6 @@ def model_visible_specs(
         expansions = turn_family_expansions(source_context)
     for family in expansions:
         _add_family(family)
-    # The families the model EXPANDED this turn lead the list, so the resolved-family cap
-    # (3) can never truncate away a family the model explicitly asked to see: whatever
-    # other families the words resolved, the expanded ones fill first and the others fill
-    # only what is left (the seating order below enforces the same law).
-    if expansions:
-        expansion_set = set(expansions)
-        families = ([f for f in families if f in expansion_set]
-                    + [f for f in families if f not in expansion_set])
 
     families = families[:_MAX_RESOLVED_FAMILIES]
     explicit = explicit[: len(explicit)]  # bounded upstream by the signal resolver

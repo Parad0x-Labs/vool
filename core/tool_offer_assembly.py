@@ -677,11 +677,12 @@ def assemble_tool_offer(
             from core.request_trust import request_is_owner_local
 
             if request_is_owner_local(source_context):
-                # Seats follow the MATCH, not the render: a skill whose body the tool lane's
-                # tighter budget dropped whole still names its tools, and the offer seats them.
-                skill_seats = tuple(dict.fromkeys(
-                    (*guidance.allowed_tools, *matched_skill_tool_seats(user_text, source_context=source_context))
-                ))
+                # Seats follow the MATCH, not the render — and only for skills the OPERATOR
+                # chose (their own chat/project skills, registry installs they accepted, packs
+                # they own): a bundled first-party pack's tools stay behind its own expansion
+                # design (the served vool-database proof pins exactly that), and its
+                # allowed-tools keep their old NARROW-only role below.
+                skill_seats = matched_skill_tool_seats(user_text, source_context=source_context)
         except Exception:
             skill_seats = ()
     specs = list(

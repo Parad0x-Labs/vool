@@ -1229,7 +1229,10 @@ _OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
     re.IGNORECASE,
 )
 _OWNER_FIND_NOTES_SEAT_RE = re.compile(
-    _OWNER_ASK_LEAD_STRICT + r"(?:find|search(?:\s+for)?|look\s+(?:up|for)|list|show)\b[^.!?]{0,60}?\bnotes?\b"
+    # The object must be the owner's OWN notes ("my notes"): a bare "notes" noun seats nothing,
+    # because compound nouns about other things ("look up the latest SQLite release notes online")
+    # are web/grounded asks, and a false seat there flipped the turn's whole toolset.
+    _OWNER_ASK_LEAD_STRICT + r"(?:find|search(?:\s+for)?|look\s+(?:up|for)|list|show)\b[^.!?]{0,60}?\b(?:my|our)\s+notes?\b"
     r"|\bwhere\s+(?:are|is)\s+(?:my|the)\s+notes?\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:tidy|clean|organize|organise|sort|go\s+through|gather|collect)\b"
     r"[^.!?]{0,40}?\bmy\s+notes\b"
