@@ -32,6 +32,7 @@ _DRAWER_CSS = """
 .vcd-card{display:flex;gap:10px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
   border-radius:9px;padding:8px 10px;margin-bottom:6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:left;font:inherit;font-size:12.5px}
 .vcd-card.vcd-on{outline:1px solid var(--accent,#5eead4)}
+.vcd-card:focus-visible{outline:2px solid var(--accent,#5eead4);outline-offset:2px}
 .vcd-card small{color:var(--muted,#9aa1af)}
 #vcdDrawer kbd,#sidebar kbd{font-family:ui-monospace,Menlo,monospace;font-size:10px;background:var(--bg,#101318);
   border:1px solid var(--border,#262b35);border-radius:4px;padding:1px 5px;color:var(--muted,#9aa1af)}
@@ -72,7 +73,7 @@ function petTab(){
     '<div class="vcd-field"><label>Character</label>';
   Object.keys(characters).forEach(function(id){
     var spec = characters[id] || {};
-    html += '<button type="button" class="vcd-card' + (id === active ? ' vcd-on' : '') + '" data-char="' + esc(id) + '">' +
+    html += '<button type="button" class="vcd-card' + (id === active ? ' vcd-on' : '') + '" data-char="' + esc(id) + '" aria-pressed="' + (id === active ? 'true' : 'false') + '">' +
       '<b>' + esc(spec.name || id) + '</b></button>';
   });
   html += '</div><div class="vcd-field"><label>Style</label><div class="vcd-seg" id="vcdPacks">';

@@ -45,14 +45,22 @@ function rmEye(g,x,y,bob,c){const m=RM_S.mood,W=c.W||3,H=c.H||3;
  if(m==='bright')rmPx(g,x+W,y-1,c.hi||'#ffffff',0,bob);}
 
 function rmMask(f){const m=new Uint8Array(RM_N*RM_N);for(let y=0;y<RM_N;y++)for(let x=0;x<RM_N;x++)if(f(x+.5,y+.5))m[y*RM_N+x]=1;return m;}
-const rmEll=(cx,cy,rx,ry)=>rmMask((x,y)=>((x-cx)/rx)**2+((y-cy)/ry)**2<=1);
-const rmRect=(x0,y0,x1,y1,r)=>rmMask((x,y)=>{if(x<x0||x>x1||y<y0||y>y1)return false;if(!r)return true;
+const rmEllRaw=(cx,cy,rx,ry)=>rmMask((x,y)=>((x-cx)/rx)**2+((y-cy)/ry)**2<=1);
+const rmRectRaw=(x0,y0,x1,y1,r)=>rmMask((x,y)=>{if(x<x0||x>x1||y<y0||y>y1)return false;if(!r)return true;
  const dx=Math.max(x0+r-x,0,x-(x1-r)),dy=Math.max(y0+r-y,0,y-(y1-r));return dx*dx+dy*dy<=r*r+.3;});
-const rmPoly=pts=>rmMask((x,y)=>{let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const[a,b]=pts[i],[p,q]=pts[j];
+const rmPolyRaw=pts=>rmMask((x,y)=>{let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const[a,b]=pts[i],[p,q]=pts[j];
  if((b>y)!==(q>y)&&x<(p-a)*(y-b)/(q-b)+a)c=!c;}return c;});
-function rmLine(pts,w){const m=new Uint8Array(RM_N*RM_N);for(let k=0;k<pts.length-1;k++){const[a,b]=pts[k],[c,d]=pts[k+1];
+function rmLineRaw(pts,w){const m=new Uint8Array(RM_N*RM_N);for(let k=0;k<pts.length-1;k++){const[a,b]=pts[k],[c,d]=pts[k+1];
  const s=Math.max(Math.abs(c-a),Math.abs(d-b),1);for(let i=0;i<=s;i++){const x=Math.round(a+(c-a)*i/s),y=Math.round(b+(d-b)*i/s);
  for(let u=0;u<w;u++)for(let v=0;v<w;v++){const X=x+u-((w-1)>>1),Y=y+v-((w-1)>>1);if(X>=0&&Y>=0&&X<RM_N&&Y<RM_N)m[Y*RM_N+X]=1;}}}return m;}
+/* Shape masks depend only on their arguments, and the pets pass a handful of integer variants, so
+   they are built once and reused: one draw stays well under a millisecond instead of several. */
+const RM_CACHE=new Map();
+function rmMemo(key,make){let m=RM_CACHE.get(key);if(!m){if(RM_CACHE.size>3000)RM_CACHE.clear();m=make();RM_CACHE.set(key,m);}return m;}
+const rmEll=(cx,cy,rx,ry)=>rmMemo('e'+cx+','+cy+','+rx+','+ry,()=>rmEllRaw(cx,cy,rx,ry));
+const rmRect=(x0,y0,x1,y1,r)=>rmMemo('r'+x0+','+y0+','+x1+','+y1+','+(r||0),()=>rmRectRaw(x0,y0,x1,y1,r));
+const rmPoly=pts=>rmMemo('p'+pts.join(';'),()=>rmPolyRaw(pts));
+const rmLine=(pts,w)=>rmMemo('l'+w+':'+pts.join(';'),()=>rmLineRaw(pts,w));
 const rmAt=(m,x,y)=>x>=0&&y>=0&&x<RM_N&&y<RM_N&&m[y*RM_N+x]===1;
 /* ramps: l light, b base, d shade, o outline (tinted toward the body, never black) */
 const RM_PAL={
@@ -277,7 +285,7 @@ function rmReactor(g,cx,cy,t,bob,warm){const pu=RM_S.reduced?1:.75+.25*Math.sin(
 /* A mirrored, offset view of the canvas: the raven faces left and the shake moves the body. */
 function rmView(g,flip,dx){return{set fillStyle(c){g.fillStyle=c;},get fillStyle(){return g.fillStyle;},
  fillRect(x,y,w,h){g.fillRect(flip?RM_N-x-w+dx:x+dx,y,w,h);}};}
-const RM_MARK={outline:'#2b2a28',metal:'#98a3a0',metalLight:'#ecf1ea',accent:'#f4b860',danger:'#ef6f65',body:'#9aa6a2',dark:'#586764',light:'#cdd8d3'};
+const RM_MARK={outline:'#2b2a28',metal:'#98a3a0',metalLight:'#ecf1ea',accent:'#f4b860',danger:'#ef6f65',body:'#9aa6a2',dark:'#586764',light:'#cdd8d3',glow:'#fff0b8'};
 function rmBang(g,x,y){aRect(g,x,y,2,5,'#f4b860');aRect(g,x,y+6,2,2,'#f4b860');}
 function rmGlint(g,x,y,T){if(Math.floor(T/200)%2){aRect(g,x,y-1,1,3,'#fff0b8');aRect(g,x-1,y,3,1,'#fff0b8');}}
 function rmMake(fn,o){return function(g,pal,P,t,reduced){
@@ -290,17 +298,17 @@ function rmMake(fn,o){return function(g,pal,P,t,reduced){
  aActProp(pg,RM_MARK,P,T);
  if(st==='approval')rmBang(pg,40,5);
  if(st==='success'){rmGlint(pg,40,8,T);rmGlint(pg,6,12,T+200);}
- if(st==='failure'){aRect(pg,40,9,2,3,'#9fd8ee');aRect(pg,40,12,2,1,'#6fb2d2');}};}
+ if(st==='failure'){aRect(pg,39,6,3,3,'#ef6f65');aRect(pg,40,10,2,4,'#9fd8ee');aRect(pg,40,14,2,1,'#6fb2d2');}};}
 const RM_ROSTER={
- rm_beetle:{name:'MORROW BEETLE · REMASTERED',note:'remastered mechanical beetle',draw:rmMake(rmBeetle,{})},
- rm_raven:{name:'CLOCKWORK RAVEN · REMASTERED',note:'remastered clockwork raven',draw:rmMake(rmRaven,{flip:1})},
- rm_golem:{name:'STONE GOLEM · REMASTERED',note:'remastered stone golem',draw:rmMake(rmGolem,{})},
- rm_tide:{name:'TIDE WISP · REMASTERED',note:'remastered tide wisp',draw:rmMake(rmTide,{})},
- rm_spark:{name:'SPARK · Lamplighter · REMASTERED',note:'remastered brass moth-lantern',draw:rmMake(rmSpark,{})},
- rm_rascal:{name:'RASCAL · Courier · REMASTERED',note:'remastered fox courier',draw:rmMake(rmRascal,{})},
- rm_prime:{name:'PRIME · Keykeeper · REMASTERED',note:'remastered keystone keeper',draw:rmMake(rmPrime,{})},
- rm_prism:{name:'PRISM · Lanternfin · REMASTERED',note:'remastered cut-glass fish',draw:rmMake(rmPrism,{})},
- rm_veil:{name:'VEIL · Duskmoth · REMASTERED',note:'remastered velvet moth',draw:rmMake(rmVeil,{})},
- rm_ember:{name:'EMBER · Kiln · REMASTERED',note:'remastered brick kiln sprite',draw:rmMake(rmEmber,{propLeft:1})}};
+ rm_beetle:{name:'MORROW BEETLE · Remastered',note:'mechanical beetle',draw:rmMake(rmBeetle,{})},
+ rm_raven:{name:'CLOCKWORK RAVEN · Remastered',note:'clockwork raven',draw:rmMake(rmRaven,{flip:1})},
+ rm_golem:{name:'STONE GOLEM · Remastered',note:'stone golem',draw:rmMake(rmGolem,{})},
+ rm_tide:{name:'TIDE WISP · Remastered',note:'tide wisp',draw:rmMake(rmTide,{})},
+ rm_spark:{name:'SPARK · Lamplighter · Remastered',note:'brass moth-lantern',draw:rmMake(rmSpark,{})},
+ rm_rascal:{name:'RASCAL · Courier · Remastered',note:'fox courier',draw:rmMake(rmRascal,{})},
+ rm_prime:{name:'PRIME · Keykeeper · Remastered',note:'keystone keeper',draw:rmMake(rmPrime,{})},
+ rm_prism:{name:'PRISM · Lanternfin · Remastered',note:'cut-glass fish',draw:rmMake(rmPrism,{})},
+ rm_veil:{name:'VEIL · Duskmoth · Remastered',note:'velvet moth',draw:rmMake(rmVeil,{})},
+ rm_ember:{name:'EMBER · Kiln · Remastered',note:'brick kiln sprite',draw:rmMake(rmEmber,{propLeft:1})}};
 Object.keys(RM_ROSTER).forEach(function(id){A_PETS[id]=Object.assign({remaster:true},RM_ROSTER[id]);});
 """

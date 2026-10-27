@@ -8,7 +8,8 @@ from core.companion_art_fragment import COMPANION_ART_JS, COMPANION_ROSTER
 from core.companion_remaster_fragment import REMASTER_JS, REMASTER_ROSTER
 
 # The authored pixel-art family (original quartet + six) is prepended so the dispatcher below
-# can reach it. It is self-contained: it depends on no VCW_* symbol and shares no mutable state.
+# can reach it. It is self-contained: it depends on no VCW_* symbol. The remastered set keeps one
+# per-draw state object that every draw overwrites in full, so nothing carries between draws.
 COMPANION_WORLD_JS = COMPANION_ART_JS + REMASTER_JS + r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
 const VCW_PACKS={
  default:{skin:'#5eead4',dark:'#0f9488',eye:'#04241d',face:'#a7f3e5',shoe:'#134e4a'},
