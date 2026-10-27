@@ -61,7 +61,7 @@ def test_two_processes_each_taking_two_file_locks_never_deadlock(tmp_path, pair)
     results, hung, errors = _run(tmp_path, specs, DEADLINE_S)
     if hung:
         pytest.fail(f"{pair}: {', '.join(hung)} still running after {DEADLINE_S:.0f}s (killed): a cross-process "
-                    "deadlock between two file locks", pytrace=False)
+                    "deadlock between two file locks\n" + flo.hang_report(tmp_path, specs), pytrace=False)
     # The order first: a child that failed still left the trace of what it took until then.
     order = flo.violations(flo.read_traces([tmp_path / f"{name}.trace" for name in specs]))
     assert not order, "\n".join(order + [f"{name} failed: {error}" for name, error in errors.items()])
@@ -87,9 +87,16 @@ def test_two_processes_each_taking_two_file_locks_never_deadlock(tmp_path, pair)
 def test_the_race_harness_sees_a_deadlock_between_two_inverted_file_locks(tmp_path):
     """Detection: one helper takes the homes in sorted order, the other on purpose the other way round."""
     a, b = str((tmp_path / "home-a").resolve()), str((tmp_path / "home-b").resolve())
-    hold = {"hold_first_flock_s": 1.0}
-    specs = {"ordered": ("ordered_homes", [[a, b]], a, a, hold), "inverted": ("inverted_homes", [[a, b]], a, a, hold)}
-    results, hung, errors = _run(tmp_path, specs, 15.0)
+    # A barrier, not a timed hold: each helper, once it holds its first ledger flock, waits until the
+    # other holds its own. The deadlock then forms however late either child starts (REVIEW-1, 1).
+    sync = {"barrier": ["ordered", "inverted"], "barrier_dir": str(tmp_path)}
+    specs = {"ordered": ("ordered_homes", [[a, b]], a, a, sync), "inverted": ("inverted_homes", [[a, b]], a, a, sync)}
+    children = {name: flo.worker(tmp_path, name, role, items, home=home, runtime_home=runtime_home, **extra)
+                for name, (role, items, home, runtime_home, extra) in specs.items()}
+    flo.go(tmp_path, children)
+    both_waiting = flo.await_nested_waits(tmp_path, specs, DEADLINE_S)
+    results, hung, errors = flo.finish(children, 2.0)  # both still waiting 2 s later: deadlocked
+    assert both_waiting, (results, hung, errors, flo.hang_report(tmp_path, specs))
     assert sorted(hung) == ["inverted", "ordered"], (results, hung, errors)
     found = flo.violations(flo.read_traces([tmp_path / f"{name}.trace" for name in specs]))
     text = "\n".join(found)

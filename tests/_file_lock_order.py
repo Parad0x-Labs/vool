@@ -449,18 +449,41 @@ def run_role(role: str, items: list, spec: dict) -> list:
     return out
 
 
-def child_main() -> None:
-    """`python -c 'from tests._file_lock_order import child_main; child_main()' SPEC.json`"""
+def child_hook(spec: dict):
+    """The flock hook a child's spec asks for, or None.
+
+    `hold_first_flock_s` holds the first ledger flock of a nesting that long, to widen the window
+    before a second one. `barrier` (names of the children that take part, `barrier_dir` beside them)
+    makes each of them, once it holds its first ledger flock, wait until every one of them holds
+    its own before it goes on: two inverted helpers then deadlock however late either one started."""
+    hold = float(spec.get("hold_first_flock_s") or 0)
+    peers, folder = spec.get("barrier") or [], Path(spec.get("barrier_dir") or ".")
+    if not hold and not peers:
+        return None
+
+    def hook(name, phase):
+        if phase != "after" or not name.startswith("ledger:"):
+            return
+        if [h for h in _held() if h.startswith("ledger:") and h != name]:
+            return  # not the first ledger flock of this nesting
+        if peers:
+            (folder / f"{spec['name']}.first").write_text("held", encoding="utf-8")
+            deadline = time.monotonic() + 120
+            while not all((folder / f"{peer}.first").exists() for peer in peers) and time.monotonic() < deadline:
+                time.sleep(0.01)
+        if hold:
+            time.sleep(hold)
+    return hook
+
+
+def child_main(run=None, setup_fn=None) -> None:
+    """`python -c 'from tests._file_lock_order import child_main; child_main()' SPEC.json`
+
+    `run(role, items, spec)` and `setup_fn(spec)` replace `run_role` / `setup_role` for a module
+    that adds paths of its own (`tests/_file_lock_coverage.py`)."""
     spec = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     child_environment(spec["home"])
-    hook = None
-    if spec.get("hold_first_flock_s"):
-        hold = float(spec["hold_first_flock_s"])
-
-        def hook(name, phase):  # widen the window between a first and a second ledger flock
-            if phase == "after" and name.startswith("ledger:") and not [h for h in _held() if h.startswith("ledger:")
-                                                                        and h != name]:
-                time.sleep(hold)
+    hook = child_hook(spec)
     if spec["role"] != "setup":
         install(spec["trace"], flock_hook=hook)
     if spec.get("ready"):
@@ -469,28 +492,33 @@ def child_main() -> None:
         deadline = time.monotonic() + 120
         while not Path(spec["go"]).exists() and time.monotonic() < deadline:
             time.sleep(0.01)
-    result = setup_role(spec) if spec["role"] == "setup" else run_role(spec["role"], spec["items"], spec)
+    if spec["role"] == "setup":
+        result = (setup_fn or setup_role)(spec)
+    else:
+        result = (run or run_role)(spec["role"], spec["items"], spec)
     print("RESULT " + json.dumps(result), flush=True)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def spawn(work: Path, name: str, spec: dict):
-    """One child process running `spec`; its trace is `<work>/<name>.trace`."""
+def spawn(work: Path, name: str, spec: dict, *, entry: str = "tests._file_lock_order"):
+    """One child process running `spec`; its trace is `<work>/<name>.trace`. `entry` is the module
+    whose `child_main()` the child runs."""
     import subprocess
 
-    spec = {"trace": str(work / f"{name}.trace"), **spec}
+    spec = {"trace": str(work / f"{name}.trace"), "name": name, **spec}
     path = work / f"{name}.json"
     path.write_text(json.dumps(spec), encoding="utf-8")
     env = {**os.environ, "PYTHONPATH": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"}
-    return subprocess.Popen([sys.executable, "-c", "from tests._file_lock_order import child_main; child_main()",
+    return subprocess.Popen([sys.executable, "-c", f"from {entry} import child_main; child_main()",
                              str(path)], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-def finish(children: dict, deadline_s: float) -> tuple[dict, list[str], dict]:
+def finish(children: dict, deadline_s: float, *, stderr: dict | None = None) -> tuple[dict, list[str], dict]:
     """Wait for every child against one deadline. A child still running then is killed (it is ours) and
-    named in `hung`. Returns (results by name, hung names, stderr tails)."""
+    named in `hung`. Returns (results by name, hung names, stderr tails). `stderr`, when given, gets
+    every finished child's whole stderr."""
     import subprocess
 
     end = time.monotonic() + deadline_s
@@ -501,6 +529,8 @@ def finish(children: dict, deadline_s: float) -> tuple[dict, list[str], dict]:
         except subprocess.TimeoutExpired:
             hung.append(name)
             continue
+        if stderr is not None:
+            stderr[name] = err
         line = next((l for l in out.splitlines() if l.startswith("RESULT ")), None)
         if line is None:
             errors[name] = f"exit {child.returncode}: {err[-3000:]}"
@@ -510,6 +540,33 @@ def finish(children: dict, deadline_s: float) -> tuple[dict, list[str], dict]:
         children[name].kill()
         children[name].communicate()
     return results, hung, errors
+
+
+def hang_report(work: Path, names) -> str:
+    """For a hang: what the hung children's traces say, so the failure names the locks, not only the
+    children. A wait that never ended was written before it started, so it is in the trace."""
+    rows = read_traces([work / f"{name}.trace" for name in names])
+    found = violations(rows)
+    last = {}
+    for row in rows:
+        if row["blocking"]:
+            last[row["pid"]] = row
+    waits = [f"pid {row['pid']} last waited for {row['lock']} holding {row['held']} "
+             f"({' <- '.join(reversed(row.get('where') or []))})" for row in last.values()]
+    return "\n".join(["order checker on the traces:", *(found or ["(no violation recorded)"]),
+                      "last recorded wait of each child:", *(waits or ["(none)"])])
+
+
+def await_nested_waits(work: Path, names, timeout_s: float) -> bool:
+    """Until every named child's trace shows it waiting for a ledger flock while it holds another:
+    True once they all do, False at the timeout."""
+    end = time.monotonic() + timeout_s
+    while time.monotonic() < end:
+        if all(any(r["blocking"] and r["lock"].startswith("ledger:") and any(h.startswith("ledger:") for h in r["held"])
+                   for r in read_traces([work / f"{name}.trace"])) for name in names):
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def go(work: Path, children: dict, timeout_s: float = 120.0) -> None:
@@ -522,16 +579,18 @@ def go(work: Path, children: dict, timeout_s: float = 120.0) -> None:
     (work / "go").write_text("go", encoding="utf-8")
 
 
-def setup(work: Path, name: str, *, home: str, runtime_home: str, n: int, tag: str, deadline_s: float = 300.0) -> dict:
+def setup(work: Path, name: str, *, home: str, runtime_home: str, n: int, tag: str, deadline_s: float = 300.0,
+          entry: str = "tests._file_lock_order") -> dict:
     results, hung, errors = finish({name: spawn(work, name, {"role": "setup", "home": home, "runtime_home": runtime_home,
-                                                            "n": n, "tag": tag})}, deadline_s)
+                                                            "n": n, "tag": tag}, entry=entry)}, deadline_s)
     assert not hung and not errors, (hung, errors)
     return results[name]
 
 
-def worker(work: Path, name: str, role: str, items: list, *, home: str, runtime_home: str, **extra):
+def worker(work: Path, name: str, role: str, items: list, *, home: str, runtime_home: str,
+           entry: str = "tests._file_lock_order", **extra):
     return spawn(work, name, {"role": role, "items": items, "home": home, "runtime_home": runtime_home,
-                              "ready": str(work / f"{name}.ready"), "go": str(work / "go"), **extra})
+                              "ready": str(work / f"{name}.ready"), "go": str(work / "go"), **extra}, entry=entry)
 
 
 if __name__ == "__main__":  # pragma: no cover - debugging aid: print a trace's violations
