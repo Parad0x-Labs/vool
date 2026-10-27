@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.request_trust import turn_is_remote
+from core.request_trust import REMOTE_GRANT_PAID, remote_turn_lacks
 
 from .fast_live_info_runtime_dispatch import build_live_info_response_result
 from .fast_live_info_runtime_preflight import prepare_live_info_request
@@ -98,7 +98,7 @@ def maybe_handle_live_info_fast_path(
     interpretation: Any,
     response_class: Any,
 ) -> dict[str, Any] | None:
-    if turn_is_remote(source_context):
+    if remote_turn_lacks(source_context, REMOTE_GRANT_PAID):
         return None
     live_mode, query, preflight_result = prepare_live_info_request(
         agent,

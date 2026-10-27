@@ -8104,6 +8104,11 @@ def _dispatch_post_inner(
         from core.request_trust import TURN_AUTHOR_KEY, turn_author_from_request
 
         source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
+        # A paired phone's turn names its device (server-stamped, never from the body) so the phone's
+        # rights on the computer decide what its tools may do (core.request_trust.remote_turn_has_grant).
+        from core.request_trust import stamp_remote_device
+
+        stamp_remote_device(source_context)
         source_context["chat_id"] = context_namespace.chat_id
         # The page's app language, server-read from its cookie (never a body field): a reply VOOL
         # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).

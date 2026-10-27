@@ -214,7 +214,7 @@ def reserve_owner_pick_paid_call(
     caller-supplied ``authorized_paid_call`` is never read, here or by the caller.
     """
     from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
-    from core.request_trust import request_is_owner_local
+    from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
 
     def _refuse(reason: str) -> None:
         if denial is not None:
@@ -223,8 +223,9 @@ def reserve_owner_pick_paid_call(
 
     if manifest is None:
         return _refuse("no_explicit_paid_pick")
-    # Only the owner's own local session may spend the owner's key.
-    if not request_is_owner_local(source_context):
+    # Only the owner's own local session, or a paired phone the owner gave "paid services" on the
+    # computer, may spend the owner's key. The spend caps below apply to both.
+    if not turn_may_spend_owner_keys(source_context):
         return _refuse("not_owner_local")
     # A free lane needs no reservation and must not consume the paid cap.
     if provider_cost_class(manifest) != "paid_cloud" or is_verified_free_cloud_manifest(manifest):
@@ -246,6 +247,10 @@ def reserve_owner_pick_paid_call(
     # (empty model_call_id), and the lane's real cap is the operator's money grant. Unrelated
     # paid providers keep this legacy path and its limits unchanged.
     if str(getattr(manifest, "provider_id", "") or "").startswith("usepod"):
+        # A UsePod lane can pay per call from the wallet (x402): that is money, not a model key,
+        # so it stays the owner's own session's even for a phone with "paid services".
+        if not request_is_owner_local(source_context):
+            return _refuse("not_owner_local")
         return _authorize_money_law_pick(manifest, task=task, denial=denial)
 
     context = source_context or {}

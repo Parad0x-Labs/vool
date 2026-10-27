@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "لم يتمكن VOOL من تغيير هذا الإعداد الآن. حاول مرة أخرى بعد لحظات.",
     "wallet.mobile.new_payee": "مستلم جديد: تحقّق من العنوان الكامل مع المستلم.",
     "wallet.mobile.origin": "اقتُرح من هاتفك أو تطبيق المحادثة. تبقى الموافقة على هذا الكمبيوتر.",
-    "wallet.mobile.unusual_amount": "مبلغ غير معتاد: تحقّق من هذا المبلغ قبل الموافقة."
+    "wallet.mobile.unusual_amount": "مبلغ غير معتاد: تحقّق من هذا المبلغ قبل الموافقة.",
+    "phone.right.computer_tools": "استخدام الأدوات على حاسوبي",
+    "phone.right.paid_services": "استخدام خدماتي المدفوعة",
+    "phone.tools_help": "الأدوات: الملفات والتطبيقات والأوامر وحساباتك على هذا الحاسوب. الخدمات المدفوعة: نماذجك المدفوعة والبحث المدفوع. لا يمكن لأي منهما إرسال المال؛ تبقى المدفوعات في تبويب المحفظة على الهاتف. ما يُعدّه الهاتف، مثل المراقبات أو الملفات المحفوظة، يبقى بعد إيقاف الإذن."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

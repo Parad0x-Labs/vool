@@ -3038,7 +3038,10 @@
     "settings.row.web0.retry_note": "VOOL could not change this right now. Try again in a moment.",
     "wallet.mobile.new_payee": "New payee: check the full address with the recipient.",
     "wallet.mobile.origin": "Proposed from your phone or chat app. Approval stays on this computer.",
-    "wallet.mobile.unusual_amount": "Unusual amount: check this amount before approving."
+    "wallet.mobile.unusual_amount": "Unusual amount: check this amount before approving.",
+    "phone.right.computer_tools": "Use tools on my computer",
+    "phone.right.paid_services": "Use my paid services",
+    "phone.tools_help": "Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off."
   },
   "html_keys": [
     "bypass.modal_limits",

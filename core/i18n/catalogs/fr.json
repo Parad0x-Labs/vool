@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
     "wallet.mobile.new_payee": "Nouveau bénéficiaire : vérifiez l’adresse complète avec le bénéficiaire.",
     "wallet.mobile.origin": "Proposé depuis votre téléphone ou application de messagerie. L’approbation reste sur cet ordinateur.",
-    "wallet.mobile.unusual_amount": "Montant inhabituel : vérifiez ce montant avant d’approuver."
+    "wallet.mobile.unusual_amount": "Montant inhabituel : vérifiez ce montant avant d’approuver.",
+    "phone.right.computer_tools": "Utiliser les outils de mon ordinateur",
+    "phone.right.paid_services": "Utiliser mes services payants",
+    "phone.tools_help": "Outils : fichiers, apps, commandes et vos comptes sur cet ordinateur. Services payants : vos modèles et recherches payants. Aucun ne peut envoyer d’argent ; les paiements restent dans l’onglet Portefeuille du téléphone. Ce que le téléphone met en place, comme des surveillances ou des fichiers enregistrés, reste après la désactivation d’un droit."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

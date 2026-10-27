@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL 刚才无法更改此设置。请稍后重试。",
     "wallet.mobile.new_payee": "新收款人：请与收款人核对完整地址。",
     "wallet.mobile.origin": "从你的手机或聊天应用提出。仍需在此电脑上批准。",
-    "wallet.mobile.unusual_amount": "金额异常：批准前请核对金额。"
+    "wallet.mobile.unusual_amount": "金额异常：批准前请核对金额。",
+    "phone.right.computer_tools": "使用我电脑上的工具",
+    "phone.right.paid_services": "使用我的付费服务",
+    "phone.tools_help": "工具：这台电脑上的文件、应用、命令和你的账户。付费服务：你的付费模型和付费搜索。两者都不能转账；付款仍在手机的钱包标签页中进行。 手机设置的内容（如监控或保存的文件）在关闭权限后仍会保留。"
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

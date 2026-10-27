@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "O VOOL não conseguiu alterar isso agora. Tente novamente em instantes.",
     "wallet.mobile.new_payee": "Novo destinatário: confirme o endereço completo com o destinatário.",
     "wallet.mobile.origin": "Proposto pelo telefone ou aplicativo de mensagens. A aprovação ocorre neste computador.",
-    "wallet.mobile.unusual_amount": "Valor incomum: confira o valor antes de aprovar."
+    "wallet.mobile.unusual_amount": "Valor incomum: confira o valor antes de aprovar.",
+    "phone.right.computer_tools": "Usar ferramentas no meu computador",
+    "phone.right.paid_services": "Usar os meus serviços pagos",
+    "phone.tools_help": "Ferramentas: ficheiros, apps, comandos e as suas contas neste computador. Serviços pagos: os seus modelos e pesquisas pagos. Nenhum pode enviar dinheiro; os pagamentos ficam no separador Carteira do telemóvel. O que o telemóvel configurar, como alertas de acompanhamento ou ficheiros guardados, mantém-se depois de desligar uma permissão."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

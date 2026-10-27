@@ -1185,17 +1185,29 @@ def _action_chats_send(
         extra["stable_openclaw_session_id_provider"] = companion_session
         body["surface"] = "channel"
         body["source_context"] = {**body["source_context"], "surface": "channel"}
-    response = dispatch_post(
-        path="/api/chat",
-        body=body,
-        headers={"content-type": "application/json"},
-        runtime=runtime,
-        model_name=model_name,
-        workspace_root_provider=workspace_root_provider,
-        client_host=client_host,
-        request_id=request_id,
-        **extra,
+    from contextlib import nullcontext
+
+    from core.request_trust import trusted_remote_device
+
+    # The sealed, signed request verified above: the chat door names this phone on the turn, and its
+    # rights on the computer (not this request) decide which of the owner's tools the turn may use.
+    phone_scope = (
+        trusted_remote_device(str(device["device_id"]))
+        if device.get("sealed_protocol") and device.get("kind") != "bot"
+        else nullcontext()
     )
+    with phone_scope:
+        response = dispatch_post(
+            path="/api/chat",
+            body=body,
+            headers={"content-type": "application/json"},
+            runtime=runtime,
+            model_name=model_name,
+            workspace_root_provider=workspace_root_provider,
+            client_host=client_host,
+            request_id=request_id,
+            **extra,
+        )
     try:
         payload = json.loads(response.body or b"{}")
     except (json.JSONDecodeError, TypeError):

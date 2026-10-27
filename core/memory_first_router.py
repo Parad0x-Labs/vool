@@ -108,7 +108,7 @@ from core.raw_output_contract import (
     raw_output_contract_guidance,
     raw_output_retry_instruction,
 )
-from core.request_trust import request_is_owner_local
+from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
 from core.response_constraints import (
     check_response_constraint,
     compress_short_coordinate_phrase,
@@ -1170,7 +1170,7 @@ def _inject_free_cloud_requirements(
     # further down where a partially-built cloud request already exists.
     if turn_is_local_only(context):
         return source_context
-    if not request_is_owner_local(context):
+    if not turn_may_spend_owner_keys(context):
         return source_context
     try:
         from core.cloud_provider_contract import CloudTaskRequirements, PrivacyClass
@@ -1218,7 +1218,7 @@ class MemoryFirstRouter:
         from core.cloud_routing import CloudRouteMode
         from core.cloud_tool_call_contract import build_cloud_tool_definitions
         from core.output_validator import validate_provider_output
-        from core.request_trust import request_is_owner_local
+        from core.request_trust import turn_may_spend_owner_keys
 
         context = source_context or {}
         policy = cloud_escalation_policy.load_policy()
@@ -1231,7 +1231,7 @@ class MemoryFirstRouter:
         skipped = (
             "free_cloud_disabled" if not policy.free_cloud_enabled
             else "turn_local_only" if turn_is_local_only(context)
-            else "not_owner_local" if not request_is_owner_local(context)
+            else "not_owner_local" if not turn_may_spend_owner_keys(context)
             else "no_cloud_task_requirements" if not isinstance(requirements, CloudTaskRequirements)
             else "invalid_privacy_grant" if (grant is not None and not isinstance(grant, CloudPrivacyGrant))
             else ""

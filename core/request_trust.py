@@ -24,6 +24,8 @@ present itself as owner-local by setting a body field.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import ipaddress
 from typing import Any
 
@@ -36,6 +38,13 @@ OWNER_LOCAL_KEY = "_owner_local"
 # turn: only an explicit ``_owner_local: True`` (a loopback peer) is the owner.
 HTTP_INGRESS_KEY = "_http_ingress"
 
+# Server-stamped key: the paired phone a remote turn came from, written by the chat door only while
+# the mobile companion has the phone's sealed, signed request in hand (see
+# :func:`trusted_remote_device`). It names the device and grants nothing by itself: what that phone
+# may do is read live from its rights on the computer at every check, so a right switched off, an
+# expired right, or an unpaired phone applies mid-turn and on a resumed turn too.
+REMOTE_DEVICE_KEY = "_remote_device"
+
 # source_context keys a caller must never supply; the server owns them. Stripped from every
 # inbound body before the trusted values are stamped. "authorized_paid_call" is a server-built paid
 # reservation (see ModelOrchestrator.authorize_paid) and participates in the spend decision, so a
@@ -43,6 +52,7 @@ HTTP_INGRESS_KEY = "_http_ingress"
 RESERVED_TRUST_KEYS = (
     OWNER_LOCAL_KEY,
     HTTP_INGRESS_KEY,
+    REMOTE_DEVICE_KEY,
     # M2: the typed turn contract is SERVER-authored at the run_once intake. An inbound
     # body carrying this key is stripped here; only core.turn_contract writes it.
     "turn_request",
@@ -113,6 +123,19 @@ RESERVED_TRUST_KEYS = (
     # school session. Stamped ONLY by the /api/chat ingress gate after the
     # signed session token verifies; a caller-supplied copy is stripped here.
     "school_policy",
+)
+
+#: The reserved keys that GRANT something (an authorization, a context or privacy grant, a paid
+#: reservation, a routing plan). A turn from another device that resumes a stored checkpoint keeps
+#: none of them unless its own door stamped them (core.agent_runtime.agent resume merge).
+RESUME_GRANT_KEYS = tuple(
+    key for key in RESERVED_TRUST_KEYS
+    if key.startswith(("allow_", "model_own_tools", "repo_", "context_", "_context_", "turn_routing"))
+    or key in {
+        "authorized_paid_call", "cloud_escalation_approved", "autopilot_allow_heavy_model",
+        "access_policy", "grant_confirmed_profile", "trusted_private_local", "school_policy",
+        "pending_batch_calls", "_trusted_project_id",
+    }
 )
 
 # In-process surfaces that identify the machine owner's own session. Only consulted as a
@@ -211,7 +234,9 @@ def capability_requires_owner_local(capability: str) -> bool:
 # (core.channel_gateway). Everything else -- files and folders on this computer, notes, calendar,
 # mail, contacts, the profile, media projects, the browser profile, repositories, skills, the
 # wallet, the owner's X account, and every lane that spends the owner's provider keys or money --
-# is the owner's own. Fail closed: an intent is the owner's unless it is listed here.
+# is the owner's own. Fail closed: an intent is the owner's unless it is listed here. A paired phone
+# the owner gave ``computer_tools`` or ``paid_services`` on the computer may also run the owner's tools
+# in that class (see remote_turn_tool_refusal); money tools never run from another device's chat.
 REMOTE_TURN_TOOL_INTENTS = frozenset({
     "respond.direct",
     "capability.expand_family",
@@ -231,6 +256,183 @@ REMOTE_TURN_REFUSAL_TEXT = (
     "I can't do that from another device. Opening files, using your accounts or changing anything "
     "on this computer only works in VOOL on the computer itself."
 )
+
+#: Per-phone rights the owner switches on in Settings on the computer (core.mobile_companion.policy).
+#: ``computer_tools``: files, apps, commands, the browser and the owner's accounts on this computer.
+#: ``paid_services``: the owner's paid model keys and keyed search/data services.
+REMOTE_GRANT_COMPUTER = "computer_tools"
+REMOTE_GRANT_PAID = "paid_services"
+
+# Money never runs from a chat turn on another device, whatever that device's rights: a phone
+# proposes payments through its Wallet tab, where the phone's own cap, the wallet's limits, the
+# approval on the computer and the receipts apply (core.mobile_companion.payments). Each tool is
+# classed from its own registered contract (surface, side effect, permission actions), so a tool
+# added later lands in the right class; a name with no contract is refused (see _remote_intent_grant).
+_MONEY_INTENT_PREFIXES = ("wallet.", "x402.", "pay.", "sell.", "null.", "marketplace.", "web0.", "ai.paid_ask")
+_MONEY_SURFACES = frozenset({"wallet", "marketplace", "web0", "payment", "x402_market", "effect_budget"})
+_MONEY_SIDE_EFFECTS = frozenset({"wallet_spend", "credit_spend"})
+_MONEY_PERMISSIONS = frozenset({"spend_funds", "financial_or_paid_actions"})
+# Changing VOOL itself (settings, skills, site permissions, push/PR authorization) stays the owner's.
+_OWNER_SIDE_EFFECTS = frozenset({"runtime_capability_change"})
+_OWNER_PERMISSIONS = frozenset({"change_settings"})
+_OWNER_INTENTS = frozenset({"vool-browser.permission.grant", "vool-browser.profile.confirm"})
+# A browser on this computer follows redirects and loads sub-resources it cannot pin to public
+# addresses, so it can reach VOOL's own service and the owner's network: it stays the owner's.
+_OWNER_INTENT_PREFIXES = ("vool-browser.", "browser.", "operator.command.")
+# Only side effects VOOL itself declares and understands are classed for a phone; a plugin or MCP
+# tool, or an effect class nobody listed, could do anything (a payments MCP), so it stays the owner's.
+_KNOWN_SIDE_EFFECTS = frozenset({
+    "read_only", "workspace_write", "creative_state", "builder_state", "network_send", "network_publish",
+    "media_generation", "sandbox_command", "validation_command", "task_orchestration",
+})
+# Tools that spend the owner's provider keys or paid services: keyed search, chain-data and X API
+# providers, and media generation.
+_PAID_INTENTS = frozenset({"web.search", "web.research", "web.chain_lookup"})
+_PAID_INTENT_PREFIXES = ("token.", "market.", "watch.", "x.")
+_PAID_SURFACES = frozenset({"chain", "market", "x"})
+_PAID_SIDE_EFFECTS = frozenset({"media_generation"})
+_MONEY = "money"
+_OWNER = "owner"
+
+REMOTE_MONEY_REFUSAL_TEXT = (
+    "Payments from your phone go through the Wallet tab in the VOOL app, where your phone limit and "
+    "the approval on your computer apply. Chat on the phone can't send money."
+)
+REMOTE_OWNER_ONLY_TEXT = (
+    "Changing VOOL's settings, skills or permissions only works in VOOL on the computer itself."
+)
+REMOTE_GRANT_REFUSAL_TEXT = {
+    REMOTE_GRANT_COMPUTER: (
+        "This phone can't use tools on your computer yet. Turn on \"Use tools on my computer\" for "
+        "this phone in VOOL Settings on your computer."
+    ),
+    REMOTE_GRANT_PAID: (
+        "This phone can't use your paid models or paid search yet. Turn on \"Use my paid services\" "
+        "for this phone in VOOL Settings on your computer."
+    ),
+}
+
+_TRUSTED_REMOTE_DEVICE: contextvars.ContextVar[str] = contextvars.ContextVar("vool_trusted_remote_device", default="")
+
+
+@contextlib.contextmanager
+def trusted_remote_device(device_id: str):
+    """Scope in which the chat door stamps ``REMOTE_DEVICE_KEY``. Only in-process code that has
+    already verified the phone's sealed request and signature enters it; nothing on the wire can."""
+
+    token = _TRUSTED_REMOTE_DEVICE.set(str(device_id or ""))
+    try:
+        yield
+    finally:
+        _TRUSTED_REMOTE_DEVICE.reset(token)
+
+
+def stamp_remote_device(source_context: dict[str, Any]) -> None:
+    """Called by the chat door after the reserved keys were stripped and owner-local was derived."""
+
+    device_id = _TRUSTED_REMOTE_DEVICE.get()
+    if device_id and source_context.get(OWNER_LOCAL_KEY) is not True:
+        source_context[REMOTE_DEVICE_KEY] = device_id
+
+
+def remote_turn_has_grant(source_context: Any, grant: str) -> bool:
+    """Whether the paired phone this turn came from currently holds ``grant``, failing closed."""
+
+    if grant not in REMOTE_GRANT_REFUSAL_TEXT:
+        return False
+    sc = source_context if isinstance(source_context, dict) else {}
+    device_id = sc.get(REMOTE_DEVICE_KEY)
+    if not isinstance(device_id, str) or not device_id:
+        return False
+    try:
+        from core.mobile_companion.listener import load_settings
+        from core.mobile_companion.policy import enabled
+        from core.web.api.mobile_companion_api import mobile_companion_service
+
+        if not load_settings().get("enabled"):
+            return False
+        device = mobile_companion_service().store.device(device_id) or {}
+        return (
+            device.get("status") == "active"
+            and device.get("kind") != "bot"
+            and bool(device.get("sealed_protocol"))
+            and enabled(device, grant)
+        )
+    except Exception:
+        return False
+
+
+def turn_may_spend_owner_keys(source_context: Any) -> bool:
+    """The owner's own session, or a paired phone the owner gave ``paid_services``."""
+
+    return request_is_owner_local(source_context) or remote_turn_has_grant(source_context, REMOTE_GRANT_PAID)
+
+
+def remote_turn_lacks(source_context: Any, grant: str) -> bool:
+    """True when this turn is remote and its phone does not hold ``grant`` (bots never do)."""
+
+    return turn_is_remote(source_context) and not remote_turn_has_grant(source_context, grant)
+
+
+def _registered_contract(intent: str) -> Any:
+    try:
+        from core.capability_graph import ensure_registry_bootstrap
+        from core.tool_registry import tool_for_intent
+
+        ensure_registry_bootstrap()
+        return tool_for_intent(intent)
+    except Exception:
+        return None
+
+
+def _class_from_contract(name: str, contract: Any) -> str:
+    surface = str(getattr(contract, "tool_surface", "") or "")
+    effect = str(getattr(contract, "side_effect_class", "") or "")
+    permissions = {str(item) for item in getattr(contract, "permission_actions", ()) or ()}
+    if surface in _MONEY_SURFACES or effect in _MONEY_SIDE_EFFECTS or permissions & _MONEY_PERMISSIONS:
+        return _MONEY
+    source = str(getattr(contract, "source", "builtin") or "builtin")
+    if (name in _OWNER_INTENTS or name.startswith(_OWNER_INTENT_PREFIXES) or effect in _OWNER_SIDE_EFFECTS
+            or permissions & _OWNER_PERMISSIONS or source != "builtin" or effect not in _KNOWN_SIDE_EFFECTS):
+        return _OWNER
+    if (name in _PAID_INTENTS or name.startswith(_PAID_INTENT_PREFIXES) or surface in _PAID_SURFACES
+            or effect in _PAID_SIDE_EFFECTS):
+        return REMOTE_GRANT_PAID
+    return REMOTE_GRANT_COMPUTER
+
+
+def _remote_intent_grant(intent: str) -> str:
+    """The phone right that opens ``intent``, or ``_MONEY`` / ``_OWNER`` when no right does."""
+
+    name = str(intent or "").strip()
+    if name.startswith(_MONEY_INTENT_PREFIXES):
+        return _MONEY
+    contract = _registered_contract(name)
+    if contract is not None:
+        return _class_from_contract(name, contract)
+    if name.startswith(_OWNER_INTENT_PREFIXES):
+        return _OWNER
+    if name.startswith("operator."):
+        # The local operator lane (processes, disk, files, notes, calendar, reminders) names kinds
+        # that have no contract of their own; the kinds that do are classed above.
+        return REMOTE_GRANT_COMPUTER
+    # No contract: nothing says what this tool touches, so no phone right opens it.
+    return _OWNER
+
+
+def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
+    """What the person on the other device reads when ``intent`` was refused for this turn."""
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    if not sc.get(REMOTE_DEVICE_KEY):
+        # A chat app, or another device that is not a paired phone: no right can open this.
+        return REMOTE_TURN_REFUSAL_TEXT
+    grant = _remote_intent_grant(intent)
+    if grant == _MONEY:
+        return REMOTE_MONEY_REFUSAL_TEXT
+    if grant == _OWNER:
+        return REMOTE_OWNER_ONLY_TEXT
+    return REMOTE_GRANT_REFUSAL_TEXT[grant]
 
 
 def turn_is_remote(source_context: Any) -> bool:
@@ -253,6 +455,9 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
     if not turn_is_remote(source_context):
         return ""
     if str(intent or "").strip() in REMOTE_TURN_TOOL_INTENTS:
+        return ""
+    grant = _remote_intent_grant(intent)
+    if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(source_context, grant):
         return ""
     return "owner_local_required"
 
@@ -313,6 +518,9 @@ __all__ = [
     "IN_PROCESS_OWNER_PEER",
     "OWNER_LOCAL_CAPABILITIES",
     "OWNER_LOCAL_KEY",
+    "REMOTE_DEVICE_KEY",
+    "REMOTE_GRANT_COMPUTER",
+    "REMOTE_GRANT_PAID",
     "REMOTE_TURN_REFUSAL_TEXT",
     "REMOTE_TURN_TOOL_INTENTS",
     "RESERVED_TRUST_KEYS",
@@ -323,10 +531,16 @@ __all__ = [
     "in_process_owner_source_context",
     "is_loopback_host",
     "owner_peer_for_turn",
+    "remote_turn_has_grant",
+    "remote_turn_lacks",
+    "remote_turn_refusal_text",
     "remote_turn_tool_refusal",
     "request_is_owner_local",
+    "stamp_remote_device",
     "strip_reserved_trust_keys",
+    "trusted_remote_device",
     "turn_author_from_request",
     "turn_is_owner_authored",
     "turn_is_remote",
+    "turn_may_spend_owner_keys",
 ]

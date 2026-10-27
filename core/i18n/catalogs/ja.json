@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL は今この設定を変更できませんでした。少し後にもう一度お試しください。",
     "wallet.mobile.new_payee": "新しい受取人：受取人と完全なアドレスを確認してください。",
     "wallet.mobile.origin": "スマートフォンまたはチャットアプリからの提案です。承認はこのコンピューターで行います。",
-    "wallet.mobile.unusual_amount": "通常と異なる金額：承認前に金額を確認してください。"
+    "wallet.mobile.unusual_amount": "通常と異なる金額：承認前に金額を確認してください。",
+    "phone.right.computer_tools": "このコンピューターのツールを使う",
+    "phone.right.paid_services": "有料サービスを使う",
+    "phone.tools_help": "ツール：このコンピューターのファイル、アプリ、コマンド、アカウント。有料サービス：有料モデルと有料検索。どちらも送金はできません。支払いはスマホのウォレットタブで行います。 ウォッチや保存したファイルなど、スマホで設定したものは権限をオフにしても残ります。"
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1060,7 +1060,7 @@ def _execute_tool_intent_impl(
     # may run only the intents core.request_trust lists for it. The web and payment lanes used to
     # dispatch without asking, so a phone turn ran keyed web searches, rendered pages in a browser
     # on this computer and reached pay.x402's approval gate.
-    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+    from core.request_trust import remote_turn_refusal_text, remote_turn_tool_refusal
 
     remote_refusal = remote_turn_tool_refusal(intent, source_context)
     if remote_refusal:
@@ -1070,8 +1070,8 @@ def _execute_tool_intent_impl(
             status=remote_refusal,
             mode="refused",
             tool_name=intent,
-            response_text=REMOTE_TURN_REFUSAL_TEXT,
-            user_safe_response_text=REMOTE_TURN_REFUSAL_TEXT,
+            response_text=remote_turn_refusal_text(intent, source_context),
+            user_safe_response_text=remote_turn_refusal_text(intent, source_context),
             details={"executed": False, "reason": remote_refusal},
         )
 

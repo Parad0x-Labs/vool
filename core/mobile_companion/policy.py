@@ -19,8 +19,15 @@ RIGHTS = (
     "photos",
     "location",
     "microphone",
+    # The owner's own VOOL from the phone (core.request_trust.remote_turn_tool_refusal): files, apps,
+    # commands and accounts on this computer; and the owner's paid models and paid search. Money
+    # tools stay out of chat either way; payments go through payment_propose and the wallet.
+    "computer_tools",
+    "paid_services",
 )
-STRONG = frozenset({"payment_propose", "payment_approve", "tool_approval"})
+STRONG = frozenset({"payment_propose", "payment_approve", "tool_approval", "computer_tools", "paid_services"})
+#: Strong rights the computer grants for 30 days when switched on without a chosen expiry.
+_RENEWED_ON_ENABLE = ("computer_tools", "paid_services")
 ACTIONS = {
     "chats.list": "history",
     "chats.history": "history",
@@ -205,6 +212,14 @@ def update(service, body):
         expiries.setdefault("payment_propose", time.time() + 30 * 86400)
         if changes.get("payment_propose") and "payment_propose" not in given:
             expiries["payment_propose"] = time.time() + 30 * 86400
+    previous_rules = current.get("rules") or {}
+    for name in _RENEWED_ON_ENABLE:
+        # Switched on now, or on with no live expiry: 30 days. A save that only re-sends an
+        # already-on right keeps the expiry the owner chose.
+        stale = not (type(expiries.get(name)) in (int, float) and expiries[name] > time.time())
+        was_on = previous_rules.get(name) is True and not stale
+        if changes.get(name) and name not in given and not was_on:
+            expiries[name] = time.time() + 30 * 86400
     service.store.mark_device(
         device_id,
         rules=rules,

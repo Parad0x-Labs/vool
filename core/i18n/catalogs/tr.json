@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL şu anda bunu değiştiremedi. Birazdan tekrar deneyin.",
     "wallet.mobile.new_payee": "Yeni alıcı: tam adresi alıcıyla doğrulayın.",
     "wallet.mobile.origin": "Telefonunuzdan veya sohbet uygulamanızdan önerildi. Onay bu bilgisayarda verilir.",
-    "wallet.mobile.unusual_amount": "Alışılmadık tutar: onaylamadan önce tutarı kontrol edin."
+    "wallet.mobile.unusual_amount": "Alışılmadık tutar: onaylamadan önce tutarı kontrol edin.",
+    "phone.right.computer_tools": "Bilgisayarımdaki araçları kullan",
+    "phone.right.paid_services": "Ücretli hizmetlerimi kullan",
+    "phone.tools_help": "Araçlar: bu bilgisayardaki dosyalar, uygulamalar, komutlar ve hesaplarınız. Ücretli hizmetler: ücretli modelleriniz ve ücretli arama. Hiçbiri para gönderemez; ödemeler telefondaki Cüzdan sekmesinde kalır. Telefonun kurduğu şeyler, örneğin takipler veya kaydedilen dosyalar, bir izni kapattıktan sonra da kalır."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

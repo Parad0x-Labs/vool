@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL konnte das gerade nicht ändern. Versuchen Sie es gleich noch einmal.",
     "wallet.mobile.new_payee": "Neuer Empfänger: Prüfe die vollständige Adresse mit dem Empfänger.",
     "wallet.mobile.origin": "Vom Telefon oder der Chat-App vorgeschlagen. Die Freigabe erfolgt auf diesem Computer.",
-    "wallet.mobile.unusual_amount": "Ungewöhnlicher Betrag: Prüfe den Betrag vor der Freigabe."
+    "wallet.mobile.unusual_amount": "Ungewöhnlicher Betrag: Prüfe den Betrag vor der Freigabe.",
+    "phone.right.computer_tools": "Werkzeuge auf meinem Computer nutzen",
+    "phone.right.paid_services": "Meine kostenpflichtigen Dienste nutzen",
+    "phone.tools_help": "Werkzeuge: Dateien, Apps, Befehle und deine Konten auf diesem Computer. Kostenpflichtige Dienste: deine bezahlten Modelle und die bezahlte Suche. Beides kann kein Geld senden; Zahlungen bleiben im Tab Wallet auf dem Telefon. Was das Telefon einrichtet, etwa Beobachtungen oder gespeicherte Dateien, bleibt auch nach dem Abschalten eines Rechts bestehen."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

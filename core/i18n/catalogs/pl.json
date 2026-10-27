@@ -3038,9 +3038,12 @@
     "settings.row.web0.retry_note": "VOOL nie mógł teraz tego zmienić. Spróbuj ponownie za chwilę.",
     "wallet.mobile.new_payee": "Nowy odbiorca: potwierdź z odbiorcą pełny adres.",
     "wallet.mobile.origin": "Zaproponowano z telefonu lub komunikatora. Zatwierdzenie odbywa się na tym komputerze.",
-    "wallet.mobile.unusual_amount": "Nietypowa kwota: sprawdź ją przed zatwierdzeniem."
+    "wallet.mobile.unusual_amount": "Nietypowa kwota: sprawdź ją przed zatwierdzeniem.",
+    "phone.right.computer_tools": "Używaj narzędzi na moim komputerze",
+    "phone.right.paid_services": "Używaj moich płatnych usług",
+    "phone.tools_help": "Narzędzia: pliki, aplikacje, polecenia i Twoje konta na tym komputerze. Płatne usługi: Twoje płatne modele i płatne wyszukiwanie. Żadne nie może wysłać pieniędzy; płatności zostają w karcie Portfel w telefonie. To, co telefon ustawi, na przykład obserwacje lub zapisane pliki, zostaje po wyłączeniu uprawnienia."
   },
-  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
+  "source_catalog_sha256": "9531c022dc777313fc6f13a476b5572bebc41e405e8dd6661da8fc9e64a418da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

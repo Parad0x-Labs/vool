@@ -3733,7 +3733,7 @@ def execute_runtime_tool(
     # Remote-turn fence: a turn the server stamped as NOT the owner's own session (a request from
     # another device on the network, a paired phone, a channel) can chat and read public
     # information, never reach this computer's files, notes, mail, accounts or settings.
-    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+    from core.request_trust import remote_turn_refusal_text, remote_turn_tool_refusal
 
     remote_refusal = remote_turn_tool_refusal(intent, source_context)
     if remote_refusal:
@@ -3741,7 +3741,7 @@ def execute_runtime_tool(
             handled=True,
             ok=False,
             status=remote_refusal,
-            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            response_text=remote_turn_refusal_text(intent, source_context),
             details={
                 "reason": remote_refusal,
                 "executed": False,
@@ -7537,10 +7537,16 @@ def _run_command(
     from core.agent_runtime.audit_policy import isolated_proof_read_roots
 
     proof_reads = isolated_proof_read_roots(source_context)
+    from core.request_trust import turn_is_remote
+
+    # A command a turn from another device runs (a phone with "Use tools on my computer") never gets
+    # the relaxed test-runner isolation: with the network open it could call VOOL's own loopback API
+    # as the owner and change its own rights or settings.
+    network_mode = None if turn_is_remote(source_context) else _trusted_local_network_mode(command, arguments=arguments)
     runner = SandboxRunner(
         ExecutionGate(),
         str(workspace_root),
-        network_isolation_mode=_trusted_local_network_mode(command, arguments=arguments),
+        network_isolation_mode=network_mode,
         **({"read_roots": tuple(Path(root) for root in proof_reads)} if proof_reads else {}),
     )
     # The operator's stop button reaches INTO the command: the turn's cancel signal (and, for a

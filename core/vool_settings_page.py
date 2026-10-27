@@ -5259,7 +5259,8 @@ function widgetPhoneAccess(host) {
     button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=e.message;button.disabled=false;});};
   };
   const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
-    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice'};
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
+    computer_tools:'Use tools on my computer', paid_services:'Use my paid services'};
   const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
     task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
     desktop_inbox:'New desktop inbox item',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model offer',model_market:'Model update',market_watch:'Market watch'};
@@ -5299,8 +5300,10 @@ function widgetPhoneAccess(host) {
     const rightsGrid=el('div','phone-rights'); row.appendChild(rightsGrid);
     if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to this bot in a private conversation within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
-      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve'].includes(name)) return;
-      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox'; box.checked=!!(device.rules || {})[name];
+      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
+      /* An expired right shows as off, so saving anything else never sends it back on. */
+      const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());
       box.dataset.right=name; box.disabled=name==='tool_approval' || name==='payment_approve'; boxes[name]=box;
       line.append(box, document.createTextNode(' '+T('phone.right.'+name,label))); rightsGrid.appendChild(line);
       const expiry=el('input','inp');expiry.type='datetime-local';expiry.setAttribute('aria-label',T('phone.right_expiry','Expires')+' · '+T('phone.right.'+name,label));
@@ -5308,6 +5311,7 @@ function widgetPhoneAccess(host) {
       expiry.dataset.initial=expiry.value;
       expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
     });
+    if(!isBot)row.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
     row.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.approve_on_pc','Payments and actions must be approved on your computer in this version.')));
     if(isBot)botNotices(row,device);
     const account=accountSelect((device.payment_cap || {}).wallet_id); row.appendChild(account);
