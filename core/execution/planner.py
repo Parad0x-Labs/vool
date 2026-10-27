@@ -2953,6 +2953,14 @@ def plan_tool_workflow(
     if public_entity_lookup and _web_planning_excluded_by_requirements(text, task_class=task_class, source_context=source_context):
         public_entity_lookup = False
     explicit_lookup = looks_like_explicit_lookup_request(research_text) or public_entity_lookup
+    # A LOCAL code ask ("a test in my project fails, find out why without changing code") carries
+    # lookup-shaped words about an artifact THIS machine owns: planning it onto web.search
+    # answered "No. Web lookups are off." and neither the workspace tools nor an installed skill
+    # ever ran (measured on the served rig). The web stays for asks about the world; the model,
+    # offered the workspace tools (and any matched skill), takes these.
+    if _local_code_ask_beats_web_planning(text):
+        explicit_lookup = False
+        public_entity_lookup = False
     tool_inventory_request = _looks_like_tool_inventory_request(text)
     machine_directory_list = _extract_safe_machine_directory_listing(text)
     machine_directory_create = _extract_safe_machine_directory_create(text)
@@ -2983,7 +2991,7 @@ def plan_tool_workflow(
         eligible_lowered = f" {' '.join(_eligible_constraints(text).eligible_text.split()).lower()} "
     except Exception:
         eligible_lowered = lowered
-    research_flow = not workspace_scoped_lookup and bool(
+    research_flow = not workspace_scoped_lookup and not _local_code_ask_beats_web_planning(text) and bool(
         explicit_lookup
         or compare_or_verify
         or task_class in {"research", "chat_research", "system_design"}
@@ -3058,28 +3066,18 @@ def plan_tool_workflow(
                     next_payload={"intent": "code.task.open", "arguments": {"objective": raw_text}},
                 )
         if lookup_followup_text and explicit_lookup:
-            # A LOCAL code ask ("a test in my project fails, find out why without changing code")
-            # carries lookup-shaped words ("find out why") about an artifact THIS machine owns:
-            # planning it onto web.search answered "No. Web lookups are off." and neither the
-            # workspace tools nor an installed skill ever ran. The web stays for asks about the
-            # world; the model, offered the workspace tools (and any matched skill), takes these.
-            if _local_code_ask_beats_web_planning(text):
-                explicit_lookup = False
-                public_entity_lookup = False
-                research_flow = False
-            else:
-                if public_entity_lookup:
-                    return WorkflowPlannerDecision(
-                        handled=True,
-                        reason="planned_entity_lookup_search",
-                        next_payload={"intent": "web.search", "arguments": {"query": entity_query or research_text, "limit": 4}},
-                    )
-                if research_flow:
-                    return WorkflowPlannerDecision(
-                        handled=True,
-                        reason="planned_research_search",
-                        next_payload={"intent": "web.search", "arguments": {"query": research_text, "limit": 4}},
-                    )
+            if public_entity_lookup:
+                return WorkflowPlannerDecision(
+                    handled=True,
+                    reason="planned_entity_lookup_search",
+                    next_payload={"intent": "web.search", "arguments": {"query": entity_query or research_text, "limit": 4}},
+                )
+            if research_flow:
+                return WorkflowPlannerDecision(
+                    handled=True,
+                    reason="planned_research_search",
+                    next_payload={"intent": "web.search", "arguments": {"query": research_text, "limit": 4}},
+                )
         if tool_inventory_request:
             return WorkflowPlannerDecision(
                 handled=True,

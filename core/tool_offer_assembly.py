@@ -280,13 +280,19 @@ def skill_provenance_rows(rows: Any) -> list[dict[str, Any]]:
 
 
 def _user_authored(skill: Any) -> bool:
-    """A skill the OPERATOR made: a chat or project skill, or one in a global pack they own.
+    """A skill the OPERATOR chose for their own requests: one they made, or one they installed.
 
     ``local-skills`` (where chat-authored skills are installed) and packs the plugin creator made
     (``"vool": {"origin": "user"}``) qualify; bundled first-party packs and add-on packs do not.
+    A REGISTRY install (``registry-<sha>``, the add-on page's own route) qualifies too: the
+    operator reviewed and accepted that exact signed package, which is the same statement of
+    intent lane 1 exists for. Without it, the native task-class matches crowded every slot and
+    the installed skill never rendered -- its allowed-tools had nothing to narrow, and the skill
+    the owner chose was indistinguishable from not installed (measured: 0 of 26 tool skills
+    active through the real install route).
     """
     plugin_id = str(getattr(skill, "plugin_id", "") or "")
-    if plugin_id in ("chat-skills", "project-skills"):
+    if plugin_id in ("chat-skills", "project-skills") or plugin_id.startswith("registry-"):
         return True
     try:
         from core.skill_tools import _removable_global_pack
