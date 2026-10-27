@@ -1,5 +1,5 @@
 ---
-description: Atsisiųskite ir įdiekite VOOL 0.7.4-beta macOS (Apple silicon arba Intel) ar Linux sistemoje. Windows palaikymas eksperimentinis, diegiama iš šaltinio kodo.
+description: Atsisiųskite ir įdiekite VOOL 0.7.5-beta macOS (Apple silicon arba Intel) ar Linux sistemoje. Windows palaikymas eksperimentinis, diegiama iš šaltinio kodo.
 ---
 
 # Diegimas
@@ -16,13 +16,13 @@ description: Atsisiųskite ir įdiekite VOOL 0.7.4-beta macOS (Apple silicon arb
 
 ## Atsisiuntimas
 
-Visi failai yra [v0.7.4-beta leidime](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.4-beta), prie kiekvieno paskelbta SHA-256 kontrolinė suma.
+Visi failai yra [v0.7.5-beta leidime](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta), prie kiekvieno paskelbta SHA-256 kontrolinė suma.
 
 | Jūsų kompiuteris | Atsisiųsti |
 | --- | --- |
-| Mac su Apple silicon (M1 ar naujesnis) | [`VOOL-0.7.4-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-arm64.dmg) |
-| Mac su Intel procesoriumi | [`VOOL-0.7.4-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-x86_64.dmg) |
-| Linux x86_64 | [`vool-0.7.4-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/vool-0.7.4-beta-linux-x86_64.tar.gz) |
+| Mac su Apple silicon (M1 ar naujesnis) | [`VOOL-0.7.5-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-arm64.dmg) |
+| Mac su Intel procesoriumi | [`VOOL-0.7.5-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-x86_64.dmg) |
+| Linux x86_64 | [`vool-0.7.5-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/vool-0.7.5-beta-linux-x86_64.tar.gz) |
 
 Nežinote, koks jūsų Mac? Apple meniu pasirinkite **About This Mac**: „Apple M…" reiškia Apple silicon, „Intel" reiškia Intel.
 
@@ -45,16 +45,16 @@ Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers
 Atsisiųskite archyvą ir jo `.sha256` failą, patikrinkite ir paleiskite pridėtą diegimo programą. Sudo nereikia:
 
 ```bash
-sha256sum -c vool-0.7.4-beta-linux-x86_64.tar.gz.sha256
-tar -xzf vool-0.7.4-beta-linux-x86_64.tar.gz
-bash vool-0.7.4-beta-linux-x86_64/install.sh
+sha256sum -c vool-0.7.5-beta-linux-x86_64.tar.gz.sha256
+tar -xzf vool-0.7.5-beta-linux-x86_64.tar.gz
+bash vool-0.7.5-beta-linux-x86_64/install.sh
 ```
 
 ## Patikrinkite atsisiuntimą
 
 ```bash
-shasum -a 256 VOOL-0.7.4-beta-macos-arm64.dmg        # macOS
-sha256sum vool-0.7.4-beta-linux-x86_64.tar.gz   # Linux
+shasum -a 256 VOOL-0.7.5-beta-macos-arm64.dmg        # macOS
+sha256sum vool-0.7.5-beta-linux-x86_64.tar.gz   # Linux
 ```
 
 Palyginkite rezultatą su kontroline suma leidimo puslapyje. Jei nesutampa, ištrinkite failą ir atsisiųskite iš naujo.
