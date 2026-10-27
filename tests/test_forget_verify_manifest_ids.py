@@ -169,3 +169,17 @@ def test_control_a_call_record_without_the_number_forgets_clean(isolated_pages):
     handled, reply = command(isolated_pages, chat, f"forget {FORGOTTEN}")
 
     assert handled and reply.startswith("Forget applied"), reply
+
+
+def test_a_long_number_under_an_id_key_still_refuses_the_forget(isolated_pages):
+    """Sixteen digits are hex-shaped, but an all-digit value may be the person's own number (a card, an account):
+    it is read as words, so forgetting it still checks the call records (REVIEW-1 finding 4)."""
+    chat = "forget-id-key-long-number"
+    number = "4111111111111111"
+    _remember(isolated_pages, chat, f"my locker code is {number}.")
+    _insert_raw_record(isolated_pages, chat, "req-id-number", {"context_manifest_id": "",
+                                                               "selected_sources": [{"item_id": number}]})
+
+    handled, reply = command(isolated_pages, chat, f"forget {number}")
+
+    assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
