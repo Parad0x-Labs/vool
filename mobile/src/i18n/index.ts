@@ -27,6 +27,8 @@ export function errorText(value: unknown): string {
   if (error?.code === "device_revoked") return tr("This phone is unpaired. Pair it again on your computer.");
   if (error?.code === "sealed_response_invalid" || error?.code === "sealed_authentication_failed") return tr("The computer’s identity could not be verified. Check it before pairing again.");
   if (error?.code === "phone_right_off_or_expired" || error?.code === "phone_history_required") return tr("Change this phone’s permissions on your computer.");
+  // The screen stays plain; the cause goes to the developer log (Expo terminal) for diagnosis.
+  console.warn("VOOL phone error", error?.code || "", message);
   return tr("Could not complete this. Check your computer.");
 }
 
