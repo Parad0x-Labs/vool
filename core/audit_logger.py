@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime as _dt
+import enum
 import hashlib
 import json
 import os
@@ -8,6 +11,8 @@ import sqlite3
 import threading
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 from storage.db import active_default_db_path, execute_query, get_connection
 from storage.event_log import append_event
@@ -190,6 +195,34 @@ def _redact_details(details: dict | None) -> dict:
     return redacted
 
 
+def _json_safe(value: Any) -> Any:
+    """Render any value into something json.dumps accepts, losing no string the row needs.
+
+    The audit seam receives whole turn contexts (`dict(source_context)`, tool_intent_executor's
+    unsupported-path audit among them), and a turn context carries frozen decision records —
+    dataclasses like `CurrentRequirementRecord` — plus datetimes, enums, sets and paths. An
+    unserializable value used to raise TypeError out of ``log()`` and take the whole turn down
+    with HTTP 500 before its own answer returned. Known shapes keep their structure (dataclass
+    → dict, datetime → ISO string, enum → its value); anything unknown degrades to ``str()``
+    rather than crashing the turn the row was meant to record.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(dataclasses.asdict(value))
+    if isinstance(value, _dt.datetime | _dt.date | _dt.time):
+        return value.isoformat()
+    if isinstance(value, enum.Enum):
+        return _json_safe(value.value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    return str(value)
+
+
 def log(
     event_type: str,
     target_id: str | None = None,
@@ -208,7 +241,7 @@ def log(
     """
     event_id = str(uuid.uuid4())
     safe_target_id = _redact_target_id(target_id)
-    payload = _redact_details(details)
+    payload = _json_safe(_redact_details(details))
     if conn is None:
         _ensure_audit_log_table()
     else:
