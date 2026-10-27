@@ -18,6 +18,7 @@ import {
   pairingProofPayload, requestProofPayload, deviceIdFor,
 } from "../src/protocol/ed25519.ts";
 import { parsePairingUri, pairingUriIsFresh, verifyDesktopProof } from "../src/protocol/pairing.ts";
+import { connectionAddress } from "../src/protocol/connection.ts";
 
 test("FIPS 180-4 SHA-256 known answers", () => {
   assert.equal(toHex(sha256(new TextEncoder().encode("abc"))),
@@ -192,3 +193,36 @@ function hexToBytes(hex) {
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
+
+
+test("the QR and the connection address parse on React Native's stub URL", () => {
+  // React Native 0.76's URL throws "URL.hostname is not implemented" (and the same for port,
+  // protocol, search and searchParams). Node's full URL hid that: on a phone every pairing QR failed.
+  const RealURL = globalThis.URL;
+  globalThis.URL = class {
+    constructor(href) { this.href = String(href); }
+    get hostname() { throw new Error("URL.hostname is not implemented"); }
+    get port() { throw new Error("URL.port is not implemented"); }
+    get protocol() { throw new Error("URL.protocol is not implemented"); }
+    get searchParams() { throw new Error("URL.searchParams is not implemented"); }
+    toString() { return this.href; }
+  };
+  try {
+    const fp = "cd".repeat(32);
+    const exp = Math.floor(Date.now() / 1000) + 300;
+    const parsed = parsePairingUri(`vool-pair://192.168.2.207:55822?fp=${fp}&pid=pair_0f5870f592a049b4&code=M7XRA5X7&exp=${exp}`);
+    assert.ok(parsed);
+    assert.equal(parsed.host, "192.168.2.207");
+    assert.equal(parsed.port, 55822);
+    assert.equal(parsed.pairingId, "pair_0f5870f592a049b4");
+    assert.equal(connectionAddress("http://192.168.2.207:55822/"), "http://192.168.2.207:55822");
+    assert.equal(connectionAddress(`https://relay.example/rooms/${"a".repeat(48)}`), `https://relay.example/rooms/${"a".repeat(48)}`);
+    for (const bad of ["http://example.com:80", "ftp://192.168.1.2", "http://user:pw@192.168.1.2", "http://192.168.1.2/?x=1",
+      "http://192.168.1.2/#x", "http://192.168.1.2/other", "http://192.168.1.2:70000"]) {
+      assert.throws(() => connectionAddress(bad), /Invalid connection address/, bad);
+    }
+    assert.equal(parsePairingUri(`vool-pair://h:99999?fp=${fp}&pid=pair_ab&code=M7XRA5X7&exp=${exp}`), null);
+  } finally {
+    globalThis.URL = RealURL;
+  }
+});

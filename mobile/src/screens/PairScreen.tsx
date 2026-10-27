@@ -33,6 +33,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   const [fingerprint, setFingerprint] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>("");
+  // A scanned QR pairs at once; there is nothing left to type, so waiting for a button read as "nothing happened".
+  const [pairAfterScan, setPairAfterScan] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const store = useMemo(() => credentialStoreForEnvironment(false), []);
   const handledLinkRef = useRef<string | null>(null);
@@ -67,7 +69,9 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setFingerprint(parsed.desktopFingerprint);
     if (!pairingUriIsFresh(parsed)) {
       setError(tr("This pairing QR has expired — start a new pairing on the desktop."));
+      return;
     }
+    setPairAfterScan(true);
   }, []);
 
   const pair = async () => {
@@ -110,6 +114,14 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!pairAfterScan || busy || !desktopUrl || !pairingId || !code) return;
+    setPairAfterScan(false);
+    void pair();
+    // pair() reads the fields this scan just set; it runs once per scan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairAfterScan, busy, desktopUrl, pairingId, code, fingerprint]);
 
   const startScanning = async () => {
     if (!cameraPermission?.granted) {
