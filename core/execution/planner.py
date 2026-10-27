@@ -2958,7 +2958,12 @@ def plan_tool_workflow(
     # answered "No. Web lookups are off." and neither the workspace tools nor an installed skill
     # ever ran (measured on the served rig). The web stays for asks about the world; the model,
     # offered the workspace tools (and any matched skill), takes these.
-    if _local_code_ask_beats_web_planning(text):
+    if _local_code_ask_beats_web_planning(text) or _matched_tool_skill_releases_the_lane(
+        text, source_context
+    ):
+        # ... or the words matched an installed TOOL skill: its own workflow (and the model,
+        # offered the skill's tools) owns the turn -- a deterministic web.search here answered
+        # the web-off refusal before the skill ever ran (measured: K-research-brief).
         explicit_lookup = False
         public_entity_lookup = False
     tool_inventory_request = _looks_like_tool_inventory_request(text)
@@ -2991,12 +2996,17 @@ def plan_tool_workflow(
         eligible_lowered = f" {' '.join(_eligible_constraints(text).eligible_text.split()).lower()} "
     except Exception:
         eligible_lowered = lowered
-    research_flow = not workspace_scoped_lookup and not _local_code_ask_beats_web_planning(text) and bool(
+    research_flow = (
+        not workspace_scoped_lookup
+        and not _local_code_ask_beats_web_planning(text)
+        and not _matched_tool_skill_releases_the_lane(text, source_context)
+        and bool(
         explicit_lookup
         or compare_or_verify
         or task_class in {"research", "chat_research", "system_design"}
         or any(marker in eligible_lowered for marker in (" latest ", " current ", " docs ", " documentation ", " research ", " source "))
         or (followup_resume and last_intent in {"web.search", "web.fetch", "web.research"})
+        )
     )
     # The turn's ONE requirements authority may confine the toolsets ("wallet" for a payment demand).
     # A confined turn is never planned onto the web: measured 2026-09-03, "What is the status of payment
