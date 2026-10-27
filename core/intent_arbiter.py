@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from core.agent_runtime.intent_claims import (
     FAMILY_DISK_USAGE,
+    FAMILY_FIND_FILE,
     FAMILY_FIND_FOLDER,
     FAMILY_FOLDER_OVERVIEW,
     FAMILY_HOST_STATE,
@@ -61,6 +62,7 @@ CHOICE_CHAT = "chat"
 # The menu the model picks from. Descriptions are written for a small model: short, concrete,
 # one clear discriminator each. Only read-only intents are ever offered.
 _MENU: dict[str, str] = {
+    FAMILY_FIND_FILE: "the user wants a FILE (picture, document, pdf, video) found by its name on this computer (argument = the file name)",
     FAMILY_FIND_FOLDER: "the user wants a FOLDER located by name on this computer (argument = the folder name)",
     # "like Desktop or Downloads (argument = the place)" taught the tiny model to answer "Desktop" for
     # "/Users/me/Desktop/route-planner", so a request about one subfolder listed the whole Desktop.

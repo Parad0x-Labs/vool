@@ -956,6 +956,122 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     return ("machine.find_folder", clean_name)
 
 
+# A FILE asked for by its name: "a picture named daily 4", "the pdf called invoice-7". Measured on a
+# phone 2026-10-27: "In my Downloads folder there should be a picture named daily 4 or day 4, find it"
+# had no file family to land on, so the arbiter picked find_folder and walked the disk for FOLDERS
+# named "daily 4 or day 4 something". The noun says what is sought; the name follows named/called.
+_FILE_KIND_WORDS = {
+    "picture": "image", "pictures": "image", "pic": "image", "pics": "image", "photo": "image",
+    "photos": "image", "image": "image", "images": "image", "screenshot": "image", "screenshots": "image",
+    "file": "", "files": "", "document": "", "documents": "", "doc": "", "pdf": "pdf", "video": "video",
+    "videos": "video", "movie": "video", "song": "audio", "recording": "audio", "spreadsheet": "",
+    "presentation": "",
+}
+_FILE_NAMED_RE = re.compile(
+    r"\b(?P<kind>" + "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True)) + r")\b"
+    r"(?P<between>(?:\s+\w+){0,4}?)\s+(?:named|called|titled|with\s+the\s+name)\s+"
+    r"(?P<name>[^,;:!?\n]{1,80}?)"
+    r"(?=\s*(?:[,;:!?\n]|\s-\s|\s(?:or\s+something|or\s+so|something|in|on|from|inside|somewhere|anywhere|"
+    r"please|pls|can|could|then|and\s+(?:then\s+)?\w+\s+(?:it|them)|about|for\s+me|find|fetch|not|that|it)\b|$))",
+    re.IGNORECASE,
+)
+_FILE_NAME_FILLERS = {"it", "that", "this", "like", "something", "something like", "the", "a"}
+# "find day4.png" / "where is invoice.pdf": a search verb and a name with a known extension.
+_FILE_EXT_KINDS = {
+    "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "heic": "image", "webp": "image",
+    "pdf": "pdf", "mp4": "video", "mov": "video", "mp3": "audio", "m4a": "audio", "wav": "audio",
+    "doc": "", "docx": "", "xls": "", "xlsx": "", "ppt": "", "pptx": "", "txt": "", "csv": "", "md": "",
+    "zip": "", "pages": "", "numbers": "", "key": "",
+}
+_FILE_EXT_SEARCH_RE = re.compile(
+    r"\b(?:find|locate|where\s+is|where's|where\s+did\s+i\s+(?:save|put)|search(?:\s+\w+)?\s+for|look\s+for|fetch)\b"
+    r".*?(?<![\w./~-])(?P<name>[\w-]+(?:\.[\w-]+)*\.(?P<ext>" + "|".join(_FILE_EXT_KINDS) + r"))\b(?![./\w])",
+    re.IGNORECASE,
+)
+# Only a LOOKUP is answered with a path list. Anything else the user wants done with the file (read,
+# send, copy, rename, write...) goes to the lanes and the model that can do it; a question ABOUT a
+# file name ("how do I rename a file called x", "who wrote the song called y") or a search somewhere
+# other than this disk (web, email, a cloud drive) is not a disk search at all.
+_FILE_LOOKUP_CUE_RE = re.compile(
+    r"\b(?:find|finding|locate|where|look(?:ing)?\s+for|search(?:ing)?|fetch|get\s+me|grab|"
+    r"is\s+there|are\s+there|do\s+i\s+(?:still\s+)?have|there\s+should\s+be|should\s+(?:be|have)|"
+    r"lost|can'?t\s+find|cannot\s+find|missing)\b",
+    re.IGNORECASE,
+)
+_FILE_OTHER_ACTION_RE = re.compile(
+    r"\b(?:copy|move|rename|write|create|make|send|e-?mail|upload|convert|compress|zip|share|attach|edit|"
+    r"save|delete|remove|read|open|summari[sz]e|translate|print|play|watch|listen|describe|analy[sz]e|"
+    r"show\s+me\s+what)\b",
+    re.IGNORECASE,
+)
+_FILE_NOT_THIS_DISK_RE = re.compile(
+    r"\b(?:how\s+(?:do|can|to|would|should)|in\s+(?:python|bash|linux|terminal|excel|javascript|java|node|"
+    r"windows)|who\s+(?:wrote|made|sang|sings|is|was)|what\s+(?:genre|is\s+a|'?s\s+a|is\s+the|does)|what's\s+a|"
+    r"web|google|internet|online|website|url|e-?mail|mail|inbox|gmail|outlook|drive|dropbox|icloud|onedrive|"
+    r"spotify|youtube|netflix|apple\s+music|soundcloud|photos\s+app|google\s+photos|instagram|lyrics|chords|meaning)\b",
+    re.IGNORECASE,
+)
+
+
+def _named_place(raw: str) -> str:
+    lowered = raw.lower()
+    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"))
+                 if re.search(r"\b" + word + r"\b", lowered)), "")
+
+
+def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | None:
+    """``(kind, names, place)`` for a request to find a FILE by name, else ``None``.
+
+    ``kind`` is ``"image"``, ``"pdf"``, ``"video"``, ``"audio"`` or ``""``; ``names`` are the
+    alternatives the user gave ("daily 4 or day 4"); ``place`` is Desktop/Downloads/Documents when
+    the message names one, else ``""``. A mutating verb suppresses the match.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    match = _FILE_NAMED_RE.search(raw)
+    by_ext = None if match is not None else _FILE_EXT_SEARCH_RE.search(raw)
+    if match is None and by_ext is None:
+        return None
+    # The checks below read what the user ASKED, not the file's name: "the pdf called web design
+    # brief" or "the file named read me" is still a lookup.
+    found = match or by_ext
+    asked = raw[: found.start("name")] + " " + raw[found.end("name"):]
+    asked = re.sub(r"\bwhere\s+did\s+i\s+(?:save|put)\b", "where", asked, flags=re.IGNORECASE)
+    asked = re.sub(r"\b(?:external|usb|hard|thumb|flash)\s+drive\b", "disk", asked, flags=re.IGNORECASE)
+    if not _FILE_LOOKUP_CUE_RE.search(asked) or _FILE_OTHER_ACTION_RE.search(asked) or _FILE_NOT_THIS_DISK_RE.search(asked):
+        return None
+    if by_ext is not None:
+        if re.search(r"\b(?:in|inside)\s+$", raw[: by_ext.start("name")], re.IGNORECASE):
+            return None  # 'search for "foo" in notes.txt' searches INSIDE a file
+        return (_FILE_EXT_KINDS[by_ext.group("ext").lower()], (by_ext.group("name"),), _named_place(raw))
+    kind = _FILE_KIND_WORDS[match.group("kind").lower()]
+    between = match.group("between")
+    # "my pictures folder called vacation" / "my documents folder named taxes" are folders;
+    # "a picture in the Downloads folder named x" is a picture.
+    if re.match(r"\s+(?:folders?|director(?:y|ies))\b", between, re.IGNORECASE) or (
+        not kind and re.search(r"\b(?:folders?|director(?:y|ies))\b", between, re.IGNORECASE)
+    ):
+        return None
+    spoken = match.group("name").strip(" .'\"-")
+    # "named day4 to send to john" / "named invoice and email john" / "named day4 at google photos":
+    # what follows a connector inside the name is another ask, so the turn is not a plain lookup.
+    for tail in re.split(r"\s(?:to|at|then|and)\s", spoken, flags=re.IGNORECASE)[1:]:
+        if _FILE_OTHER_ACTION_RE.search(tail) or _FILE_NOT_THIS_DISK_RE.search(tail):
+            return None
+    names = []
+    for part in re.split(r"\s+or\s+", spoken, flags=re.IGNORECASE):
+        part = part.strip(" .'\"-")
+        part = re.sub(r"^(?:like|something\s+like)\s+", "", part, flags=re.IGNORECASE)
+        if re.match(r"(?:in|on|at|from|inside|for|by|to|with)\b", part, flags=re.IGNORECASE):
+            continue  # "a file called in French" is a question about a word, not a name
+        if len(re.sub(r"[^0-9a-z]", "", part.lower())) >= 2 and part.lower() not in _FILE_NAME_FILLERS:
+            names.append(part)
+    if not names:
+        return None
+    return (kind, tuple(dict.fromkeys(names)), _named_place(raw))
+
+
 # An ANALYSIS verb wants the folder's CONTENTS ("audit/analyze/review/what's in my X folder"),
 # not just its location. find_folder only LISTS paths, so those asks used to stop at a path list
 # and never read anything -- the model then talked about an audit it never ran. This routes them to

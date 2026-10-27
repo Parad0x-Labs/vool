@@ -22,6 +22,7 @@ from core.execution.constants import (
     asks_about_running_processes,
     image_generation_intent,
     machine_diagnostics_intent,
+    machine_file_search_intent,
     machine_folder_search_intent,
     machine_host_state_intent,
     machine_path_listing_intent,
@@ -31,6 +32,7 @@ from core.retrieval_constraints import analyze_retrieval_constraints
 # Families a probe can claim for. Keys are stable identifiers used by the decision log, the
 # gauntlet, and the arbiter menu — renaming one invalidates recorded history, so don't.
 FAMILY_FIND_FOLDER = "find_folder"
+FAMILY_FIND_FILE = "find_file"
 FAMILY_DISK_USAGE = "disk_usage"
 FAMILY_LIST_DIRECTORY = "list_directory"
 FAMILY_READ_FILE = "read_file"
@@ -60,7 +62,14 @@ def _padded(text: str) -> str:
     return f" {' '.join(normalized.split())} "
 
 
+def _claim_find_file(text: str) -> IntentClaim | None:
+    got = machine_file_search_intent(text)
+    return IntentClaim(FAMILY_FIND_FILE, got[1][0]) if got else None
+
+
 def _claim_find_folder(text: str) -> IntentClaim | None:
+    if machine_file_search_intent(text) is not None:
+        return None  # "a picture in the Downloads folder named day4" names a FILE; the folder is where it is
     got = machine_folder_search_intent(text)
     return IntentClaim(FAMILY_FIND_FOLDER, got[1]) if got else None
 
@@ -143,6 +152,7 @@ def _claim_image_generation(text: str) -> IntentClaim | None:
 #: pairs to let the whole-turn arbitration SEE machine/tool clauses; keeping the pairs here is what
 #: stops the two registries from drifting apart again.
 _PROBE_FAMILIES = (
+    (FAMILY_FIND_FILE, _claim_find_file),
     (FAMILY_FIND_FOLDER, _claim_find_folder),
     (FAMILY_DISK_USAGE, _claim_disk_usage),
     (FAMILY_LIST_DIRECTORY, _claim_list_directory),
@@ -408,6 +418,7 @@ def commands_forbidden_in_context(source_context: dict[str, object] | None) -> b
 
 __all__ = [
     "FAMILY_DISK_USAGE",
+    "FAMILY_FIND_FILE",
     "FAMILY_FIND_FOLDER",
     "FAMILY_FOLDER_OVERVIEW",
     "FAMILY_HOST_STATE",
