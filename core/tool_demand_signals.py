@@ -1134,6 +1134,85 @@ def _x_action_asked(cleaned: str) -> bool:
     return not _X_NOT_AN_ASK.search(words) or bool(_X_ASK_TO_ACT.search(words))
 
 
+# -- the owner's own files (read by core.execution_requirements, owner-local turns only) --------
+# Measured 2026-10-27 with the tool-seating offer probe: "where is my resume", "send day4.jpg to my
+# phone", "copy day4.jpg to my desktop" and 13 more asks no deterministic lane owns reached a pinned
+# model with NO tool list (classed as plain chat), so the model could only talk about the files.
+# The words must both ASK and name the owner's own object: a bare noun ("a pdf", "files") is prose.
+_FILE_DEMAND_ASK = re.compile(
+    r"\b(?:find|where|locate|look(?:ing)?\s+for|search|show|list|open|read|see|view|copy|move|send|fetch|"
+    r"get|give|grab|do\s+i\s+(?:still\s+)?have|is\s+there|are\s+there|how\s+many|how\s+big|which|what(?:'s|\s+is|\s+are)?|"
+    r"access|check|clean(?:\s+up)?|tidy|organi[sz]e|sort|delete|remove|rename|summari[sz]e|need|help\s+me|free\s+up|"
+    r"is\s+(?:my|the|that)|are\s+(?:my|the))\b",
+    re.I,
+)
+_FILE_DEMAND_OBJECT = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'\-]+\s+){0,3}?(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|"
+    r"documents?|docs|resume|cv|invoices?|receipts?|downloads|desktop|videos?|movies|music|songs?|recordings?|"
+    r"spreadsheets?|presentations?|stuff)\b"
+    r"|\b(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract|pdf|photo|picture|screenshot|file|"
+    r"document|spreadsheet|presentation|video|recording)s?\s+(?:i\b|from\b|you\b|on\s+my\b|in\s+my\b|that\s+i\b)"
+    r"|\b(?:find|where(?:'s|\s+is|\s+are))\s+(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract)s?\b"
+    r"|\b(?:apps?|applications?|programs?)\b[^.?!]{0,20}?\binstalled\b|\binstalled\s+(?:apps?|applications?|programs?)\b"
+    r"|\b(?:photos?|pictures?|files?|videos?|documents?|pdfs?|songs?|screenshots?)\s+(?:do\s+i|i)\s+(?:still\s+)?have\b"
+    r"|\bdo\s+i\s+(?:still\s+)?have\s+(?:the|that|a|any)\s+(?:[\w\-]+\s+){0,2}?(?:photos?|pictures?|files?|videos?|"
+    r"documents?|pdfs?|songs?|screenshots?|recordings?|invoices?|receipts?)\b"
+    r"|\bfree\s+up\s+(?:some\s+)?(?:disk\s+|storage\s+)?space\b"
+    r"|\b(?:in|on|from)\s+(?:the\s+)?(?:downloads|desktop|documents)\b"
+    r"|(?<![\w/.])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
+    re.I,
+)
+# "my mac" or "this laptop" alone is the machine, not its files ("is my laptop worth upgrading",
+# "what is my mac address"): it counts only beside a file noun or a verb that works on files.
+_FILE_DEMAND_DEVICE = re.compile(
+    r"\b(?:(?:my|our)\s+(?:[\w'\-]+\s+){0,2}?|this\s+)(?:computer|mac|macbook|imac|laptop|pc|machine|disk|drive)\b(?!\s+address)",
+    re.I,
+)
+_FILE_DEMAND_FILE_WORK = re.compile(
+    r"\b(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|documents?|videos?|songs?|recordings?|"
+    r"name|version|mac\s*os|os|specs?|model|ram|chip|processor|cpu|serial|apps?|installed|"
+    r"access|space|storage|find|locate|search|copy|move|send|delete|remove|rename|clean(?:\s+up)?|tidy|organi[sz]e|saved?|stored?|downloaded)\b",
+    re.I,
+)
+_FILE_DEMAND_PROSE = re.compile(
+    r"\b(?:how\s+(?:do|can|should|would)\s+(?:i|you|one)|what\s+should|should\s+(?:i|my|we)\b|best\s+way|why\s+(?:is|does|do|are)|"
+    r"tips?\s+(?:for|on)|advice|recommend|in\s+(?:python|linux|windows|excel|bash|terminal|javascript))\b",
+    re.I,
+)
+
+
+def owner_file_intents(text: str) -> tuple[str, ...]:
+    """The machine file tools an owner file ask needs seated ahead of family ranking (at most 3).
+
+    The filesystem family's read-only-first ranking filled the round with list_directory,
+    inspect_specs, disk_usage and find_folder, so "where is my resume" had no find_file and
+    "search my documents for milk" no read_file; inside a project the workspace tools took the
+    seats, so "which apps are installed" had no inspect_specs.
+    """
+    cleaned = " ".join(str(text or "").split())
+    if re.search(r"\b(?:free\s+up|space|big(?:gest)?|large(?:st)?|huge|heavy|taking\s+up)\b", cleaned, re.I):
+        return ("machine.find_largest", "machine.disk_usage", "machine.find_file")
+    if re.search(r"\b(?:apps?|applications?|programs?|installed|name|version|mac\s*os|specs?|model|ram|chip|processor|cpu|serial)\b", cleaned, re.I):
+        return ("machine.inspect_specs", "machine.find_file", "machine.list_directory")
+    return ("machine.find_file", "machine.read_file", "machine.list_directory")
+
+
+def owner_file_demand(text: str) -> bool:
+    """Whether the words ask for something done with or found among the owner's own files.
+
+    Pure function of the text. The caller decides whose turn it is: only the owner's own session
+    (or a phone the owner gave the computer grant) may be offered the machine file tools for it.
+    """
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned or _FILE_DEMAND_PROSE.search(cleaned):
+        return False
+    if not _FILE_DEMAND_ASK.search(cleaned):
+        return False
+    if _FILE_DEMAND_OBJECT.search(cleaned):
+        return True
+    return bool(_FILE_DEMAND_DEVICE.search(cleaned) and _FILE_DEMAND_FILE_WORK.search(cleaned))
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
@@ -1236,5 +1315,7 @@ __all__ = [
     "MAX_REQUIRED_FAMILIES",
     "DemandSignals",
     "mailbox_retrieval_intents",
+    "owner_file_demand",
+    "owner_file_intents",
     "resolve_demand_signals",
 ]

@@ -279,6 +279,31 @@ def _contacts_action_demand(text: str) -> bool:
         return False
 
 
+def owner_file_demand_allowed(text: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether the words ask about the owner's own files AND this turn may use the machine tools.
+
+    "where is my resume", "send day4.jpg to my phone": served only through the machine file tools,
+    which the tools-less chat lane cannot call (measured 2026-10-27 with the tool-seating offer
+    probe: 13 of 16 such asks reached a pinned model with no tool list). ADDITIVE, unlike the arms
+    above: it only turns a turn that would have stayed tools-less into one offered the file tools,
+    and adds them beside a grounded turn's web toolsets; it never replaces a live or grounded
+    reading. The owner's own session, or a phone the owner gave the computer grant (its folder
+    fence still decides every call); a missing context is remote, never the owner.
+    """
+    if not isinstance(source_context, dict) or not source_context:
+        return False
+    try:
+        from core.request_trust import REMOTE_GRANT_COMPUTER, remote_turn_has_grant, request_is_owner_local
+
+        if not (request_is_owner_local(source_context) or remote_turn_has_grant(source_context, REMOTE_GRANT_COMPUTER)):
+            return False
+        from core.tool_demand_signals import owner_file_demand
+
+        return owner_file_demand(text)
+    except Exception:
+        return False
+
+
 def _x_action_demand(text: str) -> bool:
     """Whether the text asks VOOL to read or act on X AND the user connected X.
 
@@ -1097,6 +1122,15 @@ def _compute_requirements(
             extra_reasons=_conservation_reasons,
         )
 
+    file_demand = (
+        not constraints.forbids_all_tools
+        and not constraints.forbids("filesystem")
+        and owner_file_demand_allowed(candidate_text, source_context)
+    )
+    file_toolsets = ("filesystem",) if file_demand else ()
+    if file_demand:
+        reasons.append("owner_file_request")
+
     if mode is AnswerMode.GROUNDED:
         if constraints.forbids_external_retrieval:
             return _retrieval_prohibited_requirements(
@@ -1120,7 +1154,7 @@ def _compute_requirements(
             current_information_required=not (past_only or current_input_only),
             user_material_supplied=supplied,
             tools_required=True,
-            allowed_toolsets=_current_evidence_toolsets(candidate_text),
+            allowed_toolsets=(*_current_evidence_toolsets(candidate_text), *file_toolsets),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )
@@ -1169,7 +1203,7 @@ def _compute_requirements(
             current_information_required=True,
             user_material_supplied=supplied,
             tools_required=True,
-            allowed_toolsets=("web_search", "web_fetch"),
+            allowed_toolsets=("web_search", "web_fetch", *file_toolsets),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons) + signal_codes,
         )
@@ -1210,8 +1244,8 @@ def _compute_requirements(
             external_evidence_required=False,
             current_information_required=True,
             user_material_supplied=supplied,
-            tools_required=False,
-            allowed_toolsets=(),
+            tools_required=file_demand,
+            allowed_toolsets=file_toolsets,
             inference_allowed=True,
             reason_codes=tuple(
                 [*reasons, "present_anchored_measured_amount"],
@@ -1222,8 +1256,8 @@ def _compute_requirements(
         external_evidence_required=False,
         current_information_required=False,
         user_material_supplied=supplied,
-        tools_required=False,
-        allowed_toolsets=(),
+        tools_required=file_demand,
+        allowed_toolsets=file_toolsets,
         inference_allowed=True,
         reason_codes=tuple(reasons),
         world_facts_requested=world_facts,

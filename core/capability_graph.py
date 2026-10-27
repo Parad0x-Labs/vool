@@ -1421,6 +1421,17 @@ def model_visible_specs(
                 explicit.append(intent)
         for family in signals.required_families:
             _add_family(family)
+        if "filesystem" in families:
+            # The owner's own files asked for ("where is my resume"): seat the file tools that ask
+            # needs, which the family ranking left out. Owner-gated by the same check that set the
+            # filesystem toolset (core.execution_requirements.owner_file_demand_allowed).
+            from core.execution_requirements import owner_file_demand_allowed
+            from core.tool_demand_signals import owner_file_intents
+
+            if owner_file_demand_allowed(user_text, source_context):
+                for intent in owner_file_intents(user_text):
+                    if intent not in explicit:
+                        explicit.append(intent)
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())
