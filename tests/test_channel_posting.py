@@ -254,41 +254,50 @@ class ChannelPostingTests(unittest.TestCase):
                     "prompt_assembly_report": {},
                 }
 
-        fake_agent = _FakeAgent()
-        with mock.patch.dict(
-            "os.environ",
-            {
-                "DISCORD_BOT_TOKEN": "bot-token",
-                "DISCORD_CHANNEL_ID": "chan-42",
-                "DISCORD_BOT_USER_ID": "bot-1",
-            },
-            clear=False,
-        ):
-            bridge = DiscordBridge()
+        # The bridge is owner-locked (one Discord user per VOOL), so each user's per-user scope is
+        # seen through a bridge that user owns; both bridges read the same two commands.
+        def _drive(owner: str) -> tuple[_FakeAgent, mock.Mock]:
+            fake_agent = _FakeAgent()
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "DISCORD_BOT_TOKEN": "bot-token",
+                    "DISCORD_CHANNEL_ID": "chan-42",
+                    "DISCORD_BOT_USER_ID": "bot-1",
+                    "VOOL_DISCORD_OWNER_USER_ID": owner,
+                },
+                clear=False,
+            ):
+                bridge = DiscordBridge()
 
-        bridge._ensure_agent = mock.Mock(return_value=fake_agent)  # type: ignore[method-assign]
-        bridge._resolve_bot_user_id = mock.Mock(return_value="bot-1")  # type: ignore[method-assign]
-        bridge._fetch_channel_messages = mock.Mock(  # type: ignore[method-assign]
-            return_value=[
-                {"id": "102", "content": "!vool status", "author": {"id": "user-b", "bot": False}},
-                {"id": "101", "content": "!vool hello there", "author": {"id": "user-a", "bot": False}},
-            ]
-        )
-        bridge._post_bot_message = mock.Mock(return_value=True)  # type: ignore[method-assign]
-        bridge._last_seen_message_ids["chan-42"] = 100
+            bridge._ensure_agent = mock.Mock(return_value=fake_agent)  # type: ignore[method-assign]
+            bridge._resolve_bot_user_id = mock.Mock(return_value="bot-1")  # type: ignore[method-assign]
+            bridge._fetch_channel_messages = mock.Mock(  # type: ignore[method-assign]
+                return_value=[
+                    {"id": "102", "content": "!vool status", "author": {"id": "user-b", "bot": False}},
+                    {"id": "101", "content": "!vool hello there", "author": {"id": "user-a", "bot": False}},
+                ]
+            )
+            bridge._post_bot_message = mock.Mock(return_value=True)  # type: ignore[method-assign]
+            bridge._last_seen_message_ids["chan-42"] = 100
 
-        bridge.fetch_discord_and_push_to_mirror()
+            bridge.fetch_discord_and_push_to_mirror()
+            return fake_agent, bridge._post_bot_message
 
-        self.assertEqual(len(fake_agent.calls), 2)
-        first = fake_agent.calls[0]
-        second = fake_agent.calls[1]
+        agent_a, posts_a = _drive("user-a")
+        agent_b, posts_b = _drive("user-b")
+
+        self.assertEqual(len(agent_a.calls), 1)
+        self.assertEqual(len(agent_b.calls), 1)
+        first = agent_a.calls[0]
+        second = agent_b.calls[0]
         self.assertNotEqual(first["session_id_override"], second["session_id_override"])
         self.assertIn("user-a", str(first["session_id_override"]))
         self.assertIn("user-b", str(second["session_id_override"]))
         self.assertEqual(first["source_context"]["surface"], "discord_bot")
         self.assertEqual(first["source_context"]["platform"], "discord")
-        bridge._post_bot_message.assert_any_call("chan-42", "<@user-a> Ack from Vool")
-        bridge._post_bot_message.assert_any_call("chan-42", "<@user-b> Ack from Vool")
+        posts_a.assert_any_call("chan-42", "<@user-a> Ack from Vool")
+        posts_b.assert_any_call("chan-42", "<@user-b> Ack from Vool")
 
 
 if __name__ == "__main__":
