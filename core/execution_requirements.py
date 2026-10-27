@@ -298,6 +298,30 @@ def _x_action_demand(text: str) -> bool:
         return False
 
 
+def _operator_action_demand(text: str, source_context: dict[str, Any] | None = None) -> bool:
+    """Whether the words ask VOOL's own note/agenda/reminder/Apple Notes/calendar tools to act.
+
+    Same law as the wallet, email, Contacts and X arms, read through the SAME typed recognizer
+    the tool offer seats from (core.tool_demand_signals.owner_local_operator_intents), so the
+    lane release and the offer cannot disagree. Two gates the other arms do not have:
+
+    - OWNER-LOCAL ONLY: the operator tools touch this machine's own notes and calendars, so a
+      remote session's words never release the lane (core.request_trust owns the verdict).
+    - The chat lane stays the authority for typed words; the recognizer is deliberately the
+      narrower of the two wherever the parser's width is a typed-turn UX choice.
+    """
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        from core.tool_demand_signals import owner_local_operator_intents
+
+        return bool(owner_local_operator_intents(str(text or "")))
+    except Exception:
+        return False
+
+
 def _retrieval_prohibited_requirements(
     *,
     supplied: bool,
@@ -994,6 +1018,34 @@ def _compute_requirements(
             user_material_supplied=supplied,
             tools_required=True,
             allowed_toolsets=("email",),
+            inference_allowed=not no_guessing,
+            reason_codes=tuple(reasons),
+        )
+
+    # An operator action demand ("show my agenda for today", "save this as a note", "list my
+    # Apple Notes", "put a dentist appointment on my calendar") is served only through the
+    # operator tools: the tools-less chat lane cannot read a calendar or keep a note. Same law
+    # as the wallet/Contacts/email arms -- the demand signal is the same typed recognizer the
+    # tool offer seats from -- with the operator's own two gates: owner-local turns only
+    # (core.request_trust), and the recognizer narrower than the chat parser wherever the
+    # parser's width is a typed-turn UX choice, so ordinary prose that merely mentions notes or
+    # calendars releases nothing. The model still decides whether any operator tool is called.
+    if (
+        _operator_action_demand(candidate_text, source_context)
+        and not constraints.forbids_all_tools
+        # The explicit prohibited set, not `forbids("operator")`: that helper also blocks on any
+        # external-retrieval prohibition, and "do not search the web, just show my agenda" must
+        # still reach the operator tools -- they never leave this machine.
+        and "operator" not in set(getattr(constraints, "prohibited_toolsets", ()) or ())
+    ):
+        reasons.append("operator_action_request")
+        return ExecutionRequirements(
+            answer_mode=str(getattr(mode, "value", str(mode))),
+            external_evidence_required=False,
+            current_information_required=False,
+            user_material_supplied=supplied,
+            tools_required=True,
+            allowed_toolsets=("operator",),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )

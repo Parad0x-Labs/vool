@@ -1421,6 +1421,22 @@ def model_visible_specs(
                 explicit.append(intent)
         for family in signals.required_families:
             _add_family(family)
+    # The operator seats (notes, agenda, reminders, Apple Notes, calendar) apply ONLY to the
+    # machine owner's own local turns: a remote session's mention of a note or a calendar must
+    # never widen its offer. The trust seam owns that verdict, and the same recognizer feeds the
+    # lane release (core.execution_requirements), so the gate and the offer cannot disagree.
+    if user_text and source_context is not None:
+        try:
+            from core.request_trust import request_is_owner_local
+            from core.tool_demand_signals import owner_local_operator_intents
+
+            if request_is_owner_local(source_context):
+                operator_seats = [i for i in owner_local_operator_intents(user_text) if i not in explicit]
+                if operator_seats:
+                    explicit.extend(operator_seats)
+                    _add_family("operator")
+        except Exception:
+            pass
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())

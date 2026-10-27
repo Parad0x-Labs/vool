@@ -1134,6 +1134,187 @@ def _x_action_asked(cleaned: str) -> bool:
     return not _X_NOT_AN_ASK.search(words) or bool(_X_ASK_TO_ACT.search(words))
 
 
+# -- operator seats (owner-local turns only) -------------------------------------------------
+# The words that ask VOOL's own note, agenda, reminder, Apple Notes and calendar tools to act.
+# The CHAT lane parses these from typed words with its own recognizers (core.operator.parser);
+# the MODEL lane must agree on what a request IS, so this reads the parser's recognizers
+# verbatim wherever they carry their own prose vetoes (the save-note recognizer, the Apple Notes
+# patterns). Where the parser's width exists for typed-turn UX rather than for seating -- the
+# agenda's declarative branch, verbs that double as past-tense reports, the bare possessive --
+# the seating variant below is the narrower one and the parser keeps its own (TASK S4 law).
+#
+# Seated only on owner-local turns: the caller (the requirements arm and the offer seam) reads
+# core.request_trust.request_is_owner_local first, so a remote turn's words never widen an offer.
+
+#: Words whose VERB may lead a seating ask: a segment boundary, a polite frame, or a connective
+#: that starts a new clause. A verb behind any other word ("she read the note", "I find notes
+#: boring", "the show notes were long") is a report about the world, not an ask to this runtime.
+_OWNER_ASK_LEAD = (
+    r"(?:^|[.!?;\n]\s*|,\s*"
+    r"|\b(?:please|pls|can\s+you|could\s+you|would\s+you|will\s+you|help\s+me(?:\s+to)?|go\s+ahead\s+and"
+    r"|try\s+to)\s+)"
+)
+#: The tighter lead for verbs that double as unmarked past tenses ("read", "found"): no plain
+#: connectives, so "she opened and read the note out loud" stays a report.
+_OWNER_ASK_LEAD_STRICT = (
+    r"(?:^|[.!?;\n]\s*"
+    r"|\b(?:please|pls|can\s+you|could\s+you|would\s+you|will\s+you|help\s+me(?:\s+to)?|go\s+ahead\s+and"
+    r"|try\s+to)\s+)"
+)
+
+#: A declarative statement about the agenda/calendar/reminders noun ("my agenda for the meeting
+#: is to keep it short", "my reminders keep duplicating"): prose, never a seat.
+_OWNER_STATEMENT_RE = re.compile(
+    r"\b(?:my|the|this|that|our)\s+(?:agenda|calendar|schedule|reminders?|notes?)\b"
+    r"[^.!?]{0,60}?\b(?:is|are|was|were|be|been|being|has|have|had|seems?|looks?|sounds?|feels?|keeps?|"
+    r"includes?|contains?|covers?|says?|reads?|works?|duplicate[sd]?|pile[sd]?|grow|grew)\b",
+    re.IGNORECASE,
+)
+
+_OWNER_AGENDA_SEAT_RE = re.compile(
+    r"\bwhat(?:'s| is|s)\s+on\s+(?:my|the|their|our)\s+(?:calendar|schedule|plate)\b"
+    r"|\bwhat\s+(?:have\s+)?(?:do\s+|did\s+|does\s+)?(?:i|you|we)\s+(?:have\s+|got\s+)on\b"
+    r"[^.!?]{0,40}?\b(?:today|tonight|tomorrow|this week|next week|upcoming|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
+    r"|\bwhat\s+am\s+i\s+doing\b[^.!?]{0,30}?\b(?:on\s+)?(?:today|tonight|tomorrow|this\s+week|next\s+week"
+    r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
+    r"|\bwhat(?:'s| is| does)\s+(?:my|the|this|next)\s+week\b\s+look\s+like\b"
+    r"|\bany\s+(?:meetings?|events?|appointments?)\b[^.!?]{0,30}?\b(?:on\s+)?"
+    r"(?:today|tonight|tomorrow|this week|next week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b\?"
+    r"|" + _OWNER_ASK_LEAD + r"(?:show|read|open|check|give\s+me|walk\s+(?:me\s+)?through|run\s+through)\b"
+    r"[^.!?]{0,60}?\b(?:my|the|this|today'?s|tomorrow'?s|this\s+week'?s|next\s+week'?s)\s+(?:day|agenda)\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:plan|organise|organize|structure|map\s+out|sort\s+out|lay\s+out)\b"
+    r"[^.!?]{0,20}?\b(?:my|the|our|today'?s)\s+day\b"
+    r"|\b(?:my|the|this)\s+(?:day|agenda)\b\s+(?:for|from|around|today|tomorrow|this\s+week|next\s+week)\b"
+    r"|\bagenda\s+(?:for|from)\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|the\s+week"
+    r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
+    r"|\b(?:on|for)\s+(?:my|the)\s+calendar\b[^.!?]{0,40}?\b(?:this week|next week|today|tomorrow|tonight)\b",
+    re.IGNORECASE,
+)
+_OWNER_LIST_REMINDERS_SEAT_RE = re.compile(
+    r"\b(?:what|which|where)\b[^.!?]{0,40}?\breminders?\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:show|list|read|check|give\s+me|pull\s+up)\b[^.!?]{0,40}?\breminders?\b"
+    r"|\bmy\s+reminders?\b(?!\s+(?:app|account|settings?|notifications?|sound|alarm|history))",
+    re.IGNORECASE,
+)
+_OWNER_AVAILABILITY_SEAT_RE = re.compile(
+    r"\bam\s+i\s+(?:free|available|busy|open)\b"
+    r"|\bare\s+we\s+(?:free|available|busy|open)\b"
+    r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
+    r"(?:\s+(?:morning|afternoon|evening))?\s+free\b"
+    r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?)"
+    r"|a\s+free|any\s+free)\b"
+    r"|\b(?:availability|available|free|busy|open)\b[^.!?]{0,60}?\b(?:slot|calendar|schedule|window)\b"
+    r"|\b(?:slot|calendar|schedule)\b[^.!?]{0,60}?\b(?:availability|available|free|busy)\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:check|show|find|look\s+at)\b[^.!?]{0,60}?\b(?:my|the)\s+(?:calendar|schedule)\b",
+    re.IGNORECASE,
+)
+_OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
+    r"\b(?:schedule\s+a\s+meeting|schedule\s+meeting|schedule\s+an?\s+event|create\s+a?\s*calendar\s+event|create\s+a\s+meeting)\b"
+    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
+    r"|" + _OWNER_ASK_LEAD + r"(?:set\s+up|put|book|schedule|add|create|make|set|arrange|block|place)\b"
+    r"[^.!?]{0,40}?\ban?\s+(?:appointment|meeting|event|call|sync)\b"
+    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
+    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    r"[^.!?]{0,60}?\b(?:appointment|meeting|event|call|sync|lunch|dinner|visit|checkup|session|block)\b"
+    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
+    r"[^.!?]{0,60}?\b(?:on|onto|to|in(?:to)?|for)\s+(?:my|the|this)\s+calendar\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    r"[^.!?]{0,60}?\b(?:to|on|onto|in(?:to)?)\s+(?:my|the|this)\s+calendar\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    r"[^.!?]{0,60}?\b(?:appointment|meeting|event|call|sync)\b"
+    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
+    r"[^.!?]{0,60}?\b(?:today|tonight|tomorrow|next\s+week|this\s+week|next\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+    r"|on\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day|for\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+    r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day\s+at|at\s+\d|\d\s*(?:am|pm|a\.m\.|p\.m\.)|o'?clock)\b",
+    re.IGNORECASE,
+)
+_OWNER_FIND_NOTES_SEAT_RE = re.compile(
+    _OWNER_ASK_LEAD_STRICT + r"(?:find|search(?:\s+for)?|look\s+(?:up|for)|list|show)\b[^.!?]{0,60}?\bnotes?\b"
+    r"|\bwhere\s+(?:are|is)\s+(?:my|the)\s+notes?\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:tidy|clean|organize|organise|sort|go\s+through|gather|collect)\b"
+    r"[^.!?]{0,40}?\bmy\s+notes\b"
+    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:summarize|summarise|digest|round\s+up|recap|go\s+over)\b"
+    r"[^.!?]{0,40}?\bmy\s+notes\b",
+    re.IGNORECASE,
+)
+_OWNER_SHOW_NOTE_SEAT_RE = re.compile(
+    _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\s+(?:the|my|that|this)\s+note\b"
+    r"|\bwhat(?:'s| is|s)\s+in\s+(?:the|my|that)\s+note\b"
+    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\b[^.!?]{0,40}?\bnote\s+(?:titled|called|named)\b"
+    r"|" + _OWNER_ASK_LEAD_STRICT + r"open\s+my\s+note\b",
+    re.IGNORECASE,
+)
+_OWNER_APPLE_LIST_SEAT_RE = re.compile(
+    _OWNER_ASK_LEAD + r"(?:list|show)\b[^.!?]{0,40}?\bapple\s+notes\b",
+    re.IGNORECASE,
+)
+_OWNER_APPLE_READ_SEAT_RE = re.compile(
+    _OWNER_ASK_LEAD_STRICT + r"(?:read|show|open|display)\b[^.!?]{0,60}?\bapple\s+note\b",
+    re.IGNORECASE,
+)
+
+
+def owner_local_operator_intents(text: str) -> tuple[str, ...]:
+    """The operator tool intents the user's own words ask for, for seating on owner-local turns.
+
+    Pure function of the text, like every signal here: no policy reads, no availability checks
+    (seating filters those), no execution. The chat lane's own parser stays the authority for
+    typed words; this recognizer agrees with it where the parser is precise and stays narrower
+    where the parser's width is a typed-turn UX choice (see the block comment above).
+    """
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned:
+        return ()
+    try:
+        from core.instructional_request import asks_for_instructions_not_execution
+        from core.retrieval_constraints import analyze_retrieval_constraints
+        from core.turn_prohibitions import _strip_quoted_spans
+    except Exception:
+        return ()
+    constraints = analyze_retrieval_constraints(_strip_quoted_spans(cleaned))
+    if constraints.forbids_all_tools:
+        return ()
+    eligible = " ".join(constraints.eligible_text.split())
+    if not eligible or asks_for_instructions_not_execution(eligible):
+        return ()
+
+    def _seats(pattern: re.Pattern[str]) -> bool:
+        return bool(pattern.search(eligible)) and not _OWNER_STATEMENT_RE.search(eligible)
+
+    intents: list[str] = []
+    if _seats(_OWNER_AGENDA_SEAT_RE):
+        intents.append("operator.show_agenda")
+    if not intents and _seats(_OWNER_AVAILABILITY_SEAT_RE):
+        intents.append("operator.check_availability")
+    if _seats(_OWNER_LIST_REMINDERS_SEAT_RE):
+        intents.append("operator.list_reminders")
+    if _seats(_OWNER_PROPOSE_EVENT_SEAT_RE):
+        intents.append("operator.propose_calendar_event")
+    if _seats(_OWNER_FIND_NOTES_SEAT_RE):
+        intents.append("operator.find_notes")
+    if _seats(_OWNER_SHOW_NOTE_SEAT_RE):
+        intents.append("operator.show_note")
+    if _seats(_OWNER_APPLE_LIST_SEAT_RE):
+        intents.append("operator.apple_note_list")
+    if _seats(_OWNER_APPLE_READ_SEAT_RE):
+        intents.append("operator.apple_note_read")
+    try:
+        # The parser's own save-note recognizer, verbatim: it already separates keeping a note
+        # from composing one for someone (a thank-you note), and "take note of" from a note.
+        from core.operator.parser import _SAVE_NOTE_RE
+
+        if _SAVE_NOTE_RE.search(eligible) is not None and not _OWNER_STATEMENT_RE.search(eligible):
+            intents.append("operator.save_note")
+        elif re.match(r"\s*note\s+to\s+self\s*:(?!\d)", eligible, re.IGNORECASE):
+            # "note to self: buy milk" -- the memorandum header itself is the storing cue; the
+            # parser has no record verb for it, and the colon keeps prose ("my note to self is
+            # to slow down") out.
+            intents.append("operator.save_note")
+    except Exception:
+        pass
+    return tuple(intents[:MAX_EXPLICIT_INTENTS])
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
