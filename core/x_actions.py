@@ -1021,8 +1021,12 @@ def approve(action_id: Any, *, expected_hash: Any = None, ui_locale: str = 'en')
         if unsent:
             _release_slot(publishes)
         message_key = 'xfull.reservation_refused' if unsent else 'xact.lost_answer'
-        action = _finish(action, state='pending' if unsent else 'unknown', receipt=receipt,
-                         message=x_capabilities.ui_message(message_key, locale=ui_locale))
+        message = x_capabilities.ui_message(message_key, locale=ui_locale)
+        if not unsent and action['kind'] in _TEXT_KINDS and getattr(exc, 'status', '') == 'provider_error':
+            # The send went out but X's publication receipt was missing or malformed: the state
+            # stays unknown and is never retried, and the card keeps this action's own words.
+            message = "X did not return a post receipt. It may or may not have gone out: check X before trying again."
+        action = _finish(action, state='pending' if unsent else 'unknown', receipt=receipt, message=message)
         state_name = getattr(exc, 'status', 'spend_cap_exhausted') if unsent else 'unknown'
         return {'ok': False, 'state': state_name, 'message': action['message'], 'action': public(action)}
     except RemoteFetchRefusedError:
