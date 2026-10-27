@@ -1563,7 +1563,7 @@ function vnOpenCharacterLab() {
   const copy = document.createElement("div");
   const title = document.createElement("h3"); title.id = "vnLabTitle"; title.textContent = "Character Lab";
   const sub = document.createElement("p"); sub.className = "vn-lab-sub";
-  sub.textContent = "Original pixel family · ten companions · cosmetic only. Runtime state and outcome truth never change.";
+  sub.textContent = "Original pixel family · ten companions, plus ten remastered · cosmetic only. Runtime state and outcome truth never change.";
   copy.appendChild(title); copy.appendChild(sub); head.appendChild(copy);
   const close = document.createElement("button"); close.type = "button"; close.className = "vn-lab-close";
   close.setAttribute("aria-label", "Close Character Lab"); close.textContent = "×"; close.addEventListener("click", vnCloseCharacterLab);

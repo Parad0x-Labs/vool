@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 
 from core.companion_art_fragment import COMPANION_ART_JS, COMPANION_ROSTER
+from core.companion_remaster_fragment import REMASTER_JS, REMASTER_ROSTER
 
 # The authored pixel-art family (original quartet + six) is prepended so the dispatcher below
 # can reach it. It is self-contained: it depends on no VCW_* symbol and shares no mutable state.
-COMPANION_WORLD_JS = COMPANION_ART_JS + r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
+COMPANION_WORLD_JS = COMPANION_ART_JS + REMASTER_JS + r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
 const VCW_PACKS={
  default:{skin:'#5eead4',dark:'#0f9488',eye:'#04241d',face:'#a7f3e5',shoe:'#134e4a'},
  ninja:{skin:'#94a3b8',dark:'#1e293b',eye:'#b91c1c',face:'#cbd5e1',shoe:'#0f172a'},
@@ -22,7 +23,7 @@ const VCW_CHARACTERS={
    The four originals keep stable ids so saved positions and packs survive. */
 aPetIds().forEach(function(id){
  const meta=A_PETS[id];
- VCW_CHARACTERS[id]={name:meta.name,renderer:'pet',original:aIsOriginal(id),note:meta.note};});
+ VCW_CHARACTERS[id]={name:meta.name,renderer:'pet',original:aIsOriginal(id),remastered:!!meta.remaster,note:meta.note};});
 
 function vcwR(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(x|0,y|0,w|0,h|0);}
 function vcwLite(hex,amt){const n=parseInt(String(hex).slice(1),16),f=c=>Math.max(0,Math.min(255,c+amt));return '#'+((f(n>>16)<<16)|(f((n>>8)&255)<<8)|f(n&255)).toString(16).padStart(6,'0');}
@@ -367,7 +368,7 @@ def normalise_companion_payload(payload: object = None) -> dict[str, object]:
     character = str(raw.get("character") or "spark").lower()
     # The roster is the renderer's, not a copy of it. An unknown or hostile id falls back to a
     # real member rather than reaching the renderer.
-    if character not in COMPANION_ROSTER:
+    if character not in COMPANION_ROSTER and character not in REMASTER_ROSTER:
         character = "spark"
     pack = str(raw.get("pack") or "default").lower()
     if pack not in {"default", "ninja", "moss", "cyber"}:

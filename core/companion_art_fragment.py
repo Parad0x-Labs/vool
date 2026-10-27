@@ -632,6 +632,6 @@ function vcwDrawPet(g,id,state,activity,elapsed,opts){
  const P=aPose(state,activity,t,reduced,liftAmp);
  const pal=opts.palette||A_PAL[id];
  g.clearRect(0,0,48,48);
- def.draw(g,pal,P,t);
+ def.draw(g,pal,P,t,reduced);
  return true;}
 """
