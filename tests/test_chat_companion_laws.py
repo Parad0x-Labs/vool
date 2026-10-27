@@ -468,8 +468,13 @@ law("SHEET.manifest", () => {
 });
 
 law("WORLD.authority", () => {
-  const ids = Object.keys(VC.characters).sort();
+  const all = Object.keys(VC.characters).sort();
+  const ids = all.filter((id) => id.indexOf("rm_") !== 0);
   eq(ids.join(","), "beetle,ember,golem,prime,prism,rascal,raven,spark,tide,veil", "ten authored companions ship");
+  const remastered = all.filter((id) => id.indexOf("rm_") === 0);
+  eq(remastered.join(","), "rm_beetle,rm_ember,rm_golem,rm_prime,rm_prism,rm_rascal,rm_raven,rm_spark,rm_tide,rm_veil", "ten remastered companions ship beside them");
+  for (const id of remastered) { eq(VC.characters[id].renderer, "pet", id + " renders through the shared authored family"); eq(VC.characters[id].remastered, true, id + " is marked remastered"); }
+  for (const id of ids) eq(!!VC.characters[id].remastered, false, id + " stays a legacy pet");
   for (const id of ids) eq(VC.characters[id].renderer, "pet", id + " renders through the shared authored family");
   for (const id of ["beetle", "raven", "golem", "tide"]) eq(VC.characters[id].original, true, id + " preserves approved art");
   const layer = document.body.children.find((c) => c.id === "companionLayer");
@@ -497,12 +502,13 @@ law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
   // originals (beetle/raven/golem/tide) are added and the six saved ids (spark/rascal/prime/
   // prism/veil/ember) are preserved, so the chooser must offer all ten -- and each must be a
   // DISTINCT authored drawing, never an alias of another id.
-  eq(candidateGrid.children.length, 10, "all ten companions are selectable");
+  eq(candidateGrid.children.length, 20, "all ten legacy and ten remastered companions are selectable");
   const labels = Array.from(candidateGrid.children).map((c) => c.querySelector("b").textContent);
-  eq(new Set(labels).size, 10, "every companion is its own character, not a recolour of another");
+  eq(new Set(labels).size, 20, "every companion is its own character, not a recolour of another");
   ["MORROW BEETLE","CLOCKWORK RAVEN","STONE GOLEM","TIDE WISP","SPARK","RASCAL","PRIME","PRISM","VEIL","EMBER"]
     .forEach(function (name) {
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0; }), true, name + " is offered in the chooser");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("REMASTERED") < 0; }), true, name + " is offered in the chooser");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("REMASTERED") >= 0; }), true, name + " is offered again as a remastered pet");
     });
   eq(packGrid.children.length, 4, "the four authoritative cosmetic packs are selectable");
   VC.chooseCharacter("spark"); VC.choosePack("default");
