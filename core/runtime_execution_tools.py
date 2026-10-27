@@ -1637,7 +1637,11 @@ def _machine_find_folder(
         seen.add(key)
         return True
 
-    queue: deque[tuple[str, int]] = deque((root, 0) for root in roots if _first_visit(root))
+    # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
+    # breadth-first spent the budget on system and app folders before it reached the user's own.
+    home = os.path.expanduser("~")
+    first = [home] if os.path.isdir(home) and home not in roots else []
+    queue: deque[tuple[str, int]] = deque((root, 0) for root in [*first, *roots] if _first_visit(root))
     while queue:
         if _time.monotonic() > deadline:
             timed_out = True

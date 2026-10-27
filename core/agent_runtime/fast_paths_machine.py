@@ -23,6 +23,9 @@ from core.execution.constants import (
     machine_disk_scope,
     machine_display_intent,
     machine_file_search_intent,
+    machine_folder_size_intent,
+    machine_kind_listing_intent,
+    machine_place_file_read_path,
     machine_folder_audit_intent,
     machine_folder_search_intent,
     machine_host_state_intent,
@@ -664,6 +667,14 @@ def _machine_tool_fast_path_result(
         summary=step_summary,
         observation=observation,
     )
+    # The lane that executed records itself in the channel every guard reads, as the live-info
+    # and currency lanes do. Without it "what's using my CPU right now" ran list_processes and the
+    # live-figures guard replaced the real table with "I didn't run any live lookup on this turn".
+    if isinstance(source_context, dict):
+        recorded = {"schema": "tool_observation_v1", "intent": intent, "tool_surface": "machine", **observation,
+                    "ok": ok, "status": status or ("executed" if ok else "failed")}
+        existing = [dict(item) for item in list(source_context.get("runtime_tool_observations") or []) if isinstance(item, dict)]
+        source_context["runtime_tool_observations"] = [*existing, recorded][-12:]
     approval_request = dict(details.get("approval_request") or {})
     if approval_request:
         # The event model maps task_pending_approval to permission.required and renders the
@@ -1569,6 +1580,281 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
     )
 
 
+_DOCUMENT_SUFFIXES = (".pdf", ".doc", ".docx", ".pages", ".txt", ".rtf", ".md", ".odt", ".xls", ".xlsx", ".numbers",
+                      ".csv", ".ppt", ".pptx", ".key")
+
+
+def _age_text(seconds: float) -> str:
+    if seconds < 3600:
+        return f"{max(1, int(seconds // 60))} min ago"
+    if seconds < 86400:
+        hours = int(seconds // 3600)
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = int(seconds // 86400)
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def _named_place_of(text: str) -> str:
+    from core.execution.constants import _named_place
+
+    return _named_place(text)
+
+
+_KIND_WALK_DEPTH = 3
+_KIND_WALK_MAX_FILES = 20000
+_KIND_WALK_SKIP = frozenset({"node_modules", "__pycache__", "venv", ".venv", "Library"})
+
+
+def _files_under(folder: str, label_root: str) -> list[dict[str, str]]:
+    """The files in ``folder`` and up to three levels below, labelled from ``label_root``."""
+    import time as _time
+
+    found: list[dict[str, str]] = []
+    deadline = _time.monotonic() + 3.0
+    pending = [(folder, label_root, 0)]
+    while pending and len(found) < _KIND_WALK_MAX_FILES and _time.monotonic() < deadline:
+        current, label, depth = pending.pop(0)
+        try:
+            with os.scandir(current) as scan:
+                for item in scan:
+                    if item.name.startswith("."):
+                        continue
+                    try:
+                        if item.is_file(follow_symlinks=False):
+                            found.append({"path": f"{label}/{item.name}", "type": "file"})
+                        elif (
+                            item.is_dir(follow_symlinks=False)
+                            and depth < _KIND_WALK_DEPTH
+                            and item.name not in _KIND_WALK_SKIP
+                            and not os.path.exists(os.path.join(item.path, ".git"))
+                        ):
+                            pending.append((item.path, f"{label}/{item.name}", depth + 1))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return found
+
+
+def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
+    """List one KIND of file in a folder (or Desktop, Downloads and Documents), newest first.
+
+    Each folder is opened through ``machine.list_directory`` (same gate, same roots, same phone
+    folder fence) and its files are then walked a few levels down to keep the ones whose kind, age
+    and size fit. ``None`` when no tool ran, so the turn continues.
+    """
+    import time as _time
+
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.execution.constants import KindListing
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    listing = KindListing(*listing)
+    places = [listing.place] if listing.place else ["Desktop", "Downloads", "Documents"]
+    opened: list[tuple[str, Any]] = []
+    refused = None
+    for place in places:
+        execution = execute_authorized_runtime_tool(
+            "machine.list_directory", {"path": f"~/{place}", "limit": 200}, source_context=dict(source_context or {})
+        )
+        if execution is None:
+            continue
+        if not getattr(execution, "ok", False):
+            refused = refused or execution
+            continue
+        opened.append((place, execution))
+    if not opened:
+        return refused  # a refusal or a missing folder is the answer; None when nothing ran
+    kind = listing.kind
+    suffixes = (
+        (kind, ".jpeg") if kind == ".jpg" else (kind,) if kind.startswith(".")
+        else _DOCUMENT_SUFFIXES if kind == "document" else _FILE_KIND_SUFFIXES.get(kind)
+    )
+    now = _time.time()
+    found: list[tuple[float, int, str]] = []
+    for place, execution in opened:
+        details = dict(getattr(execution, "details", None) or {})
+        # The tool lists one level, alphabetically, 200 at most: a busy Downloads hides the newest
+        # screenshot past the page, and "the pdfs in my documents" sit in Taxes/ and Work/. The
+        # folder was just authorized for this turn, so its files are walked here (a few levels,
+        # bounded), skipping hidden folders and other projects' checkouts.
+        label_root = str(details.get("path") or f"~/{place}")
+        entries = _files_under(os.path.expanduser(label_root), label_root) or list(details.get("entries") or [])
+        for entry in entries:
+            if entry.get("type") != "file":
+                continue
+            label = str(entry.get("path") or "")
+            if suffixes and not label.lower().endswith(suffixes):
+                continue
+            try:
+                info = os.stat(os.path.expanduser(label))
+            except OSError:
+                continue
+            if listing.max_age_days is not None and now - info.st_mtime > listing.max_age_days * 86400:
+                continue
+            if listing.min_bytes is not None and info.st_size < listing.min_bytes:
+                continue
+            found.append((info.st_mtime, info.st_size, label))
+    if listing.order == "largest":
+        found.sort(key=lambda row: row[1], reverse=True)
+    else:
+        found.sort(key=lambda row: row[0], reverse=listing.order != "oldest")
+    singular, plural = _kind_nouns(kind)
+    noun = singular if len(found) == 1 else plural
+    where = f"~/{listing.place}" if listing.place else "Desktop, Downloads and Documents"
+    when = "" if listing.max_age_days is None else (
+        f" from the last {round(listing.max_age_days * 24)} hours" if listing.max_age_days < 1
+        else " from the last day" if listing.max_age_days == 1 else f" from the last {listing.max_age_days:g} days"
+    )
+    bigger = "" if listing.min_bytes is None else f" bigger than {_size_text(listing.min_bytes)}"
+    order_text = {"largest": "largest first", "oldest": "oldest first"}.get(listing.order, "newest first")
+
+    def row(modified: float, size: int, label: str) -> str:
+        return f"- {label} ({_age_text(now - modified)}, {_size_text(size)})"
+
+    if found and listing.limit == 1:
+        first = {"oldest": "oldest", "largest": "largest"}.get(listing.order, "newest")
+        lines = [f"The {first} {singular} in {where}{when}{bigger}:", row(*found[0])]
+    elif found:
+        shown = found[: listing.limit or 30]
+        lines = [f"{len(found)} {noun} in {where}{when}{bigger}, {order_text}:"]
+        lines.extend(row(*item) for item in shown)
+        if len(found) > len(shown):
+            lines.append(f"...and {len(found) - len(shown)} more.")
+    else:
+        lines = [f"No {plural} in {where}{when}{bigger}."]
+    first_details = dict(getattr(opened[0][1], "details", None) or {})
+    observation = dict(first_details.get("observation") or {})
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed" if found else "no_results", response_text="\n".join(lines),
+        details={**first_details, "entries": [{"path": label, "modified": modified, "size_bytes": size} for modified, size, label in found],
+                 "observation": {**observation, "intent": "machine.list_directory", "kind": kind, "place": listing.place,
+                                 "max_age_days": listing.max_age_days, "order": listing.order,
+                                 "min_bytes": listing.min_bytes, "match_count": len(found)}},
+    )
+
+
+_BARE_FILE_NAME_RE = re.compile(
+    r"(?<![\w/~.])(?P<name>[A-Za-z0-9][\w\-]*(?:\.[\w\-]+)*\."
+    r"(?:txt|md|markdown|pdf|csv|tsv|json|ya?ml|xml|html?|log|rtf|ini|toml|conf|py|js|ts|sh|sql))\b",
+    re.IGNORECASE,
+)
+
+
+def read_home_file_the_project_lacks(
+    agent: Any, user_input: str, *, session_id: str, source_context: dict | None
+) -> dict[str, Any] | None:
+    """Read the ONE file of that name in Desktop, Downloads or Documents when the project has none.
+
+    The workspace lane answered "There is no file at notes.txt ... ask me to search your Desktop,
+    Downloads and Documents" -- so do that search, and read the file when exactly one matches.
+    """
+    from pathlib import Path
+
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.execution.constants import _TYPED_FILE_CONTENT_CUE_RE
+    from core.runtime_execution_tools import _nearby_workspace_matches
+
+    text = " ".join(str(user_input or "").split())
+    named = _BARE_FILE_NAME_RE.search(text)
+    if named is None or "/" in text or "\\" in text or not _TYPED_FILE_CONTENT_CUE_RE.search(text):
+        return None
+    if re.search(r"\b(?:copy|move|rename|send|email|upload|delete|remove|zip|compress|convert|translate|edit|write|create|make|save)\b",
+                 text, re.IGNORECASE):
+        return None
+    name = named.group("name")
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if root:
+        workspace_root = Path(root).expanduser()
+        if (workspace_root / name).exists() or _nearby_workspace_matches(name, workspace_root=workspace_root, limit=1):
+            return None  # the project's own file is the workspace lane's
+    found = execute_authorized_runtime_tool("machine.find_file", {"name": name}, source_context=dict(source_context or {}))
+    if found is None or not getattr(found, "ok", False):
+        return None
+    matches = [path for path in list(dict(getattr(found, "details", None) or {}).get("matches") or [])
+               if os.path.basename(str(path)).lower() == name.lower()]
+    if len(matches) != 1:
+        return None
+    path = str(matches[0])
+    intent = "pdf.extract_text" if path.lower().endswith(".pdf") else "machine.read_file"
+    arguments = {"path": path} if intent == "pdf.extract_text" else {"path": path, "start_line": 1, "max_lines": 200, "verbatim": False}
+    execution = execute_authorized_runtime_tool(intent, arguments, source_context=dict(source_context or {}))
+    if execution is None:
+        return None
+    return _machine_tool_fast_path_result(
+        agent, user_input=user_input, session_id=session_id, source_context=source_context,
+        intent=intent, execution=execution, reason="machine_read_fast_path",
+    )
+
+
+def measure_folder_size(place: str, *, source_context: dict | None) -> Any:
+    """Add up the files under one home folder, after ``machine.list_directory`` opened it."""
+    import time as _time
+
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    execution = execute_authorized_runtime_tool(
+        "machine.list_directory", {"path": f"~/{place}", "limit": 1}, source_context=dict(source_context or {})
+    )
+    if execution is None or not getattr(execution, "ok", False):
+        return execution
+    details = dict(getattr(execution, "details", None) or {})
+    label = str(details.get("path") or f"~/{place}")
+    total = files = folders = 0
+    complete = True
+    deadline = _time.monotonic() + 8.0
+    pending = [os.path.expanduser(label)]
+    while pending:
+        if _time.monotonic() > deadline:
+            complete = False
+            break
+        current = pending.pop()
+        try:
+            with os.scandir(current) as scan:
+                for item in scan:
+                    try:
+                        if item.is_symlink():
+                            continue
+                        if item.is_dir():
+                            folders += 1
+                            pending.append(item.path)
+                        elif item.is_file():
+                            files += 1
+                            total += item.stat().st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    text = f"{label} uses {_size_text(total)}: {files} file{'s' if files != 1 else ''} in {folders} folder{'s' if folders != 1 else ''}."
+    if not complete:
+        text = f"{label} uses at least {_size_text(total)} (the count stopped after 8 seconds): {files} files in {folders} folders so far."
+    observation = dict(details.get("observation") or {})
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text=text,
+        details={**details, "size_bytes": total, "file_count": files, "folder_count": folders, "complete": complete,
+                 "observation": {**observation, "intent": "machine.list_directory", "measured": "folder_size",
+                                 "size_bytes": total, "complete": complete}},
+    )
+
+
+def _kind_nouns(kind: str) -> tuple[str, str]:
+    if kind.startswith("."):
+        label = kind[1:].upper()
+        return f"{label} file", f"{label} files"
+    return {
+        "image": ("picture", "pictures"), "pdf": ("PDF", "PDFs"), "video": ("video", "videos"),
+        "audio": ("recording", "recordings"), "document": ("document", "documents"),
+    }.get(kind, ("file", "files"))
+
+
+def _size_text(size: int) -> str:
+    for unit, scale in (("GB", 1024**3), ("MB", 1024**2), ("KB", 1024)):
+        if size >= scale:
+            return f"{size / scale:.1f} {unit}".replace(".0 ", " ")
+    return f"{size} bytes"
+
+
 def _looks_like_machine_download_title_followup(
     user_input: str,
     *,
@@ -1705,6 +1991,10 @@ def maybe_handle_direct_machine_read_request(
         largest_scope = resolve_drive_scope(user_input, last_drive=last_drive)
         if largest_scope:
             largest_args["drive"] = largest_scope
+        elif named_place := _named_place_of(user_input):
+            # "the biggest file in my downloads" measured the whole home folder (VOOL's own
+            # databases included) and never looked at Downloads first.
+            largest_args["drive"] = f"~/{named_place}"  # the tool resolves a home folder here too
         kind = largest_kind(user_input)
         if kind != "both":
             largest_args["kind"] = kind
@@ -1767,6 +2057,34 @@ def maybe_handle_direct_machine_read_request(
                 source_context=source_context,
                 intent="machine.list_processes",
                 execution=execution,
+                reason="machine_read_fast_path",
+            )
+    # "the pictures in my Downloads from the last two days" is one KIND of file in one folder.
+    kind_listing = machine_kind_listing_intent(user_input)
+    if kind_listing is not None:
+        listed = list_files_of_kind(kind_listing, source_context=source_context)
+        if listed is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.list_directory",
+                execution=listed,
+                reason="machine_read_fast_path",
+            )
+    # "how big is my downloads folder" was refused as a fact no tool had measured.
+    size_place = machine_folder_size_intent(user_input)
+    if size_place is not None:
+        measured = measure_folder_size(size_place, source_context=source_context)
+        if measured is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.list_directory",
+                execution=measured,
                 reason="machine_read_fast_path",
             )
     # A path the user typed out plus "what is inside it" needs no classification at all. Routed
@@ -1835,6 +2153,25 @@ def maybe_handle_direct_machine_read_request(
                 confidence=0.96,
                 source_context=source_context,
                 reason="folder_audit_fast_path",
+            )
+    # "read notes.txt in my documents" names the file AND the folder: read it there. The workspace
+    # lane below used to take it and answer that the project has no notes.txt.
+    place_read = None if email_owns_folder_reference else machine_place_file_read_path(user_input)
+    if place_read is not None:
+        read_intent = "pdf.extract_text" if place_read.lower().endswith(".pdf") else "machine.read_file"
+        read_args = {"path": place_read} if read_intent == "pdf.extract_text" else {
+            "path": place_read, "start_line": 1, "max_lines": 200, "verbatim": False,
+        }
+        execution = execute_authorized_runtime_tool(read_intent, read_args, source_context=dict(source_context or {}))
+        if execution is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent=read_intent,
+                execution=execution,
+                reason="machine_read_fast_path",
             )
     # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
     # folder search below can read "Downloads folder" as the thing being looked for.

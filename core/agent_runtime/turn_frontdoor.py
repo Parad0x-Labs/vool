@@ -103,6 +103,12 @@ def closed_semantic_contract_covers_turn(
     # conditional ACK belongs to the file read, not to an independent planner task.
     if heartbeat_poll_fast_path(raw, source_context=source_context) is not None:
         return True
+    from core.execution.constants import machine_kind_listing_covers_turn
+
+    # "the pictures in my Downloads from the last 2 days" is one deterministic listing even when
+    # the user spreads it over a comma or two; planned by the conductor its age was cut off.
+    if machine_kind_listing_covers_turn(raw):
+        return True
     semantic_preflight = _preflight_for_text(raw, preflight)
     literal = parse_raw_output_contract(raw)
     if literal is not None and literal.exact_text is not None:
@@ -2036,6 +2042,17 @@ def handle_turn_frontdoor(
         # an unavailable probe keeps the veto rather than inventing a new grant.
         _read_lane_claims_part_of_this_turn = True
 
+    # "open notes.txt" when the project has no notes.txt but ~/Documents does: read that one. The
+    # workspace lane below answered "no file of that name in this project, ask me to search".
+    if not (action_forbidden or mixed_turn):
+        from core.agent_runtime.fast_paths_machine import read_home_file_the_project_lacks
+
+        home_read = read_home_file_the_project_lacks(
+            agent, effective_input, session_id=session_id, source_context=source_context
+        )
+        if home_read is not None:
+            return {"result": home_read}
+
     workspace_runtime = None if (
         action_forbidden
         or mixed_turn
@@ -2463,6 +2480,11 @@ def _execute_arbitrated_family(
     family = str(getattr(decision, "family", "") or "")
     argument = str(getattr(decision, "argument", "") or "").strip()
     file_search = machine_file_search_intent(effective_input) if family in (FAMILY_FIND_FILE, FAMILY_FIND_FOLDER) else None
+    if family in (FAMILY_FIND_FOLDER, FAMILY_LIST_DIRECTORY) and file_search is None:
+        from core.execution.constants import machine_kind_listing_intent
+
+        if machine_kind_listing_intent(effective_input) is not None:
+            family = FAMILY_FIND_FILE  # "the pictures in Downloads" is a kind listing, not a folder or a full listing
     if family == FAMILY_FIND_FOLDER and file_search is not None:
         family = FAMILY_FIND_FILE  # a small model that read "Downloads folder" as the target is overruled
     # A path the user typed is already exact -- do not depend on a 0.6B model to copy it back. Asked
@@ -2565,7 +2587,17 @@ def _execute_arbitrated_family(
         from core.agent_runtime.fast_paths_machine import find_named_files
 
         if file_search is None:
-            return None
+            from core.agent_runtime.fast_paths_machine import list_files_of_kind
+            from core.execution.constants import machine_kind_listing_intent
+
+            listing = machine_kind_listing_intent(effective_input)
+            listed = list_files_of_kind(listing, source_context=source_context) if listing else None
+            if listed is None:
+                return None
+            return _machine_tool_fast_path_result(
+                agent, user_input=effective_input, session_id=session_id, source_context=source_context,
+                intent="machine.list_directory", execution=listed, reason="intent_arbiter_fast_path",
+            )
         search = file_search
         found = find_named_files(search, source_context=source_context)
         if found is None:
