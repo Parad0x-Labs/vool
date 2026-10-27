@@ -485,6 +485,45 @@ def skill_guidance_for(
     return SkillGuidance(text="\n\n".join(blocks), skills=tuple(provenance), allowed_tools=tuple(allowed))
 
 
+def matched_skill_tool_seats(
+    user_text: str, *, source_context: dict[str, Any] | None = None, limit: int = MAX_SKILLS
+) -> tuple[str, ...]:
+    """The ``allowed-tools`` of the skills the words match, rendered or not.
+
+    A tool list costs no prompt characters, while a skill BODY can be dropped whole for the
+    tool lane's tighter budget (the complete-or-absent law) -- and a skill dropped for budget
+    is still the reason the turn wants its tools. Read through the same lexical ranking the
+    guidance lanes use, over the same lane-1 candidates (the operator's own and registry
+    skills), so what seats and what renders cannot disagree about which skills matched.
+    """
+    text = str(user_text or "").strip()
+    if not text:
+        return ()
+    installed = loaded_skills()
+    scoped: tuple[Any, ...] = ()
+    if isinstance(source_context, dict):
+        with contextlib.suppress(Exception):
+            from core.skill_scopes import scope_keys
+            from core.skill_tools import scoped_skills
+
+            scoped = scoped_skills(scope_keys(source_context))
+    shadowed = {str(s.name or "").strip().lower() for s in scoped}
+    candidates = tuple(scoped) + tuple(
+        s for s in installed if _user_authored(s) and str(s.name or "").strip().lower() not in shadowed
+    )
+    if not candidates:
+        return ()
+    from core.plugin_skills import rank_skills
+
+    seats: list[str] = []
+    for skill in rank_skills(candidates, text, limit=limit):
+        for name in getattr(skill, "allowed_tools", ()) or ():
+            clean = str(name).strip()
+            if clean and clean not in seats:
+                seats.append(clean)
+    return tuple(seats)
+
+
 def offer_fingerprint(specs: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> str:
     """A stable digest of an offer's specs, so any rendering can show which offer it rendered."""
     canonical = json.dumps(list(specs), sort_keys=True, ensure_ascii=True, default=str)
@@ -633,12 +672,16 @@ def assemble_tool_offer(
         source_context=source_context if isinstance(source_context, dict) else None,
     )
     skill_seats: tuple[str, ...] = ()
-    if guidance.allowed_tools and isinstance(source_context, dict):
+    if isinstance(source_context, dict):
         try:
             from core.request_trust import request_is_owner_local
 
             if request_is_owner_local(source_context):
-                skill_seats = tuple(dict.fromkeys(guidance.allowed_tools))
+                # Seats follow the MATCH, not the render: a skill whose body the tool lane's
+                # tighter budget dropped whole still names its tools, and the offer seats them.
+                skill_seats = tuple(dict.fromkeys(
+                    (*guidance.allowed_tools, *matched_skill_tool_seats(user_text, source_context=source_context))
+                ))
         except Exception:
             skill_seats = ()
     specs = list(
@@ -674,9 +717,10 @@ def assemble_tool_offer(
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.
         specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
-    if guidance.allowed_tools:
+    if guidance.allowed_tools or skill_seats:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)
-        specs = _narrow(specs, allowed=guidance.allowed_tools, keep=set(_ALWAYS_VISIBLE) | explicit | set(work_seats))
+        specs = _narrow(specs, allowed=skill_seats or guidance.allowed_tools,
+                        keep=set(_ALWAYS_VISIBLE) | explicit | set(work_seats))
 
     # The recorded families are the families the offer ACTUALLY seated -- derived from the
     # seated intents' own namespace (the vocabulary's convention: `repo.*` -> "repo",
