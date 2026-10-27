@@ -133,7 +133,8 @@ def checkout(world):
     """What the workflow's first step makes: a fresh clone of main."""
     world.runs += 1
     path = world.tmp / f"run-{world.runs}"
-    subprocess.run(["git", "clone", "-q", "-b", "main", str(world.origin), str(path)], check=True, capture_output=True)
+    done = subprocess.run(["git", "clone", "-q", "-b", "main", str(world.origin), str(path)], capture_output=True, text=True)
+    assert done.returncode == 0, f"git clone exited {done.returncode}: {done.stderr.strip()}"
     return path
 
 
