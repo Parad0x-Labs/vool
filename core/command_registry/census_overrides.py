@@ -139,6 +139,8 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/x/oauth/callback": "X sign-in callback: X's redirect back to this machine, loopback only, single-use state",
     "http:POST:/api/drop": "VOOL Drop lane: default-off local prototype controls for the owner's Settings page",
     "http:UPLOAD:/api/drop/send": "VOOL Drop lane: the owner's file upload for one Drop packet, size-capped",
+    "http:POST:/api/lend": "Default-off lending controls; owner-local decisions and bounded guest jobs over Drop",
+    "http:UPLOAD:/api/lend/send": "Owner-local lending upload; invitation limits and complete input digest required",
     "http:GET:/api/wallet/info": "wallet lane feed (goal exclusion: wallet)",
     "http:GET:/api/wallet/safety": "wallet safety envelope feed (goal exclusion: wallet)",
     "http:POST:/api/wallet/export": "wallet lane: private-key export behind device presence (goal exclusion: wallet)",

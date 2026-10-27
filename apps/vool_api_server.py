@@ -717,6 +717,12 @@ def main() -> int:
             start_default_sync()
         except Exception:
             logger.exception("calendar alert sync failed to start; server continues without calendar alerts")
+        try:
+            from core.lend.runtime import boot as boot_lending
+
+            boot_lending()
+        except Exception:
+            logger.exception("lending delivery failed to start; server continues without it")
         _start_background_prewarm(runtime)
         # Crypto Pilot: the transfer observer reads the chain for transfers whose outcome is not settled yet and
         # recovers claims whose request died. One daemon thread; it never transmits. Fail-soft: boot never depends on it.

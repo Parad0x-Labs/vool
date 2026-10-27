@@ -578,6 +578,11 @@ class DropHome:
             return {k: row[k] for k in ("sid", "status", "note", "manifest", "task", "task_state", "result", "executions", "expires")}
 
     def _apply_task(self, sid, payload):
+        if payload.get("type") == "lend":
+            from core.lend.service import receive
+
+            receive(self, sid, payload)
+            return
         row = self._row(sid)
         if payload.get("type") == "task":
             if not row["manifest"]:

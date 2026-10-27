@@ -3401,6 +3401,12 @@ def dispatch_post(
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
 
+    if normalized_path == "/api/lend":
+        from core.lend.api import handle
+
+        status, payload = handle(body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(status, payload), runtime)
+
     if normalized_path == "/api/drop":
         from core.web.api.drop_api import handle
 
@@ -3915,14 +3921,14 @@ CHAT_IMPORT_UPLOAD_PATH = "/api/chat/import/upload"
 
 
 def is_raw_upload_path(path: str) -> bool:
-    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH, "/api/drop/send")
+    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH, "/api/drop/send", "/api/lend/send")
 
 
 def raw_upload_body_ceiling(path: str = "") -> int:
     """The largest body the raw door will hold whole: the per-file limit plus header slack,
     or the bundle ceiling for the session-bundle door, or the export-zip ceiling for the chat
     import door."""
-    if (str(path or "").rstrip("/") or "/") == "/api/drop/send":
+    if (str(path or "").rstrip("/") or "/") in {"/api/drop/send", "/api/lend/send"}:
         from core.drop.service import MAX_FILE
 
         return MAX_FILE
@@ -3987,6 +3993,12 @@ def dispatch_upload(
     # owner's data: owner-local first, whatever each door checks after.
     if not is_loopback_host(client_host):
         return _out(json_response(403, {"ok": False, "error": "owner_local_required"}))
+
+    if path == "/api/lend/send":
+        from core.lend.api import upload
+
+        status, payload = upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(status, payload))
 
     if path == "/api/drop/send":
         from core.web.api.drop_api import upload

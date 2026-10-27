@@ -2395,6 +2395,13 @@
       "registry_command_id": "learning.invalidate",
       "surface": "http"
     },
+    "http:POST:/api/lend": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/lend",
+      "note": "Default-off lending controls; owner-local decisions and bounded guest jobs over Drop",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/market/watches/pause": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/market/watches/pause",
@@ -3165,6 +3172,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:UPLOAD:/api/lend/send": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/lend/send",
+      "note": "Owner-local lending upload; invitation limits and complete input digest required",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:UPLOAD:/api/session/bundle/upload": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "UPLOAD /api/session/bundle/upload",
@@ -3357,7 +3371,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 323,
+    "EXTERNAL_TRANSPORT_ONLY": 325,
     "GENERATED_ADAPTER": 147,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

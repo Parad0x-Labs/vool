@@ -109,7 +109,8 @@ def _runtime_data_subpaths() -> tuple[str, ...]:
     return _RUNTIME_DATA_SUBPATHS
 
 
-def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool) -> str:
+def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool,
+             allow_mach_lookup: bool = True, allow_child_signals: bool = False) -> str:
     """Deny by default; keep execution working; allow file CONTENT only where it is needed.
 
     The distinction that matters, and the one an earlier version of this file got wrong:
@@ -134,8 +135,13 @@ def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool) -> str
         "(allow process-fork)",
         "(allow process-exec*)",
         "(allow sysctl-read)",
-        "(allow mach-lookup)",
     ]
+    if allow_mach_lookup:
+        lines.append("(allow mach-lookup)")
+    if allow_child_signals:
+        # An inherited sandbox instance only; never the unsandboxed host or
+        # another worker. Used by an offline worker's parent-death watchdog.
+        lines.append("(allow signal (target same-sandbox))")
     if allow_gpu:
         # Vision's recognizer runs on the GPU/Neural Engine and cannot open those devices without
         # this. Measured: without it VNRecognizeTextRequest fails with a generic ObjC error and
@@ -487,6 +493,9 @@ def run_confined(
     extra_read: Sequence[str] = (),
     max_stdout: int = SUBPROCESS_MAX_OUTPUT_BYTES,
     max_stderr: int = SUBPROCESS_MAX_STDERR_BYTES,
+    allow_mach_lookup: bool = True,
+    allow_child_signals: bool = False,
+    on_start=None,
 ) -> SandboxResult:
     """Run one decoder under confinement. Refuses BEFORE spawning if it cannot be confined."""
     require_confinement(fmt)
@@ -506,7 +515,8 @@ def run_confined(
     # `/private/tmp` on macOS, and an SBPL `subpath` matches the real path only -- an unresolved
     # entry silently grants nothing, which shows up as the decoder dying on SIGSEGV before `main`
     # rather than as a permission error. Measured 2026-09-03 on the compiled OCR helper.
-    profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu)
+    profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu,
+                       allow_mach_lookup=allow_mach_lookup, allow_child_signals=allow_child_signals)
     command = [_SANDBOX_EXEC, "-p", profile, *_limited_argv(argv, cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))]
     # An empty environment plus only what a decoder needs to find its own libraries. No proxy
     # variables, no credentials, no real HOME: a decoder that wanted a token could not find one,
@@ -532,6 +542,8 @@ def run_confined(
 
     deadline = time.monotonic() + timeout
     try:
+        if on_start is not None:
+            on_start(process)
         stdout, stderr = _supervise(process, deadline=deadline, max_stdout=max_stdout, max_stderr=max_stderr, fmt=fmt, budget=budget)
         try:
             process.wait(timeout=max(0.1, deadline - time.monotonic()))

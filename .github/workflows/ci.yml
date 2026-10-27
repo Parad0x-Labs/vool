@@ -244,6 +244,11 @@ jobs:
           # signed-update suites drive plutil/codesign. This list and the macos job's file list
           # are pinned together by tests/test_delivery_contracts.py so they cannot drift.
           macos_only = {
+              "tests/lend/test_invites.py",
+              "tests/lend/test_jobs.py",
+              "tests/lend/test_failures.py",
+              "tests/lend/test_control.py",
+              "tests/lend/test_browser.py",
               "tests/test_macos_app_packaging.py",
               "tests/updater/test_e2e_sandbox.py",
               "tests/updater/test_boot_api_ui.py",
@@ -345,6 +350,11 @@ jobs:
       - name: Run the macOS-only suites
         run: >-
           python -m pytest -q --tb=short -p no:cacheprovider
+          tests/lend/test_invites.py
+          tests/lend/test_jobs.py
+          tests/lend/test_failures.py
+          tests/lend/test_control.py
+          tests/lend/test_browser.py
           tests/test_macos_app_packaging.py
           tests/updater/test_e2e_sandbox.py
           tests/updater/test_boot_api_ui.py
