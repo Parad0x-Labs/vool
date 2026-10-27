@@ -498,17 +498,20 @@ law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
   const lab = layer.children[layer.children.length - 1];
   eq(lab.style.display, "flex", "Character Lab opens as a real chooser");
   const modal = lab.children[0], candidateGrid = modal.children[1], packGrid = modal.children[3];
+  const headings = Array.from(candidateGrid.children).filter((c) => c.className === "vn-lab-group").map((c) => c.textContent);
+  eq(headings.join("|"), "Legacy pets|Sidekicks", "the chooser shows the legacy pets first, then the sidekicks");
+  const cards = Array.from(candidateGrid.children).filter((c) => c.className.indexOf("vn-character-card") === 0);
   // pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
   // originals (beetle/raven/golem/tide) are added and the six saved ids (spark/rascal/prime/
   // prism/veil/ember) are preserved, so the chooser must offer all ten -- and each must be a
   // DISTINCT authored drawing, never an alias of another id.
-  eq(candidateGrid.children.length, 20, "all ten legacy and ten remastered companions are selectable");
-  const labels = Array.from(candidateGrid.children).map((c) => c.querySelector("b").textContent);
+  eq(cards.length, 20, "all ten legacy and ten remastered companions are selectable");
+  const labels = cards.map((c) => c.querySelector("b").textContent);
   eq(new Set(labels).size, 20, "every companion is its own character, not a recolour of another");
   ["MORROW BEETLE","CLOCKWORK RAVEN","STONE GOLEM","TIDE WISP","SPARK","RASCAL","PRIME","PRISM","VEIL","EMBER"]
     .forEach(function (name) {
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("Remastered") < 0; }), true, name + " is offered in the chooser");
-      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && l.indexOf("Remastered") >= 0; }), true, name + " is offered again as a remastered pet");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && !/ II$/.test(l); }), true, name + " is offered in the chooser");
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0 && / II$/.test(l); }), true, name + " is offered again as a remastered pet");
     });
   eq(packGrid.children.length, 4, "the four authoritative cosmetic packs are selectable");
   VC.chooseCharacter("spark"); VC.choosePack("default");

@@ -300,15 +300,15 @@ function rmMake(fn,o){return function(g,pal,P,t,reduced){
  if(st==='success'){rmGlint(pg,40,8,T);rmGlint(pg,6,12,T+200);}
  if(st==='failure'){aRect(pg,39,6,3,3,'#ef6f65');aRect(pg,40,10,2,4,'#9fd8ee');aRect(pg,40,14,2,1,'#6fb2d2');}};}
 const RM_ROSTER={
- rm_beetle:{name:'MORROW BEETLE · Remastered',note:'mechanical beetle',draw:rmMake(rmBeetle,{})},
- rm_raven:{name:'CLOCKWORK RAVEN · Remastered',note:'clockwork raven',draw:rmMake(rmRaven,{flip:1})},
- rm_golem:{name:'STONE GOLEM · Remastered',note:'stone golem',draw:rmMake(rmGolem,{})},
- rm_tide:{name:'TIDE WISP · Remastered',note:'tide wisp',draw:rmMake(rmTide,{})},
- rm_spark:{name:'SPARK · Lamplighter · Remastered',note:'brass moth-lantern',draw:rmMake(rmSpark,{})},
- rm_rascal:{name:'RASCAL · Courier · Remastered',note:'fox courier',draw:rmMake(rmRascal,{})},
- rm_prime:{name:'PRIME · Keykeeper · Remastered',note:'keystone keeper',draw:rmMake(rmPrime,{})},
- rm_prism:{name:'PRISM · Lanternfin · Remastered',note:'cut-glass fish',draw:rmMake(rmPrism,{})},
- rm_veil:{name:'VEIL · Duskmoth · Remastered',note:'velvet moth',draw:rmMake(rmVeil,{})},
- rm_ember:{name:'EMBER · Kiln · Remastered',note:'brick kiln sprite',draw:rmMake(rmEmber,{propLeft:1})}};
+ rm_beetle:{name:'MORROW BEETLE II',note:'mechanical beetle',draw:rmMake(rmBeetle,{})},
+ rm_raven:{name:'CLOCKWORK RAVEN II',note:'clockwork raven',draw:rmMake(rmRaven,{flip:1})},
+ rm_golem:{name:'STONE GOLEM II',note:'stone golem',draw:rmMake(rmGolem,{})},
+ rm_tide:{name:'TIDE WISP II',note:'tide wisp',draw:rmMake(rmTide,{})},
+ rm_spark:{name:'SPARK · Lamplighter II',note:'brass moth-lantern',draw:rmMake(rmSpark,{})},
+ rm_rascal:{name:'RASCAL · Courier II',note:'fox courier',draw:rmMake(rmRascal,{})},
+ rm_prime:{name:'PRIME · Keykeeper II',note:'keystone keeper',draw:rmMake(rmPrime,{})},
+ rm_prism:{name:'PRISM · Lanternfin II',note:'cut-glass fish',draw:rmMake(rmPrism,{})},
+ rm_veil:{name:'VEIL · Duskmoth II',note:'velvet moth',draw:rmMake(rmVeil,{})},
+ rm_ember:{name:'EMBER · Kiln II',note:'brick kiln sprite',draw:rmMake(rmEmber,{propLeft:1})}};
 Object.keys(RM_ROSTER).forEach(function(id){A_PETS[id]=Object.assign({remaster:true},RM_ROSTER[id]);});
 """

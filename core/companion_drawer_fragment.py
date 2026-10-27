@@ -32,6 +32,7 @@ _DRAWER_CSS = """
 .vcd-card{display:flex;gap:10px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
   border-radius:9px;padding:8px 10px;margin-bottom:6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:left;font:inherit;font-size:12.5px}
 .vcd-card.vcd-on{outline:1px solid var(--accent,#5eead4)}
+.vcd-group{margin:10px 0 4px;color:var(--muted,#9aa1af);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
 .vcd-card:focus-visible{outline:2px solid var(--accent,#5eead4);outline-offset:2px}
 .vcd-card small{color:var(--muted,#9aa1af)}
 #vcdDrawer kbd,#sidebar kbd{font-family:ui-monospace,Menlo,monospace;font-size:10px;background:var(--bg,#101318);
@@ -71,8 +72,11 @@ function petTab(){
     '<button type="button" data-pet="on"' + (pos.hidden ? '' : ' class="vcd-on"') + '>On</button>' +
     '<button type="button" data-pet="off"' + (pos.hidden ? ' class="vcd-on"' : '') + '>Off</button></div></div>' +
     '<div class="vcd-field"><label>Character</label>';
+  var lastGroup = null;
   Object.keys(characters).forEach(function(id){
     var spec = characters[id] || {};
+    var group = spec.remastered ? 'Sidekicks' : 'Legacy pets';
+    if (group !== lastGroup) { html += '<div class="vcd-group">' + group + '</div>'; lastGroup = group; }
     html += '<button type="button" class="vcd-card' + (id === active ? ' vcd-on' : '') + '" data-char="' + esc(id) + '" aria-pressed="' + (id === active ? 'true' : 'false') + '">' +
       '<b>' + esc(spec.name || id) + '</b></button>';
   });
