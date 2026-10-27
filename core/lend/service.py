@@ -60,7 +60,9 @@ class LendHome(Jobs):
         An offer nobody joined loses its Drop pairing token from the local
         invite store (never the relay folder), and queued host jobs are marked
         revoked with a closing receipt and a resolved inbox item right away.
-        Nothing here sends or waits for the features to be turned on again.
+        A job already running or returning keeps its state; its own finish
+        path records the revocation with the real worker time. Nothing here
+        sends or waits for the features to be turned on again.
         """
         from types import SimpleNamespace
 
@@ -87,10 +89,10 @@ class LendHome(Jobs):
                         discard_local_invite_tokens(root.parent, (value['drop'].rsplit('/', 1)[1],))
             for job in owner.all('jobs'):
                 if job['role'] == 'host' and job['invite'] in revoked and job['state'] not in TERMINAL:
-                    seconds = 0 if 'started' not in job else (job.get('execution_receipt') or {}).get('seconds')
-                    job['state'] = 'revoked'
-                    job['receipt'] = owner.receipt(job, owner.get('invites', job['invite']), 'revoked', seconds=seconds)
-                    owner.put('jobs', job)
+                    if job['state'] in {'receiving', 'pending'}:
+                        job['state'] = 'revoked'
+                        job['receipt'] = owner.receipt(job, owner.get('invites', job['invite']), 'revoked', seconds=0)
+                        owner.put('jobs', job)
                     owner.clear_bytes(job['id'])
 
     def _open(self):

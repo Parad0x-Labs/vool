@@ -163,3 +163,41 @@ def test_t5_turning_lending_off_twice_changes_nothing_the_second_time(homes):
     assert snapshot == (rows(homes[1], 'invites'), rows(homes[1], 'jobs'),
                         drop_invite_tokens(homes[1]), relay_snapshot(homes[3]))
     assert ok(homes, homes[1], 'status')['drop_enabled'] is False
+
+
+def test_t6_running_host_job_keeps_running_and_records_revoked_once(homes):
+    import io
+    import zipfile
+    from concurrent.futures import ThreadPoolExecutor
+
+    from PIL import Image
+
+    key = ready(homes, jobs=2, capability='contact_sheet', max_seconds=3, max_length=100)
+    photo = io.BytesIO()
+    Image.new('RGB', (4000, 4000), 'blue').save(photo, format='PNG')
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, 'w') as z:
+        for n in range(50):
+            z.writestr(f'{n}.png', photo.getvalue())
+    first = submit(homes, key, archive.getvalue(), name='photos.zip')
+    second = submit(homes, key, photo.getvalue(), name='photo.png')
+    ok(homes, homes[1], 'poll')
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        running = pool.submit(call, homes, homes[1], 'run', job=first)
+        deadline = time.monotonic()+10
+        states = {}
+        while time.monotonic() < deadline:
+            states = {row['id']: row['state'] for row in ok(homes, homes[1], 'list')['jobs']}
+            if states.get(first) == 'running':
+                break
+            time.sleep(.02)
+        assert states.get(first) == 'running'
+        disable_both(homes, homes[1])
+        # Only queued jobs are retired immediately; the running one keeps its state.
+        states = {row['id']: row['state'] for row in rows(homes[1], 'jobs')}
+        assert states[first] == 'running' and states[second] == 'revoked'
+        assert running.result(timeout=15)[1]['job']['state'] == 'revoked'
+    state = next(row for row in rows(homes[1], 'jobs') if row['id'] == first)
+    assert state['state'] == 'revoked' and state['receipt']['result_digest'] is None
+    assert isinstance(state['receipt']['seconds'], (int, float)) and state['receipt']['seconds'] > 0
+    assert not list((homes[1]/'lend').glob('worker-*'))
