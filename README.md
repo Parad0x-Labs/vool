@@ -91,7 +91,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
+The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Installing from source needs Python 3.11 or newer. If none is found, the installer tries to set one up. The app downloads include their own Python. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
 
 <details>
 <summary><strong>Choose a local profile or run from a checkout</strong></summary>

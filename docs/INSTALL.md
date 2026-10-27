@@ -141,6 +141,13 @@ The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
 Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.5.
 
+From 0.7.5 on, the tarball install updates inside VOOL. With "Go online on its own" on
+(Settings > Privacy & Permissions), VOOL checks for a new version when it starts and once a
+day, and shows a notice. Press Download and update. The new version is installed next to
+the running one in `~/.local/share/vool/versions/`, and `current` switches to it in one step.
+If the new version does not start properly, VOOL switches back to the previous one by
+itself. A manual Roll back button is not offered for the tarball install yet.
+
 ## What The Source Installer Does
 
 1. creates a Python environment and installs dependencies

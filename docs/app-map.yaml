@@ -805,7 +805,7 @@ rows:
     tests: [tests/registry/test_native_inventory.py, tests/registry/test_protocol.py]
     label: IMPLEMENTED
     target_release: 0.7.0
-    note: Always answers that the registry is not open yet; no trusted-root file ships.
+    note: VOOL team skills are listed first, above editor's picks and featured skills.
   - id: native-skills
     title: Built-in skill library
     area: tools
@@ -1192,6 +1192,7 @@ rows:
     tests: [tests/pa_beta_gate/test_pc_reminders.py, tests/pa_beta_gate/test_notes_vertical.py]
     label: TESTED
     target_release: 0.7.0
+    note: Notes, the agenda and Apple Notes keep exactly what was asked. An answer is saved only when asked, only the answer shown, and never from a private chat.
   - id: contacts
     title: Contacts book
     area: other
@@ -1309,7 +1310,7 @@ rows:
     tests: [tests/updater/test_decision.py, tests/updater/test_manual_rollback.py, tests/updater/test_platforms_macos.py]
     label: TESTED
     target_release: 0.7.0
-    note: A signed feed is configured but this release ships no manifest, so checks find nothing until the next release; macOS and Linux only.
+    note: With Go online on its own on, VOOL checks the signed feed at start and daily and shows a notice without a Check press; with it off the header says Update checks off. macOS and Linux only. The Linux tarball install updates beside the running version and switches back by itself if the new one is unhealthy; manual Roll back is not offered for it yet.
   - id: macos-app-packaging
     title: macOS app builds
     area: other

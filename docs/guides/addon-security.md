@@ -1,6 +1,6 @@
 # Discover skills and Eyebrow checks
 
-The Add-ons page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists the reviewed catalogue add-ons and can look up a public GitHub repository at a pinned revision. Skill Codex browsing is not open yet in this release. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
+The Add-ons page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 53 text-only VOOL skills bundled with the app, then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
 
 ## First use
 
