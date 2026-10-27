@@ -4912,6 +4912,8 @@
     },
     "operator.apple_note_read": {
       "arguments": [
+        "account",
+        "folder",
         "title"
       ],
       "description": "Read one Apple Notes note by title, narrowed by the folder or account the request names; reports the note's body without changing anything.",
@@ -4919,13 +4921,29 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "account": {
+            "description": "string (optional)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "folder": {
+            "description": "string (optional)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "title": {
             "description": "string",
             "type": "string"
           }
         },
         "required": [
-          "title"
+          "title",
+          "folder",
+          "account"
         ],
         "type": "object"
       },
