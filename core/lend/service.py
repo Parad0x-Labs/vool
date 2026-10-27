@@ -9,8 +9,9 @@ import os
 import secrets
 import sqlite3
 import threading
+import time
 
-from core.drop.service import _private_directory
+from core.drop.service import _private_directory, discard_local_invite_tokens
 from core.drop.store import secure_file
 
 from . import settings
@@ -56,9 +57,11 @@ class LendHome(Jobs):
     def revoke_local_offers(cls):
         """Retire offers without enabling Drop or accessing its relay.
 
-        Queued receipts are delivered by the normal sweep if the owner later
-        enables both features again. The persisted revocation blocks every run
-        immediately, including a worker that was already processing input.
+        An offer nobody joined loses its Drop pairing token from the local
+        invite store (never the relay folder). Queued receipts are delivered by
+        the normal sweep if the owner later enables both features again. The
+        persisted revocation blocks every run immediately, including a worker
+        that was already processing input.
         """
         from core.runtime_paths import active_vool_home
 
@@ -77,6 +80,8 @@ class LendHome(Jobs):
                     value['state'] = 'revoked'
                     owner.put('invites', value)
                     revoked.add(value['id'])
+                    if not value['sid']:
+                        discard_local_invite_tokens(root.parent, (value['drop'].rsplit('/', 1)[1],))
             for job in owner.all('jobs'):
                 if job['role'] == 'host' and job['invite'] in revoked and job['state'] not in TERMINAL:
                     owner.clear_bytes(job['id'])

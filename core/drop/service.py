@@ -173,6 +173,42 @@ def _vault_key(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def discard_local_invite_tokens(home, tokens):
+    """Drop pairing tokens from one home's local invite store, never the relay.
+
+    Local hygiene for a feature that issued Drop invites and is being turned
+    off while Drop itself is off: the relay folder keeps its bytes, Drop is
+    never enabled, and a home without a Drop store is left untouched instead
+    of being created.
+    """
+    root = Path(home).absolute()/"drop"
+    db = root/"drops.db"
+    unique = sorted({str(token) for token in tokens if token})
+    if not unique or not db.exists():
+        return
+    _private_directory(root)
+    marks = ",".join("?" for _ in unique)
+    con = sqlite3.connect(db, timeout=15)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute(f"SELECT token, prekey FROM invites WHERE token IN ({marks})", unique).fetchall()
+        if not rows:
+            return
+        crypto = root/"crypto"
+        if (crypto/"vault.key").exists() and (crypto/"sessions").is_dir():
+            client = DropClient(crypto/"sessions", _vault_key(crypto/"vault.key"))
+            try:
+                for row in rows:
+                    client.discard_invite(row["prekey"])
+            finally:
+                client.close()
+        with con:
+            for row in rows:
+                con.execute("DELETE FROM invites WHERE token=?", (row["token"],))
+    finally:
+        con.close()
+
+
 class DropHome:
     """One person's Drops inside a VOOL home (the active home unless one is named)."""
 
