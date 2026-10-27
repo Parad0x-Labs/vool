@@ -7,7 +7,7 @@ Baseline tier ladder (all Apache-2.0 Qwen family):
   titan   – qwen2.5:72b   (needs ≥48 GB VRAM or ≥80 GB RAM)
   heavy   – qwen2.5:32b   (needs ≥20 GB VRAM or ≥48 GB RAM)
   mid     – qwen2.5:14b   (needs ≥10 GB VRAM or ≥24 GB RAM)
-  base    – qwen2.5:7b    (needs ≥4 GB VRAM  or ≥12 GB RAM)
+  base    – qwen2.5:7b    (needs ≥4 GB VRAM; qwen3:8b when sized by ≥12 GB RAM)
   lite    – qwen2.5:3b    (needs ≥2 GB VRAM  or ≥6 GB RAM)
   nano    – qwen2.5:0.5b  (anything else)
 
@@ -16,7 +16,7 @@ conservative:
   titan   – qwen2.5:72b   (needs ≥96 GB RAM)
   heavy   – qwen2.5:32b   (needs ≥64 GB RAM)
   mid     – qwen2.5:14b   (needs ≥36 GB RAM)
-  base    – qwen2.5:7b    (needs ≥12 GB RAM)
+  base    – qwen3:8b      (needs ≥12 GB RAM)
   lite    – qwen2.5:3b    (needs ≥6 GB RAM)
   nano    – qwen2.5:0.5b  (anything else)
 """
@@ -103,11 +103,15 @@ TIERS: list[QwenTier] = [
     QwenTier("nano",  "qwen2.5:0.5b",  0.5,  0.0,  0.0),
 ]
 
+# qwen2.5:7b answers VOOL's tool check in prose (missing_tool_calls), so a host sized by RAM gets
+# qwen3:8b at the base step; only 4-9GB GPUs keep the 7B, where the 8B would partial-offload.
+RAM_BASE_TIER = QwenTier("base", "qwen3:8b", 8.0, 6.0, 12.0)
+
 MPS_TIERS: list[QwenTier] = [
     QwenTier("titan", "qwen2.5:72b",  72.0, 48.0, 96.0),
     QwenTier("heavy", "qwen2.5:32b",  32.0, 20.0, 64.0),
     QwenTier("mid",   "qwen2.5:14b",  14.0, 10.0, 36.0),
-    QwenTier("base",  "qwen2.5:7b",    7.0,  4.0, 12.0),
+    RAM_BASE_TIER,
     QwenTier("lite",  "qwen2.5:3b",    3.0,  2.0,  6.0),
     QwenTier("nano",  "qwen2.5:0.5b",  0.5,  0.0,  0.0),
 ]
@@ -157,7 +161,9 @@ def select_qwen_tier(probe: MachineProbe | None = None) -> QwenTier:
         if discrete_accelerator and probe.vram_gb is not None and probe.vram_gb >= tier.min_vram_gb:
             return tier
         if probe.ram_gb >= tier.min_ram_gb:
-            return tier
+            # Sized by RAM, so nothing partial-offloads: the base step is the 8B that passes the
+            # tool check. The 7B stays only where a 4-9GB GPU picked it above.
+            return RAM_BASE_TIER if tier.tier_name == "base" else tier
     return TIERS[-1]
 
 
