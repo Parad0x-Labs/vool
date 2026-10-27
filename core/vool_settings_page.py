@@ -4134,8 +4134,11 @@ function widgetLocalModels(stack) {
       head.appendChild(el('span', 'profile-value', m.model_name));
       if (m.size_gb) head.appendChild(el('span', 'subtle', String(m.size_gb) + ' GB'));
       head.appendChild(el('span', readiness === 'ready' ? 'state saved' : 'subtle', stateText(readiness)));
-      if (readiness !== 'ready' && readiness !== 'checking') {
-        const again = readiness === 'check_unfinished' || readiness === 'not_suitable';
+      /* No button on a model that is not a good fit (a re-run fails the same way; the ways forward
+         are listed below), and none while THIS page is checking it. A check left "checking" by a
+         stopped VOOL still gets Try again, so the row is never a dead end. */
+      if (readiness !== 'ready' && readiness !== 'not_suitable' && !working) {
+        const again = readiness === 'check_unfinished' || readiness === 'checking';
         const b = el('button', again ? 'btn' : 'btn primary', again ? LM('try_again', 'Try again') : LM('use', 'Use this model')); b.type = 'button';
         b.disabled = !!busy;
         b.addEventListener('click', () => useModel(m));
