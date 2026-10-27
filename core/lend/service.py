@@ -58,11 +58,12 @@ class LendHome(Jobs):
         """Retire offers without enabling Drop or accessing its relay.
 
         An offer nobody joined loses its Drop pairing token from the local
-        invite store (never the relay folder). Queued receipts are delivered by
-        the normal sweep if the owner later enables both features again. The
-        persisted revocation blocks every run immediately, including a worker
-        that was already processing input.
+        invite store (never the relay folder), and queued host jobs are marked
+        revoked with a closing receipt and a resolved inbox item right away.
+        Nothing here sends or waits for the features to be turned on again.
         """
+        from types import SimpleNamespace
+
         from core.runtime_paths import active_vool_home
 
         root = active_vool_home()/'lend'
@@ -71,6 +72,8 @@ class LendHome(Jobs):
         _private_directory(root)
         owner = cls.__new__(cls)
         owner.root = root
+        # Only the receipt's local timestamp is needed; no Drop home opens.
+        owner.drop = SimpleNamespace(clock=lambda: int(time.time()*1000))
         with _ledger_files(root):
             owner._open()
         with owner:
@@ -84,6 +87,10 @@ class LendHome(Jobs):
                         discard_local_invite_tokens(root.parent, (value['drop'].rsplit('/', 1)[1],))
             for job in owner.all('jobs'):
                 if job['role'] == 'host' and job['invite'] in revoked and job['state'] not in TERMINAL:
+                    seconds = 0 if 'started' not in job else (job.get('execution_receipt') or {}).get('seconds')
+                    job['state'] = 'revoked'
+                    job['receipt'] = owner.receipt(job, owner.get('invites', job['invite']), 'revoked', seconds=seconds)
+                    owner.put('jobs', job)
                     owner.clear_bytes(job['id'])
 
     def _open(self):
