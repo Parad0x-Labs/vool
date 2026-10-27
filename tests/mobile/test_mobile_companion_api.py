@@ -695,36 +695,17 @@ class TestJourneyActions:
         row = next(a for a in result["approvals"] if a["approval_id"] == token)
         assert row["intent"] == "workspace.write_file"
 
-        resolved = _companion(claim, "approvals.resolve", {
-            "approval_id": token, "decision": "allow", "scope": "once",
-        }, runtime=runtime)
-        assert resolved.status == 200
-        assert _body(resolved)["result"]["approval"]["status"] == "approved"
-        # Consumed: a second resolve is a typed conflict.
-        double = _companion(claim, "approvals.resolve", {
-            "approval_id": token, "decision": "deny",
-        }, runtime=runtime)
-        assert double.status == 409
-
-        # The REFUSE leg: a second real pending approval, denied from the phone.
-        denied_decision = decide_tool_call(
-            intent="workspace.write_file",
-            arguments={"path": "notes/refused.txt", "content": "y"},
-            task_id="turn-unit-2",
-            source_context={"runtime_session_id": session, "operating_mode": "manual",
-                            "workspace_root": str(tmp_path)},
-        )
-        denied_token = denied_decision.approval_request["approval_id"]
-        refused = _companion(claim, "approvals.resolve", {
-            "approval_id": denied_token, "decision": "deny",
-        }, runtime=runtime)
-        assert refused.status == 200
-        assert _body(refused)["result"]["approval"]["status"] == "denied"
-        # A denial never widens scope.
-        assert _body(refused)["result"]["approval"]["scope"] == "once"
-        still_gone = _companion(claim, "approvals.pending", runtime=runtime)
-        assert not any(a["approval_id"] == denied_token
-                       for a in _body(still_gone)["result"]["approvals"])
+        # The desktop raised it, so the phone sees it but answers only on the computer
+        # (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
+        assert row["phone_may_answer"] is False
+        for decision_text in ("allow", "deny"):
+            refused = _companion(claim, "approvals.resolve", {
+                "approval_id": token, "decision": decision_text, "scope": "once",
+            }, runtime=runtime)
+            assert refused.status == 403
+            assert _body(refused)["code"] == "approve_on_computer"
+        still_pending = _companion(claim, "approvals.pending", runtime=runtime)
+        assert any(a["approval_id"] == token for a in _body(still_pending)["result"]["approvals"])
 
     def test_notifications_poll_classifies_completion_and_failure(self, runtime):
         from core.runtime_task_events import emit_runtime_event

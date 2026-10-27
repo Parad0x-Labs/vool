@@ -1445,6 +1445,8 @@ def _action_approvals_resolve(
     with mpp._LOCK:
         pending = dict(mpp._APPROVALS.get(approval_id) or {})
     if not _phone_may_answer(pending, device):
+        service.store.append_receipt("approval.kept_for_computer", device_id=str(device.get("device_id") or ""),
+                                     detail={"approval_id": approval_id, "decision": decision})
         return 403, {"error": "approve_on_computer"}
     approval = resolve_approval(approval_id, decision=decision, scope=scope)
     if approval is None:

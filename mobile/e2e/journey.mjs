@@ -216,19 +216,17 @@ async function main() {
   assert.equal(row.intent, "workspace.write_file");
   assert.ok(Array.isArray(row.planned_actions) || row.planned_action_count !== undefined || true);
   log("needs-approval", `intent=${row.intent} reversible=${row.reversible}`);
-  const resolved = await client.resolveApproval(approvalId, "allow", "once");
-  assert.equal(resolved.status, "approved");
-  const afterResolve = await client.pendingApprovals();
-  assert.ok(!afterResolve.some((a) => a.approval_id === approvalId), "resolved approval leaves the pending list");
-  log("approval", `allowed ${row.intent}`);
-
-  // The REFUSE leg: the second typed action, refused from the phone.
-  const refuseRow = (await client.pendingApprovals()).find((a) => a.approval_id === refuseId);
-  assert.ok(refuseRow, "second approval must be pending");
-  const refused = await client.resolveApproval(refuseId, "deny");
-  assert.equal(refused.status, "denied");
-  assert.equal(refused.scope, "once", "a denial never widens scope");
-  log("approval", `refused ${refuseRow.intent}`);
+  // The desktop raised these, so the phone sees them but answers only on the computer
+  // (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
+  assert.equal(row.phone_may_answer, false);
+  for (const [id, decision] of [[approvalId, "allow"], [refuseId, "deny"]]) {
+    await assert.rejects(client.resolveApproval(id, decision, "once"),
+      (exc) => exc instanceof CompanionError && exc.code === "approve_on_computer");
+  }
+  const afterRefusal = await client.pendingApprovals();
+  assert.ok(afterRefusal.some((a) => a.approval_id === approvalId), "a desktop approval stays pending");
+  assert.ok(afterRefusal.some((a) => a.approval_id === refuseId), "a desktop approval stays pending");
+  log("approval", `desktop approvals stay on the computer (${row.intent})`);
 
   // -- 8. Completion/failure notification ---------------------------------------
   // Runtime events are per-session: the phone polls ITS chat session (turn
@@ -238,11 +236,11 @@ async function main() {
   const approvalFeed = await client.pollNotifications(0, seededSession, 100);
   const seen = [...chatFeed.events, ...approvalFeed.events];
   assert.ok(seen.length > 0, "notification feed must carry at least one event");
-  const approvalNotice = seen.find((e) => e.event_type === "permission_approved" && e.mobile_kind === "completion");
-  assert.ok(approvalNotice, "the approval decision must arrive as a completion notification");
+  const completionNotice = chatFeed.events.find((e) => e.mobile_kind === "completion");
+  assert.ok(completionNotice, "the finished chat turn must arrive as a completion notification");
   const poller = new NotificationPoller(client, { onEvent: () => {} }, () => Promise.resolve(), 0);
   poller.stop();
-  log("notifications", `${seen.length} events; approval notice mobile_kind=completion`);
+  log("notifications", `${seen.length} events; ${completionNotice.event_type} mobile_kind=completion`);
 
   // -- 9. SABOTAGE: replay the exact signed request -----------------------------
   const replayBody = await captureOneSignedRequest();
@@ -312,7 +310,7 @@ async function main() {
   assert.equal(receipts.status, 200);
   assert.equal(receipts.body.chain_verified, true);
   const kinds = receipts.body.receipts.map((r) => r.kind);
-  for (const expected of ["pairing.started", "pairing.claimed", "attachment.uploaded", "approval.decided",
+  for (const expected of ["pairing.started", "pairing.claimed", "attachment.uploaded", "approval.kept_for_computer",
     "security.replay_detected", "device.unpaired", "device.revoked", "security.revoked_device_attempt"]) {
     assert.ok(kinds.includes(expected), `receipt ${expected} must exist`);
   }
