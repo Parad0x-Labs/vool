@@ -56,6 +56,9 @@ Download the tarball and its `.sha256` file, check it, then run the bundled inst
 No sudo or system Python is needed. The full steps, the install locations and how to
 uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
 
+From 0.7.5 on, the Linux download updates inside VOOL. The new version is installed next to
+the old one. If it does not start properly, VOOL switches back by itself.
+
 ### After install
 
 Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine.
@@ -78,6 +81,9 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.5-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
+
+Installing from source needs Python 3.11 or newer. If none is found, the installer tries
+to set one up. The app downloads include their own Python.
 
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model

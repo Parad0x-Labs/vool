@@ -8,6 +8,10 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app.
 
+With "Go online on its own" on, VOOL checks for a new version when it starts and once a
+day, and shows a notice without a Check press. With it off, VOOL fetches nothing and the
+header says **Update checks off**.
+
 A signed update package runs a verified pipeline with automatic rollback:
 
 1. **Download** — verified against a signed manifest.
@@ -17,6 +21,11 @@ A signed update package runs a verified pipeline with automatic rollback:
    restored to the previous version."*
 4. **Health check** — the new version must prove it can serve before the old one is retired.
 5. **Swap** — atomic; the previous version is kept as the rollback target.
+
+On Linux, the tarball install updates the same way. The new version is installed next to
+the running one, and `current` switches to it in one step. If the new version is not
+healthy, VOOL switches back to the previous one by itself. A manual **Roll back** is offered
+on the Mac and for source installs, but not yet for the Linux tarball install.
 
 If any stage fails, the app is left as it was — the failure message names the stage
 (`verification_failed`, `insufficient_disk_space`, …) and each stage has its own recovery
