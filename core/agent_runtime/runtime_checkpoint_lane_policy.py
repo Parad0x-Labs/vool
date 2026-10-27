@@ -361,6 +361,16 @@ def should_keep_ai_first_chat_lane(
 
     if asks_for_a_file(user_input):
         return False
+    # An installed TOOL skill the words matched needs its tools, and this tools-less lane cannot
+    # offer them: the skill rendered as guidance beside an empty tool list and its workflow was
+    # unreachable (measured on the served rig: 14 of 26 tool-skill turns stayed here, rounds
+    # carried no catalog at all). Read through the SAME matcher the offer seats from
+    # (core.execution.planner's release arm over core.plugin_skills.rank_skills), owner-local
+    # only, so this lane, the tool gate and the offer cannot disagree about which skills matched.
+    from core.execution.planner import _matched_tool_skill_releases_the_lane
+
+    if _matched_tool_skill_releases_the_lane(str(user_input or ""), source_context):
+        return False
     from core.stipulated_frame import stipulated_frame_active
 
     if stipulated_frame_active(user_input, source_context=source_context):
