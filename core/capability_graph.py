@@ -1431,16 +1431,22 @@ def model_visible_specs(
     # machine owner's own local turns: a remote session's mention of a note or a calendar must
     # never widen its offer. The trust seam owns that verdict, and the same recognizer feeds the
     # lane release (core.execution_requirements), so the gate and the offer cannot disagree.
-    if user_text and source_context is not None:
+    source_is_owner_local = False
+    if source_context is not None:
         try:
             from core.request_trust import request_is_owner_local
+
+            source_is_owner_local = bool(request_is_owner_local(source_context))
+        except Exception:
+            source_is_owner_local = False
+    if user_text and source_is_owner_local:
+        try:
             from core.tool_demand_signals import owner_local_operator_intents
 
-            if request_is_owner_local(source_context):
-                operator_seats = [i for i in owner_local_operator_intents(user_text) if i not in explicit]
-                if operator_seats:
-                    explicit.extend(operator_seats)
-                    _add_family("operator")
+            operator_seats = [i for i in owner_local_operator_intents(user_text) if i not in explicit]
+            if operator_seats:
+                explicit.extend(operator_seats)
+                _add_family("operator")
         except Exception:
             pass
     expansions: tuple[str, ...] = ()
@@ -1552,7 +1558,14 @@ def model_visible_specs(
     # (agenda, notes writes, reminders) the expansion existed to expose: measured on the
     # served rig, "summarize my notes from this week" after capability.expand_family
     # {"family":"operator"} seated only 11 of the 20 operator tools beside web and token.
-    expansion_set = {family for family in expansions if family in families}
+    # R7 (round 2): the full drain is the owner's own navigational act. A remote turn that
+    # expands a family keeps exactly the seats it had: the family still joins the ranked fill
+    # through the expansion hint (base behaviour), but the drain to the whole catalogue is
+    # owner-local only — measured on the served rig, a remote expand of operator went from 11
+    # to 20 tools, seating move_path, cleanup_temp_files and schedule_calendar_event with them.
+    expansion_set = (
+        {family for family in expansions if family in families} if source_is_owner_local else set()
+    )
     expanded_queues = [queue for family, queue in zip(families, family_queues, strict=True)
                        if family in expansion_set]
     rest = [queue for family, queue in zip(families, family_queues, strict=True)

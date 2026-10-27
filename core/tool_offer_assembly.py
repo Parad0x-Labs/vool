@@ -720,8 +720,29 @@ def assemble_tool_offer(
         specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
     if guidance.allowed_tools or skill_seats:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)
+        keep = set(_ALWAYS_VISIBLE) | explicit | set(work_seats)
+        # R5 (round 2): the narrowing is a budget lever on the RANKED fill. The seats the
+        # owner's own words asked for by name, and every tool of a family the model expanded
+        # this same turn, survive it: with only notes-digest matched, "show my agenda for
+        # today and summarize my notes" used to lose show_agenda, and E01 after
+        # capability.expand_family kept 5 of the 20 operator tools it had just been given.
+        if isinstance(source_context, dict):
+            try:
+                from core.request_trust import request_is_owner_local
+                from core.tool_demand_signals import owner_local_operator_intents
+
+                if request_is_owner_local(source_context):
+                    keep |= set(owner_local_operator_intents(str(user_text or "")))
+            except Exception:
+                pass
+        if expansions:
+            keep |= {
+                str(spec.get("intent") or "")
+                for spec in specs
+                if str(spec.get("intent") or "").partition(".")[0] in set(expansions)
+            }
         specs = _narrow(specs, allowed=skill_seats or guidance.allowed_tools,
-                        keep=set(_ALWAYS_VISIBLE) | explicit | set(work_seats))
+                        keep=keep)
 
     # The recorded families are the families the offer ACTUALLY seated -- derived from the
     # seated intents' own namespace (the vocabulary's convention: `repo.*` -> "repo",

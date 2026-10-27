@@ -1162,17 +1162,57 @@ _OWNER_ASK_LEAD_STRICT = (
     r"|try\s+to)\s+)"
 )
 
-#: A declarative statement about the agenda/calendar/reminders noun ("my agenda for the meeting
-#: is to keep it short", "my reminders keep duplicating"): prose, never a seat.
-_OWNER_STATEMENT_RE = re.compile(
-    r"\b(?:my|the|this|that|our)\s+(?:agenda|calendar|schedule|reminders?|notes?)\b"
-    r"[^.!?]{0,60}?\b(?:is|are|was|were|be|been|being|has|have|had|seems?|looks?|sounds?|feels?|keeps?|"
-    r"includes?|contains?|covers?|says?|reads?|works?|duplicate[sd]?|pile[sd]?|grow|grew)\b",
+# R2 (round 2): a seat needs ask-shaped words AND the owner's own object. Ask shape is a
+# property of the SEGMENT: a question head at its start, or a seating verb at a clause lead
+# (the same `_OWNER_ASK_LEAD` the seat regexes anchor on). A declarative segment — a statement
+# about the agenda ("my agenda is packed this week"), a report ("the show notes were longer
+# than the episode"), a past-tense narration — never reaches a seat regex at all. This replaces
+# the old whole-text statement veto, which cancelled the ask whenever the SAME text also held
+# a statement: "list my reminders that are due today" and "save this as a note: the calendar
+# is full on Monday" are asks whose objects merely contain declarative clauses.
+_OWNER_QUESTION_HEAD_RE = re.compile(
+    r"^\s*(?:so|ok|okay|alright|and|but|or|also)?[\s,]*"
+    r"(?:what|where|when|which|who|whom|whose|how|why|am|is|are|was|were|do|does|did|"
+    r"can|could|will|would|shall|should|may|might|any)\b",
+    re.IGNORECASE,
+)
+#: The seating verbs, at any clause lead, make the segment an imperative ask.
+_OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
+    _OWNER_ASK_LEAD
+    + r"(?:show|list|find|save|open|read|check|give|pull|put|book|schedule|add|create|make|set|"
+    r"arrange|block|plan|organize|organise|tidy|clean|sort|summarize|summarise|digest|recap|"
+    r"display|remind|note|write|export|copy|move|delete|remove|search|look|walk|run)\b",
+    re.IGNORECASE,
+)
+
+#: The owner's own object: a possessive over a seating noun, the first-person forms that are
+#: about the owner's own time by construction ("am I free", "what am I doing on Thursday"),
+#: Apple Notes and "note to self" (there is nobody else's on this machine), and the
+#: first-person relative ("the reminders I set in this chat"). "The calendar" or "a note"
+#: alone is the world's calendar, the world's note — no seat.
+_OWNER_OWN_OBJECT_RE = re.compile(
+    r"\b(?:my|our)\s+(?:notes?|note|agenda|calendars?|calendar|schedule|reminders?|free\s+time|"
+    r"day|week|plate|disk|drive|storage|computer|mac|machine|laptop|apple\s+notes?)\b"
+    r"|\bapple\s+notes?\b"
+    r"|\bnote\s+to\s+self\b"
+    r"|\breminders?\s+(?:that\s+)?(?:i|we)\s+(?:set|added|created|made)\b"
+    r"|\bwhat\s+am\s+i\s+doing\b"
+    r"|\bwhat\s+have\s+(?:i|we)\s+got\s+on\b"
+    r"|\bwhat\s+do\s+(?:i|we)\s+have\s+on\b"
+    r"|\b(?:am\s+i|are\s+we)\s+(?:free|available|busy|open)\b"
+    r"|\bfree\s+(?:time|slots?|windows?)\b"
+    r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?))\b"
+    r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
+    r"(?:\s+(?:morning|afternoon|evening))?\s+(?:free|available|busy|open)\b",
     re.IGNORECASE,
 )
 
 _OWNER_AGENDA_SEAT_RE = re.compile(
-    r"\bwhat(?:'s| is|s)\s+on\s+(?:my|the|their|our)\s+(?:calendar|schedule|plate)\b"
+    # R2: the agenda ask names the owner's own calendar ("my calendar"); "what's on the calendar
+    # for the Olympics" is the world's event calendar, not the owner's. The show branch reads the
+    # schedule/calendar nouns too, so a schedule-over-period ask seats the agenda (its view),
+    # not availability.
+    r"\bwhat(?:'s| is|s)\s+on\s+(?:my|our)\s+(?:calendar|schedule|plate)\b"
     r"|\bwhat\s+(?:have\s+)?(?:do\s+|did\s+|does\s+)?(?:i|you|we)\s+(?:have\s+|got\s+)on\b"
     r"[^.!?]{0,40}?\b(?:today|tonight|tomorrow|this week|next week|upcoming|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
     r"|\bwhat\s+am\s+i\s+doing\b[^.!?]{0,30}?\b(?:on\s+)?(?:today|tonight|tomorrow|this\s+week|next\s+week"
@@ -1181,10 +1221,13 @@ _OWNER_AGENDA_SEAT_RE = re.compile(
     r"|\bany\s+(?:meetings?|events?|appointments?)\b[^.!?]{0,30}?\b(?:on\s+)?"
     r"(?:today|tonight|tomorrow|this week|next week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b\?"
     r"|" + _OWNER_ASK_LEAD + r"(?:show|read|open|check|give\s+me|walk\s+(?:me\s+)?through|run\s+through)\b"
-    r"[^.!?]{0,60}?\b(?:my|the|this|today'?s|tomorrow'?s|this\s+week'?s|next\s+week'?s)\s+(?:day|agenda)\b"
+    r"[^.!?]{0,60}?\b(?:my|the|this|today'?s|tomorrow'?s|this\s+week'?s|next\s+week'?s)\s+(?:day|agenda|schedule|calendar)\b"
+    # "plan my day" plans the owner's day; "plan my day trip to Rome" plans a trip — the day
+    # noun is attributive there, and the trip (not the agenda) is the object.
     r"|" + _OWNER_ASK_LEAD + r"(?:plan|organise|organize|structure|map\s+out|sort\s+out|lay\s+out)\b"
-    r"[^.!?]{0,20}?\b(?:my|the|our|today'?s)\s+day\b"
-    r"|\b(?:my|the|this)\s+(?:day|agenda)\b\s+(?:for|from|around|today|tomorrow|this\s+week|next\s+week)\b"
+    r"[^.!?]{0,20}?\b(?:my|the|our|today'?s)\s+day\b(?!\s+(?:trip|trips|tour|tours|outing|excursion|visit|out|off|break))"
+    r"|\b(?:my|the|this)\s+(?:day|agenda)\b(?!\s+(?:trip|trips|tour|tours|outing|excursion|visit))"
+    r"\s+(?:for|from|around|today|tomorrow|this\s+week|next\s+week)\b"
     r"|\bagenda\s+(?:for|from)\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|the\s+week"
     r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
     r"|\b(?:on|for)\s+(?:my|the)\s+calendar\b[^.!?]{0,40}?\b(?:this week|next week|today|tomorrow|tonight)\b",
@@ -1197,33 +1240,45 @@ _OWNER_LIST_REMINDERS_SEAT_RE = re.compile(
     re.IGNORECASE,
 )
 _OWNER_AVAILABILITY_SEAT_RE = re.compile(
-    r"\bam\s+i\s+(?:free|available|busy|open)\b"
-    r"|\bare\s+we\s+(?:free|available|busy|open)\b"
+    # R2: "am I free to quit my job" asks about permission, not the calendar — the free-to
+    # lookahead keeps it out. "any free will" is philosophy: a bare "free" needs the owner's
+    # time behind it (free time/slot/window), not a noun it modifies.
+    r"\bam\s+i\s+(?:free|available|busy|open)\b(?!\s+to\b)"
+    r"|\bare\s+we\s+(?:free|available|busy|open)\b(?!\s+to\b)"
     r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
     r"(?:\s+(?:morning|afternoon|evening))?\s+free\b"
     r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?)"
-    r"|a\s+free|any\s+free)\b"
+    r"|(?:a|any)\s+free\s+(?:time|slots?|windows?))\b"
     r"|\b(?:availability|available|free|busy|open)\b[^.!?]{0,60}?\b(?:slot|calendar|schedule|window)\b"
     r"|\b(?:slot|calendar|schedule)\b[^.!?]{0,60}?\b(?:availability|available|free|busy)\b"
-    r"|" + _OWNER_ASK_LEAD + r"(?:check|show|find|look\s+at)\b[^.!?]{0,60}?\b(?:my|the)\s+(?:calendar|schedule)\b",
+    r"|" + _OWNER_ASK_LEAD + r"(?:check|find)\b[^.!?]{0,60}?\b(?:my|the)\s+(?:availability|free\s+time)\b",
     re.IGNORECASE,
+)
+#: R2: "make an event poster", "put a meeting summary in a table" — when a document or thing
+#: noun follows the event noun, the event is attributive and the document is the object: not a
+#: calendar write. The event noun must stay the head of its object phrase.
+_EVENT_ATTRIBUTIVE_VETO = (
+    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template|poster|summary|card|"
+    r"graphic|banner|image|images|photo|photos|picture|pictures|illustration|flyer|draft|"
+    r"report|memo|email|writeups?|write-ups?|recap|digest|outline|table|tables|chart|charts|"
+    r"list|lists|program|playlist|badge|ticket|tickets))"
 )
 _OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
     r"\b(?:schedule\s+a\s+meeting|schedule\s+meeting|schedule\s+an?\s+event|create\s+a?\s*calendar\s+event|create\s+a\s+meeting)\b"
-    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
-    r"|" + _OWNER_ASK_LEAD + r"(?:set\s+up|put|book|schedule|add|create|make|set|arrange|block|place)\b"
+    + _EVENT_ATTRIBUTIVE_VETO
+    + r"|" + _OWNER_ASK_LEAD + r"(?:set\s+up|put|book|schedule|add|create|make|set|arrange|block|place)\b"
     r"[^.!?]{0,40}?\ban?\s+(?:appointment|meeting|event|call|sync)\b"
-    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
-    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    + _EVENT_ATTRIBUTIVE_VETO
+    + r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
     r"[^.!?]{0,60}?\b(?:appointment|meeting|event|call|sync|lunch|dinner|visit|checkup|session|block)\b"
-    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
-    r"[^.!?]{0,60}?\b(?:on|onto|to|in(?:to)?|for)\s+(?:my|the|this)\s+calendar\b"
-    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    + _EVENT_ATTRIBUTIVE_VETO
+    + r"[^.!?]{0,60}?\b(?:on|onto|to|in(?:to)?|for)\s+(?:my|the|this)\s+calendar\b"
+    + r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
     r"[^.!?]{0,60}?\b(?:to|on|onto|in(?:to)?)\s+(?:my|the|this)\s+calendar\b"
-    r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
+    + r"|" + _OWNER_ASK_LEAD + r"(?:put|book|schedule|add|create|make|set(?:\s+up)?|arrange|block|place)\b"
     r"[^.!?]{0,60}?\b(?:appointment|meeting|event|call|sync)\b"
-    r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template))"
-    r"[^.!?]{0,60}?\b(?:today|tonight|tomorrow|next\s+week|this\s+week|next\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+    + _EVENT_ATTRIBUTIVE_VETO
+    + r"[^.!?]{0,60}?\b(?:today|tonight|tomorrow|next\s+week|this\s+week|next\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day"
     r"|on\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day|for\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day"
     r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day\s+at|at\s+\d|\d\s*(?:am|pm|a\.m\.|p\.m\.)|o'?clock)\b",
     re.IGNORECASE,
@@ -1233,7 +1288,7 @@ _OWNER_FIND_NOTES_SEAT_RE = re.compile(
     # because compound nouns about other things ("look up the latest SQLite release notes online")
     # are web/grounded asks, and a false seat there flipped the turn's whole toolset.
     _OWNER_ASK_LEAD_STRICT + r"(?:find|search(?:\s+for)?|look\s+(?:up|for)|list|show)\b[^.!?]{0,60}?\b(?:my|our)\s+notes?\b"
-    r"|\bwhere\s+(?:are|is)\s+(?:my|the)\s+notes?\b"
+    r"|\bwhere\s+(?:are|is)\s+(?:my|our)\s+notes?\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:tidy|clean|organize|organise|sort|go\s+through|gather|collect)\b"
     r"[^.!?]{0,40}?\bmy\s+notes\b"
     r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:summarize|summarise|digest|round\s+up|recap|go\s+over)\b"
@@ -1258,8 +1313,13 @@ _OWNER_APPLE_READ_SEAT_RE = re.compile(
 
 
 _OWNER_DISK_ANALYSIS_SEAT_RE = re.compile(
-    r"\bwhere\s+did\s+(?:the\s+)?(?:space|storage|it\s+all)\s+go\b"
+    # R2: the disk ask names the disk (or a machine) somewhere — "where did the space go in my
+    # sentence" is a question about words, not storage.
+    r"\bwhere\s+did\s+(?:(?:all|the)\s+)?(?:my\s+)?(?:disk|drive|ssd|hd|startup[\s-]?disk)\s+space\s+go\b"
+    r"|\bwhere\s+did\s+(?:(?:all\s+)?(?:my|the)\s+)?(?:space|storage)\s+go\b"
+    r"[^.!?]{0,60}?\b(?:disk|drive|storage|ssd|mac|laptop|computer|machine)\b"
     r"|\bwhat(?:'s| is|s)\s+(?:taking|using|eating|occupying|filling)\s+up\b"
+    r"[^.!?]{0,60}?\b(?:my\s+)?(?:disk|drive|storage|ssd|mac|laptop|computer|machine)\b"
     r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
     r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
     re.IGNORECASE,
@@ -1290,8 +1350,21 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     if not eligible or asks_for_instructions_not_execution(eligible):
         return ()
 
+    # R2: only ask-shaped segments seat (see the block comment above). Joining the kept
+    # segments with a full stop keeps every seat regex's `[^.!?]` window inside one segment.
+    ask_segments = [
+        part.strip()
+        for part in re.split(r"[.!?;\n]+", eligible)
+        if part.strip()
+        and (_OWNER_QUESTION_HEAD_RE.match(part) or _OWNER_IMPERATIVE_CLAUSE_RE.search(part))
+    ]
+    if not ask_segments:
+        return ()
+    ask_text = " . ".join(ask_segments)
+    own_object = _OWNER_OWN_OBJECT_RE.search(ask_text) is not None
+
     def _seats(pattern: re.Pattern[str]) -> bool:
-        return bool(pattern.search(eligible)) and not _OWNER_STATEMENT_RE.search(eligible)
+        return own_object and bool(pattern.search(ask_text))
 
     intents: list[str] = []
     if _seats(_OWNER_AGENDA_SEAT_RE):
@@ -1300,7 +1373,10 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         intents.append("operator.check_availability")
     if _seats(_OWNER_LIST_REMINDERS_SEAT_RE):
         intents.append("operator.list_reminders")
-    if _seats(_OWNER_PROPOSE_EVENT_SEAT_RE):
+    # The scheduling idioms are asks to act by construction ("schedule a meeting", "book a
+    # dentist appointment Tuesday"): they carry no possessive, so the own-object rule is
+    # carried by their own anchored verbs and the attributive veto instead.
+    if _OWNER_PROPOSE_EVENT_SEAT_RE.search(ask_text):
         intents.append("operator.propose_calendar_event")
     if _seats(_OWNER_FIND_NOTES_SEAT_RE):
         intents.append("operator.find_notes")
@@ -1310,7 +1386,7 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         intents.append("operator.apple_note_list")
     if _seats(_OWNER_APPLE_READ_SEAT_RE):
         intents.append("operator.apple_note_read")
-    if _OWNER_DISK_ANALYSIS_SEAT_RE.search(eligible):
+    if own_object and _OWNER_DISK_ANALYSIS_SEAT_RE.search(ask_text):
         # A disk-analysis ask stands down from the direct capacity read (see
         # core.execution.constants._DISK_ANALYSIS_ASK_RE) and needs the reasoning lane with the
         # operator's own inspect tool seated. Read-only, and the words are disk-anchored.
@@ -1318,11 +1394,14 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     try:
         # The parser's own save-note recognizer, verbatim: it already separates keeping a note
         # from composing one for someone (a thank-you note), and "take note of" from a note.
+        # A saving ask needs no possessive ("save this as a note: ...") — the recognizer IS
+        # the precision, and the ask-shape gate above has already kept only imperative or
+        # interrogative segments, so the note's own content can no longer veto the ask.
         from core.operator.parser import _SAVE_NOTE_RE
 
-        if _SAVE_NOTE_RE.search(eligible) is not None and not _OWNER_STATEMENT_RE.search(eligible):
+        if _SAVE_NOTE_RE.search(ask_text) is not None:
             intents.append("operator.save_note")
-        elif re.match(r"\s*note\s+to\s+self\s*:(?!\d)", eligible, re.IGNORECASE):
+        elif re.match(r"\s*note\s+to\s+self\s*:(?!\d)", ask_text, re.IGNORECASE):
             # "note to self: buy milk" -- the memorandum header itself is the storing cue; the
             # parser has no record verb for it, and the colon keeps prose ("my note to self is
             # to slow down") out.
