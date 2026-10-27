@@ -166,6 +166,8 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-character-lab .vn-lab-sub { margin: 4px 0 14px; color: var(--muted, #8b94a3); font-size: 11px; }
 .vool-character-lab .vn-lab-close { border: 0; background: none; color: var(--muted, #8b94a3); cursor: pointer; font-size: 18px; }
 .vool-character-lab .vn-lab-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.vool-character-lab .vn-lab-group { grid-column: 1 / -1; margin: 6px 0 0; color: var(--muted, #8b94a3); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.vool-character-lab .vn-lab-group:first-child { margin-top: 0; }
 .vool-character-lab .vn-character-card {
   color: inherit; background: var(--field,#232326); border: 1px solid var(--border,#39393f); border-radius: 10px; padding: 8px;
   cursor: pointer; text-align: left; min-width: 0;
@@ -1572,6 +1574,11 @@ function vnOpenCharacterLab() {
   const keys = Object.keys(window.VoolCompanionWorld.characters);
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i], meta = window.VoolCompanionWorld.characters[key];
+    /* Legacy pets come first, then the modern set; each group gets one quiet heading. */
+    if (i === 0 || !!meta.remastered !== !!window.VoolCompanionWorld.characters[keys[i - 1]].remastered) {
+      const groupHead = document.createElement("div"); groupHead.className = "vn-lab-group";
+      groupHead.textContent = meta.remastered ? "Sidekicks" : "Legacy pets"; grid.appendChild(groupHead);
+    }
     const card = document.createElement("button"); card.type = "button";
     card.className = "vn-character-card" + (vnPos.personality === key ? " selected" : "");
     card.setAttribute("aria-label", meta.name + (meta.note ? ", " + meta.note : ""));
