@@ -55,6 +55,17 @@ def load_settings() -> dict:
         return {"enabled": False, "address": "", "port": 0}
 
 
+def _remembered_port() -> int:
+    """The port phone access last used. A paired phone keeps dialing it, so switching access off
+    and on again (or a restart on a new address) must not move it."""
+    try:
+        value = json.loads(_settings_path().read_text())
+        port = int(value.get("last_port") or value.get("port") or 0)
+        return port if 1024 <= port <= 65535 else 0
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
 def _save_settings(value: dict) -> None:
     path = _settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -343,7 +354,8 @@ class CompanionListener:
         with self._lock:
             if not enabled:
                 # Persist OFF first. A crash during close cannot reopen the listener.
-                _save_settings({"enabled": False, "address": "", "port": 0})
+                last = self.server.server_address[1] if self.server is not None else _remembered_port()
+                _save_settings({"enabled": False, "address": "", "port": 0, "last_port": last})
                 self.close()
                 return self.snapshot()
             if mode == "relay":
@@ -388,10 +400,17 @@ class CompanionListener:
                 if (address, port) not in {self.server.server_address, (self.server.server_address[0], 0)}:
                     raise ValueError("Turn phone access off before changing its network.")
                 return self.snapshot()
-            server = _Server((address, port), _handler(self))
+            remembered = _remembered_port() if port == 0 else 0
+            try:
+                server = _Server((address, remembered or port), _handler(self))
+            except OSError:
+                if not remembered:
+                    raise
+                server = _Server((address, port), _handler(self))  # the old port is taken; take a new one
             try:
                 self.server = server
-                _save_settings({"enabled": True, "address": address, "port": server.server_address[1]})
+                _save_settings({"enabled": True, "address": address, "port": server.server_address[1],
+                                "last_port": server.server_address[1]})
                 self.thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
                 self.thread.start()
                 from core.mobile_companion.bot_runtime import manager_for

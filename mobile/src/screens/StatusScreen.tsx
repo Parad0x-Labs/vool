@@ -5,6 +5,8 @@ import {errorText, permissionText, tr} from "../i18n/index.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../protocol/models.ts";
 import {connectionAddress} from "../protocol/connection.ts";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { parsePairingUri } from "../protocol/pairing.ts";
 
 interface Props {
   client: MobileCompanionClient;
@@ -21,6 +23,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
   const [proof, setProof] = useState<TurnProof | null>(null);
   const [error, setError] = useState("");
   const [connection, setConnection] = useState(client.baseUrl);
+  const [scanning, setScanning] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const guard = useCallback(
     (exc: unknown) => {
@@ -76,6 +80,32 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
       try {await onConnection?.(connectionAddress(connection));}
       catch {setError(tr("Could not complete this. Check your computer."));}
     })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
+    {/* The computer moved to a new address: its pairing QR carries the new one. Only a QR from the
+        SAME computer (its pinned fingerprint) may change where this phone connects. */}
+    <Pressable style={[styles.proofButton, {marginTop: 8}]} onPress={() => {void (async () => {
+      if (!cameraPermission?.granted && !(await requestCameraPermission()).granted) {
+        setError(tr("Camera permission is needed to scan the desktop's pairing QR."));
+        return;
+      }
+      setScanning(true);
+    })();}}><Text style={styles.proofButtonText}>{tr("Scan pairing QR")}</Text></Pressable>
+    {scanning && <View style={styles.scanBox}>
+      <CameraView style={StyleSheet.absoluteFill} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({data}) => {
+        const parsed = parsePairingUri(data);
+        if (!parsed) return;
+        setScanning(false);
+        if (parsed.desktopFingerprint !== client.desktopFingerprint.toLowerCase()) {
+          setError(tr("The computer’s identity could not be verified. Check it before pairing again."));
+          return;
+        }
+        const address = `http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`;
+        void (async () => {
+          try {const next = connectionAddress(address); await onConnection?.(next); setConnection(next); setError("");}
+          catch {setError(tr("Could not complete this. Check your computer."));}
+        })();
+      }} />
+      <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}><Text style={styles.proofButtonText}>{tr("Cancel")}</Text></Pressable>
+    </View>}
   </View>;
   if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
   if (!snapshot) {
@@ -215,6 +245,8 @@ const styles = StyleSheet.create({
   footnote: { color: "#5b6570", fontSize: 11, marginTop: 10, lineHeight: 16 },
   proofButton: { backgroundColor: "#1b2027", borderRadius: 8, padding: 12, alignItems: "center" },
   proofButtonText: { color: "#d3d9e0", fontWeight: "600" },
+  scanBox: { height: 320, marginTop: 12, borderRadius: 8, overflow: "hidden", backgroundColor: "#000" },
+  scanCancel: { position: "absolute", bottom: 12, alignSelf: "center", padding: 10 },
   unpairButton: { backgroundColor: "#2a1416", borderRadius: 8, padding: 12, alignItems: "center", marginTop: 12, borderWidth: 1, borderColor: "#5b2027" },
   unpairButtonText: { color: "#ff8a8a", fontWeight: "600" },
   error: { color: "#ff6b6b", fontSize: 13, marginTop: 8 },
