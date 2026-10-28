@@ -158,39 +158,192 @@ _STOPWORDS = frozenset(
     }
 )
 
+# Words that name the KIND of help wanted rather than a topic. A request sharing only these
+# with a skill ("explain ...", "help me ...") says nothing about WHICH skill: every authoring
+# skill "writes", every explainer "explains". They never carry a match alone; they only stand
+# behind a topic word that is itself specific — "explain the bill" reaches the bill skill,
+# "write a short poem" must not reach every skill mentioning "short" (measured 2026-10-28
+# against probe/browse-skills-53: "short" appears in 11 of 53 descriptions).
+_KIND_WORDS = frozenset(
+    {
+        "explain", "write", "make", "help", "plan", "check", "list", "table",
+        "summarise", "summarize", "draft", "fix",
+    }
+)
+
+# Light suffix rules, applied until none fits. Word forms must meet: politely/polite,
+# receipts/receipt, organise/organize, translate/translation, planner/planning. This is a
+# morphology rule, never a vocabulary list — nothing here knows any individual request.
+_SUFFIXES = (
+    "ions", "ion", "ising", "izing", "ised", "ized", "ings", "ing", "edly", "ed",
+    "ly", "ise", "ize", "er", "es", "s",
+)
+
+
+def _stem(token: str) -> str:
+    """Fold one word form onto its stem: strip a light suffix, drop a trailing 'e' (only when
+    what remains is 5+ letters, so "plane" does not fold onto "plan"), halve a doubled final
+    consonant ("planning" and "planner" both reach "plan")."""
+
+    word = token
+    changed = True
+    while changed:
+        changed = False
+        for suffix in _SUFFIXES:
+            if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                word = word[: -len(suffix)]
+                changed = True
+                break
+    if word.endswith("e") and len(word) - 1 >= 5:
+        word = word[:-1]
+    if len(word) >= 4 and word[-1] == word[-2] and word[-1] not in "aeiouy":
+        word = word[:-1]
+    return word
+
+
+_KIND_STEMS = frozenset(_stem(word) for word in _KIND_WORDS)
+_RARE = 1  # a stem no other candidate skill carries
+_SCARCE = 3  # carried by at most a handful of candidates
+
+
+def _raw_tokens(text: str) -> list[str]:
+    return [t for t in re.split(r"[^a-z0-9]+", str(text or "").lower()) if t]
+
+
+def _content_stems(text: str) -> list[str]:
+    """The ordered, stemmed content words — function words removed, word forms folded."""
+
+    return [
+        _stem(t)
+        for t in _raw_tokens(text)
+        if len(t) > 2 and t not in _STOPWORDS and not t.isdigit()
+    ]
+
 
 def _tokens(text: str) -> set[str]:
-    return {
-        t
-        for t in re.split(r"[^a-z0-9]+", str(text or "").lower())
-        if len(t) > 2 and t not in _STOPWORDS
-    }
+    return set(_content_stems(text))
+
+
+def _contains_phrase(ask_stems: list[str], phrase_stems: list[str]) -> bool:
+    """A whole trigger, in the ask: its content stems appear in order and adjacent, or every
+    one of them is present however the ask arranges them ("compress and archive my workspace
+    into a vault" matches the trigger "compress archive vault workspace"). One word out of a
+    multi-word trigger is never a match on its own."""
+
+    if not phrase_stems:
+        return False
+    span = len(phrase_stems)
+    if span == 1:
+        return phrase_stems[0] in ask_stems
+    if set(phrase_stems) <= set(ask_stems):
+        return True
+    return any(ask_stems[start : start + span] == phrase_stems for start in range(len(ask_stems) - span + 1))
 
 
 def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) -> tuple[Skill, ...]:
-    """The skills whose declared triggers overlap the request, best first.
+    """The skills this request is actually about, best first.
 
     Overlap only — nothing here decides whether a tool is available. A request that matches no
     skill still reaches the model with the full catalog; it just gets no extra instructions.
+
+    Measured 2026-10-28 against 53 real Browse skills: one shared ordinary word was enough to
+    inject a skill ("what rows of seats are best on a plane" seated the database skill), so a
+    match now needs one of:
+
+    * the ask names the skill — its name verbatim, or every stem of a multi-word name;
+    * the ask contains a whole declared trigger (a multi-word trigger must appear as a phrase,
+      in order — one word out of it is not a match);
+    * the ask shares at least two distinct content stems with the skill's name, description and
+      triggers, at least one of which is a topic word. Kind-of-help words (explain, write,
+      make, help, plan, check, list, table, summarise, draft, fix) never carry a match alone,
+      and may only stand behind a topic word no other candidate skill carries or that only a
+      few do: "fix the spelling" reaches the proofreading skill, "explain how it works" must
+      not reach whichever skill happens to say "worked example";
+    * the ask uses one word that is BOTH distinctive (no other candidate skill contains it) and
+      part of this skill's own name — "which chart should I use" is about the chart skill even
+      though "chart" is its only overlap.
     """
 
-    wanted = _tokens(user_text)
-    if not wanted:
+    ask_stems = _content_stems(user_text)
+    if not ask_stems:
         return ()
+    ask_stem_set = set(ask_stems)
     # "use the release-notes skill" names the skill outright. That is the strongest statement of
     # intent there is, and it must not lose to a skill whose description merely shares more words.
-    spoken = " " + " ".join(re.split(r"[^a-z0-9]+", str(user_text or "").lower())) + " "
+    spoken = " " + " ".join(_raw_tokens(user_text)) + " "
+
+    # How many candidate skills carry each stem: a word many skills carry says little about
+    # which one this ask means, so rarity decides how much a shared word is worth.
+    stem_owners: dict[str, set[int]] = {}
+    per_skill: list[tuple[set[str], set[str], list[list[str]]]] = []
+    for index, skill in enumerate(skills):
+        name_stems = set(_content_stems(skill.name))
+        desc_stems = set(_content_stems(skill.description))
+        # A word that only ever appears INSIDE a multi-word trigger is evidence as part of that
+        # phrase and never on its own ("index" counts through "add an index"; "the index at the
+        # back of my cookbook" must not seat the database skill — measured 2026-10-28).
+        trigger_stems: set[str] = set()
+        phrase_stems: list[list[str]] = []
+        for trigger in skill.triggers:
+            stems = _content_stems(trigger)
+            if not stems:
+                continue
+            phrase_stems.append(stems)
+            if len(stems) == 1:
+                trigger_stems.update(stems)
+        per_skill.append((name_stems, desc_stems | trigger_stems, phrase_stems))
+        for stem in name_stems | desc_stems | trigger_stems:
+            stem_owners.setdefault(stem, set()).add(index)
+
+    def _owners(stem: str) -> int:
+        return len(stem_owners.get(stem, ()))
+
     scored: list[tuple[int, int, Skill]] = []
     for index, skill in enumerate(skills):
-        # An explicit trigger is a stronger statement of intent than a word in prose, so it counts
-        # double; without that, a long description outranks a precise trigger list on volume alone.
-        explicit = len(wanted & _tokens(" ".join(skill.triggers))) * 2
-        described = len(wanted & _tokens(skill.description))
-        name_words = " ".join(re.split(r"[^a-z0-9]+", str(skill.name or "").lower())).strip()
-        named = 10 if len(name_words) > 2 and f" {name_words} " in spoken else 0
-        score = explicit + described + named
-        if score:
-            scored.append((-score, index, skill))
+        name_stems, corpus_stems, phrase_stems = per_skill[index]
+        # Naming the skill: the words of its name, verbatim and adjacent...
+        name_words = " ".join(_raw_tokens(skill.name)).strip()
+        named = bool(name_words) and len(name_words) > 2 and f" {name_words} " in spoken
+        # ...or every stem of a multi-word name in the ask, provided the name is specific
+        # enough to be naming ("explain what this sql query does" names the sql-explainer;
+        # "explain this in plain words" only borrows two generic words of plain-explainer).
+        name_covered = (
+            len(name_stems) >= 2
+            and name_stems <= ask_stem_set
+            and any(stem not in _KIND_STEMS and _owners(stem) <= _SCARCE for stem in name_stems)
+        )
+        hits = [stems for stems in phrase_stems if _contains_phrase(ask_stems, stems)]
+        shared = ask_stem_set & (name_stems | corpus_stems)
+        topic = shared - _KIND_STEMS
+        # A kind word may only complete a pair whose topic word is itself specific.
+        carried_by_topic = any(_owners(stem) <= 2 for stem in topic)
+        qualified = (
+            named
+            or name_covered
+            or bool(hits)
+            or len(topic) >= 2
+            or (topic and len(shared) >= 2 and carried_by_topic)
+            or any(
+                stem in name_stems and _owners(stem) == _RARE for stem in topic
+            )
+        )
+        if not qualified:
+            continue
+        # An explicit trigger is a stronger statement of intent than a word in prose, so a
+        # whole trigger outweighs description overlap; without that, a long description
+        # outranks a precise trigger list on volume alone. Rarer shared words count more:
+        # "contract" pins one skill, "short" appears in eleven descriptions.
+        distinctive_name = any(stem in name_stems and _owners(stem) == _RARE for stem in topic)
+        score = (
+            (100 if named else 0)
+            + (70 if name_covered else 0)
+            + sum(20 + 10 * len(stems) for stems in hits)
+            + (25 if distinctive_name else 0)
+            + sum((12 if _owners(stem) == _RARE else 6 if _owners(stem) <= _SCARCE else 3) for stem in topic)
+            + 2 * len(shared - topic)
+            + 3 * len(ask_stem_set & corpus_stems)
+        )
+        scored.append((-score, index, skill))
     scored.sort()
     return tuple(item[2] for item in scored[:limit])
 

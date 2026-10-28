@@ -9,7 +9,7 @@ type: capability_skill
 id: database
 risk-class: workspace_write
 priority: 20
-triggers: [database, sqlite, sql, schema, query the data, explain plan, index, migration, migrate the schema, backup, restore, table, rows]
+triggers: [database, sqlite, sql, schema, query plan, query the data, explain plan, database migration, schema migration, migrate the schema, database backup, backup the database, back up the database, restore the database, add an index, create an index, index the data]
 allowed-tools: [vool-database.connect, vool-database.db.create, vool-database.schema, vool-database.query, vool-database.explain, vool-database.migrate.preview, vool-database.migrate.apply, vool-database.backup, vool-database.restore]
 # capabilities: intentionally none. `database.*` are not capability ids this runtime's
 # ontology defines, so declaring them made _unmet_capabilities return all four on every
