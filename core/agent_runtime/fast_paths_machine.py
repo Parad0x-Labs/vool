@@ -22,6 +22,7 @@ from core.execution.constants import (
     machine_diagnostics_intent,
     machine_disk_scope,
     machine_display_intent,
+    machine_described_file_intent,
     machine_file_search_intent,
     machine_folder_size_intent,
     machine_kind_listing_intent,
@@ -1581,6 +1582,64 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
     )
 
 
+def _described_hit(label: str, stems: tuple[str, ...]) -> bool:
+    lowered = label.lower()
+    return all(re.search(r"(?<![a-z])" + re.escape(stem), lowered) for stem in stems)
+
+
+def find_described_files(request: Any, *, source_context: dict | None) -> Any:
+    """Find a file the owner describes ("my boarding pass", "the pic of the cat on the sofa").
+
+    Looks for files and folders named with the longest word (same tools, roots and phone fences as any
+    file lookup), then keeps the files whose path has every word of the description. ``None`` when no
+    tool ran or nothing matched, so a model with the file tools can still look further.
+    """
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    context = dict(source_context or {})
+    stems = tuple(word[:-1] if len(word) > 4 and word.endswith("s") and not word.endswith("ss") else word for word in request.words)
+    lead = max(stems, key=len)
+    found = execute_authorized_runtime_tool("machine.find_file", {"name": lead}, source_context=context)
+    if found is None or not getattr(found, "ok", False):
+        return found if found is not None and getattr(found, "status", "") == "phone_folders_only" else None
+    candidates = list((getattr(found, "details", None) or {}).get("matches") or [])
+    folders = execute_authorized_runtime_tool("machine.find_folder", {"name": lead}, source_context=context)
+    for folder in list((getattr(folders, "details", None) or {}).get("matches") or [])[:3] if folders is not None and getattr(folders, "ok", False) else []:
+        listed = execute_authorized_runtime_tool("machine.list_directory", {"path": folder, "limit": 200}, source_context=context)
+        if listed is None or not getattr(listed, "ok", False):
+            continue
+        for entry in (getattr(listed, "details", None) or {}).get("entries") or []:
+            if entry.get("type") == "file" and entry.get("path"):
+                candidates.append(str(entry["path"]))
+    home = os.path.expanduser("~").rstrip("/\\")
+    candidates = ["~" + path[len(home):] if home and path.startswith(home + os.sep) else path for path in candidates]
+    suffixes = _FILE_KIND_SUFFIXES.get(request.kind)
+    matches = [
+        path for path in dict.fromkeys(candidates)
+        if _described_hit(path, stems) and (not suffixes or path.lower().endswith(suffixes))
+    ]
+    if request.place:
+        in_place = [path for path in matches if f"/{request.place.lower()}/" in path.lower().replace("\\", "/")]
+        matches = in_place or matches
+    if not matches:
+        return None
+    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(request.kind, "file")
+    plural = "s" if len(matches) != 1 else ""
+    asked = " ".join(request.words)
+    lines = [f"Found {len(matches)} {noun}{plural} matching '{asked}':", *(f"- {path}" for path in matches[:20])]
+    if len(matches) > 20:
+        lines.append(f"And {len(matches) - 20} more.")
+    details = dict(getattr(found, "details", None) or {})
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text="\n".join(lines),
+        details={**details, "matches": matches,
+                 "observation": {**(details.get("observation") or {}), "intent": "machine.find_file",
+                                 "match_count": len(matches), "query": list(request.words), "kind": request.kind,
+                                 "place": request.place}},
+    )
+
+
 def _phone_turn(source_context: dict | None) -> bool:
     from core.request_trust import REMOTE_DEVICE_KEY, turn_is_remote
 
@@ -1685,6 +1744,21 @@ def _files_under(folder: str, label_root: str) -> list[dict[str, str]]:
     return found
 
 
+_MEDIA_PLACE = {"image": "Pictures", ".jpg": "Pictures", ".png": "Pictures", ".heic": "Pictures", ".gif": "Pictures",
+                "video": "Movies", ".mov": "Movies", ".mp4": "Movies", "audio": "Music", ".mp3": "Music", ".m4a": "Music"}
+
+
+def _default_places(kind: str) -> list[str]:
+    """Desktop, Downloads and Documents, and the media folder of that kind (photos live in ~/Pictures)."""
+
+    media = _MEDIA_PLACE.get(kind)
+    return ["Desktop", "Downloads", "Documents", *([media] if media else [])]
+
+
+def _places_text(places: list[str]) -> str:
+    return ", ".join(places[:-1]) + " and " + places[-1] if len(places) > 1 else (places[0] if places else "")
+
+
 def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
     """List one KIND of file in a folder (or Desktop, Downloads and Documents), newest first.
 
@@ -1699,7 +1773,7 @@ def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
     from core.runtime_execution_tools import RuntimeExecutionResult
 
     listing = KindListing(*listing)
-    places = [listing.place] if listing.place else ["Desktop", "Downloads", "Documents"]
+    places = [listing.place] if listing.place else _default_places(listing.kind)
     opened: list[tuple[str, Any]] = []
     refused = None
     for place in places:
@@ -1750,7 +1824,7 @@ def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
         found.sort(key=lambda row: row[0], reverse=listing.order != "oldest")
     singular, plural = _kind_nouns(kind)
     noun = singular if len(found) == 1 else plural
-    where = f"~/{listing.place}" if listing.place else "Desktop, Downloads and Documents"
+    where = f"~/{listing.place}" if listing.place else _places_text(places)
     when = "" if listing.max_age_days is None else (
         f" from the last {round(listing.max_age_days * 24)} hours" if listing.max_age_days < 1
         else " from the last day" if listing.max_age_days == 1 else f" from the last {listing.max_age_days:g} days"
@@ -2241,6 +2315,20 @@ def maybe_handle_direct_machine_read_request(
     file_search = None if email_owns_folder_reference else machine_file_search_intent(user_input)
     if file_search is not None:
         found = find_named_files(file_search, source_context=source_context)
+        if found is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_file",
+                execution=found,
+                reason="machine_read_fast_path",
+            )
+    # A file DESCRIBED in words ("cant find my boarding pass", "the photos from my lisbon trip").
+    described = None if email_owns_folder_reference or file_search is not None else machine_described_file_intent(user_input)
+    if described is not None:
+        found = find_described_files(described, source_context=source_context)
         if found is not None:
             return _machine_tool_fast_path_result(
                 agent,

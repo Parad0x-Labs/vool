@@ -1143,13 +1143,14 @@ _FILE_DEMAND_ASK = re.compile(
     r"\b(?:find|where|locate|look(?:ing)?\s+for|search|show|list|open|read|see|view|copy|move|send|fetch|"
     r"get|give|grab|do\s+i\s+(?:still\s+)?have|is\s+there|are\s+there|how\s+many|how\s+big|which|what(?:'s|\s+is|\s+are)?|"
     r"access|check|clean(?:\s+up)?|tidy|organi[sz]e|sort|delete|remove|rename|summari[sz]e|need|help\s+me|free\s+up|"
-    r"is\s+(?:my|the|that)|are\s+(?:my|the))\b",
+    r"is\s+(?:my|the|that)|are\s+(?:my|the)|how\s+much|can'?t\s+find|cannot\s+find|lost)\b",
     re.I,
 )
 _FILE_DEMAND_OBJECT = re.compile(
     r"\b(?:my|our)\s+(?:[\w'\-]+\s+){0,3}?(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|"
     r"documents?|docs|resume|cv|invoices?|receipts?|downloads|desktop|videos?|movies|music|songs?|recordings?|"
-    r"spreadsheets?|presentations?|stuff)\b"
+    r"spreadsheets?|presentations?|stuff|boarding\s+pass(?:es)?|tickets?|passports?|statements?|contracts?|scans?|"
+    r"csvs?|certificates?)\b"
     r"|\b(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract|pdf|photo|picture|screenshot|file|"
     r"document|spreadsheet|presentation|video|recording)s?\s+(?:i\b|from\b|you\b|on\s+my\b|in\s+my\b|that\s+i\b)"
     r"|\b(?:find|where(?:'s|\s+is|\s+are))\s+(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract)s?\b"
@@ -1158,7 +1159,11 @@ _FILE_DEMAND_OBJECT = re.compile(
     r"|\bdo\s+i\s+(?:still\s+)?have\s+(?:the|that|a|any)\s+(?:[\w\-]+\s+){0,2}?(?:photos?|pictures?|files?|videos?|"
     r"documents?|pdfs?|songs?|screenshots?|recordings?|invoices?|receipts?)\b"
     r"|\bfree\s+up\s+(?:some\s+)?(?:disk\s+|storage\s+)?space\b"
-    r"|\b(?:in|on|from)\s+(?:the\s+)?(?:downloads|desktop|documents)\b"
+    # Audit 2026-10-27: "i saved a pic of the cat on the sofa, find it?" and "i downloaded my bank thing as a
+    # csv, how much did i spend" are the owner's own files ("give me a picture of a cat" is not: no saved/took).
+    r"|\b(?:saved|took|taken|kept|have|had)\s+(?:a|the|that|some)\s+(?:pic|picture|photo|image|screenshot|video)s?\s+of\b"
+    r"|\b(?:downloaded|saved|exported)\b[^.?!]{0,40}?\b(?:csv|pdf|spreadsheet|xlsx|excel\s+file)\b"
+    r"|\b(?:in|on|from|to|into)\s+(?:the\s+|my\s+)?(?:downloads|desktop|documents|pictures)\b"
     r"|(?<![\w/.])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
     re.I,
 )

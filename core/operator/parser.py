@@ -272,7 +272,13 @@ _QUOTED_PATH_RE = re.compile(r"""["']([^"']+)["']""")
 _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
 _SPACE_WORD_RE = re.compile(r"\bspace\b")
-_DELETE_TEMP_FILES_RE = re.compile(r"\bdelete\s+temp\s+files?\b", re.IGNORECASE)
+# "delete temp files", and the everyday forms (audit 2026-10-27: "my laptop is slow, can you clear out my
+# temp files?" got the memory report instead of the cleanup preview).
+_DELETE_TEMP_FILES_RE = re.compile(
+    r"\b(?:delete|remove|clear|clean|wipe|empty|get\s+rid\s+of)\s+(?:out\s+|up\s+)?(?:all\s+)?(?:of\s+)?"
+    r"(?:my\s+|the\s+|those\s+)?temp(?:orary)?\s+files?\b",
+    re.IGNORECASE,
+)
 
 
 def _head_words_re(*phrases: str) -> re.Pattern[str]:

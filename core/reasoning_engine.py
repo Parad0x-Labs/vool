@@ -6,7 +6,8 @@ from typing import Any
 
 from core.identity_manager import render_with_persona
 
-_CHAT_SURFACES = {"channel", "openclaw", "api"}
+# A phone chat is a chat: the audit (2026-10-27) saw "Context budget used: N tokens" reach the phone.
+_CHAT_SURFACES = {"channel", "openclaw", "api", "mobile_companion"}
 _PLANNER_LEAKAGE_MARKERS = (
     "workflow:",
     "real steps completed:",
@@ -263,7 +264,7 @@ def render_response(
 ) -> str:
     """Render agent response. surface='channel'|'openclaw'|'api' gives clean
     conversational output; surface='cli' (default) gives full diagnostics."""
-    if surface in {"channel", "openclaw", "api"}:
+    if surface in _CHAT_SURFACES:
         return _render_conversational(
             plan,
             gate_decision,

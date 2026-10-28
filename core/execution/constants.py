@@ -1016,7 +1016,8 @@ _FILE_NOT_THIS_DISK_RE = re.compile(
 
 def _named_place(raw: str) -> str:
     lowered = raw.lower()
-    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"))
+    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"),
+                                           ("pictures", "Pictures"))
                  if re.search(r"\b" + word + r"\b", lowered)), "")
 
 
@@ -1064,6 +1065,87 @@ def _loose_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
             return None
         kind = _FILE_KIND_WORDS.get(str(match.groupdict().get("kind") or "").lower(), "")
         return (kind, (name,), _named_place(raw[: match.start()] + " " + raw[match.end():]))
+    return None
+
+
+class DescribedSearch(NamedTuple):
+    """A file the owner DESCRIBES instead of naming ("my boarding pass", "a pic of the cat on the sofa")."""
+
+    kind: str
+    words: tuple[str, ...]
+    place: str
+
+
+_DESCRIBED_STOP = frozenset(
+    "the a an my our your of on in at for from to with and or some any that this it its i me im is was be been saved "
+    "save took taken kept have had find look looking can cant could you u please pls sure somewhere anywhere point "
+    "time thing things stuff one ones file files folder folders".split()
+)
+_DESCRIBED_EVENT = frozenset({"trip", "holiday", "holidays", "vacation", "journey", "visit", "weekend", "getaway"})
+_DESCRIBED_KIND = {"pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
+                   "photos": "image", "image": "image", "images": "image", "screenshot": "image",
+                   "screenshots": "image", "video": "video", "videos": "video", "pdf": "pdf"}
+_DESCRIBED_END = r"(?=\s+(?:for|from|at|that|which|i|on\s+my|in\s+my|somewhere|anywhere|please|pls|last|yesterday)\b|\s*[?.!,]|\s*$)"
+_DESCRIBED_SHAPES = (
+    # "cant find my boarding pass for the flight", "where is my passport scan"
+    re.compile(
+        r"\b(?:can'?t\s+find|cannot\s+find|lost|find|locate|look(?:ing)?\s+for|where(?:'s|\s+is|\s+are))\s+(?:my|the|our)\s+"
+        r"(?P<desc>[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,4}?)" + _DESCRIBED_END,
+        re.IGNORECASE,
+    ),
+    # "i saved a pic of the cat on the sofa at some point, find it?"
+    re.compile(
+        r"\b(?:a|the|that|some)\s+(?P<kind>pic|picture|photo|image|screenshot|video)s?\s+of\s+"
+        r"(?P<desc>(?:the\s+|a\s+|my\s+)?[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,4}?)"
+        r"(?=\s+(?:at\s+some|some\s+time|somewhere|from|that|which|i|last|yesterday)\b|\s*[?.!,]|\s*$)",
+        re.IGNORECASE,
+    ),
+    # "show me the photos from my lisbon trip"
+    re.compile(
+        r"\b(?P<kind>pics|pictures|photos|images|videos)\s+(?:from|of)\s+(?:my|our|the)\s+"
+        r"(?P<desc>[a-z0-9][\w'\-]*(?:\s+[\w'\-]+){0,3}?)(?=\s*[?.!,]|\s*$|\s+(?:please|pls|on|in)\b)",
+        re.IGNORECASE,
+    ),
+)
+_DESCRIBED_CUE_RE = re.compile(
+    r"\b(?:find|locate|where|look(?:ing)?\s+for|show|see|lost|can'?t\s+find|cannot\s+find|do\s+i\s+(?:still\s+)?have|"
+    r"got|get\s+me|fetch|pull\s+up|any)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_described_file_intent(text: str) -> DescribedSearch | None:
+    """A lookup for a file the owner describes in words ("my boarding pass", "the photos from my lisbon trip").
+
+    Only for asks that are already about the owner's own files (``owner_file_demand``); another action on
+    the file (send, copy, delete...) is not a lookup. The caller answers only when something matches.
+    """
+    from core.tool_demand_signals import owner_file_demand
+
+    raw = " ".join(str(text or "").split())
+    if not raw or not owner_file_demand(raw) or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    if not _DESCRIBED_CUE_RE.search(raw) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    for shape in _DESCRIBED_SHAPES:
+        match = shape.search(raw)
+        if match is None:
+            continue
+        asked = raw[: match.start("desc")] + " " + raw[match.end("desc"):]
+        if _FILE_OTHER_ACTION_RE.search(re.sub(r"\bsaved?\b", "", asked, flags=re.IGNORECASE)):
+            return None
+        tokens = re.findall(r"[a-z0-9]+", match.group("desc").lower().replace("'", ""))
+        kind = _DESCRIBED_KIND.get(str(match.groupdict().get("kind") or "").lower(), "")
+        for token in tokens:
+            kind = kind or _DESCRIBED_KIND.get(token, "")
+        words = tuple(dict.fromkeys(
+            token for token in tokens
+            if token not in _DESCRIBED_STOP and token not in _DESCRIBED_EVENT and token not in _DESCRIBED_KIND
+            and len(token) >= 3
+        ))
+        if not words or any(token in ("folder", "folders", "directory") for token in tokens):
+            return None
+        return DescribedSearch(kind, words[:4], _named_place(asked))
     return None
 
 
@@ -1141,11 +1223,17 @@ _KIND_PATTERN = (
     r"(?:(?P<ext>" + "|".join(_KIND_EXTENSIONS) + r")(?:s|\s+(?:files?|photos?|pictures?|images?|videos?|songs?))?"
     r"|(?P<word>" + "|".join(re.escape(word) for word in sorted(_KIND_WORDS, key=len, reverse=True)) + r"))"
 )
-_PLACE_PATTERN = r"(?:the\s+|my\s+)?(?P<place>downloads|desktop|documents)\b"
+_PLACE_PATTERN = r"(?:the\s+|my\s+)?(?P<place>downloads|desktop|documents|pictures)\b"
 _COMPUTER_PATTERN = r"(?:my|this|the)\s+(?:computer|mac|macbook|imac|pc|laptop|machine|disk|drive)\b"
 _LISTING_SHAPES = (
     # "the pictures in my Downloads", "videos on the desktop"
     re.compile(r"\b" + _KIND_PATTERN + r"\b(?:\s+[\w.]+){0,4}?\s+(?:in|from|on|inside|under)\s+" + _PLACE_PATTERN, re.IGNORECASE),
+    # "did i save any photos to downloads recently" (audit 2026-10-27)
+    re.compile(
+        r"\b(?:did|have)\s+i\s+(?:just\s+|recently\s+)?(?P<verb>save|saved|put|download|downloaded)\s+(?:any\s+|some\s+)?"
+        + _KIND_PATTERN + r"\s+(?:to|in|into|on)\s+" + _PLACE_PATTERN,
+        re.IGNORECASE,
+    ),
     # "what pictures did I download today", "files I changed this week"
     re.compile(
         r"\b" + _KIND_PATTERN + r"\s+(?:that\s+)?(?:did\s+i|i(?:'ve|\s+have)?|have\s+i)\s+(?:just\s+|recently\s+)?"
@@ -1174,10 +1262,10 @@ _SIZE_FILTER_RE = re.compile(
     r"\b(?:bigger|larger|over|more|above|greater)\s+(?:than\s+)?(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>kb|mb|gb)\b", re.IGNORECASE
 )
 _AGE_NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
-                "ten": 10, "fourteen": 14, "thirty": 30}
+                "ten": 10, "fourteen": 14, "thirty": 30, "few": 3, "couple": 2, "couple of": 2}
 _AGE_RE = re.compile(
     r"\b(?:up\s+to|within|from|in|of|over|for)?\s*(?:the\s+)?(?:last|past)?\s*"
-    r"(?P<count>\d{1,3}|a|an|one|two|three|four|five|six|seven|ten|fourteen|thirty)\s+"
+    r"(?P<count>\d{1,3}|a|an|one|two|three|four|five|six|seven|ten|fourteen|thirty|few|couple(?:\s+of)?)\s+"
     r"(?P<unit>hours?|days?|weeks?)\b(?:\s+old)?",
     re.IGNORECASE,
 )

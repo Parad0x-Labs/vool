@@ -162,6 +162,12 @@ _WORKSPACE_CONTENT_QUESTION_RE = re.compile(
 )
 _FILE_LINE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+):(?P<line>\d+)")
 _SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
+# Read-only reach adds the owner's media folders. Audit 2026-10-27: "show me the photos from my lisbon trip"
+# and "find the pic of the cat on the sofa" could not see ~/Pictures at all. Writes stay in the three above.
+_READABLE_MACHINE_DIRECTORY_NAMES = (*_SAFE_MACHINE_DIRECTORY_NAMES, "Pictures", "Movies", "Music")
+# App libraries inside those folders (Photos, Music) are the apps' own data, and opening them raises a
+# macOS privacy prompt: never walked.
+_APP_LIBRARY_SUFFIXES = (".photoslibrary", ".musiclibrary", ".tvlibrary", ".photolibrary", ".aplibrary")
 
 
 @dataclass
@@ -1254,7 +1260,7 @@ def _machine_find_file(
     needle = name.lower()
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
     squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
-    roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
+    roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="unavailable",
@@ -1292,7 +1298,7 @@ def _machine_find_file(
             with os.scandir(current) as entries:
                 for entry in entries:
                     lowered_name = entry.name.lower()
-                    if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                    if lowered_name in _FIND_FOLDER_SKIP_DIRS or lowered_name.endswith(_APP_LIBRARY_SUFFIXES):
                         continue
                     try:
                         is_dir = entry.is_dir(follow_symlinks=False)
@@ -1640,7 +1646,16 @@ def _machine_find_folder(
     # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
     # breadth-first spent the budget on system and app folders before it reached the user's own.
     home = os.path.expanduser("~")
-    first = [home] if os.path.isdir(home) and home not in roots else []
+    if os.path.isdir(home):
+        # The drive that holds the home folder is searched through the home folder only. Audit
+        # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
+        # other account) and each protected place it touched could raise a macOS "allow access"
+        # prompt. Other drives (an external disk, D:\) are still searched whole.
+        roots = [root for root in roots if not _path_holds(root, home)]
+        first = [home]
+    else:
+        first = []
+    home_library = os.path.join(home, "Library")  # macOS app data (Mail, Messages, Safari): not the user's folders
     queue: deque[tuple[str, int]] = deque((root, 0) for root in [*first, *roots] if _first_visit(root))
     while queue:
         if _time.monotonic() > deadline:
@@ -1657,7 +1672,11 @@ def _machine_find_folder(
                         continue
                     entry_name = entry.name
                     lowered_name = entry_name.lower()
-                    if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                    if (
+                        lowered_name in _FIND_FOLDER_SKIP_DIRS
+                        or entry.path == home_library
+                        or lowered_name.endswith(_APP_LIBRARY_SUFFIXES)
+                    ):
                         continue
                     if _is_other_git_project(Path(entry.path), workspace_root=workspace_root):
                         continue
@@ -1673,7 +1692,7 @@ def _machine_find_folder(
                         queue.append((entry.path, depth + 1))
         except OSError:
             continue
-    scope = ", ".join(roots)
+    scope = ", ".join(["your home folder"] * bool(first) + roots)
     observation = _tool_observation(
         intent="machine.find_folder",
         tool_surface="machine",
@@ -1682,7 +1701,7 @@ def _machine_find_folder(
         query=name,
         match_count=len(matches),
         scanned_dirs=scanned_dirs,
-        searched_roots=roots,
+        searched_roots=[*first, *roots],
         timed_out=timed_out,
         truncated=len(matches) >= _FIND_FOLDER_MAX_MATCHES,
     )
@@ -1700,16 +1719,56 @@ def _machine_find_folder(
             details={"matches": matches, "observation": observation},
         )
     not_found = [
-        f"No folder matching '{name}' found on {scope} "
+        f"No folder matching '{name}' found in {scope} "
         f"(searched to depth {_FIND_FOLDER_MAX_DEPTH}; system folders skipped)."
     ]
     if timed_out:
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
+    # "check my Invoices folder" when the invoices are loose files: say where they are.
+    files = _files_named_like(name, workspace_root=workspace_root)
+    if files:
+        not_found.append("These files match the name:\n" + "\n".join(f"- {path}" for path in files))
     return RuntimeExecutionResult(
         handled=True, ok=True, status="executed",
         response_text=" ".join(not_found),
-        details={"matches": [], "observation": observation},
+        details={"matches": [], "file_matches": files, "observation": observation},
     )
+
+
+def _path_holds(root: str, path: str) -> bool:
+    try:
+        return os.path.commonpath([os.path.realpath(root), os.path.realpath(path)]) == os.path.realpath(root)
+    except ValueError:  # different drives on Windows
+        return False
+
+
+def _files_named_like(name: str, *, workspace_root: Path | None) -> list[str]:
+    """Files in the safe folders whose name matches a folder name that was not found (plural or not)."""
+
+    stem = str(name or "").strip().lower()
+    stem = stem[:-3] + "y" if stem.endswith("ies") else stem[:-1] if stem.endswith("s") and not stem.endswith("ss") else stem
+    if len(stem) < 3:
+        return []
+    try:
+        result = _machine_find_file({"name": stem}, workspace_root=workspace_root)
+    except Exception:
+        return []
+    if not getattr(result, "ok", False):
+        return []
+    home = str(_machine_home()).rstrip("/\\")
+    matches = [str(path) for path in list((result.details or {}).get("matches") or [])[:5]]
+    return ["~" + path[len(home):] if home and path.startswith(home + os.sep) else path for path in matches]
+
+
+def _largest_size_text(entry: dict[str, Any]) -> str:
+    """GB from 1 GB up; below that MB or KB ("0.0 GB" for a 6 MB zip read as nothing)."""
+    size_gb = float(entry.get("size_gb") or 0)
+    size_bytes = entry.get("size_bytes")
+    if size_gb >= 1 or not isinstance(size_bytes, int):
+        return f"{entry.get('size_gb')} GB"
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    return f"{max(1, round(size_bytes / 1024))} KB"
 
 
 def _machine_find_largest(
@@ -1809,7 +1868,7 @@ def _machine_find_largest(
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
         lines.append(
-            f"- {entry['name']} — {entry['size_gb']} GB [{entry['kind']}]{partial} · {entry['delete_safety']}"
+            f"- {entry['name']} — {_largest_size_text(entry)} [{entry['kind']}]{partial} · {entry['delete_safety']}"
         )
     if not result.get("complete"):
         lines.append("Some folders were not fully measured within the time budget; sizes marked (partial) are a lower bound.")
@@ -4837,6 +4896,13 @@ def _safe_machine_roots() -> tuple[Path, ...]:
     return tuple((home / name).resolve() for name in _SAFE_MACHINE_DIRECTORY_NAMES)
 
 
+def _readable_machine_roots() -> tuple[Path, ...]:
+    """The folders a read may look in: the safe write roots, then Pictures, Movies and Music."""
+    home = _machine_home().resolve()
+    media = (name for name in _READABLE_MACHINE_DIRECTORY_NAMES if name not in _SAFE_MACHINE_DIRECTORY_NAMES)
+    return tuple(dict.fromkeys((*_safe_machine_roots(), *((home / name).resolve() for name in media))))
+
+
 def _machine_home() -> Path:
     try:
         return Path.home()
@@ -4860,7 +4926,7 @@ def _expand_machine_user(raw: str) -> Path:
 
 def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
     """A safe machine directory path, refused when it is this runtime's own state (or, for a write, its running code)."""
-    target = _resolve_safe_machine_directory(raw_path)
+    target = _resolve_safe_machine_directory(raw_path, write=write)
     from core.runtime_state_protection import refusal as _protected_refusal
 
     reason = _protected_refusal(target, write=write)
@@ -4869,7 +4935,8 @@ def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> 
     return target
 
 
-def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
+def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
+    roots = _safe_machine_roots() if write else _readable_machine_roots()
     raw = str(raw_path or "").strip()
     if not raw:
         return _safe_machine_roots()[0]
@@ -4885,6 +4952,11 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         "my documents": "Documents",
         "~/documents": "Documents",
         "docs": "Documents",
+        **({} if write else {
+            "pictures": "Pictures", "my pictures": "Pictures", "~/pictures": "Pictures",
+            "movies": "Movies", "my movies": "Movies", "~/movies": "Movies",
+            "music": "Music", "my music": "Music", "~/music": "Music",
+        }),
     }
     if lowered in alias_map:
         return (_machine_home() / alias_map[lowered]).resolve()
@@ -4893,10 +4965,10 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         candidate = (_machine_home() / candidate).resolve()
     else:
         candidate = candidate.resolve()
-    for root in _safe_machine_roots():
+    for root in roots:
         if candidate == root or root in candidate.parents:
             return candidate
-    allowed = ", ".join(_home_relative_label(root) for root in _safe_machine_roots())
+    allowed = ", ".join(_home_relative_label(root) for root in roots)
     raise ValueError(f"I can only inspect safe local directories in this lane: {allowed}.")
 
 
