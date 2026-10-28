@@ -223,6 +223,10 @@ _CONVERSATIONAL_OPENING_RE = re.compile(
     r"|how\s+do\s+you\s+feel\b"
     r"|what(?:'s|\s+is)\s+a\s+sensible\b"
     r"|explain\s+(?:this|that|why|conceptually)\b"
+    # "how do i stop my downloads folder from filling up" asks for advice. Measured on the Mac
+    # 2026-10-28: as a near-miss on "folder" the arbiter picked find_folder and listed real folders.
+    r"|how\s+(?:do|can|should|would)\s+(?:i|you|we|one)\b"
+    r"|how\s+to\b"
     r")",
     re.IGNORECASE,
 )

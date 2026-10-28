@@ -1294,6 +1294,8 @@ def _machine_find_file(
                     lowered_name = entry.name.lower()
                     if lowered_name in _FIND_FOLDER_SKIP_DIRS:
                         continue
+                    if lowered_name.startswith(".") and not needle.startswith("."):
+                        continue  # hidden files and folders only when the person names one
                     try:
                         is_dir = entry.is_dir(follow_symlinks=False)
                     except OSError:
@@ -1504,6 +1506,7 @@ def _machine_find_folder(
     from core import machine_diagnostics
 
     name = " ".join(str((arguments or {}).get("name") or (arguments or {}).get("query") or "").split()).strip(" .'\"")
+    wants_hidden = str((arguments or {}).get("name") or (arguments or {}).get("query") or "").strip(" '\"").startswith(".")
     if not name:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="missing_argument",
@@ -1654,6 +1657,10 @@ def _machine_find_folder(
                     entry_name = entry.name
                     lowered_name = entry_name.lower()
                     if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                        continue
+                    if lowered_name.startswith(".") and not wants_hidden:
+                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
+                        # or walked unless the person names a dot-folder themselves.
                         continue
                     if _is_other_git_project(Path(entry.path), workspace_root=workspace_root):
                         continue

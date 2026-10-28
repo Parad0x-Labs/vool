@@ -1504,6 +1504,11 @@ _FILE_KIND_SUFFIXES = {
 }
 
 
+def _has_every_word(path: str, words: list[str]) -> bool:
+    tokens = re.findall(r"[0-9a-z]+", os.path.basename(path).lower())
+    return all(any(token.startswith(word) for token in tokens) for word in words)
+
+
 def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context: dict | None) -> Any:
     """Run ``machine.find_file`` for each name the user gave, then keep the kind and place they named.
 
@@ -1530,7 +1535,20 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
         observation = details.get("observation") or {}
         timed_out = timed_out or bool(observation.get("timed_out"))
         truncated = truncated or bool(observation.get("truncated"))
-        matches.extend(path for path in details.get("matches") or [] if path not in matches)
+        found = list(details.get("matches") or [])
+        words = re.findall(r"[0-9a-z]+", name.lower())
+        if not found and len(words) >= 2:
+            # "the photo of the sunset at the beach" is "sunset at the beach.jpg": the words, not in a
+            # row. Walk for the longest word, keep files whose name has every word from a word start.
+            longest = max(words, key=len)
+            wider = execute_authorized_runtime_tool("machine.find_file", {"name": longest}, source_context=dict(source_context or {}))
+            if wider is not None and getattr(wider, "ok", False):
+                wider_details = getattr(wider, "details", None) or {}
+                wider_observation = wider_details.get("observation") or {}
+                timed_out = timed_out or bool(wider_observation.get("timed_out"))
+                truncated = truncated or bool(wider_observation.get("truncated"))
+                found = [path for path in wider_details.get("matches") or [] if _has_every_word(path, words)]
+        matches.extend(path for path in found if path not in matches)
     suffixes = _FILE_KIND_SUFFIXES.get(kind)
     if suffixes:
         matches = [path for path in matches if path.lower().endswith(suffixes)]
@@ -1543,6 +1561,7 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
         return any(_squeezed_word_match(re.sub(r"[^0-9a-z]", "", name.lower()), base) for name in names)
 
     word_start = [path for path in matches if _from_word_start(path)]
+    inside_only = bool(matches) and not word_start
     matches = word_start or matches
     where = f"~/{place}" if place else "Desktop, Downloads and Documents"
     elsewhere = False
@@ -1561,6 +1580,9 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
             head = f"None of the files I checked for {asked} is a {noun} in {where}. Other {noun}s that match:"
         elif elsewhere:
             head = f"Nothing in {where}, but I found {len(matches)} {noun}{plural} matching {asked} elsewhere:"
+        elif inside_only:
+            # "day4" asked, only holiday4.jpg there: say it is not the name, rather than "Found 1".
+            head = f"No {noun} named {asked} in {where}. These have it inside a longer name:"
         elif truncated:
             head = f"Many {noun}s match {asked}. Here are the first {min(len(matches), 20)}:"
         else:

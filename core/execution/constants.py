@@ -969,7 +969,8 @@ _FILE_KIND_WORDS = {
     # A file type said as a word: "any jpg named day4", "the mp4 called wedding".
     "jpg": "jpg", "jpgs": "jpg", "jpeg": "jpg", "png": "png", "pngs": "png", "heic": "heic",
     "gif": "gif", "pdfs": "pdf", "mp4": "mp4", "mov": "mov", "mp3": "mp3",
-    "spreadsheets": "", "presentations": "", "docs": "",
+    "spreadsheets": "", "presentations": "", "docs": "", "powerpoint": "", "powerpoints": "", "keynote": "",
+    "slideshow": "", "excel": "", "resume": "", "cv": "",
 }
 _FILE_NAMED_RE = re.compile(
     r"\b(?P<kind>" + "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True)) + r")\b"
@@ -1000,7 +1001,41 @@ _FILE_BARE_NAME_RE = re.compile(
     r"(?=\s*(?:[,;:!?.\n]|\s(?:in|on|from|inside|somewhere|anywhere|please|pls|can|could|think|i|it|that|for)\b|$))",
     re.IGNORECASE,
 )
+# "Could you locate my resume? I think it's called resume_final": the name is given, the noun was earlier.
+_FILE_ITS_CALLED_RE = re.compile(
+    r"\b(?:it'?s|its|it\s+is|it\s+was)\s+(?:called|named|titled)\s+(?P<name>[^,;:!?\n]{1,80}?)(?=\s*(?:[,;:!?\n]|\.(?:\s|$)|$))",
+    re.IGNORECASE,
+)
 _FILE_NAME_FILLERS = {"it", "that", "this", "like", "something", "something like", "the", "a"}
+# A file DESCRIBED rather than named: "grab the tax return pdf from downloads", "where'd my picture of
+# grandmas birthday cake go", "find my scanned passport pdf". Measured on the Mac 2026-10-28 with a
+# set of sentences written blind: 11 of 13 file asks said what the file is about, not its name, and
+# all 11 reached the model (which refused). The describing words are searched as one name; only "my",
+# "the", "that"... make it one of the user's own files ("find me a picture of a cat" is not).
+_FILE_DESCRIBED_RE = re.compile(
+    r"\b(?:my|the|that|this|those|these)\s+(?P<pre>(?:[\w'-]+\s+){0,4}?)(?P<kind>" + _FILE_KIND_ALT + r")\b"
+    r"(?P<post>[^,;:!?\n]*)",
+    re.IGNORECASE,
+)
+_FILE_DESCRIBED_ON_DISK_RE = re.compile(
+    r"\b(?:my|the|that|this|those|these|a|an|any|some)\s+(?P<pre>(?:[\w'-]+\s+){0,4}?)(?P<kind>" + _FILE_KIND_ALT + r")\b"
+    r"(?P<post>[^,;:!?\n]*)",
+    re.IGNORECASE,
+)
+_ON_THIS_COMPUTER_RE = re.compile(r"\bon\s+(?:my|this)\s+(?:mac|computer|laptop|pc|machine|imac|macbook)\b", re.IGNORECASE)
+_FILE_DESCRIBED_STOPWORDS = frozenset(
+    "a an the my that this those these of from in on at with for to by about i me you u we it its it's "
+    "is was are were be been called named titled made saved took taken got get have had go went gone "
+    "can could would please pls find locate where where'd where's which what whats what's grab need show "
+    "pull up dig hunt track down look looking for search there here some any one ones somewhere anywhere "
+    "computer mac laptop machine pc imac macbook disk drive desktop downloads documents download photos pictures folder "
+    "yesterday today last week month year ago recent recently old new latest earlier again think just "
+    "or and file files doc docs stored kept put located placed moved written created downloaded sent".split()
+)
+_FILE_DESCRIBED_REJECT_RE = re.compile(
+    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b",
+    re.IGNORECASE,
+)
 # "find day4.png" / "where is invoice.pdf": a search verb and a name with a known extension.
 _FILE_EXT_KINDS = {
     "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "heic": "image", "webp": "image",
@@ -1021,6 +1056,7 @@ _FILE_LOOKUP_CUE_RE = re.compile(
     r"\b(?:find|finding|locate|where|look(?:ing)?\s+for|search(?:ing)?|fetch|get\s+me|grab|"
     r"is\s+there|are\s+there|do\s+i\s+(?:still\s+)?have|there\s+should\s+be|should\s+(?:be|have)|"
     r"lost|can'?t\s+find|cannot\s+find|missing|dig(?:ging)?\s+up|hunt(?:ing)?\s+down|track(?:ing)?\s+down|"
+    r"pull\s+up|i\s+need\s+(?:the|my|that)|show\s+me\s+(?:the|my|that)|"
     r"which\s+(?:" + _FILE_KIND_ALT + r"))\b",
     re.IGNORECASE,
 )
@@ -1035,7 +1071,7 @@ _FILE_NOT_THIS_DISK_RE = re.compile(
     r"windows)|who\s+(?:wrote|made|sang|sings|is|was)|what\s+(?:genre|is\s+a|'?s\s+a|is\s+the|does)|what's\s+a|"
     r"web|google|internet|online|website|url|e-?mail|mail|inbox|gmail|outlook|drive|dropbox|icloud|onedrive|"
     r"spotify|youtube|netflix|apple\s+music|soundcloud|photos\s+app|google\s+photos|instagram|lyrics|chords|meaning|"
-    r"best|better|worst|recommend(?:ed)?|favou?rite)\b",
+    r"best|better|worst|recommend(?:ed)?|favou?rite|app\s+store|play\s+store)\b",
     re.IGNORECASE,
 )
 
@@ -1056,25 +1092,52 @@ def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | 
     raw = " ".join(str(text or "").split())
     if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
         return None
+    return _named_file_search(raw) or _described_file_search(raw)
+
+
+def _passes_lookup_checks(asked: str) -> bool:
+    asked = re.sub(r"\bwhere\s+did\s+i\s+(?:save|put)\b", "where", asked, flags=re.IGNORECASE)
+    asked = re.sub(r"\b(?:external|usb|hard|thumb|flash)\s+drive\b", "disk", asked, flags=re.IGNORECASE)
+    return bool(_FILE_LOOKUP_CUE_RE.search(asked)) and not _FILE_OTHER_ACTION_RE.search(asked) and not (
+        _FILE_NOT_THIS_DISK_RE.search(asked))
+
+
+def _described_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
+    """The describing words of a file the user owns, searched as one name; every check still applies."""
+    if not _passes_lookup_checks(raw) or _FILE_DESCRIBED_REJECT_RE.search(raw):
+        return None
+    # "a picture of the eiffel tower on my mac": "a" is the user's own file when they say where it is.
+    pattern = _FILE_DESCRIBED_ON_DISK_RE if _named_place(raw) or _ON_THIS_COMPUTER_RE.search(raw) else _FILE_DESCRIBED_RE
+    for match in pattern.finditer(raw):
+        words = [
+            word for word in re.findall(r"[\w'-]+", f"{match.group('pre')} {match.group('post')}")
+            if word.lower() not in _FILE_DESCRIBED_STOPWORDS and word.lower() not in _FILE_KIND_WORDS
+        ]
+        if not words or len(words) > 5 or not any(len(re.sub(r"[^a-z]", "", word.lower())) >= 3 for word in words):
+            continue
+        return (_FILE_KIND_WORDS[match.group("kind").lower()], (" ".join(words),), _named_place(raw))
+    return None
+
+
+def _named_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
     match = _FILE_NAMED_RE.search(raw)
     by_ext = None if match is not None else _FILE_EXT_SEARCH_RE.search(raw)
     if match is None and by_ext is None:
-        match = _FILE_IN_NAME_RE.search(raw) or _FILE_QUOTED_RE.search(raw) or _FILE_BARE_NAME_RE.search(raw)
+        match = (_FILE_IN_NAME_RE.search(raw) or _FILE_QUOTED_RE.search(raw) or _FILE_BARE_NAME_RE.search(raw)
+                 or _FILE_ITS_CALLED_RE.search(raw))
     if match is None and by_ext is None:
         return None
     # The checks below read what the user ASKED, not the file's name: "the pdf called web design
     # brief" or "the file named read me" is still a lookup.
     found = match or by_ext
     asked = raw[: found.start("name")] + " " + raw[found.end("name"):]
-    asked = re.sub(r"\bwhere\s+did\s+i\s+(?:save|put)\b", "where", asked, flags=re.IGNORECASE)
-    asked = re.sub(r"\b(?:external|usb|hard|thumb|flash)\s+drive\b", "disk", asked, flags=re.IGNORECASE)
-    if not _FILE_LOOKUP_CUE_RE.search(asked) or _FILE_OTHER_ACTION_RE.search(asked) or _FILE_NOT_THIS_DISK_RE.search(asked):
+    if not _passes_lookup_checks(asked):
         return None
     if by_ext is not None:
         if re.search(r"\b(?:in|inside)\s+$", raw[: by_ext.start("name")], re.IGNORECASE):
             return None  # 'search for "foo" in notes.txt' searches INSIDE a file
         return (_FILE_EXT_KINDS[by_ext.group("ext").lower()], (by_ext.group("name"),), _named_place(raw))
-    kind = _FILE_KIND_WORDS[match.group("kind").lower()]
+    kind = _FILE_KIND_WORDS[(match.groupdict().get("kind") or "file").lower()]
     between = match.groupdict().get("between") or ""
     # "my pictures folder called vacation" / "my documents folder named taxes" are folders;
     # "a picture in the Downloads folder named x" is a picture.
