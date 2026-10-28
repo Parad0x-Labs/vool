@@ -1318,6 +1318,35 @@ _ALWAYS_VISIBLE_ORDER: tuple[str, ...] = (
 )
 _ALWAYS_VISIBLE = frozenset(_ALWAYS_VISIBLE_ORDER)
 
+# Job 6c (Fix 1): the owner-local wording seats in core.tool_demand_signals
+# (``owner_local_operator_intents``) can seat these intents on the owner's own asks, so a
+# family expansion is not their only legal selection path. Keep this in step with the
+# intents those seats append: an intent missing here makes the drain treat its only
+# remaining path as the expansion (it ranks up -- safe); an intent listed that no wording
+# seat can produce only counts as path-covered (it ranks behind -- the authority census
+# still guarantees it a path through the expansion of its family).
+_WORDING_SEATED_INTENTS = frozenset({
+    "operator.show_agenda",
+    "operator.check_availability",
+    "operator.list_reminders",
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
+    "operator.propose_calendar_event",
+    "operator.find_notes",
+    "operator.show_note",
+    "operator.apple_note_list",
+    "operator.apple_note_read",
+    "operator.inspect_disk_usage",
+    "operator.save_note",
+})
+
+
+def _demand_rule_intents() -> tuple[str, ...]:
+    """The intents a tool_demand_signals rule can name (the explicit-demand path)."""
+    from core.tool_demand_signals import _RULES
+
+    return tuple(rule_intent for rule_intent, _family, _pattern in _RULES)
+
 # Hard bounds for the adaptive composition. The per-turn definition budget stays
 # at ``max_candidates`` (8): reserved seats + explicit intents + family fill all
 # share it, so a mixed demand splits the SAME budget rather than growing it.
@@ -1616,11 +1645,46 @@ def model_visible_specs(
     # the turn asks: its demand seats first (they are seated in step 3 and never evicted -- a
     # tool the ask names never steps down), then mutate tools before inspection reads the ask
     # did not name. The sort is stable, so the discover ranking keeps ordering each class and
-    # the overflow drops from the least-asked end: the unnamed inspection reads declared last.
+    # the overflow drops from the least-asked end.
+    #
+    # Job 6c (Fix 1): a lone-family expansion is the path of last resort for a family tool
+    # that neither the always-visible floor, nor a demand rule, nor an owner-local wording
+    # seat, nor the family-hint fill can seat. Job 6b's mutate-before-read order pushed every
+    # unnamed read behind the mutates, so on the repo family (25 candidates beside the
+    # 3 floor seats) the overflow always fell on the reads declared last --
+    # repo.verify_remote, repo.pr.request and repo.receipt lost their last legal path and
+    # test_p0_tool_offer_authority went red. A candidate whose only legal selection path is
+    # this expansion now ranks directly behind the ask-named seats (class 1) and keeps Job
+    # 6b's mutate-before-read order inside its class; the candidates another path can still
+    # seat follow (class 2), reads ahead of mutates there, so the droppable tail of an
+    # overflowing family is its path-covered mutate tail (on today's operator family the
+    # two reminder tools, which the reminder wording seats can always seat again) and never
+    # a read that would go dark. Tools the ask names stay first in every case.
+    hint_prefix = max(0, _DEFAULT_MAX_CANDIDATES - len(_ALWAYS_VISIBLE_ORDER))
+    # The hint-prefix intents are collected before the sort: list.sort() sees the queue
+    # emptied while it runs, so the prefix cannot be read from the queue inside the key.
+    hint_seatable = {
+        candidate.tool_intent
+        for queue in expanded_queues
+        for candidate in queue[:hint_prefix]
+    }
+    demand_rule_intents = frozenset(_demand_rule_intents())
+
+    def _has_path_besides_expansion(candidate: CapabilityCandidate) -> bool:
+        intent = candidate.tool_intent
+        return (
+            intent in _ALWAYS_VISIBLE_ORDER
+            or intent in _WORDING_SEATED_INTENTS
+            or intent in demand_rule_intents
+            or intent in hint_seatable
+        )
+
     def _expanded_family_rank(candidate: CapabilityCandidate) -> int:
         if candidate.tool_intent in explicit:
             return 0
-        return 1 if not candidate.read_only else 2
+        if not _has_path_besides_expansion(candidate):
+            return 1 if not candidate.read_only else 2
+        return 4 if not candidate.read_only else 3
 
     for queue in expanded_queues:
         queue.sort(key=_expanded_family_rank)
