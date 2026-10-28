@@ -13,6 +13,16 @@ from urllib.parse import urlparse
 
 from adapters.base_adapter import ModelAdapter, ModelRequest, ModelResponse, ModelStreamChunk
 from core import provider_http as requests
+from core.anthropic_messages_protocol import (
+    CLAUDE_API_HOST,
+    CLAUDE_API_VERSION,
+    CLAUDE_EFFORTS,
+    CLAUDE_MESSAGES_PATH,
+    AnthropicStreamAssembler,
+    anthropic_response_to_openai,
+    claude_api_error_message,
+    openai_request_to_claude_api,
+)
 from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
@@ -85,6 +95,9 @@ def _reasoning_disabled(request: Any) -> bool:
 # name alone: the same model name at another provider or endpoint may allow disabling, and must not
 # inherit a refusal it never gave. Process lifetime: the refusal is a property of that endpoint.
 _REASONING_MANDATORY_LEARNED: set[tuple[str, str, str]] = set()
+#: The output ceiling a Claude API call carries when its caller pinned none (the Messages API
+#: requires one). Only emitted tokens are billed; the thinking reserve is added on top.
+_CLAUDE_DEFAULT_MAX_TOKENS = 8192
 _REASONING_EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 
 
@@ -471,6 +484,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         api_path = str(self.manifest.runtime_config.get("api_path") or "/v1/chat/completions")
         payload = self._build_openai_payload(request, force_json=force_json, stream=False)
+        claude_api = self._uses_claude_api(base_url)
+        if claude_api:
+            api_path = CLAUDE_MESSAGES_PATH
         # Final pre-invocation boundary: the ACTUAL built envelope, not the request or the ranked
         # manifest's declared capabilities. Raises RequiredToolsNotOfferedError, caught distinctly
         # by the router (never surfaced as ordinary model prose), if this call is about to leave
@@ -522,7 +538,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     provider_id=self.manifest.provider_id,
                     model_id=self.manifest.model_name,
                     operation="structured" if force_json else "chat",
-                    payload=payload,
+                    # The Claude API lane sends the Messages form of the SAME payload; the seal
+                    # covers the bytes that actually leave.
+                    payload=openai_request_to_claude_api(payload) if claude_api else payload,
                     header_names=tuple(headers),
                 )
                 response = requests.post(
@@ -533,6 +551,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     **_cancel_option(request),
                 )
                 _assert_response_timely(request, response)
+                if claude_api:
+                    break  # effort, not a disable flag, is what reaches Claude: nothing to relearn
                 if reasoning_try == 0 and _reasoning_mandatory_refusal(response, payload):
                     # The endpoint refuses disabled reasoning and the cached catalog did not say
                     # so. Learn it for this process and resend ONCE at the lowest effort; any
@@ -544,10 +564,12 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     }
                     continue
                 break
+            if claude_api:
+                _raise_for_claude_status(response)
             _raise_for_status_with_cause(response)
             if request.is_cancelled():
                 raise RuntimeError("model_call_cancelled")
-            data = response.json()
+            data = anthropic_response_to_openai(response.json()) if claude_api else response.json()
             if not native_tools:
                 # A cloud reasoning model that has no separate reasoning channel writes its
                 # `<think>` block into the content. Dropped here, at the single-shot boundary,
@@ -857,6 +879,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         api_path = str(self.manifest.runtime_config.get("api_path") or "/v1/chat/completions")
         payload = self._build_openai_payload(request, force_json=False, stream=True)
+        claude_api = self._uses_claude_api(base_url)
+        if claude_api:
+            api_path = CLAUDE_MESSAGES_PATH
         from core.provider_call_deadline import (
             effective_timeout_seconds,
             local_manifest_call_timeout_seconds,
@@ -875,7 +900,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             provider_id=self.manifest.provider_id,
             model_id=self.manifest.model_name,
             operation="stream",
-            payload=payload,
+            payload=openai_request_to_claude_api(payload) if claude_api else payload,
             header_names=tuple(headers),
         )
         response = requests.post(
@@ -887,6 +912,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             **_cancel_option(request),
         )
         _assert_response_timely(request, response)
+        if claude_api:
+            _raise_for_claude_status(response)
         _raise_for_status_with_cause(response)
         # SSE is UTF-8 by spec, but without an explicit charset `requests` falls back to ISO-8859-1
         # for text/* — which mangles every multi-byte char (— became â€œ-style mojibake in replies).
@@ -904,42 +931,56 @@ class OpenAICompatibleAdapter(ModelAdapter):
             provider_tools_sent = bool(granted_provider_tools(getattr(request, "metadata", None)))
             stream_sources: list[tuple[str, str]] = []
             streamed_text: list[str] = []
+            # The Claude API streams Messages events; the assembler turns them into the same
+            # OpenAI-shaped deltas the loop below reads, and refuses a stream that never reached
+            # `message_stop` (a cut-off answer is not returned as a whole one).
+            assembler = AnthropicStreamAssembler() if claude_api else None
             try:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     _assert_response_timely(request, response)
                     if request.is_cancelled():
                         raise RuntimeError("model_call_cancelled")
-                    line = _normalize_stream_line(raw_line)
-                    if not line:
-                        continue
-                    event = _parse_stream_line(line)
-                    if event is None:
-                        continue
-                    if event == "__DONE__":
-                        break
-                    response_metadata.update(response_body_facts(event))
-                    if isinstance(event, dict) and event.get("usage"):
-                        # The terminal usage frame carries choices:[] (no delta) plus tokens + cost.
-                        stream_usage = dict(event["usage"])
-                    if attested_model is None and isinstance(event, dict) and event.get("model"):
-                        attested_model = str(event["model"])
-                    if isinstance(event, dict):
-                        choices = list(event.get("choices") or [])
-                        first_choice = choices[0] if choices and isinstance(choices[0], dict) else {}
-                        if first_choice.get("finish_reason"):
-                            finish_reason = str(first_choice["finish_reason"])
-                    delta_text = _extract_stream_delta_text(event)
-                    if provider_tools_sent and isinstance(event, dict):
-                        stream_sources.extend(_openai_message_sources(event, key="delta"))
-                    if delta_text:
-                        streamed_text.append(delta_text)
-                        yield ModelStreamChunk(
-                            delta_text=delta_text,
-                            raw_event=event,
-                            done=False,
-                            provider_attested_model=attested_model,
-                            finish_reason=finish_reason,
-                        )
+                    if assembler is not None:
+                        events: list[Any] = assembler.feed_line(raw_line)
+                    else:
+                        line = _normalize_stream_line(raw_line)
+                        if not line:
+                            continue
+                        parsed = _parse_stream_line(line)
+                        if parsed is None:
+                            continue
+                        if parsed == "__DONE__":
+                            break
+                        events = [parsed]
+                    for event in events:
+                        response_metadata.update(response_body_facts(event))
+                        if isinstance(event, dict) and event.get("usage"):
+                            # The terminal usage frame carries choices:[] (no delta) plus tokens + cost.
+                            stream_usage = dict(event["usage"])
+                        if attested_model is None and isinstance(event, dict) and event.get("model"):
+                            attested_model = str(event["model"])
+                        if isinstance(event, dict):
+                            choices = list(event.get("choices") or [])
+                            first_choice = choices[0] if choices and isinstance(choices[0], dict) else {}
+                            if first_choice.get("finish_reason"):
+                                finish_reason = str(first_choice["finish_reason"])
+                        delta_text = _extract_stream_delta_text(event)
+                        if provider_tools_sent and isinstance(event, dict):
+                            stream_sources.extend(_openai_message_sources(event, key="delta"))
+                        if delta_text:
+                            streamed_text.append(delta_text)
+                            yield ModelStreamChunk(
+                                delta_text=delta_text,
+                                raw_event=event,
+                                done=False,
+                                provider_attested_model=attested_model,
+                                finish_reason=finish_reason,
+                            )
+                if assembler is not None:
+                    final = assembler.finalize()
+                    stream_usage = dict(final.get("usage") or {})
+                    finish_reason = str(final.get("finish_reason") or finish_reason)
+                    attested_model = attested_model or (str(final["model"]) if final.get("model") else None)
                 _assert_response_timely(request, response)
             finally:
                 response.close()
@@ -1179,6 +1220,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 # OpenAI/OpenRouter only emit the terminal usage block (tokens + real cost) on a
                 # stream when explicitly asked; without this a streamed cloud turn reports no usage.
                 payload["stream_options"] = {"include_usage": True}
+        if max_output_tokens <= 0 and self._uses_claude_api():
+            # The Messages API requires an output ceiling; a caller that pinned none gets one.
+            max_output_tokens = _CLAUDE_DEFAULT_MAX_TOKENS
         max_output_tokens = self._cloud_tool_output_budget(request, max_output_tokens)
         if max_output_tokens > 0:
             payload["max_tokens"] = max_output_tokens
@@ -1501,6 +1545,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
         endpoint refuse a disabled request (``_REASONING_MANDATORY_LEARNED``) -- the catalog cache
         is absent on a fresh install, and one refusal must not repeat on every later call.
         """
+        if self._uses_claude_api():
+            # Current Claude models think adaptively and Opus 5.5 cannot turn it off: the lane
+            # always gets the thinking reserve, and a disabled request goes out at low effort.
+            return True, CLAUDE_EFFORTS
         model = str(self.manifest.model_name or "").strip()
         efforts: tuple[str, ...] = ()
         mandatory = self._reasoning_learning_key() in _REASONING_MANDATORY_LEARNED
@@ -1517,6 +1565,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         return mandatory, efforts
 
     def _declares_reasoning_support(self) -> bool:
+        if self._uses_claude_api():
+            return True  # carried to the wire as output_config.effort
         declared = {
             str(item).strip().lower()
             for item in (self.manifest.metadata.get("supported_parameters") or ())
@@ -1703,6 +1753,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 from core.cloud_providers import committed_custom_auth, custom_auth_parts
 
                 placement, header_name = custom_auth_parts(committed_custom_auth(transport_base))
+            if self._uses_claude_api(transport_base):
+                # The Messages API takes the key in x-api-key; Bearer is only for OAuth tokens.
+                placement, header_name = "header", "x-api-key"
+                headers.setdefault("anthropic-version", CLAUDE_API_VERSION)
             if placement == "header":
                 headers[header_name] = api_key
             elif placement == "bearer":
@@ -1728,6 +1782,21 @@ class OpenAICompatibleAdapter(ModelAdapter):
             usage=usage,
         )
         return {"cost_estimate": estimate} if estimate else {}
+
+    def _uses_claude_api(self, base_url: str | None = None) -> bool:
+        """Whether this lane talks to the first-party Claude API (Messages dialect).
+
+        Decided by the destination, so a lane registered before the protocol was recorded on it
+        still speaks Messages, and by the recorded protocol for a lane that names it."""
+        config = dict(self.manifest.runtime_config or {})
+        if str(config.get("protocol") or "").strip().lower() == "anthropic_messages":
+            return True
+        target = base_url if base_url is not None else str(config.get("base_url") or "")
+        try:
+            host = (urlparse(str(target).strip()).hostname or "").lower()
+        except ValueError:
+            return False
+        return host == CLAUDE_API_HOST
 
     def _is_openrouter_lane(self) -> bool:
         provider_name = str(getattr(self.manifest, "provider_name", "") or "").strip().lower()
@@ -2241,6 +2310,27 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
 
 _HTTP_CAUSE_EXCERPT_CHARS = 300
+
+
+def _raise_for_claude_status(response: Any) -> None:
+    """A Claude API refusal as one plain sentence (bad key, unknown model, no credit, overload).
+
+    Same exception class as ``_raise_for_status_with_cause``, so every classifier downstream keeps
+    working; only the message is the person's, not a status line."""
+    status = int(getattr(response, "status_code", 0) or 0)
+    if status < 400:
+        return
+    try:
+        body = response.json()
+    except Exception:
+        body = None
+    message = claude_api_error_message(status, body)
+    if status == 429:
+        with contextlib.suppress(Exception):
+            header = str(response.headers.get("Retry-After") or "").strip()
+            if header.isdigit() and 0 < int(header) <= 86400:
+                message = f"{message} [retry_after={int(header)}s]"
+    raise requests.HTTPError(f"{status} {message}", response=response)
 
 
 def _raise_for_status_with_cause(response: Any) -> None:

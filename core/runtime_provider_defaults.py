@@ -1232,7 +1232,12 @@ def _register_provider_byok_manifest(
     # Re-register when the RESOLVED base_url changed (e.g. a custom endpoint re-pointed to a new
     # host): a stale early-return would keep pointing the lane — and the freshly-entered key — at
     # the previous host. Only skip when the existing lane already matches this base_url + caps.
-    if existing and existing.enabled and existing_base_url.rstrip("/") == base_url.rstrip("/") and list(existing.capabilities or []) == capabilities and (chat_selection_only or not existing.metadata.get("chat_selection_only")):
+    # A lane registered before its provider's chat dialect was recorded is re-registered too, so an
+    # upgraded install stops sending the Claude API an OpenAI-compatibility request.
+    messages_dialect = cfg.chat_protocol == "anthropic_messages"
+    existing_protocol = str(getattr(existing, "runtime_config", {}).get("protocol") or "") if existing else ""
+    protocol_current = existing_protocol == ("anthropic_messages" if messages_dialect else "")
+    if existing and existing.enabled and protocol_current and existing_base_url.rstrip("/") == base_url.rstrip("/") and list(existing.capabilities or []) == capabilities and (chat_selection_only or not existing.metadata.get("chat_selection_only")):
         return existing.provider_id
     runtime_config: dict[str, object] = {
         "base_url": base_url,
@@ -1244,6 +1249,11 @@ def _register_provider_byok_manifest(
         "supports_json_mode": True,
         "credential_key": cfg.credential_slot,
     }
+    if messages_dialect:
+        # The first-party Messages API: `/messages`, no sampling knobs, structured output through
+        # output_config.format (core.anthropic_messages_protocol.openai_request_to_claude_api).
+        runtime_config.update({"protocol": "anthropic_messages", "api_path": "/messages", "supports_json_schema": True})
+        runtime_config.pop("temperature", None)
     if api_key_env:
         runtime_config["api_key_env"] = api_key_env
     if cfg.extra_headers:

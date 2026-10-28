@@ -603,7 +603,15 @@ def _draft_with_model(
         return None, f"the drafting model failed ({type(exc).__name__})"
     draft = _parse_draft(raw)
     if draft is None:
-        return None, "the drafting model returned no usable skill" if str(raw or "").strip() else "no drafting model answered"
+        if str(raw or "").strip():
+            return None, "the drafting model returned no usable skill"
+        failures = list((source_context or {}).get("conductor_generation_failures") or []) if isinstance(source_context, dict) else []
+        if failures:
+            # Say which model could not write it and why (a refused key, an unknown model),
+            # instead of a bare "no model answered" the person cannot act on.
+            last = failures[-1]
+            return None, f"{last.get('model') or 'the chosen model'} could not write it: {last.get('reason') or 'no reply'}"
+        return None, "no drafting model answered"
     if name:
         from core.skill_tools import _slug
 

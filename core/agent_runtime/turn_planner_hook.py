@@ -1048,6 +1048,30 @@ def conductor_generation_candidates(
             if paid_scope is not None else _unpaid_manifests(manifests))
 
 
+def _note_generation_failure(source_context: Any, manifest: Any, reason: str) -> None:
+    """Why a generation call failed, kept apart from the authorship verdicts (which grant
+    things), so a caller that got nothing back can say why instead of "no model answered"."""
+    if not isinstance(source_context, dict):
+        return
+    from core.secret_redaction import redact_secrets
+
+    text = " ".join(str(reason or "").split())
+    # A leading machine code ("provider_credential_unavailable: ...") is for logs; the sentence
+    # after it is what a person can act on.
+    code, sep, rest = text.partition(": ")
+    if sep and rest and code.replace("_", "").isalnum() and code == code.lower() and " " not in code:
+        text = rest
+    failures = list(source_context.get("conductor_generation_failures") or [])
+    failures.append(
+        {
+            "provider_id": str(getattr(manifest, "provider_id", "") or ""),
+            "model": str(getattr(manifest, "model_name", "") or ""),
+            "reason": redact_secrets(text)[:400],
+        }
+    )
+    source_context["conductor_generation_failures"] = failures[-8:]
+
+
 def build_conductor_ask_model(
     agent: Any,
     source_context: dict[str, Any] | None,
@@ -1092,6 +1116,7 @@ def build_conductor_ask_model(
         # answered after the owner selected a concrete model.
         candidates = conductor_generation_candidates(manifests, paid_scope)
         if not candidates:
+            _note_generation_failure(source_context, None, f"no model can run this turn ({_reason or 'none selected'})")
             return ""
         request = ModelRequest(
             # The same task kind the planner uses. `core.model_capabilities` keys off this, and a
@@ -1175,6 +1200,7 @@ def build_conductor_ask_model(
                     purpose="conductor_generation",
                 )
                 if task is None or authorization is None:
+                    _note_generation_failure(source_context, manifest, "the spend limits did not allow this call")
                     return ""
                 call_context = paid_scope.call_context(authorization)
             try:
@@ -1203,8 +1229,10 @@ def build_conductor_ask_model(
                     raise ProviderCallDeadlineExceededError(
                         "conductor generation deadline expired during a provider call"
                     ) from exc
+                _note_generation_failure(source_context, manifest, f"{type(exc).__name__}: {exc}")
                 continue
             if error or response is None:
+                _note_generation_failure(source_context, manifest, str(error or "no_response"))
                 if paid_scope is not None and receipt is not None:
                     paid_scope.finish(receipt, result=f"failed:{error or 'no_response'}")
                 if deadline_expired(call_context):

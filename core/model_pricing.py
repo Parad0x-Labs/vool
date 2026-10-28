@@ -90,8 +90,11 @@ BASIS_APPROVED_CEILING = "approved_price_ceiling"
 # Model ids are matched by longest prefix on a separator boundary, so a dated or suffixed id
 # ("claude-sonnet-4-5-20250929", "gpt-4.1-mini-2025-04-14") prices off its base entry.
 _DIRECT_PRICE_TABLE: dict[str, dict[str, tuple[float, float]]] = {
-    # anthropic.com/pricing — read 2026-07-20.
+    # anthropic.com/pricing — read 2026-07-20; current generation read 2026-10-28.
     "anthropic": {
+        "claude-opus-5-5": (4.00, 20.00),
+        "claude-sonnet-5-5": (2.00, 10.00),
+        "claude-haiku-5-5": (0.10, 0.50),
         "claude-opus-4-1": (15.00, 75.00),
         "claude-opus-4": (15.00, 75.00),
         "claude-sonnet-4-5": (3.00, 15.00),
@@ -146,6 +149,8 @@ _DIRECT_PRICE_TABLE: dict[str, dict[str, tuple[float, float]]] = {
 # ai.google.dev/gemini-api/docs/pricing — read 2026-07-20.
 _PROMPT_TIERS: dict[tuple[str, str], tuple[int, float, float]] = {
     ("google", "gemini-2.5-pro"): (200_000, 2.50, 15.00),
+    # Claude Haiku 5.5 steps up past a 100K-token prompt (platform.claude.com, read 2026-10-28).
+    ("anthropic", "claude-haiku-5-5"): (100_000, 0.50, 2.50),
 }
 
 # A dated snapshot is only honest if a reader can tell how old it is.

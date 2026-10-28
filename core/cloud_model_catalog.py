@@ -36,9 +36,11 @@ _CURATED: dict[str, list[dict[str, Any]]] = {
         _row("o4-mini", "o4-mini (reasoning)", 200_000, 1.10, 4.40, coding=True),
     ],
     "anthropic": [
-        _row("claude-sonnet-4-5", "Claude Sonnet 4.5", 200_000, 3.00, 15.00, coding=True),
-        _row("claude-haiku-4-5", "Claude Haiku 4.5", 200_000, 1.00, 5.00),
-        _row("claude-opus-4-1", "Claude Opus 4.1", 200_000, 15.00, 75.00, coding=True),
+        # Current generation on the first-party API (platform.claude.com, read 2026-10-28). Haiku's
+        # price is for prompts up to 100K tokens ($0.50 / $2.50 beyond).
+        _row("claude-sonnet-5-5", "Claude Sonnet 5.5", 1_000_000, 2.00, 10.00, coding=True),
+        _row("claude-haiku-5-5", "Claude Haiku 5.5", 1_000_000, 0.10, 0.50),
+        _row("claude-opus-5-5", "Claude Opus 5.5", 1_000_000, 4.00, 20.00, coding=True),
     ],
     "groq": [
         _row("llama-3.3-70b-versatile", "Llama 3.3 70B", 131_072, 0.59, 0.79),

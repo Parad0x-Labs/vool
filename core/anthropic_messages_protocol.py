@@ -285,6 +285,210 @@ def openai_request_to_anthropic(payload: Mapping[str, Any]) -> dict[str, Any]:
     return body
 
 
+#: The first-party Claude API. A lane whose base URL is this host speaks the Messages dialect at
+#: ``/messages`` with the key in ``x-api-key`` -- never the OpenAI-compatibility endpoint, which
+#: rejects what VOOL's one payload carries on current models (``temperature`` beside ``top_p``,
+#: ``response_format: json_object``).
+CLAUDE_API_HOST = "api.anthropic.com"
+CLAUDE_MESSAGES_PATH = "/messages"
+CLAUDE_API_VERSION = "2023-06-01"
+CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+#: Schema keywords the Messages structured-output grammar does not accept. They are dropped from
+#: the schema SENT; the answer is still validated by VOOL against the full contract afterwards, so
+#: nothing the contract demands is given up.
+_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "maxItems",
+        "uniqueItems",
+        "minProperties",
+        "maxProperties",
+    }
+)
+_SUPPORTED_STRING_FORMATS = frozenset(
+    {"date-time", "time", "date", "duration", "email", "hostname", "uri", "ipv4", "ipv6", "uuid"}
+)
+
+_JSON_OBJECT_INSTRUCTION = (
+    "Reply with exactly one JSON object and nothing else: no prose before or after it, no code fences."
+)
+_TOOL_REQUIRED_INSTRUCTION = (
+    "Answer this turn by calling one of the provided tools. Do not answer in prose instead of the call."
+)
+
+
+def claude_output_schema(schema: Any) -> dict[str, Any] | None:
+    """``schema`` in the Messages structured-output grammar, or None when it cannot be expressed.
+
+    The grammar requires ``additionalProperties: false`` on every object. An object that declares
+    its properties and merely leaves extra keys open is tightened to its declared keys -- every
+    answer that fits the tightened schema also fits the original. An object that is ONLY an open
+    map (no declared properties: ``{"type": "object", "additionalProperties": true}``) cannot be
+    tightened without changing what it means, so the whole schema is reported inexpressible and
+    the caller asks for JSON in the instructions instead.
+    """
+    if not isinstance(schema, Mapping):
+        return None
+    seen_refs = "$ref" in json.dumps(schema, default=str)
+    if seen_refs:
+        return None  # recursion cannot be ruled out cheaply; the instructed form is exact enough
+
+    def _convert(node: Any) -> Any:
+        if isinstance(node, list):
+            return [_convert(item) for item in node]
+        if not isinstance(node, Mapping):
+            return node
+        out: dict[str, Any] = {}
+        for key, value in node.items():
+            if key in _UNSUPPORTED_SCHEMA_KEYWORDS:
+                continue
+            if key == "minItems" and not (isinstance(value, int) and value in (0, 1)):
+                continue
+            if key == "format" and str(value) not in _SUPPORTED_STRING_FORMATS:
+                continue
+            if key in {"properties", "$defs", "definitions"} and isinstance(value, Mapping):
+                out[key] = {str(name): _convert(sub) for name, sub in value.items()}
+            elif key in {"items", "anyOf", "allOf", "oneOf", "not", "additionalProperties"}:
+                out[key] = _convert(value)
+            else:
+                out[key] = value
+        is_object = out.get("type") == "object" or "properties" in out
+        if is_object:
+            extra = out.get("additionalProperties")
+            if extra is not None and extra is not False:
+                if not out.get("properties"):
+                    raise ValueError("open_map")
+            out["additionalProperties"] = False
+        return out
+
+    try:
+        converted = _convert(schema)
+    except ValueError:
+        return None
+    return converted if isinstance(converted, dict) else None
+
+
+def _claude_effort(reasoning: Any) -> str | None:
+    """The Messages ``output_config.effort`` for the payload's ``reasoning`` control.
+
+    Current Claude models think adaptively and some cannot turn thinking off at all, so a request
+    that wants no reasoning is sent at the lowest effort rather than with a disable flag the model
+    would refuse.
+    """
+    if not isinstance(reasoning, Mapping):
+        return None
+    if reasoning.get("enabled") is False:
+        return "low"
+    effort = str(reasoning.get("effort") or "").strip().lower()
+    if effort in {"none", "minimal"}:
+        return "low"
+    return effort if effort in CLAUDE_EFFORTS else None
+
+
+def openai_request_to_claude_api(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """The built OpenAI chat payload as a first-party Claude API Messages request, or refuse.
+
+    The same translation as :func:`openai_request_to_anthropic`, plus what the first-party API
+    requires of current models (Claude Haiku 5.5, Sonnet 5.5, Opus 5.5):
+
+    * no ``temperature`` / ``top_p`` -- current models reject non-default sampling values;
+    * structured output through ``output_config.format`` (``json_schema``) when the contract's
+      schema can be expressed there, otherwise one plain instruction to answer with JSON only;
+      ``response_format: json_object`` has no Messages form and is never sent;
+    * ``tool_choice`` ``auto`` -- forced tool choice is refused by current models -- with an
+      instruction that a tool call is the answer when the payload required one;
+    * the ``reasoning`` control as ``output_config.effort``.
+
+    Whatever the answer looks like, VOOL's readers validate it against the full contract after;
+    a reply that is not the JSON or the tool call the turn needed fails there, by name.
+    """
+    if not isinstance(payload, Mapping):
+        raise ProtocolTranslationError("payload_not_an_object")
+    working = dict(payload)
+    working.pop("temperature", None)
+    working.pop("top_p", None)
+    reasoning = working.pop("reasoning", None)
+    response_format = working.pop("response_format", None)
+    tool_choice = working.pop("tool_choice", None)
+    instructions: list[str] = []
+    output_config: dict[str, Any] = {}
+
+    if working.get("tools"):
+        if tool_choice == "required" or (isinstance(tool_choice, Mapping) and tool_choice.get("type") == "function"):
+            named = ""
+            if isinstance(tool_choice, Mapping) and isinstance(tool_choice.get("function"), Mapping):
+                named = str(tool_choice["function"].get("name") or "").strip()
+            instructions.append(
+                f"Answer this turn by calling the {named} tool." if named else _TOOL_REQUIRED_INSTRUCTION
+            )
+            working["tool_choice"] = "auto"
+        elif tool_choice is not None:
+            working["tool_choice"] = tool_choice
+    elif tool_choice not in (None, "none", "auto"):
+        raise ProtocolTranslationError("tool_choice_without_tools")
+
+    if response_format is not None:
+        if not isinstance(response_format, Mapping):
+            raise ProtocolTranslationError("response_format_not_an_object")
+        kind = response_format.get("type")
+        if kind == "json_schema":
+            spec = response_format.get("json_schema") if isinstance(response_format.get("json_schema"), Mapping) else {}
+            schema = claude_output_schema(spec.get("schema"))
+            if schema is not None:
+                output_config["format"] = {"type": "json_schema", "schema": schema}
+            else:
+                instructions.append(
+                    _JSON_OBJECT_INSTRUCTION
+                    + " It must match this JSON schema: "
+                    + json.dumps(spec.get("schema"), sort_keys=True, separators=(",", ":"))
+                )
+        elif kind == "json_object":
+            instructions.append(_JSON_OBJECT_INSTRUCTION)
+        elif kind != "text":
+            raise ProtocolTranslationError("response_format_not_expressible")
+
+    body = openai_request_to_anthropic(working)
+    effort = _claude_effort(reasoning)
+    if effort:
+        output_config["effort"] = effort
+    if output_config:
+        body["output_config"] = output_config
+    if instructions:
+        body["system"] = "\n\n".join([part for part in [body.get("system", ""), *instructions] if part])
+    return body
+
+
+def claude_api_error_message(status_code: int, body: Any) -> str:
+    """One plain sentence for a Claude API refusal, for the person and the failure record.
+
+    Never carries the key or the request; only the API's own error type and message.
+    """
+    error = body.get("error") if isinstance(body, Mapping) and isinstance(body.get("error"), Mapping) else {}
+    kind = str(error.get("type") or "").strip()
+    message = str(error.get("message") or "").strip()[:300]
+    if status_code == 401 or kind == "authentication_error":
+        return "Claude refused the API key (401). Check the key in Settings > Models, or paste a new one."
+    if status_code == 403 or kind == "permission_error":
+        return f"Claude says this key may not do that (403): {message or 'permission denied'}."
+    if status_code == 404 or kind == "not_found_error":
+        return f"Claude does not know that model (404): {message or 'model not found'}. Pick a model from the list."
+    if status_code == 429 or kind == "rate_limit_error":
+        return "Claude is rate limiting this key (429). Wait a moment and try again."
+    if status_code == 400 and "credit balance" in message.lower():
+        return "The Claude account has no credit left (400). Add credit in the Claude Console."
+    if status_code >= 500 or kind in {"api_error", "overloaded_error"}:
+        return f"Claude is having trouble right now ({status_code}). Try again shortly."
+    return f"Claude rejected the request ({status_code}{', ' + kind if kind else ''}): {message or 'no detail given'}."
+
+
 def normalize_anthropic_usage(*sources: Mapping[str, Any] | None) -> dict[str, Any]:
     """Merge Messages usage blocks (start + delta) into VOOL's usage keys, reported keys only.
 
@@ -513,11 +717,17 @@ class AnthropicStreamAssembler:
 
 
 __all__ = [
+    "CLAUDE_API_HOST",
+    "CLAUDE_API_VERSION",
+    "CLAUDE_MESSAGES_PATH",
     "AnthropicStreamAssembler",
     "AnthropicStreamError",
     "IncompleteStreamError",
     "ProtocolTranslationError",
     "anthropic_response_to_openai",
+    "claude_api_error_message",
+    "claude_output_schema",
     "normalize_anthropic_usage",
     "openai_request_to_anthropic",
+    "openai_request_to_claude_api",
 ]

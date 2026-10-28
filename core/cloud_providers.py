@@ -15,6 +15,7 @@ Nothing else in the codebase should hardcode a provider fact — import it from 
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Literal
@@ -133,6 +134,9 @@ class ProviderConfig:
     # something to infer from row keys: "openai_models_list" ({id, context_length,
     # top_provider...}) or "anthropic_models_list" ({id, display_name, max_tokens...}).
     model_list_protocol: str = "openai_models_list"
+    # The CHAT dialect: "openai_chat" (``/chat/completions``) or "anthropic_messages" (the
+    # first-party Messages API at ``/messages``; see ``core.anthropic_messages_protocol``).
+    chat_protocol: str = "openai_chat"
     # A user-supplied base URL (custom endpoint) rather than a fixed vendor URL.
     user_base_url: bool = False
     # Where the credential travels: an ``Authorization: Bearer`` header (every entry before UsePod),
@@ -207,16 +211,17 @@ PROVIDERS: dict[str, ProviderConfig] = {
     "anthropic": ProviderConfig(
         provider_id="anthropic",
         label="Anthropic (Claude)",
-        base_url="https://api.anthropic.com/v1",  # OpenAI-compatibility endpoint
+        base_url="https://api.anthropic.com/v1",
         probe_path="/models",
         model_id_style="bare",
         model_catalog_source="static",
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-5-5",
         key_prefixes=("sk-ant-",),
         env_names=("ANTHROPIC_API_KEY", "VOOL_ANTHROPIC_API_KEY"),
         extra_headers={"anthropic-version": "2023-06-01"},
         auth_header="X-Api-Key",
         model_list_protocol="anthropic_models_list",
+        chat_protocol="anthropic_messages",
     ),
     "groq": ProviderConfig(
         provider_id="groq",
@@ -676,13 +681,17 @@ def detect_provider(key: str) -> ProviderGuess:
 def active_provider(policy_provider: str = "", has_key=None) -> str:
     """Resolve the single active cloud provider (v1 = one at a time).
 
-    Order: an explicit policy provider → else the only slot that currently holds a key → else
+    Order: an explicit policy provider → else the only provider that currently holds a key → else
     openrouter when its slot is keyed (legacy default) → else "". ``has_key`` is a callable
     ``slot -> bool`` (defaults to the credential store) so this stays testable and import-light.
+    By default a key in the provider's environment variable (``ANTHROPIC_API_KEY`` ...) counts
+    as held too: a person who exported one key and saved none means that provider, and the lane
+    registrar already reads the key from that variable.
     """
     explicit = str(policy_provider or "").strip().lower()
     if explicit in PROVIDERS:
         return explicit
+    env_keyed: set[str] = set()
     if has_key is None:
         try:
             from core import credential_store
@@ -690,7 +699,12 @@ def active_provider(policy_provider: str = "", has_key=None) -> str:
             has_key = credential_store.has_credential
         except Exception:
             return ""
-    keyed = [pid for pid, cfg in PROVIDERS.items() if _safe_has(has_key, cfg.credential_slot)]
+        env_keyed = {
+            pid
+            for pid, cfg in PROVIDERS.items()
+            if any(str(os.environ.get(name) or "").strip() for name in cfg.env_names)
+        }
+    keyed = [pid for pid, cfg in PROVIDERS.items() if pid in env_keyed or _safe_has(has_key, cfg.credential_slot)]
     if len(keyed) == 1:
         return keyed[0]
     if "openrouter" in keyed:
