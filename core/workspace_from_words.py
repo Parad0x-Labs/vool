@@ -28,7 +28,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-_GENERIC_NOUNS = ("project", "projects", "app", "apps", "thing", "things", "folder", "folders")
+_GENERIC_NOUNS = (
+    "project", "projects", "app", "apps", "thing", "things", "folder", "folders",
+    "repo", "repos", "repository", "repositories",
+)
 _GENERIC_NOUN_RE = re.compile(
     r"\s*\b(?:" + "|".join(re.escape(word) for word in _GENERIC_NOUNS) + r")\b\s*",
     re.IGNORECASE,
@@ -141,17 +144,22 @@ def _is_version_token(token: str) -> bool:
     return bool(re.fullmatch(r"v?\d+", token))
 
 
+_GENERIC_TOKENS = frozenset(_GENERIC_NOUNS)
+
+
 def _phrase_names_folder(phrase: str, folder: str) -> bool:
     """True when the phrase's tokens name the folder's tokens.
 
-    Equal token runs are the base case; a trailing run of at most two version-like tokens
-    ("garden planner" vs "garden planner 2" / "gardenplannerv2") still names the folder,
-    while a PARTIAL name ("garden" for "garden planner") deliberately does not — a shorter
-    phrase standing for a longer folder name is how an idea ask binds the wrong project.
+    Generic nouns are not part of the name on EITHER side ("recipe" names "recipe-app",
+    "garden planner" names a folder literally called "garden planner project"). Equal token
+    runs are the base case; a trailing run of at most two version-like tokens ("garden
+    planner" vs "garden planner 2" / "gardenplannerv2") still names the folder, while a
+    PARTIAL name ("garden" for "garden planner") deliberately does not — a shorter phrase
+    standing for a longer folder name is how an idea ask binds the wrong project.
     Joined-without-separators equality covers concatenated spellings ("GardenPlanner").
     """
-    phrase_tokens = _name_tokens(phrase)
-    folder_tokens = _name_tokens(folder)
+    phrase_tokens = [token for token in _name_tokens(phrase) if token not in _GENERIC_TOKENS]
+    folder_tokens = [token for token in _name_tokens(folder) if token not in _GENERIC_TOKENS]
     if not phrase_tokens or not folder_tokens:
         return False
     if phrase_tokens == folder_tokens:
