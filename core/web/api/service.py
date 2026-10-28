@@ -178,10 +178,14 @@ WALLET_PAGE_FRAMING_HEADERS: dict[str, str] = {"Content-Security-Policy": "frame
 
 
 def html_response(status: int, html: str, *, headers: dict[str, str] | None = None) -> ApiResponse:
+    # Every page VOOL draws carries the "Hide my name on screen" mask (core/screen_privacy.py),
+    # running before the page's own markup so nothing is painted unmasked.
+    from core.screen_privacy import inject
+
     return ApiResponse(
         status=status,
         content_type="text/html; charset=utf-8",
-        body=str(html).encode("utf-8"),
+        body=inject(str(html)).encode("utf-8"),
         headers=dict(headers or {}),
     )
 
@@ -1244,6 +1248,15 @@ def dispatch_get(
             ),
             runtime,
         )
+
+    if normalized_path == "/api/screen-privacy":
+        # "Hide my name on screen": what an open page needs to follow the switch live. Off carries
+        # no names. Owner-local like every projection of this machine's identity.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import screen_privacy
+
+        return apply_runtime_headers(json_response(200, screen_privacy.config()), runtime)
 
     if normalized_path == "/api/setup/state":
         # The derived first-run setup state (core/setup_progress.py): which steps are really done,

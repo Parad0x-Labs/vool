@@ -1485,6 +1485,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/screen-privacy": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/screen-privacy",
+      "note": "Hide my name on screen feed (display-only mask rules; core/screen_privacy.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/search/providers": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/search/providers",
@@ -3217,7 +3224,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 312,
+    "EXTERNAL_TRANSPORT_ONLY": 313,
     "GENERATED_ADAPTER": 138,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
