@@ -336,7 +336,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
     def test_openclaw_ui_command_fast_path_handles_new_and_trace(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
         self.assertIn("new session", str(agent._ui_command_fast_path("/new", source_surface="openclaw")).lower())
-        self.assertIn("/trace", str(agent._ui_command_fast_path("/trace", source_surface="openclaw")).lower())
+        self.assertIn("ask me what i just did", str(agent._ui_command_fast_path("/trace", source_surface="openclaw")).lower())
 
     def test_openclaw_date_fast_path_answers_plainly(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
@@ -481,7 +481,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )
 
-        self.assertIn("New session", result["response"])
+        self.assertIn("new session", result["response"].lower())
         self.assertNotIn("noisy footer", result["response"])
 
     def test_openclaw_evaluative_turn_stays_conversational_without_hive_footer(self) -> None:
