@@ -53,6 +53,48 @@ def home_dir() -> Path:
     return home
 
 
+_NAME_ROOTS = ("Desktop", "Documents", "Downloads")
+_NAME_DEPTH = 3
+_NAME_ENTRIES = 3000
+_NAME_TTL_S = 60.0
+_NAME_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
+
+
+def file_words(home: Path) -> frozenset[str]:
+    """Distinctive words from the names of the owner's files in Desktop, Documents and Downloads
+    (three levels, 3000 entries, hidden entries and links skipped), kept for a minute. Names only:
+    nothing is opened. The route uses it to tell "which flat had the balcony" (there is a "flat
+    viewing notes.md") from a general question."""
+    from core.clean_loop.route import ask_words
+
+    key = str(home)
+    cached = _NAME_CACHE.get(key)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < _NAME_TTL_S:
+        return cached[1]
+    words: set[str] = set()
+    budget = _NAME_ENTRIES
+    stack = [(home / root, 0) for root in _NAME_ROOTS]
+    while stack and budget > 0:
+        folder, depth = stack.pop()
+        try:
+            with os.scandir(folder) as entries:
+                for entry in entries:
+                    if budget <= 0:
+                        break
+                    if entry.name.startswith(".") or entry.is_symlink():
+                        continue
+                    budget -= 1
+                    words |= ask_words(Path(entry.name).stem.replace("_", " ").replace("-", " "))
+                    if depth + 1 < _NAME_DEPTH and entry.is_dir(follow_symlinks=False):
+                        stack.append((Path(entry.path), depth + 1))
+        except OSError:
+            continue
+    result = frozenset(words)
+    _NAME_CACHE[key] = (now, result)
+    return result
+
+
 def scope_path(raw: Any, home: Path) -> Path:
     """`raw` (relative to home, `~/...`, or absolute) as a resolved path inside `home`, or OutsideHome."""
     if home == Path(home.anchor):
@@ -502,7 +544,9 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     will happen; it waits for their yes either way, and the loop's answer says so."""
     what = " ".join(str(args.get("what") or args.get("change") or "").split())[:400]
     ops = args.get("ops")
-    if ops is not None:
+    from core.clean_loop import route
+
+    if ops is not None and route.changes_enabled():
         from core.clean_loop import changes
 
         try:
@@ -585,10 +629,62 @@ def pending_proposal_notice(answer: str, result: Any) -> str:
     return f"{str(answer or '').rstrip()}\n\n{PENDING_NOTICE}".strip()
 
 
+_ABOUT_TAIL = re.compile(r" \((?:folder|[\d.]+ (?:bytes|KB|MB|GB|TB)), modified [^()]*\)$")
+_EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,5}\b")
+
+
+def _seen_names(texts: list[str]) -> list[str]:
+    names: list[str] = []
+    for text in texts:
+        for line in str(text or "").splitlines():
+            if not line.startswith("- "):
+                continue
+            name = _ABOUT_TAIL.sub("", line[2:].strip()).rstrip("/")
+            name = name.rsplit("/", 1)[-1].strip()
+            if name and "." in name and name not in names:
+                names.append(name)
+    return names
+
+
+def _shortened(fragment: str, name: str) -> bool:
+    """`fragment` is a cut-down `name`: its tail ("notes.md" for "flat viewing notes.md") or its head
+    with the same ending ("Screenshot 2026-10-20.png" for "Screenshot 2026-10-20 at 11.40.png")."""
+    if fragment == name or len(fragment) < 5:
+        return False
+    if name.endswith(" " + fragment) or name.endswith("_" + fragment) or name.endswith("-" + fragment):
+        return True
+    stem, dot, ext = fragment.rpartition(".")
+    return bool(dot and stem and name.endswith("." + ext) and name.startswith(stem + " "))
+
+
+def exact_names(answer: str, result: Any) -> str:
+    """Put back file names the model shortened: when a name in the answer is a cut-down form of
+    exactly one name the tools showed, the full name replaces it (Mac clean-7 F07, F50: "notes.md"
+    for "flat viewing notes.md"). Anything ambiguous is left as written."""
+    names = _seen_names(list(getattr(result, "seen", None) or []))
+    if not names or not answer:
+        return answer
+    out = answer
+    for match in reversed(list(_EXT_RE.finditer(answer))):
+        end = match.end()
+        head = answer[:match.start()]
+        starts = [m.start() for m in re.finditer(r"(?:^|(?<=[\s\"'`*(\[]))\S", head)][-8:]
+        for start in starts:  # longest first
+            fragment = answer[start:end]
+            if fragment in names:
+                break
+            owners = [name for name in names if _shortened(fragment, name)]
+            if len(owners) == 1 and owners[0] not in answer:
+                out = out[:start] + owners[0] + out[end:]
+                break
+    return out
+
+
 def install_builtin_tools(registry: Registry) -> None:
     for name, doc, run in BUILTIN_TOOLS:
         registry.register_tool(name, doc, run)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
+    registry.register_answer_gate("exact_names", exact_names)
 
 
 __all__ = [

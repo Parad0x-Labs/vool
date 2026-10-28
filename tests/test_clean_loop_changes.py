@@ -65,7 +65,8 @@ def _approving_boundary(intent, arguments, **_kwargs):
         Path(arguments["path"]).mkdir(parents=True, exist_ok=True)
     elif intent == "machine.write_file":
         Path(arguments["path"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(arguments["path"]).write_text(arguments["content"], encoding="utf-8")
+        with open(arguments["path"], "x" if arguments.get("create_only") else "w", encoding="utf-8") as handle:
+            handle.write(arguments["content"])
     elif intent == "machine.move_path":
         if not os_consent_gate.require_os_user_consent("move"):
             return RuntimeExecutionResult(handled=True, ok=False, status="consent_declined", response_text="declined")
@@ -156,7 +157,7 @@ def test_a_failed_step_puts_back_what_already_happened(home):
 
 def test_a_new_file_is_written_and_undo_removes_it_only_if_unedited(home):
     plan = changes.preview(home, [{"op": "write", "path": "Documents/Lists/shopping.txt", "text": "milk\nbread\n"}])
-    assert plan.lines == ["new folder: Documents/Lists", "new file: Documents/Lists/shopping.txt"]
+    assert plan.lines == ["new folder: Documents/Lists", 'new file: Documents/Lists/shopping.txt (11 bytes): "milk / bread"']
     call = _call(home)
     done = changes.apply(plan, call)
     assert (home / "Documents" / "Lists" / "shopping.txt").read_text(encoding="utf-8").startswith("milk")
@@ -189,6 +190,8 @@ def test_undo_never_overwrites_something_new(home):
         ("no", "no"), ("leave it", "no"),
         ("undo", "undo"), ("put them back", "undo"), ("undo that please", "undo"), ("revert it", "undo"),
         ("yes and also move my invoices to documents", ""), ("what is in my downloads", ""),
+        ("ok, but not the pdfs", ""), ("yes?", ""), ("yes but leave the newest one", ""), ("ok, do it", "yes"),
+        ("Yes please!", "yes"), ("no, leave it", "no"), ("do it except the pdfs", ""),
     ],
 )
 def test_change_replies(text, verdict):
@@ -277,6 +280,7 @@ def test_no_leaves_everything_as_it_was(home, monkeypatch):
     from core.clean_loop import hook
 
     monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setenv(route.CHANGES_ENV, "1")
     before = _snapshot(home)
     changes.remember_pending(SESSION, changes.preview(home, TIDY))
     result = hook.maybe_answer(_Agent(), text="no", effective_input="no", session_id=SESSION, source_context=dict(OWNER))
@@ -298,6 +302,7 @@ def test_a_move_keeps_vools_own_approval_and_the_card(home, monkeypatch):
     from core.clean_loop import hook
 
     monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setenv(route.CHANGES_ENV, "1")
     before = _snapshot(home)
     changes.remember_pending(SESSION, changes.preview(home, TIDY))
     result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
@@ -317,3 +322,155 @@ def test_a_failed_put_back_is_said_not_hidden(home):
     os_consent_gate.set_consent_override_for_tests(consent)
     with pytest.raises(changes.ChangeRefused, match="could not put all of it back"):
         changes.apply(plan, _call(home))
+
+
+# --- review findings, 2026-10-28 --------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ops",
+    [
+        [{"op": "move", "src": "Desktop/todo.txt", "dst": "Desktop/escape/todo.txt"}],
+        [{"op": "move", "src": "Desktop/todo.txt", "dst": "Desktop/escape/"}],
+        [{"op": "mkdir", "path": "Desktop/escape/new"}],
+        [{"op": "move", "src": "Desktop/escape", "dst": "Documents/escape"}],
+    ],
+)
+def test_no_step_goes_through_a_link(home, tmp_path, ops):
+    (tmp_path / "outside").mkdir()
+    (home / "Desktop" / "escape").symlink_to(tmp_path / "outside")
+    with pytest.raises(changes.ChangeRefused, match="link"):
+        changes.preview(home, ops)
+    assert list((tmp_path / "outside").iterdir()) == []
+
+
+def test_a_write_folder_that_is_a_link_is_refused(home, tmp_path):
+    (tmp_path / "elsewhere").mkdir()
+    (home / "Downloads").rmdir()
+    (home / "Downloads").symlink_to(tmp_path / "elsewhere")
+    with pytest.raises(changes.ChangeRefused, match="link"):
+        changes.preview(home, [{"op": "write", "path": "Downloads/x.txt", "text": "x"}])
+
+
+def test_a_pattern_never_picks_up_a_link(home, tmp_path):
+    (tmp_path / "secret.png").write_bytes(b"secret")
+    (home / "Desktop" / "Screenshot link.png").symlink_to(tmp_path / "secret.png")
+    plan = changes.preview(home, TIDY)
+    assert not any("link" in line for line in plan.lines)
+    assert len([line for line in plan.lines if line.startswith("move:")]) == 3
+
+
+def test_the_preview_writes_nothing_anywhere(home, tmp_path):
+    before = {p for p in tmp_path.rglob("*")}
+    changes.preview(home, TIDY + [{"op": "write", "path": "Documents/a/b.txt", "text": "x"}])
+    assert {p for p in tmp_path.rglob("*")} == before
+
+
+def test_a_file_saved_after_the_card_is_never_overwritten(home):
+    plan = changes.preview(home, [{"op": "write", "path": "Documents/notes.txt", "text": "from the card\n"}])
+    (home / "Documents" / "notes.txt").write_text("the owner's own\n", encoding="utf-8")
+    with pytest.raises(changes.ChangeRefused):
+        changes.apply(plan, _call(home))
+    assert (home / "Documents" / "notes.txt").read_text(encoding="utf-8") == "the owner's own\n"
+
+
+def test_the_write_tool_itself_refuses_to_replace_with_create_only(home):
+    (home / "Documents" / "notes.txt").write_text("the owner's own\n", encoding="utf-8")
+    call = _call(home, real=True)
+    outcome = call("machine.write_file", {"path": str(home / "Documents" / "notes.txt"), "content": "x", "create_only": True})
+    assert not outcome.ok
+    assert (home / "Documents" / "notes.txt").read_text(encoding="utf-8") == "the owner's own\n"
+
+
+def test_an_undo_that_was_blocked_can_be_asked_again(home):
+    before = _snapshot(home)
+    plan = changes.preview(home, TIDY)
+    call = _call(home)
+    done = changes.apply(plan, call)
+    blocker = home / "Desktop" / "Screenshot 2026-10-21.png"
+    blocker.write_bytes(b"a new one")
+    problems = changes.undo(done, call)
+    assert problems and "something new" in problems[0]
+    assert not done.undone and len(done.inverse) == 2, "the blocked move and the folder it sits in"
+    blocker.unlink()
+    assert changes.undo(done, call) == []
+    assert done.undone and _snapshot(home) == before
+
+
+def test_undo_does_not_follow_a_link_swapped_in_for_a_written_file(home, tmp_path):
+    keep = tmp_path / "keep.txt"
+    keep.write_text("milk\n", encoding="utf-8")
+    plan = changes.preview(home, [{"op": "write", "path": "Documents/shopping.txt", "text": "milk\n"}])
+    call = _call(home)
+    done = changes.apply(plan, call)
+    (home / "Documents" / "shopping.txt").unlink()
+    (home / "Documents" / "shopping.txt").symlink_to(keep)
+    assert changes.undo(done, call)
+    assert keep.read_text(encoding="utf-8") == "milk\n" and not done.undone
+
+
+def test_the_card_shows_what_a_new_file_will_say(home):
+    plan = changes.preview(home, [{"op": "write", "path": "Desktop/list.txt", "text": "a" * 400}])
+    assert plan.lines[0].startswith('new file: Desktop/list.txt (400 bytes): "aaa') and plan.lines[0].endswith('..."')
+
+
+def test_without_the_changes_flag_no_card_is_made(home, monkeypatch):
+    from core.clean_loop.tools import propose_change
+
+    monkeypatch.delenv(route.CHANGES_ENV, raising=False)
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    propose_change({"what": "tidy", "ops": TIDY}, ctx)
+    assert ctx.plans == []
+    monkeypatch.setenv(route.CHANGES_ENV, "1")
+    propose_change({"what": "tidy", "ops": TIDY}, ctx)
+    assert len(ctx.plans) == 1
+
+
+def _with_card(home, monkeypatch):
+    from core.clean_loop import brain as brain_module
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setenv(route.CHANGES_ENV, "1")
+    monkeypatch.setattr(brain_module, "resolve_local_manifest", lambda router, ctx: None)
+    changes.remember_pending(SESSION, changes.preview(home, [{"op": "mkdir", "path": "Desktop/Screenshots"}]))
+
+
+def test_a_card_answers_only_the_next_turn(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    other = hook.maybe_answer(_Agent(), text="how big is my desktop folder", effective_input="x", session_id=SESSION,
+                              source_context=dict(OWNER))
+    assert other is None and not changes.has_pending(SESSION)
+    late = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    assert late is None or "Done" not in late["response"]
+    assert not (home / "Desktop" / "Screenshots").exists()
+
+
+def test_a_conditional_yes_is_not_an_approval(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    result = hook.maybe_answer(_Agent(), text="ok, but not the pdfs", effective_input="x", session_id=SESSION,
+                               source_context=dict(OWNER))
+    assert result is None or "Done" not in result["response"]
+    assert not (home / "Desktop" / "Screenshots").exists() and not changes.has_pending(SESSION)
+
+
+def test_a_yes_from_a_turn_the_owner_does_not_own_applies_nothing(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION,
+                               source_context={**OWNER, "_trusted_project_id": "p1"})
+    assert result is None
+    assert not (home / "Desktop" / "Screenshots").exists() and not changes.has_pending(SESSION)
+
+
+def test_without_the_changes_flag_a_yes_is_an_ordinary_turn(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    monkeypatch.delenv(route.CHANGES_ENV)
+    result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    assert result is None and not (home / "Desktop" / "Screenshots").exists()

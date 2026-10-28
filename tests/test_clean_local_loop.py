@@ -632,3 +632,71 @@ def test_the_privacy_tool_answers_from_the_local_meter(home, monkeypatch):
     outcome = _registry().tool("privacy").run({}, ctx)
     assert outcome.text == "Today nothing you wrote was sent to online AI models."
     assert route.asks_about_own_files_or_computer("did anything leave my computer today?")
+
+
+# --- admission and exact names (Mac clean-7 and hold-out, 2026-10-28) -------------------------
+
+_NAMES = lambda: route.ask_words(  # noqa: E731
+    "Lisbon boarding pass, flat viewing notes, grandma pancakes, q3-report, warehouse audit, cinema tickets"
+)
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "what seat am i in on the lisbon flight",
+        "how much milk goes in grandmas pancakes",
+        "which flat had the balcony",
+        "when do i have to pay the plumber by",
+        "when did we move the warehouse audit to",
+        "whats in the q3 report",
+    ],
+)
+def test_questions_about_the_owners_own_things_come_in(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON, file_words=_NAMES)
+    assert decision.admit, decision.reason
+
+
+@pytest.mark.parametrize(
+    ("ask", "reason"),
+    [
+        ("can you pay the plumber", "red_turn"),
+        ("pay the plumber", "red_turn"),
+        ("how do i send 2 eth to bob", "red_turn"),
+        ("what is in my crypto wallet", "red_turn"),
+        ("move the cat photo to my desktop", "write_turn"),
+        ("tell me a joke", "not_about_own_files"),
+        ("what is a dmg", "not_about_own_files"),
+    ],
+)
+def test_orders_money_and_general_asks_stay_out(ask, reason):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON, file_words=_NAMES)
+    assert (decision.admit, decision.reason) == (False, reason)
+
+
+def test_file_words_reads_names_only_and_skips_links_and_hidden(tmp_path):
+    from core.clean_loop.tools import file_words
+
+    (tmp_path / "Documents" / "trips").mkdir(parents=True)
+    (tmp_path / "Documents" / "trips" / "Lisbon boarding pass.pdf").write_bytes(b"x")
+    (tmp_path / "Desktop").mkdir()
+    (tmp_path / "Desktop" / ".secret plans.txt").write_text("x")
+    (tmp_path / "Desktop" / "elsewhere").symlink_to(tmp_path / "Documents")
+    words = file_words(tmp_path)
+    assert {"lisbon", "boarding"} <= words
+    assert "secret" not in words and "elsewhere" not in words
+
+
+def test_a_shortened_file_name_is_put_back_only_when_it_is_unambiguous():
+    from core.clean_loop.loop import LoopResult
+    from core.clean_loop.tools import exact_names
+
+    result = LoopResult(answer="", seen=[
+        "- flat viewing notes.md (123 bytes, modified 2026-10-22, 6 days ago)\n"
+        "- Screenshot 2026-10-20 at 11.40.png (1.2 MB, modified 2026-10-20, 8 days ago)\n"
+        "- todo.txt (10 bytes, modified 2026-10-22, today)"
+    ])
+    fixed = exact_names("On your desktop: notes.md, Screenshot 2026-10-20.png and todo.txt.", result)
+    assert fixed == "On your desktop: flat viewing notes.md, Screenshot 2026-10-20 at 11.40.png and todo.txt."
+    result.seen.append("- old notes.md (1 bytes, modified 2026-10-22, today)")
+    assert exact_names("You have notes.md", result) == "You have notes.md"

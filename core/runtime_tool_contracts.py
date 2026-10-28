@@ -506,7 +506,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="create bounded local directories and text files inside Desktop, Downloads, and Documents",
             supported=write_enabled,
             unsupported_reason="Safe local machine writes are disabled on this runtime.",
-            input_schema={"path": "string", "content": "string"},
+            input_schema={"path": "string", "content": "string", "create_only": "boolean optional (true: only create a new file; refuse with status=already_exists if the path exists)"},
             output_schema={"path": "string", "line_count": "integer", "action": "created|updated"},
             side_effect_class="workspace_write",
             approval_requirement="runtime_policy",

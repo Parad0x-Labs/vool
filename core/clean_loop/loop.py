@@ -65,6 +65,9 @@ class LoopResult:
     proposals: list[dict[str, Any]] = field(default_factory=list)
     model_calls: int = 0
     stopped: str = "answered"  # answered | max_steps | brain_error
+    #: Every tool and evidence text this turn showed the model, for answer gates that check the
+    #: answer against what was actually seen (exact file names).
+    seen: list[str] = field(default_factory=list)
 
     @property
     def tools_used(self) -> list[str]:
@@ -125,6 +128,8 @@ def run_loop(
     user = ask if not staged else f"{ask}\n\n[Evidence gathered before you (read-only):]\n{staged}"
     messages.append({"role": "user", "content": user})
     result = LoopResult(answer="")
+    if staged:
+        result.seen.append(staged)
     nudged = False
     failed: set[str] = set()
     for step in range(max_steps):
@@ -179,6 +184,7 @@ def run_loop(
                 "tool_ms": int((time.monotonic() - started_tool) * 1000),
             }
         )
+        result.seen.append(outcome.text[:_TOOL_RESULT_CHARS])
         messages.append({"role": "user", "content": "[tool result]\n" + outcome.text[:_TOOL_RESULT_CHARS]})
     result.proposals = list(ctx.proposals)
     if not result.answer:

@@ -101,8 +101,14 @@ def maybe_answer(
 
         return resolve_local_manifest(router, context) if router is not None else None
 
+    def _file_words() -> set[str]:
+        from core.clean_loop.tools import file_words, home_dir
+
+        return set(file_words(home_dir()))
+
     decision = route.decide(
-        text, source_context=context, session_id=session_id, resolve_brain=_resolve, browser_turn=browser_turn
+        text, source_context=context, session_id=session_id, resolve_brain=_resolve, browser_turn=browser_turn,
+        file_words=_file_words,
     )
     context["clean_local_loop_route"] = decision.reason
     if not decision.admit:
@@ -174,14 +180,20 @@ def _settle_change(
 ) -> dict[str, Any] | None:
     """The owner's answer to a change card ("yes", "no"), or "undo" after one: no model, no new plan.
 
-    Only a bare reply counts, and only while this session holds a card (or a change it can take back);
-    anything else is a new ask and goes through the route as usual."""
-    if not session_id:
+    Only with the changes flag on, only on the owner's own local turn, and only a bare reply counts.
+    A card answers the very next turn and nothing later: any other turn ends it, so a "yes" meant for
+    something else never applies it. Anything else is a new ask and goes through the route as usual."""
+    if not session_id or not route.changes_enabled():
         return None
     from core.clean_loop import changes
     from core.clean_loop.tools import OutsideHome, home_dir
 
     verdict = route.change_reply(text)
+    if route._owner_context_blocks(context, session_id) or route.is_red(text):
+        changes.forget_session_turn(session_id)
+        return None
+    if verdict not in {"yes", "no"}:
+        changes.forget_session_turn(session_id)
     if verdict in {"yes", "no"} and changes.has_pending(session_id):
         plan = changes.take_pending(session_id)
         if plan is None:

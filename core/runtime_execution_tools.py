@@ -5925,7 +5925,29 @@ def _write_machine_file(
                     ),
                 },
             )
-    if reviewed_destination is not None:
+    if bool(arguments.get("create_only")):
+        # Create, never replace: the existence check and the create are one exclusive open, so a
+        # file the owner saved a moment ago can never be overwritten by a caller that asked only
+        # for a new file (the clean loop's changes, which can sit open behind consent prompts).
+        try:
+            with open(target, "x", encoding="utf-8") as handle:
+                handle.write(content)
+        except FileExistsError:
+            return RuntimeExecutionResult(
+                handled=True,
+                ok=False,
+                status="already_exists",
+                response_text=f"`{_home_relative_label(target)}` already exists; nothing was written.",
+                details={
+                    "observation": _tool_observation(
+                        intent="machine.write_file",
+                        tool_surface="machine",
+                        ok=False,
+                        status="already_exists",
+                    ),
+                },
+            )
+    elif reviewed_destination is not None:
         # A reviewed destination is written inside its pinned parent directory, with its reviewed bytes
         # re-read there just before the rename (`pinned_atomic_write_text`).
         from core.execution.artifacts import DestinationChangedError, ReviewedBaseChangedError, pinned_atomic_write_text

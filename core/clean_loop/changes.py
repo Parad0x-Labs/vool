@@ -1,4 +1,4 @@
-"""Changes the owner can see first and take back: rehearse on a copy, apply what was shown, undo it.
+"""Changes the owner can see first and take back: rehearse, apply what was shown, undo it.
 
 A change is a short list of ops, paths relative to the home and inside the folders VOOL may write
 (Desktop, Downloads, Documents):
@@ -8,39 +8,41 @@ A change is a short list of ops, paths relative to the home and inside the folde
       `*` in src expands once, at preview time, and the expanded list is what gets applied
   {"op": "write", "path": "Desktop/shopping.txt", "text": "milk\\nbread"}            new files only
 
-`preview` copies only the folders the change touches (a whole-home copy hashed ~/Library too, so on
-a real Mac apply always refused with "folder changed"), runs the ops on that copy and returns the
-card: what will happen, nothing changed yet. `apply` checks those folders still match, then makes
-each change through VOOL's authorized machine tools (`machine.ensure_directory`, `machine.move_path`,
-`machine.write_file`), so the permission decision and receipts are VOOL's own, and keeps the inverse.
-`undo` puts it back through the same move tool. Two inverses have no machine tool and run here,
-each guarded: removing a folder this change created only while it is empty, and removing a file
-this change wrote only while its bytes are still the ones written.
+No path may pass through a link (shortcut), at any level: a link could carry the change out of the
+write folders. `preview` rehearses the ops on a model of just the paths they name (nothing on disk
+is copied or touched) and returns the card: what will happen, with each new file's text, nothing
+changed yet. `apply` checks the named paths and their folders still look the same, rechecks each
+step just before it, and makes each change through VOOL's authorized machine tools
+(`machine.ensure_directory`, `machine.move_path`, `machine.write_file` with create_only), so the
+permission decision and receipts are VOOL's own, and keeps the inverse. `undo` puts it back through
+the same move tool. Two inverses have no machine tool and run here, on a parent folder opened
+without following links: removing a folder this change created only while it is empty, and removing
+a file this change wrote only while its bytes are still the ones written. A step that could not be
+put back stays on the list, so "undo" can be asked again.
 
 Nothing deletes. A delete is RED and keeps the normal ceremony.
 """
 from __future__ import annotations
 
-import fnmatch
 import hashlib
 import json
 import os
-import shutil
-import subprocess
-import sys
-import tempfile
+import stat
 import threading
 import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from pathlib import Path
+from fnmatch import fnmatch
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 _WRITE_ROOTS = ("Desktop", "Downloads", "Documents")
 _MAX_OPS = 200
-_PENDING_TTL_S = 30 * 60
-_DONE_TTL_S = 7 * 24 * 3600
+_PENDING_TTL_S = 10 * 60
+_DONE_TTL_S = 60 * 60
+_LISTING_BUDGET = 20000
+_PREVIEW_CHARS = 160
 
 
 class ChangeRefused(ValueError):
@@ -68,7 +70,6 @@ class Plan:
     roots: list[str]
     lines: list[str]
     before_hash: str
-    after_hash: str
     created: float = field(default_factory=time.time)
 
 
@@ -77,6 +78,7 @@ class Done:
     plan: Plan
     inverse: list[dict[str, Any]]
     matches_preview: bool
+    direct: list[str] = field(default_factory=list)
     undone: bool = False
     created: float = field(default_factory=time.time)
 
@@ -84,33 +86,80 @@ class Done:
 # --- paths ------------------------------------------------------------------------------------
 
 
-def _inside(home: Path, rel: Any) -> Path:
-    text = str(rel or "").strip().strip("'\"")
+def _rel_inside(home: Path, raw: Any) -> str:
+    """The path relative to home, lexically inside one write folder (not the folder itself)."""
+    text = str(raw or "").strip().strip("'\"")
     if text.startswith("~/"):
         text = text[2:]
     if not text:
         raise ChangeRefused("a change needs a path")
-    full = Path(os.path.abspath(home / text.lstrip("/"))) if not Path(text).is_absolute() else Path(os.path.abspath(text))
-    real = Path(os.path.realpath(full))
-    for root_name in _WRITE_ROOTS:
-        root = home / root_name
-        if (real == root or root in real.parents) and (full == root or root in full.parents):
-            if real == root:
-                raise ChangeRefused(f"{root_name} itself cannot be changed")
-            return full
-    raise ChangeRefused(f"I can only change things inside {', '.join(_WRITE_ROOTS)}: {text}")
+    if os.path.isabs(text):
+        rel = os.path.relpath(os.path.normpath(text), home)
+    else:
+        rel = os.path.normpath(text)
+    parts = PurePosixPath(rel.replace(os.sep, "/")).parts
+    if not parts or parts[0] in {"..", ".", "/"} or os.path.isabs(rel) or parts[0] not in _WRITE_ROOTS:
+        raise ChangeRefused(f"I can only change things inside {', '.join(_WRITE_ROOTS)}: {text}")
+    if len(parts) == 1:
+        raise ChangeRefused(f"{parts[0]} itself cannot be changed")
+    return "/".join(parts)
 
 
-def _rel(home: Path, path: Path) -> str:
-    return path.relative_to(home).as_posix()
+def _lstat(path: Path) -> os.stat_result | None:
+    try:
+        return os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except NotADirectoryError:
+        return None
 
 
-def _root_of(home: Path, path: Path) -> str:
-    return path.relative_to(home).parts[0]
+def _no_links(home: Path, rel: str) -> None:
+    """Refuse when any existing part of the path, the write folder included, is a link or a file
+    standing where a folder should be."""
+    current = home
+    parts = PurePosixPath(rel).parts
+    for index, part in enumerate(parts):
+        current = current / part
+        info = _lstat(current)
+        if info is None:
+            return
+        if stat.S_ISLNK(info.st_mode):
+            raise ChangeRefused(f"{'/'.join(parts[:index + 1])} is a shortcut (link), and I don't change things through links")
+        if index < len(parts) - 1 and not stat.S_ISDIR(info.st_mode):
+            raise ChangeRefused(f"{'/'.join(parts[:index + 1])} is a file, not a folder")
+
+
+def _checked(home: Path, raw: Any, *, must_exist: bool = False) -> str:
+    rel = _rel_inside(home, raw)
+    _no_links(home, rel)
+    if must_exist and _lstat(home / rel) is None:
+        raise ChangeRefused(f"{rel} is not there")
+    return rel
+
+
+def _glob(home: Path, raw_src: str) -> list[str]:
+    pattern = _rel_inside(home, raw_src)
+    parent, name = PurePosixPath(pattern).parent.as_posix(), PurePosixPath(pattern).name
+    if parent in _WRITE_ROOTS:
+        _no_links(home, parent + "/x")
+    else:
+        _no_links(home, parent)
+    try:
+        with os.scandir(home / parent) as entries:
+            found = sorted(
+                entry.name for entry in entries
+                if not entry.name.startswith(".") and not entry.is_symlink() and fnmatch(entry.name.lower(), name.lower())
+            )
+    except OSError:
+        found = []
+    if not found:
+        raise ChangeRefused(f"nothing matches {pattern}")
+    return [f"{parent}/{entry}" for entry in found]
 
 
 def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Validate and normalise ops; a `*` in a move's src becomes one move per match."""
+    """Validate and normalise ops; a `*` in a move's src becomes one move per match (links skipped)."""
     if not isinstance(ops, list) or not ops:
         raise ChangeRefused("there is no change to make")
     out: list[dict[str, Any]] = []
@@ -118,37 +167,23 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not isinstance(op, dict):
             raise ChangeRefused("a change step was not understood")
         kind = str(op.get("op") or "").strip().lower()
-        if kind in {"rename"}:
+        if kind == "rename":
             kind = "move"
         if kind == "mkdir":
-            out.append({"op": "mkdir", "path": _rel(home, _inside(home, op.get("path")))})
+            out.append({"op": "mkdir", "path": _checked(home, op.get("path"))})
         elif kind == "write":
-            target = _inside(home, op.get("path"))
-            out.append({"op": "write", "path": _rel(home, target), "text": str(op.get("text") or "")})
+            out.append({"op": "write", "path": _checked(home, op.get("path")), "text": str(op.get("text") or "")})
         elif kind == "move":
             raw_src = str(op.get("src") or op.get("source") or "")
             dst = str(op.get("dst") or op.get("destination") or "")
             if any(ch in raw_src for ch in "*?["):
-                pattern = _inside(home, raw_src)
-                parent = pattern.parent
-                try:
-                    names = sorted(entry.name for entry in parent.iterdir())
-                except OSError:
-                    names = []
-                matches = [name for name in names if fnmatch.fnmatch(name.lower(), pattern.name.lower())
-                           and not name.startswith(".")]
-                if not matches:
-                    raise ChangeRefused(f"nothing matches {_rel(home, pattern)}")
                 folder = dst if dst.endswith("/") else dst + "/"
-                for name in matches:
-                    out.append({"op": "move", "src": _rel(home, parent / name),
-                                "dst": _rel(home, _inside(home, folder + name))})
+                for src in _glob(home, raw_src):
+                    out.append({"op": "move", "src": src, "dst": _checked(home, folder + PurePosixPath(src).name)})
             else:
-                source = _inside(home, raw_src)
-                target = _inside(home, dst)
-                if dst.endswith("/"):
-                    target = target / source.name
-                out.append({"op": "move", "src": _rel(home, source), "dst": _rel(home, target)})
+                src = _checked(home, raw_src, must_exist=True)
+                target = _checked(home, dst.rstrip("/") + "/" + PurePosixPath(src).name if dst.endswith("/") else dst)
+                out.append({"op": "move", "src": src, "dst": target})
         else:
             raise ChangeRefused(f"'{kind or 'that'}' is not a change I can make here")
         if len(out) > _MAX_OPS:
@@ -156,197 +191,370 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _named(ops: list[dict[str, Any]]) -> list[str]:
+    return sorted({op[key] for op in ops for key in ("path", "src", "dst") if op.get(key)})
+
+
+# --- what apply checks ------------------------------------------------------------------------
+
+
+def _describe(path: Path) -> str:
+    info = _lstat(path)
+    if info is None:
+        return "absent"
+    if stat.S_ISLNK(info.st_mode):
+        try:
+            return "link:" + os.readlink(path)
+        except OSError:
+            return "link"
+    if stat.S_ISDIR(info.st_mode):
+        return "dir"
+    return f"file:{info.st_size}:{info.st_mtime_ns}"
+
+
+def _signature(home: Path, ops: list[dict[str, Any]]) -> str:
+    """The named paths and the listings of their folders (hidden entries and links included).
+    Not the whole folder tree: a whole-home hash met ~/Library and always differed on a real Mac."""
+    state: dict[str, Any] = {}
+    parents = set()
+    for rel in _named(ops):
+        state[rel] = _describe(home / rel)
+        parents.add(PurePosixPath(rel).parent.as_posix())
+    budget = _LISTING_BUDGET
+    for parent in sorted(parents):
+        folder = home / parent
+        try:
+            with os.scandir(folder) as entries:
+                rows = sorted(
+                    f"{entry.name}:{'link' if entry.is_symlink() else ('dir' if entry.is_dir(follow_symlinks=False) else 'file')}"
+                    for entry in entries
+                )
+        except OSError:
+            rows = ["absent"]
+        state["listing:" + parent] = rows[:budget]
+        budget = max(budget - len(rows), 0)
+    return hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
+
+
 # --- the rehearsal ----------------------------------------------------------------------------
 
 
-def _manifest(base: Path, roots: list[str]) -> dict[str, str]:
-    """relpath -> sha256 for files, "dir" for folders, over the touched roots only; no links followed."""
-    out: dict[str, str] = {}
-    for root_name in roots:
-        root = base / root_name
-        if not root.is_dir():
-            continue
-        for current, dirs, files in os.walk(root, followlinks=False):
-            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-            rel_dir = Path(current).relative_to(base).as_posix()
-            if Path(current) != root:
-                out[rel_dir] = "dir"
-            for name in sorted(files):
-                if name.startswith("."):
-                    continue
-                path = Path(current) / name
-                if path.is_symlink():
-                    out[f"{rel_dir}/{name}"] = "link:" + os.readlink(path)
-                    continue
-                digest = hashlib.sha256()
-                try:
-                    with path.open("rb") as handle:
-                        for chunk in iter(lambda: handle.read(1 << 20), b""):
-                            digest.update(chunk)
-                except OSError:
-                    continue
-                out[f"{rel_dir}/{name}"] = digest.hexdigest()
-    return out
+class _Model:
+    """Just enough of the disk to rehearse the ops: each named path is "dir", "file" or None."""
+
+    def __init__(self, home: Path):
+        self.home = home
+        self.state: dict[str, str | None] = {}
+        self.moved_folders: list[str] = []
+        self.new_folders: list[str] = []
+
+    def _under(self, rel: str, prefix: str) -> bool:
+        return rel == prefix or rel.startswith(prefix + "/")
+
+    def kind(self, rel: str) -> str | None:
+        if rel in self.state:
+            return self.state[rel]
+        if any(self._under(rel, folder) for folder in self.moved_folders):
+            raise ChangeRefused(f"{rel} is inside a folder this change moves; let's do that in two steps")
+        info = _lstat(self.home / rel)
+        if info is None:
+            return None
+        if stat.S_ISLNK(info.st_mode):
+            raise ChangeRefused(f"{rel} is a shortcut (link), and I don't change things through links")
+        return "dir" if stat.S_ISDIR(info.st_mode) else "file"
+
+    def make_dirs(self, rel: str) -> None:
+        parts = PurePosixPath(rel).parts
+        for end in range(2, len(parts) + 1):
+            prefix = "/".join(parts[:end])
+            current = self.kind(prefix)
+            if current == "file":
+                raise ChangeRefused(f"{prefix} is a file, not a folder")
+            if current is None:
+                self.state[prefix] = "dir"
+                self.new_folders.append(prefix)
 
 
-def _hash(manifest: dict[str, str]) -> str:
-    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
-
-
-def _clone(src: Path, dst: Path) -> None:
-    if sys.platform == "darwin":
-        subprocess.run(["cp", "-c", "-R", str(src), str(dst)], check=True, capture_output=True)
-    else:
-        shutil.copytree(src, dst, symlinks=True)
-
-
-def _rehearse(base: Path, ops: list[dict[str, Any]]) -> None:
-    """Run ops on the copy. Same refusals the real apply would hit."""
+def _rehearse(home: Path, ops: list[dict[str, Any]]) -> list[str]:
+    """Run the ops on the model, with the same refusals the real apply would hit. Returns the new
+    folders, in the order they appear."""
+    model = _Model(home)
     for op in ops:
         if op["op"] == "mkdir":
-            (base / op["path"]).mkdir(parents=True, exist_ok=True)
+            model.make_dirs(op["path"])
         elif op["op"] == "write":
-            target = base / op["path"]
-            if target.exists():
+            if model.kind(op["path"]) is not None:
                 raise ChangeRefused(f"{op['path']} already exists; I only write new files")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(op["text"], encoding="utf-8")
-        elif op["op"] == "move":
-            source, target = base / op["src"], base / op["dst"]
-            if not source.exists() and not source.is_symlink():
-                raise ChangeRefused(f"{op['src']} is not there")
-            if target.exists():
-                raise ChangeRefused(f"{op['dst']} already exists")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            os.rename(source, target)
+            model.make_dirs(PurePosixPath(op["path"]).parent.as_posix())
+            model.state[op["path"]] = "file"
+        else:
+            src, dst = op["src"], op["dst"]
+            kind = model.kind(src)
+            if kind is None:
+                raise ChangeRefused(f"{src} is not there")
+            if dst == src or dst.startswith(src + "/"):
+                raise ChangeRefused(f"{src} cannot go inside itself")
+            if model.kind(dst) is not None:
+                raise ChangeRefused(f"{dst} already exists")
+            model.make_dirs(PurePosixPath(dst).parent.as_posix())
+            model.state[src] = None
+            model.state[dst] = kind
+            if kind == "dir":
+                model.moved_folders += [src, dst]
+    return model.new_folders
 
 
-def _card(before: dict[str, str], after: dict[str, str], ops: list[dict[str, Any]]) -> list[str]:
-    lines = []
-    new_dirs = sorted(k for k in after if k not in before and after[k] == "dir")
-    lines += [f"new folder: {path}" for path in new_dirs]
+def _card(new_folders: list[str], ops: list[dict[str, Any]]) -> list[str]:
+    lines = [f"new folder: {path}" for path in new_folders]
     lines += [f"move: {op['src']} -> {op['dst']}" for op in ops if op["op"] == "move"]
-    lines += [f"new file: {op['path']}" for op in ops if op["op"] == "write"]
+    for op in ops:
+        if op["op"] == "write":
+            size = len(op["text"].encode("utf-8"))
+            shown = " / ".join(line.strip() for line in op["text"].splitlines() if line.strip())
+            if len(shown) > _PREVIEW_CHARS:
+                shown = shown[:_PREVIEW_CHARS].rstrip() + "..."
+            lines.append(f"new file: {op['path']} ({size} bytes): \"{shown}\"")
     return lines
 
 
 def preview(home: Path, ops: list[dict[str, Any]], *, workdir: str | None = None) -> Plan:
+    """What the change would do. Reads only the paths it names; writes nothing anywhere."""
+    del workdir  # (the old copy-based rehearsal's scratch folder; kept so callers don't break)
     home = Path(os.path.abspath(home))
     expanded = _expand(home, ops)
-    roots = sorted({_root_of(home, home / p) for op in expanded for p in (op.get("path"), op.get("src"), op.get("dst")) if p})
-    before = _manifest(home, roots)
-    sandbox = Path(tempfile.mkdtemp(prefix="vool-preview-", dir=workdir))
-    try:
-        for root_name in roots:
-            if (home / root_name).is_dir():
-                _clone(home / root_name, sandbox / root_name)
-        _rehearse(sandbox, expanded)
-        after = _manifest(sandbox, roots)
-    finally:
-        shutil.rmtree(sandbox, ignore_errors=True)
+    new_folders = _rehearse(home, expanded)
+    roots = sorted({PurePosixPath(rel).parts[0] for rel in _named(expanded)})
     return Plan(
         plan_id=uuid.uuid4().hex[:12], home=str(home), ops=expanded, roots=roots,
-        lines=_card(before, after, expanded), before_hash=_hash(before), after_hash=_hash(after),
+        lines=_card(new_folders, expanded), before_hash=_signature(home, expanded),
     )
 
 
 # --- the real change, through VOOL's own tools ------------------------------------------------
 
-Call = Any  # (intent, arguments) -> ToolOutcome-like with .ok and .text
+Call = Any  # (intent, arguments) -> ToolOutcome-like with .ok, .text and .status
 
 
-def _missing_dirs(home: Path, target: Path) -> list[str]:
-    made, probe = [], target
-    while not probe.exists() and probe != home:
-        made.append(_rel(home, probe))
+def _missing_dirs(home: Path, rel: str) -> list[str]:
+    made, probe = [], PurePosixPath(rel)
+    while len(probe.parts) > 1 and _lstat(home / probe.as_posix()) is None:
+        made.append(probe.as_posix())
         probe = probe.parent
     return made
 
 
+def _recheck(home: Path, op: dict[str, Any]) -> None:
+    """Just before a step: no links on the way, the source is still there, the target still free."""
+    for key in ("path", "src", "dst"):
+        if op.get(key):
+            _no_links(home, op[key])
+    if op["op"] == "write" and _lstat(home / op["path"]) is not None:
+        raise ChangeRefused(f"{op['path']} appeared since I showed you the change")
+    if op["op"] == "move":
+        if _lstat(home / op["src"]) is None:
+            raise ChangeRefused(f"{op['src']} is gone since I showed you the change")
+        if _lstat(home / op["dst"]) is not None:
+            raise ChangeRefused(f"{op['dst']} appeared since I showed you the change")
+
+
+def _fail(home: Path, inverse: list[dict[str, Any]], call: Call, direct: list[str], why: str, status: str = "") -> None:
+    problems = _roll_back(home, inverse, call, direct)
+    if problems:
+        raise ChangeRefused(f"a step did not happen ({why}), and I could not put all of it back: " + "; ".join(problems[:5]))
+    if status == "pending_approval":
+        raise NeedsPermission(NEEDS_PERMISSION_TEXT)
+    raise ChangeRefused(f"that step did not happen, so I put everything back: {why}")
+
+
 def apply(plan: Plan, call: Call) -> Done:
-    """Make the previewed change. Refuses when the touched folders changed since the card; on a
-    failed step, puts back what already happened."""
+    """Make the previewed change. Refuses when the named paths or their folders changed since the
+    card; on a failed step, puts back what already happened."""
     home = Path(plan.home)
-    if _hash(_manifest(home, plan.roots)) != plan.before_hash:
+    if _signature(home, plan.ops) != plan.before_hash:
         raise ChangeRefused("those folders changed since I showed you the change; ask me again and I'll show it fresh")
     inverse: list[dict[str, Any]] = []
+    direct: list[str] = []
     for op in plan.ops:
+        try:
+            _recheck(home, op)
+        except ChangeRefused as exc:
+            _fail(home, inverse, call, direct, str(exc))
         if op["op"] == "mkdir":
-            made = _missing_dirs(home, home / op["path"])
+            made = _missing_dirs(home, op["path"])
             outcome = call("machine.ensure_directory", {"path": str(home / op["path"])})
-            step = {"rmdirs": made}
+            step: dict[str, Any] = {"rmdirs": made}
         elif op["op"] == "write":
-            made = _missing_dirs(home, (home / op["path"]).parent)
-            outcome = call("machine.write_file", {"path": str(home / op["path"]), "content": op["text"]})
+            made = _missing_dirs(home, PurePosixPath(op["path"]).parent.as_posix())
+            outcome = call(
+                "machine.write_file",
+                {"path": str(home / op["path"]), "content": op["text"], "create_only": True},
+            )
             step = {"remove": op["path"], "sha256": hashlib.sha256(op["text"].encode("utf-8")).hexdigest(), "rmdirs": made}
         else:
-            made = _missing_dirs(home, (home / op["dst"]).parent)
+            parent = PurePosixPath(op["dst"]).parent.as_posix()
+            made = _missing_dirs(home, parent)
             if made:
-                made_out = call("machine.ensure_directory", {"path": str((home / op["dst"]).parent)})
+                made_out = call("machine.ensure_directory", {"path": str(home / parent)})
                 if not getattr(made_out, "ok", False):
-                    problems = _roll_back(home, inverse, call)
-                    if problems:
-                        raise ChangeRefused("a step did not happen, and I could not put all of it back: " + "; ".join(problems[:5]))
-                    if getattr(made_out, "status", "") == "pending_approval":
-                        raise NeedsPermission(NEEDS_PERMISSION_TEXT)
-                    raise ChangeRefused(f"could not make {made[-1]}: {getattr(made_out, 'text', '')}")
+                    inverse.append({"rmdirs": made})
+                    _fail(home, inverse, call, direct, f"could not make {made[-1]}: {getattr(made_out, 'text', '')}",
+                          getattr(made_out, "status", ""))
             outcome = call("machine.move_path", {"source": str(home / op["src"]), "destination": str(home / op["dst"])})
             step = {"move": [op["src"], op["dst"]], "rmdirs": made}
         if not getattr(outcome, "ok", False):
             if step.get("rmdirs"):
                 inverse.append({"rmdirs": step["rmdirs"]})
-            problems = _roll_back(home, inverse, call)
-            if problems:
-                raise ChangeRefused(
-                    f"a step did not happen ({getattr(outcome, 'text', '')}), and I could not put all of it back: "
-                    + "; ".join(problems[:5])
-                )
-            if getattr(outcome, "status", "") == "pending_approval":
-                raise NeedsPermission(NEEDS_PERMISSION_TEXT)
-            raise ChangeRefused(f"that step did not happen, so I put everything back: {getattr(outcome, 'text', '')}")
+            _fail(home, inverse, call, direct, str(getattr(outcome, "text", "")), getattr(outcome, "status", ""))
         inverse.append(step)
-    matches = _hash(_manifest(home, plan.roots)) == plan.after_hash
-    return Done(plan=plan, inverse=inverse, matches_preview=matches)
+    return Done(plan=plan, inverse=inverse, matches_preview=_matches(home, plan.ops), direct=direct)
 
 
-def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call) -> list[str]:
+def _matches(home: Path, ops: list[dict[str, Any]]) -> bool:
+    final: dict[str, str | None] = {}
+    for op in ops:
+        if op["op"] == "mkdir":
+            final[op["path"]] = "dir"
+        elif op["op"] == "write":
+            final[op["path"]] = "file:" + hashlib.sha256(op["text"].encode("utf-8")).hexdigest()
+        else:
+            final[op["src"]], final[op["dst"]] = None, "there"
+    for rel, want in final.items():
+        info = _lstat(home / rel)
+        if want is None:
+            if info is not None:
+                return False
+        elif info is None or stat.S_ISLNK(info.st_mode):
+            return False
+        elif want == "dir" and not stat.S_ISDIR(info.st_mode):
+            return False
+        elif want.startswith("file:"):
+            try:
+                if hashlib.sha256((home / rel).read_bytes()).hexdigest() != want[5:]:
+                    return False
+            except OSError:
+                return False
+    return True
+
+
+# --- putting it back --------------------------------------------------------------------------
+
+
+def _pinned_parent(home: Path, rel: str) -> tuple[int, str]:
+    """A descriptor for the folder holding `rel`, opened one part at a time without following links,
+    and the last name. A link swapped in anywhere on the way fails here instead of being followed."""
+    parts = PurePosixPath(rel).parts
+    fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts[:-1]:
+            nxt = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = nxt
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, parts[-1]
+
+
+def _remove_written(home: Path, rel: str, sha256: str, direct: list[str]) -> str:
+    """"" when the file is gone (or was never there); otherwise why it stayed."""
+    try:
+        fd, name = _pinned_parent(home, rel)
+    except FileNotFoundError:
+        return ""
+    except OSError as exc:
+        return f"{rel} could not be removed ({type(exc).__name__})"
+    try:
+        try:
+            handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+        except FileNotFoundError:
+            return ""
+        try:
+            if not stat.S_ISREG(os.fstat(handle).st_mode):
+                return f"{rel} was replaced after I wrote it, so I left it"
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: os.read(handle, 1 << 20), b""):
+                digest.update(chunk)
+        finally:
+            os.close(handle)
+        if digest.hexdigest() != sha256:
+            return f"{rel} was edited after I wrote it, so I left it"
+        os.unlink(name, dir_fd=fd)
+        direct.append(f"removed file {rel}")
+        return ""
+    except OSError as exc:
+        return f"{rel} could not be removed ({type(exc).__name__})"
+    finally:
+        os.close(fd)
+
+
+def _remove_empty_dirs(home: Path, rels: list[str], direct: list[str]) -> list[str]:
+    """Folders this change made, deepest first, only while empty. Returns the ones still there."""
+    left = []
+    for rel in rels:
+        try:
+            fd, name = _pinned_parent(home, rel)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            left.append(rel)
+            continue
+        try:
+            os.rmdir(name, dir_fd=fd)
+            direct.append(f"removed empty folder {rel}")
+        except FileNotFoundError:
+            pass
+        except OSError:
+            left.append(rel)
+        finally:
+            os.close(fd)
+    return left
+
+
+def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call, direct: list[str]) -> list[str]:
+    """Undo the steps newest first. A step that was put back leaves the list; one that could not
+    stays, so a later "undo" tries it again. Returns what could not be put back."""
     problems: list[str] = []
-    for step in reversed(inverse):
+    for step in list(reversed(inverse)):
         if "move" in step:
             src, dst = step["move"]
-            if (home / src).exists():
+            try:
+                _no_links(home, src)
+                _no_links(home, dst)
+            except ChangeRefused as exc:
+                problems.append(f"{dst} stayed where it is: {exc}")
+                continue
+            if _lstat(home / src) is not None:
                 problems.append(f"something new is at {src}, so {dst} stayed where it is")
                 continue
-            outcome = call("machine.move_path", {"source": str(home / dst), "destination": str(home / src)})
-            if not getattr(outcome, "ok", False):
-                problems.append(f"{dst} could not be moved back: {getattr(outcome, 'text', '')}")
+            if _lstat(home / dst) is not None:
+                outcome = call("machine.move_path", {"source": str(home / dst), "destination": str(home / src)})
+                if not getattr(outcome, "ok", False):
+                    problems.append(f"{dst} could not be moved back: {getattr(outcome, 'text', '')}")
+                    continue
         if "remove" in step:
-            path = home / step["remove"]
-            try:
-                if hashlib.sha256(path.read_bytes()).hexdigest() == step["sha256"] and not path.is_symlink():
-                    path.unlink()
-                else:
-                    problems.append(f"{step['remove']} was edited after I wrote it, so I left it")
-            except FileNotFoundError:
-                pass
-            except OSError as exc:
-                problems.append(f"{step['remove']} could not be removed ({type(exc).__name__})")
-        for rel in step.get("rmdirs", []):
-            folder = home / rel
-            try:
-                if folder.is_dir() and not folder.is_symlink() and not any(folder.iterdir()):
-                    folder.rmdir()
-            except OSError:
+            why = _remove_written(home, step["remove"], step["sha256"], direct)
+            if why:
+                problems.append(why)
                 continue
+        left = _remove_empty_dirs(home, list(step.get("rmdirs") or []), direct)
+        if left and problems:
+            # Still holding something this undo could not put back yet: try the folder again next time.
+            step.pop("move", None)
+            step.pop("remove", None)
+            step["rmdirs"] = left
+            continue
+        # (A folder that now holds the owner's own new things simply stays.)
+        inverse.remove(step)
     return problems
 
 
 def undo(done: Done, call: Call) -> list[str]:
-    """Put the change back. Returns what could not be put back (empty when all of it was)."""
+    """Put the change back. Returns what could not be put back (empty when all of it was); what is
+    left can be tried again."""
     if done.undone:
         return []
-    problems = _roll_back(Path(done.plan.home), done.inverse, call)
-    done.undone = True
+    problems = _roll_back(Path(done.plan.home), done.inverse, call, done.direct)
+    done.undone = not done.inverse
     return problems
 
 
@@ -379,7 +587,9 @@ def has_pending(session_id: str) -> bool:
     return plan is not None and time.time() - plan.created <= _PENDING_TTL_S
 
 
-def drop_pending(session_id: str) -> bool:
+def forget_session_turn(session_id: str) -> bool:
+    """A card answers only the very next turn: any other turn ends it, so a later "yes" to something
+    else never applies it."""
     with _LOCK:
         return _PENDING.pop(session_id, None) is not None
 
@@ -413,7 +623,7 @@ __all__ = [
     "Done",
     "Plan",
     "apply",
-    "drop_pending",
+    "forget_session_turn",
     "has_pending",
     "last_done",
     "preview",
