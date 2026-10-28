@@ -206,7 +206,6 @@ def test_capability_ask_states_what_the_phone_can_do(phone):
     _assert_answer_text_alone(reply)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: friendly message answered with plan scaffolding and Context load: low confidence")
 def test_friendly_vent_gets_a_friendly_answer(phone):
     reply = _phone_ask(phone, "im tired today")
     assert "That sounds rough" in reply
