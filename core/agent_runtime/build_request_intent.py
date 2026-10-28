@@ -589,6 +589,16 @@ def is_build_instruction(text: str, *, scope: str = "artifact") -> bool:
     if _supplies_payload_for_analysis(text):
         # The quoted/fenced payload is data under analysis, not a command to execute.
         return False
+    if scope == "project" and is_want_site_request(normalised):
+        # A plain-words site ask carries no build verb, so the verb-gated loop below scores it
+        # False and the model-driven build lane was unreachable for it (measured 2026-10-27,
+        # audit mailweb B01-B07: "id love a basic one page website for the bakery, can you do
+        # that?" got only clarifying questions). The want-site detector has already run the
+        # same opt-out and quoted-payload guards this function ran, plus a per-sentence
+        # deliberation veto, so the branch widens nothing those guards forbid. Artifact scope
+        # -- the default -- is untouched: it feeds workspace-tool lanes that a whole-site ask
+        # must not divert.
+        return True
     if scope == "project":
         # A request that names its deliverable's FILE FORM ("a single HTML file", "one
         # complete index.html") names a whole deliverable, whatever product noun it uses: the
@@ -663,6 +673,149 @@ def looks_like_test_artifact_request(text: str) -> bool:
     if not normalised or not _TEST_ARTIFACT_RE.search(normalised):
         return False
     return is_build_instruction(text)
+
+
+# --------------------------------------------------------------------------------------
+# A site asked for in plain words, with no build verb anywhere
+# --------------------------------------------------------------------------------------
+# Measured 2026-10-27 on the live door (audit mailweb B01-B07): "id love a basic one page
+# website for the bakery, can you do that?" and "i want a realy simple homepage for my cake
+# shop" were answered with clarifying questions and nothing was made. Neither sentence carries
+# a build verb, so every arm above -- all of which hinge on a verb in imperative position --
+# was structurally unable to claim the turn. People ask for a simple site the way they ask for
+# anything else: by wanting it out loud, naming the thing, and saying whose it is. That
+# three-part shape is the detector, and the SHAPE is all it reads. No list of trades, because
+# the visible examples end up hard-coded the moment "bakery" becomes vocabulary and the next,
+# differently-named ask ("for my dog walking business") fails exactly like the verb-less
+# original did.
+_WANT_SITE_LEAD_RE = re.compile(
+    r"\b(?:"
+    + "|".join(
+        (
+            # First-person wanting. Apostrophes both ways: normalization lowercases but does not
+            # fold "i'd" into "id", and real turns carry both spellings.
+            r"i\s+want\b",
+            r"i\s+would\s+(?:love|like)\b",
+            r"i['’]?d\s+(?:love|like)\b",
+            r"i\s+need\b",
+            r"i\s+wish\s+i\s+had\b",
+            r"i['’]?m\s+after\b",
+            r"looking\s+for\b",
+            # Polite asks -- only the no-build-verb forms: "can you make a site" already carries
+            # a verb and the instruction arms above own it.
+            r"(?:can|could)\s+i\s+get\b",
+            r"(?:can|could|would)\s+you\s+(?:do|get)\b",
+        )
+    )
+    + r")\b"
+)
+# The site nouns, longest first because alternation is first-match-wins and "website" contains
+# "site", "webpage"/"homepage" contain "page". Every branch is word-bounded on both sides, so
+# "site" inside "opposite" and "page" inside "webpage" cannot match at all. Bare "page" belongs
+# here only because the for-own-thing phrase below is required anyway -- that phrase is what
+# makes a lone "page" a deliverable with an owner rather than a document word; outside this
+# three-part shape "page" still means nothing to the build lanes.
+_WANT_SITE_NOUN_RE = re.compile(
+    r"\b(?:"
+    + "|".join(
+        (
+            r"one[-\s]?page\s+sites?",
+            r"one[-\s]?pagers?",
+            r"landing\s+pages?",
+            r"websites?",
+            r"web\s+sites?",
+            r"webpages?",
+            r"web\s+pages?",
+            r"homepages?",
+            r"home\s+pages?",
+            r"sites?",
+            r"pages?",
+        )
+    )
+    + r")\b"
+)
+# "for my/our/the/this <anything>": the person's own thing, whatever it is called. Any word is
+# accepted on purpose; enumerating businesses is the hard-coding this module exists to prevent.
+_FOR_OWN_THING_RE = re.compile(r"\bfor\s+(?:my|our|the|this)\s+\w")
+
+# The shared deliberation law reads `\bcan i\b` as deliberative because "can we create a new
+# skill?" asks permission. "can i get a website for my bakery" is the politest form of a direct
+# request, and letting that one pattern veto it would make the whole polite-ask lead family
+# dead words in the lead list above.
+_POLITE_GET_ASK_RE = re.compile(r"\b(?:can|could)\s+i\s+get\b")
+
+# A want whose noun is separated from its lead by "to <verb>" is a want to DO something to a
+# thing that already exists: "i want to check the website for my bank" and "i want to look at
+# the website for my shop" carry the whole three-part shape and would have been handed to the
+# builder to MAKE a page the person only meant to LOOK AT. The making/having verbs are the
+# exception, because "id love to make a homepage for my shop" and "i want to have a website
+# for my bakery" are the same plain-words ask wearing an infinitive. The making phrases are
+# STRIPPED from the gap first, so any "to <word>" left standing is a doing word (or a second,
+# non-making "to ..." such as "to get TO the website") and vetoes the sentence.
+_WANT_SITE_MAKING_TO_RE = re.compile(
+    r"\bto\s+(?:"
+    + "|".join(
+        (
+            r"builds?|building|built",
+            r"makes?|making|made",
+            r"creates?|creating|created",
+            r"designs?|designing|designed",
+            r"sets?\s+up|setting\s+up|setup",
+            r"gets?|getting",
+            r"have|has|having|had",
+            r"owns?|owning|owned",
+            r"puts?\s+together|putting\s+together",
+        )
+    )
+    + r")\b"
+)
+_TO_ANY_WORD_RE = re.compile(r"\bto\s+[a-z]")
+
+
+def is_want_site_request(text: str) -> bool:
+    """True when one sentence asks, in plain words and with no build verb, for a simple site of
+    the operator's own.
+
+    Three parts, all inside ONE sentence, all required: a want lead ("id love", "i want",
+    "looking for", "can i get"), a site noun (website, homepage, landing page, one-pager, site,
+    bare "page"), and a for-own-thing phrase ("for my bakery", "for our bike repair co-op").
+    Asking how sites work, whether one is worth it, or what makes a good homepage is a
+    different sentence, and the shared deliberation law still vetoes it per sentence. A
+    non-making "to <verb>" between the lead and the noun ("i want to check the website for my
+    bank") is a want to DO something to an existing site, not to have one, and vetoes too.
+    Opt-outs and quoted payloads keep their existing authority, so this detector only ever
+    ADDS a claim for a sentence no existing arm could see; it never overrides a guard.
+    """
+
+    normalised = _normalise(text)
+    if not normalised:
+        return False
+    if is_opted_out(normalised):
+        return False
+    if _supplies_payload_for_analysis(text):
+        # A pasted page or template quoted for review is data under analysis, not an ask for one.
+        return False
+    for sentence in _sentences(normalised):
+        if _DELIBERATION_RE.search(sentence):
+            if not _POLITE_GET_ASK_RE.search(sentence):
+                continue
+            # Only the polite ask itself is excused. The veto is re-run with its words gone, so
+            # any OTHER deliberation marker in the same sentence still stands: "can i get a
+            # website for my bakery, or should i build it myself?" stays a discussion.
+            if _DELIBERATION_RE.search(_POLITE_GET_ASK_RE.sub(" ", sentence)):
+                continue
+        lead = _WANT_SITE_LEAD_RE.search(sentence)
+        noun = _WANT_SITE_NOUN_RE.search(sentence)
+        if not (lead and noun and _FOR_OWN_THING_RE.search(sentence)):
+            continue
+        # Everything between the lead and the noun. A making/having infinitive there is the
+        # ask itself in long form; any other "to <word>" is the person planning to use,
+        # inspect or reach a site they already have, and the sentence stands down.
+        gap = sentence[lead.end():noun.start()]
+        if _TO_ANY_WORD_RE.search(_WANT_SITE_MAKING_TO_RE.sub(" ", gap)):
+            continue
+        return True
+    return False
 
 
 # A request that states its OWN command behavior. Measured across the owner's beta

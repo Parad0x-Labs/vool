@@ -1118,8 +1118,16 @@ def looks_like_agentic_build_request(user_input: str) -> bool:
 
     # Admission is clause-scoped: a later request to report expected versus actual
     # results does not turn an earlier imperative project build into deliberation.
-    return object_phrase_widens(str(user_input or "")) or (
-        strong and not build_request_intent.is_deliberation(lowered)
+    # The verb-less want-site shape ("i want a realy simple homepage for my cake shop") names
+    # no build verb, so `object_phrase_widens` -- which reads the imperative verb -- cannot see
+    # it, and this gate was the wall between it and the builder lane (measured 2026-10-27,
+    # audit mailweb B01-B07: only clarifying questions came back). The detector carries the
+    # same opt-out guard already applied above plus per-sentence deliberation and quoted-payload
+    # vetoes of its own, so it widens nothing those guards forbid.
+    return (
+        object_phrase_widens(str(user_input or ""))
+        or (strong and not build_request_intent.is_deliberation(lowered))
+        or build_request_intent.is_want_site_request(user_input)
     )
 
 

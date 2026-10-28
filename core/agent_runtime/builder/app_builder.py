@@ -28,12 +28,52 @@ from typing import Any
 from core.agent_runtime.builder import mutation_scope as mutation_scope_module
 from core.agent_runtime.builder.mutation_scope import MutationScope
 from core.agent_runtime.builder.named_file_build import workspace_relative_path
+from core.agent_runtime.builder.site_words import extract_site_words, render_simple_site_html
 
 MAX_FILES = 16
 MAX_FILE_BYTES = 64_000
 MAX_FIX_ROUNDS = 3
 
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+# The one plain sentence a failed page build ends the turn with. Audit mailweb 2026-10-27 (B05-B07):
+# a site request whose generation died produced either a raw engineering error ("the model did not
+# return a usable file list") or no reply at all before the 240 s turn timeout. One sentence a
+# non-technical person understands, no engineering words, no paths they did not give -- and nothing
+# was written, so the sentence says that too.
+SITE_FALLBACK_ERROR = "The page could not be finished. Nothing was changed."
+
+# Light site-ness markers for the site requests that carry a build verb ("make a one page website
+# for my bakery"), which reach the build lane through the ordinary instruction arm rather than the
+# verb-less want door. The verb-less shape ("id love a basic one page website for the bakery") has
+# its own authority in `build_request_intent.is_want_site_request`; this module reads it when it
+# can be imported and never re-implements it. Deliberation ("should i make a website for my
+# bakery?") never reaches this function -- the shared doors have already refused it by the time a
+# request is inside the build lane -- so a marker hit here is a site ask that is already building.
+_SITE_HINT_MARKERS = ("index.html", "website", "homepage", "landing page")
+
+
+def _is_site_request(request: str) -> bool:
+    """Whether this build request asks for a simple site the plain-words lane can produce.
+
+    The door's detector (`build_request_intent.is_want_site_request`) is preferred and ADDS the
+    verb-less wants to the marker list, which covers the verb-carrying asks. A detector that
+    cannot be imported or raises is treated as absent -- deciding site-ness must never itself be
+    why a turn dies.
+    """
+    try:
+        from core.agent_runtime import build_request_intent
+    except ImportError:
+        build_request_intent = None
+    helper = getattr(build_request_intent, "is_want_site_request", None) if build_request_intent else None
+    if callable(helper):
+        try:
+            if helper(request):
+                return True
+        except Exception:
+            pass
+    lowered = " ".join(str(request or "").lower().split())
+    return any(marker in lowered for marker in _SITE_HINT_MARKERS)
 
 
 @dataclass
@@ -86,6 +126,13 @@ class AppBuildReport:
     authorized_paths: tuple[str, ...] = ()
     paths_refused: list[str] = field(default_factory=list)
     commands_refused: list[str] = field(default_factory=list)
+    # A one-page site this build produced from the person's own words (see builder/site_words.py).
+    # Audit mailweb B03: a site request whose model reply was garbage ended the turn with "the model
+    # did not return a usable file list" and nothing on disk. When this flag is set the receipt is
+    # plain words -- what was made, where it is, how to open it -- because the person asking for a
+    # page for their bakery was never asking for a file table.
+    simple_site: bool = False
+    site_name: str = ""
 
 
 def _confine_relative_path(raw: str, *, target_dir: str, workspace_root: str = "") -> str | None:
@@ -531,6 +578,60 @@ def subject_block(subject_paths: tuple[str, ...], *, workspace_root: str) -> str
     return _SUBJECT_HEADER.format(paths=", ".join(f"`{p}`" for p in paths[:2]), excerpt="\n\n".join(excerpts))
 
 
+def _write_simple_site(
+    report: AppBuildReport,
+    *,
+    request: str,
+    target_dir: str,
+    scope: MutationScope,
+    source_context: dict[str, Any],
+    run_tool_fn: Callable[..., ToolOutcome],
+    announce_plan_fn: Callable[[list[dict[str, Any]]], None] | None,
+) -> AppBuildReport:
+    """The plain-words floor under a site build: one index.html from the request, no model call.
+
+    Reached when a site request's file list or file contents were unusable (an empty or garbage
+    model reply, or a generation that raised). The person's sentence is the whole specification:
+    `site_words.extract_site_words` reads the name, tagline, hours and phone out of it and
+    `render_simple_site_html` turns them into one self-contained page. It reuses the build's own
+    write path -- same directory-creation rule, same plan announcement for the approval batch, same
+    `workspace.write_file` dispatch -- so the scope authority and every gate in front of a write
+    apply exactly as they do to a model-generated file. Fails closed: a refused write leaves
+    `handled=False` with one plain sentence, never a half-built page.
+    """
+    words = extract_site_words(request)
+    base = str(target_dir or "").strip().strip("/")
+    site_path = posixpath.join(base, "index.html") if base else "index.html"
+    report.simple_site = True
+    report.site_name = words.name
+    if not scope.authorizes(site_path):
+        # A scope that names other files did not authorize a page; record it as the main gate
+        # records its refusals, then end the turn in one plain sentence.
+        if site_path not in report.paths_refused:
+            report.paths_refused.append(site_path)
+        _file_confinement_fault(site_path, source_context=source_context)
+        report.handled = False
+        report.error = SITE_FALLBACK_ERROR
+        return report
+    content = render_simple_site_html(words)
+    directories = _directories_to_create([site_path], target_dir=target_dir, scope=scope)
+    if announce_plan_fn is not None:
+        announce_plan_fn(
+            [{"intent": "workspace.ensure_directory", "arguments": {"path": directory}} for directory in directories]
+            + [{"intent": "workspace.write_file", "arguments": {"path": site_path, "content": content}}]
+        )
+    for directory in directories:
+        run_tool_fn("workspace.ensure_directory", {"path": directory})
+    if not run_tool_fn("workspace.write_file", {"path": site_path, "content": content}).ok:
+        report.files_skipped.append(site_path)
+        report.handled = False
+        report.error = SITE_FALLBACK_ERROR
+        return report
+    report.files_written.append(site_path)
+    report.file_lines[site_path] = len(content.splitlines())
+    return report
+
+
 def build_app_from_spec(
     *,
     request: str,
@@ -559,6 +660,20 @@ def build_app_from_spec(
         (source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or ""
     ).strip()
 
+    # A plain-words site request ("make a one page website for my bakery") must survive a model
+    # that is useless this turn. Every generate_fn call below goes through a guard that turns a
+    # raised generation (a timeout, a dead connection) into an empty reply, so the site fallback
+    # catches it instead of the turn dying mid-generation -- audit mailweb B05-B07 hung to the 240 s
+    # turn timeout exactly there.
+    site_request = _is_site_request(request)
+    generate: Callable[[str], str] = generate_fn
+    if site_request:
+        def generate(prompt: str) -> str:  # deliberate wrap of the injected call, see above
+            try:
+                return generate_fn(prompt)
+            except Exception:
+                return ""
+
     subject = subject_block(report.subject_paths, workspace_root=workspace_root)
     if scope.is_exact:
         # The file list is the OPERATOR's, not a proposal. `_LIST_PROMPT` asks a model to "list the
@@ -568,7 +683,7 @@ def build_app_from_spec(
         # made at all: a generation that can only be discarded is wall clock spent to no end.
         raw_paths = list(scope.paths)
     else:
-        raw_paths = extract_path_list(generate_fn(_LIST_PROMPT.format(request=request) + subject))
+        raw_paths = extract_path_list(generate(_LIST_PROMPT.format(request=request) + subject))
     seen: set[str] = set()
     safe_paths: list[str] = []
     for raw in raw_paths:
@@ -595,6 +710,19 @@ def build_app_from_spec(
         if len(safe_paths) >= MAX_FILES:
             break
     if not safe_paths:
+        # Audit mailweb B03: this dead end is where a site request died. A person asking for a page
+        # for their bakery gets one built from their own words instead -- the sentence they typed is
+        # the whole specification, so no model needs to be asked again.
+        if site_request:
+            return _write_simple_site(
+                report,
+                request=request,
+                target_dir=target_rel,
+                scope=scope,
+                source_context=source_context,
+                run_tool_fn=run_tool_fn,
+                announce_plan_fn=announce_plan_fn,
+            )
         report.handled = False
         report.error = "the model did not return a usable file list"
         return report
@@ -621,10 +749,23 @@ def build_app_from_spec(
                     "\nThe implementation is ALREADY written below -- your tests MUST call these exact "
                     "class/function/method names and signatures (do not invent new ones):\n" + impl_context
                 )
-        content = strip_code_fences(generate_fn(prompt))
+        content = strip_code_fences(generate(prompt))
         if content and len(content.encode("utf-8", "ignore")) <= MAX_FILE_BYTES:
             file_map[path] = content
     if not file_map:
+        # A model that listed files but could not produce a single one of them is the same useless
+        # turn as one that listed nothing; a site request still gets its page from the person's
+        # own words.
+        if site_request:
+            return _write_simple_site(
+                report,
+                request=request,
+                target_dir=target_rel,
+                scope=scope,
+                source_context=source_context,
+                run_tool_fn=run_tool_fn,
+                announce_plan_fn=announce_plan_fn,
+            )
         report.handled = False
         report.error = "the model did not return usable file contents"
         return report
@@ -730,7 +871,7 @@ def build_app_from_spec(
             for path in _source_files_to_fix(file_map):
                 rel = posixpath.relpath(path, target_rel) if target_rel else path
                 fixed = strip_code_fences(
-                    generate_fn(
+                    generate(
                         _FIX_PROMPT.format(
                             path=rel,
                             paths=rel_names,
@@ -745,6 +886,20 @@ def build_app_from_spec(
                         file_map[path] = fixed
                         if path not in report.files_written:
                             report.files_written.append(path)
+
+    # A site request the model DID serve can still be the same one-page deliverable -- a single
+    # written HTML page and no test run. It gets the same plain-words receipt as the fallback page,
+    # because the person asking for it is the same person. Anything richer (more files, a test run)
+    # keeps the full build receipt.
+    if (
+        site_request
+        and not report.simple_site
+        and not report.tests_ran
+        and len(report.files_written) == 1
+        and report.files_written[0].lower().endswith((".html", ".htm"))
+    ):
+        report.simple_site = True
+        report.site_name = extract_site_words(request).name
 
     return report
 
@@ -778,6 +933,27 @@ def summarize_test_output(output: str) -> str:
     return digest.replace("\n", " ")[:400]
 
 
+def _render_simple_site_response(report: AppBuildReport) -> str:
+    """The receipt for a one-page site build, in plain words.
+
+    A person who asked for "a one page website for my bakery" was not asking for a file table, an
+    exit-code table or a test digest; they were asking for a page. The reply says what was made,
+    where on this computer it is, and how to open it -- and ends there. No engineering words, no
+    receipt identifiers, no markers. A build that failed returns its one plain sentence.
+    """
+    if not report.handled:
+        return str(report.error or "").strip() or SITE_FALLBACK_ERROR
+    name = str(report.site_name or "").strip()
+    made = f"a one-page website for {name}" if name else "a one-page website"
+    folder = str(report.target_dir or "").strip().strip("/")
+    where = (
+        f"It is saved in the folder `{folder}` on this computer, in the file `index.html`."
+        if folder
+        else "It is saved on this computer in the file `index.html`."
+    )
+    return f"I made {made}.\n\n{where}\n\nTo see it, open `index.html` in your web browser."
+
+
 def render_app_build_response(report: AppBuildReport) -> str:
     """A truthful summary of what was built and what the tests actually did.
 
@@ -787,6 +963,9 @@ def render_app_build_response(report: AppBuildReport) -> str:
     own receipt, and when the lane failed entirely the operator was shown the raw completion
     (`["security.py", ...]import hmac...`). Deterministic output cannot be skipped.
     """
+
+    if report.simple_site:
+        return _render_simple_site_response(report)
 
     if not report.handled:
         return f"I couldn't build that in the workspace: {report.error}."
