@@ -2400,7 +2400,7 @@ function widgetSetupProgress(stack) {
         return;
       }
       renderPane();
-    } catch (e) { yes.disabled = false; st.className = 'state failed'; st.textContent = tfmt('setup.checklist.not_saved', 'Not saved — {error}', { error: e.message }); }
+    } catch (e) { yes.disabled = false; console.warn('setup checklist not saved', e); st.className = 'state failed'; st.textContent = T('setup.checklist.not_saved', 'Not saved. Try again.'); }
   });
   bar.appendChild(go_); bar.appendChild(dismiss); bar.appendChild(st);
   stack.appendChild(bar);
@@ -3243,7 +3243,7 @@ function widgetKeys(stack) {
       case 'invalid': return tfmt('keys.outcome.invalid', '{label} rejected this key{http}. Check that you copied all of it and that it is a {label} key. Nothing was stored.', p);
       case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid. Nothing was stored.', p);
       case 'exhausted': return tfmt('keys.outcome.exhausted', '{label} reports no credit or quota left for this key{http}. Add credit, then save again. Nothing was stored.', p);
-      case 'gateway_blocked': return tfmt('keys.outcome.gateway_blocked', '{label} blocked this check before looking at the key{http}. The key was not judged. Try again later or from another network. Nothing was stored.', p);
+      case 'gateway_blocked': console.warn('key check blocked before the key service', label, http); return tfmt('keys.outcome.gateway_blocked', '{label} blocked this check before it reached the key service. The key was not judged. Try again later or from another network. Nothing was stored.', p);
       case 'rate_limited': return tfmt('keys.outcome.rate_limited', '{label} is limiting requests right now; {retry}. The key was not judged. Nothing was stored.',
         { label: label, retry: j.retry_after_s ? tfmt('keys.outcome.rate_limited.retry_secs', 'try again in {n} s', { n: Math.ceil(j.retry_after_s) }) : T('keys.outcome.rate_limited.retry_shortly', 'try again shortly') });
       case 'timeout': return tfmt('keys.outcome.timeout', '{label} did not answer in time. The key was not judged; try again. Nothing was stored.', p);

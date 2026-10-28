@@ -2102,7 +2102,7 @@ def execute_grounded_turn(
             # The same code also covers a paid call whose answer never came, a rejected key, a
             # cancel and cache or memory sources: only a turn no model could take gets this line.
             and _model_execution_source(evidence["model_execution"]) in _NO_MODEL_SOURCES
-            else "Task did not meet its completion requirements."
+            else "The task did not finish everything it needed to."
             if terminal_outcome.is_unfulfilled
             else f"Completed task with final response: {agent._runtime_preview(response)}"
         ),

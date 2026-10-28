@@ -737,9 +737,9 @@ def _machine_tool_fast_path_result(
     agent._emit_runtime_event(
         source_context,
         event_type="tool_selected",
-        message=f"Running {intent}",
+        message=f"Using {intent}",
         tool_name=intent,
-        summary=f"Running {intent}",
+        summary=f"Using {intent}",
     )
     agent._emit_runtime_event(
         source_context,
@@ -989,10 +989,14 @@ def maybe_handle_direct_machine_download_request(
         return agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
-            response=f"I couldn't download that URL in this run: {exc!s}",
+            response=(
+                "I couldn't download that page just now. Check the address and try again in a "
+                "moment — nothing was saved."
+            ),
             confidence=0.82,
             source_context=source_context,
             reason="machine_download_fast_path",
+            runtime_event_details={"download_failure_detail": str(exc)},
         )
     if len(raw_bytes) > 1_500_000:
         return agent._fast_path_result(

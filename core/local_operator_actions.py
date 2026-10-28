@@ -730,9 +730,9 @@ def _provider_adapter_or_refusal(action: str, *, read_only: bool = False):
     except SelectionsUnavailableError as exc:
         return None, OperatorActionResult(
             ok=False, status="storage_unavailable",
-            response_text=(f"I could not read which calendars are chosen for sync ({exc}), so no calendar action can be "
-                           "proved safe right now. Nothing was sent; check the calendar settings storage."),
-            details={"reason": "selections_unavailable"},
+            response_text=("I could not read which calendars are chosen for sync, so no calendar action can be "
+                           "proved safe right now. Nothing was sent. Check your calendar settings, then try again."),
+            details={"reason": "selections_unavailable", "detail": str(exc)},
         )
     if config is None:
         if not read_only and _readable_settings_calendars():
@@ -768,8 +768,8 @@ def _handle_check_availability(
             )
         except calendar_provider.SelectionsUnavailableError as exc:
             result = OperatorActionResult(ok=False, status="storage_unavailable",
-                                          response_text=f"I could not read which calendars are chosen for sync ({exc}); I will not claim free time over an unknown set.",
-                                          details={"reason": "selections_unavailable"})
+                                          response_text="I could not read which calendars are chosen for sync, so I did not check your free time. Try again in a moment.",
+                                          details={"reason": "selections_unavailable", "detail": str(exc)})
     if result.ok and result.details.get("options"):
         # The offered slots are the selection state for the next 'option N' reply. Reusing
         # the pending-action store keeps ONE live offer per session and no new framework.

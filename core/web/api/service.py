@@ -452,7 +452,7 @@ def _web0_resolve_response(query: dict[str, list[str]]) -> ApiResponse:
     except Exception as exc:
         return json_response(502, {"ok": False, "name": name, "error": f"resolver error: {exc}"})
     if record is None:
-        return json_response(404, {"ok": False, "name": name, "error": "unregistered or RPC unreachable"})
+        return json_response(404, {"ok": False, "name": name, "error": "That name is not registered, or the lookup service could not be reached. Check the name and try again."})
     txid = getattr(record, "arweave_txid", None) or ""
     gateways = _web0_gateway_urls(txid)
     return json_response(
@@ -4216,7 +4216,7 @@ def _release_turn_attachments(session_id: str, turn_id: str) -> None:
         _attachment_event(
             session_id,
             event_type="attachment_released",
-            message=f"Released {entry['name']}: {entry['outcome']}",
+            message=f"Finished with {entry['name']}: {entry['outcome']}",
             details={
                 "attachment_id": entry["id"],
                 "kind": entry["kind"],

@@ -319,7 +319,12 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace") or "{}")
     except ValueError as exc:
-        raise ReaderFailed("The audio reader produced output this runtime could not read.", code="decoder_bad_output", fmt="audio") from exc
+        raise ReaderFailed(
+            "I couldn't understand what the audio reader sent back. Try the file again, or attach "
+            "a transcript as text.",
+            code="decoder_bad_output",
+            fmt="audio",
+        ) from exc
     return payload if isinstance(payload, dict) else {}
 
 

@@ -28,7 +28,7 @@ import pytest
 from core.i18n.catalog import catalog_for, clear_catalog_cache
 from core.vool_settings_page import render_vool_settings_html
 
-EN_OUTCOME_GATEWAY = ("{label} blocked this check before looking at the key{http}. "
+EN_OUTCOME_GATEWAY = ("{label} blocked this check before it reached the key service. "
                       "The key was not judged. Try again later or from another network. "
                       "Nothing was stored.")
 EN_TEST_GATEWAY = "{label} blocked this check before looking at the key{http}. The key was not judged."
@@ -61,14 +61,16 @@ def test_the_english_source_carries_the_new_gateway_and_refusal_words() -> None:
     assert en.text("keys.test.gateway_blocked") == EN_TEST_GATEWAY
     assert en.text("keys.outcome.unauthorized") == EN_OUTCOME_UNAUTHORIZED
     assert en.text("keys.test.unauthorized") == EN_TEST_UNAUTHORIZED
-    for key in ("keys.outcome.gateway_blocked", "keys.test.gateway_blocked",
-                "keys.outcome.unauthorized", "keys.test.unauthorized"):
-        assert set(re.findall(r"\{(\w+)\}", en.text(key))) == {"label", "http"}, key
+    for key, params in (("keys.outcome.gateway_blocked", {"label"}),
+                        ("keys.test.gateway_blocked", {"label", "http"}),
+                        ("keys.outcome.unauthorized", {"label", "http"}),
+                        ("keys.test.unauthorized", {"label", "http"})):
+        assert set(re.findall(r"\{(\w+)\}", en.text(key))) == params, key
 
 
 def test_both_doors_route_gateway_blocked_to_the_new_keys() -> None:
     html = render_vool_settings_html(build_commit="t")
-    assert "case 'gateway_blocked': return tfmt('keys.outcome.gateway_blocked'" in html
+    assert "return tfmt('keys.outcome.gateway_blocked'" in html
     assert "if (reason === 'gateway_blocked') return tfmt('keys.test.gateway_blocked'" in html
     # the old unauthorized claims are gone from the served words
     assert "recognised the key" not in html
@@ -147,7 +149,7 @@ def test_gateway_blocked_shows_the_new_english_and_german_words() -> None:
         save = rendered["save_gateway"]
         test = rendered["test_gateway"]
         catalog = catalog_for(locale)
-        assert save == catalog.format("keys.outcome.gateway_blocked", label="DeepSeek", http=" (HTTP 403)"), (locale, save)
+        assert save == catalog.format("keys.outcome.gateway_blocked", label="DeepSeek"), (locale, save)
         assert test == catalog.format("keys.test.gateway_blocked", label="DeepSeek", http=" (HTTP 403)"), (locale, test)
         assert "DeepSeek" in save and "DeepSeek" in test
         _assert_no_verdict_words(save, locale)

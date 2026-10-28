@@ -306,25 +306,28 @@ def _failure_text(status: str, *, reason: str, shown: str) -> str:
     """
     if status == "not_found":
         return (
-            f"There is no file at `{shown}`. Check the name and the folder — I looked for exactly "
+            f"There is no file at {shown}. Check the name and the folder — I looked for exactly "
             f"that path and nothing is there."
         )
     if status == "unreadable":
         return (
-            f"`{shown}` is not a readable PDF. The name ends in .pdf but the contents are not PDF "
-            f"data, so PDFKit cannot open it — it is most likely a text or image file that was "
-            f"renamed."
+            f"{shown} is not a readable PDF. The name ends in .pdf but the contents are not PDF "
+            f"data, so my PDF reader cannot open it — it is most likely a text or image file "
+            f"that was renamed."
         )
     if status == "missing_dependency":
         return (
-            f"I cannot read PDFs on this machine: {reason}. PDF reading needs the macOS system "
-            f"Python at /usr/bin/python3 and its PyObjC bindings."
+            "I can't read PDFs on this machine: PDF reading needs a piece of macOS system "
+            "software that is missing here."
         )
     if status == "timeout":
-        return f"Reading `{shown}` took too long and I stopped it: {reason}."
+        return f"Reading {shown} took too long and I stopped it: {reason}."
     if status == "invalid_arguments":
         return f"I could not work out which PDF you meant: {reason}."
-    return f"I could not read `{shown}`: {reason or status}."
+    return (
+        f"I could not read {shown}: something went wrong while reading it. Try again, or tell me "
+        f"what happens when you open the file yourself."
+    )
 
 
 def _render_ok(execution: Any, *, shown: str, lead: str) -> str:
@@ -380,7 +383,7 @@ def maybe_handle_pdf_read(
     named = str(request.get("named") or "")
     shown = _display(path, named)
 
-    def plain(body: str, *, reason: str) -> dict[str, Any]:
+    def plain(body: str, *, reason: str, event_details: dict[str, Any] | None = None) -> dict[str, Any]:
         return agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
@@ -388,6 +391,7 @@ def maybe_handle_pdf_read(
             confidence=0.9,
             source_context=source_context,
             reason=reason,
+            runtime_event_details=event_details,
         )
 
     # The root rule is the machine lane's, stated in the machine lane's words, so a PDF outside the
@@ -401,8 +405,9 @@ def maybe_handle_pdf_read(
     user_named_a_directory = any(mark in named for mark in ("/", "\\", "~"))
     if user_named_a_directory and _outside_allowed_roots(path):
         return plain(
-            f"I can only read files inside: {_allowed_roots_label()}. `{named or shown}` is outside "
-            f"those folders, so I did not open it.",
+            f"I can only read files inside: {_allowed_roots_label()}. {named or shown} is outside "
+            f"those folders, so I did not open it. Move it into one of those folders and ask me "
+            f"again.",
             reason="pdf_read_outside_roots",
         )
 
@@ -413,7 +418,7 @@ def maybe_handle_pdf_read(
                 reason="pdf_read_not_found",
             )
         return plain(
-            f"I could not find a file called `{named}` anywhere in {_allowed_roots_label()}. "
+            f"I could not find a file called {named} anywhere in {_allowed_roots_label()}. "
             f"Give me the folder it is in and I will read it.",
             reason="pdf_read_not_found_by_name",
         )
@@ -455,10 +460,10 @@ def maybe_handle_pdf_read(
             )
         ocr_reason = str(dict(getattr(ocr_execution, "details", {}) or {}).get("reason") or "")
         return plain(
-            f"`{shown}` carries no text layer, so it is a scanned PDF. I ran on-device OCR on it as "
-            f"well and that did not recover text either"
-            + (f": {ocr_reason}." if ocr_reason else f" ({ocr_status or 'no result'})."),
+            f"{shown} is a scanned PDF — it has no typed text. I tried reading it with text "
+            f"recognition as well, and that could not read it either.",
             reason="pdf_read_scanned_ocr_failed",
+            event_details={"ocr_failure_detail": ocr_reason or ocr_status},
         )
 
     if getattr(execution, "ok", False):

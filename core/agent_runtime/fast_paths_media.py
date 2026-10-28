@@ -242,7 +242,8 @@ def maybe_handle_image_generation(
                     execution=execution,
                 )
             return reply(
-                'Generated the image, but the provider returned no URL to show.',
+                'The image was generated, but the image service did not send back a link I can '
+                'show. Ask me to try again.',
                 execution=execution,
             )
         message = str(getattr(execution, "response_text", "") or "") if execution is not None else ""

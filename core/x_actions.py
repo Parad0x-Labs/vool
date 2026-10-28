@@ -256,7 +256,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         try:
             state = _load()
         except RuntimeError:
-            return _result(False, "store_unreadable", "VOOL could not read its list of X actions. Nothing was proposed.")
+            return _result(False, "store_unreadable", "VOOL could not read its list of X actions, so nothing was proposed. Try again in a moment.")
         _expire(state, now)
         if sum(1 for a in state["actions"].values() if a.get("state") == "pending") >= MAX_PENDING:
             return _result(False, "busy", f"{MAX_PENDING} X actions are already waiting for approval. "

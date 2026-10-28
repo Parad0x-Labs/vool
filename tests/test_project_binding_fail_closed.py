@@ -17,7 +17,7 @@ def test_new_chat_in_project_gates_on_bind_ok():
     assert "bound = r.ok" in HTML
     # On failure it clears the project and tells the user it is NOT isolated.
     assert "view.projectId = ''" in HTML   # the bound project is per-chat state (DISPATCHER phase 1)
-    assert "it is NOT isolated" in HTML
+    assert "it is not isolated there" in HTML
 
 
 def test_assign_session_gates_on_bind_ok_and_surfaces_failure():

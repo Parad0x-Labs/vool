@@ -215,7 +215,7 @@ async def _dispatch(request: Request) -> Response:
                     break
                 chunks.append(chunk)
             if oversized:
-                response = json_response(413, {"ok": False, "error": "too_large", "message": "The upload is over the attachment size limit."})
+                response = json_response(413, {"ok": False, "error": "too_large", "message": "That file is too big to attach. Try a smaller file."})
             else:
                 response = await _run_dispatch(
                     dispatch_upload,

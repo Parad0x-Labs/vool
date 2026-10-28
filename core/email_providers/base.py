@@ -335,7 +335,7 @@ class _OAuthClient:
             raise
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise ProviderAccountError(
-                "transport_failed", f"{self.provider} token endpoint unreachable ({type(exc).__name__}).",
+                "transport_failed", f"{self.provider}'s sign-in service could not be reached. Check your connection and try again.",
                 provider=self.provider,
             ) from exc
         if not isinstance(payload, dict):

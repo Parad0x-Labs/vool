@@ -874,9 +874,9 @@ def _emit_workspace_tool_events(
     agent._emit_runtime_event(
         source_context,
         event_type="tool_selected",
-        message=f"Running {intent}",
+        message=f"Using {intent}",
         tool_name=intent,
-        summary=f"Running {intent}",
+        summary=f"Using {intent}",
     )
     agent._emit_runtime_event(
         source_context,
@@ -1018,7 +1018,7 @@ def maybe_handle_direct_workspace_runtime_request(
         if dropped:
             response = (
                 f"{response}\n\nRead the first {_MAX_NAMED_READ_FILES} files named here. "
-                f"Not read: {', '.join(f'`{name}`' for name in dropped)} — ask again for those."
+                f"Not read: {', '.join(dropped)} — ask again for those."
             )
         return agent._fast_path_result(
             session_id=session_id,
@@ -3441,10 +3441,10 @@ def ui_command_fast_path(normalized_input: str, *, source_surface: str) -> str |
         # An absolute path, not a command. Leave the turn to the lanes that can actually read it.
         return None
     if phrase in {"/new", "/new-session", "/new_session", "/clear", "/reset"}:
-        return "New session: use the `+ New` button in the chat sidebar. Slash `/new` is not a wired command in this runtime."
+        return "To start a new session, use the + New button in the chat sidebar — that slash shortcut doesn't work here."
     if phrase in {"/trace", "/rail", "/task-rail"}:
-        return "Open the live trace rail at `http://127.0.0.1:11435/trace`."
-    return "That slash command is not wired here. Use plain language, the `New session` button, or open `http://127.0.0.1:11435/trace` for the runtime rail."
+        return "That shortcut doesn't open anything by itself. Ask me what I just did and I'll tell you here in the chat."
+    return "That shortcut doesn't work here. Just write what you want in plain words, or use the New session button to start fresh."
 
 
 def startup_sequence_fast_path(user_input: str) -> str | None:

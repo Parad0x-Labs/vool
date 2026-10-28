@@ -274,14 +274,16 @@ def test_a_failed_fetch_says_why_and_not_just_that_it_failed() -> None:
             details={"observation": {"error": "<urlopen error nodename nor servname provided>"}},
         ),
     ):
-        reply = str(
-            fast_paths_web.maybe_handle_url_read(
-                _Agent(), "load https://nope.invalid and tell me what came back",
-                session_id="t", source_context={},
-            )["response"]
+        result = fast_paths_web.maybe_handle_url_read(
+            _Agent(), "load https://nope.invalid and tell me what came back",
+            session_id="t", source_context={},
         )
-    assert "nodename nor servname" in reply
+    reply = str(result["response"])
+    assert "could not open" in reply and "did not load" in reply
     assert reply.strip() != "I could not fetch `https://nope.invalid`: error."
+    # the real cause rides in the record, never as raw exception words in the reply
+    assert "nodename nor servname" not in reply
+    assert "nodename nor servname" in str(result["details"])
 
 
 def test_an_http_status_reaches_the_user_when_that_is_all_there_is() -> None:
@@ -297,13 +299,14 @@ def test_an_http_status_reaches_the_user_when_that_is_all_there_is() -> None:
             details={"observation": {"http_status": 503}},
         ),
     ):
-        reply = str(
-            fast_paths_web.maybe_handle_url_read(
-                _Agent(), "open https://example.com and show me the content",
-                session_id="t", source_context={},
-            )["response"]
+        result = fast_paths_web.maybe_handle_url_read(
+            _Agent(), "open https://example.com and show me the content",
+            session_id="t", source_context={},
         )
-    assert "503" in reply
+    reply = str(result["response"])
+    assert "could not open" in reply
+    assert "503" not in reply
+    assert "503" in str(result["details"])
 
 
 def test_a_fetch_through_the_runtime_tool_counts_as_a_fetch_attempt(enable_web) -> None:

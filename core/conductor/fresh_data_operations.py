@@ -7,6 +7,7 @@ absence is a structured unavailable result, never a workspace search and never m
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
@@ -281,9 +282,13 @@ def _place_run(node: ConductorNode, ctx: NodeContext) -> dict[str, Any]:
         try:
             report = provider.search(request, timeout_s=ctx.timeout_s)
         except Exception as exc:
+            # The raw error line stays in the log; only plain words ever reach the reader.
+            logging.getLogger(__name__).warning(
+                "place search failed for %s near %s: %s", request.service, request.location, exc
+            )
             report = unavailable_place_search(
                 request,
-                f"{type(exc).__name__}: {exc}"[:200],
+                "the search service failed before answering",
                 source=str(getattr(provider, "name", type(provider).__name__)),
             )
     if not isinstance(report, PlaceSearchReport):
@@ -314,8 +319,10 @@ def _place_render(node: ConductorNode, result: Mapping[str, Any]) -> str:
             "verify details before travelling."
         )
         return "\n".join(rendered)
+    # The failure reason is authored in plain words at its source (raw error lines are logged,
+    # never stored here), so it is safe to show.
     reason = str(result.get("failure_reason") or "no matching places were returned")
-    return f"{service} near {location}: unavailable — {reason}. No local result was invented."
+    return f"{service} near {location}: I couldn't get results — {reason}. No local result was invented."
 
 
 def _research_expand(request_text: str) -> list[dict[str, Any]]:

@@ -234,8 +234,8 @@ _HONEST_NO_PERSISTENCE_RESPONSE = (
 )
 
 _HONEST_NO_DELIVERABLE_RESPONSE = (
-    "I cannot verify that file from this turn's execution record. "
-    "I do not have matching evidence or a verified download to offer."
+    "I didn't make that file — nothing wrote it this turn. Ask me again and I'll either make it "
+    "for real or tell you plainly that I can't."
 )
 
 _HONEST_NO_BUILD_RESPONSE = (

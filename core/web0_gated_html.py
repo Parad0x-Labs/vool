@@ -318,7 +318,7 @@ def render_gated_block_html(block: GatedBlock) -> str:
         }})
       }});
     }} catch (error) {{
-      setStatus("VOOL gate is unreachable.");
+      setStatus("VOOL's unlock check could not be reached. Check your connection and try again.");
       return;
     }}
     const result = await response.json().catch(() => ({{ error: "invalid_gate_response" }}));
