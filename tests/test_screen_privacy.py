@@ -228,3 +228,18 @@ def test_browser_masks_live_restores_and_leaves_typing_alone(mac_identity):
             assert page.get_attribute("#probe", "title") == real
         finally:
             browser.close()
+
+
+def test_a_page_served_to_another_device_carries_no_names(identity):
+    """The rules hold this machine's names. A page on another device (a phone browser on the
+    LAN) is another screen: with the switch on it still gets no names, while this computer does."""
+    _prefs_post({"hide_name_on_screen": True})
+    for path in ("/chat", "/settings", "/setup", "/trace"):
+        remote = _get(path, client_host="192.168.1.20")
+        assert remote.status == 200, path
+        page = remote.body.decode().lower()
+        assert "rivermaple" not in page and "river maple" not in page and "rivers-macbook" not in page, path
+        assert 'window.__vool_screen_privacy__={"enabled": false, "rules": []}' in page, path
+        assert "rivermaple" in _get(path).body.decode().lower(), path
+    # A render outside any request says nothing about who sees it: no names either.
+    assert "rivermaple" not in screen_privacy.inject("<head></head>").lower()

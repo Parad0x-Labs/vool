@@ -20,6 +20,8 @@ Failure posture: the mask only ever hides. A name it cannot read (no account dat
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import functools
 import getpass
 import json
@@ -193,6 +195,28 @@ def config() -> dict[str, Any]:
     if not enabled():
         return {"enabled": False, "rules": []}
     return {"enabled": True, "rules": rules()}
+
+
+# Whether the page being rendered goes to this computer. Unset (a render outside a request, or
+# a caller that never said) reads as "not this computer": the page then carries no names.
+_PAGE_FOR_OWNER: contextvars.ContextVar[bool] = contextvars.ContextVar("vool_screen_privacy_owner", default=False)
+
+
+@contextlib.contextmanager
+def page_peer(is_owner: bool):
+    token = _PAGE_FOR_OWNER.set(bool(is_owner))
+    try:
+        yield
+    finally:
+        _PAGE_FOR_OWNER.reset(token)
+
+
+def page_config() -> dict[str, Any]:
+    """What a page may carry: the names only when it is served to this computer. A page on
+    another device (a phone browser on the LAN) is another screen, and gets no names."""
+    if not _PAGE_FOR_OWNER.get():
+        return {"enabled": False, "rules": []}
+    return config()
 
 
 def _compiled(rule_set: list[dict[str, str]]):
@@ -446,7 +470,7 @@ SCRIPT = r"""
 
 
 def head_snippet(cfg: dict[str, Any] | None = None) -> str:
-    cfg = config() if cfg is None else cfg
+    cfg = page_config() if cfg is None else cfg
     data = json.dumps(cfg, ensure_ascii=True).replace("<", "\\u003c")
     return f"<script data-vool-screen-privacy>window.__VOOL_SCREEN_PRIVACY__={data};</script><script data-vool-screen-privacy>{SCRIPT}</script>"
 
