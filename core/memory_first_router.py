@@ -2829,6 +2829,11 @@ class MemoryFirstRouter:
                     nonlocal call_id, call_started
                     call_id = _note_attempt()
                     call_started = active_monotonic()
+                    # The privacy meter: bytes of this request that leave the machine (a local
+                    # manifest records nothing). Observation only; it cannot raise.
+                    from core.privacy_meter import note_model_call
+
+                    note_model_call(manifest, task_request)
 
                 task_request.metadata.pop("request_evidence_finalized", None)
                 try:

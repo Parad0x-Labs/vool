@@ -603,3 +603,32 @@ def test_the_loop_never_repeats_a_failed_call(home):
     assert result.steps[1]["status"] == "repeated_failure"
     assert brain.seen[2][-1]["content"].endswith(REPEAT_NOTICE)
     assert all("think_ms" in step for step in result.steps)
+
+
+def test_the_privacy_meter_counts_only_what_leaves(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from core import privacy_meter
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "vool-home"))
+    monkeypatch.setattr(privacy_meter, "_path", lambda: tmp_path / "vool-home" / "privacy-meter.json")
+    local = SimpleNamespace(source_type="http", runtime_config={"base_url": "http://127.0.0.1:11434"}, metadata={}, provider_id="ollama")
+    cloud = SimpleNamespace(source_type="http", runtime_config={"base_url": "https://api.example.com"}, metadata={}, provider_id="cloudco")
+    request = SimpleNamespace(system_prompt="sys", prompt="hello", messages=[{"role": "user", "content": "héllo"}])
+    privacy_meter.note_model_call(local, request)
+    assert privacy_meter.today()["bytes"] == 0
+    assert privacy_meter.plain_line() == "Today nothing you wrote was sent to online AI models."
+    privacy_meter.note_model_call(cloud, request)
+    state = privacy_meter.today()
+    assert state["bytes"] == len("sys") + len("hello") + len("héllo".encode("utf-8")) and state["calls"] == 1
+    assert "cloudco" in privacy_meter.plain_line(state)
+
+
+def test_the_privacy_tool_answers_from_the_local_meter(home, monkeypatch):
+    from core import privacy_meter
+
+    monkeypatch.setattr(privacy_meter, "today", lambda: {"day": "x", "bytes": 0, "calls": 0, "providers": {}})
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("privacy").run({}, ctx)
+    assert outcome.text == "Today nothing you wrote was sent to online AI models."
+    assert route.asks_about_own_files_or_computer("did anything leave my computer today?")

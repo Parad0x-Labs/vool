@@ -479,6 +479,24 @@ def processes(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     return _call(ctx, "machine.list_processes", {"sort": sort, "limit": 15})
 
 
+def privacy(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
+    """What left this computer for online AI models today. Read locally; nothing is sent to find out."""
+    from core import privacy_meter
+
+    state = privacy_meter.today()
+    ctx.receipts.append(
+        {
+            "tool_name": "privacy_meter.today",
+            "mode": "tool_executed",
+            "status": "executed",
+            "execution": {"executed": True, "ok": True, "status": "executed"},
+            "lane": "clean_local_loop",
+            "response_preview": privacy_meter.plain_line(state),
+        }
+    )
+    return ToolOutcome(text=privacy_meter.plain_line(state), ok=True, intents=("privacy_meter.today",))
+
+
 def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     """Never executes. With `ops` the change is rehearsed on a copy and the owner sees exactly what
     will happen; it waits for their yes either way, and the loop's answer says so."""
@@ -539,6 +557,7 @@ BUILTIN_TOOLS = (
     ("disk_usage", '{"tool": "disk_usage"}  how full the disk is', disk_usage),
     ("system_info", '{"tool": "system_info"}  computer specs: model, chip, memory, disk', system_info),
     ("processes", '{"tool": "processes", "sort": "cpu"}  what is running now, by cpu or memory', processes),
+    ("privacy", '{"tool": "privacy"}  how much of the owner\'s text left this computer for online AI models today', privacy),
     ("propose_change", '{"tool": "propose_change", "what": "...", "ops": [{"op": "mkdir", "path": "Desktop/Screenshots"}, '
      '{"op": "move", "src": "Desktop/Screenshot*", "dst": "Desktop/Screenshots/"}, {"op": "write", "path": "Desktop/list.txt", '
      '"text": "..."}]}  show the owner a change (new folder, move, rename, new file) to approve; it is undoable', propose_change),

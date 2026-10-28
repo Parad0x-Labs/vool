@@ -59,7 +59,8 @@ _TOPIC_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|"
     r"videos?|movies?|music|songs?|notes?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
     r"tickets?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|"
-    r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp)\b",
+    r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp|"
+    r"privacy|private|left\s+(?:this|my)\s+(?:computer|mac|laptop|machine)|sent\s+to\s+the\s+cloud)\b",
     re.I,
 )
 # The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
