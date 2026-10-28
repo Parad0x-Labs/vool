@@ -501,3 +501,105 @@ def test_reads_reach_a_lifecycle_opened_after_the_loop():
     record = gl.lifecycle_for_context(context)
     assert record is not None
     assert any("Google Chrome" in str(row.get("summary")) for row in record.typed_observations)
+
+
+# --- what the tools hand the model (Fable consult, 2026-10-28) ----------------------------------
+
+
+def test_a_listing_shows_size_and_age_on_every_line(home):
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("list_dir").run({"path": "Downloads"}, ctx)
+    line = next(l for l in outcome.text.splitlines() if "plumber_invoice.txt" in l)
+    assert "bytes" in line and "modified 20" in line and "today" in line, line
+    assert ctx.receipts[-1]["response_preview"] == outcome.text[:1800]
+
+
+def test_find_lines_carry_size_and_age(home):
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("find").run({"query": "plumber"}, ctx)
+    line = next(l for l in outcome.text.splitlines() if "plumber_invoice.txt" in l)
+    assert "modified" in line, line
+
+
+def test_find_looks_inside_documents_when_no_name_matches(home):
+    (home / "Downloads" / "invoice_4471.txt").write_text("Dalkey Plumbing\nTotal due: EUR 260.00\n", encoding="utf-8")
+    (home / "Documents" / "notes.md").write_text("nothing relevant here\n", encoding="utf-8")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("find").run({"query": "dalkey"}, ctx)
+    assert outcome.ok, outcome.text
+    assert "invoice_4471.txt" in outcome.text and "Dalkey Plumbing" in outcome.text
+    read = [r for r in ctx.receipts if r["tool_name"] == "machine.read_file"]
+    assert read and all("notes.md" not in r["response_preview"] for r in read)
+    assert all("nothing relevant" not in r["response_preview"] for r in ctx.receipts)
+
+
+def test_find_says_what_to_try_when_nothing_matches(home):
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("find").run({"query": "zebra"}, ctx)
+    assert "nothing found for: zebra" in outcome.text and "Try another word" in outcome.text
+
+
+def test_largest_shows_real_sizes_and_no_delete_advice(home):
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    (home / "Downloads" / "trailer.mov").write_bytes(b"x" * 2_500_000)
+
+    def execute(intent, arguments, **_kwargs):
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=(
+                f"Largest files on {home}/Downloads (measured, largest first):\n"
+                f"- {home}/Downloads/trailer.mov — 0.0 GB [file] · review before deleting\n"
+                "I won't delete anything without your explicit go-ahead on a specific path."
+            ),
+        )
+
+    ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
+    outcome = _registry().tool("largest").run({"path": "Downloads"}, ctx)
+    assert "trailer.mov (2.4 MB, modified" in outcome.text, outcome.text
+    assert "0.0 GB" not in outcome.text and "delet" not in outcome.text.lower()
+
+
+def test_a_tool_fault_names_the_real_error(home):
+    def execute(intent, arguments, **_kwargs):
+        raise TypeError("is_dir() got an unexpected keyword argument 'follow_symlinks'")
+
+    ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
+    outcome = _registry().tool("disk_usage").run({}, ctx)
+    assert "TypeError: is_dir() got an unexpected keyword argument" in outcome.text
+
+
+def test_the_loop_asks_once_to_look_before_answering(home):
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    brain = _scripted(
+        [
+            '{"answer": "Plumbers usually charge about 100 euro."}',
+            '{"tool": "read_file", "path": "Downloads/plumber_invoice.txt"}',
+            '{"answer": "You owe EUR 140.00."}',
+        ]
+    )
+    from core.clean_loop.loop import LOOK_FIRST_NUDGE
+
+    result = run_loop("how much do i owe the plumber?", brain=brain, registry=_registry(), ctx=ctx)
+    assert result.answer == "You owe EUR 140.00."
+    assert brain.seen[1][-1]["content"] == LOOK_FIRST_NUDGE
+    general = run_loop("hi", brain=_scripted(['{"answer": "Hello!"}']), registry=_registry(), ctx=ctx)
+    assert general.answer == "Hello!" and general.model_calls == 2
+
+
+def test_the_loop_never_repeats_a_failed_call(home):
+    calls = []
+
+    def execute(intent, arguments, **_kwargs):
+        calls.append(intent)
+        raise TypeError("boom")
+
+    ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
+    brain = _scripted(['{"tool": "disk_usage"}', '{"tool": "disk_usage"}', '{"answer": "I could not check the disk."}'])
+    from core.clean_loop.loop import REPEAT_NOTICE
+
+    result = run_loop("is my disk full?", brain=brain, registry=_registry(), ctx=ctx)
+    assert calls == ["machine.disk_usage"]
+    assert result.steps[1]["status"] == "repeated_failure"
+    assert brain.seen[2][-1]["content"].endswith(REPEAT_NOTICE)
+    assert all("think_ms" in step for step in result.steps)

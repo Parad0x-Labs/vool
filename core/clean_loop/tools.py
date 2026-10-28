@@ -12,8 +12,11 @@ Nothing here writes, moves or deletes. `propose_change` records a pending propos
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
+import stat
+import time
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +31,9 @@ _STOP = frozenset(
         "folders", "doc", "docs", "document", "documents",
     }
 )
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class OutsideHome(ValueError):
@@ -77,8 +83,9 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
     try:
         result = execute(intent, arguments, task_id=ctx.task_id, source_context=ctx.source_context)
     except Exception as exc:  # a tool fault is evidence for the model, never a crash of the turn
+        _LOG.exception("clean loop: %s failed", intent)
         result = None
-        status, ok, text = "error", False, f"that did not work ({type(exc).__name__})"
+        status, ok, text = "error", False, f"that did not work ({error_text(exc, ctx.home)})"
     else:
         if result is None:
             status, ok, text = "unsupported", False, "that is not available on this computer"
@@ -103,6 +110,73 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
         }
     )
     return ToolOutcome(text=plain or "(empty)", ok=ok, status=status, intents=(intent,))
+
+
+def error_text(exc: BaseException, home: Path) -> str:
+    """The real reason, short and home-relative: "TypeError" alone gave the model nothing to fix (F25)."""
+    detail = " ".join(str(exc).split())[:200]
+    return _plain(f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__, home)
+
+
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("bytes", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{int(value)} bytes" if unit == "bytes" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
+
+
+def _age(mtime: float, now: float) -> str:
+    days = int(max(0.0, now - mtime) // 86400)
+    when = time.strftime("%Y-%m-%d", time.localtime(mtime))
+    ago = "today" if days == 0 else ("yesterday" if days == 1 else f"{days} days ago")
+    return f"modified {when}, {ago}"
+
+
+def describe(path: Path, home: Path, *, now: float | None = None) -> str:
+    """ "1.2 MB, modified 2026-10-20, 8 days ago" for a path inside home; "" when it cannot be seen.
+
+    Size and age come from the entry itself (never through a link), and only for names a tool has
+    already shown: the plain loop's listings carry both, and without them "the newest" and "the
+    biggest" were guesses (Mac audit F18, F19, F49)."""
+    try:
+        full = Path(os.path.abspath(path))
+        if full != home and home not in full.parents:
+            return ""
+        info = full.lstat()
+    except (OSError, ValueError):
+        return ""
+    now = time.time() if now is None else now
+    if stat.S_ISDIR(info.st_mode):
+        return "folder, " + _age(info.st_mtime, now)
+    if not stat.S_ISREG(info.st_mode):
+        return ""
+    return f"{_human_size(info.st_size)}, {_age(info.st_mtime, now)}"
+
+
+def _annotate(text: str, resolve, home: Path) -> str:
+    """Append size and age to each "- name" line whose entry `resolve` can place inside home."""
+    out = []
+    for line in str(text or "").splitlines():
+        if line.startswith("- "):
+            name = line[2:].strip()
+            try:
+                about = describe(resolve(name.rstrip("/")), home)
+            except Exception:
+                about = ""
+            if about:
+                line = f"{line} ({about})"
+        out.append(line)
+    return "\n".join(out)
+
+
+def _home_path(label: str, home: Path) -> Path:
+    label = label.strip()
+    if label.startswith("~/"):
+        return home / label[2:]
+    candidate = Path(label)
+    return candidate if candidate.is_absolute() else home / candidate
 
 
 def _merge(outcomes: list[ToolOutcome], text: str) -> ToolOutcome:
@@ -199,20 +273,37 @@ def list_dir(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     if target != ctx.home and not target.is_dir():
         resolved = _resolve_folder(target, ctx)
         if resolved is not None:
-            outcome = _call(ctx, "machine.list_directory", {"path": str(resolved)})
+            outcome = _listing(ctx, resolved)
             label = _plain(str(resolved), ctx.home)
             return ToolOutcome(text=f"(that folder is {label})\n{outcome.text}", ok=outcome.ok,
                                status=outcome.status, intents=outcome.intents)
     if target == ctx.home:
         parts, outcomes = [], []
         for root in _safe_roots(ctx):
-            outcome = _call(ctx, "machine.list_directory", {"path": str(root)})
+            outcome = _listing(ctx, root)
             outcomes.append(outcome)
             parts.append(f"[{root.name}]\n{outcome.text[:1200]}")
         if not outcomes:
             return ToolOutcome(text="no readable folders in your home", ok=False, status="no_results")
         return _merge(outcomes, "\n\n".join(parts))
-    return _call(ctx, "machine.list_directory", {"path": str(target)})
+    return _listing(ctx, target)
+
+
+def _listing(ctx: ToolContext, folder: Path) -> ToolOutcome:
+    """One folder's listing with size and age on every line, the way the plain loop shows it."""
+    return _annotated(ctx, "machine.list_directory", {"path": str(folder)}, lambda name: folder / name)
+
+
+def _annotated(ctx: ToolContext, intent: str, arguments: dict[str, Any], resolve) -> ToolOutcome:
+    """`_call`, with size and age added to the "- name" lines before the model (and the receipt) sees them."""
+    before = len(ctx.receipts)
+    outcome = _call(ctx, intent, arguments)
+    if not outcome.ok:
+        return outcome
+    text = _annotate(outcome.text, resolve, ctx.home)
+    for receipt in ctx.receipts[before:]:
+        receipt["response_preview"] = text[:1800]
+    return ToolOutcome(text=text, ok=outcome.ok, status=outcome.status, intents=outcome.intents)
 
 
 def _query_words(query: str) -> list[str]:
@@ -228,7 +319,10 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     words = _query_words(args.get("query") or args.get("name") or "")
     if not words:
         return ToolOutcome(text="tell me a word from the file name to look for", ok=False, status="missing_argument")
-    outcomes = [_call(ctx, "machine.find_file", {"name": word}) for word in words]
+    outcomes = [
+        _annotated(ctx, "machine.find_file", {"name": word}, lambda label: _home_path(label, ctx.home))
+        for word in words
+    ]
     hits: list[str] = []
     for outcome in outcomes:
         for line in outcome.text.splitlines():
@@ -236,7 +330,74 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
                 hits.append(line)
     if hits:
         return _merge(outcomes, "\n".join(hits[:20]))
-    return _merge(outcomes, "nothing found for: " + ", ".join(words))
+    inside = _find_in_text(words, ctx)
+    if inside:
+        lines = [f"no file name has {', '.join(words)}; these files mention it inside:", *inside]
+        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines))
+    return _merge(outcomes, "nothing found for: " + ", ".join(words)
+                  + ". Try another word the owner used, a folder name, or list_dir on Downloads or Documents.")
+
+
+_TEXT_SUFFIXES = frozenset({".txt", ".md", ".csv", ".pdf", ".json", ".eml", ".ics", ".html", ".rtf", ".log"})
+_TEXT_MAX_BYTES = 2 * 1024 * 1024
+_TEXT_MAX_FILES = 25
+
+
+def _text_candidates(ctx: ToolContext) -> list[Path]:
+    """Document-like files in the readable folders, newest first: no links, no hidden entries, bounded."""
+    found: list[tuple[float, Path]] = []
+    frontier, seen = _readable_dirs(ctx), 0
+    for _depth in range(_RESOLVE_DEPTH):
+        nxt: list[Path] = []
+        for folder in frontier:
+            try:
+                entries = list(folder.iterdir())
+            except OSError:
+                continue
+            for entry in entries:
+                seen += 1
+                if seen > _RESOLVE_ENTRIES:
+                    break
+                try:
+                    if entry.name.startswith(".") or entry.is_symlink():
+                        continue
+                    if entry.is_dir():
+                        nxt.append(entry)
+                    elif entry.suffix.lower() in _TEXT_SUFFIXES:
+                        info = entry.stat()
+                        if info.st_size <= _TEXT_MAX_BYTES:
+                            found.append((info.st_mtime, entry))
+                except OSError:
+                    continue
+        frontier = nxt
+    return [path for _mtime, path in sorted(found, key=lambda item: -item[0])[:_TEXT_MAX_FILES]]
+
+
+def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
+    """No name matched: look inside the owner's documents, through the same read tools ("plumber" is
+    in invoice_4471.pdf, never in its name: Mac audit F08). Best match first, with the line it is on."""
+    scored: list[tuple[int, str]] = []
+    for path in _text_candidates(ctx):
+        before = len(ctx.receipts)
+        intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
+        arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
+        outcome = _call(ctx, intent, arguments)
+        if not outcome.ok:
+            continue
+        body = outcome.text.lower()
+        matched = [word for word in words if word in body]
+        if not matched:
+            # A read that matched nothing is not this turn's evidence about the ask.
+            del ctx.receipts[before:]
+            continue
+        at = body.find(matched[0])
+        start = outcome.text.rfind("\n", 0, at) + 1
+        end = outcome.text.find("\n", at)
+        snippet = " ".join(outcome.text[start: end if end != -1 else at + 160].split())[:160]
+        label = _plain(str(path), ctx.home)
+        about = describe(path, ctx.home)
+        scored.append((len(matched), f"- {label} ({about}): \"{snippet}\""))
+    return [line for _score, line in sorted(scored, key=lambda item: -item[0])[:5]]
 
 
 def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -271,7 +432,37 @@ def largest(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     if target != ctx.home and not target.is_dir():
         target = _resolve_folder(target, ctx) or target
     # The contract's argument is `drive` (a `path` key is refused as invalid_arguments).
-    return _call(ctx, "machine.find_largest", {"drive": str(target), "kind": "files"})
+    before = len(ctx.receipts)
+    outcome = _call(ctx, "machine.find_largest", {"drive": str(target), "kind": "files"})
+    if not outcome.ok:
+        return outcome
+    text = _largest_lines(outcome.text, target, ctx.home)
+    for receipt in ctx.receipts[before:]:
+        receipt["response_preview"] = text[:1800]
+    return ToolOutcome(text=text, ok=outcome.ok, status=outcome.status, intents=outcome.intents)
+
+
+_LARGEST_LINE = re.compile(r"^- (?P<name>.+?) — (?P<gb>[\d.]+) GB \[(?P<kind>[^\]]*)\](?P<partial>[^·]*)(?: · .*)?$")
+
+
+def _largest_lines(text: str, root: Path, home: Path) -> str:
+    """Real sizes ("0.0 GB" told the model nothing about a 2.5 MB video, F49) and no delete advice on a
+    read-only question (the model offered to delete a file, F27)."""
+    out = []
+    for line in str(text or "").splitlines():
+        if line.startswith("I won't delete anything"):
+            continue
+        match = _LARGEST_LINE.match(line)
+        if match:
+            name = match.group("name").strip()
+            path = _home_path(name, home)
+            if not path.exists():
+                path = root / name
+            about = describe(path, home)
+            partial = match.group("partial").rstrip()
+            line = f"- {name} ({about}){partial}" if about else f"- {name} — {match.group('gb')} GB{partial}"
+        out.append(line)
+    return "\n".join(out)
 
 
 def disk_usage(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -312,7 +503,7 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
 
 BUILTIN_TOOLS = (
     ("list_dir", '{"tool": "list_dir", "path": "Downloads"}  list a folder (path relative to home; "" = home)', list_dir),
-    ("find", '{"tool": "find", "query": "boarding"}  find files whose name contains the words', find),
+    ("find", '{"tool": "find", "query": "plumber invoice"}  find files by words in their name, or inside them', find),
     ("read_file", '{"tool": "read_file", "path": "Desktop/todo.txt"}  read a text, csv, md or pdf file', read_file),
     ("largest", '{"tool": "largest", "path": ""}  biggest files under a folder', largest),
     ("disk_usage", '{"tool": "disk_usage"}  how full the disk is', disk_usage),
