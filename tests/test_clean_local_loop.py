@@ -269,6 +269,21 @@ def test_the_folder_resolver_never_follows_a_link(home, tmp_path):
     assert _find_folders("lisbon", ctx) == []
 
 
+def test_the_folder_resolver_runs_on_python_3_12(home, tmp_path, monkeypatch):
+    # Path.is_dir takes no follow_symlinks before 3.13; the daemon ships on 3.12.
+    import os
+    import pathlib
+
+    monkeypatch.setattr(pathlib.Path, "is_dir", lambda self: os.path.isdir(self))
+    (home / "Pictures" / "Holiday Lisbon 2026").mkdir(parents=True)
+    (tmp_path / "outside" / "Secret Lisbon").mkdir(parents=True)
+    (home / "Documents" / "link").symlink_to(tmp_path / "outside")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    from core.clean_loop.tools import _find_folders
+
+    assert [p.name for p in _find_folders("lisbon", ctx)] == ["Holiday Lisbon 2026"]
+
+
 def test_processes_is_its_own_tool(home):
     ctx, calls = _recording_ctx(home)
     _registry().tool("processes").run({"sort": "cpu"}, ctx)

@@ -83,6 +83,22 @@ def test_a_pdf_search_never_follows_a_link_out_of_pictures(home, tmp_path):
     assert fast_paths_pdf._find_by_basename("taxes_link.pdf") is None
 
 
+def test_the_pdf_search_runs_on_python_3_12(home, tmp_path, monkeypatch):
+    # Path.is_dir takes no follow_symlinks before 3.13; the daemon ships on 3.12.
+    import os
+    import pathlib
+
+    from core.agent_runtime import fast_paths_pdf
+
+    monkeypatch.setattr(pathlib.Path, "is_dir", lambda self: os.path.isdir(self))
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "taxes.pdf").write_bytes(b"%PDF-1.4")
+    (home / "Pictures" / "Archive").symlink_to(tmp_path / "outside")
+    (home / "Pictures" / "Holiday Lisbon 2026" / "trip.pdf").write_bytes(b"%PDF-1.4")
+    assert fast_paths_pdf._find_by_basename("trip.pdf") is not None
+    assert fast_paths_pdf._find_by_basename("taxes.pdf") is None
+
+
 def test_a_media_folder_that_is_a_link_is_not_a_root(home, tmp_path):
     (home / "Music").rmdir()
     (home / "Music").symlink_to(tmp_path)

@@ -163,7 +163,7 @@ def _find_folders(name: str, ctx: ToolContext) -> list[Path]:
                 if seen > _RESOLVE_ENTRIES:
                     return hits
                 try:
-                    if entry.name.startswith(".") or not entry.is_dir(follow_symlinks=False):
+                    if entry.name.startswith(".") or entry.is_symlink() or not entry.is_dir():
                         continue
                 except OSError:
                     continue

@@ -193,7 +193,8 @@ def _find_by_basename(name: str) -> Path | None:
                     if (
                         not entry.name.startswith(".")
                         and entry.name.lower() not in _SEARCH_SKIP_DIRS
-                        and entry.is_dir(follow_symlinks=False)
+                        and not entry.is_symlink()
+                        and entry.is_dir()
                     ):
                         next_frontier.append(entry)
                 except OSError:
