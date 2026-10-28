@@ -375,6 +375,20 @@ def parse_note_request(text: str) -> dict[str, Any]:
     elif quoted and len(quoted) >= 2:
         body = quoted[1].strip()
     else:
+        # An "about ..."/"for ..." span holds the note's words only when it says more than a bare
+        # topic: a comma clause ("about the boiler service, it was 90 euros") or a longer clock-free
+        # phrase ("for the plumber visit on friday"). "about the meeting at 10:30" or "for the 9:15
+        # train" names a thing — and a clock to schedule it with — without giving any words, so the
+        # ask still comes back for them.
+        topic = (
+            re.search(r"\bnotes?\b(?:\s+down)?\s+about\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bnotes?\b(?:\s+down)?\s+for\s+(?!me\b|later\b)(.+)$", raw, re.IGNORECASE | re.DOTALL)
+        )
+        topic_body = ""
+        if topic:
+            span = topic.group(1).strip()
+            has_clock = re.search(r"(?<!\d)\d{1,2}:\d{2}(?!\d)", span) is not None
+            topic_body = span if ("," in span or len(span.split()) >= 4) and not has_clock else ""
         # The plain ways people say what a note holds: "save a note saying buy milk", "take a note: the boiler
         # is due", "note to self: call the bank", "write down a note that the key is under the mat".
         plain = (
@@ -402,19 +416,15 @@ def parse_note_request(text: str) -> dict[str, Any]:
             # "stick this in my notes - the gate code is 1199" (a spaced hyphen or any en/em dash).
             or re.search(r"\bnotes?\b[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
             or re.search(r"\b(?:this|that)\b(?:\s+one)?[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
-            # "add a note about the boiler service, it was 90 euros": "about" carries the words straight
-            # after the note, the same way "of" does ("keep a note of ...").
-            or re.search(r"\bnotes?\b(?:\s+down)?\s+about\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
-            # "put a note down for the plumber visit on friday": a "for" that is not the owner's own
-            # "for me"/"for later" waiting room names what the note is about.
-            or re.search(r"\bnotes?\b(?:\s+down)?\s+for\s+(?!me\b|later\b)(.+)$", raw, re.IGNORECASE | re.DOTALL)
             # "note down the gate code 1199" / "write down that the meter reads 4471": the phrasal verbs
             # whose words are the object itself; a note word after them belongs to the note-anchored
             # patterns above, not to this one.
-            or re.search(r"\b(?:note|write|jot)\s+down\s+(?!notes?\b)(?:(?:that|[-\u2013\u2014])\s*)?(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\b(?:note|write|jot)\s+down\s+(?!notes?\b)(?!(?:for|about)\b)(?:(?:that|[-\u2013\u2014])\s*)?(.+)$", raw, re.IGNORECASE | re.DOTALL)
         )
         if plain:
             body = plain.group(1).strip()
+        elif topic_body:
+            body = topic_body
     wants_schedule = bool(re.search(r"\b(?:and\s+)?(?:schedule|add\s+it\s+to\s+(?:the\s+)?calendar|put\s+it\s+on\s+(?:the\s+)?calendar|book\s+it)\b", raw, re.IGNORECASE))
     return {"title": title, "body": body, "wants_schedule": wants_schedule}
 
