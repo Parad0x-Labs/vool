@@ -342,8 +342,22 @@ _ASK_CUE_PREFIX_RE = re.compile(
 # What after the object makes the request carry note words: a that-clause, a colon separator
 # (read through the clock-colon guard), saying/says, or an of-phrase ("keep a note of my
 # prescriptions"). A destination alone ("put a note on the piano") or "keep in mind ..." names
-# no words to keep, so it is not a save.
-_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b|\bof\b", re.IGNORECASE)
+# no words to keep, so it is not a save. "of" carries the words only straight after the note:
+# later in the sentence it belongs to those words ("know it is out of tune"), never to the ask.
+_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b", re.IGNORECASE)
+_KEEP_NOTE_OF_RE = re.compile(r"^\s*of\b", re.IGNORECASE)
+# What the span between the note object and its first content cue may hold: nothing (the cue
+# follows the note), "for me"/"for later", or the notes store itself as the destination ("to
+# my notes app", "in my notebook", "on my workspace", "Apple Notes", "to myself"). Any other
+# thing in that span ("to the invoice", "on the piano", "in the email") is something the note
+# is added onto, and a note added onto another thing is not kept in the notes store.
+_KEEP_NOTE_STORE_PLACE_RE = re.compile(
+    r"for\s+(?:me|later)"
+    r"|(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)"
+    r"|(?:(?:to|in|into|inside|on)\s+)?apple\s+notes"
+    r"|to\s+(?:my)?self",
+    re.IGNORECASE,
+)
 
 
 def _note_ask_is_positioned(text: str, start: int) -> bool:
@@ -354,6 +368,31 @@ def _note_ask_is_positioned(text: str, start: int) -> bool:
     """
     prefix = re.split(r"[.!?\n]", text[:start])[-1]
     return _ASK_CUE_PREFIX_RE.fullmatch(prefix) is not None
+
+
+def _keep_note_cue_gap(after: str) -> str | None:
+    """The span between the note object and its FIRST content cue, or None when no cue comes.
+
+    The cue set is the one `_KEEP_NOTE_CONTENT_RE` searches anywhere (that-clause, say/says/
+    saying), the first non-clock colon (`_NOTE_WORDS_COLON_RE`), and "of" only straight after
+    the note (`_KEEP_NOTE_OF_RE`)."""
+    cue: int | None = None
+    words = _KEEP_NOTE_CONTENT_RE.search(after)
+    if words:
+        cue = words.start()
+    colon = _NOTE_WORDS_COLON_RE.match(after)
+    if colon and (cue is None or colon.end() - 1 < cue):
+        cue = colon.end() - 1
+    of = _KEEP_NOTE_OF_RE.match(after)
+    if of and (cue is None or of.start() < cue):
+        cue = of.start()
+    return None if cue is None else after[:cue]
+
+
+def _keep_note_gap_may_store(gap: str) -> bool:
+    """True when the span before the content cue holds only whitespace or a store place."""
+    place = gap.strip()
+    return not place or _KEEP_NOTE_STORE_PLACE_RE.fullmatch(place) is not None
 
 
 class _NoteSaveRecognizer:
@@ -371,12 +410,17 @@ class _NoteSaveRecognizer:
         for match in _KEEP_NOTE_RE.finditer(text):
             after = match.group("after")
             # The ask gate first (a statement or question about keeping is never a save), then
-            # the content cue, then the same person guard as the record verbs: a note TO a
-            # person is composed writing. "to my notes app" is a destination, not a person
-            # (`_NOT_A_PERSON`), so "add a note to my notes app that ..." stays a save.
+            # the content cue with the place it sits behind: the words may follow the note
+            # directly, wait behind "for me"/"for later", or sit behind the notes store itself
+            # as the destination — any other thing between the note and its words ("to the
+            # invoice", "on the piano") is a place the note is added onto, not a save. Then
+            # the same person guard as the record verbs: a note TO a person is composed
+            # writing. "to my notes app" is a destination, not a person (`_NOT_A_PERSON`),
+            # so "add a note to my notes app that ..." stays a save.
             if not _note_ask_is_positioned(text, match.start()):
                 continue
-            if not (_KEEP_NOTE_CONTENT_RE.search(after) or _NOTE_WORDS_COLON_RE.match(after)):
+            gap = _keep_note_cue_gap(after)
+            if gap is None or not _keep_note_gap_may_store(gap):
                 continue
             if _note_is_addressed(after):
                 continue
