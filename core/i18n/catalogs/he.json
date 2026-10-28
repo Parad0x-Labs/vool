@@ -3659,9 +3659,11 @@
     "xs.summary_unknown": "פעולה ב־X",
     "xs.unknown_state": "לא ברור אם זה נשלח. יש לבדוק ב־X לפני שמנסים שוב.",
     "web.off.tool_refusal": "חיפושים באינטרנט כבויים. אפשר להדביק את טקסט הכתבה, קישורים או הערות שתרצה שאשתמש בהם, ואעבוד מהם. כדי להפעיל: הגדרות > פרטיות והרשאות > חיפושים באינטרנט. (שורת פקודה: חיפוש באינטרנט הוא לבחירה; הפעל עם VOOL_ENABLE_WEB=1.)",
-    "x.not_connected.reply": "X עדיין לא מחובר. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. עד אז אני עדיין יכול לעזור לך לנסח פוסטים."
+    "x.not_connected.reply": "X עדיין לא מחובר. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. עד אז אני עדיין יכול לעזור לך לנסח פוסטים.",
+    "x.not_connected.post_draft": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. הנה הפוסט שלך כטיוטה שאפשר להעתיק ולפרסם בעצמך:",
+    "x.not_connected.post_ask": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. ספר לי מה הפוסט צריך לומר ואכתוב לך טיוטה להעתקה."
   },
-  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
+  "source_catalog_sha256": "66542c46b2c0108d010ae5e1df0dffd0e683bdf111798bc4f2943174842d6de0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

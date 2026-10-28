@@ -3659,9 +3659,11 @@
     "xs.summary_unknown": "Veiksmas X",
     "xs.unknown_state": "Neaišku, ar tai išsiųsta. Prieš bandydami dar kartą patikrinkite X.",
     "web.off.tool_refusal": "Interneto paieška išjungta. Galite įklijuoti straipsnio tekstą, nuorodas ar pastabas, kurias turėčiau naudoti, ir aš dirbsiu su jomis. Kad įjungtumėte: Nustatymai > Privatumas ir leidimai > Interneto paieška. (Komandinė eilutė: interneto paieška pasirenkama; įjunkite su VOOL_ENABLE_WEB=1.)",
-    "x.not_connected.reply": "X dar neprijungtas. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Kol kas vis tiek galiu padėti jums parengti įrašų juodraščius."
+    "x.not_connected.reply": "X dar neprijungtas. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Kol kas vis tiek galiu padėti jums parengti įrašų juodraščius.",
+    "x.not_connected.post_draft": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Štai jūsų įrašas kaip juodraštis, kurį galite nukopijuoti ir paskelbti patys:",
+    "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti."
   },
-  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
+  "source_catalog_sha256": "66542c46b2c0108d010ae5e1df0dffd0e683bdf111798bc4f2943174842d6de0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

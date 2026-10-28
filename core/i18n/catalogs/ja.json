@@ -3659,9 +3659,11 @@
     "xs.summary_unknown": "X の操作",
     "xs.unknown_state": "送信されたかどうか不明です。再試行する前に X を確認してください。",
     "web.off.tool_refusal": "ウェブ検索はオフです。使ってほしい記事の本文、リンク、メモを貼り付けてください。それをもとに作業します。オンにするには: 設定 > プライバシーと権限 > ウェブ検索。(コマンドライン: ウェブ検索は任意です。VOOL_ENABLE_WEB=1 で有効にします。)",
-    "x.not_connected.reply": "X はまだ接続されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。それまでの間も、投稿の下書きはお手伝いできます。"
+    "x.not_connected.reply": "X はまだ接続されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。それまでの間も、投稿の下書きはお手伝いできます。",
+    "x.not_connected.post_draft": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。コピーしてご自身で投稿できる下書きはこちらです:",
+    "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。"
   },
-  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
+  "source_catalog_sha256": "66542c46b2c0108d010ae5e1df0dffd0e683bdf111798bc4f2943174842d6de0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

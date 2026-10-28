@@ -3659,9 +3659,11 @@
     "xs.summary_unknown": "إجراء على X",
     "xs.unknown_state": "ليس واضحًا ما إذا كان هذا قد أُرسل. تحقق من X قبل المحاولة مرة أخرى.",
     "web.off.tool_refusal": "عمليات البحث في الويب متوقفة. يمكنك لصق نص المقال أو الروابط أو الملاحظات التي تريد أن أستخدمها، وسأعمل بها. لتشغيل البحث: الإعدادات > الخصوصية والأذونات > عمليات البحث في الويب. (سطر الأوامر: البحث في الويب اختياري؛ فعّله بـ VOOL_ENABLE_WEB=1.)",
-    "x.not_connected.reply": "لم يتم ربط X بعد. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. وحتى ذلك الحين، يمكنني مساعدتك في كتابة مسودات المنشورات."
+    "x.not_connected.reply": "لم يتم ربط X بعد. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. وحتى ذلك الحين، يمكنني مساعدتك في كتابة مسودات المنشورات.",
+    "x.not_connected.post_draft": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. هذا منشورك كمسودة يمكنك نسخها ونشرها بنفسك:",
+    "x.not_connected.post_ask": "لم يتم ربط X، لذلك لم يُنشر أي شيء. لربطه، افتح {settings} > {keys} > {x_row}، واختر {connect} واتبع الخطوات. أخبرني بما يجب أن يقوله المنشور وسأكتب لك مسودة لتنسخها."
   },
-  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
+  "source_catalog_sha256": "66542c46b2c0108d010ae5e1df0dffd0e683bdf111798bc4f2943174842d6de0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
