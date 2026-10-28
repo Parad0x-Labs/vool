@@ -79,6 +79,13 @@ _IN_RELATIVE_RE = re.compile(
     r"\bin\s+(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b",
     re.IGNORECASE,
 )
+# The same delay said in words, not digits: "in an hour" and "in half an hour" read like
+# "in 60 minutes" / "in 30 minutes". Only the hour ("in a week" is a day-word matter), and
+# an "and a half" after the hour names a different delay this reader does not guess at.
+_IN_WORDY_RELATIVE_RE = re.compile(
+    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?!\s+and\s+a\s+half\b)",
+    re.IGNORECASE,
+)
 # A calendar date in words: "5 November", "5th of Nov", "November 5th", with an optional year.
 # The day number must stand alone (not part of a clock time like "18:30" or a decimal), so
 # "may" or "march" next to a clock time is never a date.
@@ -238,19 +245,26 @@ def _parse_when_expression(
         return WhenResolution(ok=False, problem=str(exc))
 
     relative = _IN_RELATIVE_RE.search(text)
-    if relative:
-        value = float(relative.group(1))
-        unit = relative.group(2).lower()
-        if unit.startswith(("second", "sec")):
-            seconds = value
-        elif unit.startswith(("minute", "min")):
-            seconds = value * 60
-        elif unit.startswith(("hour", "hr", "h")):
-            seconds = value * 3600
-        elif unit.startswith(("day", "d")):
-            seconds = value * 86400
+    wordy = _IN_WORDY_RELATIVE_RE.search(text)
+    if relative or wordy:
+        if relative:
+            value = float(relative.group(1))
+            unit = relative.group(2).lower()
+            if unit.startswith(("second", "sec")):
+                seconds = value
+            elif unit.startswith(("minute", "min")):
+                seconds = value * 60
+            elif unit.startswith(("hour", "hr", "h")):
+                seconds = value * 3600
+            elif unit.startswith(("day", "d")):
+                seconds = value * 86400
+            else:
+                seconds = value * 7 * 86400
+            basis = relative.group(0)
         else:
-            seconds = value * 7 * 86400
+            # "in an hour" / "in half an hour": the word form of the same delay reading.
+            seconds = 1800.0 if wordy.group("half") else 3600.0
+            basis = wordy.group(0)
         if not math.isfinite(seconds) or seconds > MAX_FUTURE_DAYS * 86400:
             return WhenResolution(ok=False, problem="That is too far in the future to schedule reliably; give me a date within the next two years.")
         if seconds < 0:
@@ -262,7 +276,7 @@ def _parse_when_expression(
             due_at_utc=due.isoformat(),
             due_wall=due.astimezone(zone).isoformat(),
             tz_name=tz_name,
-            basis=relative.group(0),
+            basis=basis,
             kind="relative",
             details={"relative_seconds": delta.total_seconds()},
         )

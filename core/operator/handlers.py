@@ -1075,7 +1075,9 @@ _WHEN_TAIL_RE = re.compile(
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b.*"
     r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b.*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b.*"
+    r"|(?:half\s+)?an?\s+hours?\b.*"
     r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b.*"
+    r"|(?:at\s+)?(?:noon|midday|midnight)\b[\s.,;]*$"
     r")$",
     re.IGNORECASE | re.DOTALL,
 )
@@ -1091,6 +1093,7 @@ _LEADING_WHEN_RE = re.compile(
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b(?:\s+of\b)?[\s,]*"
     r"|20\d{2}\b[\s,]*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
+    r"|(?:half\s+)?an?\s+hours?\b[\s,]*"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
     r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"
     r"|(?:utc|gmt)(?:[+-]\d{1,2}(?::?\d{2})?)?\b[\s,]*"
@@ -1119,12 +1122,46 @@ _REMINDER_LEAD_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Job 6c (Fix 2): the part-of-day clock words the when-reader reads as absolute times
+#: ("at noon" is 12:00, "at midnight" 00:00). A LEAD pair of these words leaves the subject
+#: without its joiner: "could you ping me at noon about lunch with Kai" stores "about lunch
+#: with Kai" -- only the time words go, "about ..." is the thing to be reminded about. A
+#: following "to" goes with them ("remind me at noon to stretch" stores "stretch"), because
+#: that "to" only ever joins the when-lead to the thing to do.
+_PART_CLOCK_LEAD_RE = re.compile(
+    r"(?:at\s+)?(?:noon|midday|midnight)\b[\s,]*(?:to\s+)?",
+    re.IGNORECASE,
+)
+
+#: Job 6c (Fix 2): a weekday that carries the due time's clock leaves the subject TOGETHER
+#: with that clock, wherever the pair sits at the end of the ask: a bare "friday at 10" tail
+#: or a ", tuesday 9am" tail after a comma. The pair is the shape the when-reader reads as
+#: day-plus-time, so the strip is by shape, not by sentence. A bare weekday, with or without
+#: a part-of-day word, stays ("bins out thursday night" keeps its day), and the today-words
+#: keep Job 6b's reading ("the show tickets tomorrow at 10" stores "the show tickets
+#: tomorrow"); a "friday" that did not pair with a clock is a title word, not the schedule.
+#: The clock half needs its own time mark (am/pm, a colon, a decimal, o'clock, "at", or a
+#: part-clock word): a bare number after a weekday is not a clock the reader reads.
+_DAY_CLOCK_TAIL_RE = re.compile(
+    r"[\s,]+(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b\.?\s*,?\s*"
+    r"(?:"
+    r"\d{1,2}:\d{2}\s*(?:am|pm|a\.m\.|p\.m\.)?"
+    r"|\d{1,2}\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)"
+    r"|\d{1,2}\.\d{2}\s*(?:am|pm)?"
+    r"|at\s+\d{1,2}(?::\d{2})?(?:\s*(?:am|pm|o'?clock))?"
+    r"|(?:at\s+)?(?:noon|midday|midnight)"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
 
 def _reminder_note_from_text(text: str) -> str:
     """The reminder's SUBJECT: the thing to do, with every lead the seat accepts and the
-    when-clause stripped -- whether the when trails the subject ('to call mom at 5pm') or
-    leads it ('tomorrow at 9am to call mom') -- so the note never reads as the schedule or
-    as the ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
+    when-clause stripped -- whether the when trails the subject ('to call mom at 5pm'),
+    leads it ('tomorrow at 9am to call mom'), rides a weekday at the end ('send the
+    invoice friday at 10' stores 'send the invoice') or is said in words ('in an hour to
+    stand up' stores 'stand up') -- so the note never reads as the schedule or as the
+    ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
     raw = str(text or "").strip()
     lead = _REMINDER_LEAD_RE.match(raw)
     if lead:
@@ -1149,9 +1186,24 @@ def _reminder_note_from_text(text: str) -> str:
         rest = note[leading_clock.end():].strip()
         if rest:
             note = rest
+    part_clock = _PART_CLOCK_LEAD_RE.match(note)
+    if part_clock:
+        # A part-of-day clock that leads the subject ("at noon about lunch with Kai") is a
+        # time the reader already read; it leaves WITHOUT its joiner, so "about ..." stays.
+        rest = note[part_clock.end():].strip()
+        if rest:
+            note = rest
     leading = _LEADING_WHEN_RE.match(note)
     if leading:
         note = leading.group("note").strip()
+    day_clock = _DAY_CLOCK_TAIL_RE.search(note)
+    if day_clock:
+        # A weekday that carries the due time's clock ("send the invoice friday at 10",
+        # "renew parking permit, tuesday 9am") leaves WITH that clock, before the plain
+        # when-tail below could strand the day word in the subject.
+        stripped = note[: day_clock.start()].strip()
+        if stripped:
+            note = stripped
     tail = _WHEN_TAIL_RE.search(note)
     if tail:
         note = note[: tail.start()].strip()

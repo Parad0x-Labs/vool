@@ -537,3 +537,31 @@ def test_the_stored_subject_is_the_thing_to_do(clock, text, subject):
     assert result.ok, result.response_text
     [row] = _pending(session)
     assert row["note"] == subject, (text, row["note"])
+
+
+# ---------------------------------------------------------------------------
+# Job 6c: a wordy relative hour reads like the minute form
+# ---------------------------------------------------------------------------
+
+JOB6C_RELATIVE_ROWS = [
+    # "in an hour" / "in half an hour" read like "in 60 minutes" / "in 30 minutes".
+    ("can you nudge me in an hour to stand up", "2026-10-28T09:00"),
+    ("remind me in half an hour to check the oven", "2026-10-28T08:30"),
+    ("nudge me in an hour to stretch", "2026-10-28T09:00"),
+    ("ping me in an hour about the parcel", "2026-10-28T09:00"),
+    ("could you remind me in an hour to call mum", "2026-10-28T09:00"),
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", JOB6C_RELATIVE_ROWS)
+def test_a_wordy_relative_hour_reads_like_the_minute_form(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, reading.problem
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+
+
+def test_an_hour_and_a_half_is_not_yet_a_reading(clock):
+    # The wordy form covers the plain hour and half an hour only; the compound stays
+    # refused rather than misread, exactly as before Job 6c.
+    reading = _parse("remind me in an hour and a half to leave")
+    assert not reading.ok

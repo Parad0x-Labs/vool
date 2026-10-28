@@ -299,6 +299,18 @@ STORED_SUBJECTS = {
     "ping me tomorrow morning about the parcel": "the parcel",
     "don't let me forget to call mum on sunday at 6": "call mum",
     "make sure I remember to leave for the airport tomorrow at 7": "leave for the airport tomorrow",
+    # Job 6c: the time words that set the due time leave the subject -- a weekday paired
+    # with a clock (mid-sentence or tail, bare or after a comma), and a part-of-day clock
+    # lead. A bare relative day word still stays, as the rows above pin.
+    "make sure I remember to send the invoice friday at 10": "send the invoice",
+    "set me a reminder: renew parking permit, tuesday 9am": "renew parking permit",
+    "could you ping me at noon about lunch with Kai": "about lunch with Kai",
+    "remind me to call the garage wednesday at 2": "call the garage",
+    "ping me at midnight to let the dog out": "let the dog out",
+    "set a reminder: pay the cleaner, friday 10am": "pay the cleaner",
+    "nudge me thursday at 6 to water the plants": "water the plants",
+    "make sure I remember to file the report monday at 8": "file the report",
+    "I need a reminder to email sarah saturday at 11": "email sarah",
     "can you set me a reminder to take the bins out tomorrow at 7": "take the bins out tomorrow",
     "I need a reminder to book the dentist on monday at 9": "book the dentist",
     "set me a reminder for the gym at 7 tomorrow": "the gym",
