@@ -18,7 +18,10 @@ def looks_like_builder_request(lowered: str) -> bool:
     # opt-out, quoted-payload and per-sentence deliberation guards: a rider question after the
     # ask ("...for my cake shop. what do you think?") must not un-ask it, which is the same law
     # `imperative_build_sentences` applies to verb-led builds.
-    if build_request_intent.is_want_site_request(text):
+    if build_request_intent.is_want_site_request(str(lowered or "")):
+        # Passed the text as given, not the lowered copy: a named thing ("for Bea's Plant
+        # Corner") is read from the caller's own capitals when they are still there, and the
+        # detector also reads the lowered spelling on its own.
         return True
     # Discussing a build is not requesting one. This was the widest of the four detectors — a bare
     # `"build" in text` — so "lets discuss whether we should build an api", "how would you build a

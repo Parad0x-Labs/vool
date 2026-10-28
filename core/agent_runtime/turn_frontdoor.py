@@ -1786,6 +1786,22 @@ def handle_turn_frontdoor(
     if web0_builder_result is not None:
         return {"result": web0_builder_result}
 
+    # A follow-up about the one-page site the build lane wrote ("can i see it", "add our opening
+    # hours ...", "put it online"). Returns the same {"result": ...} shape this door returns, and
+    # claims nothing when the chat's workspace holds no built page (A1, 2026-10-28: the handler
+    # existed and was proven lane-locally but was never wired into the turn).
+    from core.agent_runtime.builder.site_followups import maybe_handle_site_followup
+
+    site_followup_result = (
+        None
+        if (model_owns_judgement or action_forbidden)
+        else maybe_handle_site_followup(
+            agent, effective_input, source_context=source_context, session_id=session_id
+        )
+    )
+    if site_followup_result is not None:
+        return site_followup_result
+
     ui_command = agent._ui_command_fast_path(normalized_input, source_surface=source_surface)
     if ui_command:
         return {

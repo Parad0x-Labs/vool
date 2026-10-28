@@ -87,6 +87,37 @@ _FOR_PHRASE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "for Bea's Plant Corner" -- a NAMED thing with no my/our/the: the name is the phrase itself, in
+# the person's own capitals. The words that only ever begin a sentence or a courtesy ("Now",
+# "Please") are not names, and one of them after "for" means no name was given.
+_FOR_NAMED_PHRASE_RE = re.compile(
+    r"\bfor\s+([A-Z][\w'’&.\-]*(?:\s+(?:and\s+|&\s+)?[A-Z][\w'’&.\-]*){0,3})"
+)
+_NAMED_PHRASE_STOP = frozenset(
+    {
+        "Me", "Us", "You", "Him", "Her", "Them", "It", "Now", "Today", "Tomorrow",
+        "Yesterday", "Please", "Pls", "Thanks", "Thank", "Cheers", "Free", "Sale",
+        "Beginners", "Dummies", "Kids", "Children", "Home", "Work", "School", "Fun",
+        "One", "Two", "My", "Our", "The", "A", "An", "This", "That", "Their", "His",
+        "Her", "Your", "Christmas", "Easter", "News", "Yes", "No",
+    }
+)
+
+
+def _tail_proper_name(words: list[str]) -> list[str]:
+    """The trailing run of proper-name words in an owned thing: "my bakery Sugartree" ->
+    ["Sugartree"]. Empty when the whole thing is already the name ("Paws And Claws") -- then the
+    person's whole phrase is the name and nothing is split off."""
+    tail: list[str] = []
+    for word in reversed(words):
+        stripped = word.strip(_PUNCT)
+        if not stripped:
+            break
+        if not stripped[0].isupper() or stripped.lower() in _NAME_BOUNDARY_WORDS:
+            break
+        tail.insert(0, stripped)
+    return [] if len(tail) == len(words) else tail
+
 # What the person said they do or sell, in their own words. Three shapes, most specific first:
 # a "we sell ..." clause, a "that sells ..." clause attached to the thing, or a bare participle.
 _TAGLINE_RES = (
@@ -201,10 +232,22 @@ def _name_from(body: str) -> str:
         words = _trim_boundary_words(quoted.group(1).split())
         if words:
             return _capitalized(" ".join(words))
+    named = _FOR_NAMED_PHRASE_RE.search(body)
+    if named:
+        words = [word for word in named.group(1).split() if word.strip(_PUNCT)]
+        if words and words[0].strip(_PUNCT) not in _NAMED_PHRASE_STOP:
+            kept = _trim_boundary_words(words)
+            if kept:
+                return _capitalized(" ".join(kept))
     for_phrase = _FOR_PHRASE_RE.search(body)
     if for_phrase:
         words = _trim_boundary_words(for_phrase.group(2).split())
         if words:
+            # "for my bakery Sugartree" -- the owned thing carries its own proper name at the
+            # end, and that name is the shop's name; the common noun in front of it is not.
+            tail = _tail_proper_name(words)
+            if tail:
+                return _capitalized(" ".join(tail))
             return _capitalized(for_phrase.group(1) + " " + " ".join(words))
     return ""
 

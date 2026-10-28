@@ -589,7 +589,7 @@ def is_build_instruction(text: str, *, scope: str = "artifact") -> bool:
     if _supplies_payload_for_analysis(text):
         # The quoted/fenced payload is data under analysis, not a command to execute.
         return False
-    if scope == "project" and is_want_site_request(normalised):
+    if scope == "project" and is_want_site_request(text):
         # A plain-words site ask carries no build verb, so the verb-gated loop below scores it
         # False and the model-driven build lane was unreachable for it (measured 2026-10-27,
         # audit mailweb B01-B07: "id love a basic one page website for the bakery, can you do
@@ -700,14 +700,25 @@ _WANT_SITE_LEAD_RE = re.compile(
             r"i\s+need\b",
             r"i\s+wish\s+i\s+had\b",
             r"i['’]?m\s+after\b",
-            r"looking\s+for\b",
+            r"i\s+(?:could|can)\s+do\s+with\b",
             # Polite asks -- only the no-build-verb forms: "can you make a site" already carries
-            # a verb and the instruction arms above own it.
+            # a verb and the request arm below owns it.
             r"(?:can|could)\s+i\s+get\b",
             r"(?:can|could|would)\s+you\s+(?:do|get)\b",
         )
     )
     + r")\b"
+)
+# "looking for a website for <thing>" and "find me a website for ..." are searches for something
+# that already exists, not asks to make one (A1 review, 2026-10-28: the door must not open for
+# them). The marker stands the whole sentence down, whatever arm would otherwise claim it.
+_SITE_SEARCH_ASK_RE = re.compile(
+    r"\blooking\s+for\b"
+    r"|\blook(?:ing)?\s+around\s+for\b"
+    r"|\bfind\s+(?:me|us)\b"
+    r"|\bfind\s+(?:a|an|the|some)\b"
+    r"|\bsearch(?:ing|ed)?\s+for\b"
+    r"|\bsearch\s+the\s+web\b"
 )
 # The site nouns, longest first because alternation is first-match-wins and "website" contains
 # "site", "webpage"/"homepage" contain "page". Every branch is word-bounded on both sides, so
@@ -734,15 +745,84 @@ _WANT_SITE_NOUN_RE = re.compile(
     )
     + r")\b"
 )
-# "for my/our/the/this <anything>": the person's own thing, whatever it is called. Any word is
-# accepted on purpose; enumerating businesses is the hard-coding this module exists to prevent.
-_FOR_OWN_THING_RE = re.compile(r"\bfor\s+(?:my|our|the|this)\s+\w")
-
 # The shared deliberation law reads `\bcan i\b` as deliberative because "can we create a new
 # skill?" asks permission. "can i get a website for my bakery" is the politest form of a direct
 # request, and letting that one pattern veto it would make the whole polite-ask lead family
 # dead words in the lead list above.
 _POLITE_GET_ASK_RE = re.compile(r"\b(?:can|could)\s+i\s+get\b")
+
+# The making verbs of a site ask, as one shared family. The plain verbs (build, make, create,
+# design, set up) are already build verbs; the phrasal ones people actually say ("knock up a
+# quick site", "whip up a one-pager", "put together a landing page", "sort out a web page")
+# are in nobody's build vocabulary, so before A1 a request phrased with them opened no door at
+# all. A family, not the six visible phrases: the shape is "a verb that means make", and every
+# inflection is spelled out so `\bmake\b` cannot bleed into "makeshift". "write" is
+# deliberately absent: "write a page for the school magazine" asks for an article, and a
+# write-shaped site ask ("write me a one-pager") still opens through its noun and for-phrase
+# only when nothing about it is a document ask.
+_SITE_MAKING_PHRASES = (
+    r"builds?",
+    r"building",
+    r"built",
+    r"makes?(?!\s+(?:sure|do)\b)",
+    r"making",
+    r"made",
+    r"creates?",
+    r"creating",
+    r"created",
+    r"designs?",
+    r"designing",
+    r"designed",
+    r"sets?\s+up",
+    r"setting\s+up",
+    r"setup",
+    r"mocks?\s+up",
+    r"mocking\s+up",
+    r"mocked\s+up",
+    r"knocks?(?:\s+(?:me|us))?\s+up",
+    r"knocking\s+up",
+    r"knocked\s+up",
+    r"knocks?(?:\s+(?:me|us))?\s+out",
+    r"knocking\s+out",
+    r"knocked\s+out",
+    r"whips?(?:\s+(?:me|us))?\s+up",
+    r"whipping\s+up",
+    r"whipped\s+up",
+    r"bashes?\s+out",
+    r"bashing\s+out",
+    r"bashed\s+out",
+    r"spins?\s+up",
+    r"spinning\s+up",
+    r"spun\s+up",
+    r"sorts?\s+out",
+    r"sorting\s+out",
+    r"sorted\s+out",
+    r"puts?(?:\s+(?:me|us))?\s+together",
+    r"putting\s+together",
+    r"throws?(?:\s+(?:me|us))?\s+together",
+    r"throwing\s+together",
+    r"thrown\s+together",
+    r"pulls?\s+together",
+    r"pulling\s+together",
+    r"pulled\s+together",
+    r"cobbles?\s+together",
+    r"cobbling\s+together",
+    r"cobbled\s+together",
+    r"pieces?\s+together",
+    r"piecing\s+together",
+    r"pieced\s+together",
+    r"comes?\s+up\s+with",
+    r"coming\s+up\s+with",
+    r"came\s+up\s+with",
+)
+_SITE_MAKE_VERB_RE = re.compile(r"\b(?:" + "|".join(_SITE_MAKING_PHRASES) + r")\b")
+
+# Adverbs may sit between "to" and the making verb ("i want to quickly make a site for my
+# shop") or between a request lead and it ("can you just knock up ..."). Without this run the
+# making phrase had to be strictly adjacent to "to", and one adverb stood the whole ask down
+# (A1 review, 2026-10-28). -ly covers most English adverbs; the flat ones people sprinkle in
+# are listed beside them.
+_SITE_ADVERB_RUN = r"(?:(?:[a-z]+ly|just|really|very|quite|please|pls|kindly|well|now|then|first|also|even|only|fast|soon)\s+)*"
 
 # A want whose noun is separated from its lead by "to <verb>" is a want to DO something to a
 # thing that already exists: "i want to check the website for my bank" and "i want to look at
@@ -753,49 +833,183 @@ _POLITE_GET_ASK_RE = re.compile(r"\b(?:can|could)\s+i\s+get\b")
 # STRIPPED from the gap first, so any "to <word>" left standing is a doing word (or a second,
 # non-making "to ..." such as "to get TO the website") and vetoes the sentence.
 _WANT_SITE_MAKING_TO_RE = re.compile(
-    r"\bto\s+(?:"
-    + "|".join(
-        (
-            r"builds?|building|built",
-            r"makes?|making|made",
-            r"creates?|creating|created",
-            r"designs?|designing|designed",
-            r"sets?\s+up|setting\s+up|setup",
-            r"gets?|getting",
-            r"have|has|having|had",
-            r"owns?|owning|owned",
-            r"puts?\s+together|putting\s+together",
-        )
-    )
+    r"\bto\s+" + _SITE_ADVERB_RUN + r"(?:"
+    + "|".join(_SITE_MAKING_PHRASES + (
+        r"gets?",
+        r"getting",
+        r"have|has|having|had",
+        r"owns?|owning|owned",
+    ))
     + r")\b"
 )
 _TO_ANY_WORD_RE = re.compile(r"\bto\s+[a-z]")
 
+# A making verb in REQUEST position: at the head of a clause, after nothing more than a
+# politeness marker, a request lead, or an adverb. Mirrors the imperative-verb law above but
+# with the phrasal making family, so "please put together a one-pager for our choir", "can you
+# knock up a simple site for my ironing round" and "throw together a site for my record shop"
+# are the asks they are. A verb buried mid-clause ("the tool creation process") never matches.
+_SITE_REQUEST_LEAD = (
+    r"please|pls|kindly|ok(?:ay)?|now|then|so|also|next|first|finally|hi|hey|hello|"
+    r"go\s+ahead(?:\s+and)?|start(?:ing)?|begin|"
+    r"(?:can|could|would|will)\s+you|would\s+you\s+mind|"
+    r"i\s+(?:want|need)\s+you\s+to|i['’]?d\s+(?:love|like)\s+you\s+to|"
+    r"i\s+(?:want|need|would\s+like)\s+to|we\s+(?:need|want|have)\s+to|"
+    r"you\s+(?:can|should|could|must)|lets|let['’]s|and|but"
+)
+_SITE_REQUEST_VERB_RE = re.compile(
+    r"(?:^|[.;:,!?]|\bthen\b|\band\b)\s*"
+    r"(?:(?:" + _SITE_REQUEST_LEAD + r"|[a-z]+ly|just|really|very|quite|well)[\s,]+)*"
+    + _SITE_MAKE_VERB_RE.pattern
+)
+
+# A noun-led ask carrying its own politeness: "a website for my bakery, please" -- no lead, no
+# verb, just the deliverable named at the head of the sentence and a please. The words allowed
+# before the noun are the determiners and adjectives of a noun phrase, so a sentence whose
+# first words are a subject or a verb ("i ...", "is a website ... worth it") can never take
+# this shape, and a question mark is only tolerated at the very end ("... please?").
+_NOUN_LED_PRE_WORDS = frozenset(
+    {
+        "please", "pls", "a", "an", "one", "simple", "basic", "plain", "quick", "small",
+        "little", "nice", "tidy", "clean", "single", "short", "new", "fresh", "modest",
+        "decent", "proper", "lovely", "web", "page", "site", "landing",
+    }
+)
+# What may sit between the making verb and the site noun it is aimed at: an indirect object
+# ("knock me up a site"), a determiner and adjectives ("put together a simple one-pager"),
+# the site noun's own modifiers ("a web page"). Nothing else -- "sort out the problem with my
+# website" aims the verb at a PROBLEM, and the site noun hiding in the modifier must not turn
+# a fix-it ask into a make-one ask.
+_VERB_TO_NOUN_GAP_WORDS = _NOUN_LED_PRE_WORDS | {
+    "me", "us", "you", "some", "your", "their", "his", "her", "its", "just", "really",
+    "very",
+}
+_SITE_PLEASE_RE = re.compile(r"\b(?:please|pls|thank\s+you|thanks|cheers|ta)\b")
+_NOUN_LED_BLOCK_START_RE = re.compile(
+    r"^(?:is|are|am|was|were|be|do|does|did|can|could|would|should|will|shall|may|might|"
+    r"have|has|had|i|we|you|they|it|he|she|how|what|why|when|where|which|who|whether|"
+    r"lets|let)\b"
+)
+
+# "for Bea's Plant Corner" -- a NAMED thing, with no my/our/the. The shape works with or
+# without the original capitals: mid-sentence capitals are the surest name signal, but most
+# callers pass already-lowercased text, so the lowered reading accepts a phrase whose words are
+# none of the ordinary ones below AND that carries a name mark (an apostrophe as in "bea's") or
+# a word long enough that no function word reaches it. "for beginners", "for home use" and
+# "for sale" stay what they are: categories and states, not anybody's shop.
+_FOR_OWN_THING_RE = re.compile(r"\bfor\s+(?:my|our|the|this)\s+\w")
+_FOR_NAMED_THING_RE = re.compile(
+    r"\bfor\s+([a-z][\w'’&.-]*(?:\s+[a-z][\w'’&.-]*){0,3})"
+)
+_NAMED_THING_STOP = frozenset(
+    {
+        "a", "an", "the", "my", "our", "your", "their", "his", "her", "its", "this", "that",
+        "these", "those", "me", "us", "you", "him", "them", "it", "we", "i", "they", "he",
+        "she", "one", "two", "all", "any", "some", "no", "not", "now", "new", "old", "and",
+        "or", "but", "so", "as", "of", "to", "in", "on", "at", "by", "with", "from", "for",
+        "up", "out", "over", "under", "please", "pls", "thanks", "thank", "cheers", "ta",
+        "sale", "free", "rent", "hire", "beginners", "dummies", "kids", "children", "child",
+        "home", "work", "school", "fun", "personal", "small", "big", "large", "cheap", "quick",
+        "simple", "basic", "plain", "short", "long", "more", "less", "most", "own", "same",
+        "just", "only", "very", "really", "here", "there", "today", "tomorrow", "yesterday",
+        "everyone", "anybody", "somebody", "nobody", "people", "use", "using", "viewing",
+        "reading", "writing", "learning", "testing", "selling", "buying", "each", "other",
+        "another", "every", "both", "such", "than", "too", "also", "news", "info",
+        "information", "advice", "help", "ideas", "inspiration", "reference", "research",
+        "students", "teachers", "staff", "clients", "customers", "members", "friends",
+        "family", "local", "myself", "yourself", "sure",
+    }
+)
+_FOR_CAPITAL_NAME_RE = re.compile(
+    r"\bfor\s+([A-Z][\w'’&.-]*(?:\s+(?:and\s+|&\s+)?[A-Z][\w'’&.-]*){0,3})"
+)
+_CAPITAL_NAME_STOP = frozenset(
+    {
+        "Me", "Us", "You", "Him", "Her", "Them", "It", "Now", "Today", "Tomorrow",
+        "Yesterday", "Please", "Thanks", "Thank", "Free", "Sale", "Beginners", "Dummies",
+        "Kids", "Children", "Home", "Work", "School", "Fun", "One", "Two", "My", "Our",
+        "The", "A", "An", "This", "That", "Christmas", "Easter", "News", "Yes", "No",
+    }
+)
+
+
+def _named_thing_in(sentence: str, raw_sentence: str) -> bool:
+    """Whether the sentence names a proper thing after "for" -- "for Bea's Plant Corner"."""
+
+    match = _FOR_NAMED_THING_RE.search(sentence)
+    if match:
+        words = [w.strip(".,;:!?\"'") for w in match.group(1).split()]
+        words = [w for w in words if w]
+        if words and all(w not in _NAMED_THING_STOP for w in words):
+            if any("'" in w or "’" in w or len(w) >= 5 for w in words):
+                return True
+    capital = _FOR_CAPITAL_NAME_RE.search(raw_sentence)
+    if capital:
+        first = capital.group(1).split()[0].strip(".,;:!?\"'")
+        if first and first not in _CAPITAL_NAME_STOP:
+            return True
+    return False
+
+
+def _for_a_thing_of_their_own(sentence: str, raw_sentence: str) -> bool:
+    """"for my/our/the/this <thing>" (owned) or "for <proper name>" (named)."""
+
+    return bool(_FOR_OWN_THING_RE.search(sentence)) or _named_thing_in(sentence, raw_sentence)
+
+
+def _noun_led_please_ask(sentence: str) -> bool:
+    """A bare noun-led ask with its politeness attached: "a website for my bakery, please"."""
+
+    if not _SITE_PLEASE_RE.search(sentence):
+        return False
+    body = sentence.rstrip(" ?")
+    if "?" in body or _NOUN_LED_BLOCK_START_RE.match(sentence):
+        return False
+    noun = _WANT_SITE_NOUN_RE.search(sentence)
+    if not noun:
+        return False
+    lead_words = [w.strip(",") for w in sentence[: noun.start()].split() if w.strip(",")]
+    return len(lead_words) <= 5 and all(w in _NOUN_LED_PRE_WORDS for w in lead_words)
+
 
 def is_want_site_request(text: str) -> bool:
-    """True when one sentence asks, in plain words and with no build verb, for a simple site of
-    the operator's own.
+    """True when one sentence asks, in plain words, for a simple site of the operator's own.
 
-    Three parts, all inside ONE sentence, all required: a want lead ("id love", "i want",
-    "looking for", "can i get"), a site noun (website, homepage, landing page, one-pager, site,
-    bare "page"), and a for-own-thing phrase ("for my bakery", "for our bike repair co-op").
+    The SHAPE is the law, and a sentence may carry it three ways, always with a site noun
+    (website, homepage, landing page, one-pager, site, page) and a thing the site is for --
+    owned ("for my bakery") or named ("for Bea's Plant Corner"):
+
+    * a want with no making verb: a first-person lead ("id love", "i want", "im after",
+      "can i get") plus the deliverable. A non-making "to <verb>" between the lead and the
+      noun ("i want to check the website for my bank") is a want to DO something to an
+      existing site, not to have one, and vetoes the sentence.
+    * a making verb in request position -- any verb of the making family, phrasal ones
+      included ("knock up", "put together", "sort out", "whip up"), with adverbs allowed
+      before it ("i want to quickly make ...", "can you just throw together ...").
+    * a noun-led ask with please: "a website for my bakery, please".
+
     Asking how sites work, whether one is worth it, or what makes a good homepage is a
-    different sentence, and the shared deliberation law still vetoes it per sentence. A
-    non-making "to <verb>" between the lead and the noun ("i want to check the website for my
-    bank") is a want to DO something to an existing site, not to have one, and vetoes too.
-    Opt-outs and quoted payloads keep their existing authority, so this detector only ever
-    ADDS a claim for a sentence no existing arm could see; it never overrides a guard.
+    different sentence, and the shared deliberation law still vetoes it per sentence.
+    "looking for a website for ..." and "find me a website for ..." are searches and stand
+    down. Opt-outs and quoted payloads keep their existing authority, so this detector only
+    ever ADDS a claim for a sentence no existing arm could see; it never overrides a guard.
     """
 
-    normalised = _normalise(text)
+    raw = " ".join(str(text or "").split())
+    normalised = _normalise(raw)
     if not normalised:
         return False
     if is_opted_out(normalised):
         return False
-    if _supplies_payload_for_analysis(text):
+    if _supplies_payload_for_analysis(raw):
         # A pasted page or template quoted for review is data under analysis, not an ask for one.
         return False
-    for sentence in _sentences(normalised):
+    for raw_sentence in _sentences(raw):
+        sentence = _normalise(raw_sentence)
+        if not sentence:
+            continue
+        if _SITE_SEARCH_ASK_RE.search(sentence):
+            continue
         if _DELIBERATION_RE.search(sentence):
             if not _POLITE_GET_ASK_RE.search(sentence):
                 continue
@@ -804,17 +1018,31 @@ def is_want_site_request(text: str) -> bool:
             # website for my bakery, or should i build it myself?" stays a discussion.
             if _DELIBERATION_RE.search(_POLITE_GET_ASK_RE.sub(" ", sentence)):
                 continue
-        lead = _WANT_SITE_LEAD_RE.search(sentence)
         noun = _WANT_SITE_NOUN_RE.search(sentence)
-        if not (lead and noun and _FOR_OWN_THING_RE.search(sentence)):
+        if not noun:
             continue
-        # Everything between the lead and the noun. A making/having infinitive there is the
-        # ask itself in long form; any other "to <word>" is the person planning to use,
-        # inspect or reach a site they already have, and the sentence stands down.
-        gap = sentence[lead.end():noun.start()]
-        if _TO_ANY_WORD_RE.search(_WANT_SITE_MAKING_TO_RE.sub(" ", gap)):
+        if not _for_a_thing_of_their_own(sentence, raw_sentence):
             continue
-        return True
+        # Want with no making verb: everything between the lead and the noun. A making/having
+        # infinitive there is the ask itself in long form; any other "to <word>" is the person
+        # planning to use, inspect or reach a site they already have, and stands the ask down.
+        lead = _WANT_SITE_LEAD_RE.search(sentence)
+        if lead:
+            gap = sentence[lead.end(): noun.start()]
+            if not _TO_ANY_WORD_RE.search(_WANT_SITE_MAKING_TO_RE.sub(" ", gap)):
+                return True
+        # A making verb in request position, with the site noun as what it is aimed at.
+        verb = _SITE_REQUEST_VERB_RE.search(sentence)
+        if verb and noun.start() >= verb.end():
+            aim = [
+                word.strip(",") for word in sentence[verb.end(): noun.start()].split()
+                if word.strip(",")
+            ]
+            if len(aim) <= 6 and all(word in _VERB_TO_NOUN_GAP_WORDS for word in aim):
+                return True
+        # "a website for my bakery, please"
+        if _noun_led_please_ask(sentence):
+            return True
     return False
 
 
