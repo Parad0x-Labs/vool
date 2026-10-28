@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "Réception du résultat.",
     "lend.formats_pdf": "Texte, Markdown, PDF ou DOCX. Seul le texte est conservé.",
     "settings.row.lend.label": "Prêter des tâches à des amis",
-    "settings.row.lend.help": "Aucun traitement dans le cloud ni appel payant."
+    "settings.row.lend.help": "Aucun traitement dans le cloud ni appel payant.",
+    "drop.chat.off": "Dans VOOL, envoyer un fichier ou une note à un autre de vos ordinateurs s’appelle {drop}. C’est désactivé, donc rien n’a été envoyé. Pour l’activer, ouvrez {settings} > {group} > {drop}, cochez « {enable} », choisissez un {folder} que les deux ordinateurs peuvent ouvrir, puis appuyez sur {save}.",
+    "drop.chat.unpaired": "{drop} est activé, mais cet ordinateur n’est encore associé à aucun autre, donc rien n’a été envoyé.",
+    "drop.chat.pair": "Pour associer, ouvrez {settings} > {group} > {drop} sur les deux ordinateurs : 1. Activez Drop avec le même {folder}. 2. Chaque ordinateur affiche « {fingerprint} » : saisissez celle de l’autre ordinateur dans « {peer} » et cochez la case en dessous. 3. Appuyez sur {invite} sur un ordinateur, collez le {link} sur l’autre et appuyez sur {join}.",
+    "lend.chat.off": "Dans VOOL, confier une tâche à un autre de vos ordinateurs s’appelle {lend}. C’est désactivé, donc rien n’a été confié. Il faut d’abord activer {drop} : ouvrez {settings} > {group} > {drop}, cochez « {enable} », choisissez un {folder} que les deux ordinateurs peuvent ouvrir, puis appuyez sur {save}. Ensuite, dans {settings} > {group} > {lend}, cochez « {lend_box} » et appuyez sur {save}. Tâches possibles : {jobs}.",
+    "lend.chat.unpaired": "{lend} est activé, mais cet ordinateur n’est encore associé à aucun autre, donc rien n’a été confié. Tâches possibles : {jobs}.",
+    "lend.chat.pair": "Pour associer, ouvrez {settings} > {group} > {lend} sur les deux ordinateurs : 1. Chaque ordinateur affiche « {fingerprint} » : saisissez celle de l’autre ordinateur dans « {peer} » et cochez la case en dessous. 2. Sur l’ordinateur qui fera la tâche, choisissez {host}, choisissez la tâche et appuyez sur {invite}. 3. Sur cet ordinateur, choisissez {borrow}, collez le {link}, appuyez sur {review} puis sur {join}."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

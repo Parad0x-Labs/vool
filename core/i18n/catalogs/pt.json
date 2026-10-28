@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "A receber resultado.",
     "lend.formats_pdf": "Texto, Markdown, PDF ou DOCX. Só o texto é preservado.",
     "settings.row.lend.label": "Emprestar tarefas a amigos",
-    "settings.row.lend.help": "Sem processamento na nuvem nem chamadas pagas."
+    "settings.row.lend.help": "Sem processamento na nuvem nem chamadas pagas.",
+    "drop.chat.off": "No VOOL, enviar um arquivo ou uma nota para outro dos seus computadores se chama {drop}. Está desativado, então nada foi enviado. Para ativar, abra {settings} > {group} > {drop}, marque “{enable}”, escolha uma {folder} que os dois computadores possam abrir e toque em {save}.",
+    "drop.chat.unpaired": "{drop} está ativado, mas este computador ainda não está pareado com outro, então nada foi enviado.",
+    "drop.chat.pair": "Para parear, abra {settings} > {group} > {drop} nos dois computadores: 1. Ative o Drop ali com a mesma {folder}. 2. Cada computador mostra “{fingerprint}”: digite a do outro computador em “{peer}” e marque a caixa abaixo. 3. Toque em {invite} em um computador, depois cole o {link} no outro e toque em {join}.",
+    "lend.chat.off": "No VOOL, passar uma tarefa para outro dos seus computadores se chama {lend}. Está desativado, então nada foi passado. Primeiro é preciso ativar {drop}: abra {settings} > {group} > {drop}, marque “{enable}”, escolha uma {folder} que os dois computadores possam abrir e toque em {save}. Depois, em {settings} > {group} > {lend}, marque “{lend_box}” e toque em {save}. Tarefas possíveis: {jobs}.",
+    "lend.chat.unpaired": "{lend} está ativado, mas este computador ainda não está pareado com outro, então nada foi passado. Tarefas possíveis: {jobs}.",
+    "lend.chat.pair": "Para parear, abra {settings} > {group} > {lend} nos dois computadores: 1. Cada computador mostra “{fingerprint}”: digite a do outro computador em “{peer}” e marque a caixa abaixo. 2. No computador que fará a tarefa, escolha {host}, escolha a tarefa e toque em {invite}. 3. Neste computador, escolha {borrow}, cole o {link}, toque em {review} e depois em {join}."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

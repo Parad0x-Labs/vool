@@ -3612,7 +3612,13 @@
     "lend.receiving_result": "Receiving result.",
     "lend.formats_pdf": "Text, Markdown, PDF or DOCX. Only the text is kept.",
     "settings.row.lend.label": "Lend jobs to friends",
-    "settings.row.lend.help": "No cloud processing or paid calls."
+    "settings.row.lend.help": "No cloud processing or paid calls.",
+    "drop.chat.off": "In VOOL, sending a file or a note to another of your computers is called {drop}. It is off, so nothing was sent. To turn it on, open {settings} > {group} > {drop}, tick “{enable}”, choose a {folder} that both computers can open, and press {save}.",
+    "drop.chat.unpaired": "{drop} is on, but this computer is not paired with another one yet, so nothing was sent.",
+    "drop.chat.pair": "To pair, open {settings} > {group} > {drop} on both computers: 1. Turn Drop on there with the same {folder}. 2. Each computer shows “{fingerprint}”: type the other computer's into “{peer}” and tick the check box under it. 3. Press {invite} on one computer, then paste the {link} on the other and press {join}.",
+    "lend.chat.off": "In VOOL, handing a job to another of your computers is called {lend}. It is off, so nothing was handed over. It needs {drop} on first: open {settings} > {group} > {drop}, tick “{enable}”, choose a {folder} that both computers can open, and press {save}. Then, in {settings} > {group} > {lend}, tick “{lend_box}” and press {save}. It can take these jobs: {jobs}.",
+    "lend.chat.unpaired": "{lend} is on, but this computer is not paired with another one yet, so nothing was handed over. It can take these jobs: {jobs}.",
+    "lend.chat.pair": "To pair, open {settings} > {group} > {lend} on both computers: 1. Each computer shows “{fingerprint}”: type the other computer's into “{peer}” and tick the check box under it. 2. On the computer that will do the job, choose {host}, pick the job and press {invite}. 3. On this computer, choose {borrow}, paste the {link}, press {review} and then {join}."
   },
   "html_keys": [
     "bypass.modal_limits",

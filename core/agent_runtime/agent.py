@@ -2855,6 +2855,15 @@ class VoolAgent(
             if browser_refusal is not None:
                 return _guard_final_result(browser_refusal)
 
+        # Sending a file or note to, or handing a job to, another of the owner's computers while Drop
+        # or lending is off or unpaired: name the feature, say nothing was sent, and where to turn it on
+        # (GLM recheck R9 D01-D04, L01-L03). On and paired, the turn goes on as before.
+        from core.drop.chat_door import reply_if_unavailable
+
+        drop_door = reply_if_unavailable(self, effective_input, session_id=session_id, source_context=runtime_source_context)
+        if drop_door is not None:
+            return _guard_final_result(drop_door)
+
         # Opt-in clean local path (VOOL_CLEAN_LOCAL_LOOP, default off): a local-model turn about the
         # owner's own files or computer runs one plain tool loop instead of the lanes below. None
         # (flag off, not admitted, RED, owned elsewhere) falls through unchanged. core/clean_loop.

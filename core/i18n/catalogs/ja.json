@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "結果を受信しています。",
     "lend.formats_pdf": "テキスト、Markdown、PDF、DOCX に対応し、テキストのみを残します。",
     "settings.row.lend.label": "友だちに作業を貸す",
-    "settings.row.lend.help": "クラウド処理や有料の呼び出しは行いません。"
+    "settings.row.lend.help": "クラウド処理や有料の呼び出しは行いません。",
+    "drop.chat.off": "VOOL では、ファイルやメモを自分の別のコンピューターに送る機能を「{drop}」と呼びます。現在オフのため、何も送信されていません。オンにするには、{settings} > {group} > {drop} を開き、「{enable}」にチェックを入れ、両方のコンピューターで開ける{folder}を選んで {save} を押してください。",
+    "drop.chat.unpaired": "「{drop}」はオンですが、このコンピューターはまだ他のコンピューターとペアになっていないため、何も送信されていません。",
+    "drop.chat.pair": "ペアにするには、両方のコンピューターで {settings} > {group} > {drop} を開きます。1. 同じ{folder}で Drop をオンにします。2. それぞれのコンピューターに「{fingerprint}」が表示されます。相手のものを「{peer}」に入力し、その下のチェックボックスにチェックを入れます。3. 一方のコンピューターで {invite} を押し、{link}をもう一方に貼り付けて {join} を押します。",
+    "lend.chat.off": "VOOL では、作業を自分の別のコンピューターに任せる機能を「{lend}」と呼びます。現在オフのため、何も引き渡されていません。先に「{drop}」をオンにする必要があります。{settings} > {group} > {drop} を開き、「{enable}」にチェックを入れ、両方のコンピューターで開ける{folder}を選んで {save} を押してください。次に {settings} > {group} > {lend} で「{lend_box}」にチェックを入れて {save} を押します。任せられる作業: {jobs}。",
+    "lend.chat.unpaired": "「{lend}」はオンですが、このコンピューターはまだ他のコンピューターとペアになっていないため、何も引き渡されていません。任せられる作業: {jobs}。",
+    "lend.chat.pair": "ペアにするには、両方のコンピューターで {settings} > {group} > {lend} を開きます。1. それぞれのコンピューターに「{fingerprint}」が表示されます。相手のものを「{peer}」に入力し、その下のチェックボックスにチェックを入れます。2. 作業をするコンピューターで {host} を選び、作業を選んで {invite} を押します。3. このコンピューターで {borrow} を選び、{link}を貼り付けて {review}、続いて {join} を押します。"
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

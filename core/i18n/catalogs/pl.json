@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "Odbieranie wyniku.",
     "lend.formats_pdf": "Tekst, Markdown, PDF lub DOCX. Zachowywany jest tylko tekst.",
     "settings.row.lend.label": "Udostępniaj zadania znajomym",
-    "settings.row.lend.help": "Bez przetwarzania w chmurze i płatnych wywołań."
+    "settings.row.lend.help": "Bez przetwarzania w chmurze i płatnych wywołań.",
+    "drop.chat.off": "W VOOL wysyłanie pliku lub notatki na inny z Twoich komputerów nazywa się {drop}. Ta funkcja jest wyłączona, więc nic nie zostało wysłane. Aby ją włączyć, otwórz {settings} > {group} > {drop}, zaznacz „{enable}”, wybierz {folder}, który oba komputery mogą otworzyć, i naciśnij {save}.",
+    "drop.chat.unpaired": "{drop} jest włączone, ale ten komputer nie jest jeszcze sparowany z innym, więc nic nie zostało wysłane.",
+    "drop.chat.pair": "Aby sparować, otwórz {settings} > {group} > {drop} na obu komputerach: 1. Włącz tam Drop z tym samym {folder}. 2. Każdy komputer pokazuje „{fingerprint}”: wpisz odcisk drugiego komputera w „{peer}” i zaznacz pole pod spodem. 3. Naciśnij {invite} na jednym komputerze, potem wklej {link} na drugim i naciśnij {join}.",
+    "lend.chat.off": "W VOOL przekazanie zadania innemu z Twoich komputerów nazywa się {lend}. Ta funkcja jest wyłączona, więc nic nie zostało przekazane. Najpierw musi być włączone {drop}: otwórz {settings} > {group} > {drop}, zaznacz „{enable}”, wybierz {folder}, który oba komputery mogą otworzyć, i naciśnij {save}. Potem w {settings} > {group} > {lend} zaznacz „{lend_box}” i naciśnij {save}. Możliwe zadania: {jobs}.",
+    "lend.chat.unpaired": "{lend} jest włączone, ale ten komputer nie jest jeszcze sparowany z innym, więc nic nie zostało przekazane. Możliwe zadania: {jobs}.",
+    "lend.chat.pair": "Aby sparować, otwórz {settings} > {group} > {lend} na obu komputerach: 1. Każdy komputer pokazuje „{fingerprint}”: wpisz odcisk drugiego komputera w „{peer}” i zaznacz pole pod spodem. 2. Na komputerze, który wykona zadanie, wybierz {host}, wybierz zadanie i naciśnij {invite}. 3. Na tym komputerze wybierz {borrow}, wklej {link}, naciśnij {review}, a potem {join}."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

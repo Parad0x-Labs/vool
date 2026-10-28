@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "Sonuç alınıyor.",
     "lend.formats_pdf": "Metin, Markdown, PDF veya DOCX. Yalnızca metin korunur.",
     "settings.row.lend.label": "Arkadaşlarına iş ödünç ver",
-    "settings.row.lend.help": "Bulutta işleme veya ücretli çağrı yok."
+    "settings.row.lend.help": "Bulutta işleme veya ücretli çağrı yok.",
+    "drop.chat.off": "VOOL'da bir dosyayı veya notu diğer bilgisayarlarınızdan birine göndermenin adı {drop}. Kapalı olduğu için hiçbir şey gönderilmedi. Açmak için {settings} > {group} > {drop} bölümünü açın, “{enable}” kutusunu işaretleyin, iki bilgisayarın da açabildiği bir {folder} seçin ve {save} düğmesine basın.",
+    "drop.chat.unpaired": "{drop} açık, ancak bu bilgisayar henüz başka bir bilgisayarla eşleşmedi, bu yüzden hiçbir şey gönderilmedi.",
+    "drop.chat.pair": "Eşleştirmek için iki bilgisayarda da {settings} > {group} > {drop} bölümünü açın: 1. Drop'u orada aynı {folder} ile açın. 2. Her bilgisayar “{fingerprint}” gösterir: diğer bilgisayarınkini “{peer}” alanına yazın ve altındaki kutuyu işaretleyin. 3. Bir bilgisayarda {invite} düğmesine basın, ardından {link} bağlantısını diğerine yapıştırıp {join} düğmesine basın.",
+    "lend.chat.off": "VOOL'da bir işi diğer bilgisayarlarınızdan birine devretmenin adı {lend}. Kapalı olduğu için hiçbir şey devredilmedi. Önce {drop} açık olmalı: {settings} > {group} > {drop} bölümünü açın, “{enable}” kutusunu işaretleyin, iki bilgisayarın da açabildiği bir {folder} seçin ve {save} düğmesine basın. Ardından {settings} > {group} > {lend} bölümünde “{lend_box}” kutusunu işaretleyip {save} düğmesine basın. Yapabileceği işler: {jobs}.",
+    "lend.chat.unpaired": "{lend} açık, ancak bu bilgisayar henüz başka bir bilgisayarla eşleşmedi, bu yüzden hiçbir şey devredilmedi. Yapabileceği işler: {jobs}.",
+    "lend.chat.pair": "Eşleştirmek için iki bilgisayarda da {settings} > {group} > {lend} bölümünü açın: 1. Her bilgisayar “{fingerprint}” gösterir: diğer bilgisayarınkini “{peer}” alanına yazın ve altındaki kutuyu işaretleyin. 2. İşi yapacak bilgisayarda {host} seçin, işi seçin ve {invite} düğmesine basın. 3. Bu bilgisayarda {borrow} seçin, {link} bağlantısını yapıştırın, {review} ve ardından {join} düğmesine basın."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

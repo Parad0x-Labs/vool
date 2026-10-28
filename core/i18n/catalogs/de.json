@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "Ergebnis wird empfangen.",
     "lend.formats_pdf": "Text, Markdown, PDF oder DOCX. Nur der Text wird übernommen.",
     "settings.row.lend.label": "Aufgaben an Freunde verleihen",
-    "settings.row.lend.help": "Keine Cloud-Verarbeitung oder kostenpflichtigen Aufrufe."
+    "settings.row.lend.help": "Keine Cloud-Verarbeitung oder kostenpflichtigen Aufrufe.",
+    "drop.chat.off": "In VOOL heißt das Senden einer Datei oder Notiz an einen deiner anderen Computer {drop}. Es ist aus, deshalb wurde nichts gesendet. Zum Einschalten öffne {settings} > {group} > {drop}, setze das Häkchen bei „{enable}“, wähle einen {folder}, den beide Computer öffnen können, und drücke {save}.",
+    "drop.chat.unpaired": "{drop} ist an, aber dieser Computer ist noch mit keinem anderen gekoppelt, deshalb wurde nichts gesendet.",
+    "drop.chat.pair": "Zum Koppeln öffne {settings} > {group} > {drop} auf beiden Computern: 1. Schalte Drop dort mit demselben {folder} ein. 2. Jeder Computer zeigt „{fingerprint}“: Gib den des anderen Computers bei „{peer}“ ein und setze das Häkchen darunter. 3. Drücke auf einem Computer {invite}, füge dann den {link} auf dem anderen ein und drücke {join}.",
+    "lend.chat.off": "In VOOL heißt das Übergeben einer Aufgabe an einen deiner anderen Computer {lend}. Es ist aus, deshalb wurde nichts übergeben. Zuerst muss {drop} an sein: Öffne {settings} > {group} > {drop}, setze das Häkchen bei „{enable}“, wähle einen {folder}, den beide Computer öffnen können, und drücke {save}. Setze dann unter {settings} > {group} > {lend} das Häkchen bei „{lend_box}“ und drücke {save}. Diese Aufgaben sind möglich: {jobs}.",
+    "lend.chat.unpaired": "{lend} ist an, aber dieser Computer ist noch mit keinem anderen gekoppelt, deshalb wurde nichts übergeben. Diese Aufgaben sind möglich: {jobs}.",
+    "lend.chat.pair": "Zum Koppeln öffne {settings} > {group} > {lend} auf beiden Computern: 1. Jeder Computer zeigt „{fingerprint}“: Gib den des anderen Computers bei „{peer}“ ein und setze das Häkchen darunter. 2. Wähle auf dem Computer, der die Aufgabe erledigt, {host}, wähle die Aufgabe und drücke {invite}. 3. Wähle auf diesem Computer {borrow}, füge den {link} ein, drücke {review} und dann {join}."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

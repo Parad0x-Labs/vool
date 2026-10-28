@@ -3612,9 +3612,15 @@
     "lend.receiving_result": "Gaunamas rezultatas.",
     "lend.formats_pdf": "Tekstas, Markdown, PDF arba DOCX. Išsaugomas tik tekstas.",
     "settings.row.lend.label": "Skolinti užduotis draugams",
-    "settings.row.lend.help": "Be apdorojimo debesijoje ir mokamų užklausų."
+    "settings.row.lend.help": "Be apdorojimo debesijoje ir mokamų užklausų.",
+    "drop.chat.off": "VOOL programoje failo ar pastabos siuntimas į kitą jūsų kompiuterį vadinamas „{drop}“. Ši funkcija išjungta, todėl niekas nebuvo išsiųsta. Kad ją įjungtumėte, atidarykite {settings} > {group} > {drop}, pažymėkite „{enable}“, pasirinkite {folder}, kurį gali atidaryti abu kompiuteriai, ir paspauskite {save}.",
+    "drop.chat.unpaired": "„{drop}“ įjungta, bet šis kompiuteris dar nesusietas su kitu, todėl niekas nebuvo išsiųsta.",
+    "drop.chat.pair": "Kad susietumėte, abiejuose kompiuteriuose atidarykite {settings} > {group} > {drop}: 1. Įjunkite ten Drop su tuo pačiu {folder}. 2. Kiekvienas kompiuteris rodo „{fingerprint}“: įveskite kito kompiuterio kodą į „{peer}“ ir pažymėkite langelį po juo. 3. Viename kompiuteryje paspauskite {invite}, tada kitame įklijuokite {link} ir paspauskite {join}.",
+    "lend.chat.off": "VOOL programoje darbo perdavimas kitam jūsų kompiuteriui vadinamas „{lend}“. Ši funkcija išjungta, todėl niekas nebuvo perduota. Pirmiausia turi būti įjungta „{drop}“: atidarykite {settings} > {group} > {drop}, pažymėkite „{enable}“, pasirinkite {folder}, kurį gali atidaryti abu kompiuteriai, ir paspauskite {save}. Tada skiltyje {settings} > {group} > {lend} pažymėkite „{lend_box}“ ir paspauskite {save}. Galimi darbai: {jobs}.",
+    "lend.chat.unpaired": "„{lend}“ įjungta, bet šis kompiuteris dar nesusietas su kitu, todėl niekas nebuvo perduota. Galimi darbai: {jobs}.",
+    "lend.chat.pair": "Kad susietumėte, abiejuose kompiuteriuose atidarykite {settings} > {group} > {lend}: 1. Kiekvienas kompiuteris rodo „{fingerprint}“: įveskite kito kompiuterio kodą į „{peer}“ ir pažymėkite langelį po juo. 2. Kompiuteryje, kuris atliks darbą, pasirinkite {host}, pasirinkite darbą ir paspauskite {invite}. 3. Šiame kompiuteryje pasirinkite {borrow}, įklijuokite {link}, paspauskite {review}, o tada {join}."
   },
-  "source_catalog_sha256": "b41f1cde5d30d969de9dd55ef944bd0ecef8fc1bd4f86b2ee501c95d7d57eb4b",
+  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
