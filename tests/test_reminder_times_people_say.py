@@ -180,7 +180,7 @@ def test_a_day_of_the_month_with_no_month_is_read(clock, text, now, ok, expected
 
 
 def test_an_ordinal_that_counts_or_names_is_not_a_date(clock):
-    for text in ("the 3rd time", "my 2nd attempt", "the 4th floor"):
+    for text in ("the 3rd time", "my 2nd attempt", "the 4th floor", "the 2nd half", "the 1st round"):
         reading = _parse(f"remind me tomorrow to note {text} it happens")
         assert not reading.ok, text
         assert "which time on tomorrow" in reading.problem.lower(), (text, reading.problem)

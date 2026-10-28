@@ -91,7 +91,7 @@ _ORDINAL_NOT_A_DAY = (
     r"times?|attempts?|floors?|tries?|chances?|rounds?|places?|options?|versions?|editions?|grades?"
     r"|rows?|seats?|pages?|steps?|items?|goals?|points?|games?|matches?|sets?|reps?|laps?|books?"
     r"|chapters?|episodes?|parts?|instal?ments?|birthdays?|anniversar(?:y|ies)|meetings?|sessions?"
-    r"|interviews?|calls?|dates?|part(?:y|ies)|halves?|quarters?|innings?|waves?|gears?|choices?"
+    r"|interviews?|calls?|dates?|part(?:y|ies)|hal(?:f|ves)|quarters?|innings?|waves?|gears?|choices?"
     r"|picks?|drafts?|readings?|warnings?|notices?|alerts?|reports?|emails?|messages?|notes?|reminders?"
     r"|drinks?|beers?|meals?"
 )
@@ -294,6 +294,8 @@ def _parse_when_expression(
             else str(part_match.group(0)).strip() if part_match is not None
             else ""
         )
+        if time_match is None and part_match is not None and part_match.group(1).lower() == day_word.lower():
+            time_basis = ""  # "tonight" already names both the day and the part
         return _resolve_wall(
             target_date.year, target_date.month, target_date.day, hour, minute,
             zone, tz_name, basis=f"{day_word} {time_basis}".strip(), now=now, kind="wallclock",
