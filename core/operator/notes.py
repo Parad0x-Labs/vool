@@ -724,7 +724,7 @@ def handle_find_notes(
         rows = search_notes(query="")
         lines = [f"Notes in this workspace ({len(rows)}):"] if rows else ["There are no notes in this workspace yet."]
         for row in rows:
-            lines.append(f"- {row['title']} [{row['note_path']}]" + (f" (event {row['linked_event_uid'][:8]})" if row["linked_event_uid"] else ""))
+            lines.append(f"- {row['title']}" + (" (linked to an event)" if row["linked_event_uid"] else ""))
         return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"count": len(rows), "notes": rows})
     rows = search_notes(query=query)
     audit_log_fn(
@@ -737,8 +737,7 @@ def handle_find_notes(
         return OperatorActionResult(ok=True, status="reported", response_text=f"No notes in this workspace match {query!r}.", details={"query": query, "count": 0})
     lines = [f"Notes matching {query!r} ({len(rows)}):"]
     for row in rows:
-        lines.append(f"- {row['title']}: {row['excerpt']}" + (f" — linked event {row['linked_event_uid'][:8]}" if row["linked_event_uid"] else ""))
-        lines.append(f"  {row['note_path']}")
+        lines.append(f"- {row['title']}: {row['excerpt']}" + (" (linked to an event)" if row["linked_event_uid"] else ""))
     return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"query": query, "count": len(rows), "notes": rows})
 
 
