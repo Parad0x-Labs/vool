@@ -785,7 +785,7 @@ are research features: they are off in releases (see
 | **Mobile UI** | **Not yet** | Mobile companion view exists as data layer, no frontend. |
 | **Trustless payments** | **Not yet** | Requires replay protection, reconciliation, idempotent settlement. |
 | **Internet-scale data plane** | **Not yet** | Blocked on relay/TURN-grade routing proof. |
-| **Plugin marketplace** | **Partial** | Since 0.7.0 the Add-ons page lists reviewed catalogue add-ons with local security checks. Since 0.7.5 Skills & Plugins lists VOOL's own skills first, and Browse ships 53 text-only VOOL skills. |
+| **Plugin marketplace** | **Partial** | Since 0.7.0 the Add-ons page lists reviewed catalogue add-ons with local security checks. Since 0.7.5 Skills & Plugins lists VOOL's own skills first, and Browse ships 51 text-only VOOL skills. |
 | **Desktop GUI** | **Works** | Since 0.7.0: macOS app (Apple Silicon and Intel) and a Linux desktop entry that opens the local chat. |
 
 ## What "Works" Means
