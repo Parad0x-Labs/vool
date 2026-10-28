@@ -376,7 +376,13 @@ def explicitly_promises_evidence(text: str) -> bool:
 #: freshness words of a disk-state ask as a world lookup.
 _OWN_MACHINE_STORAGE_READ_RE = re.compile(
     r"\b(?:whats|what'?s|list|show|see|look\s+at|check|read|open|how\s+many|any)\b"
-    r"[^.?!]{0,40}?\b(?:desktop|downloads|documents|docs|folders?|directories|files?)\b",
+    r"[^.?!]{0,40}?"
+    # The place must be the owner's: "my ... files", "on the desktop", "the downloads folder". A bare
+    # "files" or "documents" is often the world's ("check the new JFK files right now", "list the
+    # documents the court published today"), and those keep their lookup (review 2026-10-28).
+    r"(?:\bmy\s+(?:\w+\s+){0,2}?(?:desktop|downloads|documents|docs|folders?|directories|files?|pictures|photos)\b"
+    r"|\b(?:on|in|from|inside)\s+(?:the\s+|my\s+)?(?:desktop|downloads)\b"
+    r"|\bthe\s+(?:desktop|downloads|documents)\s+folder\b)",
     re.IGNORECASE,
 )
 
@@ -386,6 +392,17 @@ def _asks_to_read_the_own_machines_files(text: str) -> bool:
     clean = " ".join(str(text or "").split())
     if not clean:
         return False
+    # The bound workspace already has its own lane: a current ask about its files is GROUNDED with
+    # the workspace read family seated ahead of the web (`_current_evidence_toolsets`). Standing it
+    # down here would strip that seat and leave the turn with no tool that can observe the
+    # workspace (review 2026-10-28).
+    try:
+        from core.agent_runtime.workspace_intent_detection import asks_to_list_the_bound_workspace
+
+        if asks_to_list_the_bound_workspace(clean):
+            return False
+    except Exception:
+        pass
     try:
         from core.tool_demand_signals import owner_file_demand
 
