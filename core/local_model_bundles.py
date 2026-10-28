@@ -496,6 +496,23 @@ LOCAL_BUNDLE_SPECS: dict[str, LocalBundleSpec] = {
         ),
         summary="Bucket B without a working GPU backend: CPU-sized fast/daily/deep spread.",
     ),
+    "triple_bucket_b_ram_no_gpu": LocalBundleSpec(
+        bundle_id="triple_bucket_b_ram_no_gpu",
+        kind="triple",
+        display_name="Bucket B - tiny/daily/deep (RAM-sized, Mac or CPU)",
+        role_models=(
+            BundleRoleModel("tiny_fast", "qwen3:0.6b", expected_tokens_per_second=17.0),
+            # qwen3:8b, not qwen2.5:7b: on a 16-24GB Mac or CPU host nothing partial-offloads
+            # (the reason the VRAM-sized bucket B keeps the 7B), and qwen2.5:7b answers the
+            # tool check in prose (missing_tool_calls), so VOOL could never answer with it.
+            BundleRoleModel("daily_accelerated", "qwen3:8b", expected_tokens_per_second=7.0),
+            BundleRoleModel(
+                "deep_overnight", "deepseek-r1:14b", expected_tokens_per_second=4.0,
+                offload_note="CPU-only; queue this for overnight/batch tasks, not live chat.",
+            ),
+        ),
+        summary="Bucket B sized by RAM (Apple unified memory or CPU): daily model that passes the tool check.",
+    ),
     "triple_bucket_b_gpu_accelerated": LocalBundleSpec(
         bundle_id="triple_bucket_b_gpu_accelerated",
         kind="triple",
@@ -1005,6 +1022,9 @@ def resolve_local_bundle_recommendation(
             "runs on the GPU.",
         )
     else:
+        if bucket == "B":
+            # RAM-sized B: the VRAM-sized B bundle's qwen2.5:7b exists for 6-10GB GPUs only.
+            no_gpu_bundle = bundle_spec("triple_bucket_b_ram_no_gpu")
         recommended = no_gpu_bundle
         fallback = no_gpu_bundle
         reasons = (
