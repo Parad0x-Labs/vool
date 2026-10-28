@@ -798,7 +798,22 @@ def dispatch_companion(
         from core.error_surface import safe_error_text
 
         return _err(500, "companion_handler_error", safe_error_text(exc))
+    if action in _SCREEN_ONLY_ACTIONS:
+        # "Hide my name on screen" covers the phone too: these results are only ever drawn on
+        # the phone's screen, so the phone gets the same masked text the desktop pages show.
+        # Nothing the phone sends back (ids, decisions, its own messages) passes through here.
+        from core.screen_privacy import mask_value
+
+        result = mask_value(result)
     return _json(status, {"ok": status < 400, "action": action, "device_id": device_id, "result": result})
+
+
+# Phone reads whose results only reach the phone's screen. proof.get stays whole: its hashes are
+# checked against the text they cover.
+_SCREEN_ONLY_ACTIONS = frozenset({
+    "devices.me", "status.snapshot", "chats.list", "chats.history", "chats.send",
+    "approvals.pending", "approvals.resolve", "notifications.poll",
+})
 
 
 # ---------------------------------------------------------------------------

@@ -2848,14 +2848,18 @@
     "live.up": "Yukarı",
     "live.upload": "Yükle",
     "settings.row.live_browser.help": "Her işlemi çalıştırmadan önce inceleyin. Sayfa betikleri kapalıdır. Ödemeler için cüzdanı kullanın.",
-    "settings.row.live_browser.label": "Tarayıcı"
+    "settings.row.live_browser.label": "Tarayıcı",
+    "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
+    "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
+    "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
+  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
