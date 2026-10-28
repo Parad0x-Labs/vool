@@ -108,15 +108,5 @@ distribution, broker every internal effect or replace native wallet approval.
 
 ## Writing a skill
 
-A skill is a folder with an instruction file and any files it references:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Draft in-app (`skill.create` stages it without activating anything), validate it, then
-install to activate — three separate steps on purpose, so authoring is never an implicit
-behaviour change. The catalogue and authoring format are still being finalised for public
-release.
+* To make a skill by asking in chat, see [Make your own skill](make-your-own-skill.md).
+* To write, lint, install and test a SKILL.md file yourself, see [Build and test a skill](build-and-test-a-skill.md).

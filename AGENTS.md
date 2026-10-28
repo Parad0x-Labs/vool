@@ -99,6 +99,13 @@ Many implementers may run at the same time. To keep them from colliding:
 - **Hand over, don't publish.** Implementers stop at a clean, committed local head plus evidence.
   Only the publisher pushes, and it publishes one mission per pull request.
 
+## Skills
+
+To write, lint, install and test a VOOL skill (SKILL.md format, `triggers`, the `vool-community`
+SDK, zip import, `skill.install path=<folder>`, and how picking works), follow
+[docs/guides/build-and-test-a-skill.md](docs/guides/build-and-test-a-skill.md). Test a skill
+locally, with phrasings that must pick it and one that must not, before any publishing step.
+
 ## Fast local checks
 
 Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.17.2).
