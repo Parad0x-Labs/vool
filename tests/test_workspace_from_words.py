@@ -78,6 +78,10 @@ def person_home(tmp_path, monkeypatch):
         "Documents/archive_sorter",
         "Projects/ArchiveSorter",
         "Code/archive sorter",
+        "Projects/website",
+        "Projects/recipe box",
+        # a folder literally named "tests": the article law in fix 4 must ignore it
+        "Projects/tests",
         # a system tree inside the home: never searched, never bound
         "Library/sync keystore",
     )
@@ -230,8 +234,7 @@ def test_a_casual_mention_of_a_name_never_binds(person_home, words) -> None:
         "my garden planner project",
         # a work ask with no folder pointer
         "fix the login bug tonight",
-        # a name with no pointer noun and no container or quote around it
-        "open my garden planner",
+        # fix 3 moved "open my garden planner" to the plain-ask section below
     ],
 )
 def test_without_both_a_work_ask_and_a_folder_pointer_nothing_happens(
@@ -247,6 +250,178 @@ def test_without_both_a_work_ask_and_a_folder_pointer_nothing_happens(
     assert result["notice"] == ""
     assert project_store.list_projects() == []
     assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# A statement is not an ask (fix 1)
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("words", "check_binding"),
+    [
+        # the amendment's four measured sentences
+        ("I'm building a garden project this spring", True),
+        ("my kid is building a lego project", True),
+        ("I wrote some code yesterday", False),
+        ("i'm working on a school project about volcanoes", False),
+        # this file's own statements: a subject before the verb or a past tense
+        ("we built a treehouse last summer", False),
+        ("she is working on her thesis project", False),
+        ("they run a bakery downtown", False),
+        ("I'm testing a new banana bread recipe", False),
+        ("my dad reviews books for the local paper", False),
+        ("we edited the camp video yesterday", False),
+        ("our team deploys on fridays", False),
+        ("yesterday I coded all afternoon", False),
+    ],
+)
+def test_a_statement_is_not_an_ask(person_home, words, check_binding) -> None:
+    # The work verb sitting anywhere in the sentence is not enough: with a subject
+    # before the verb or a past tense it is a statement about work already done,
+    # never an ask to work in a folder.
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message == ""
+    assert resolution.note == ""
+
+    if check_binding:
+        chat = _unique_chat("statement")
+        result = apply_workspace_words_binding(
+            chat, words, home=person_home, owner_local=True
+        )
+        assert result == {"status": "no_ask", "bound": False, "notice": ""}
+        assert project_store.list_projects() == []
+        assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# The verb must work on the folder (fix 2)
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        # the pointer sits inside a make-something verb's complement, not its object
+        "can you write a poem about my novel project",
+        "run the numbers on my budget stuff",
+        "please write a song about my garden planner project",
+        "write a review of my novel project",
+    ],
+)
+def test_the_verb_must_work_on_the_folder(person_home, words) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message == ""
+    assert resolution.note == ""
+
+
+def test_a_pointer_inside_a_verb_complement_binds_nothing(person_home) -> None:
+    words = "run the numbers on my budget stuff"
+    chat = _unique_chat("verb-complement")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["bound"] is False
+    assert result["notice"] == ""
+    assert project_store.list_projects() == []
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# Plain asks without a pointer noun bind on an exact name (fix 3)
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("words", "expected_relative"),
+    [
+        ("work on the garden planner", "Projects/garden planner"),
+        # "not the old one" / "not the <x> one" never names a folder
+        ("open my garden planner, not the old one", "Projects/garden planner"),
+        ("open the website", "Projects/website"),
+        ("open the plant catalog", "Projects/plant catalog"),
+        ("review my budget tracker", "Code/BudgetTracker"),
+        ("look at the knitting patterns, not the old ones", "Documents/knitting patterns"),
+        ("open the notes sync", "Documents/Notes Sync"),
+        ("fix the trip photos", "Desktop/trip_photos"),
+        ("edit my renovations-2027", "renovations-2027"),
+    ],
+)
+def test_a_plain_ask_binds_on_an_exact_name(
+    person_home, words, expected_relative
+) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    expected = os.path.realpath(person_home / expected_relative)
+    assert isinstance(resolution, FolderWordsResolution)
+    assert resolution.status == "found", (words, resolution)
+    assert resolution.path == expected, (words, resolution.path)
+    assert resolution.name == Path(expected_relative).name
+    assert resolution.matches == ()
+    if words == "work on the garden planner":
+        # exact wins over near with the same plain aside the pointer-noun lane gives
+        assert resolution.note != "", (words, resolution.note)
+        assert "garden planner 2" in resolution.note
+
+
+def test_a_plain_ask_binding_sets_the_workspace_the_chat_sees(person_home) -> None:
+    words = "open the website"
+    chat = _unique_chat("plain-ask")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    expected_root = os.path.realpath(person_home / "Projects" / "website")
+    assert result["status"] == "found"
+    assert result["bound"] is True
+    assert result["root"] == expected_root
+    assert "website" in result["notice"].lower()
+    assert "/" not in result["notice"]
+    root, reason = authoritative_chat_workspace(chat)
+    assert root == expected_root
+    assert reason == "project"
+
+
+# ----------------------------------------------------------------------------------
+# A plain ask with no exact match stays silent (fix 3)
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("words", ["open the sunset drawings", "work on the moon base"])
+def test_a_plain_ask_with_no_exact_match_stays_silent(person_home, words) -> None:
+    # no pointer noun and no exact folder: silent, never a "none" notice
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message == ""
+    assert resolution.note == ""
+
+
+# ----------------------------------------------------------------------------------
+# An article names a thing to make (fix 4)
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("words", "expected_relative"),
+    [
+        # "a tests folder" names a thing to make, never the folder to find: the folder
+        # to bind is the one after "in", even though Projects holds a folder literally
+        # named tests
+        ("make certain there's a tests folder in recipe box", "Projects/recipe box"),
+        ("make sure there's a docs folder in garden planner", "Projects/garden planner"),
+    ],
+)
+def test_an_article_names_a_thing_to_make_not_a_folder_to_find(
+    person_home, words, expected_relative
+) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    expected = os.path.realpath(person_home / expected_relative)
+    assert resolution.status == "found", (words, resolution)
+    assert resolution.path == expected, (words, resolution.path)
+    assert resolution.name == Path(expected_relative).name
 
 
 # ----------------------------------------------------------------------------------
