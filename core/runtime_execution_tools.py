@@ -162,6 +162,10 @@ _WORKSPACE_CONTENT_QUESTION_RE = re.compile(
 )
 _FILE_LINE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+):(?P<line>\d+)")
 _SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
+#: Media folders the machine tools may READ (list, find, read, measure) but never write, move or
+#: create in: "is my cat photo in Pictures", "which video is biggest". The owner chose read-only
+#: access on 2026-10-28. "Videos" is the Linux name for macOS's "Movies".
+_READ_ONLY_MACHINE_DIRECTORY_NAMES = ("Pictures", "Movies", "Videos", "Music")
 
 
 @dataclass
@@ -1246,7 +1250,7 @@ def _machine_find_file(
             details={},
         )
     needle = name.lower()
-    roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
+    roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="unavailable",
@@ -1709,7 +1713,7 @@ def _machine_find_largest(
     if requested_drive:
         root, resolution_error = _resolve_find_largest_root(requested_drive)
         if root is None:
-            allowed_roots = [_home_relative_label(r) for r in _safe_machine_roots()]
+            allowed_roots = _readable_root_labels()
             return RuntimeExecutionResult(
                 handled=True,
                 ok=False,
@@ -4729,6 +4733,20 @@ def _safe_machine_roots() -> tuple[Path, ...]:
     return tuple((home / name).resolve() for name in _SAFE_MACHINE_DIRECTORY_NAMES)
 
 
+def _readable_machine_roots() -> tuple[Path, ...]:
+    """Every root a READ may resolve into: the write roots plus the read-only media folders."""
+    home = _machine_home().resolve()
+    return tuple(_safe_machine_roots()) + tuple(
+        (home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES
+    )
+
+
+def _readable_root_labels() -> list[str]:
+    """The roots a read refusal names: the write roots always, a media folder when it exists."""
+    safe = _safe_machine_roots()
+    return [_home_relative_label(r) for r in _readable_machine_roots() if r in safe or r.is_dir()]
+
+
 def _machine_home() -> Path:
     try:
         return Path.home()
@@ -4752,7 +4770,7 @@ def _expand_machine_user(raw: str) -> Path:
 
 def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
     """A safe machine directory path, refused when it is this runtime's own state (or, for a write, its running code)."""
-    target = _resolve_safe_machine_directory(raw_path)
+    target = _resolve_safe_machine_directory(raw_path, write=write)
     from core.runtime_state_protection import refusal as _protected_refusal
 
     reason = _protected_refusal(target, write=write)
@@ -4761,7 +4779,9 @@ def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> 
     return target
 
 
-def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
+def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
+    """A path inside the machine roots: the write roots for a write, the readable roots otherwise."""
+    roots = _safe_machine_roots() if write else _readable_machine_roots()
     raw = str(raw_path or "").strip()
     if not raw:
         return _safe_machine_roots()[0]
@@ -4778,6 +4798,14 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         "~/documents": "Documents",
         "docs": "Documents",
     }
+    if not write:
+        alias_map.update(
+            {
+                "pictures": "Pictures", "my pictures": "Pictures", "~/pictures": "Pictures", "photos": "Pictures",
+                "my photos": "Pictures", "movies": "Movies", "my movies": "Movies", "~/movies": "Movies",
+                "music": "Music", "my music": "Music", "~/music": "Music",
+            }
+        )
     if lowered in alias_map:
         return (_machine_home() / alias_map[lowered]).resolve()
     candidate = _expand_machine_user(raw)
@@ -4785,10 +4813,10 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         candidate = (_machine_home() / candidate).resolve()
     else:
         candidate = candidate.resolve()
-    for root in _safe_machine_roots():
+    for root in roots:
         if candidate == root or root in candidate.parents:
             return candidate
-    allowed = ", ".join(_home_relative_label(root) for root in _safe_machine_roots())
+    allowed = ", ".join(_home_relative_label(r) for r in _safe_machine_roots()) if write else ", ".join(_readable_root_labels())
     raise ValueError(f"I can only inspect safe local directories in this lane: {allowed}.")
 
 
@@ -5125,7 +5153,7 @@ def _hiding_applies(target: Path, *, workspace_root: Path) -> bool:
     """
     if _is_ancestor_or_self(workspace_root, target):
         return False
-    safe_roots = _safe_machine_roots()
+    safe_roots = _readable_machine_roots()
     node = target
     while True:
         if _is_ancestor_or_self(node, workspace_root):
@@ -5168,7 +5196,7 @@ def _list_machine_directory(
     try:
         target = _resolve_machine_directory(arguments.get("path"))
     except ValueError:
-        allowed_roots = [_home_relative_label(root) for root in _safe_machine_roots()]
+        allowed_roots = _readable_root_labels()
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
@@ -5398,7 +5426,7 @@ def _read_machine_file(arguments: dict[str, Any]) -> RuntimeExecutionResult:
                     ),
                 },
             )
-        allowed_roots = [_home_relative_label(root) for root in _safe_machine_roots()]
+        allowed_roots = _readable_root_labels()
         # Echo the requested path: "that path" forced the reader to match the refusal back to
         # their own message (matrix §6, acceptance turn 16). Bounded, and the path is the
         # user's own text restated, never new information.

@@ -140,9 +140,9 @@ def _looks_like_a_name(candidate: str) -> bool:
 
 
 def _search_roots() -> tuple[Path, ...]:
-    from core.runtime_execution_tools import _safe_machine_roots
+    from core.runtime_execution_tools import _readable_machine_roots
 
-    return _safe_machine_roots()
+    return _readable_machine_roots()
 
 
 def _expand(candidate: str) -> Path:

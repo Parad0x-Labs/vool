@@ -4,7 +4,7 @@ Every call crosses `core.authorized_tool_execution.execute_authorized_runtime_to
 authorized boundary (permission decision, cancellation, receipts). Paths are resolved here first and
 must land inside the owner's home folder; a home that resolves to a filesystem root is refused
 outright, so no tool in this loop can ever walk "/". The runtime's own handlers then apply their
-narrower rules on top (today: Desktop, Downloads and Documents), and a refusal from them is passed
+narrower rules on top (today: reads in Desktop, Downloads, Documents and the media folders), and a refusal from them is passed
 to the model as a plain "not available" line.
 
 Nothing here writes, moves or deletes. `propose_change` records a pending proposal and returns
@@ -118,9 +118,9 @@ def _scoped(args: dict[str, Any], ctx: ToolContext, key: str = "path") -> Path |
 
 def _safe_roots(ctx: ToolContext) -> list[Path]:
     try:
-        from core.runtime_execution_tools import _safe_machine_roots
+        from core.runtime_execution_tools import _readable_machine_roots
 
-        roots = [Path(root) for root in _safe_machine_roots()]
+        roots = [Path(root) for root in _readable_machine_roots()]
     except Exception:
         roots = [ctx.home / name for name in ("Desktop", "Downloads", "Documents")]
     return [root for root in roots if root.is_dir() and (ctx.home in root.parents)]
