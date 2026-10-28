@@ -1,0 +1,283 @@
+"""Reminders read the times people say (tool-seating Job 5, audit R5).
+
+A bare hour after "at" ("tomorrow at 9"), a part of the day ("next tuesday afternoon",
+"this evening", "tonight"), a day of the month with no month ("on the 3rd at 11") and a past
+day word ("remind me yesterday ...") are read the way people say them, per the reviewer's
+rules. Numbers that are not times ("buy 9 eggs", "the 3rd time") never become clock times,
+and a stored reminder's subject stays the thing to do, not the schedule.
+
+LABELLED: injected clock (both the UTC and the zoned door), isolated home; no live provider.
+"""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from tests.pa_beta_gate._pc_calendar_rig import Clock, prepare_home
+
+pytestmark = [pytest.mark.pa_beta]
+
+T0 = datetime(2026, 10, 28, 8, 0, tzinfo=timezone.utc)  # Wednesday 10:00 in Europe/Athens (EET, UTC+2)
+ATHENS = ZoneInfo("Europe/Athens")
+NOW_ATHENS = T0.astimezone(ATHENS)
+
+
+@pytest.fixture
+def clock(tmp_path, monkeypatch):
+    prepare_home(tmp_path, monkeypatch)
+    from core.time_authority import CLOCK
+
+    fixed = Clock(T0, monkeypatch)
+    monkeypatch.setattr(CLOCK, "now_for_timezone", lambda name: fixed.now.astimezone(ZoneInfo(name)))
+    return fixed
+
+
+def _run(text: str, *, session_id: str):
+    from core.local_operator_actions import dispatch_operator_action, parse_operator_action_intent
+
+    intent = parse_operator_action_intent(text)
+    assert intent is not None, f"parser missed a reminder request: {text!r}"
+    return dispatch_operator_action(intent, task_id=f"task-{uuid.uuid4().hex[:8]}", session_id=session_id)
+
+
+def _pending(session_id: str):
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    return list_reminders(session_id=session_id, get_connection_fn=get_connection)
+
+
+def _parse(text: str, *, now: datetime | None = None):
+    from core.operator.when import parse_when_expression
+
+    return parse_when_expression(text, now_fn=lambda: now or NOW_ATHENS)
+
+
+# ---------------------------------------------------------------------------
+# The audit asks, end to end through dispatch (Wednesday 10:00 Europe/Athens)
+# ---------------------------------------------------------------------------
+
+AUDIT_ASKS = [
+    # (text, expected due_at_utc prefix)
+    ("remind me tomorrow at 9", "2026-10-29T07:00"),                    # 9:00 EET, the time was just given
+    ("remind me next tuesday afternoon to call mom", "2026-11-03T13:00"),  # Nov 3 15:00 EET
+    ("remind me on the 3rd at 11 about the accountant", "2026-11-03T09:00"),  # Oct 3 passed -> Nov 3, 11:00 EET
+    ("remind me this evening at 7", "2026-10-28T17:00"),                # today 19:00 EET
+    ("remind me tonight", "2026-10-28T18:00"),                          # today 20:00 EET
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", AUDIT_ASKS)
+def test_the_audit_asks_read_the_time_the_person_said(clock, text, due_prefix):
+    session = f"audit-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert result.ok, result.response_text
+    [row] = _pending(session)
+    assert row["due_at_utc"].startswith(due_prefix), (row["due_at_utc"], row["note"])
+
+
+def test_a_past_day_word_is_not_offered_a_time(clock):
+    result = _run("remind me yesterday to email sarah", session_id="pastday")
+    assert not result.ok and result.status == "invalid_request", result.response_text
+    assert "already passed" in result.response_text, result.response_text
+    assert "Which time on yesterday" not in result.response_text
+    assert "yesterday at" not in result.response_text  # never suggests a time on the past day
+    assert _pending("pastday") == []
+
+
+# ---------------------------------------------------------------------------
+# Rule A: a bare hour after "at"
+# ---------------------------------------------------------------------------
+
+RULE_A_ROWS = [
+    # (text, expected due_at_utc prefix) -- Wednesday 10:00 Athens clock
+    ("remind me tomorrow at 9", "2026-10-29T07:00"),        # 7-11 with no part word: the morning
+    ("remind me tomorrow at 11", "2026-10-29T09:00"),
+    ("remind me tomorrow at 12", "2026-10-29T10:00"),       # 12 is noon
+    ("remind me tomorrow at 5", "2026-10-29T15:00"),        # 1-6 with no part word: 13:00-18:00
+    ("remind me tomorrow at 1", "2026-10-29T11:00"),
+    ("remind me tomorrow at 21", "2026-10-29T19:00"),       # 13-23 is the 24-hour clock
+    ("remind me tomorrow at 23", "2026-10-29T21:00"),
+    ("remind me at 9 tonight", "2026-10-28T19:00"),         # a part-of-day word decides: 21:00 EET
+    ("remind me tomorrow at 7 in the evening", "2026-10-29T17:00"),
+    ("remind me tomorrow at 3 in the afternoon", "2026-10-29T13:00"),
+    ("remind me tomorrow at 10 in the morning", "2026-10-29T08:00"),
+    ("remind me on friday at 6", "2026-10-30T16:00"),       # 1-6 -> 18:00 EET on Friday Oct 30
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", RULE_A_ROWS)
+def test_a_bare_hour_after_at_is_read(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, reading.problem
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+
+
+# ---------------------------------------------------------------------------
+# Rule B: a part of the day with no clock time
+# ---------------------------------------------------------------------------
+
+RULE_B_ROWS = [
+    ("remind me tomorrow morning", "2026-10-29T07:00"),     # 09:00 EET
+    ("remind me next tuesday afternoon to call mom", "2026-11-03T13:00"),  # 15:00 EET
+    ("remind me tomorrow evening", "2026-10-29T16:00"),     # 18:00 EET
+    ("remind me tomorrow night", "2026-10-29T18:00"),       # 20:00 EET
+    ("remind me this evening", "2026-10-28T16:00"),         # this evening is today: 18:00 EET
+    ("remind me tomorrow at noon", "2026-10-29T10:00"),     # noon with a day word
+    ("remind me tomorrow at midday", "2026-10-29T10:00"),
+    ("remind me at noon", "2026-10-28T10:00"),              # bare part word: today 12:00 EET, still ahead
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", RULE_B_ROWS)
+def test_a_part_of_the_day_with_no_clock_time_is_read(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, reading.problem
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+
+
+def test_this_evening_never_rolls_to_tomorrow(clock):
+    """Said at 23:00, "this evening" is still today: an honest past time the reminder flow
+    refuses, not a silent move to tomorrow evening."""
+    late = datetime(2026, 10, 28, 21, 0, tzinfo=timezone.utc).astimezone(ATHENS)  # 23:00 Athens
+    reading = _parse("remind me this evening at 7", now=late)
+    assert reading.ok and reading.due_at_utc.startswith("2026-10-28T17:00"), reading
+    from core.operator.when import has_passed
+
+    assert has_passed(reading)
+
+
+# ---------------------------------------------------------------------------
+# Rule C: a day of the month with no month
+# ---------------------------------------------------------------------------
+
+NOVEMBER = datetime(2026, 11, 10, 8, 0, tzinfo=timezone.utc).astimezone(ATHENS)   # Tue 10:00 Athens
+LATE_JANUARY = datetime(2027, 1, 31, 21, 30, tzinfo=timezone.utc).astimezone(ATHENS)  # Jan 31 23:30 Athens
+
+RULE_C_ROWS = [
+    # (text, now, ok, due prefix or problem substring)
+    ("remind me on the 3rd at 11 about the accountant", None, True, "2026-11-03T09:00"),  # Oct 3 passed -> Nov 3
+    ("remind me the 21st at 11", None, True, "2026-11-21T09:00"),                        # Oct 21 passed -> Nov 21
+    ("remind me on the 30th at 9", None, True, "2026-10-30T07:00"),                       # still ahead this month
+    ("remind me on the 15th", None, False, "which time on the 15th"),                     # no clock time: asked, not dated
+    ("remind me on the 31st at 9", NOVEMBER, False, "november has no day 31"),            # never moved to another day
+    ("remind me on the 30th at 10", LATE_JANUARY, False, "february has no day 30"),       # Jan 30 passed -> Feb lacks it
+    ("remind me on the 3rd tomorrow at 11", None, False, "is not tomorrow"),               # a day word that disagrees
+]
+
+
+@pytest.mark.parametrize("text,now,ok,expected", RULE_C_ROWS)
+def test_a_day_of_the_month_with_no_month_is_read(clock, text, now, ok, expected):
+    reading = _parse(text, now=now)
+    assert reading.ok is ok, (text, reading.problem or reading.due_at_utc)
+    if ok:
+        assert reading.due_at_utc.startswith(expected), (text, reading.due_at_utc)
+    else:
+        assert expected in reading.problem.lower(), (text, reading.problem)
+
+
+def test_an_ordinal_that_counts_or_names_is_not_a_date(clock):
+    for text in ("the 3rd time", "my 2nd attempt", "the 4th floor"):
+        reading = _parse(f"remind me tomorrow to note {text} it happens")
+        assert not reading.ok, text
+        assert "which time on tomorrow" in reading.problem.lower(), (text, reading.problem)
+
+
+# ---------------------------------------------------------------------------
+# Rule D: a past day word with no clock time
+# ---------------------------------------------------------------------------
+
+RULE_D_ROWS = [
+    "remind me yesterday to email sarah",
+    "remind me yesterday morning to email sarah",
+    "remind me yesterday evening",
+]
+
+
+@pytest.mark.parametrize("text", RULE_D_ROWS)
+def test_a_past_day_word_asks_for_a_future_time(clock, text):
+    reading = _parse(text)
+    assert not reading.ok, text
+    assert "already passed" in reading.problem, (text, reading.problem)
+    assert "which time on yesterday" not in reading.problem.lower()
+    # the suggestion is a future one, never a time on the past day
+    assert "yesterday at 9:00" not in reading.problem.lower(), reading.problem
+
+
+def test_a_past_day_with_a_clock_time_is_still_read_for_callers_that_need_one(clock):
+    """A calendar search or move may name a past time; only reminder callers refuse it."""
+    from core.operator.when import has_passed
+
+    reading = _parse("remind me yesterday at 9:00")
+    assert reading.ok and reading.due_at_utc.startswith("2026-10-27T07:00"), reading
+    assert has_passed(reading)
+
+
+# ---------------------------------------------------------------------------
+# Numbers that are not times
+# ---------------------------------------------------------------------------
+
+NOT_A_TIME_ROWS = [
+    # (text, ok, expected due prefix or problem substring)
+    ("remind me to buy 9 eggs tomorrow", False, "which time on tomorrow"),   # 9 is not after "at"
+    ("remind me tomorrow to drink 2 litres of water", False, "which time on tomorrow"),
+    ("remind me to transfer 500 euros on friday", False, "which time on friday"),
+    ("remind me tomorrow to note the 3rd time it crashes", False, "which time on tomorrow"),
+    ("remind me on monday about my 2nd attempt at the draft", False, "which time on monday"),
+    ("remind me tomorrow to avoid the 4th floor", False, "which time on tomorrow"),
+    ("remind me tomorrow to meet at 9th street", False, "which time on tomorrow"),  # an ordinal after "at" is an address
+    ("remind me tomorrow at 9.30 to stretch", False, "which time on tomorrow"),     # a decimal is not a bare hour
+    ("remind me next week to read chapter 7", False, "could not read a date or time"),
+    ("remind me to catch bus 42 tomorrow", False, "which time on tomorrow"),
+    ("remind me tomorrow to watch the top 10 videos", False, "which time on tomorrow"),
+    ("remind me to call 0800 123 456 tomorrow", False, "which time on tomorrow"),
+    ("remind me in 2027 to renew my passport", False, "could not read a date or time"),
+    ("remind me tomorrow at 9 to book a table for 4", True, "2026-10-29T07:00"),    # 4 is diners, 9 is the time
+    ("remind me tomorrow at 7 to run 5 km", True, "2026-10-29T05:00"),              # 5 is kilometres
+    ("remind me tomorrow at 21 to sleep", True, "2026-10-29T19:00"),                # control: after "at" IS the time
+]
+
+
+@pytest.mark.parametrize("text,ok,expected", NOT_A_TIME_ROWS)
+def test_numbers_that_are_not_times_never_become_clock_times(clock, text, ok, expected):
+    reading = _parse(text)
+    assert reading.ok is ok, (text, reading.problem or reading.due_at_utc)
+    if ok:
+        assert reading.due_at_utc.startswith(expected), (text, reading.due_at_utc)
+    else:
+        assert expected in reading.problem.lower(), (text, reading.problem)
+
+
+def test_a_number_that_is_not_a_time_stores_nothing(clock):
+    result = _run("remind me to buy 9 eggs tomorrow", session_id="noisenum")
+    assert not result.ok, result.response_text
+    assert _pending("noisenum") == []
+
+
+# ---------------------------------------------------------------------------
+# The stored subject is the thing to do, not the schedule
+# ---------------------------------------------------------------------------
+
+SUBJECT_ROWS = [
+    ("remind me tomorrow at 9 to call the garage", "call the garage"),
+    ("remind me to call the garage at 9", "call the garage"),
+    ("remind me next tuesday afternoon to call mom", "call mom"),
+    ("remind me this evening at 7 to take the bins out", "take the bins out"),
+    ("remind me on the 3rd at 11 about the accountant", "the accountant"),
+    ("remind me tonight to check the oven", "check the oven"),
+    ("remind me tomorrow at 21 to sleep", "sleep"),
+    ("remind me at 9 tonight to take my pills", "take my pills"),
+    ("remind me tomorrow at 9 to book a table for 4", "book a table for 4"),
+]
+
+
+@pytest.mark.parametrize("text,subject", SUBJECT_ROWS)
+def test_the_stored_subject_is_the_thing_to_do(clock, text, subject):
+    session = f"subj-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert result.ok, result.response_text
+    [row] = _pending(session)
+    assert row["note"] == subject, (text, row["note"])

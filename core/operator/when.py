@@ -12,9 +12,11 @@ so every artifact and receipt can show the operator their own words back.
 """
 from __future__ import annotations
 
+import calendar
 import contextlib
 import math
 import re
+from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -39,7 +41,11 @@ _ISO_DATETIME_RE = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{
 _TIME_RE = re.compile(
     r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b"
     # A bare 24-hour clock ("tomorrow 15:00"), the form this lane's own clarifications suggest.
-    r"|(?<![\d:.\-/])\b(\d{1,2}):(\d{2})\b(?![:.]?\d)",
+    r"|(?<![\d:.\-/])\b(\d{1,2}):(\d{2})\b(?![:.]?\d)"
+    # A bare hour after "at" ("tomorrow at 9", "the 21st at 11"): no minutes, no am/pm. A decimal
+    # ("9.30") is not one, but a sentence period ("at 9.") is. A number that is not after "at" is
+    # never a clock time ("buy 9 eggs"): see the Job 5 rules in this module.
+    r"|\bat\s+(\d{1,2})(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:st|nd|rd|th)\b)",
     re.IGNORECASE,
 )
 _IN_RELATIVE_RE = re.compile(
@@ -74,10 +80,43 @@ _WORD_DATE_RE = re.compile(
 )
 # A month and year with no day ("May 2026") names no single date: asked about, never dropped.
 _MONTH_YEAR_RE = re.compile(r"\b" + _MONTH_WORD.format(name="month") + r",?\s+20\d{2}\b(?!:)", re.IGNORECASE)
-_DAY_RE = re.compile(r"\b(yesterday|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.IGNORECASE)
+_DAY_RE = re.compile(
+    r"\b(yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE,
+)
+# A day of the month with no month word ("on the 3rd at 11", "the 21st"). An ordinal followed by
+# a counting or naming noun ("the 3rd time", "my 2nd attempt", "the 4th floor") is a count or a
+# label, not a date, so those never match.
+_ORDINAL_NOT_A_DAY = (
+    r"times?|attempts?|floors?|tries?|chances?|rounds?|places?|options?|versions?|editions?|grades?"
+    r"|rows?|seats?|pages?|steps?|items?|goals?|points?|games?|matches?|sets?|reps?|laps?|books?"
+    r"|chapters?|episodes?|parts?|instal?ments?|birthdays?|anniversar(?:y|ies)|meetings?|sessions?"
+    r"|interviews?|calls?|dates?|part(?:y|ies)|halves?|quarters?|innings?|waves?|gears?|choices?"
+    r"|picks?|drafts?|readings?|warnings?|notices?|alerts?|reports?|emails?|messages?|notes?|reminders?"
+    r"|drinks?|beers?|meals?"
+)
+_DAY_OF_MONTH_RE = re.compile(
+    r"\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b(?!\s*(?:" + _ORDINAL_NOT_A_DAY + r")(?!\w))",
+    re.IGNORECASE,
+)
+# A part of the day people say instead of a clock time ("tomorrow afternoon", "this evening",
+# "remind me tonight"): the hour each reads as. "this evening" and "tonight" mean today.
+_PART_SEED_HOURS = {
+    "morning": 9, "noon": 12, "midday": 12, "afternoon": 15,
+    "evening": 18, "night": 20, "tonight": 20, "midnight": 0,
+}
+_PART_OF_DAY_RE = re.compile(
+    r"\b(tonight|morning|noon|midday|afternoon|evening|midnight|night)\b", re.IGNORECASE,
+)
+_THIS_PART_RE = re.compile(r"\bthis\s+(morning|afternoon|evening|night)\b", re.IGNORECASE)
 _WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 MAX_FUTURE_DAYS = 366 * 2
+
+_NO_WHEN_PROBLEM = (
+    "I could not read a date or time in that. Try 'tomorrow at 9:00', 'in 20 minutes', or "
+    "'2026-09-14 09:30' (you can add a named timezone like Europe/Athens)."
+)
 
 
 @dataclass
@@ -196,7 +235,7 @@ def _parse_when_expression(
             if time_match is None:
                 return WhenResolution(ok=False, problem="Which time on that date? Include a clock time.")
             try:
-                hour, minute = _clock_from_match(time_match)
+                hour, minute = _read_clock(time_match, text)
             except ValueError as exc:
                 return WhenResolution(ok=False, problem=str(exc))
         else:
@@ -213,38 +252,80 @@ def _parse_when_expression(
             problem=f"Which day in {month_year.group(0).strip()}? Give me the date and a clock time (for example '5 {month_year.group(0).strip()} at 9:00').",
         )
 
+    ordinal = _DAY_OF_MONTH_RE.search(text)
+    if ordinal:
+        return _resolve_day_of_month(ordinal, text, zone, tz_name, now=now)
+
     day_match = _DAY_RE.search(text)
     time_match = _TIME_RE.search(text)
-    if time_match:
+    part_match = _part_of_day_match(text)
+    hour: int | None = None
+    minute = 0
+    if time_match is not None:
         try:
-            hour, minute = _clock_from_match(time_match)
+            hour, minute = _read_clock(time_match, text)
         except ValueError as exc:
-            return WhenResolution(ok=False, problem=str(exc))
-    if day_match and time_match:
-        target_date = _date_for_day_word(day_match.group(1), now.astimezone(zone))
+            return WhenResolution(ok=False, problem=str(exc), tz_name=tz_name)
+    if day_match is not None:
+        day_word = day_match.group(1)
+        zone_now = now.astimezone(zone)
+        target_date = _date_for_day_word(day_word, zone_now)
+        if time_match is None:
+            # A past day with no clock time is asked about as a day that has passed, never
+            # offered a time on it ("remind me yesterday ..."). With a clock time the parser
+            # still reads the past instant; the caller that needs a future one refuses it.
+            if target_date < zone_now.date():
+                return WhenResolution(
+                    ok=False, tz_name=tz_name,
+                    problem=(
+                        f"{day_word.lower()} has already passed. "
+                        "Give me a time in the future, for example 'tomorrow at 9:00' or 'in 20 minutes'."
+                    ),
+                )
+            if part_match is not None:
+                hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
+            else:
+                return WhenResolution(
+                    ok=False, tz_name=tz_name,
+                    problem=f"Which time on {day_word}? Give me a clock time too (for example '{day_word} at 9:00').",
+                )
+        time_basis = (
+            time_match.group(0).strip() if time_match is not None
+            else str(part_match.group(0)).strip() if part_match is not None
+            else ""
+        )
         return _resolve_wall(
             target_date.year, target_date.month, target_date.day, hour, minute,
-            zone, tz_name, basis=f"{day_match.group(1)} {time_match.group(0)}", now=now, kind="wallclock",
+            zone, tz_name, basis=f"{day_word} {time_basis}".strip(), now=now, kind="wallclock",
         )
-    if day_match and not time_match:
-        return WhenResolution(
-            ok=False,
-            problem=f"Which time on {day_match.group(1)}? Give me a clock time too (for example '{day_match.group(1)} at 9:00').",
-            tz_name=tz_name,
-        )
-    if time_match and not day_match:
+    if hour is not None:
         zone_now = now.astimezone(zone)
         target = zone_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= zone_now:
+        # "this evening at 7" means today, so it never rolls to tomorrow; a bare clock time does.
+        if target <= zone_now and not _says_this_part(text, part_match):
             target = target + timedelta(days=1)
         return _resolve_wall(
             target.year, target.month, target.day, hour, minute,
             zone, tz_name, basis=time_match.group(0), now=now, kind="wallclock",
         )
+    if part_match is not None:
+        hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
+        zone_now = now.astimezone(zone)
+        target = zone_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        this_part = _THIS_PART_RE.search(text)
+        anchored = this_part is not None and this_part.group(1).lower() == part_match.group(1).lower()
+        if target <= zone_now and not anchored:
+            target = target + timedelta(days=1)
+        return _resolve_wall(
+            target.year, target.month, target.day, hour, minute,
+            zone, tz_name,
+            basis=this_part.group(0) if anchored else str(part_match.group(0)).strip(),
+            now=now, kind="wallclock",
+        )
 
     return WhenResolution(
         ok=False,
-        problem="I could not read a date or time in that. Try 'tomorrow at 9:00', 'in 20 minutes', or '2026-09-14 09:30' (you can add a named timezone like Europe/Athens).",
+        problem=_NO_WHEN_PROBLEM,
         tz_name=tz_name,
     )
 
@@ -260,7 +341,9 @@ def time_expression_spans(text: str, *, word_dates: bool = True) -> tuple[tuple[
     the date names the topic being recalled, not when to remind.
     """
     value = str(text or "")
-    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _TIME_RE, _DAY_RE) + ((_WORD_DATE_RE,) if word_dates else ())
+    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _TIME_RE, _DAY_RE) + (
+        (_WORD_DATE_RE, _DAY_OF_MONTH_RE) if word_dates else ()
+    )
     return tuple(sorted({match.span() for pattern in patterns for match in pattern.finditer(value)}))
 
 
@@ -301,7 +384,7 @@ def _resolve_word_date(
     if time_match is None:
         return WhenResolution(ok=False, problem=f"Which time on {said}? Give me a clock time too (for example '{said} at 9:00').", tz_name=tz_name)
     try:
-        hour, minute = _clock_from_match(time_match)
+        hour, minute = _read_clock(time_match, text)
     except ValueError as exc:
         return WhenResolution(ok=False, problem=str(exc))
     return _resolve_wall(
@@ -358,6 +441,13 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
         elif meridiem == "am" and hour == 12:
             hour = 0
         return hour, minute
+    if match.group(8) is not None:
+        # A bare hour after "at" ("at 9", "at 21"): which side of noon it falls on is decided by
+        # a part-of-day word or the defaults in `_bare_hour_wall`, which the caller applies.
+        hour = int(match.group(8))
+        if not 1 <= hour <= 23:
+            raise ValueError("Give me a valid clock time: a bare hour after 'at' is 1 to 23, or use am/pm or HH:MM.")
+        return hour, 0
     if match.group(4) is not None:
         hour, minute = int(match.group(4)), int(match.group(5))
     else:
@@ -367,9 +457,111 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
     return hour, minute
 
 
+def _part_of_day_match(text: str) -> re.Match | None:
+    """The first part-of-day word that names a time, skipping greetings ("good morning")."""
+    value = str(text or "")
+    for match in _PART_OF_DAY_RE.finditer(value):
+        before = value[max(0, match.start() - 12):match.start()].lower()
+        if before.endswith(("good ", "hi ", "hello ", "top of the ")):
+            continue
+        return match
+    return None
+
+
+def _says_this_part(text: str, part_match: re.Match | None) -> bool:
+    """Whether the part of day is anchored to today by "this" ("this evening at 7" is today)."""
+    if part_match is None:
+        return False
+    this_part = _THIS_PART_RE.search(str(text or ""))
+    return this_part is not None and this_part.group(1).lower() == part_match.group(1).lower()
+
+
+def _read_clock(time_match: re.Match, text: str) -> tuple[int, int]:
+    """A clock match read against its whole sentence, so a bare hour after "at" lands on the
+    side of noon the sentence names ("at 9 tonight" is 21:00)."""
+    hour, minute = _clock_from_match(time_match)
+    if time_match.group(8) is not None:
+        part = _part_of_day_match(text)
+        hour = _bare_hour_wall(hour, part.group(1).lower() if part is not None else None)
+    return hour, minute
+
+
+def _bare_hour_wall(hour: int, part_word: str | None) -> int:
+    """A bare hour after "at" on the 24-hour clock. 13 to 23 is the 24-hour clock. For 1 to 12
+    a part-of-day word decides; with none, 7 to 11 is the morning, 12 is noon, and 1 to 6 is
+    the afternoon or evening (13:00 to 18:00)."""
+    if hour >= 13:
+        return hour
+    if part_word is None:
+        return hour if hour >= 7 else hour + 12
+    if part_word == "morning":
+        return hour
+    if part_word in ("afternoon", "evening", "night", "tonight"):
+        return 0 if hour == 12 else hour + 12
+    if part_word == "midnight":
+        return 0
+    return hour  # noon or midday: the hour stands
+
+
+def _resolve_day_of_month(
+    match: re.Match, text: str, zone: Any, tz_name: str, *, now: datetime,
+) -> WhenResolution:
+    """A day of the month with no month word ("on the 3rd", "the 21st at 11"): the next time
+    that day comes round, this month if the time is still ahead, else next month. A month
+    without that day (the 31st in November) is asked about, never moved to another day."""
+    day = int(match.group(1))
+    if not 1 <= day <= 31:
+        return WhenResolution(
+            ok=False, tz_name=tz_name,
+            problem=_NO_WHEN_PROBLEM,
+        )
+    said = re.sub(r"^on\s+", "", match.group(0).strip(), flags=re.IGNORECASE)
+    zone_now = now.astimezone(zone)
+    rest = text[:match.start()] + " " + text[match.end():]
+    time_match = _TIME_RE.search(text)
+    if time_match is not None:
+        try:
+            hour, minute = _read_clock(time_match, text)
+        except ValueError as exc:
+            return WhenResolution(ok=False, problem=str(exc), tz_name=tz_name)
+        time_basis = time_match.group(0).strip()
+    else:
+        part_match = _part_of_day_match(text)
+        if part_match is None:
+            return WhenResolution(
+                ok=False, tz_name=tz_name,
+                problem=f"Which time on {said}? Give me a clock time too (for example '{said} at 9:00').",
+            )
+        hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
+        time_basis = str(part_match.group(0)).strip()
+    for month_offset in (0, 1):
+        year = zone_now.year + (zone_now.month - 1 + month_offset) // 12
+        month = (zone_now.month - 1 + month_offset) % 12 + 1
+        month_name = calendar.month_name[month]
+        if day > monthrange(year, month)[1]:
+            return WhenResolution(
+                ok=False, tz_name=tz_name,
+                problem=f"{month_name} has no day {day}. Tell me the date you mean, with the day, the month and a clock time.",
+            )
+        candidate = zone_now.replace(year=year, month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+        if month_offset == 0 and candidate <= zone_now:
+            continue  # that day already came and went this month: the next one it comes round
+        for day_word in _DAY_RE.finditer(rest):
+            if _date_for_day_word_on(day_word.group(1), candidate.date(), zone_now) is False:
+                return WhenResolution(
+                    ok=False, tz_name=tz_name,
+                    problem=f"{candidate:%A %d %B %Y} is not {day_word.group(1)}. Which day did you mean?",
+                )
+        return _resolve_wall(
+            candidate.year, candidate.month, candidate.day, hour, minute,
+            zone, tz_name, basis=f"{candidate.day} {candidate:%B %Y} {time_basis}", now=now, kind="absolute",
+        )
+    return WhenResolution(ok=False, tz_name=tz_name, problem=_NO_WHEN_PROBLEM)
+
+
 def _date_for_day_word(day_word: str, zone_now: datetime) -> datetime:
     word = day_word.strip().lower()
-    if word == "today":
+    if word in ("today", "tonight"):
         return zone_now.date()
     if word == "tomorrow":
         return zone_now.date() + timedelta(days=1)
