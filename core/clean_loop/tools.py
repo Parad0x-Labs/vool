@@ -87,6 +87,7 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
             ok = bool(getattr(result, "ok", False))
             text = str(getattr(result, "response_text", "") or "")
     details = dict(getattr(result, "details", {}) or {}) if result is not None else {}
+    plain = _plain(text, ctx.home) if ok else "not available: " + (_plain(text, ctx.home) or status)
     ctx.receipts.append(
         {
             "tool_name": intent,
@@ -96,9 +97,11 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
             "observation": details.get("observation") or {},
             "permission": details.get("permission") or {},
             "lane": "clean_local_loop",
+            # What the model was shown, in the field the tool-history writer uses: the hook
+            # mints it as this turn's own observation so the grounding gate can match claims to it.
+            "response_preview": plain[:1800],
         }
     )
-    plain = _plain(text, ctx.home) if ok else "not available: " + (_plain(text, ctx.home) or status)
     return ToolOutcome(text=plain or "(empty)", ok=ok, status=status, intents=(intent,))
 
 
@@ -171,7 +174,13 @@ def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     if isinstance(target, ToolOutcome):
         return target
     if target.suffix.lower() == ".pdf":
-        return _call(ctx, "pdf.extract_text", {"path": str(target), "max_pages": 5})
+        extracted = _call(ctx, "pdf.extract_text", {"path": str(target), "max_pages": 5})
+        if extracted.ok:
+            return extracted
+        # The PDF reader can be missing on a machine (the Mac audit: its platform module was not
+        # importable). A plain read still shows a simple PDF's text; the failure stays on record.
+        plain = _call(ctx, "machine.read_file", {"path": str(target)})
+        return plain if plain.ok else extracted
     return _call(ctx, "machine.read_file", {"path": str(target)})
 
 

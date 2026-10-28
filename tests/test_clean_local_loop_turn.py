@@ -132,3 +132,26 @@ def test_with_the_flag_off_the_turn_never_reaches_the_loop(turn_setup, monkeypat
     result = agent.run_once("how much do i owe the plumber?", source_context={"surface": "cli", "platform": "cli"})
     assert result.get("route_reason") != "clean_local_loop"
     assert "clean_local_loop" not in result
+
+
+def test_a_current_sounding_ask_is_published_from_the_loops_own_reads(turn_setup, monkeypatch):
+    # The Mac audit's F18/F46: "from this week" / "this month" opened the grounding gate and the
+    # grounded answer was withheld as unsupported. (This fixture does not open that gate; the test
+    # pins that the turn still publishes from the loop and that its reads are recorded.)
+    agent, fake, _home = turn_setup
+    fake.replies[:] = [
+        '{"tool": "list_dir", "path": "Downloads"}',
+        '{"answer": "This week your Downloads got plumber_invoice.txt."}',
+    ]
+    monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
+    result = agent.run_once(
+        "any new photos in downloads from this week?", source_context={"surface": "cli", "platform": "cli"}
+    )
+    assert result.get("route_reason") == "clean_local_loop", result.get("route_reason")
+    assert "plumber_invoice.txt" in result["response"]
+    assert "can't publish" not in result["response"]
+    from core.grounding_lifecycle import lifecycle_for_context
+
+    lifecycle = lifecycle_for_context({"session_id": result.get("session_id"), "turn_id": result.get("turn_id")})
+    if lifecycle is not None:
+        assert any("plumber_invoice.txt" in str(row.get("summary")) for row in lifecycle.typed_observations)

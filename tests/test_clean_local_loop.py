@@ -221,6 +221,24 @@ def test_largest_passes_the_contract_argument_through_the_real_boundary(home):
     assert outcome.status != "invalid_arguments", outcome.text
 
 
+def test_a_pdf_falls_back_to_a_plain_read_when_the_pdf_reader_fails(home):
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    calls = []
+
+    def execute(intent, arguments, **_kwargs):
+        calls.append(intent)
+        if intent == "pdf.extract_text":
+            return RuntimeExecutionResult(handled=True, ok=False, status="missing_dependency", response_text="no reader")
+        return RuntimeExecutionResult(handled=True, ok=True, status="executed", response_text="Total due 129.40 EUR")
+
+    ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
+    outcome = _registry().tool("read_file").run({"path": "Downloads/invoice_4471.pdf"}, ctx)
+    assert calls == ["pdf.extract_text", "machine.read_file"]
+    assert outcome.ok and "129.40" in outcome.text
+    assert [r["mode"] for r in ctx.receipts] == ["tool_failed", "tool_executed"]
+
+
 def test_propose_change_never_executes(home):
     ctx, calls = _recording_ctx(home)
     outcome = _registry().tool("propose_change").run({"what": "delete Desktop/todo.txt"}, ctx)

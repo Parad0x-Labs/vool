@@ -50,6 +50,30 @@ def _emit_tool_events(agent: Any, source_context: dict[str, Any], receipts: list
             continue
 
 
+def _record_observations(source_context: dict[str, Any], receipts: list[dict[str, Any]]) -> None:
+    """Each read that ran is this turn's own typed observation, the support a grounded answer is
+    matched against. Without it the publication gate saw a model answer with nothing retrieved
+    and withheld it whenever the ask sounded current ("any new photos from this week?")."""
+    rows = [
+        {
+            "ok": True,
+            "tool_name": str(receipt.get("tool_name") or ""),
+            "summary": str(receipt.get("response_preview") or ""),
+            "lane": REASON,
+        }
+        for receipt in receipts
+        if (receipt.get("execution") or {}).get("executed") and str(receipt.get("response_preview") or "").strip()
+    ]
+    if not rows:
+        return
+    try:
+        from core.grounding_lifecycle import record_typed_observations
+
+        record_typed_observations(source_context, entries=rows)
+    except Exception:
+        return
+
+
 def maybe_answer(
     agent: Any,
     *,
@@ -102,6 +126,7 @@ def maybe_answer(
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.
         context["clean_local_loop_route"] = "no_answer_fell_through"
         return None
+    _record_observations(context, ctx.receipts)
     trace = {**loop_result.trace(), "provider_id": provider_id, "model_id": model_id}
     context["tool_receipts"] = list(context.get("tool_receipts") or []) + ctx.receipts
     context[REASON] = trace
