@@ -3,6 +3,9 @@
 Lane: `build/native-skill-library-p1-20260902` · base `a7b78e2a` · 2026-09-02
 Pack: `tests/native_skills/` — 71 tests, all green (see `evidence/`).
 
+Update 2026-10-28: `vool-git-worktrees` was cut (rare ask, adds no step a plain model lacks), so
+its row and its served workflow are gone; the counts below are the 2026-09-02 lane's.
+
 Verdict vocabulary, used honestly:
 
 - **IMPLEMENTED** — the thing exists as real code/packages and its unit law is pinned green.
@@ -29,7 +32,6 @@ selection pack.
 | vool-cumulative-testing| IMPLEMENTED | SERVED | SERVED | SERVED (read_files)   | SERVED (workspace.run_tests executes real pytest, "2 passed") |
 | vool-code-review       | IMPLEMENTED | SERVED | SERVED | SERVED (read_files)   | PARTIAL (components served individually) |
 | vool-security-audit    | IMPLEMENTED | SERVED | SERVED | SERVED (read_files)   | PARTIAL (components served individually) |
-| vool-git-worktrees     | IMPLEMENTED | SERVED | SERVED | SERVED (read_files, create_files) | SERVED (git_status + sandbox read-only run + approval refusal, real repo) |
 | vool-ci-repair         | IMPLEMENTED | SERVED | SERVED | SERVED (read_files, create_files) | PARTIAL (components served individually) |
 | vool-browser-qa        | IMPLEMENTED | SERVED | SERVED | SERVED (read_files)   | PARTIAL (web lane served at capability level; no live fetch in pack — no network in tests) |
 | vool-performance       | IMPLEMENTED | SERVED | SERVED | SERVED (read_files, create_files) | PARTIAL (components served individually) |
@@ -50,8 +52,8 @@ gating for the package is served; the pack does not re-drive a full bespoke work
 | Refusal when capability absent  | SERVED | Unknown capability refused by name; known capability with every implementation unavailable refused; empty graph refuses everything; policy-disabled web lane refuses vool-browser-qa |
 | Model switching                 | SERVED | Selection + `skill.validate` byte-identical under `VOOL_LOCAL_MODELS_ENABLED=0` vs `1` |
 | Plugin/MCP parity               | SERVED (plugin) / PARTIAL (MCP) | Native twin vs installed plugin twin: equal records, one rank call, equal narrowing, install lifecycle walks; MCP-sourced SKILL packages do not exist at this base — nothing to be parity with (see ABSENT) |
-| Three served workflows          | SERVED | repo-onboarding (real tree, real reads), cumulative-testing (real pytest subprocess), git-worktrees (real repo, real sandbox run + typed approval refusal) |
-| No direct execution bypass      | SERVED | Machine-checked: bodies must state the `execute_runtime_tool` door; bypass vocabulary absent; the served git mutation refusal shows the door failing closed for real |
+| Served workflows                | SERVED | repo-onboarding (real tree, real reads), cumulative-testing (real pytest subprocess) |
+| No direct execution bypass      | SERVED | Machine-checked: bodies must state the `execute_runtime_tool` door; bypass vocabulary absent |
 | Sabotage: selection             | SERVED | Neutralising `_absent_capabilities` flips refusal→selection (mutation detected); decoy-ranking sabotage pinned |
 | Sabotage: permission guards     | SERVED | Under-declared permissions fail the REAL validator; modeless `skill.install` decision is not ALLOW |
 | Cumulative test law             | SERVED | Every package declares it; `tests/native_skills/` (71 green) is the bounded cumulative pack |

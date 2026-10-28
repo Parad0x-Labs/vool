@@ -46,7 +46,6 @@ REQUIRED_PACKAGE_IDS = (
     "cumulative-testing",
     "code-review",
     "security-audit",
-    "git-worktrees",
     "ci-repair",
     "browser-qa",
     "performance",

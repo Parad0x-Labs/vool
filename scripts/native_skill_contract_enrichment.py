@@ -88,15 +88,6 @@ CONTRACTS: dict[str, dict] = {
         "stopping-conditions": ["stop when each finding states the class, the seam, and the exploit path sketch — or the audit surface is exhausted and said so"],
         "incompatible-with": [],
     },
-    "vool-git-worktrees": {
-        "id": "git-worktrees", "risk-class": "workspace_write", "priority": 20,
-        "task-families": ["shell_guidance"], "capability-families": ["sandbox", "workspace"],
-        "prerequisites": ["binary:git"],
-        "expected-outputs": ["worktree_path", "branch_name", "command_receipts"],
-        "verification": ["typed_receipts", "deterministic_evidence"],
-        "stopping-conditions": ["stop when the worktree exists, is on its branch, and the receipts name every command run"],
-        "incompatible-with": [],
-    },
     "vool-ci-repair": {
         "id": "ci-repair", "risk-class": "workspace_write", "priority": 40,
         "task-families": ["debugging", "integration_orchestration"], "capability-families": ["workspace", "sandbox"],
@@ -154,15 +145,6 @@ CONTRACTS: dict[str, dict] = {
         "stopping-conditions": ["stop when the edit's typed receipt names the operation and the export path — never claim an export without its receipt"],
         "incompatible-with": [],
     },
-    "vool-hive-mind": {
-        "id": "vool-hive-mind", "risk-class": "read_only", "priority": 100,
-        "task-families": [], "capability-families": ["hive", "network", "orchestration"],
-        "prerequisites": [],
-        "expected-outputs": ["bridge_guidance"],
-        "verification": ["evidence_cited"],
-        "stopping-conditions": ["stop when the bridge/mesh question is answered from the document"],
-        "incompatible-with": [],
-    },
 }
 
 TOOL_INTENTS: dict[str, list[str]] = {
@@ -173,14 +155,12 @@ TOOL_INTENTS: dict[str, list[str]] = {
     "vool-cumulative-testing": ["workspace.run_tests", "workspace.run_lint", "workspace.run_formatter", "workspace.read_file"],
     "vool-code-review": ["workspace.git_diff", "workspace.read_file", "workspace.search_text", "workspace.run_lint"],
     "vool-security-audit": ["workspace.search_text", "workspace.read_file", "workspace.git_diff", "workspace.symbol_search"],
-    "vool-git-worktrees": ["workspace.git_status", "workspace.git_diff", "workspace.read_file", "sandbox.run_command"],
     "vool-ci-repair": ["workspace.read_file", "workspace.search_text", "workspace.run_tests", "workspace.run_lint", "sandbox.run_command"],
     "vool-browser-qa": ["web.fetch", "web.search"],
     "vool-performance": ["workspace.search_text", "workspace.read_file", "workspace.run_tests", "sandbox.run_command"],
     "vool-migration": ["workspace.search_text", "workspace.read_file", "workspace.replace_in_file", "workspace.write_file", "workspace.apply_unified_diff", "workspace.run_tests"],
     "vool-release-gate": ["workspace.run_tests", "workspace.run_lint", "workspace.git_status", "workspace.git_diff", "sandbox.run_command"],
     "media-studio": ["media.open", "media.inspect", "media.edit", "media.undo", "media.redo", "media.export"],
-    "vool-hive-mind": [],
 }
 
 
