@@ -1107,6 +1107,11 @@ def _reminder_note_from_text(text: str) -> str:
     raw = str(text or "").strip()
     match = _REMINDER_NOTE_RE.search(raw)
     note = (match.group("note") if match else raw).strip()
+    decimal_clock = re.match(r"(?:at\s+)?\d{1,2}\.\d{2}\s*(?:am|pm)?[\s,]*", note, re.IGNORECASE)
+    if decimal_clock:
+        # A decimal clock that leads the note ("9.30 tomorrow to leave") is the when-clause's
+        # own form, so it leaves with the rest of the when-words below.
+        note = note[decimal_clock.end():].strip()
     leading = _LEADING_WHEN_RE.match(note)
     if leading:
         note = leading.group("note").strip()
