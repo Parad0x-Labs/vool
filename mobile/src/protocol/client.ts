@@ -30,7 +30,12 @@ export interface DeviceCredentials {
   approvalKeyAlias?: string;
 }
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) => Promise<{ status: number; json(): Promise<unknown> }>;
+
+/** A chat turn on a local model can take minutes; the 30-second wait of other requests cut the phone off
+ *  while the computer was still answering (real-model test 2026-10-28). A resend with the same key never
+ *  runs the turn twice: the computer answers "still working" or the finished reply. */
+export const CHAT_TURN_TIMEOUT_MS = 240000;
 
 export interface ClientOptions {
   fetchImpl?: FetchLike;
@@ -103,6 +108,7 @@ export class MobileCompanionClient {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
+      ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
     });
     const parsed = (await response.json()) as CompanionResponse<T>;
     if (!parsed || parsed.ok !== true) {
@@ -261,11 +267,12 @@ export class MobileCompanionClient {
   lostComputer(): Promise<{clear_credentials: boolean}> {return this.request("devices.lost_computer");}
 }
 
-export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }) {
+export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const {timeoutMs, ...request} = init;
+  const timer = setTimeout(() => controller.abort(), timeoutMs ?? 30000);
   try {
-    const response = await fetch(url, {...init, signal: controller.signal, redirect: "error"});
+    const response = await fetch(url, {...request, signal: controller.signal, redirect: "error"});
     const body: unknown = await response.json();
     return {status: response.status, json: async () => body};
   } finally {clearTimeout(timer);}

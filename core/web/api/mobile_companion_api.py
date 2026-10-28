@@ -1272,6 +1272,10 @@ def _action_chats_send(
         return 202, {"chat_id": phone_chat_id, "pending": True, "turn_id": request_id}
     if response.status != 200:
         return response.status, payload
+    if payload.get("done_reason") == "request_in_progress":
+        # The phone resent a turn the computer is still answering (a local model can take minutes). The chat
+        # door never runs it twice; before, its empty "still working" reply reached the phone as the answer.
+        return 202, {"chat_id": phone_chat_id, "pending": True, "turn_id": request_id}
     envelope_msg = payload.get("message") or {}
     commit = payload.get("vool_response_commit") or {}
     result: dict[str, Any] = {
