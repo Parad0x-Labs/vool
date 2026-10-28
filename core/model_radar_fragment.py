@@ -288,7 +288,7 @@ function savePrefs(){
     min_interval_hours: Number((pop.querySelector('#mrPFreq') || {}).value || 0),
   }).then(function(r){
     var el = pop.querySelector('#mrPStatus');
-    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? RT('radar.saved', 'Saved.') : RTF('radar.save_failed', 'Could not save: {error}', { error: ((r.j && r.j.error) || r.status) }); }
+    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? RT('radar.saved', 'Saved.') : RTF('radar.save_failed', 'Could not save. Try again.'); }
     refresh();
   }).catch(function(){});
 }

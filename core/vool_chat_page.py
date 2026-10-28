@@ -3189,7 +3189,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed') : 'Copy failed';
+  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed. Try again.') : 'Copy failed. Try again.';
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -4707,7 +4707,7 @@ async function newChatInProject(pid) {
       // project's memory into a chat the UI called isolated.
       view.projectId = '';
       renderContextBar();
-      toast(emptyT('chat.toast_project_failed', 'Could not put this chat in the project — it is NOT isolated. Try again.'));
+      toast(emptyT('chat.toast_project_failed', 'Could not put this chat in the project, so it is not isolated there. Try again.'));
     } else {
       if (isDisplayed(sid)) applyProjectModel(pid);
     }
@@ -5493,7 +5493,7 @@ function mountAnswerExport(host, chatId, requestId) {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
-        if (!result.ok && !result.cancelled) { console.warn('pdf save refused', result.message || result.error || ''); throw new Error(label('msg.pdf_failed', 'PDF export failed')); }
+        if (!result.ok && !result.cancelled) { console.warn('pdf save refused', result.message || result.error || ''); throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.')); }
         status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
@@ -5502,17 +5502,17 @@ function mountAnswerExport(host, chatId, requestId) {
         if (!response.ok) {
           const refusal = await response.json();
           console.warn('pdf export refused', refusal.message || refusal.error || '', response.status);
-          throw new Error(label('msg.pdf_failed', 'PDF export failed'));
+          throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.'));
         }
         const blob = await response.blob();
-        if (!/^application\/pdf\b/i.test(blob.type)) { console.warn('pdf export returned wrong type', blob.type); throw new Error(label('msg.pdf_failed', 'PDF export failed')); }
+        if (!/^application\/pdf\b/i.test(blob.type)) { console.warn('pdf export returned wrong type', blob.type); throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.')); }
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = downloadFilenameFrom(response.headers.get('Content-Disposition'), 'VOOL answer.pdf');
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { console.warn('pdf export failed', error); status.textContent = label('msg.pdf_failed', 'PDF export failed'); }
+    } catch (error) { console.warn('pdf export failed', error); status.textContent = label('msg.pdf_failed', 'PDF export failed. Try again.'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -9176,7 +9176,7 @@ async function renderReceipts(body) {
     list.slice().reverse().forEach((rc) => { html += receiptRowHtml(rc); });
     body.innerHTML = html;
     wireReceiptActions(body, list);
-  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; }
+  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; }
 }
 // The store keeps issued_at as an epoch float. Shown raw it is not a time anyone can read, so it
 // is rendered as a local timestamp; the untouched receipt is still what "Copy receipt" hands over.
@@ -9917,7 +9917,7 @@ async function runTurn(text, queueItemId, opts) {
       run.error = (e && e.message ? e.message : String(e));
       run.text = run.text || pageT('chat.send_failed', 'The message could not be sent.');
       withRunDom(run, () => { if (run.textEl) run.textEl.textContent = pageT('chat.send_failed', 'The message could not be sent.'); });
-      finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
+      finishRun(run, 'failed', pageT('run.connection_error', 'Connection problem. Check the internet, then try again.'));
     }
   }
   // The stream is over: no batched repaint may land after the terminal paint below (or the error
@@ -13389,7 +13389,7 @@ function _explainSearchError(state, detail) {
   if (state === 'unauthorized') return pageT('search_err.unauthorized', 'That provider rejected the key. Check you copied the whole key, and that it is for this provider.');
   if (state === 'rate_limited') return pageT('search_err.rate_limited', 'The provider is rate-limiting this key right now. It should work again shortly.');
   if (state === 'quota_exhausted') return pageT('search_err.quota_exhausted', 'This key has no quota left on its plan.');
-  if (state === 'unreachable') return pageT('search_err.unreachable', 'Could not reach the provider from this machine (offline, or the network blocked it).');
+  if (state === 'unreachable') return pageT('search_err.unreachable', 'VOOL could not reach the search service; the internet may be off or the network may be blocking it. Check the connection and try again.');
   if (state === 'no_key') return pageT('search_err.no_key', 'No key is stored for this provider yet.');
   // A REFUSAL is a policy verdict, not a verdict on the key. Reporting it as an
   // unusable search sent people to regenerate a credential that was never used
@@ -15006,8 +15006,8 @@ const UPDATE_ONLINE_OFF = pageT('update.online_off', 'Online access is off, so V
 const UPDATE_LABELS = {
   ready: pageT('update.ready', 'Update ready'), downloading: pageT('update.downloading', 'Downloading…'), verifying: pageT('update.verifying', 'Verifying…'),
   ready_to_restart: pageT('update.ready_to_restart', 'Ready to restart'), installing: pageT('update.installing', 'Installing…'), restarting: pageT('update.restarting', 'Restarting…'),
-  done: pageT('update.done', 'Updated'), rolled_back: pageT('update.rolled_back', 'Rolled back'), failed: pageT('update.failed', 'Update failed'),
-  unavailable: pageT('update.unavailable', 'Updates unavailable'), checking: pageT('update.checking', 'Checking…'), up_to_date: pageT('update.up_to_date', 'Up to date'),
+  done: pageT('update.done', 'Updated'), rolled_back: pageT('update.rolled_back', 'Rolled back'), failed: pageT('update.failed', 'Update failed. Try again later.'),
+  unavailable: pageT('update.unavailable', 'Updates are not available right now. Try again later.'), checking: pageT('update.checking', 'Checking…'), up_to_date: pageT('update.up_to_date', 'Up to date'),
 };
 const UPDATE_BUSY = new Set(['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting']);
 let _updateStatus = null;
