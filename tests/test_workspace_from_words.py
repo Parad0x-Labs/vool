@@ -4,11 +4,12 @@ Every test builds a real temp home with real folders, pins the VOOL runtime to a
 profile and re-derives every expectation from paths the test itself created. The words
 below are this file's own set: they span space, dash, underscore and camelCase folder
 names, container mentions ("in Projects", "on my Desktop", "under Documents") and
-possessive framings, plus the refusals that must bind nothing (an idea that is not a
-folder ask, a folder that exists nowhere, words with no name at all, several matches,
-a system tree inside the home, a link that leaves the home, the home folder itself,
-the container folders themselves, a remote surface) and what a bound chat then sees on
-its next turn.
+work-ask framings, plus the refusals that must bind nothing (ordinary chat and casual
+mentions that stay silent, an idea that is not a folder ask, a folder that exists
+nowhere, words with no name at all, several matches, the home's standard folders and
+containers themselves, secret-named folders, a system tree inside the home, a link that
+leaves the home, the home folder itself, a remote surface) and what a bound chat then
+sees on its next turn.
 """
 from __future__ import annotations
 
@@ -47,14 +48,28 @@ def person_home(tmp_path, monkeypatch):
     folders = (
         # the one-folder-per-name set the positive wordings name
         "Projects/garden planner",
+        # a longer near-name: the exact name must win over it, with a plain-words aside
+        "Projects/garden planner 2",
+        "Projects/plant catalog",
+        # a secret word in the name: never bound, refused in plain words
         "Projects/seed catalog",
         "Code/recipe-app",
         "Code/BudgetTracker",
         "Documents/Notes Sync",
         "Documents/knitting patterns",
+        # the generic-noun wording ("the tax 2025 stuff") names this folder
+        "Documents/Tax 2025",
         "Desktop/trip_photos",
         "Developer",
         "renovations-2027",
+        # the home's standard folders: never bound, refused in plain words
+        "Downloads",
+        "Music",
+        "Pictures",
+        "Movies",
+        "Public",
+        # a secret-named folder in the home: never bound
+        "Passwords",
         # two sibling spellings of one name: the several-matches ask
         "Projects/invoice-tool",
         "Code/invoice_tool",
@@ -87,26 +102,26 @@ def person_home(tmp_path, monkeypatch):
 
 
 # ----------------------------------------------------------------------------------
-# Fresh wordings that must resolve to the one folder they name
+# Work asks that must resolve to the one folder they name
 # ----------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     ("words", "expected_relative"),
     [
-        ("my garden planner project", "Projects/garden planner"),
-        ("the garden-planner thing in Projects", "Projects/garden planner"),
-        ("my Projects/garden planner", "Projects/garden planner"),
-        ("the recipe app in my Code folder", "Code/recipe-app"),
-        ("my BudgetTracker project in Code", "Code/BudgetTracker"),
-        ("my Notes Sync folder under Documents", "Documents/Notes Sync"),
-        ("the trip_photos folder on my Desktop", "Desktop/trip_photos"),
-        ("my knitting patterns project in Documents", "Documents/knitting patterns"),
-        ("the seed catalog project", "Projects/seed catalog"),
-        ("my renovations-2027 folder", "renovations-2027"),
+        ("open my garden planner project", "Projects/garden planner"),
+        ("look at the garden-planner thing in Projects", "Projects/garden planner"),
+        ("work on my Projects/garden planner", "Projects/garden planner"),
+        ("fix the recipe app in my Code folder", "Code/recipe-app"),
+        ("review my BudgetTracker project in Code", "Code/BudgetTracker"),
+        ("open my Notes Sync folder under Documents", "Documents/Notes Sync"),
+        ("look at the trip_photos folder on my Desktop", "Desktop/trip_photos"),
+        ("run the tests in my knitting patterns project in Documents", "Documents/knitting patterns"),
+        ("change the plant catalog project", "Projects/plant catalog"),
+        ("edit my renovations-2027 folder", "renovations-2027"),
     ],
 )
-def test_a_fresh_wording_resolves_to_the_one_folder_it_names(
+def test_a_work_ask_resolves_to_the_one_folder_it_names(
     person_home, words, expected_relative
 ) -> None:
     resolution = resolve_folder_from_words(words, person_home)
@@ -117,6 +132,121 @@ def test_a_fresh_wording_resolves_to_the_one_folder_it_names(
     assert resolution.name == Path(expected_relative).name
     assert resolution.message == ""
     assert resolution.matches == ()
+
+
+# ----------------------------------------------------------------------------------
+# Ordinary chat never gets a notice and never binds
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        # the reviewer's four measured sentences
+        "why is the sky blue",
+        "what's the weather in London",
+        "the dog ate my homework",
+        "my mom called me today",
+        # this file's own ordinary chat
+        "what should I make for dinner tonight",
+        "who won the game last night",
+        "how far away is the moon",
+        "I finished that book yesterday",
+        "the cat knocked over a plant",
+        "what time is it in Tokyo",
+        "is coffee bad for you",
+        "tell me a joke about cats",
+        "I'm thinking about getting a haircut",
+        "remind me to water the plants tomorrow",
+        "can elephants swim",
+        "my back hurts after the gym",
+    ],
+)
+def test_ordinary_chat_stays_silent_and_unbound(person_home, words) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.matches == ()
+    assert resolution.message == ""
+    assert resolution.note == ""
+
+    chat = _unique_chat("ordinary")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result == {"status": "no_ask", "bound": False, "notice": ""}
+    assert project_store.list_projects() == []
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# Casual mentions of a name never bind
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        # the reviewer's casual mentions
+        "how do I file my taxes this year",
+        "play my music",
+        "clean up my downloads",
+        "where are my passwords",
+        "my mom called",
+        # this file's own casual mentions
+        "where did I put my keys this morning",
+        "I need to back up my photos tonight",
+        "my sister borrowed my laptop charger",
+        "how do I print labels from my computer",
+    ],
+)
+def test_a_casual_mention_of_a_name_never_binds(person_home, words) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message == ""
+
+    chat = _unique_chat("casual")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["bound"] is False
+    assert result["notice"] == ""
+    assert project_store.list_projects() == []
+    namespace = load_chat_namespace(chat)
+    assert namespace is None or namespace.project_id == ""
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# A bind needs a work ask AND a folder pointer
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        # a named folder with no work ask around it
+        "my garden planner project",
+        # a work ask with no folder pointer
+        "fix the login bug tonight",
+        # a name with no pointer noun and no container or quote around it
+        "open my garden planner",
+    ],
+)
+def test_without_both_a_work_ask_and_a_folder_pointer_nothing_happens(
+    person_home, words
+) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "no_ask", (words, resolution)
+    chat = _unique_chat("no-pointer")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["bound"] is False
+    assert result["notice"] == ""
+    assert project_store.list_projects() == []
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
 
 
 # ----------------------------------------------------------------------------------
@@ -132,7 +262,7 @@ def test_an_idea_is_not_a_folder_ask(person_home) -> None:
 
 def test_a_folder_that_exists_nowhere_is_a_plain_no(person_home) -> None:
     resolution = resolve_folder_from_words(
-        "the underwater basket weaving project", person_home
+        "open the underwater basket weaving project", person_home
     )
     assert resolution.status == "none"
     assert resolution.path == ""
@@ -153,7 +283,7 @@ def test_words_with_no_folder_name_at_all_are_no_ask(person_home) -> None:
     "words",
     [
         "plant a garden project idea",
-        "the underwater basket weaving project",
+        "open the underwater basket weaving project",
         "let's cook dinner tonight",
     ],
 )
@@ -171,12 +301,53 @@ def test_a_lookalike_wording_binds_nothing(person_home, words) -> None:
 
 
 # ----------------------------------------------------------------------------------
+# The exact name wins over a longer near-name, with a plain-words aside
+# ----------------------------------------------------------------------------------
+
+
+def test_an_exact_name_wins_over_a_longer_near_name(person_home) -> None:
+    words = "open my garden planner project"
+    resolution = resolve_folder_from_words(words, person_home)
+    expected = os.path.realpath(person_home / "Projects" / "garden planner")
+    assert resolution.status == "found"
+    assert resolution.path == expected
+    assert resolution.note != ""
+    assert "garden planner 2" in resolution.note
+    assert "/" not in resolution.note
+
+    chat = _unique_chat("exact-wins")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["bound"] is True
+    assert result["root"] == expected
+    assert "garden planner 2" in result["notice"]
+    assert str(person_home) not in result["notice"]
+    assert "/" not in result["notice"]
+
+
+# ----------------------------------------------------------------------------------
+# Generic nouns are never part of the name
+# ----------------------------------------------------------------------------------
+
+
+def test_stuff_after_a_name_is_not_part_of_the_name(person_home) -> None:
+    resolution = resolve_folder_from_words(
+        "work on the tax 2025 stuff in documents", person_home
+    )
+    expected = os.path.realpath(person_home / "Documents" / "Tax 2025")
+    assert resolution.status == "found"
+    assert resolution.path == expected
+    assert resolution.name == "Tax 2025"
+
+
+# ----------------------------------------------------------------------------------
 # Several matches
 # ----------------------------------------------------------------------------------
 
 
 def test_two_sibling_folders_with_one_name_ask_which_one(person_home) -> None:
-    words = "my invoice tool project"
+    words = "open my invoice tool project"
     resolution = resolve_folder_from_words(words, person_home)
     assert resolution.status == "several"
     assert resolution.path == ""
@@ -192,12 +363,13 @@ def test_two_sibling_folders_with_one_name_ask_which_one(person_home) -> None:
     assert result["bound"] is False
     assert result["notice"] != ""
     assert str(person_home) not in result["notice"]
+    assert "/" not in result["notice"]
     assert project_store.list_projects() == []
     assert authoritative_chat_workspace(chat) == ("", "unbound")
 
 
 def test_many_matches_list_at_most_three_folder_names(person_home) -> None:
-    resolution = resolve_folder_from_words("the archive sorter project", person_home)
+    resolution = resolve_folder_from_words("review the archive sorter project", person_home)
     assert resolution.status == "several"
     assert len(resolution.matches) <= 3
     listed = [display for _path, display in resolution.matches]
@@ -208,12 +380,102 @@ def test_many_matches_list_at_most_three_folder_names(person_home) -> None:
 
 
 # ----------------------------------------------------------------------------------
+# The home's standard folders and containers themselves are refused, never bound
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "open my downloads folder",
+        "look at my pictures folder",
+        "open my music folder",
+        "open my movies folder",
+        "open my public folder",
+    ],
+)
+def test_a_standard_home_folder_is_refused_in_plain_words(
+    person_home, words
+) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "refused", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message != ""
+    assert "/" not in resolution.message
+    assert str(person_home) not in resolution.message
+
+    chat = _unique_chat("standard")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["status"] == "refused"
+    assert result["bound"] is False
+    assert result["notice"] == resolution.message
+    assert "/" not in result["notice"]
+    assert project_store.list_projects() == []
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+@pytest.mark.parametrize("words", ["open my projects folder", "open my documents folder"])
+def test_a_container_folder_itself_is_refused(person_home, words) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "refused", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message != ""
+    assert "/" not in resolution.message
+
+    chat = _unique_chat("container")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["bound"] is False
+    assert project_store.list_projects() == []
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
+# Secret-named folders are refused in plain words, never bound
+# ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "open my passwords folder",
+        "work on the seed catalog project in Projects",
+        "fix my wallet code",
+        "open my 2fa folder",
+        "run the tests in my backup codes project",
+    ],
+)
+def test_a_secret_name_is_refused_in_plain_words(person_home, words) -> None:
+    resolution = resolve_folder_from_words(words, person_home)
+    assert resolution.status == "refused", (words, resolution)
+    assert resolution.path == ""
+    assert resolution.message != ""
+    assert "/" not in resolution.message
+    assert str(person_home) not in resolution.message
+
+    chat = _unique_chat("secret")
+    result = apply_workspace_words_binding(
+        chat, words, home=person_home, owner_local=True
+    )
+    assert result["status"] == "refused"
+    assert result["bound"] is False
+    assert "/" not in result["notice"]
+    assert project_store.list_projects() == []
+    namespace = load_chat_namespace(chat)
+    assert namespace is None or namespace.project_id == ""
+    assert authoritative_chat_workspace(chat) == ("", "unbound")
+
+
+# ----------------------------------------------------------------------------------
 # Secret, system, outside-home and too-broad folders never bind
 # ----------------------------------------------------------------------------------
 
 
 def test_a_system_tree_inside_the_home_is_never_a_match(person_home) -> None:
-    words = "the sync keystore project in my Library"
+    words = "look at the sync keystore project in my Library"
     resolution = resolve_folder_from_words(words, person_home)
     assert resolution.status == "none"
     assert resolution.path == ""
@@ -227,7 +489,7 @@ def test_a_system_tree_inside_the_home_is_never_a_match(person_home) -> None:
 
 
 def test_a_link_leaving_the_home_is_never_a_match(person_home) -> None:
-    words = "the escape-hatch thing in Projects"
+    words = "look at the escape-hatch thing in Projects"
     resolution = resolve_folder_from_words(words, person_home)
     assert resolution.status not in {"found", "several"}
     assert resolution.path == ""
@@ -241,7 +503,7 @@ def test_a_link_leaving_the_home_is_never_a_match(person_home) -> None:
 
 
 def test_the_home_folder_itself_is_never_a_match(person_home) -> None:
-    words = "my home folder"
+    words = "open my home folder"
     resolution = resolve_folder_from_words(words, person_home)
     assert resolution.status not in {"found", "several"}
     assert resolution.path == ""
@@ -252,13 +514,6 @@ def test_the_home_folder_itself_is_never_a_match(person_home) -> None:
     assert result["bound"] is False
     assert project_store.list_projects() == []
     assert authoritative_chat_workspace(chat) == ("", "unbound")
-
-
-@pytest.mark.parametrize("words", ["my Projects folder", "my Documents folder"])
-def test_a_container_folder_itself_is_never_a_match(person_home, words) -> None:
-    resolution = resolve_folder_from_words(words, person_home)
-    assert resolution.status not in {"found", "several"}
-    assert resolution.path == ""
 
 
 def test_the_project_store_refuses_too_broad_roots(person_home) -> None:
@@ -274,19 +529,22 @@ def test_the_project_store_refuses_too_broad_roots(person_home) -> None:
 
 def test_a_refused_project_registration_binds_nothing(person_home) -> None:
     # The registry write itself is made impossible, so the store refuses mid-binding:
-    # the chat must be left with no project and no namespace change.
+    # the chat must be left with no project and no namespace change, and the refusal
+    # notice must be one plain sentence with no path in it.
     registry = project_store.projects_path()
     registry.parent.mkdir(parents=True, exist_ok=True)
     registry.mkdir()
     chat = _unique_chat("store-refusal")
     try:
         result = apply_workspace_words_binding(
-            chat, "my garden planner project", home=person_home, owner_local=True
+            chat, "open my garden planner project", home=person_home, owner_local=True
         )
     except OSError:
         result = None
     if result is not None:
         assert result.get("bound") is False
+        if result.get("notice"):
+            assert "/" not in result["notice"]
     assert project_store.list_projects() == []
     namespace = load_chat_namespace(chat)
     assert namespace is None or namespace.project_id == ""
@@ -301,7 +559,7 @@ def test_a_refused_project_registration_binds_nothing(person_home) -> None:
 def test_a_remote_surface_never_binds(person_home) -> None:
     chat = _unique_chat("remote")
     result = apply_workspace_words_binding(
-        chat, "my garden planner project", home=person_home, owner_local=False
+        chat, "open my garden planner project", home=person_home, owner_local=False
     )
     assert result["status"] == "skip"
     assert result["bound"] is False
@@ -318,7 +576,7 @@ def test_a_remote_surface_never_binds(person_home) -> None:
 def test_binding_from_words_sets_the_workspace_the_next_turn_sees(person_home) -> None:
     chat = _unique_chat("next-turn")
     result = apply_workspace_words_binding(
-        chat, "my garden planner project", home=person_home, owner_local=True
+        chat, "open my garden planner project", home=person_home, owner_local=True
     )
     expected_root = os.path.realpath(person_home / "Projects" / "garden planner")
     assert result["status"] == "found"
@@ -342,6 +600,7 @@ def test_binding_from_words_sets_the_workspace_the_next_turn_sees(person_home) -
     notice = result["notice"]
     assert "garden planner" in notice.lower()
     assert str(person_home) not in notice
+    assert "/" not in notice
 
     root, reason = authoritative_chat_workspace(chat)
     assert root == expected_root
@@ -359,14 +618,14 @@ def test_binding_from_words_sets_the_workspace_the_next_turn_sees(person_home) -
 def test_an_already_bound_chat_skips_a_new_word_binding(person_home) -> None:
     chat = _unique_chat("already-bound")
     first = apply_workspace_words_binding(
-        chat, "my garden planner project", home=person_home, owner_local=True
+        chat, "open my garden planner project", home=person_home, owner_local=True
     )
     assert first["bound"] is True
 
     # The turn's caller hands the chat's existing binding in, as the turn dispatch does.
     second = apply_workspace_words_binding(
         chat,
-        "the recipe app in my Code folder",
+        "fix the recipe app in my Code folder",
         home=person_home,
         owner_local=True,
         bound_project_id=first["project_id"],
@@ -384,10 +643,10 @@ def test_an_explicit_workspace_wins_over_the_words(person_home) -> None:
     chat = _unique_chat("explicit-workspace")
     result = apply_workspace_words_binding(
         chat,
-        "my garden planner project",
+        "open my garden planner project",
         home=person_home,
         owner_local=True,
-        requested_workspace=str(person_home / "Projects" / "seed catalog"),
+        requested_workspace=str(person_home / "Projects" / "plant catalog"),
     )
     assert result["status"] == "skip"
     assert result["bound"] is False
@@ -400,7 +659,7 @@ def test_a_previously_bound_project_id_skips_the_word_binding(person_home) -> No
     chat = _unique_chat("pre-bound")
     result = apply_workspace_words_binding(
         chat,
-        "my garden planner project",
+        "open my garden planner project",
         home=person_home,
         owner_local=True,
         bound_project_id="proj_prebound0001",
@@ -427,7 +686,7 @@ def test_a_docs_folder_ask_in_a_bound_project_targets_the_projects_own_docs_fold
 
     chat = _unique_chat("docs-ask")
     binding = apply_workspace_words_binding(
-        chat, "my garden planner project", home=person_home, owner_local=True
+        chat, "open my garden planner project", home=person_home, owner_local=True
     )
     assert binding["bound"] is True
     root = binding["root"]
