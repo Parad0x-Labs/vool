@@ -321,6 +321,7 @@ def test_hidden_folders_are_not_listed_unless_named(tmp_path, monkeypatch):
     (tmp_path / ".claude" / "downloads").mkdir(parents=True)
     (tmp_path / "Work" / "downloads").mkdir(parents=True)
     monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [{"mount": str(tmp_path)}])
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     found = _machine_find_folder({"name": "downloads"})
     assert found.details["matches"] == [str(tmp_path / "Work" / "downloads")]
     named = _machine_find_folder({"name": ".claude"})
@@ -341,3 +342,54 @@ def test_hidden_files_are_not_found_unless_named(home, monkeypatch):
 def test_a_file_from_the_chat_is_not_a_disk_search(text):
     # "this file" is the one the chat just made; the receipt lane answers it.
     assert machine_file_search_intent(text) is None
+
+
+def test_folder_search_starts_at_home_and_plugged_in_drives_not_the_system(tmp_path, monkeypatch):
+    """Rooted at "/", a search for "Desktop" printed /System/Library/Desktop Pictures and a
+    /private/tmp path naming the real account (owner's Mac, 2026-10-28)."""
+    import core.machine_diagnostics as md
+    from core.runtime_execution_tools import _find_folder_roots
+
+    home = tmp_path / "home"
+    drive = tmp_path / "drive"
+    home.mkdir()
+    drive.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [
+        {"mount": "/"}, {"mount": "/System/Volumes/Data"}, {"mount": "/private/var/vm"}, {"mount": "/boot/efi"},
+        {"mount": "/run/user/1000"}, {"mount": str(drive)},
+    ])
+    assert _find_folder_roots() == [str(home), str(drive)]
+
+
+@pytest.mark.parametrize("text", [
+    "stick an empty folder called Invoices on my desktop would you",
+    "also set up a folder in Documents called Receipts 2026",
+])
+def test_a_create_folder_ask_never_becomes_a_folder_search(text, monkeypatch):
+    from types import SimpleNamespace
+
+    import core.authorized_tool_execution as ate
+    from core.agent_runtime import turn_frontdoor as frontdoor
+
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda *a, **k: pytest.fail("a create ask ran a search"))
+    result = frontdoor._execute_arbitrated_family(
+        SimpleNamespace(), decision=SimpleNamespace(family="find_folder", argument=""),
+        effective_input=text, session_id="chat-x", source_surface="api", source_context={},
+    )
+    assert result is None
+
+
+def test_a_name_the_person_did_not_say_is_not_searched(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.authorized_tool_execution as ate
+    from core.agent_runtime import turn_frontdoor as frontdoor
+
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda *a, **k: pytest.fail("searched the menu's words"))
+    result = frontdoor._execute_arbitrated_family(
+        SimpleNamespace(), decision=SimpleNamespace(family="find_folder", argument="the folder name"),
+        effective_input="find the folder with my lisbon holiday pics", session_id="chat-x", source_surface="api",
+        source_context={},
+    )
+    assert result is None
