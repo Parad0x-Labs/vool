@@ -75,10 +75,8 @@ def _machine_identity() -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     home = os.path.expanduser("~")
     accounts: list[str] = []
     for getter in (getpass.getuser, lambda: os.path.basename(home.rstrip("\\/"))):
-        try:
+        with contextlib.suppress(Exception):
             accounts.append(str(getter() or ""))
-        except Exception:
-            pass
     try:
         import pwd
 
@@ -88,10 +86,8 @@ def _machine_identity() -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     except Exception:
         pass
     hosts: list[str] = []
-    try:
+    with contextlib.suppress(Exception):
         hosts.append(socket.gethostname())
-    except Exception:
-        pass
     if sys.platform == "darwin":
         import subprocess
 
