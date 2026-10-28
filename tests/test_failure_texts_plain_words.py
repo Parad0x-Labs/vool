@@ -221,6 +221,21 @@ def test_provider_failure_sentences_still_differ_per_kind() -> None:
     assert len(sentences) == len(PROVIDER_FAILURE_KINDS)
 
 
+def test_a_plain_rejection_reason_stays_in_the_unusable_artifact_sentence() -> None:
+    # The audit step's rejection vocabulary is already plain words; the person waiting on the
+    # answer needs the why, so it rides along (a machine-shaped detail still never does).
+    reason = (
+        "three nominated candidates failed source checking; latest rejection: the failure "
+        "scenario depends on an unbuilt future code or format change, not a concrete input "
+        "that fails against the current source"
+    )
+    sentence = ProviderFailure(UNUSABLE_ARTIFACT, detail=reason).operator_sentence(
+        phase="nomination",
+    )
+    assert "future" in sentence and "current source" in sentence
+    assert_plain(sentence)
+
+
 @pytest.mark.parametrize(
     "status, reason",
     (

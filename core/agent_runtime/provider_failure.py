@@ -62,6 +62,9 @@ _REASONING_ONLY_RE = re.compile(
     r"<think>|<\|thinking\|>|^\s*(?:okay|alright|let me|first,? i|hmm|wait)\b",
     re.IGNORECASE,
 )
+# Slashes, backticks, braces, HTTP codes or hosts: a detail matching this is machine-shaped and
+# belongs in the call record, never in the sentence the waiting person reads.
+_MACHINE_SHAPED_RE = re.compile(r"[/`{}]|\bHTTP\b|127\.0\.0\.1|\blocalhost\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -117,10 +120,17 @@ class ProviderFailure:
                 "could finish. Ask for something shorter, or split the request in parts."
             )
         if self.kind == UNUSABLE_ARTIFACT:
-            return (
+            sentence = (
                 f"The AI service answered{where}, but what it wrote could not be used for this "
                 "step — the text arrived and was set aside, not used."
             )
+            # A detail that is already plain words (the audit step's own rejection vocabulary)
+            # says WHY it was set aside, which answers the person's next question. Details that
+            # are machine-shaped stay out of the sentence and in the structured call record.
+            detail = " ".join(self.detail.split())
+            if detail and not _MACHINE_SHAPED_RE.search(detail):
+                sentence = f"{sentence} {detail}."
+            return sentence
         return f"The AI service finished{where} but did not report how much it used."
 
 
