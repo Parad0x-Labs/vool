@@ -7819,42 +7819,97 @@ def _skill_scope_arg(arguments: dict[str, Any]) -> str:
     return str(arguments.get("scope") or "global").strip().lower()
 
 
+def _display_name(name: str) -> str:
+    """A slug such as `decline-politely` reads as the plain words `Decline politely`."""
+
+    words = re.sub(r"[-_/\s]+", " ", str(name or "").replace("`", "")).strip()
+    if not words:
+        return ""
+    return words[:1].upper() + words[1:]
+
+
 def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import list_skills
+    """Which skills I have, in plain words: one row per skill, no machine paths.
+
+    The old reply printed slugs in backticks with full filesystem paths, and the same skill
+    twice when it was both staged and installed (measured 2026-10-28). Rows are now grouped
+    by what the skill means to the person, and paths stay in the result details.
+    """
+
+    from core.skill_scopes import SCOPE_LABELS
+    from core.skill_tools import list_skills, plugins_root
 
     result = list_skills(str(arguments.get("workspace") or ""), keys=_skill_scope_keys(source_context))
 
-    def _section(title: str, rows: list[dict[str, Any]], *, show_path: bool = True) -> str:
-        if not rows:
-            return ""
-        lines = [f"**{title}** ({len(rows)})"]
-        for row in rows:
-            name = str(row.get("name") or "?")
-            desc = str(row.get("description") or "").strip()
-            path = str(row.get("path") or "")
-            scope = str(row.get("scope") or "")
-            summary = f" — {desc}" if desc else ""
-            where = f" ({scope})" if scope and scope != "global" else ""
-            if show_path and path and scope in ("", "global"):
-                lines.append(f"- `{name}`{where}{summary}\n  `{path}`")
-            else:
-                lines.append(f"- `{name}`{where}{summary}")
-        return "\n".join(lines)
+    def _plain_use(row: dict[str, Any]) -> str:
+        # One line of plain words; the reply itself must never become a path listing.
+        first_line = next(
+            (line.strip() for line in str(row.get("description") or "").splitlines() if line.strip()),
+            "",
+        )
+        return re.sub(
+            r"\s+", " ", first_line.replace("`", "").replace(".md", "").replace("/", " ")
+        ).strip()
 
+    def _row(row: dict[str, Any], *, off: bool) -> str:
+        label = _display_name(str(row.get("name") or "?"))
+        scope = str(row.get("scope") or "")
+        if scope in ("chat", "project"):
+            label += f", for {SCOPE_LABELS.get(scope, scope)}"
+        text = f"- {label} — {'off' if off else 'on'}"
+        use = _plain_use(row)
+        return f"{text} — {use}" if use else text
+
+    seen: set[str] = set()
+
+    def _section(title: str, rows: list[dict[str, Any]], *, off: bool = False) -> tuple[str, int]:
+        # Every skill once across the whole reply, first section wins: a draft of an
+        # installed skill, or a Browse copy of it, must not earn a second row.
+        lines: list[str] = []
+        for row in rows:
+            key = _display_name(str(row.get("name") or "?")).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            lines.append(_row(row, off=off))
+        if not lines:
+            return "", 0
+        return f"**{title}** ({len(lines)})\n" + "\n".join(lines), len(lines)
+
+    def _plugin_id(row: dict[str, Any]) -> str:
+        # Installed rows sit under plugins/plugins/<plugin id>/skills/<name>/SKILL.md; that
+        # first segment is the only difference between the person's own installs
+        # (local-skills) and add-ons. A path outside the tree is never counted as local.
+        try:
+            relative = Path(str(row.get("path") or "")).relative_to(plugins_root() / "plugins")
+        except ValueError:
+            return ""
+        return relative.parts[0] if relative.parts else ""
+
+    installed = list(result.get("installed_skills") or [])
+    mine_rows = [row for row in installed if _plugin_id(row) == "local-skills"]
+    browse_rows = [row for row in installed if _plugin_id(row) != "local-skills"]
     sections = [
-        _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
-        _section("For this project", list(result.get("project_skills") or []), show_path=False),
-        _section("In the workspace", list(result.get("workspace_skills") or [])),
-        _section("Staged (drafted, not active)", list(result.get("staged_skills") or [])),
-        _section("Installed for all of VOOL (active)", list(result.get("installed_skills") or [])),
+        _section("Made by you", [
+            *(result.get("chat_skills") or []),
+            *(result.get("project_skills") or []),
+            *(result.get("workspace_skills") or []),
+            *mine_rows,
+        ]),
+        _section("Built in", list(result.get("native_skills") or [])),
+        _section("Added from Browse", browse_rows),
+        _section("Drafts not turned on yet", list(result.get("staged_skills") or []), off=True),
     ]
-    body = "\n\n".join(section for section in sections if section)
+    body = "\n\n".join(text for text, _count in sections if text)
     total = int(result.get("total") or 0)
     if not total:
-        scanned = str(result.get("workspace") or "").strip()
+        body = "No skills found. I looked in this chat, this project and the installed skills."
+    elif sections[1][1] and not (sections[0][1] or sections[2][1] or sections[3][1]):
+        # Only built-ins exist: say the number in one line rather than opening with a heading.
         body = (
-            f"No skills found. I scanned {scanned or 'no workspace (none is bound to this chat)'}, "
-            "the staging area, and the installed plugins tree for SKILL.md files."
+            f"You have {sections[1][1]} built-in skills on.\n\n"
+            f"{sections[1][0]}\n\n"
+            "To make your own, ask me: make me a skill that ..."
         )
     return _skill_result("skill.list", result, response=body or f"{total} skill(s).")
 
@@ -7934,15 +7989,14 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         keys=_skill_scope_keys(source_context),
         expected_sha256=str(arguments.get("sha256") or ""),
     )
-    version = result.get("version")
-    version_text = f" as version {version}" if isinstance(version, int) else ""
-    where = f"at `{result.get('path')}`" if scope == "global" else f"for {SCOPE_LABELS.get(scope, scope)}"
+    display = _display_name(str(result.get("name") or ""))
+    where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
     return _skill_result(
         "skill.install",
         result,
         response=(
-            f"Installed `{result.get('name')}` {where}{version_text}. "
-            "It is active from the next turn."
+            f'Added the skill "{display}"{where}. '
+            "It is on from your next message."
         ),
     )
 

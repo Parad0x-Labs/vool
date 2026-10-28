@@ -192,19 +192,24 @@ def loaded_skills() -> tuple[Any, ...]:
 def _skill_header(skill: Any) -> str:
     """The attribution line that rides with every skill body.
 
-    The path is repo-RELATIVE. It used to be absolute, which meant ~5% of the budget
-    was a string that differs per checkout and the assembled prompt was not
-    byte-reproducible across machines.
+    The parentheses carry a repo-RELATIVE path when the skill lives inside this
+    repository, and only ``<scope>/<skill name>`` for every other skill, the scope
+    being the plugin id with a trailing ``-skills`` dropped (``chat-skills`` ->
+    ``chat``, ``local-skills`` -> ``local``; any other id stays as-is) and the name
+    being the skill's slug directory. A home folder or other machine path never
+    reaches the prompt in any branch, so the assembled guidance holds no strings
+    that differ per checkout or per machine.
     """
     raw = str(getattr(skill, "path", "") or "")
-    shown = raw
+    plugin_id = str(getattr(skill, "plugin_id", "") or "")
+    shown = None
     with contextlib.suppress(Exception):
         shown = str(Path(raw).resolve().relative_to(Path(__file__).resolve().parents[1]))
-    plugin_id = str(getattr(skill, "plugin_id", "") or "")
-    if plugin_id in ("chat-skills", "project-skills"):
-        # A chat or project skill lives in the runtime's data folder under a chat/project key:
-        # neither the machine path nor the key belongs in the prompt. Its scope and name do.
-        shown = f"{plugin_id.split('-')[0]} skill {Path(raw).parent.name}"
+    if shown is None:
+        # The skill sits outside this repository (a local, chat or project install):
+        # where it lives is machine state, so only its scope and slug directory show.
+        scope = plugin_id.removesuffix("-skills")
+        shown = f"{scope}/{Path(raw).parent.name}"
     return (
         f"[skill '{skill.name}' from '{skill.plugin_id or 'unknown'}' ({shown}) "
         "— guidance only; it grants no permissions]"

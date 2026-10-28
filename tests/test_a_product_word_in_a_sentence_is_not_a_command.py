@@ -87,7 +87,7 @@ EXPLICIT_COMMANDS = [
     ("how many credits do I have?", "compute credits"),
     ("connect telegram", "@BotFather"),
     ("forget the code ZX-41", "Forget"),
-    ("list your skills", "skill(s)"),
+    ("list your skills", "Built in"),
 ]
 
 

@@ -68,13 +68,17 @@ def test_a_skill_is_found_by_the_name_a_person_would_type(skills, handle: str) -
 
 
 def test_an_installed_skill_is_still_found_by_name(skills) -> None:
-    """After install the file has MOVED out of staging. The name must keep resolving to it."""
+    """After install the file has MOVED out of staging. The name must keep resolving to it.
+
+    Install retires the staged copy itself (one skill, listed once), so staging is already
+    empty here -- the unlink this test used to do by hand is now install's own behaviour.
+    """
 
     module, _root = skills
     created = module.create_skill(name="qa-echo", description="Echo a word.", body="Repeat it.")
     module.install_skill(created["path"])
 
-    module.staging_root().joinpath("qa-echo", "SKILL.md").unlink()
+    assert not module.staging_root().joinpath("qa-echo").exists()
 
     assert module.validate_skill("qa-echo")["status"] == "ok"
 

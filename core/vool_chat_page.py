@@ -13085,7 +13085,7 @@ function renderSkills(d, query) {
     const notice = _storageNotice(d);
     if (notice) { body.appendChild(notice); return; }
     const p = document.createElement('div'); p.className = 'plugins-empty';
-    p.textContent = (d && d.reason) ? d.reason : 'No skills installed yet.';
+    p.textContent = (d && d.reason) ? d.reason : 'No skills yet. Ask VOOL in any chat: make me a skill that ...';
     body.appendChild(p); return;
   }
   const q = String(query || '').trim().toLowerCase();
