@@ -168,6 +168,24 @@ def _glob(home: Path, raw_src: str) -> list[str]:
     return [f"{parent}/{entry}" for entry in found]
 
 
+def _no_runnable_rename(home: Path, src: str, dst: str) -> None:
+    """A move may carry a file into a folder under its own name. A new name is refused when either
+    name is one a click runs, when the new name drops or changes the kind, or when the file is marked
+    runnable: "run.sh" -> "Open me" runs in Terminal on a Mac (reviews 2026-10-28)."""
+    old, new = PurePosixPath(src), PurePosixPath(dst)
+    folders = [p for p in new.parts[:-1] if PurePosixPath(p).suffix.lower() in _AUTORUN_SUFFIXES]
+    if folders:
+        raise ChangeRefused(f"{folders[0]} would be a folder that runs when opened; I only use plain folders")
+    if old.name == new.name:
+        return
+    info = _lstat(home / src)
+    runnable = info is not None and stat.S_ISREG(info.st_mode) and bool(info.st_mode & 0o111)
+    if (old.suffix.lower() in _AUTORUN_SUFFIXES or new.suffix.lower() in _AUTORUN_SUFFIXES
+            or old.suffix.lower() != new.suffix.lower() or runnable):
+        raise ChangeRefused(f"renaming {old.name} to {new.name} could make something that runs when opened; "
+                            "I only rename plain files and keep their kind")
+
+
 def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Validate and normalise ops; a `*` in a move's src becomes one move per match (links skipped)."""
     if not isinstance(ops, list) or not ops:
@@ -180,7 +198,11 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if kind == "rename":
             kind = "move"
         if kind == "mkdir":
-            out.append({"op": "mkdir", "path": _checked(home, op.get("path"))})
+            path = _checked(home, op.get("path"))
+            bundle = next((p for p in PurePosixPath(path).parts if PurePosixPath(p).suffix.lower() in _AUTORUN_SUFFIXES), "")
+            if bundle:
+                raise ChangeRefused(f"{bundle} would be a folder that runs when opened; I only make plain folders")
+            out.append({"op": "mkdir", "path": path})
         elif kind == "write":
             path = _checked(home, op.get("path"))
             if PurePosixPath(path).suffix.lower() in _AUTORUN_SUFFIXES:
@@ -192,16 +214,15 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if any(ch in raw_src for ch in "*?["):
                 folder = dst if dst.endswith("/") else dst + "/"
                 for src in _glob(home, raw_src):
-                    out.append({"op": "move", "src": src, "dst": _checked(home, folder + PurePosixPath(src).name)})
+                    target = _checked(home, folder + PurePosixPath(src).name)
+                    _no_runnable_rename(home, src, target)
+                    out.append({"op": "move", "src": src, "dst": target})
             else:
                 src = _checked(home, raw_src, must_exist=True)
                 target = _checked(home, dst.rstrip("/") + "/" + PurePosixPath(src).name if dst.endswith("/") else dst)
                 # A rename into a name that runs when opened ("Open me.command") is a new program, even
                 # when the long card sums its line up; a file keeping its own kind moves as before.
-                new_kind = PurePosixPath(target).suffix.lower()
-                if new_kind in _AUTORUN_SUFFIXES and new_kind != PurePosixPath(src).suffix.lower():
-                    raise ChangeRefused(f"{PurePosixPath(target).name} would be a file that runs when opened; "
-                                        "I won't rename things into that")
+                _no_runnable_rename(home, src, target)
                 out.append({"op": "move", "src": src, "dst": target})
         else:
             raise ChangeRefused(f"'{kind or 'that'}' is not a change I can make here")
@@ -510,8 +531,35 @@ def _pinned_parent(home: Path, rel: str) -> tuple[int, str]:
     return fd, parts[-1]
 
 
+def _pinned() -> bool:
+    from core.machine_file_ops import PINNED_DIRS
+
+    return PINNED_DIRS
+
+
+def _remove_written_plain(home: Path, rel: str, sha256: str, direct: list[str], ino: list[int] | None) -> str:
+    """Where folders cannot be pinned (Windows): the same checks by path, links refused on the way."""
+    try:
+        _no_links(home, rel)
+        path = home / rel
+        info = _lstat(path)
+        if info is None:
+            return ""
+        if not stat.S_ISREG(info.st_mode) or (ino and [info.st_dev, info.st_ino] != list(ino)):
+            return f"{rel} was replaced after I wrote it, so I left it"
+        if hashlib.sha256(path.read_bytes()).hexdigest() != sha256:
+            return f"{rel} was edited after I wrote it, so I left it"
+        os.unlink(path)
+        direct.append(f"removed file {rel}")
+        return ""
+    except (ChangeRefused, OSError) as exc:
+        return f"{rel} could not be removed ({type(exc).__name__})"
+
+
 def _remove_written(home: Path, rel: str, sha256: str, direct: list[str], ino: list[int] | None = None) -> str:
     """"" when the file is gone (or was never there); otherwise why it stayed."""
+    if not _pinned():
+        return _remove_written_plain(home, rel, sha256, direct, ino)
     try:
         fd, name = _pinned_parent(home, rel)
     except FileNotFoundError:
@@ -550,6 +598,16 @@ def _remove_empty_dirs(home: Path, rels: list[str], direct: list[str]) -> list[s
     """Folders this change made, deepest first, only while empty. Returns the ones still there."""
     left = []
     for rel in rels:
+        if not _pinned():
+            try:
+                _no_links(home, rel)
+                os.rmdir(home / rel)
+                direct.append(f"removed empty folder {rel}")
+            except FileNotFoundError:
+                pass
+            except (ChangeRefused, OSError):
+                left.append(rel)
+            continue
         try:
             fd, name = _pinned_parent(home, rel)
         except FileNotFoundError:
@@ -591,7 +649,11 @@ def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call, direct: li
                 problems.append(f"something new is at {src}, so {dst} stayed where it is")
                 continue
             if dst_there:
-                outcome = call("machine.move_path", {"source": str(home / dst), "destination": str(home / src)})
+                try:
+                    outcome = call("machine.move_path", {"source": str(home / dst), "destination": str(home / src)})
+                except Exception as exc:  # a tool fault keeps the step for the next "undo"
+                    problems.append(f"{dst} could not be moved back ({type(exc).__name__})")
+                    continue
                 if not getattr(outcome, "ok", False):
                     problems.append(f"{dst} could not be moved back: {getattr(outcome, 'text', '')}")
                     continue

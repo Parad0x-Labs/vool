@@ -65,6 +65,8 @@ class LoopResult:
     proposals: list[dict[str, Any]] = field(default_factory=list)
     model_calls: int = 0
     stopped: str = "answered"  # answered | max_steps | brain_error
+    #: Every model call's time, the final answer's included (per-step think_ms misses that one).
+    think_ms: int = 0
     #: Every tool and evidence text this turn showed the model, for answer gates that check the
     #: answer against what was actually seen (exact file names).
     seen: list[str] = field(default_factory=list)
@@ -141,11 +143,13 @@ def run_loop(
             text = brain(messages)
         except Exception as exc:
             result.model_calls += 1
+            result.think_ms += int((time.monotonic() - started) * 1000)
             result.stopped = "brain_error"
             result.steps.append({"step": step, "error": type(exc).__name__})
             break
         result.model_calls += 1
         think_ms = int((time.monotonic() - started) * 1000)
+        result.think_ms += think_ms
         action = parse_action(text)
         messages.append({"role": "assistant", "content": json.dumps(action, ensure_ascii=False)})
         if "tool" not in action:

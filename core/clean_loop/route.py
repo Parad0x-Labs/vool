@@ -234,7 +234,8 @@ _PRIVACY_ASK_RE = re.compile(
 
 # "search online for the privacy policy of my bank" asks for the web, not about what left this computer.
 _NOT_PRIVACY_RE = re.compile(
-    r"\b(?:search|look\s+up|google|browse|polic(?:y|ies)|website|https?://|www\.)\b", re.I
+    r"\b(?:search|look\s+up|google|browse|polic(?:y|ies)|website|news|headlines?|latest|fined?|lawsuit|"
+    r"https?://|www\.)\b", re.I
 )
 
 

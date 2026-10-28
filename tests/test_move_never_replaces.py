@@ -118,3 +118,17 @@ def test_without_pinned_folders_moves_and_new_files_still_work(tmp_path, monkeyp
     with pytest.raises(FileExistsError):
         ops.create_file_exclusive(root / "note.txt", "again")
     assert (root / "note.txt").read_text() == "hi"
+
+
+def test_a_failed_copy_to_another_disk_leaves_one_copy(tmp_path, monkeypatch):
+    import shutil as sh
+
+    root, src, dst = _setup(tmp_path)
+
+    def broken(*_a, **_k):
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr(sh, "copystat", broken)
+    with pytest.raises(OSError):
+        ops.copy_no_replace(src, dst)
+    assert src.read_bytes() == b"draft" and not dst.exists()

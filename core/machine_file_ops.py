@@ -371,7 +371,7 @@ def copy_no_replace(src: Path, dst: Path) -> None:
         except BaseException:
             shutil.rmtree(dst, ignore_errors=True)
             raise
-        shutil.rmtree(src)
+        shutil.rmtree(src)  # a failure part way leaves both; the error says the move failed
         return
     if src.is_symlink():
         os.symlink(os.readlink(src), dst)
@@ -383,10 +383,13 @@ def copy_no_replace(src: Path, dst: Path) -> None:
         with open(src, "rb") as source:
             for chunk in iter(lambda: source.read(1 << 20), b""):
                 _write_all(fd, chunk)
-    except BaseException:
         os.close(fd)
-        os.unlink(dst)
+        fd = -1
+        shutil.copystat(src, dst, follow_symlinks=False)
+        os.unlink(src)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        if os.path.lexists(src):
+            os.unlink(dst)  # the source is still whole: the copy goes, so there is one copy, not two
         raise
-    os.close(fd)
-    shutil.copystat(src, dst, follow_symlinks=False)
-    os.unlink(src)

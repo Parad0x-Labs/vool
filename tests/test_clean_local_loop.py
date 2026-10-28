@@ -440,7 +440,7 @@ def test_the_hook_falls_through_when_the_loop_has_no_answer(home, monkeypatch):
     assert result is None and context["clean_local_loop_route"] == "no_answer_fell_through"
 
 
-def test_the_hook_falls_through_when_the_model_cannot_load(home, monkeypatch):
+def test_the_hook_answers_plainly_when_the_model_cannot_load(home, monkeypatch):
     from core.clean_loop import brain as brain_module
     from core.clean_loop import hook
 
@@ -455,7 +455,9 @@ def test_the_hook_falls_through_when_the_model_cannot_load(home, monkeypatch):
     result = hook.maybe_answer(
         _Agent(), text="whats on my desktop", effective_input="x", session_id="sess-oom", source_context=context
     )
-    assert result is None and context["clean_local_loop_route"] == "brain_error_fell_through"
+    assert context["clean_local_loop_route"] == "brain_error_answered"
+    assert result is not None and result["response"] == hook.BRAIN_DOWN_TEXT
+    assert "/" not in result["response"]
 
 
 def test_the_hook_does_nothing_for_a_red_ask(home, monkeypatch):

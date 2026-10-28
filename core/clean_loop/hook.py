@@ -19,6 +19,10 @@ from core.clean_loop.registry import ToolContext, default_registry
 
 _LOG = logging.getLogger(__name__)
 REASON = "clean_local_loop"
+BRAIN_DOWN_TEXT = (
+    "I couldn't run the local model just now (the computer may be short on free memory), so I didn't "
+    "look at anything. Try again in a moment, or close a heavy app first."
+)
 _HISTORY_TURNS = 6
 _HISTORY_CHARS = 800
 
@@ -139,15 +143,16 @@ def maybe_answer(
     _LOG.info(
         "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
         loop_result.stopped, loop_result.model_calls, ",".join(loop_result.tools_used),
-        sum(int(step.get("think_ms") or 0) for step in loop_result.steps),
+        loop_result.think_ms,
         sum(int(step.get("tool_ms") or 0) for step in loop_result.steps),
     )
-    if loop_result.stopped == "brain_error" and not loop_result.tools_used:
-        # (`steps` also holds the error entry itself, so "no steps" never matched; the Mac audit
-        # saw this when VOOL refused to load the model on low memory.)
-        # The local model never answered: let the normal pipeline (and its own failover) try.
-        context["clean_local_loop_route"] = "brain_error_fell_through"
-        return None
+    if loop_result.stopped == "brain_error" and not loop_result.tools_used and not loop_result.proposals:
+        # The local model never answered (VOOL refuses to load it on low memory). This ask is about
+        # the owner's own things, and the old pipeline answered such asks on the Mac by listing
+        # real-home and drive paths and by asking for account details (demo 2026-10-28, T3/T4), so
+        # it is answered here, plainly, and nothing was looked at.
+        context["clean_local_loop_route"] = "brain_error_answered"
+        loop_result.answer = BRAIN_DOWN_TEXT
     if loop_result.answer == NO_REPLY_TEXT and not loop_result.proposals:
         # No answer came out of the loop (the audit's "mac or windows" and "what is a dmg" turns):
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.

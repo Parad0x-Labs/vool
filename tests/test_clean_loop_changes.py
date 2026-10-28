@@ -661,3 +661,68 @@ def test_recalling_what_was_sent_is_still_a_question():
 def test_a_web_search_about_privacy_is_not_the_privacy_meter():
     assert not route.is_privacy_ask("search online for the privacy policy of my bank")
     assert route.is_privacy_ask("how much of my stuff went to online AI today")
+
+
+@pytest.mark.parametrize("dst", ["Desktop/Open me", "Desktop/todo.command", "Desktop/notes.md"])
+def test_a_rename_never_changes_a_files_kind(home, dst):
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, [{"op": "move", "src": "Desktop/todo.txt", "dst": dst}])
+
+
+def test_a_runnable_file_is_never_renamed(home):
+    script = home / "Desktop" / "run.sh"
+    script.write_text("echo hi\n")
+    script.chmod(0o755)
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, [{"op": "move", "src": "Desktop/run.sh", "dst": "Desktop/Open me"}])
+    plain = home / "Desktop" / "notes"
+    plain.write_text("x")
+    plain.chmod(0o755)
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, [{"op": "move", "src": "Desktop/notes", "dst": "Desktop/Read me"}])
+
+
+def test_a_plain_rename_keeping_its_kind_still_works(home):
+    plan = changes.preview(home, [{"op": "move", "src": "Desktop/todo.txt", "dst": "Desktop/plumber.txt"}])
+    assert plan.lines == ["move: Desktop/todo.txt -> Desktop/plumber.txt"]
+
+
+@pytest.mark.parametrize("ops", [
+    [{"op": "mkdir", "path": "Desktop/Helper.app"}],
+    [{"op": "mkdir", "path": "Desktop/Helper.app/Contents"}],
+    [{"op": "move", "src": "Desktop/Screenshot*.png", "dst": "Desktop/Shots.app/"}],
+])
+def test_a_change_never_makes_a_folder_that_runs_when_opened(home, ops):
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, ops)
+
+
+def test_undo_works_where_folders_cannot_be_pinned(home, monkeypatch):
+    from core import machine_file_ops
+
+    monkeypatch.setattr(machine_file_ops, "PINNED_DIRS", False)
+    before = _snapshot(home)
+    plan = changes.preview(home, [
+        {"op": "mkdir", "path": "Desktop/Screenshots"},
+        {"op": "move", "src": "Desktop/Screenshot*.png", "dst": "Desktop/Screenshots/"},
+        {"op": "write", "path": "Documents/list.txt", "text": "milk"},
+    ])
+    done = changes.apply(plan, _call(home))
+    assert changes.undo(done, _call(home)) == []
+    assert _snapshot(home) == before
+
+
+def test_a_tool_fault_while_putting_back_keeps_the_step(home):
+    plan = changes.preview(home, TIDY)
+    done = changes.apply(plan, _call(home))
+
+    def broken(intent, arguments):
+        raise RuntimeError("disk went away")
+
+    problems = changes.undo(done, broken)
+    assert problems and all("could not be moved back" in p for p in problems)
+    assert not done.undone and changes.undo(done, _call(home)) == []
+
+
+def test_news_about_privacy_is_not_the_privacy_meter():
+    assert not route.is_privacy_ask("latest news on Meta's privacy fine")
