@@ -9,12 +9,15 @@ runtime events, which the execution-truth ledger records), and any pending propo
 """
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from core.clean_loop import route
 from core.clean_loop.loop import NO_REPLY_TEXT, run_loop
 from core.clean_loop.registry import ToolContext, default_registry
 
+_LOG = logging.getLogger(__name__)
 REASON = "clean_local_loop"
 _HISTORY_TURNS = 6
 _HISTORY_CHARS = 800
@@ -91,7 +94,10 @@ def maybe_answer(
     if not route.flag_on():
         return None
     context = source_context if isinstance(source_context, dict) else {}
-    settled = _settle_change(agent, text=text, effective_input=effective_input, session_id=session_id, context=context)
+    settled = _settle_change(
+        agent, text=text, effective_input=effective_input, session_id=session_id, context=context,
+        browser_turn=browser_turn,
+    )
     if settled is not None:
         return settled
     router = getattr(agent, "memory_router", None)
@@ -111,6 +117,7 @@ def maybe_answer(
         file_words=_file_words,
     )
     context["clean_local_loop_route"] = decision.reason
+    _LOG.info("clean loop route: %s", decision.reason)
     if not decision.admit:
         return None
     from core.clean_loop.brain import make_brain, model_label
@@ -128,6 +135,12 @@ def maybe_answer(
         registry=default_registry(),
         ctx=ctx,
         history=_history(context, text),
+    )
+    _LOG.info(
+        "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
+        loop_result.stopped, loop_result.model_calls, ",".join(loop_result.tools_used),
+        sum(int(step.get("think_ms") or 0) for step in loop_result.steps),
+        sum(int(step.get("tool_ms") or 0) for step in loop_result.steps),
     )
     if loop_result.stopped == "brain_error" and not loop_result.tools_used:
         # (`steps` also holds the error entry itself, so "no steps" never matched; the Mac audit
@@ -176,64 +189,117 @@ def maybe_answer(
 
 
 def _settle_change(
-    agent: Any, *, text: str, effective_input: str, session_id: str, context: dict[str, Any]
+    agent: Any, *, text: str, effective_input: str, session_id: str, context: dict[str, Any],
+    browser_turn: bool = False,
 ) -> dict[str, Any] | None:
     """The owner's answer to a change card ("yes", "no"), or "undo" after one: no model, no new plan.
 
-    Only with the changes flag on, only on the owner's own local turn, and only a bare reply counts.
-    A card answers the very next turn and nothing later: any other turn ends it, so a "yes" meant for
-    something else never applies it. Anything else is a new ask and goes through the route as usual."""
+    Only with the changes flag on, only on the owner's own local turn (never a browser turn), and
+    only a bare reply counts. A card answers the very next turn and nothing later: any other turn
+    ends it, so a "yes" meant for something else never applies it. "undo" right after a change puts
+    it back; after other turns it asks first, and only the next turn's "yes" puts it back."""
     if not session_id or not route.changes_enabled():
         return None
     from core.clean_loop import changes
     from core.clean_loop.tools import OutsideHome, home_dir
 
     verdict = route.change_reply(text)
-    if route._owner_context_blocks(context, session_id) or route.is_red(text):
+    if browser_turn or route._owner_context_blocks(context, session_id) or route.is_red(text):
         changes.forget_session_turn(session_id)
         return None
+    undo_asked = changes.take_undo_asked(session_id) if verdict in {"yes", "no"} else None
+    fresh_done = changes.last_done(session_id)
+    fresh = fresh_done is not None and fresh_done.fresh
     if verdict not in {"yes", "no"}:
         changes.forget_session_turn(session_id)
+
+    def _ctx() -> ToolContext | None:
+        try:
+            return ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""),
+                               withdraw_pending_approvals=True)
+        except OutsideHome:
+            return None
+
+    def _put_back(done: Any) -> dict[str, Any] | None:
+        ctx = _ctx()
+        if ctx is None:
+            return None
+        seen = len(done.direct)
+        problems = changes.undo(done, _boundary_call(ctx))
+        _note_direct(ctx, done.direct[seen:])
+        answer = "Put back: everything is where it was before." if not problems else (
+            "I put back what I could. " + " ".join(f"{p}." for p in problems[:5])
+            + ' Say "undo" again once that is sorted, and I will try the rest.'
+        )
+        return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_undone")
+
+    if undo_asked is not None:
+        if verdict == "no":
+            return _settled(agent, context, session_id, effective_input, "Okay, I left it as it is.", [], "undo_declined")
+        return _put_back(undo_asked)
     if verdict in {"yes", "no"} and changes.has_pending(session_id):
         plan = changes.take_pending(session_id)
         if plan is None:
             return None
         if verdict == "no":
             return _settled(agent, context, session_id, effective_input, "Okay, I left everything as it was.", [], "change_declined")
-        try:
-            ctx = ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""))
-        except OutsideHome:
+        ctx = _ctx()
+        if ctx is None:
             return None
-        call = _boundary_call(ctx)
         try:
-            done = changes.apply(plan, call)
+            done = changes.apply(plan, _boundary_call(ctx))
         except changes.NeedsPermission as exc:
+            _note_direct(ctx, getattr(exc, "direct", []))
             # Keep the card: after switching the setting, the owner's next yes applies it.
             changes.remember_pending(session_id, plan)
             return _settled(agent, context, session_id, effective_input, f"I didn't change anything: {exc}.", ctx.receipts, "change_needs_permission")
         except changes.ChangeRefused as exc:
+            _note_direct(ctx, getattr(exc, "direct", []))
+            left = list(getattr(exc, "left", []) or [])
+            if left:
+                # Part of it is still out: keep it as a change "undo" can finish.
+                changes.remember_done(session_id, changes.Done(plan=plan, inverse=left, matches_preview=False,
+                                                               direct=list(getattr(exc, "direct", []))))
+                answer = f"Not all of it went back: {exc}. Say \"undo\" to try the rest again."
+                return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_partly_back")
             return _settled(agent, context, session_id, effective_input, f"I didn't change anything: {exc}", ctx.receipts, "change_refused")
         changes.remember_done(session_id, done)
         count = len(plan.ops)
-        note = "" if done.matches_preview else " The result differs a little from what I showed you, so please check the folder."
-        answer = f"Done: {count} change{'s' if count != 1 else ''}, exactly as shown.{note} Say \"undo\" to put it all back."
-        if not done.matches_preview:
-            answer = f"Done: {count} change{'s' if count != 1 else ''}.{note} Say \"undo\" to put it all back."
+        if done.matches_preview:
+            answer = f"Done: {count} change{'s' if count != 1 else ''}, exactly as shown. Say \"undo\" to put it all back."
+        else:
+            answer = (f"Done: {count} change{'s' if count != 1 else ''}. The result differs a little from what I showed "
+                      "you, so please check the folder. Say \"undo\" to put it all back.")
         return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_applied")
     if verdict == "undo":
-        done = changes.last_done(session_id)
+        done = fresh_done
         if done is None:
             return None
-        try:
-            ctx = ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""))
-        except OutsideHome:
-            return None
-        problems = changes.undo(done, _boundary_call(ctx))
-        answer = "Put back: everything is where it was before." if not problems else (
-            "I put back what I could. " + " ".join(f"{p}." for p in problems[:5])
-        )
-        return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_undone")
+        if not fresh:
+            changes.ask_undo(session_id, done)
+            first = done.plan.lines[0] if done.plan.lines else "the last change"
+            count = len(done.plan.ops)
+            answer = (f"The last change I made was {count} step{'s' if count != 1 else ''}, starting with \"{first}\". "
+                      "Put all of it back? Say yes to undo it.")
+            return _settled(agent, context, session_id, effective_input, answer, [], "undo_confirm")
+        return _put_back(done)
     return None
+
+
+def _note_direct(ctx: ToolContext, direct: list[str]) -> None:
+    """Removals the change made itself (an empty folder it created, a file it wrote, unedited) are
+    receipts like any other step, so the turn's record says exactly what was taken away."""
+    for line in direct or []:
+        ctx.receipts.append(
+            {
+                "tool_name": "clean_loop.change_put_back",
+                "mode": "tool_executed",
+                "status": "executed",
+                "execution": {"executed": True, "ok": True, "status": "executed"},
+                "lane": REASON,
+                "response_preview": str(line),
+            }
+        )
 
 
 def _boundary_call(ctx: ToolContext):

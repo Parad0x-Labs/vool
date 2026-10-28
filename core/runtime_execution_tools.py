@@ -5929,9 +5929,10 @@ def _write_machine_file(
         # Create, never replace: the existence check and the create are one exclusive open, so a
         # file the owner saved a moment ago can never be overwritten by a caller that asked only
         # for a new file (the clean loop's changes, which can sit open behind consent prompts).
+        from core.machine_file_ops import create_file_exclusive
+
         try:
-            with open(target, "x", encoding="utf-8") as handle:
-                handle.write(content)
+            create_file_exclusive(target, content)
         except FileExistsError:
             return RuntimeExecutionResult(
                 handled=True,
@@ -5944,6 +5945,23 @@ def _write_machine_file(
                         tool_surface="machine",
                         ok=False,
                         status="already_exists",
+                    ),
+                },
+            )
+        except OSError as exc:
+            # A folder on the way became a link (or vanished) after the path was checked.
+            return RuntimeExecutionResult(
+                handled=True,
+                ok=False,
+                status="destination_changed",
+                response_text=f"`{_home_relative_label(target)}` changed while it was being written; nothing was written.",
+                details={
+                    "detail": type(exc).__name__,
+                    "observation": _tool_observation(
+                        intent="machine.write_file",
+                        tool_surface="machine",
+                        ok=False,
+                        status="destination_changed",
                     ),
                 },
             )

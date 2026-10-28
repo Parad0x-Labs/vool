@@ -40,6 +40,14 @@ _RED_RE = re.compile(
     # catch "send €50 to anna"; Fable consult 2026-10-28.)
     re.I,
 )
+# Destructive verbs stay RED in a question too: "is it ok to delete everything in Downloads" is an
+# ask to delete in polite form (review 2026-10-28, N4). Only the everyday verbs ("when do i pay the
+# plumber", "when did we move the audit") are exempt in a question.
+_DESTRUCTIVE_RE = re.compile(
+    r"\b(?:delete|deleting|remove|removing|erase|wipe|trash|shred|purge|clear\s+out|clean\s+out|"
+    r"empty\s+(?:the\s+)?(?:trash|bin)|get\s+rid|uninstall|kill|shut\s*down|reboot|format)\b",
+    re.I,
+)
 _MONEY_RE = re.compile(r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|credit\s+card|bank\s+account)\b", re.I)
 # A question asks for facts: "when do i have to pay the plumber by", "when did we move the audit to".
 # The verb inside it is the subject of the question, not an order (Mac hold-out 2026-10-28: both were
@@ -180,7 +188,7 @@ def is_question(text: str) -> bool:
 
 def is_red(text: str) -> bool:
     value = str(text or "")
-    if _MONEY_RE.search(value):
+    if _MONEY_RE.search(value) or _DESTRUCTIVE_RE.search(value):
         return True
     return bool(_RED_RE.search(value)) and not is_question(value)
 
@@ -202,8 +210,22 @@ def change_reply(text: str) -> str:
     return ""
 
 
+# "how much of my stuff went to online AI today" asks about this computer, not the web: the privacy
+# meter answers it locally (Mac demo 2026-10-28: it was sent to the web lanes and refused).
+_PRIVACY_ASK_RE = re.compile(
+    r"\b(?:privacy|private|online\s+(?:ai|models?)|cloud\s+(?:ai|models?)|"
+    r"(?:went|go|gone|sent|send|left|leave|leaves|shared?)\s+(?:to\s+)?(?:the\s+)?(?:online|cloud|internet|openai|anthropic|chatgpt|claude))\b",
+    re.I,
+)
+
+
+def is_privacy_ask(text: str) -> bool:
+    return bool(_PRIVACY_ASK_RE.search(str(text or "")))
+
+
 def is_online_ask(text: str) -> bool:
-    return bool(_ONLINE_RE.search(str(text or "")))
+    value = str(text or "")
+    return bool(_ONLINE_RE.search(value)) and not is_privacy_ask(value)
 
 
 def asks_about_own_files_or_computer(text: str) -> bool:
@@ -282,6 +304,7 @@ def decide(
         return RouteDecision(False, "online_ask")
     if not (
         asks_about_own_files_or_computer(text)
+        or is_privacy_ask(text)
         or _is_follow_up(text, session_id)
         or names_owner_file(text, file_words)
     ):
@@ -303,6 +326,7 @@ __all__ = [
     "flag_on",
     "ask_words",
     "is_online_ask",
+    "is_privacy_ask",
     "is_question",
     "names_owner_file",
     "is_write",

@@ -157,7 +157,7 @@ def test_a_failed_step_puts_back_what_already_happened(home):
 
 def test_a_new_file_is_written_and_undo_removes_it_only_if_unedited(home):
     plan = changes.preview(home, [{"op": "write", "path": "Documents/Lists/shopping.txt", "text": "milk\nbread\n"}])
-    assert plan.lines == ["new folder: Documents/Lists", 'new file: Documents/Lists/shopping.txt (11 bytes): "milk / bread"']
+    assert plan.lines == ['new file: Documents/Lists/shopping.txt (11 bytes): "milk / bread"', "new folder: Documents/Lists"]
     call = _call(home)
     done = changes.apply(plan, call)
     assert (home / "Documents" / "Lists" / "shopping.txt").read_text(encoding="utf-8").startswith("milk")
@@ -474,3 +474,114 @@ def test_without_the_changes_flag_a_yes_is_an_ordinary_turn(home, monkeypatch):
     monkeypatch.delenv(route.CHANGES_ENV)
     result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
     assert result is None and not (home / "Desktop" / "Screenshots").exists()
+
+
+# --- second review, 2026-10-28 -----------------------------------------------------------------
+
+
+def test_a_yes_on_a_browser_turn_applies_nothing(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    result = hook.maybe_answer(_Agent(), text="ok", effective_input="ok", session_id=SESSION,
+                               source_context=dict(OWNER), browser_turn=True)
+    assert result is None and not (home / "Desktop" / "Screenshots").exists() and not changes.has_pending(SESSION)
+
+
+def test_undo_after_other_turns_asks_first(home, monkeypatch):
+    from core.clean_loop import hook
+
+    _with_card(home, monkeypatch)
+    from core.clean_loop import hook as hook_module
+
+    monkeypatch.setattr(hook_module, "_boundary_call", lambda ctx: _call(home))
+    done = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    assert done is not None and done["response"].startswith("Done")
+    hook.maybe_answer(_Agent(), text="how big is my desktop folder", effective_input="x", session_id=SESSION,
+                      source_context=dict(OWNER))
+    ask = hook.maybe_answer(_Agent(), text="undo", effective_input="undo", session_id=SESSION, source_context=dict(OWNER))
+    assert ask is not None and "Say yes to undo it" in ask["response"]
+    assert (home / "Desktop" / "Screenshots").exists(), "asking changes nothing"
+    back = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    assert back is not None and back["response"].startswith("Put back")
+    assert not (home / "Desktop" / "Screenshots").exists()
+
+
+def test_undo_right_after_the_change_needs_no_question(home, monkeypatch):
+    from core.clean_loop import hook
+    from core.clean_loop import hook as hook_module
+
+    _with_card(home, monkeypatch)
+    monkeypatch.setattr(hook_module, "_boundary_call", lambda ctx: _call(home))
+    hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    back = hook.maybe_answer(_Agent(), text="undo", effective_input="undo", session_id=SESSION, source_context=dict(OWNER))
+    assert back is not None and back["response"].startswith("Put back")
+    assert any(r["tool_name"] == "clean_loop.change_put_back" for r in back["tool_receipts"]), "removals are receipts"
+
+
+@pytest.mark.parametrize("name", ["Open me.command", "run.sh", "Desktop helper.app", "link.webloc"])
+def test_a_change_never_writes_a_file_that_runs_when_opened(home, name):
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, [{"op": "write", "path": f"Desktop/{name}", "text": "x"}])
+
+
+def test_a_long_card_never_hides_a_new_file(home):
+    for i in range(50):
+        (home / "Downloads" / f"photo {i:02d}.jpg").write_bytes(b"x")
+    plan = changes.preview(home, [
+        {"op": "move", "src": "Downloads/photo*.jpg", "dst": "Documents/Photos/"},
+        {"op": "write", "path": "Documents/Photos/readme.txt", "text": "sorted photos"},
+    ])
+    assert plan.lines[0].startswith("new file: Documents/Photos/readme.txt")
+    assert plan.lines[1] == "new folder: Documents/Photos"
+    assert plan.lines[-1] == "...and 20 more moves into the same folders"
+
+
+def test_a_tool_fault_mid_change_still_puts_back_what_happened(home):
+    before = _snapshot(home)
+    plan = changes.preview(home, TIDY)
+    inner = _call(home)
+    moves: list[int] = []
+
+    def call(intent, arguments):
+        if intent == "machine.move_path":
+            moves.append(1)
+            if len(moves) == 2:
+                raise RuntimeError("disk went away")
+        return inner(intent, arguments)
+
+    with pytest.raises(changes.ChangeRefused, match="put everything back"):
+        changes.apply(plan, call)
+    assert _snapshot(home) == before
+
+
+def test_a_move_parked_for_approval_is_withdrawn_not_left_queued(home, monkeypatch):
+    from core import mode_permission_policy as modes
+    from core.clean_loop import hook
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setenv(route.CHANGES_ENV, "1")
+    changes.remember_pending(SESSION, changes.preview(home, TIDY))
+    result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
+    assert result is not None and "approve each file move one by one" in result["response"]
+    modes._ensure_approvals_restored()
+    with modes._LOCK:
+        statuses = [str(a.get("status")) for a in modes._APPROVALS.values() if "move_path" in str(a.get("intent") or a)]
+    assert statuses and "pending" not in statuses, statuses
+
+
+def test_a_question_about_deleting_is_still_red():
+    assert route.is_red("is it ok to delete everything in Downloads")
+    assert not route.is_red("when do i have to pay the plumber by")
+
+
+def test_the_privacy_question_is_answered_on_this_computer(home):
+    from core.clean_loop.tools import privacy_pre_step
+
+    on = {route.FLAG_ENV: "1"}
+    decision = route.decide("how much of my stuff went to online AI today", source_context=OWNER,
+                            resolve_brain=lambda: object(), env=on)
+    assert decision.admit
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    assert "online AI models" in privacy_pre_step("how much of my stuff went to online AI today", ctx)
+    assert privacy_pre_step("whats on my desktop", ctx) is None

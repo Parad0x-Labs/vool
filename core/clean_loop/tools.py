@@ -136,6 +136,15 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
             ok = bool(getattr(result, "ok", False))
             text = str(getattr(result, "response_text", "") or "")
     details = dict(getattr(result, "details", {}) or {}) if result is not None else {}
+    if status == "pending_approval" and ctx.withdraw_pending_approvals:
+        token = str((details.get("approval_request") or {}).get("approval_id") or "")
+        if token:
+            try:
+                from core.mode_permission_policy import resolve_approval
+
+                resolve_approval(token, decision="deny")
+            except Exception:
+                _LOG.exception("clean loop: could not withdraw a parked approval")
     plain = _plain(text, ctx.home) if ok else "not available: " + (_plain(text, ctx.home) or status)
     ctx.receipts.append(
         {
@@ -569,9 +578,12 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
                 "lane": "clean_local_loop",
             }
         )
-        card = "\n".join(f"- {line}" for line in plan.lines[:40])
+        card = "\n".join(f"- {line}" for line in plan.lines)
         return ToolOutcome(
-            text=f"rehearsed on a copy; nothing changed yet. The owner will see:\n{card}\nwaiting for their approval",
+            text=(
+                f"ready; nothing changed yet. This list is shown under your answer:\n{card}\n"
+                "In your answer, tell them in one short sentence what you will do, speaking to them as \"you\"."
+            ),
             ok=True, status="pending_approval", proposal=proposal,
         )
     proposal = {"what": what or "(unspecified change)", "status": "pending_approval", "executed": False}
@@ -620,10 +632,10 @@ def pending_proposal_notice(answer: str, result: Any) -> str:
         return answer
     cards = [p for p in proposals if p.get("card")]
     if cards:
-        lines = "\n".join(f"- {line}" for line in cards[-1]["card"][:40])
-        more = len(cards[-1]["card"]) - 40
-        tail = f"\n- ...and {more} more" if more > 0 else ""
-        return f"{str(answer or '').rstrip()}\n\nHere is what I will do:\n{lines}{tail}\n\n{CARD_NOTICE}".strip()
+        # The card is shown whole: a change keeps its own list short (moves are summed up past 30)
+        # and never cuts a new file or folder, so nothing it will do can scroll out of sight.
+        lines = "\n".join(f"- {line}" for line in cards[-1]["card"])
+        return f"{str(answer or '').rstrip()}\n\nHere is what I will do:\n{lines}\n\n{CARD_NOTICE}".strip()
     if "approv" in str(answer or "").lower():
         return answer
     return f"{str(answer or '').rstrip()}\n\n{PENDING_NOTICE}".strip()
@@ -680,11 +692,23 @@ def exact_names(answer: str, result: Any) -> str:
     return out
 
 
+def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
+    """A question about what left this computer is answered from the local meter before the model
+    is asked anything, so it never has to guess or look online (Mac demo 2026-10-28)."""
+    from core.clean_loop.route import is_privacy_ask
+
+    if not is_privacy_ask(ask):
+        return None
+    return privacy({}, ctx).text
+
+
 def install_builtin_tools(registry: Registry) -> None:
     for name, doc, run in BUILTIN_TOOLS:
         registry.register_tool(name, doc, run)
-    registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
+    # Names first, then the card: the card's own lines are never rewritten.
+    registry.register_pre_step("privacy", privacy_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
+    registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
 
 
 __all__ = [

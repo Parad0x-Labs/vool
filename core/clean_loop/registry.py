@@ -45,6 +45,9 @@ class ToolContext:
     # Changes rehearsed this turn (core.clean_loop.changes.Plan); the hook keeps the last one
     # for the owner's "yes".
     plans: list[Any] = field(default_factory=list)
+    # A change card's steps: a call VOOL parks for its own approval is withdrawn at once, so a
+    # change that was put back never runs later from a queue (review 2026-10-28, N2).
+    withdraw_pending_approvals: bool = False
     # The authorized boundary; replaceable only so tests can observe calls without a runtime.
     execute: Callable[..., Any] | None = None
 

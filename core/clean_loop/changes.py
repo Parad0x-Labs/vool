@@ -43,6 +43,14 @@ _PENDING_TTL_S = 10 * 60
 _DONE_TTL_S = 60 * 60
 _LISTING_BUDGET = 20000
 _PREVIEW_CHARS = 160
+_CARD_MOVES = 30
+#: Names a click runs rather than opens: a change never writes one (review 2026-10-28, a long move
+#: list could hide a written "Open me.command").
+_AUTORUN_SUFFIXES = frozenset({
+    ".command", ".tool", ".sh", ".bash", ".zsh", ".csh", ".app", ".workflow", ".scpt", ".applescript",
+    ".terminal", ".webloc", ".inetloc", ".fileloc", ".desktop", ".exe", ".bat", ".cmd", ".com", ".ps1",
+    ".vbs", ".js", ".jar", ".pkg", ".dmg", ".py", ".pl", ".rb", ".action", ".url", ".lnk", ".scr",
+})
 
 
 class ChangeRefused(ValueError):
@@ -80,6 +88,8 @@ class Done:
     matches_preview: bool
     direct: list[str] = field(default_factory=list)
     undone: bool = False
+    #: True until another turn happens: only then is a bare "undo" taken at its word.
+    fresh: bool = True
     created: float = field(default_factory=time.time)
 
 
@@ -108,10 +118,10 @@ def _rel_inside(home: Path, raw: Any) -> str:
 def _lstat(path: Path) -> os.stat_result | None:
     try:
         return os.lstat(path)
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return None
-    except NotADirectoryError:
-        return None
+    except OSError as exc:
+        raise ChangeRefused(f"I can't look at {path.name} ({type(exc).__name__})") from exc
 
 
 def _no_links(home: Path, rel: str) -> None:
@@ -172,7 +182,10 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if kind == "mkdir":
             out.append({"op": "mkdir", "path": _checked(home, op.get("path"))})
         elif kind == "write":
-            out.append({"op": "write", "path": _checked(home, op.get("path")), "text": str(op.get("text") or "")})
+            path = _checked(home, op.get("path"))
+            if PurePosixPath(path).suffix.lower() in _AUTORUN_SUFFIXES:
+                raise ChangeRefused(f"{PurePosixPath(path).name} would be a file that runs when opened; I only write plain files")
+            out.append({"op": "write", "path": path, "text": str(op.get("text") or "")})
         elif kind == "move":
             raw_src = str(op.get("src") or op.get("source") or "")
             dst = str(op.get("dst") or op.get("destination") or "")
@@ -305,8 +318,9 @@ def _rehearse(home: Path, ops: list[dict[str, Any]]) -> list[str]:
 
 
 def _card(new_folders: list[str], ops: list[dict[str, Any]]) -> list[str]:
-    lines = [f"new folder: {path}" for path in new_folders]
-    lines += [f"move: {op['src']} -> {op['dst']}" for op in ops if op["op"] == "move"]
+    """New files first, each with its size and opening text, then new folders, then moves. Files
+    and folders are never cut; a long list of moves is."""
+    lines = []
     for op in ops:
         if op["op"] == "write":
             size = len(op["text"].encode("utf-8"))
@@ -314,7 +328,11 @@ def _card(new_folders: list[str], ops: list[dict[str, Any]]) -> list[str]:
             if len(shown) > _PREVIEW_CHARS:
                 shown = shown[:_PREVIEW_CHARS].rstrip() + "..."
             lines.append(f"new file: {op['path']} ({size} bytes): \"{shown}\"")
-    return lines
+    lines += [f"new folder: {path}" for path in new_folders]
+    moves = [f"move: {op['src']} -> {op['dst']}" for op in ops if op["op"] == "move"]
+    if len(moves) > _CARD_MOVES:
+        moves = moves[:_CARD_MOVES] + [f"...and {len(moves) - _CARD_MOVES} more moves into the same folders"]
+    return lines + moves
 
 
 def preview(home: Path, ops: list[dict[str, Any]], *, workdir: str | None = None) -> Plan:
@@ -358,12 +376,21 @@ def _recheck(home: Path, op: dict[str, Any]) -> None:
 
 
 def _fail(home: Path, inverse: list[dict[str, Any]], call: Call, direct: list[str], why: str, status: str = "") -> None:
-    problems = _roll_back(home, inverse, call, direct)
+    try:
+        problems = _roll_back(home, inverse, call, direct)
+    except Exception as exc:  # never lose the record of what is still out
+        problems = [f"putting it back stopped ({type(exc).__name__})"]
     if problems:
-        raise ChangeRefused(f"a step did not happen ({why}), and I could not put all of it back: " + "; ".join(problems[:5]))
-    if status == "pending_approval":
-        raise NeedsPermission(NEEDS_PERMISSION_TEXT)
-    raise ChangeRefused(f"that step did not happen, so I put everything back: {why}")
+        refusal: ChangeRefused = ChangeRefused(
+            f"a step did not happen ({why}), and I could not put all of it back: " + "; ".join(problems[:5])
+        )
+    elif status == "pending_approval":
+        refusal = NeedsPermission(NEEDS_PERMISSION_TEXT)
+    else:
+        refusal = ChangeRefused(f"that step did not happen, so I put everything back: {why}")
+    refusal.direct = list(direct)  # type: ignore[attr-defined]
+    refusal.left = list(inverse)  # type: ignore[attr-defined]
+    raise refusal
 
 
 def apply(plan: Plan, call: Call) -> Done:
@@ -376,37 +403,50 @@ def apply(plan: Plan, call: Call) -> Done:
     direct: list[str] = []
     for op in plan.ops:
         try:
-            _recheck(home, op)
-        except ChangeRefused as exc:
-            _fail(home, inverse, call, direct, str(exc))
-        if op["op"] == "mkdir":
-            made = _missing_dirs(home, op["path"])
-            outcome = call("machine.ensure_directory", {"path": str(home / op["path"])})
-            step: dict[str, Any] = {"rmdirs": made}
-        elif op["op"] == "write":
-            made = _missing_dirs(home, PurePosixPath(op["path"]).parent.as_posix())
-            outcome = call(
-                "machine.write_file",
-                {"path": str(home / op["path"]), "content": op["text"], "create_only": True},
-            )
-            step = {"remove": op["path"], "sha256": hashlib.sha256(op["text"].encode("utf-8")).hexdigest(), "rmdirs": made}
-        else:
-            parent = PurePosixPath(op["dst"]).parent.as_posix()
-            made = _missing_dirs(home, parent)
-            if made:
-                made_out = call("machine.ensure_directory", {"path": str(home / parent)})
-                if not getattr(made_out, "ok", False):
-                    inverse.append({"rmdirs": made})
-                    _fail(home, inverse, call, direct, f"could not make {made[-1]}: {getattr(made_out, 'text', '')}",
-                          getattr(made_out, "status", ""))
-            outcome = call("machine.move_path", {"source": str(home / op["src"]), "destination": str(home / op["dst"])})
-            step = {"move": [op["src"], op["dst"]], "rmdirs": made}
-        if not getattr(outcome, "ok", False):
-            if step.get("rmdirs"):
-                inverse.append({"rmdirs": step["rmdirs"]})
-            _fail(home, inverse, call, direct, str(getattr(outcome, "text", "")), getattr(outcome, "status", ""))
-        inverse.append(step)
+            _apply_step(home, op, inverse, direct, call)
+        except ChangeRefused:
+            raise
+        except Exception as exc:  # a tool fault mid-change still puts back what happened
+            _fail(home, inverse, call, direct, f"{type(exc).__name__}")
     return Done(plan=plan, inverse=inverse, matches_preview=_matches(home, plan.ops), direct=direct)
+
+
+def _apply_step(home: Path, op: dict[str, Any], inverse: list[dict[str, Any]], direct: list[str], call: Call) -> None:
+    """One step through VOOL's own tool, its inverse kept; a failed step puts back what happened."""
+    try:
+        _recheck(home, op)
+    except ChangeRefused as exc:
+        _fail(home, inverse, call, direct, str(exc))
+    if op["op"] == "mkdir":
+        made = _missing_dirs(home, op["path"])
+        outcome = call("machine.ensure_directory", {"path": str(home / op["path"])})
+        step: dict[str, Any] = {"rmdirs": made}
+    elif op["op"] == "write":
+        made = _missing_dirs(home, PurePosixPath(op["path"]).parent.as_posix())
+        outcome = call(
+            "machine.write_file",
+            {"path": str(home / op["path"]), "content": op["text"], "create_only": True},
+        )
+        step = {"remove": op["path"], "sha256": hashlib.sha256(op["text"].encode("utf-8")).hexdigest(), "rmdirs": made}
+    else:
+        parent = PurePosixPath(op["dst"]).parent.as_posix()
+        made = _missing_dirs(home, parent)
+        if made:
+            made_out = call("machine.ensure_directory", {"path": str(home / parent)})
+            if not getattr(made_out, "ok", False):
+                inverse.append({"rmdirs": made})
+                _fail(home, inverse, call, direct, f"could not make {made[-1]}: {getattr(made_out, 'text', '')}",
+                      getattr(made_out, "status", ""))
+        outcome = call("machine.move_path", {"source": str(home / op["src"]), "destination": str(home / op["dst"])})
+        step = {"move": [op["src"], op["dst"]], "rmdirs": made}
+    if not getattr(outcome, "ok", False):
+        if step.get("rmdirs"):
+            inverse.append({"rmdirs": step["rmdirs"]})
+        _fail(home, inverse, call, direct, str(getattr(outcome, "text", "")), getattr(outcome, "status", ""))
+    if op["op"] == "write":
+        info = _lstat(home / op["path"])
+        step["ino"] = [info.st_dev, info.st_ino] if info is not None else None
+    inverse.append(step)
 
 
 def _matches(home: Path, ops: list[dict[str, Any]]) -> bool:
@@ -455,7 +495,7 @@ def _pinned_parent(home: Path, rel: str) -> tuple[int, str]:
     return fd, parts[-1]
 
 
-def _remove_written(home: Path, rel: str, sha256: str, direct: list[str]) -> str:
+def _remove_written(home: Path, rel: str, sha256: str, direct: list[str], ino: list[int] | None = None) -> str:
     """"" when the file is gone (or was never there); otherwise why it stayed."""
     try:
         fd, name = _pinned_parent(home, rel)
@@ -469,7 +509,8 @@ def _remove_written(home: Path, rel: str, sha256: str, direct: list[str]) -> str
         except FileNotFoundError:
             return ""
         try:
-            if not stat.S_ISREG(os.fstat(handle).st_mode):
+            info = os.fstat(handle)
+            if not stat.S_ISREG(info.st_mode) or (ino and [info.st_dev, info.st_ino] != list(ino)):
                 return f"{rel} was replaced after I wrote it, so I left it"
             digest = hashlib.sha256()
             for chunk in iter(lambda: os.read(handle, 1 << 20), b""):
@@ -478,6 +519,9 @@ def _remove_written(home: Path, rel: str, sha256: str, direct: list[str]) -> str
             os.close(handle)
         if digest.hexdigest() != sha256:
             return f"{rel} was edited after I wrote it, so I left it"
+        now = os.lstat(name, dir_fd=fd)
+        if [now.st_dev, now.st_ino] != [info.st_dev, info.st_ino]:
+            return f"{rel} was replaced after I wrote it, so I left it"
         os.unlink(name, dir_fd=fd)
         direct.append(f"removed file {rel}")
         return ""
@@ -532,7 +576,7 @@ def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call, direct: li
                     problems.append(f"{dst} could not be moved back: {getattr(outcome, 'text', '')}")
                     continue
         if "remove" in step:
-            why = _remove_written(home, step["remove"], step["sha256"], direct)
+            why = _remove_written(home, step["remove"], step["sha256"], direct, step.get("ino"))
             if why:
                 problems.append(why)
                 continue
@@ -551,18 +595,21 @@ def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call, direct: li
 def undo(done: Done, call: Call) -> list[str]:
     """Put the change back. Returns what could not be put back (empty when all of it was); what is
     left can be tried again."""
-    if done.undone:
-        return []
-    problems = _roll_back(Path(done.plan.home), done.inverse, call, done.direct)
-    done.undone = not done.inverse
-    return problems
+    with _UNDO_LOCK:  # two "undo" turns at once never run the inverse twice
+        if done.undone:
+            return []
+        problems = _roll_back(Path(done.plan.home), done.inverse, call, done.direct)
+        done.undone = not done.inverse
+        return problems
 
 
 # --- per-session state ------------------------------------------------------------------------
 
 _LOCK = threading.Lock()
+_UNDO_LOCK = threading.Lock()
 _PENDING: OrderedDict[str, Plan] = OrderedDict()
 _DONE: OrderedDict[str, Done] = OrderedDict()
+_UNDO_ASKED: dict[str, Done] = {}
 
 
 def remember_pending(session_id: str, plan: Plan) -> None:
@@ -589,9 +636,25 @@ def has_pending(session_id: str) -> bool:
 
 def forget_session_turn(session_id: str) -> bool:
     """A card answers only the very next turn: any other turn ends it, so a later "yes" to something
-    else never applies it."""
+    else never applies it. A change made earlier then needs its undo confirmed (`stale_done`)."""
     with _LOCK:
+        _UNDO_ASKED.pop(session_id, None)
+        done = _DONE.get(session_id)
+        if done is not None:
+            done.fresh = False
         return _PENDING.pop(session_id, None) is not None
+
+
+def ask_undo(session_id: str, done: Done) -> None:
+    """A bare "undo" turns after other turns: ask first; only the next turn's "yes" undoes."""
+    with _LOCK:
+        _UNDO_ASKED[session_id] = done
+
+
+def take_undo_asked(session_id: str) -> Done | None:
+    with _LOCK:
+        done = _UNDO_ASKED.pop(session_id, None)
+    return done if done is not None and not done.undone else None
 
 
 def remember_done(session_id: str, done: Done) -> None:
@@ -614,6 +677,7 @@ def reset_for_tests() -> None:
     with _LOCK:
         _PENDING.clear()
         _DONE.clear()
+        _UNDO_ASKED.clear()
 
 
 __all__ = [
@@ -623,6 +687,7 @@ __all__ = [
     "Done",
     "Plan",
     "apply",
+    "ask_undo",
     "forget_session_turn",
     "has_pending",
     "last_done",
@@ -631,5 +696,6 @@ __all__ = [
     "remember_pending",
     "reset_for_tests",
     "take_pending",
+    "take_undo_asked",
     "undo",
 ]

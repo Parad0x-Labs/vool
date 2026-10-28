@@ -14,6 +14,9 @@ injectable, so the whole flow is unit-testable without a real prompt or touching
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
+import errno
 import os
 import shutil
 import sys
@@ -199,8 +202,126 @@ def move_path(
                             "No OS confirmation prompt is available, so the move was refused.",
                             str(src), str(dst))
 
+    # The consent prompt can sit open for minutes. What it showed must still be what moves: both
+    # paths resolve to the same places, and nothing has appeared at the destination meanwhile (a
+    # file the owner saved while the prompt was open used to be replaced silently by the rename,
+    # independent review 2026-10-28). The rename itself refuses to replace, atomically where the
+    # OS can, and runs on parent folders opened without following links.
+    if _canonicalize(src_raw) != src or _canonicalize(dst_raw) != dst:
+        return FileOpResult(False, "path_changed", "The paths changed while you were asked, so nothing was moved.",
+                            str(src), str(dst))
+    if dst.exists() or dst.is_symlink():
+        return FileOpResult(False, "dest_exists", f"Destination already exists: {dst}", str(src), str(dst))
     try:
-        shutil.move(str(src), str(dst))
+        rename_no_replace(src, dst)
+    except FileExistsError:
+        return FileOpResult(False, "dest_exists", f"Destination already exists: {dst}", str(src), str(dst))
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            return FileOpResult(False, "error", f"Move failed: {exc}", str(src), str(dst))
+        try:
+            # Another disk: a copy, then the source goes. Checked once more just before.
+            if dst.exists() or dst.is_symlink():
+                return FileOpResult(False, "dest_exists", f"Destination already exists: {dst}", str(src), str(dst))
+            shutil.move(str(src), str(dst))
+        except Exception as move_exc:
+            return FileOpResult(False, "error", f"Move failed: {move_exc}", str(src), str(dst))
     except Exception as exc:
         return FileOpResult(False, "error", f"Move failed: {exc}", str(src), str(dst))
     return FileOpResult(True, "moved", f"Moved {src} to {dst}.", str(src), str(dst))
+
+
+# --- no-replace primitives --------------------------------------------------------------------
+
+_AT_FDCWD = -100
+_RENAME_NOREPLACE = 1  # Linux renameat2
+_RENAME_EXCL = 0x00000004  # macOS renameatx_np
+
+
+def open_pinned_dir(folder: Path) -> int:
+    """A descriptor for an absolute, already-resolved folder, opened one part at a time from "/"
+    without following links: a link swapped in anywhere on the way fails instead of being followed."""
+    parts = Path(folder).parts
+    if not parts or parts[0] != os.sep:
+        raise ValueError(f"not an absolute path: {folder}")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    fd = os.open(os.sep, flags)
+    try:
+        for part in parts[1:]:
+            nxt = os.open(part, flags | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = nxt
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _libc():
+    try:
+        return ctypes.CDLL(ctypes.util.find_library("c") or None, use_errno=True)
+    except OSError:
+        return None
+
+
+def _native_rename_no_replace(src_fd: int, src_name: str, dst_fd: int, dst_name: str) -> bool:
+    """True when done by the OS's own atomic no-replace rename; False when there is none here."""
+    libc = _libc()
+    if libc is None:
+        return False
+    names = (os.fsencode(src_name), os.fsencode(dst_name))
+    if sys.platform == "darwin" and hasattr(libc, "renameatx_np"):
+        result = libc.renameatx_np(src_fd, names[0], dst_fd, names[1], _RENAME_EXCL)
+    elif sys.platform.startswith("linux") and hasattr(libc, "renameat2"):
+        result = libc.renameat2(src_fd, names[0], dst_fd, names[1], _RENAME_NOREPLACE)
+    else:
+        return False
+    if result == 0:
+        return True
+    code = ctypes.get_errno()
+    if code in {errno.ENOSYS, errno.EINVAL, errno.ENOTSUP, getattr(errno, "EOPNOTSUPP", errno.ENOTSUP)}:
+        return False  # this filesystem has no such rename; the fallback below
+    if code == errno.EEXIST or code == errno.ENOTEMPTY:
+        raise FileExistsError(code, os.strerror(code), dst_name)
+    raise OSError(code, os.strerror(code), src_name)
+
+
+def rename_no_replace(src: Path, dst: Path) -> None:
+    """Rename `src` to `dst` (both absolute and resolved) without ever replacing what is at `dst`.
+    FileExistsError when something is there; OSError(EXDEV) across disks."""
+    src_fd = open_pinned_dir(src.parent)
+    try:
+        dst_fd = open_pinned_dir(dst.parent)
+        try:
+            if _native_rename_no_replace(src_fd, src.name, dst_fd, dst.name):
+                return
+            if not os.path.isdir(src) or os.path.islink(src):
+                # A hard link fails if the name is taken, so it is the no-replace step; then the
+                # old name goes. (Links themselves are linked, not followed.)
+                os.link(src.name, dst.name, src_dir_fd=src_fd, dst_dir_fd=dst_fd, follow_symlinks=False)
+                os.unlink(src.name, dir_fd=src_fd)
+                return
+            try:
+                os.lstat(dst.name, dir_fd=dst_fd)
+                raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), str(dst))
+            except FileNotFoundError:
+                pass
+            os.rename(src.name, dst.name, src_dir_fd=src_fd, dst_dir_fd=dst_fd)
+        finally:
+            os.close(dst_fd)
+    finally:
+        os.close(src_fd)
+
+
+def create_file_exclusive(target: Path, content: str) -> None:
+    """Create a new text file at an absolute, resolved `target`, never replacing anything and never
+    through a link on the way (its folder is opened link by link). FileExistsError when taken."""
+    parent_fd = open_pinned_dir(target.parent)
+    try:
+        fd = os.open(
+            target.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent_fd
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+    finally:
+        os.close(parent_fd)
