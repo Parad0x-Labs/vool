@@ -1498,6 +1498,9 @@ _FILE_KIND_SUFFIXES = {
     "pdf": (".pdf",),
     "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"),
     "audio": (".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff"),
+    # A type the user said by name ("any jpg named day4") keeps only that type.
+    "jpg": (".jpg", ".jpeg"), "png": (".png",), "heic": (".heic", ".heif"), "gif": (".gif",),
+    "mp4": (".mp4",), "mov": (".mov",), "mp3": (".mp3",),
 }
 
 
@@ -1531,6 +1534,16 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
     suffixes = _FILE_KIND_SUFFIXES.get(kind)
     if suffixes:
         matches = [path for path in matches if path.lower().endswith(suffixes)]
+    # The tool also matches inside a word, so 'day4' finds holiday4.jpg. When some files have the
+    # name from a word start (Day 4.png, day4-final.jpg), those are the ones asked for.
+    from core.runtime_execution_tools import _squeezed_word_match
+
+    def _from_word_start(path: str) -> bool:
+        base = os.path.basename(path).lower()
+        return any(_squeezed_word_match(re.sub(r"[^0-9a-z]", "", name.lower()), base) for name in names)
+
+    word_start = [path for path in matches if _from_word_start(path)]
+    matches = word_start or matches
     where = f"~/{place}" if place else "Desktop, Downloads and Documents"
     elsewhere = False
     if place:
@@ -1540,17 +1553,22 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
         elsewhere = bool(matches) and not in_place
         matches = in_place or matches
     asked = " or ".join(f"'{name}'" for name in names)
-    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(kind, "file")
+    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(kind) or (
+        f"{kind.upper()} file" if kind else "file")
     if matches:
         plural = "s" if len(matches) != 1 else ""
         if elsewhere and truncated:
             head = f"None of the files I checked for {asked} is a {noun} in {where}. Other {noun}s that match:"
         elif elsewhere:
             head = f"Nothing in {where}, but I found {len(matches)} {noun}{plural} matching {asked} elsewhere:"
+        elif truncated:
+            head = f"Many {noun}s match {asked}. Here are the first {min(len(matches), 20)}:"
         else:
             head = f"Found {len(matches)} {noun}{plural} matching {asked}:"
         lines = [head]
         lines.extend(f"- {path}" for path in matches[:20])
+        if len(matches) > 20 and not truncated:
+            lines.append(f"...and {len(matches) - 20} more.")
     elif truncated:
         lines = [f"So many files match {asked} that the search stopped before finding a {noun} in {where}; "
                  "give a longer part of the name."]

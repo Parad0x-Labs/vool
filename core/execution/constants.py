@@ -966,6 +966,10 @@ _FILE_KIND_WORDS = {
     "file": "", "files": "", "document": "", "documents": "", "doc": "", "pdf": "pdf", "video": "video",
     "videos": "video", "movie": "video", "song": "audio", "recording": "audio", "spreadsheet": "",
     "presentation": "",
+    # A file type said as a word: "any jpg named day4", "the mp4 called wedding".
+    "jpg": "jpg", "jpgs": "jpg", "jpeg": "jpg", "png": "png", "pngs": "png", "heic": "heic",
+    "gif": "gif", "pdfs": "pdf", "mp4": "mp4", "mov": "mov", "mp3": "mp3",
+    "spreadsheets": "", "presentations": "", "docs": "",
 }
 _FILE_NAMED_RE = re.compile(
     r"\b(?P<kind>" + "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True)) + r")\b"
@@ -973,6 +977,27 @@ _FILE_NAMED_RE = re.compile(
     r"(?P<name>[^,;:!?\n]{1,80}?)"
     r"(?=\s*(?:[,;:!?\n]|\s-\s|\s(?:or\s+something|or\s+so|something|in|on|from|inside|somewhere|anywhere|"
     r"please|pls|can|could|then|and\s+(?:then\s+)?\w+\s+(?:it|them)|about|for\s+me|find|fetch|not|that|it)\b|$))",
+    re.IGNORECASE,
+)
+_FILE_KIND_ALT = "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True))
+# The same lookup without named/called, measured on the Mac 2026-10-28 with sls's own models:
+# "the pdf with invoice in the name", 'an image "daily 4"', "the photo daily 4" all reached the model,
+# which refused, or the chat search. Each form still goes through every check below.
+_FILE_IN_NAME_RE = re.compile(
+    r"\b(?P<kind>" + _FILE_KIND_ALT + r")\b(?:\s+\w+){0,3}?\s+with\s+(?:the\s+(?:word|text)\s+)?"
+    r"[\"“'‘]?(?P<name>[^,;:!?\n\"“”'‘’]{1,60}?)[\"”'’]?\s+in\s+(?:the|its)\s+(?:file\s*)?(?:name|title)\b",
+    re.IGNORECASE,
+)
+_FILE_QUOTED_RE = re.compile(
+    r"\b(?P<kind>" + _FILE_KIND_ALT + r")\b(?:\s+\w+){0,2}?\s*[\"“'‘](?P<name>[^\"“”'‘’\n]{2,80})[\"”'’]",
+    re.IGNORECASE,
+)
+# "the photo daily 4", "that screenshot day4": a bare name right after the noun only when it holds a
+# digit and a letter, so "the photo of my dog" or "the video 10 minutes" never reads as a name.
+_FILE_BARE_NAME_RE = re.compile(
+    r"\b(?:the|a|an|my|that|this|any)\s+(?P<kind>" + _FILE_KIND_ALT + r")\s+"
+    r"(?P<name>[A-Za-z][\w-]{0,30}\s+\d[\w-]*|(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]{2,40})"
+    r"(?=\s*(?:[,;:!?.\n]|\s(?:in|on|from|inside|somewhere|anywhere|please|pls|can|could|think|i|it|that|for)\b|$))",
     re.IGNORECASE,
 )
 _FILE_NAME_FILLERS = {"it", "that", "this", "like", "something", "something like", "the", "a"}
@@ -995,7 +1020,8 @@ _FILE_EXT_SEARCH_RE = re.compile(
 _FILE_LOOKUP_CUE_RE = re.compile(
     r"\b(?:find|finding|locate|where|look(?:ing)?\s+for|search(?:ing)?|fetch|get\s+me|grab|"
     r"is\s+there|are\s+there|do\s+i\s+(?:still\s+)?have|there\s+should\s+be|should\s+(?:be|have)|"
-    r"lost|can'?t\s+find|cannot\s+find|missing)\b",
+    r"lost|can'?t\s+find|cannot\s+find|missing|dig(?:ging)?\s+up|hunt(?:ing)?\s+down|track(?:ing)?\s+down|"
+    r"which\s+(?:" + _FILE_KIND_ALT + r"))\b",
     re.IGNORECASE,
 )
 _FILE_OTHER_ACTION_RE = re.compile(
@@ -1008,7 +1034,8 @@ _FILE_NOT_THIS_DISK_RE = re.compile(
     r"\b(?:how\s+(?:do|can|to|would|should)|in\s+(?:python|bash|linux|terminal|excel|javascript|java|node|"
     r"windows)|who\s+(?:wrote|made|sang|sings|is|was)|what\s+(?:genre|is\s+a|'?s\s+a|is\s+the|does)|what's\s+a|"
     r"web|google|internet|online|website|url|e-?mail|mail|inbox|gmail|outlook|drive|dropbox|icloud|onedrive|"
-    r"spotify|youtube|netflix|apple\s+music|soundcloud|photos\s+app|google\s+photos|instagram|lyrics|chords|meaning)\b",
+    r"spotify|youtube|netflix|apple\s+music|soundcloud|photos\s+app|google\s+photos|instagram|lyrics|chords|meaning|"
+    r"best|better|worst|recommend(?:ed)?|favou?rite)\b",
     re.IGNORECASE,
 )
 
@@ -1022,15 +1049,17 @@ def _named_place(raw: str) -> str:
 def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | None:
     """``(kind, names, place)`` for a request to find a FILE by name, else ``None``.
 
-    ``kind`` is ``"image"``, ``"pdf"``, ``"video"``, ``"audio"`` or ``""``; ``names`` are the
-    alternatives the user gave ("daily 4 or day 4"); ``place`` is Desktop/Downloads/Documents when
-    the message names one, else ``""``. A mutating verb suppresses the match.
+    ``kind`` is ``"image"``, ``"pdf"``, ``"video"``, ``"audio"``, a named type such as ``"jpg"``, or
+    ``""``; ``names`` are the alternatives the user gave ("daily 4 or day 4"); ``place`` is
+    Desktop/Downloads/Documents when the message names one, else ``""``. A mutating verb suppresses the match.
     """
     raw = " ".join(str(text or "").split())
     if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
         return None
     match = _FILE_NAMED_RE.search(raw)
     by_ext = None if match is not None else _FILE_EXT_SEARCH_RE.search(raw)
+    if match is None and by_ext is None:
+        match = _FILE_IN_NAME_RE.search(raw) or _FILE_QUOTED_RE.search(raw) or _FILE_BARE_NAME_RE.search(raw)
     if match is None and by_ext is None:
         return None
     # The checks below read what the user ASKED, not the file's name: "the pdf called web design
@@ -1046,7 +1075,7 @@ def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | 
             return None  # 'search for "foo" in notes.txt' searches INSIDE a file
         return (_FILE_EXT_KINDS[by_ext.group("ext").lower()], (by_ext.group("name"),), _named_place(raw))
     kind = _FILE_KIND_WORDS[match.group("kind").lower()]
-    between = match.group("between")
+    between = match.groupdict().get("between") or ""
     # "my pictures folder called vacation" / "my documents folder named taxes" are folders;
     # "a picture in the Downloads folder named x" is a picture.
     if re.match(r"\s+(?:folders?|director(?:y|ies))\b", between, re.IGNORECASE) or (
@@ -1056,7 +1085,7 @@ def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | 
     spoken = match.group("name").strip(" .'\"-")
     # "named day4 to send to john" / "named invoice and email john" / "named day4 at google photos":
     # what follows a connector inside the name is another ask, so the turn is not a plain lookup.
-    for tail in re.split(r"\s(?:to|at|then|and)\s", spoken, flags=re.IGNORECASE)[1:]:
+    for tail in re.split(r"\s(?:to|at|then|and|is)\s", spoken, flags=re.IGNORECASE)[1:]:
         if _FILE_OTHER_ACTION_RE.search(tail) or _FILE_NOT_THIS_DISK_RE.search(tail):
             return None
     names = []
