@@ -1024,13 +1024,7 @@ _FILE_DESCRIBED_ON_DISK_RE = re.compile(
 )
 _ON_THIS_COMPUTER_RE = re.compile(r"\bon\s+(?:my|this)\s+(?:mac|computer|laptop|pc|machine|imac|macbook)\b", re.IGNORECASE)
 _FILE_DESCRIBED_STOPWORDS = frozenset(
-    "a an the my that this those these of from in on at with for to by about i me you u we it its it's "
-    "is was are were be been called named titled made saved took taken got get have had go went gone "
-    "can could would please pls find locate where where'd where's which what whats what's grab need show "
-    "pull up dig hunt track down look looking for search there here some any one ones somewhere anywhere "
-    "computer mac laptop machine pc imac macbook disk drive desktop downloads documents download photos pictures folder "
-    "yesterday today last week month year ago recent recently old new latest earlier again think just "
-    "or and file files doc docs stored kept put located placed moved written created downloaded sent".split()
+    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
 )
 _FILE_DESCRIBED_REJECT_RE = re.compile(
     r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b",
