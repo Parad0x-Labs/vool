@@ -1185,7 +1185,21 @@ def _compute_requirements(
     signals = firing_signals(_example_stripped)
     # A historically anchored ask, or one whose numbers are the current input the user supplied, is
     # not a request for a present observation: the same exemptions the live-data lane honours above.
-    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request:
+    # An own-files ask is exempt for the same reason `answer_mode_for` stands it down: its
+    # freshness words describe the machine's own storage, which the machine file lane observes
+    # directly -- no fresh-world signal may send it to the retrieval gate (measured 2026-10-28:
+    # "whats on my desktop right now?" widened here, retrieved nothing, and the publication gate
+    # refused the turn with the canned no-usable-rows refusal on the PC and on a phone alike).
+    from core.agent_runtime.grounded_mode import (
+        _asks_to_read_the_own_machines_files,
+        _machine_files_remainder_asks_for_current,
+    )
+
+    own_machine_read = (
+        _asks_to_read_the_own_machines_files(candidate_text)
+        and not _machine_files_remainder_asks_for_current(candidate_text)
+    )
+    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request and not own_machine_read:
         signal_codes = tuple(f"{SIGNAL_REASON_PREFIX}{signal.reason_code}" for signal in signals)
         if constraints.forbids_external_retrieval:
             # The user vetoed the only evidence lane: the requirement still stands

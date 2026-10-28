@@ -369,6 +369,47 @@ def explicitly_promises_evidence(text: str) -> bool:
     )
 
 
+#: An own-files ask: an asking or reading head and, within the same clause, one of the machine's
+#: own storage places or file/folder words. Structural two-part shape (the same family the
+#: machine file lane and `core.tool_demand_signals.owner_file_demand` seat the file tools for),
+#: never a topic list; the seated authority decides tooling, this only refuses to read the
+#: freshness words of a disk-state ask as a world lookup.
+_OWN_MACHINE_STORAGE_READ_RE = re.compile(
+    r"\b(?:whats|what'?s|list|show|see|look\s+at|check|read|open|how\s+many|any)\b"
+    r"[^.?!]{0,40}?\b(?:desktop|downloads|documents|docs|folders?|directories|files?)\b",
+    re.IGNORECASE,
+)
+
+
+def _asks_to_read_the_own_machines_files(text: str) -> bool:
+    """Whether the clause asks to read or list the machine's own storage (its disk, not the world)."""
+    clean = " ".join(str(text or "").split())
+    if not clean:
+        return False
+    try:
+        from core.tool_demand_signals import owner_file_demand
+
+        if owner_file_demand(clean):
+            return True
+    except Exception:
+        pass
+    return bool(_OWN_MACHINE_STORAGE_READ_RE.search(clean))
+
+
+def _machine_files_remainder_asks_for_current(text: str) -> bool:
+    """Whether, with the own-files clause removed, a remaining clause still asks for current
+    world information -- the same remainder shape the authoring stand-down uses: a clause that
+    opens with an asking head and carries a freshness signal, never a bare freshness word."""
+    from core.temporal_question_scope import current_observation_text
+
+    remainder = _OWN_MACHINE_STORAGE_READ_RE.sub(" ", " ".join(str(text or "").split()))
+    for clause in re.split(r"[.;\n]", remainder):
+        clause = clause.strip()
+        if clause and _ASKING_HEAD_RE.match(clause) and _matches(current_observation_text(clause), _WANTS_CURRENT):
+            return True
+    return False
+
+
 #: An ASKING head: the clause requests the assistant to report something. A freshness word
 #: only arms grounding inside a clause that opens with one of these -- "tell me today's EUR to
 #: USD rate" asks for a lookup; "the current behavior duplicates entries" describes the
@@ -441,6 +482,18 @@ def answer_mode_for(request: str) -> AnswerMode:
     from core.temporal_question_scope import current_observation_text
 
     if _matches(current_observation_text(text), _WANTS_CURRENT) and not _is_about_the_assistant(text):
+        if _asks_to_read_the_own_machines_files(text) and not _machine_files_remainder_asks_for_current(text):
+            # An own-files ask reads the machine's storage, not the world. Its freshness words
+            # ("what's on my desktop right now?") describe the disk the machine file lane
+            # observes directly, so they must not arm the fresh-data contract: measured
+            # 2026-10-28, this arm read that ask as a current-information lookup, the retrieval
+            # lanes it seated could observe nothing on this computer, and the publication gate
+            # refused the turn with the canned no-usable-rows refusal -- on the PC and on a
+            # paired phone alike. Only the own-files clause stands down: a remainder clause that
+            # still asks for current world information ("and what is 1000 TRY in EUR right
+            # now") keeps its grounding, and the unambiguous arms above (explicit evidence
+            # contract, currency, breakdown) never passed through here at all.
+            return AnswerMode.DIRECT
         # Currency alone means "go and look" only when the subject is the WORLD. "what is your
         # current mood right now" carries every currency marker and is a question about the
         # assistant -- measured 2026-08-06, it opened the tool loop and tripped a gauntlet gate
