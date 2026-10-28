@@ -3658,7 +3658,8 @@
     "xs.description": ", described as “{description}”",
     "xs.summary_unknown": "X action",
     "xs.unknown_state": "It is unclear whether this was sent. Check X before trying again.",
-    "web.off.tool_refusal": "Web lookups are off. You can paste the article text, links or notes you want me to use, and I will work from them. To turn lookups on: Settings > Privacy & Permissions > Web lookups. (Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
+    "web.off.tool_refusal": "Web lookups are off. You can paste the article text, links or notes you want me to use, and I will work from them. To turn lookups on: Settings > Privacy & Permissions > Web lookups. (Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)",
+    "x.not_connected.reply": "X is not connected yet. To connect it, open {settings} > {keys} > {x_row}, choose {connect} and follow the steps. Until then, I can still help you draft posts."
   },
   "html_keys": [
     "bypass.modal_limits",

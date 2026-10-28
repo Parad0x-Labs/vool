@@ -3658,9 +3658,10 @@
     "xs.description": ", 설명: “{description}”",
     "xs.summary_unknown": "X 작업",
     "xs.unknown_state": "전송되었는지 확실하지 않습니다. 다시 시도하기 전에 X를 확인하세요.",
-    "web.off.tool_refusal": "웹 검색이 꺼져 있습니다. 사용할 기사 본문, 링크 또는 메모를 붙여 넣으면 그것으로 작업하겠습니다. 켜려면: 설정 > 개인정보와 권한 > 웹 검색. (명령줄: 웹 검색은 선택 사항이며 VOOL_ENABLE_WEB=1로 켭니다.)"
+    "web.off.tool_refusal": "웹 검색이 꺼져 있습니다. 사용할 기사 본문, 링크 또는 메모를 붙여 넣으면 그것으로 작업하겠습니다. 켜려면: 설정 > 개인정보와 권한 > 웹 검색. (명령줄: 웹 검색은 선택 사항이며 VOOL_ENABLE_WEB=1로 켭니다.)",
+    "x.not_connected.reply": "X가 아직 연결되지 않았습니다. 연결하려면 {settings} > {keys} > {x_row}에서 {connect} 버튼을 누르고 안내에 따라 진행하세요. 그때까지도 게시물 초안 작성은 도와드릴 수 있습니다."
   },
-  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
+  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2864,6 +2864,14 @@ class VoolAgent(
         if drop_door is not None:
             return _guard_final_result(drop_door)
 
+        # An X read asked while X is not connected: say so, where to connect it, and that drafting
+        # still works, instead of falling through to a lane that cannot read X (GLM audit R9).
+        from core.x_connect_hint import reply_if_not_connected
+
+        x_hint = reply_if_not_connected(self, effective_input, session_id=session_id, source_context=runtime_source_context)
+        if x_hint is not None:
+            return _guard_final_result(x_hint)
+
         # Opt-in clean local path (VOOL_CLEAN_LOCAL_LOOP, default off): a local-model turn about the
         # owner's own files or computer runs one plain tool loop instead of the lanes below. None
         # (flag off, not admitted, RED, owned elsewhere) falls through unchanged. core/clean_loop.

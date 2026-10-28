@@ -3536,11 +3536,18 @@ def _dispatch_runtime_tool(
             status="disabled",
             reason=contract.unsupported_reason,
         )
+        unavailable_text = contract.unsupported_reason
+        if intent.startswith("x."):
+            from core.x_connect_hint import not_connected_text, x_connected
+
+            if not x_connected():
+                # Plain words and the real Settings place, not the contract's engineering reason.
+                unavailable_text = not_connected_text()
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status="disabled",
-            response_text=contract.unsupported_reason,
+            response_text=unavailable_text,
             details={
                 "observation": _tool_observation(
                     intent=intent,

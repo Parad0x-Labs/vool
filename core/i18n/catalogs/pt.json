@@ -3658,9 +3658,10 @@
     "xs.description": ", com a descrição “{description}”",
     "xs.summary_unknown": "Ação no X",
     "xs.unknown_state": "Não está claro se isto foi enviado. Confira o X antes de tentar novamente.",
-    "web.off.tool_refusal": "As pesquisas na web estão desativadas. Você pode colar o texto do artigo, os links ou as notas que quer que eu use, e eu trabalharei com eles. Para ativá-las: Configurações > Privacidade e permissões > Pesquisas na web. (Linha de comando: a pesquisa na web é opcional; ative com VOOL_ENABLE_WEB=1.)"
+    "web.off.tool_refusal": "As pesquisas na web estão desativadas. Você pode colar o texto do artigo, os links ou as notas que quer que eu use, e eu trabalharei com eles. Para ativá-las: Configurações > Privacidade e permissões > Pesquisas na web. (Linha de comando: a pesquisa na web é opcional; ative com VOOL_ENABLE_WEB=1.)",
+    "x.not_connected.reply": "O X ainda não está conectado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Enquanto isso, ainda posso ajudar você a rascunhar posts."
   },
-  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
+  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

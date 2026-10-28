@@ -3658,9 +3658,10 @@
     "xs.description": ", avec la description « {description} »",
     "xs.summary_unknown": "Action sur X",
     "xs.unknown_state": "On ne sait pas si cela a été envoyé. Vérifiez X avant de réessayer.",
-    "web.off.tool_refusal": "Les recherches web sont désactivées. Vous pouvez coller le texte de l’article, les liens ou les notes que je dois utiliser, et je travaillerai à partir de ceux-ci. Pour les activer : Réglages > Confidentialité et permissions > Recherches web. (Ligne de commande : la recherche web est optionnelle ; activez-la avec VOOL_ENABLE_WEB=1.)"
+    "web.off.tool_refusal": "Les recherches web sont désactivées. Vous pouvez coller le texte de l’article, les liens ou les notes que je dois utiliser, et je travaillerai à partir de ceux-ci. Pour les activer : Réglages > Confidentialité et permissions > Recherches web. (Ligne de commande : la recherche web est optionnelle ; activez-la avec VOOL_ENABLE_WEB=1.)",
+    "x.not_connected.reply": "X n’est pas encore connecté. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. En attendant, je peux tout de même vous aider à rédiger des posts."
   },
-  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
+  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

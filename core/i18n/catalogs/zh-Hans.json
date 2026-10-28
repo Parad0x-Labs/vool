@@ -3658,9 +3658,10 @@
     "xs.description": "，描述为“{description}”",
     "xs.summary_unknown": "X 操作",
     "xs.unknown_state": "无法确定是否已发送。再次尝试前请先检查 X。",
-    "web.off.tool_refusal": "网络查询已关闭。你可以粘贴希望我使用的文章正文、链接或笔记，我会据此工作。要开启：设置 > 隐私与权限 > 网络查询。（命令行：网络查询需主动开启；用 VOOL_ENABLE_WEB=1 开启。）"
+    "web.off.tool_refusal": "网络查询已关闭。你可以粘贴希望我使用的文章正文、链接或笔记，我会据此工作。要开启：设置 > 隐私与权限 > 网络查询。（命令行：网络查询需主动开启；用 VOOL_ENABLE_WEB=1 开启。）",
+    "x.not_connected.reply": "X 尚未连接。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。在此之前，我仍然可以帮你起草帖子。"
   },
-  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
+  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

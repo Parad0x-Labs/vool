@@ -3658,9 +3658,10 @@
     "xs.description": ", Beschreibung: „{description}“",
     "xs.summary_unknown": "X-Aktion",
     "xs.unknown_state": "Es ist unklar, ob dies gesendet wurde. Prüfe X, bevor du es erneut versuchst.",
-    "web.off.tool_refusal": "Websuchen sind aus. Du kannst den Artikeltext, Links oder Notizen einfügen, die ich verwenden soll, und ich arbeite damit. Websuchen einschalten: Einstellungen > Privatsphäre & Berechtigungen > Websuchen. (Befehlszeile: Websuche ist optional; einschalten mit VOOL_ENABLE_WEB=1.)"
+    "web.off.tool_refusal": "Websuchen sind aus. Du kannst den Artikeltext, Links oder Notizen einfügen, die ich verwenden soll, und ich arbeite damit. Websuchen einschalten: Einstellungen > Privatsphäre & Berechtigungen > Websuchen. (Befehlszeile: Websuche ist optional; einschalten mit VOOL_ENABLE_WEB=1.)",
+    "x.not_connected.reply": "X ist noch nicht verbunden. Öffne zum Verbinden {settings} > {keys} > {x_row}, wähle {connect} und folge den Schritten. Bis dahin kann ich dir trotzdem beim Entwerfen von Beiträgen helfen."
   },
-  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
+  "source_catalog_sha256": "cd1c2343d3d52f4014ad93cec20b03a4c09cbe0c461e833e1d76c1e2e1dd3cd9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

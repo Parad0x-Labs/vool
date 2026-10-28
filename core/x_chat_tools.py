@@ -24,6 +24,13 @@ def _bool(value: Any) -> bool:
     return bool(value)
 
 
+def _with_connect_hint(message: str) -> str:
+    """A local X answer given while X is not connected also says where to connect it."""
+    from core.x_connect_hint import not_connected_text, x_connected
+
+    return message if x_connected() else f"{message} {not_connected_text()}"
+
+
 def _result(intent: str, outcome: Any, *, keys: tuple[str, ...]):
     from core.runtime_execution_tools import RuntimeExecutionResult, _tool_observation
 
@@ -83,12 +90,12 @@ def _run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: d
                 policy = x_capabilities.load()
                 data["access"] = {"enabled": policy["enabled"], "access_label": policy["access_label"],
                                   "allowed_operations": policy["operations"], "limits": policy["limits"]}
-                outcome = x_api.XResult(True, "executed", "X feature information is local; nothing was sent to X.", data)
+                outcome = x_api.XResult(True, "executed", _with_connect_hint("X feature information is local; nothing was sent to X."), data)
                 return _result(intent, outcome, keys=("features", "schema", "total", "next_offset", "access"))
             if intent == "x.api.receipts":
                 if set(args) - {"limit"}:
                     raise InvalidXRequest("Unknown X receipt field.")
-                outcome = x_api.XResult(True, "executed", "These are this chat's recorded X calls.",
+                outcome = x_api.XResult(True, "executed", _with_connect_hint("These are this chat's recorded X calls."),
                                         {"receipts": x_request_gateway.receipts(context, limit=args.get("limit", 20))})
                 return _result(intent, outcome, keys=("receipts",))
             prepared = x_request_gateway.prepared_arguments(args, context)
