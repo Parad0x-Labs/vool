@@ -3360,6 +3360,13 @@ _CHAT_SLOT_HELD: contextvars.ContextVar[tuple[str, str] | None] = contextvars.Co
 _CONSUMED_QUEUE_ITEM: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "vool_consumed_queue_item", default=None
 )
+# The one-line, plain-words folder notice a turn's dispatch produced by binding (or failing to
+# bind) the chat to a project folder the person named in words. Set by the chat dispatch once it
+# knows the binding; read and cleared by dispatch_post at the request's end so the streamed reply
+# says which folder VOOL is working in before the model's own answer starts.
+_WORKSPACE_WORDS_NOTICE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "vool_workspace_words_notice", default=""
+)
 
 
 def dispatch_post(
@@ -3775,6 +3782,14 @@ def dispatch_post(
             # transcript flush, so the queue row finishes only after the answer is recorded.
             _response.stream = _finish_consumed_queue_item_after(_consumed_queue_record, _response.stream)
             _consumed_queue_record = None
+        # The folder-naming notice the dispatch produced, if any, rides the stream's own head so
+        # the reply says once, in plain words, which folder VOOL is working in (or why none was
+        # bound) before the model's answer starts. Read-and-clear here: the contextvar is this
+        # request's, and a buffered reply has no stream to carry it.
+        _words_notice = _WORKSPACE_WORDS_NOTICE.get("")
+        _WORKSPACE_WORDS_NOTICE.set("")
+        if _words_notice and getattr(_response, "stream", None) is not None:
+            _response.stream = _prepend_workspace_notice_after(_words_notice, str(model_name or "").strip(), _response.stream)
         return _response
     finally:
         reset_turn_locale(_turn_locale_token)
@@ -4311,6 +4326,36 @@ def _release_admission_after(admission: Any, stream: Iterable[bytes]) -> Iterato
         yield from stream
     finally:
         admission.release()
+
+
+def _prepend_workspace_notice_after(notice: str, model: str, stream: Iterable[bytes]) -> Iterator[bytes]:
+    """Yield the folder-naming notice ahead of ``stream``, then the stream unchanged.
+
+    The notice is one plain-words line ("I'm working in your garden planner folder." or why
+    no folder was bound). It rides the same NDJSON chat-frame shape the streamed answer uses
+    (a non-terminal assistant chunk), plus one typed activity record, so a client that
+    concatenates content sees it once at the head of the reply and the live activity lane can
+    show it without parsing the answer. The stream itself -- including its sealed commit
+    frames -- passes through byte for byte.
+    """
+    import datetime as _dt
+    import json as _json
+
+    from core.web.api.runtime import ollama_stream_chunk, task_event_line
+
+    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    text = " ".join(str(notice or "").split())
+    if text:
+        text = text + " "
+        yield ollama_stream_chunk(model=str(model or ""), content=text, created_at=now, done=False)
+        yield task_event_line(
+            {
+                "event_type": "workspace_binding_notice",
+                "message": text.strip(),
+            },
+            created_at=now,
+        )
+    yield from stream
 
 
 def _iterate_under_ingress_context(context: Any, iterator: Iterable[bytes]) -> Iterator[bytes]:
@@ -8270,6 +8315,30 @@ def _dispatch_post_inner(
                 runtime,
             )
         bound_project_id = context_namespace.project_id
+        # A chat that names the person's own project folder in words gets bound to it here, so
+        # this turn and every later one work in that folder instead of the empty default
+        # workspace. Owner-local turns only; a remote channel turn never binds. Binding follows
+        # the project endpoints' own path and authority (core.workspace_from_words), gives the
+        # workspace only -- writes keep their approval cards -- and says once, in plain words,
+        # which folder VOOL is working in (the notice rides this request's stream).
+        if owner_local and not requested_workspace and not bound_project_id:
+            try:
+                from core.workspace_from_words import apply_workspace_words_binding
+
+                words_binding = apply_workspace_words_binding(
+                    session_id,
+                    user_text,
+                    home=str(_Path.home()),
+                    owner_local=True,
+                )
+            except Exception:
+                words_binding = None
+            if isinstance(words_binding, dict):
+                if words_binding.get("bound"):
+                    bound_project_id = str(words_binding.get("project_id") or "").strip()
+                notice = str(words_binding.get("notice") or "").strip()
+                if notice:
+                    _WORKSPACE_WORDS_NOTICE.set(notice)
         project_workspace = (
             project_store.project_root(bound_project_id) or ""
             if bound_project_id and not requested_workspace
@@ -8342,6 +8411,10 @@ def _dispatch_post_inner(
         source_context[UI_LOCALE_KEY] = request_ui_locale(headers)
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id
+        # The folder-naming notice for this turn, in plain words the reply carries once.
+        workspace_words_notice = _WORKSPACE_WORDS_NOTICE.get("")
+        if workspace_words_notice:
+            source_context["workspace_binding_notice"] = workspace_words_notice
         requested_model = str(model or "").strip()
         # Cloud-only machines: an owner-local Auto turn takes the cloud model the owner saved in
         # setup, but only while no local model is reachable (core.cloud_only_default).
