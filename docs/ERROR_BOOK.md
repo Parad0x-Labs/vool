@@ -8,7 +8,7 @@ of it: the codes, messages and actions below are exactly what the runtime emits.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `93e9e13e9f0c9b64c1598548e8ab991e6a35d1220d5e853e7db618b5a696ea87`
+- **Catalog digest:** `17f43546861ac9ca876b578704e12490899c5e65a10d6286ea4b320048092339`
 - **Fault count:** 52
 
 A fault's `code` is stable and safe to match on; `user_message` is what a person sees;
@@ -78,8 +78,8 @@ A fault's `code` is stable and safe to match on; `user_message` is what a person
 |---|---|---|---|---|---|---|---|---|
 | `provider_exhausted` | medium | yes | retry_later | no | The model provider's usage limit is reached. You can try again later. | A request reached an external service; no payment moved | Check quota, rate limits and billing for the configured provider. | `core.turn_model_call_ledger` |
 | `provider_unavailable` | medium | yes | retry_later | no | The model provider could not be reached. You can try again in a moment. | Nothing was sent, signed or changed | Check the provider's status, network reachability, and configured endpoints. | `core.turn_model_call_ledger` |
-| `timeout` | medium | yes | retry_now | no | This took too long and was stopped. Trying again may succeed. | Outcome unknown — check state before retrying | If timeouts repeat, check network latency and provider responsiveness. | `core.remote_fetch_policy` |
-| `tool_unavailable` | low | yes | retry_after_change | no | That tool is not available right now, so this part was not done. Enabling it is needed before you retry. | Nothing was sent, signed or changed | Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’, or choose a different approach. | `core.runtime_execution_tools` |
+| `timeout` | medium | yes | retry_now | no | This took too long and was stopped. Trying again may succeed. | Outcome unknown — check state before retrying | If this keeps being slow, check the internet connection or try a different model. | `core.remote_fetch_policy` |
+| `tool_unavailable` | low | yes | retry_after_change | no | That tool is not available right now, so this part was not done. It has to be turned on before you try again. | Nothing was sent, signed or changed | Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’, or choose a different approach. | `core.runtime_execution_tools` |
 | `wallet_broadcast_failed` | medium | yes | retry_later | no | The payment could not be broadcast. Check its status before retrying. | Outcome unknown — check state before retrying | Check the test-network RPC and the proposal's receipt; the spend was not recorded as sent. | `core.wallet.lifecycle` |
 | `wallet_quote_unavailable` | medium | yes | retry_later | no | The network did not give a complete answer for this transfer's balance or fee, so no approval was prepared and nothing was sent. Try again in a moment. | A request reached an external service; no payment moved | Unknown chain data is never treated as zero; check the row's endpoint and its identity proof. | `core.wallet.quotes` |
 | `wallet_simulation_failed` | medium | yes | retry_later | no | The payment did not pass simulation, so it was not sent. Check the balance and destination, then try again. | A request reached an external service; no payment moved | Check the balance, the destination and the test-network RPC, then propose again. | `core.wallet.lifecycle` |
