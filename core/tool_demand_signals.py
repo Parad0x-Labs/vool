@@ -1189,10 +1189,16 @@ _OWNER_CLAUSE_LEAD_VERBS: tuple[str, ...] = (
     "display", "remind", "note", "write", "export", "copy", "move", "delete", "remove",
     "search", "look", "walk", "run", "jot", "go", "review", "structure", "map", "lay",
     "place", "gather", "collect", "round",
+    # Job 6: the reminder-ask clause leads ("i need a reminder to ...", "nudge me ...",
+    # "cancel that reminder") — a segment opening with them must count as an ask or the
+    # reminder seats are dead code, the same N4 trap as "review".
+    "need", "want", "nudge", "cancel",
 )
-#: The seating verbs, at any clause lead, make the segment an imperative ask.
+#: The seating verbs, at any clause lead, make the segment an imperative ask. Job 6: a
+#: first-person "i/we need/want" is the same imperative lead ("i need a reminder to ...") —
+#: the subject sits between the ask lead and the verb, so it gets its own arm.
 _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
-    _OWNER_ASK_LEAD + r"(?:" + "|".join(_OWNER_CLAUSE_LEAD_VERBS) + r")\b",
+    _OWNER_ASK_LEAD + r"(?:(?:i|we)\s+(?:need|want)|(?:" + "|".join(_OWNER_CLAUSE_LEAD_VERBS) + r"))\b",
     re.IGNORECASE,
 )
 
@@ -1300,6 +1306,31 @@ _OWNER_LIST_REMINDERS_SEAT_RE = re.compile(
     r"\b(?:what|which|where)\b[^.!?]{0,40}?\breminders?\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:show|list|read|check|give\s+me|pull\s+up)\b[^.!?]{0,40}?\breminders?\b"
     r"|\bmy\s+reminders?\b(?!\s+(?:app|account|settings?|notifications?|sound|alarm|history))",
+    re.IGNORECASE,
+)
+#: Job 6: a first-person wh-word directly after "remind me" asks for recall or knowledge
+#: ("remind me what I said about the May trip", "remind me why the sky is blue"), never for a
+#: reminder to store. The chat parser's own veto covers the what-I-said family only, so the
+#: seat adds the general wh guard; unsure is quiet.
+_OWNER_RECALL_REMIND_RE = re.compile(
+    r"\bremind\s+me\s+(?:what|when|where|who|how|why|which)\b", re.IGNORECASE
+)
+#: Job 6: a reminder ask is an ask to act by construction, like the scheduling idioms — "remind
+#: me ..." / "nudge me ..." addresses this runtime and carries no possessive, so the own-object
+#: rule is carried by the anchored verbs plus the chat parser's own recall veto (applied at the
+#: seat site: "remind me what I said about the May trip" is recall, not a reminder to store).
+#: The first two arms mirror the parser's _REMINDER_HINT_RE so both lanes read the same words;
+#: "need"/"want" are the shapes the typed parser misses and the model tool exists for.
+_OWNER_SCHEDULE_REMINDER_SEAT_RE = re.compile(
+    r"\bremind\s+me\b"
+    r"|\b(?:set|create|schedule|add|need|want)\s+(?:(?:a|an|the|my)\s+)?reminders?\b"
+    r"|\bnudge\s+me\b",
+    re.IGNORECASE,
+)
+#: Job 6: a cancel ask, narrower than the parser's own _CANCEL_REMINDER_RE (no "call off"/"scrub"):
+#: only the words people say to this runtime about its own reminders.
+_OWNER_CANCEL_REMINDER_SEAT_RE = re.compile(
+    r"\b(?:cancel|delete|remove)\b[^\n!?.]*\breminders?\b",
     re.IGNORECASE,
 )
 _OWNER_AVAILABILITY_SEAT_RE = re.compile(
@@ -1554,6 +1585,26 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         intents.append("operator.check_availability")
     if _seats(_OWNER_LIST_REMINDERS_SEAT_RE):
         intents.append("operator.list_reminders")
+    # Job 6: the reminder acts. The recall veto is the chat parser's own, read over the WHOLE
+    # request — the eligible text above has already had the recall remainder stripped
+    # ("remind me what I said about the May trip" arrives here as "remind me what"), so the
+    # veto on ask_text alone could never see the recall shape. If the veto itself cannot be
+    # read, nothing seats — a false seat is worse than a miss.
+    is_recall_ask = True
+    try:
+        from core.operator.parser import _asks_to_recall_not_to_be_reminded
+
+        is_recall_ask = _asks_to_recall_not_to_be_reminded(cleaned)
+    except Exception:
+        pass
+    if (
+        not is_recall_ask
+        and not _OWNER_RECALL_REMIND_RE.search(ask_text)
+        and _OWNER_SCHEDULE_REMINDER_SEAT_RE.search(ask_text)
+    ):
+        intents.append("operator.schedule_reminder")
+    if _OWNER_CANCEL_REMINDER_SEAT_RE.search(ask_text):
+        intents.append("operator.cancel_reminder")
     # The scheduling idioms are asks to act by construction ("schedule a meeting", "book a
     # dentist appointment Tuesday"): they carry no possessive, so the own-object rule is
     # carried by their own anchored verbs and the attributive veto instead. A feasibility or

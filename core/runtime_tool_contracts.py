@@ -3088,6 +3088,57 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             permission_actions=("create_files",),
         ),
         RuntimeToolContract(
+            intent="operator.schedule_reminder",
+            description=(
+                "Schedule one of this runtime's own reminders from the request as written. The words go "
+                "through the same when-reading and subject parsing as the chat lane, and a due time in "
+                "the past is refused."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="schedule this runtime's own reminders from the owner's words",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "due_at_utc": "string"},
+            # In-app, local state: a reminder row in this runtime's own store (the same class as
+            # contacts.save). What may be written is decided by the runtime (request provenance,
+            # the past-time refusal), never by the model alone.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("create_files",),
+        ),
+        RuntimeToolContract(
+            intent="operator.cancel_reminder",
+            description=(
+                "Cancel one of this runtime's own pending reminders from the request as written. The "
+                "reminder it means is resolved exactly as the chat lane resolves it: a reminder id in "
+                "the words, or the one pending reminder; anything else is an unambiguous refusal."
+            ),
+            tool_surface="operator",
+            capability_id="operator.mutate",
+            capability_claim="cancel this runtime's own pending reminders",
+            supported=True,
+            unsupported_reason="",
+            input_schema={"text": "string (the request as written)"},
+            output_schema={"reminder_id": "string", "cancelled": "boolean"},
+            # In-app, local state, same class as schedule_reminder: removing a row of this
+            # runtime's own store, never an outward send.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            handler="external_lane",
+            permission_actions=("delete_files",),
+        ),
+        RuntimeToolContract(
             intent="operator.propose_calendar_event",
             description="Propose a real event on the configured calendar provider; executes only after explicit approval with conflict and version re-checks.",
             tool_surface="operator",

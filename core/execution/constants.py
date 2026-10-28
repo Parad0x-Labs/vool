@@ -2409,8 +2409,11 @@ _MUTATING_OPERATOR_INTENTS = {
     "operator.move_path",
     "operator.schedule_calendar_event",
     # A note write mutates workspace content; provider proposals/updates stage an
-    # outward-facing effect that always waits for the explicit approval turn.
+    # outward-facing effect that always waits for the explicit approval turn. A reminder
+    # changes this runtime's own store, the same write the chat lane makes.
     "operator.save_note",
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
     "operator.propose_calendar_event",
     "operator.update_calendar_event",
 }

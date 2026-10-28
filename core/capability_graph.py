@@ -723,6 +723,8 @@ _LEGACY_INTENT_TO_CAPABILITY: dict[str, str] = {
     "operator.cleanup_temp_files": "operator.mutate",
     "operator.move_path": "operator.mutate",
     "operator.schedule_calendar_event": "operator.mutate",
+    "operator.schedule_reminder": "operator.mutate",
+    "operator.cancel_reminder": "operator.mutate",
     "operator.discord_post": "communication.social",
     "operator.telegram_send": "communication.social",
 
@@ -1580,6 +1582,30 @@ def model_visible_specs(
                        if family in expansion_set]
     rest = [queue for family, queue in zip(families, family_queues, strict=True)
             if family not in expansion_set]
+    if expanded_queues:
+        # The cap law: the expanded family wins the budget and the others fill what is left.
+        # Step-3 demand seats of OTHER families sit in result_specs before the drain; when the
+        # expanded family grew past what the cap holds beside them (the operator family at 22
+        # beside a web-resolving ask), the drain stopped inside the family's own mutate tail
+        # and the expansion asked for tools it never delivered. The non-family, non-floor
+        # seats step down here and return through the round-robin fill below if room remains;
+        # the always-visible floor and every expanded-family seat stay.
+        expanded_intents = {c.tool_intent for queue in expanded_queues for c in queue}
+        family_need = sum(
+            1
+            for intent in expanded_intents
+            if intent not in included and _intent_available(intent) and not _intent_is_owner_only(intent)
+        )
+        while len(result_specs) + family_need > seat_budget:
+            for index in range(len(result_specs) - 1, -1, -1):
+                intent = str(result_specs[index].get("intent") or "")
+                if intent in _ALWAYS_VISIBLE_ORDER or intent in expanded_intents:
+                    continue
+                result_specs.pop(index)
+                included.discard(intent)
+                break
+            else:
+                break
     for queue in expanded_queues:
         while queue and len(result_specs) < seat_budget:
             candidate = queue.pop(0)

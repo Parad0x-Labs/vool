@@ -81,7 +81,16 @@ def execute_operator_tool(
 
 
 #: Operator tools whose contract input is ``{"text": "the request as written"}``.
-_REQUEST_TEXT_KINDS = frozenset({"check_availability", "propose_calendar_event", "update_calendar_event", "save_note"})
+_REQUEST_TEXT_KINDS = frozenset(
+    {"check_availability", "propose_calendar_event", "update_calendar_event", "save_note", "schedule_reminder"}
+)
+
+#: The reminder id inside a cancel request, read the way the chat parser reads it
+#: (core.operator.parser's reminder_id_match): a short UI id or a full uuid after "reminder".
+_REMINDER_ID_IN_TEXT_RE = re.compile(
+    r"\breminders?\s+(?:id\s+)?([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8})\b",
+    re.IGNORECASE,
+)
 
 
 def _argument(arguments: dict[str, Any], name: str) -> str:
@@ -107,6 +116,7 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
     target_path = str(arguments.get("target_path") or arguments.get("path") or "").strip() or None
     destination_path = str(arguments.get("destination_path") or arguments.get("destination_dir") or "").strip() or None
     target_label: str | None = None
+    reminder_action_id: str | None = None
     raw_text = ""
     if operator_kind == "move_path":
         source = str(arguments.get("source_path") or target_path or "").strip()
@@ -118,6 +128,15 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         start_iso = str(arguments.get("start_iso") or "").strip()
         duration_minutes = max(15, int(arguments.get("duration_minutes") or 30))
         raw_text = f'schedule a meeting "{title}" on {start_iso} for {duration_minutes}m'.strip()
+    elif operator_kind == "cancel_reminder":
+        # The request as written, plus the reminder id when the words carry one: the cancel
+        # handler resolves exactly what the chat lane resolves — that id, or the one pending
+        # reminder; with several pending and no id it refuses rather than guess.
+        raw_text = str(arguments.get("text") or "").strip()
+        id_match = _REMINDER_ID_IN_TEXT_RE.search(raw_text)
+        reminder_action_id = (id_match.group(1).lower() if id_match else "") or _argument(
+            arguments, "reminder_id"
+        ) or None
     elif operator_kind in _REQUEST_TEXT_KINDS:
         # These contracts take the request as written (``text``) and their handlers read it the
         # way they read a chat request. Approval is never read from it: approval_requested stays
@@ -145,7 +164,7 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         target_path=target_path,
         destination_path=destination_path,
         approval_requested=False,
-        action_id=str(arguments.get("action_id") or "").strip() or None,
+        action_id=reminder_action_id or (str(arguments.get("action_id") or "").strip() or None),
         raw_text=raw_text,
         target_label=target_label,
     )

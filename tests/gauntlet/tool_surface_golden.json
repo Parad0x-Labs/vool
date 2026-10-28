@@ -1,5 +1,5 @@
 {
-  "intent_count": 151,
+  "intent_count": 153,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -49,6 +49,7 @@
     "media.undo",
     "operator.apple_note_list",
     "operator.apple_note_read",
+    "operator.cancel_reminder",
     "operator.check_availability",
     "operator.cleanup_temp_files",
     "operator.find_notes",
@@ -63,6 +64,7 @@
     "operator.propose_calendar_event",
     "operator.save_note",
     "operator.schedule_calendar_event",
+    "operator.schedule_reminder",
     "operator.search_calendar_event",
     "operator.show_agenda",
     "operator.show_note",
@@ -153,7 +155,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 151,
+  "native_definition_count": 153,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -5011,6 +5013,89 @@
       },
       "read_only": true
     },
+    "operator.cancel_reminder": {
+      "arguments": [
+        "text"
+      ],
+      "description": "Cancel one of this runtime's own pending reminders from the request as written. The reminder it means is resolved exactly as the chat lane resolves it: a reminder id in the words, or the one pending reminder; anything else is an unambiguous refusal.",
+      "native_name": "operator__cancel_reminder",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "string (the request as written)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "operator.check_availability": {
       "arguments": [
         "text"
@@ -6149,6 +6234,89 @@
           ],
           "effects": {
             "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "operator.schedule_reminder": {
+      "arguments": [
+        "text"
+      ],
+      "description": "Schedule one of this runtime's own reminders from the request as written. The words go through the same when-reading and subject parsing as the chat lane, and a due time in the past is refused.",
+      "native_name": "operator__schedule_reminder",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "string (the request as written)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
             "bypass_permissions": "allow",
             "manual": "require_approval",
             "plan": "deny",
