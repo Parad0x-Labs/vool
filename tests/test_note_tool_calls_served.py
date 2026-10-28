@@ -64,7 +64,7 @@ def rig(tmp_path_factory):
         rig = type("Rig", (), {"state": state, "daemon": daemon, "workspace": workspace})
         for title, body in (("Venue plan", VENUE_BODY), ("Groceries", GROCERIES_BODY)):
             reply = _chat(rig, f'save a note titled "{title}" with: {body}', "note-seed", typed=True)
-            assert f"Note saved: '{title}'" in _answer(reply), _answer(reply)
+            assert f"Saved your note '{title}'." in _answer(reply), _answer(reply)
         assert len(_notes(rig)) == 2
         yield rig
     finally:
@@ -153,7 +153,7 @@ def test_yes_save_it_as_a_note_saves_the_answer_it_follows(rig) -> None:
     reply, _ = _then(rig, shown, "yes, save it as a note", "save-the-plan")
 
     assert "I just need its content" not in reply, reply
-    assert "Note saved: 'Gentle three-day plan'" in reply, reply
+    assert "Saved your note 'Gentle three-day plan'." in reply, reply
     added = {name: text for name, text in _notes(rig).items() if name not in before}
     assert len(added) == 1, added
     saved = next(iter(added.values()))
@@ -195,7 +195,7 @@ def test_words_that_do_not_ask_for_the_save_save_nothing(rig, words) -> None:
 
     reply, _ = _then(rig, shown, words, session)
 
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, f"{words!r} saved the answer"
 
 
@@ -209,7 +209,7 @@ def test_save_it_again_after_vools_own_reply_saves_nothing(rig, first) -> None:
     # The newest answer is VOOL's ask-back or its save receipt: neither offered a save, so neither is saved.
     reply, _ = _then(rig, shown, "ok, save it as a note", session)
 
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, "VOOL's own reply was saved as the answer"
 
 
@@ -225,7 +225,7 @@ def test_save_it_as_a_note_in_a_private_chat_saves_no_older_answer(rig) -> None:
     reply, _ = _then(rig, shown, "yes, save it as a note", session)
 
     # The private answer is in no log to quote, and the plan before it is not what "it" means.
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, "a private chat saved an answer from before it went private"
 
 
@@ -239,7 +239,7 @@ def test_save_it_as_a_note_after_private_chat_ended_saves_no_older_answer(rig) -
 
     reply, _ = _then(rig, shown, "yes, save it as a note", session)
 
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, "the plan from before the private stretch was saved"
 
 
@@ -258,7 +258,7 @@ def test_save_it_as_a_note_after_a_forget_saves_no_older_answer(rig) -> None:
     reply, _ = _then(rig, shown, "yes, save it as a note", session)
 
     # The forget took the party answer out of the log, which left the plan newest there.
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, "the plan from before the forgotten answer was saved"
 
 
@@ -277,5 +277,5 @@ def test_save_it_as_a_note_after_a_council_card_saves_no_older_answer(rig) -> No
 
     reply, _ = _then(rig, shown, "yes, save it as a note", session)
 
-    assert "Note saved" not in reply, reply
+    assert "Note saved" not in reply and "Saved your note" not in reply, reply
     assert set(_notes(rig)) == before, "the plan from before the council card was saved"

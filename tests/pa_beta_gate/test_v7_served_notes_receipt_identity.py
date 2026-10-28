@@ -104,7 +104,7 @@ def test_served_resume_with_the_review_data_answers_only_from_a_whole_receipt(re
     _delivered_then_stopped(harness, workspace, fault, f'save a note to Apple Notes titled "Valid inspection" with: {_REVIEW_BODY}', "Valid inspection")
     assert bridge.calls == 1
     resumed = _turn(harness, "resume", workspace)
-    assert resumed.startswith("Note saved in Apple Notes: 'Valid inspection'") and "answered from its recorded receipt" in resumed, resumed
+    assert resumed.startswith("Saved your note 'Valid inspection' in Apple Notes") and "answered from its recorded receipt" in resumed, resumed
     assert bridge.calls == 1
 
     # Review finding 1: the receipt later carries the legacy flag and a whitespace reference.
@@ -164,5 +164,5 @@ def test_served_resume_with_novel_identity_swaps_refuses_and_keeps_a_valid_flow(
     assert bridge.calls == 3
     _damage(workspace, service, lambda record: [record.pop("session_id"), record.pop("task_id")])
     resumed = _turn(harness, "resume", workspace)
-    assert resumed.startswith(f"Note saved in Apple Notes: '{service}'") and "answered from its recorded receipt" in resumed, resumed
+    assert resumed.startswith(f"Saved your note '{service}' in Apple Notes") and "answered from its recorded receipt" in resumed, resumed
     assert bridge.calls == 3 and fault.fired == 3

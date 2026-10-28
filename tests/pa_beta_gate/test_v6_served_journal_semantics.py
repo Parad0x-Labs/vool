@@ -60,7 +60,7 @@ def test_served_confirmed_receipt_without_reference_is_quarantined_until_the_own
     text = f'save a note to Apple Notes titled "{title}" with: {body}'
 
     first = _turn(harness, text, workspace)
-    assert first.startswith(f"Note saved: '{title}' at "), first
+    assert first.startswith(f"Saved your note '{title}'."), first
     assert "destination is NOT resolved (effect_journal_quarantined)" in first and "note_reference" in first, first
     assert bridge.calls == 0 and _preserved(workspace) == [raw]
 
@@ -70,7 +70,7 @@ def test_served_confirmed_receipt_without_reference_is_quarantined_until_the_own
     for path in (Path(workspace) / "notes").glob(".apple-notes-effects.quarantine-*"):
         path.unlink()  # the owner's documented resume step, after checking Apple Notes
     resumed = _turn(harness, text, workspace)
-    assert resumed.startswith(f"Note saved in Apple Notes: '{title}'"), resumed
+    assert resumed.startswith(f"Saved your note '{title}' in Apple Notes"), resumed
     assert bridge.calls == 1
 
 

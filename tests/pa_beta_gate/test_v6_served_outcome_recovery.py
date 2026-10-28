@@ -77,7 +77,7 @@ def test_served_note_terminated_after_create_stays_unresolved_and_the_follow_up_
     text = 'save a note to Apple Notes titled "Pump station log" with: inlet pressure 2.1 bar after flush'
 
     first = _turn(harness, text, workspace)
-    assert first.startswith("Note saved: 'Pump station log' at "), first
+    assert first.startswith("Saved your note 'Pump station log'."), first
     assert "destination is NOT resolved (bridge_terminated)" in first and "not established" in first, first
     assert "no note was created" not in first.lower(), first
     assert [op["state"] for op in _journal_operations(workspace)] == ["ambiguous"]
@@ -102,7 +102,7 @@ def test_served_apple_event_timeout_after_create_blocks_a_reworded_same_content_
     assert (bridge.calls, bridge.created) == (1, 1)
 
     unrelated = _turn(harness, 'save a note to Apple Notes titled "Chiller spares" with: order two relay contactors', workspace)
-    assert unrelated.startswith("Note saved in Apple Notes: 'Chiller spares'"), unrelated
+    assert unrelated.startswith("Saved your note 'Chiller spares' in Apple Notes"), unrelated
     assert (bridge.calls, bridge.created) == (2, 2), "independent content still reaches Notes"
     assert sorted(op["state"] for op in _journal_operations(workspace)) == ["ambiguous", "confirmed"]
 

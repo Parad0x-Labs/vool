@@ -390,6 +390,12 @@ def parse_note_request(text: str) -> dict[str, Any]:
                 r"\bnote\s+to\s+(?!(?:my|our|the|a|an|his|her|their|your|self|myself|me|him|them|us)\b)([a-z]+\b.*)$",
                 raw, re.DOTALL,
             )
+            # "add a note to my notes app that the boiler service is due nov 12": a few words (at most six) may
+            # sit between "note" and the "that" clause carrying the content; a "that" farther away is not it.
+            or re.search(r"\bnote\b(?:\s+\w+){1,6}?\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "save this one: buy zucchini for saturday's bbq": a demonstrative (optionally "one") then the
+            # content colon; a clock time's colon never sits right after the demonstrative, so it never separates.
+            or re.search(r"\b(?:this|that)\b(?:\s+one)?\s*(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
         )
         if plain:
             body = plain.group(1).strip()
@@ -544,7 +550,7 @@ def handle_save_note(
             details={"note_path": record["note_path"], "title": title, "requested_destination": "workspace"},
         )
         actions = note_action_items(record["note_path"])
-        response = f"Note saved: '{title}' at {record['note_path']}"
+        response = f"Saved your note '{title}'."
         details: dict[str, Any] = {**record, "actions_found": actions}
         if actions and parsed["wants_schedule"]:
             details["schedule_proposal_hint"] = actions[0]
@@ -574,15 +580,15 @@ def handle_save_note(
             details={"title": title, "requested_destination": "apple_notes", "apple_note_reference": delivered.get("note_reference", ""),
                      "operation_id": operation_id, "replayed": bool(delivered.get("replayed"))},
         )
-        response = f"Note saved in Apple Notes: '{title}'{where}. Created through the real Notes app bridge; verify it in Notes."
+        response = f"Saved your note '{title}' in Apple Notes{where}. Check it in the Notes app."
         if delivered.get("replayed"):
             response += " This same request was already delivered, so I answered from its recorded receipt; nothing was created twice."
         earlier = delivered.get("identical_earlier_note")
         if isinstance(earlier, dict):
-            response += (" An earlier, separate request had already created a note with identical content"
-                         f" (reference {str(earlier.get('note_reference') or 'unknown')[:80]}); this new request created its own.")
+            response += (" An earlier, separate request had already created a note with identical content;"
+                         " this new request created its own.")
         if delivered.get("receipt_unrecorded"):
-            response += (" WARNING: the note was created, but its delivery record could not be saved. Repeating this same"
+            response += (" The note was created, but its delivery record could not be saved. Repeating this same"
                          " request will not send it again; check Notes before asking for another copy.")
         return OperatorActionResult(
             ok=True,
@@ -614,7 +620,7 @@ def handle_save_note(
     )
     actions = note_action_items(record["note_path"])
     response = (
-        f"Note saved: '{title}' at {record['note_path']}"
+        f"Saved your note '{title}'."
         f"\n\nDestination note: you asked for Apple Notes{where} and that destination is NOT resolved ({reason}). {detail}"
         " A file under workspace/notes is NOT an Apple Notes note — what I saved is a clearly-labelled workspace fallback"
         " artifact, and the Apple Notes obligation remains open. " + _destination_guidance(delivery_state)

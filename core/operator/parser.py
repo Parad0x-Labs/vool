@@ -316,6 +316,44 @@ _WRITE_NOTE_STORE_CUE_RE = re.compile(
     r"|\b(?:in|to|into|inside|on)\s+(?:my|the)\s+(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)\b|\bapple\s+notes\b",
     re.IGNORECASE,
 )
+# The keep-family verbs ("keep a note", "add a note", "put (down) a note", "stick a note in",
+# "retain a note"): their object is the INDEFINITE "a note" with at most a small adjective.
+# "the/this/that note" is a note that already exists ("keep that note, I like it") and "notes"
+# a habit ("keep notes of what you spend"); neither offers new words to the notes tool.
+_KEEP_NOTE_RE = re.compile(
+    r"\b(?P<verb>keep|add|put|stick|retain)(?:\s+down)?\s+a\s+(?:(?:quick|short|new|little)\s+)?note\b(?!-)"
+    r"(?P<after>[^\n!?.]*)",
+    re.IGNORECASE,
+)
+# "save this one: buy zucchini and halloumi for saturdays bbq": the note is the "one" the chat is
+# holding and the colon carries its words. Under the same ask gate as the keep family, because
+# "I'll save this: ..." is a promise, not a request.
+_SAVE_DEMONSTRATIVE_RE = re.compile(r"\b(?:save|store)\s+(?:this|that)(?:\s+one)?\s*:(?!\d)", re.IGNORECASE)
+# The only words allowed before the verb of an ask: nothing, a leading please/kindly, one
+# can/could/will/would you, and the fillers please/just/also. Measured 2026-10-28 (amendment 1,
+# SKILL MASTER thread) against the tool-seating branch (Job 4, R13): it passed its four probes
+# but saved notes from statements ("I keep a note that my insurance renews in May") and questions
+# ("why should I keep a note that nobody reads?") -- a subject or question word before the verb
+# is someone talking about keeping a note, not asking this runtime to keep one.
+_ASK_CUE_PREFIX_RE = re.compile(
+    r"\s*(?:(?:please|kindly)\s+)?(?:(?:can|could|will|would)\s+you\s+)?(?:(?:please|just|also)\s+)*",
+    re.IGNORECASE,
+)
+# What after the object makes the request carry note words: a that-clause, a colon separator
+# (read through the clock-colon guard), saying/says, or an of-phrase ("keep a note of my
+# prescriptions"). A destination alone ("put a note on the piano") or "keep in mind ..." names
+# no words to keep, so it is not a save.
+_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b|\bof\b", re.IGNORECASE)
+
+
+def _note_ask_is_positioned(text: str, start: int) -> bool:
+    """True when the verb at `start` opens its own sentence, or follows only ask cues.
+
+    Only the verb's own sentence counts (split on . ! ? and newlines): "I take the 7:15 train.
+    Keep a note of it." is still an ask, while the same prefix inside one sentence is a report.
+    """
+    prefix = re.split(r"[.!?\n]", text[:start])[-1]
+    return _ASK_CUE_PREFIX_RE.fullmatch(prefix) is not None
 
 
 class _NoteSaveRecognizer:
@@ -330,6 +368,22 @@ class _NoteSaveRecognizer:
         stored = _STORE_NOTE_RE.search(text)
         if stored:
             return stored
+        for match in _KEEP_NOTE_RE.finditer(text):
+            after = match.group("after")
+            # The ask gate first (a statement or question about keeping is never a save), then
+            # the content cue, then the same person guard as the record verbs: a note TO a
+            # person is composed writing. "to my notes app" is a destination, not a person
+            # (`_NOT_A_PERSON`), so "add a note to my notes app that ..." stays a save.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            if not (_KEEP_NOTE_CONTENT_RE.search(after) or _NOTE_WORDS_COLON_RE.match(after)):
+                continue
+            if _note_is_addressed(after):
+                continue
+            return match
+        demonstrated = _SAVE_DEMONSTRATIVE_RE.search(text)
+        if demonstrated and _note_ask_is_positioned(text, demonstrated.start()):
+            return demonstrated
         for match in _RECORD_NOTE_RE.finditer(text):
             verb = match.group("verb").lower()
             between, after = match.group("between"), match.group("after")
