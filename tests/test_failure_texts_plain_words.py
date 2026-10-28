@@ -182,10 +182,11 @@ from core.agent_runtime.provider_failure import (  # noqa: E402
     MISSING_USAGE,
     OUTPUT_BUDGET_EXHAUSTED,
     PROVIDER_ERROR,
-    ProviderFailure,
     REASONING_ONLY,
     UNREACHABLE,
     UNUSABLE_ARTIFACT,
+    ProviderFailure,
+    classify_provider_failure,
 )
 
 #: R010-R017 plus the missing-usage sibling: a raw detail and a model id go in, only
@@ -222,18 +223,52 @@ def test_provider_failure_sentences_still_differ_per_kind() -> None:
 
 
 def test_a_plain_rejection_reason_stays_in_the_unusable_artifact_sentence() -> None:
-    # The audit step's rejection vocabulary is already plain words; the person waiting on the
-    # answer needs the why, so it rides along (a machine-shaped detail still never does).
+    # The audit's evidence_rejected branch sets plain_reason — the one door a reason has into
+    # the sentence — and the person waiting on the answer needs the why, so it rides along.
     reason = (
         "three nominated candidates failed source checking; latest rejection: the failure "
         "scenario depends on an unbuilt future code or format change, not a concrete input "
         "that fails against the current source"
     )
-    sentence = ProviderFailure(UNUSABLE_ARTIFACT, detail=reason).operator_sentence(
-        phase="nomination",
-    )
+    sentence = ProviderFailure(
+        UNUSABLE_ARTIFACT,
+        detail="the completion did not contain the required artifact",
+        plain_reason=reason,
+    ).operator_sentence(phase="nomination")
     assert "future" in sentence and "current source" in sentence
     assert_plain(sentence)
+
+
+def test_engineering_rejection_details_never_reach_the_sentence() -> None:
+    # These two details are engineering vocabulary. They stay in the structured call record
+    # (`detail`), and by structure — no call site sets plain_reason for them — they can never
+    # ride into the sentence the waiting person reads.
+    classified = classify_provider_failure(text="some prose that failed the step", usage_present=True)
+    assert classified.kind == UNUSABLE_ARTIFACT
+    assert classified.detail == "the completion did not contain the required artifact"
+    not_json = ProviderFailure(UNUSABLE_ARTIFACT, "the reply was not the JSON object required")
+    for failure in (classified, not_json):
+        sentence = failure.operator_sentence(phase="nomination")
+        assert "required artifact" not in sentence
+        assert "JSON object" not in sentence
+        assert "completion" not in sentence
+        assert "could not be used" in sentence, "the sentence still states what failed"
+        assert_plain(sentence)
+    # the facts are not lost: the call record keeps them
+    assert "required artifact" in classified.detail
+    assert "JSON object" in not_json.detail
+
+
+def test_the_plain_reason_arrives_capitalised_with_exactly_one_full_stop() -> None:
+    sentence = ProviderFailure(
+        UNUSABLE_ARTIFACT,
+        plain_reason="three nominated candidates failed source checking; latest rejection: "
+        "the source contradicts the claim.",
+    ).operator_sentence()
+    assert ". Three nominated candidates" in sentence
+    assert sentence.endswith("contradicts the claim.")
+    assert not sentence.endswith("..")
+    assert sentence.count("claim.") == 1
 
 
 @pytest.mark.parametrize(

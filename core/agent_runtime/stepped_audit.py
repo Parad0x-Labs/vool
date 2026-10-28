@@ -4337,9 +4337,16 @@ def _failure_sentence(
     joined = "|".join(failure_notes)
     if "evidence_rejected:" in joined:
         rejection = joined.rsplit("evidence_rejected:", 1)[-1].split("|", 1)[0].strip()
+        # The rejection vocabulary is written for the person, so it is the one reason allowed to
+        # ride in the operator sentence; every other unusable-artifact detail stays a call-record
+        # fact (their plain_reason is empty by structure, not by a word list).
         failure = ProviderFailure(
             UNUSABLE_ARTIFACT,
             f"three nominated candidates failed source checking; latest rejection: {rejection}",
+            plain_reason=(
+                "three nominated candidates failed source checking; "
+                f"latest rejection: {rejection}"
+            ),
         )
     elif "not_json" in joined:
         failure = ProviderFailure(UNUSABLE_ARTIFACT, "the reply was not the JSON object required")
