@@ -166,6 +166,8 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-character-lab .vn-lab-sub { margin: 4px 0 14px; color: var(--muted, #8b94a3); font-size: 11px; }
 .vool-character-lab .vn-lab-close { border: 0; background: none; color: var(--muted, #8b94a3); cursor: pointer; font-size: 18px; }
 .vool-character-lab .vn-lab-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.vool-character-lab .vn-lab-group { grid-column: 1 / -1; margin: 6px 0 0; color: var(--muted, #8b94a3); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.vool-character-lab .vn-lab-group:first-child { margin-top: 0; }
 .vool-character-lab .vn-character-card {
   color: inherit; background: var(--field,#232326); border: 1px solid var(--border,#39393f); border-radius: 10px; padding: 8px;
   cursor: pointer; text-align: left; min-width: 0;
@@ -1563,7 +1565,7 @@ function vnOpenCharacterLab() {
   const copy = document.createElement("div");
   const title = document.createElement("h3"); title.id = "vnLabTitle"; title.textContent = "Character Lab";
   const sub = document.createElement("p"); sub.className = "vn-lab-sub";
-  sub.textContent = "Original pixel family · ten companions · cosmetic only. Runtime state and outcome truth never change.";
+  sub.textContent = "Pick a companion. It only changes how your pet looks, never what it reports.";
   copy.appendChild(title); copy.appendChild(sub); head.appendChild(copy);
   const close = document.createElement("button"); close.type = "button"; close.className = "vn-lab-close";
   close.setAttribute("aria-label", "Close Character Lab"); close.textContent = "×"; close.addEventListener("click", vnCloseCharacterLab);
@@ -1572,10 +1574,16 @@ function vnOpenCharacterLab() {
   const keys = Object.keys(window.VoolCompanionWorld.characters);
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i], meta = window.VoolCompanionWorld.characters[key];
+    /* Legacy pets come first, then the modern set; each group gets one quiet heading. */
+    if (i === 0 || !!meta.remastered !== !!window.VoolCompanionWorld.characters[keys[i - 1]].remastered) {
+      const groupHead = document.createElement("div"); groupHead.className = "vn-lab-group";
+      groupHead.textContent = meta.remastered ? "Sidekicks" : "Legacy pets"; grid.appendChild(groupHead);
+    }
     const card = document.createElement("button"); card.type = "button";
     card.className = "vn-character-card" + (vnPos.personality === key ? " selected" : "");
+    card.setAttribute("aria-label", meta.name + (meta.note ? ", " + meta.note : ""));
     card.setAttribute("aria-pressed", vnPos.personality === key ? "true" : "false");
-    const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48;
+    const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48; preview.setAttribute("aria-hidden", "true");
     const label = document.createElement("b"); label.textContent = meta.name;
     /* Every pet is an authored drawing with its own baked palette, so the note comes from the
        renderer's own registry rather than a table that would drift as the roster grows. */
@@ -1590,10 +1598,11 @@ function vnOpenCharacterLab() {
   modal.appendChild(grid);
   const selectedMeta = window.VoolCompanionWorld.characters[vnPos.personality] || {};
   const packTitle = document.createElement("div"); packTitle.className = "vn-pack-title";
-  packTitle.textContent = "Cosmetic palette — every companion is an authored drawing with its own baked palette, so a pack never recolours one. Packs are never system truth.";
+  packTitle.textContent = "Colour style. Every companion keeps its own colours, and a style never changes what your pet reports.";
   modal.appendChild(packTitle);
   const packGrid = document.createElement("div"); packGrid.className = "vn-pack-grid";
-  const packNames = {default:"🧃 Default",ninja:"🥷 Ninja",moss:"🌿 Moss",cyber:"🤖 Cyber"};
+  const packNames = {default:"Default",ninja:"Ninja",moss:"Moss",cyber:"Cyber"};
+  const stateLabels = {idle:"Resting",starting:"Starting",thinking:"Thinking",tool:"Working",waiting:"Waiting",approval:"Needs your OK",retry:"Trying again",success:"Done",failure:"Problem",cancelled:"Stopped",unknown:"Unsure"};
   const packs = Object.keys(window.VoolCompanionWorld.packs);
   for (let j = 0; j < packs.length; j++) {
     const pack = packs[j], button = document.createElement("button"); button.type = "button";
@@ -1608,13 +1617,13 @@ function vnOpenCharacterLab() {
   // typed state name, so art review reads against the state vocabulary, not vibes.
   const states = ["idle","starting","thinking","tool","waiting","approval","retry","success","failure","cancelled","unknown"];
   const matrixTitle = document.createElement("div"); matrixTitle.className = "vn-pack-title";
-  matrixTitle.textContent = "State matrix — " + ((window.VoolCompanionWorld.characters[vnPos.personality] || {}).name || vnPos.personality);
+  matrixTitle.textContent = "How " + ((window.VoolCompanionWorld.characters[vnPos.personality] || {}).name || vnPos.personality) + " looks";
   modal.appendChild(matrixTitle);
   const matrix = document.createElement("div"); matrix.className = "vn-lab-matrix";
   for (let si = 0; si < states.length; si++) {
     const cell = document.createElement("div"); cell.className = "vn-lab-cell";
     const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
-    const cap = document.createElement("small"); cap.textContent = states[si];
+    const cap = document.createElement("small"); cap.textContent = stateLabels[states[si]] || states[si];
     cell.appendChild(cv); cell.appendChild(cap); matrix.appendChild(cell);
     const g2 = cv.getContext && cv.getContext("2d");
     if (g2) { g2.imageSmoothingEnabled = false; window.VoolCompanionWorld.draw(g2, states[si], 2, {character:vnPos.personality,pack:vnPos.pack}); }
@@ -1623,12 +1632,12 @@ function vnOpenCharacterLab() {
   // Silhouette readability test (the design authority's black-flood check): draw, then flood
   // the drawn pixels with one ink — a readable silhouette survives with no interior detail.
   const silTitle = document.createElement("div"); silTitle.className = "vn-pack-title";
-  silTitle.textContent = "Silhouette test"; modal.appendChild(silTitle);
+  silTitle.textContent = "Outline"; modal.appendChild(silTitle);
   const silRow = document.createElement("div"); silRow.className = "vn-lab-matrix";
   ["idle","tool","success","failure"].forEach(function (st) {
     const cell = document.createElement("div"); cell.className = "vn-lab-cell";
     const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
-    const cap = document.createElement("small"); cap.textContent = st;
+    const cap = document.createElement("small"); cap.textContent = stateLabels[st] || st;
     cell.appendChild(cv); cell.appendChild(cap); silRow.appendChild(cell);
     const g3 = cv.getContext && cv.getContext("2d");
     if (g3) {
@@ -1642,10 +1651,10 @@ function vnOpenCharacterLab() {
   // Multi-worker scene preview — ILLUSTRATIVE ONLY, labelled as such. The live sprite shows a
   // scene exclusively when the runtime reports that many real workers (vnLiveAgentCount).
   const sceneTitle = document.createElement("div"); sceneTitle.className = "vn-pack-title";
-  sceneTitle.textContent = "Worker scenes — preview only; the live sprite shows these exclusively when real workers run";
+  sceneTitle.textContent = "Helpers working together. A preview: your pet shows this only when that many helpers are really running.";
   modal.appendChild(sceneTitle);
   const sceneRow = document.createElement("div"); sceneRow.className = "vn-lab-matrix";
-  [["pair", "2 workers"], ["huddle", "3+ workers"]].forEach(function (pairDef) {
+  [["pair", "2 helpers"], ["huddle", "3 or more helpers"]].forEach(function (pairDef) {
     const cell = document.createElement("div"); cell.className = "vn-lab-cell";
     const cv = document.createElement("canvas"); cv.width = 48; cv.height = 48;
     const cap = document.createElement("small"); cap.textContent = pairDef[1];
