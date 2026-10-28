@@ -620,6 +620,42 @@ def maybe_handle_safe_machine_write_guard(
     )
 
 
+def maybe_answer_a_phone_without_computer_rights(
+    agent: Any,
+    user_input: str,
+    *,
+    session_id: str,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any] | None:
+    """A paired phone the owner did not give "Use tools on my computer" asked about the owner's files.
+
+    The tools-less model guessed instead (real-model test 2026-10-28, qwen3:8b: "you have 2.3 gigabytes of
+    storage remaining", "No photos were found for your Lisbon trip" while three were there). Say what the
+    phone may not do and where the owner turns it on; a phone with the right is served like the computer.
+    """
+    from core.request_trust import (
+        REMOTE_GRANT_COMPUTER,
+        REMOTE_GRANT_REFUSAL_TEXT,
+        remote_turn_device,
+        remote_turn_has_grant,
+    )
+
+    if remote_turn_device(source_context) is None or remote_turn_has_grant(source_context, REMOTE_GRANT_COMPUTER):
+        return None
+    from core.tool_demand_signals import owner_file_demand
+
+    if not owner_file_demand(user_input):
+        return None
+    return agent._fast_path_result(
+        session_id=session_id,
+        user_input=user_input,
+        response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
+        confidence=0.95,
+        source_context=source_context,
+        reason="phone_without_computer_rights",
+    )
+
+
 def _machine_step_summary(execution: Any, intent: str) -> str:
     """A short, honest one-line summary of what the machine tool returned, used as the
     tool-step label in the activity panel. First non-empty line of the real tool output,

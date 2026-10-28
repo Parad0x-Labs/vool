@@ -1898,6 +1898,14 @@ def handle_turn_frontdoor(
     if machine_write_guard is not None:
         return {"result": machine_write_guard}
 
+    from core.agent_runtime.fast_paths_machine import maybe_answer_a_phone_without_computer_rights
+
+    phone_without_rights = maybe_answer_a_phone_without_computer_rights(
+        agent, raw_user_input, session_id=session_id, source_context=source_context,
+    )
+    if phone_without_rights is not None:
+        return {"result": phone_without_rights}
+
     from core.agent_runtime.fast_paths_media import maybe_handle_image_generation
 
     image_generation = None if action_forbidden else maybe_handle_image_generation(

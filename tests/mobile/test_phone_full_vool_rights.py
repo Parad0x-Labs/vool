@@ -290,12 +290,12 @@ def test_served_phone_rights_open_tools_and_paid_search_but_not_money(tmp_path, 
         plain = pair(desktop, rights={'history': True})
         full = pair(desktop, rights={'history': True, 'computer_tools': True})
 
-        def run(phone, number):
+        def run(phone, number, words=None):
             start = len(provider.emitted)
             status, prepared = call(*phone, 'chats.prepare')
             assert status == 200, prepared
             ask = ['list the files in my workspace', 'search the web for the silver price', 'pay the public service']
-            text = 'Execute the workflow using available tools. FULL-VOOL-scenario' + str(number) + ': ' + ask[number] + '.'
+            text = 'Execute the workflow using available tools. FULL-VOOL-scenario' + str(number) + ': ' + (words or ask[number]) + '.'
             status, result = call(*phone, 'chats.send', {'chat_id': prepared['result']['chat_id'], 'message': text,
                                                          'idempotency_key': secrets.token_hex(16)})
             assert status == 200, result
@@ -305,8 +305,10 @@ def test_served_phone_rights_open_tools_and_paid_search_but_not_money(tmp_path, 
             ran = ledger_row(desktop, "SELECT event_type FROM runtime_session_events WHERE event_type = 'tool_executed' AND details_json LIKE ? AND details_json LIKE '%\"failed\": false%' LIMIT 1", ('%' + turn_id + '%',))
             return bool(ran), (json.loads(refused['details_json']) if refused else None)
 
-        # No right: the computer tool is refused, and the phone is told which switch opens it.
-        _result, refused = run(plain, 0)
+        # No right: the computer tool is refused, and the phone is told which switch opens it. (Asked about
+        # the owner's files, such a phone is told before any model runs: test_phone_without_computer_rights.py.
+        # Words that name no file still reach the model, whose tool call the fence must refuse.)
+        _result, refused = run(plain, 0, 'do step one')
         assert refused and (refused.get('observation') or refused).get('reason', refused.get('status')) == 'owner_local_required'
         # Computer tools on: the same tool runs.
         ran, refused = run(full, 0)
@@ -330,7 +332,7 @@ def test_served_phone_rights_open_tools_and_paid_search_but_not_money(tmp_path, 
         status, changed = http(base, '/api/mobile/settings', {'operation': 'device_rules', 'device_id': device_id,
                                'rules': {'computer_tools': False}})
         assert status == 200, changed
-        _result, refused = run(full, 0)
+        _result, refused = run(full, 0, 'do step one')
         assert refused and 'owner_local_required' in json.dumps(refused)
     finally:
         (tmp_path / 'provider-calls.json').write_text(json.dumps(provider.calls, indent=2))
