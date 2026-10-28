@@ -429,7 +429,7 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
         "roll back the skill called served-echo-skill to version 1",
     )
     answer = _answer(replayed)
-    assert "back to version 1" in answer, answer[:300]
+    assert 'Restored version 1 of the skill "Served echo skill".' in answer, answer[:300]
     assert (skill_dir / "SKILL.md").read_text(encoding="utf-8") == v1_bytes, (
         "the rollback did not restore version 1 byte for byte"
     )

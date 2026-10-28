@@ -251,21 +251,64 @@ _VAGUE = frozenset(
 )
 
 
+# A colon or a spaced dash right after the skill word opens the purpose the same way "that"
+# does: "make me a skill for this project: whenever ..." and "make me a skill: whenever ..." name
+# no that/for/to for the split below to find, and were answered as if nothing was asked. Place
+# words are already stripped by then, so the separator sits directly after the noun. A dash
+# glued to the next word is a hyphen inside a name ("qa-echo"), never a separator.
+_AFTER_SKILL_SEPARATOR_RE = re.compile(
+    r"\b" + _SKILL_WORD + r"\b\s*(?::\s*|[-\u2013\u2014]\s+)",
+    re.IGNORECASE,
+)
+
+
 def _purpose_of(text: str) -> str:
     """What the requested skill should do, in the operator's words, without scope words."""
     from core.skill_scopes import strip_scope_words
 
     body = strip_scope_words(" ".join(str(text or "").split()))
-    match = re.search(
-        r"\b(?:that|which|to|so\s+(?:it|that)|for|it\s+should|should|will|can)\b\s+(?P<rest>.+)$",
-        body,
-        re.IGNORECASE,
-    )
-    rest = (match.group("rest") if match else "").strip(" .,:;")
+    headed = _AFTER_SKILL_SEPARATOR_RE.split(body, maxsplit=1)
+    if len(headed) > 1 and headed[1].strip():
+        rest = headed[1].strip()
+    else:
+        match = re.search(
+            r"\b(?:that|which|to|so\s+(?:it|that)|for|it\s+should|should|will|can)\b\s+(?P<rest>.+)$",
+            body,
+            re.IGNORECASE,
+        )
+        rest = (match.group("rest") if match else "").strip()
+    rest = rest.strip(" .,:;-\u2013\u2014")
     rest = re.sub(r"^\s*(?:it\s+)?(?:should|will|can|must)\s+", "", rest, flags=re.IGNORECASE)
     rest = re.sub(r"\b(?:call|name)\s+it\s+[`\"']?[\w-]+[`\"']?", " ", rest, flags=re.IGNORECASE)
     rest = re.sub(r"\b(?:go\s+ahead\s+and\s+)?(?:create|make|build|draft|write)\s+it\b.*$", " ", rest, flags=re.IGNORECASE)
-    return " ".join(rest.split()).strip(" .,:;")
+    return " ".join(rest.split()).strip(" .,:;-\u2013\u2014")
+
+
+# Words a trigger phrase must never hold: they say WHO acts and WHEN, not what the skill is
+# about, and a phrase built from them ("whenever give shopping", "give you list") matches no
+# request a person would type.
+_TRIGGER_BANNED = frozenset({"whenever", "when", "if", "give", "you", "i"})
+# The head of a condition-shaped purpose ("whenever I give you a shopping list, ..."): its lead
+# word, its pronoun subject and its verb say when and who, so the phrases start after them --
+# "paste" in "when I paste a rehearsal schedule" is that verb, not what the skill is about.
+_TRIGGER_CONDITION_HEAD_RE = re.compile(
+    r"^\s*(?:whenever|when|if)\s+(?:i|we|me|you|i'm|we're|i'll|we'll|i've|we've)\s+\S+\s+",
+    re.IGNORECASE,
+)
+# Other people-words end a run: they are the task's WHO ("her birthday list" is one list, but a
+# phrase joined across a person word was never said).
+_TRIGGER_PEOPLE = frozenset({"she", "him", "her", "them", "they", "their", "its", "his"})
+# Glue that only joins a run's content words: dropped when the phrase is formed, and the words
+# on either side stay one run ("a shopping list" -> "shopping list"). Every other non-content
+# word (pronouns, "and", the banned class above) ends the run instead, so no phrase is formed
+# across words the person said as separate things ("sort it by supermarket aisle" keeps "sort"
+# out of "supermarket aisle").
+_TRIGGER_GLUE = frozenset(
+    {
+        "a", "an", "the", "my", "our", "your", "of", "by", "for",
+        "with", "from", "in", "on", "at", "to", "into", "onto", "per", "as",
+    }
+)
 
 
 def _purpose_words(purpose: str) -> list[str]:
@@ -274,27 +317,60 @@ def _purpose_words(purpose: str) -> list[str]:
     return [
         token
         for token in re.split(r"[^a-z0-9]+", purpose.lower())
-        if len(token) > 2 and token not in _STOPWORDS and token not in _VAGUE
+        if len(token) > 2
+        and token not in _STOPWORDS
+        and token not in _VAGUE
+        and token not in _TRIGGER_BANNED
     ]
 
 
 def _phrase_triggers(purpose: str) -> list[str]:
-    """2-3 word phrases from the purpose's content words, adjacent as they were said.
+    """The purpose's content phrases, 2-3 words each, in their own order.
 
-    A lone word ("water", "notes") ranks against half the language; the phrase around it ("water
-    plants") is the shape the operator's request already had. The words are the purpose's own, in
-    their own order -- nothing is invented, only the glue words between them are dropped. A lone
-    content word stands alone rather than being padded into a phrase that was never said.
+    The purpose's own chunks (cut at its commas and its "or"s) are scanned one at a time, so a
+    phrase never spans two things the person listed separately: "a shopping list or a grocery
+    list, sort it by supermarket aisle" gives "shopping list", "grocery list" and "supermarket
+    aisle" -- never "list grocery list". A purpose that opens with a condition ("whenever I
+    give you ...") has its head -- lead word, pronoun subject, verb -- taken off first: those
+    words say when and who, and a trigger built from them matches nothing a person types. Inside
+    one chunk, glue words (a, the, my, by, of, ...) drop out and the content words around them
+    stay one run; any other non-content word ends the run, and a run of one word contributes
+    nothing (a lone word ranks against half the language, but padding it with a neighbour it
+    never sat next to invents a phrase). The words are the purpose's own; nothing is invented.
+    The first 8 phrases stand.
     """
-    words = _purpose_words(purpose)
-    if len(words) < 2:
-        return words
+    from core.plugin_skills import _STOPWORDS
+
     phrases: list[str] = []
-    for size in (3, 2):
-        for start in range(len(words) - size + 1):
-            phrase = " ".join(words[start : start + size])
-            if phrase not in phrases:
-                phrases.append(phrase)
+    body = _TRIGGER_CONDITION_HEAD_RE.sub("", " " + str(purpose or "").strip() + " ", count=1)
+    for chunk in re.split(r",|\s+or\s+", body, flags=re.IGNORECASE):
+        runs: list[list[str]] = []
+        run: list[str] = []
+        for token in re.split(r"[^a-z0-9]+", chunk.lower()):
+            if not token:
+                continue
+            if token in _TRIGGER_GLUE:
+                continue
+            if (
+                token in _TRIGGER_BANNED
+                or token in _TRIGGER_PEOPLE
+                or len(token) <= 2
+                or token in _STOPWORDS
+                or token in _VAGUE
+            ):
+                if run:
+                    runs.append(run)
+                run = []
+                continue
+            run.append(token)
+        if run:
+            runs.append(run)
+        for words in runs:
+            for size in (3, 2):
+                for start in range(len(words) - size + 1):
+                    phrase = " ".join(words[start : start + size])
+                    if phrase not in phrases:
+                        phrases.append(phrase)
     return phrases[:8]
 
 
@@ -462,19 +538,69 @@ def _skill_exists_in_any_scope(name: str) -> bool:
         return False
 
 
+_WHEN_LEAD_RE = re.compile(r"^\s*(?:whenever|when|if)\s+(?P<clause>.+)$", re.IGNORECASE)
+# "give you a shopping list": the "you" named this assistant, not part of the task, so it goes
+# and the verb keeps only what the skill is about. Matched only after a pronoun subject, where
+# the word after the subject IS the verb ("the shop sends you a list" would otherwise lose
+# "sends" to a guess about which word is the verb).
+_BARE_VOOL_OBJECT_RE = re.compile(r"^(?P<verb>[a-z']+)\s+(?:you|me)\b\s*", re.IGNORECASE)
+# The person spoke about themselves; the skill's line is said TO them, so first person becomes
+# second. Contractions first, or "\bi\b" would eat the "I" of "I'm".
+_PERSON_SWAPS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rf"\b{pattern}\b", re.IGNORECASE), replacement)
+    for pattern, replacement in (
+        ("i'm", "you're"), ("we're", "you're"), ("i'll", "you'll"), ("we'll", "you'll"),
+        ("i've", "you've"), ("we've", "you've"), ("my", "your"), ("our", "your"),
+        ("i", "you"), ("we", "you"), ("me", "you"),
+    )
+)
+_PRONOUN_SUBJECTS = frozenset(
+    {"i", "we", "me", "you", "i'm", "we're", "i'll", "we'll", "i've", "we've"}
+)
+
+
+def _when_you_sentence(detail: str) -> str:
+    """A "whenever/when/if ..." condition as a plain "When you ..." sentence, or "" when not one.
+
+    The purpose of "whenever I give you a shopping list, sort it by aisle" is a condition plus
+    an instruction; the skill's WHEN line is the condition alone, said to the person: the lead
+    word becomes "When", their "I/we/my/our" becomes "you/your", and a bare "you"/"me" right
+    after the verb referred to this assistant, so it is dropped. Only the first letter is
+    capitalised; the words between are theirs, in their case.
+    """
+    match = _WHEN_LEAD_RE.match(str(detail or ""))
+    if not match:
+        return ""
+    # The condition ends at its first comma; what follows is the instruction, not when it applies.
+    clause = match.group("clause").split(",", 1)[0].strip(" .,:;-")
+    if not clause:
+        return ""
+    words = clause.split()
+    subject, rest = words[0], " ".join(words[1:])
+    if subject.lower() in _PRONOUN_SUBJECTS:
+        rest = _BARE_VOOL_OBJECT_RE.sub(r"\g<verb> ", rest, count=1)
+    for pattern, replacement in _PERSON_SWAPS:
+        subject = pattern.sub(replacement, subject, count=1)
+        rest = pattern.sub(replacement, rest)
+    rest = " ".join(rest.split())
+    if not rest:
+        return ""
+    sentence = f"When {subject} {rest}."
+    return sentence[:1].upper() + sentence[1:]
+
+
 def _describe(text: str, name: str) -> str:
     """A one-line description of when the skill applies, taken from the request itself.
 
     `create_skill` refuses an empty description on purpose -- the match corpus is name plus
-    description, so a skill without one can never rank. This is the operator's own wording, not an
-    invented one.
+    description, so a skill without one can never rank. This is the operator's own wording, not
+    an invented one. A purpose that opens with whenever/when/if is a condition, and a condition
+    reads as its own sentence ("When you give a shopping list."), not as prose about "the user".
     """
-    from core.skill_scopes import strip_scope_words
-
-    body = strip_scope_words(" ".join(str(text or "").split()))
-    tail = re.split(r"\b(?:that|which|to|for|it should|and it)\b", body, maxsplit=1)
-    detail = tail[1].strip(" .,:;") if len(tail) > 1 else ""
-    detail = re.sub(r"^\s*(?:it\s+)?(?:should|will|can)\s+", "", detail, flags=re.IGNORECASE).strip()
+    detail = _purpose_of(text)
+    sentence = _when_you_sentence(detail)
+    if sentence:
+        return sentence
     if detail:
         return f"Use when the user asks to {detail}."
     return f"Use when the user asks for {name}."
@@ -679,10 +805,13 @@ def _draft_from_words(request_text: str, name: str) -> dict[str, Any] | None:
         return None
     heading = f"# {final_name}\n\n" if final_name else ""
     triggers = _phrase_triggers(purpose)
+    # The request is quoted WHOLE: stripping its scope words before quoting cut words out
+    # ("for all of VOOL:" -> "for :") and the skill no longer said what it was asked to do.
+    said = " ".join(str(request_text or "").split())
     body = (
         heading
         + "The user made this skill and described what it should do in these words:\n\n"
-        + f"> {strip_scope_words(request_text).strip()}\n\n"
+        + f"> {said}\n\n"
         + f"When a request matches, do exactly that: {detail}."
     )
     return {
@@ -702,6 +831,49 @@ def _scope_label(scope: str) -> str:
     from core.skill_scopes import SCOPE_LABELS
 
     return SCOPE_LABELS.get(scope or "global", "all of VOOL")
+
+
+def _display_name(name: str) -> str:
+    """A slug such as `decline-politely` reads as the plain words `Decline politely`.
+
+    The same shape the skills listing shows (core/runtime_execution_tools), kept here so a
+    reply and the list it talks about never name one skill two ways.
+    """
+    words = re.sub(r"[-_/\s]+", " ", str(name or "").replace("`", "")).strip()
+    if not words:
+        return ""
+    return words[:1].upper() + words[1:]
+
+
+def _builtin_skill_named(name: str) -> str:
+    """The id of the built-in skill this name refers to, or "" when it is not a built-in.
+
+    Asked BEFORE anything is dispatched: a built-in is not this lane's to remove (its on/off
+    lives in the skills settings), and knowing it up front means the refusal costs no approval
+    prompt for a write that would never happen. The inventory's own words decide -- its "name"
+    column carries a "vool-" prefix the person never typed, so the id is what is matched and
+    shown. Unreadable inventory answers "" and the remove takes its normal path.
+    """
+    from core.native_skill_library import skill_inventory
+
+    wanted = str(name or "").strip().lower()
+    if not wanted:
+        return ""
+    try:
+        from core.skill_tools import _slug
+
+        slug = _slug(wanted)
+        rows = skill_inventory()
+    except Exception:
+        return ""
+    for row in rows:
+        if str(row.get("source") or "") != "native":
+            continue
+        if slug and str(row.get("id") or "").lower() == slug:
+            return str(row.get("id") or "")
+        if wanted == str(row.get("name") or "").lower():
+            return str(row.get("id") or "")
+    return ""
 
 
 def _preview(draft: dict[str, Any], *, limit: int = 1400) -> str:
@@ -1157,8 +1329,8 @@ def maybe_handle_skill_request(
                 str(entry.get("version")) for entry in history.get("versions") or []
             )
             return plain(
-                f"`{history.get('name')}` has these recorded versions: {recorded}. "
-                f"Which one should I restore?",
+                f'The skill "{_display_name(str(history.get("name") or ""))}" has versions '
+                f"{recorded}. Which one should I restore?",
                 reason="skill_rollback_needs_version",
             )
         result = run("skill.rollback", {"skill": name, "version": int(request.get("version") or 0)})
@@ -1327,10 +1499,12 @@ def maybe_handle_skill_request(
                     preview = _preview(
                         {"description": details.get("description"), "instructions": _body_of(str(details.get("preview_markdown") or ""))}
                     )
+                    # The file the person attached is "this file"; its zip name and the slug are
+                    # machine words, and the skill is named the way the listing names it.
                     replies.append(
-                        f"`{label}` holds the skill `{details.get('name')}`, staged for "
-                        f"{_scope_label(str(details.get('scope') or 'global'))}.\n\n{preview}\n\n"
-                        "It is not on yet. Say **turn it on** to start using it."
+                        f'This file holds the skill "{_display_name(str(details.get("name") or ""))}", '
+                        f"ready for {_scope_label(str(details.get('scope') or 'global'))}.\n\n{preview}\n\n"
+                        "It is not on yet: say turn it on."
                     )
             else:
                 problems = "; ".join(str(p) for p in details.get("problems") or []) or str(getattr(result, "response_text", "") or "")
@@ -1342,6 +1516,14 @@ def maybe_handle_skill_request(
             return plain(
                 "Which skill should I turn off? For example: `remove the release-notes skill from this chat`.",
                 reason="skill_remove_needs_name",
+            )
+        builtin = _builtin_skill_named(name)
+        if builtin:
+            # Before the dispatch, so no approval prompt can appear for a removal that will
+            # never run: a built-in's on/off belongs to the skills settings, not this lane.
+            return plain(
+                f"{_display_name(builtin)} comes with VOOL and cannot be turned off here.",
+                reason="skill_remove_builtin",
             )
         arguments = {"name": name}
         if scope:
@@ -1404,6 +1586,7 @@ def _precheck_package(holder: str, source: dict[str, Any]) -> str:
 _OFFER_RE = re.compile(
     r"(?:drafted|Revised) the skill `(?P<slug>[a-z0-9][a-z0-9-]*)` for (?P<scope>this chat|this project|all of VOOL)"
     r"|holds the skill `(?P<islug>[a-z0-9][a-z0-9-]*)`, staged for (?P<iscope>this chat|this project|all of VOOL)"
+    r'|holds the skill "(?P<iname>[^"\n]{1,80})", ready for (?P<iready>this chat|this project|all of VOOL)'
     r"|plugin `(?P<plugin>[a-z0-9][a-z0-9-]*)`[^\n]*(?:staged|Packed)",
 )
 _LABEL_SCOPES = {"this chat": "chat", "this project": "project", "all of VOOL": "global"}
@@ -1439,9 +1622,26 @@ def _pending_from_history(source_context: dict[str, Any] | None) -> dict[str, An
                     return None
                 return {"kind": "plugin", "name": name}
             slug = match.group("slug") or match.group("islug")
-            if any(f"Installed `{slug}`" in reply for reply in later):
+            if not slug and match.group("iname"):
+                # The import offer names the skill the way a person says it, so the slug is made
+                # from it the same way every slug is made.
+                from core.skill_tools import _slug as _to_slug
+
+                slug = _to_slug(match.group("iname"))
+            if not slug:
+                continue
+            display = _display_name(slug)
+            if any(
+                f"Installed `{slug}`" in reply
+                or f'Added the skill "{display}"' in reply
+                or f'Updated the skill "{display}"' in reply
+                for reply in later
+            ):
                 return None  # already turned on after that offer
-            scope = _LABEL_SCOPES.get(match.group("scope") or match.group("iscope") or "", "global")
+            scope = _LABEL_SCOPES.get(
+                match.group("scope") or match.group("iscope") or match.group("iready") or "",
+                "global",
+            )
             shown = re.search(r"\*\*When it applies:\*\* (?P<d>[^\n]+)", text)
             return {
                 "kind": "skill", "slug": slug, "scope": scope, "sha256": "",
@@ -1681,8 +1881,15 @@ def _create_or_edit(
 
 
 def _written_by(author: str) -> str:
-    """Who wrote the draft: "written by <model>", or "written from your own words: <why>"."""
-    return f"written {author}" if author.startswith("from ") else f"written by {author}"
+    """Who wrote the draft: "written by <model>", or the plain no-model note.
+
+    The why-string (no router this turn, a call that failed, an unusable answer) is engineering
+    detail; to the person it is all one thing -- no AI model was connected, so the words are
+    theirs.
+    """
+    if author.startswith("from "):
+        return "written from your words, no AI model was connected"
+    return f"written by {author}"
 
 
 def _active_exists(slug: str, scope: str, keys: dict[str, str] | None) -> bool:

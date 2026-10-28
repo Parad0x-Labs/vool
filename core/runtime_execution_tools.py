@@ -8066,6 +8066,28 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
     )
 
 
+def _native_built_in_display(name: str) -> str:
+    """The plain name of the built-in skill `name` refers to, or "" when it names no built-in.
+
+    Read-only: the native inventory is only consulted, never written. Any failure reading it
+    reads as "not a built-in", so the caller's own reply stands.
+    """
+    wanted = re.sub(r"[-_/\s]+", "-", str(name or "").replace("`", "").strip().lower()).strip("-")
+    if not wanted:
+        return ""
+    try:
+        from core.native_skill_library import skill_inventory
+
+        for row in skill_inventory():
+            if str(row.get("source") or "") != "native":
+                continue
+            if wanted in (str(row.get("id") or "").lower(), str(row.get("name") or "").lower()):
+                return _display_name(str(row.get("id") or row.get("name") or ""))
+    except Exception:
+        return ""
+    return ""
+
+
 def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
     """Export, import, remove and pack: the sharing half of the skill lifecycle."""
     from core.skill_scopes import SCOPE_LABELS
@@ -8075,18 +8097,24 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
         from core import skill_package
 
         name = str(arguments.get("name") or "")
-        if str(arguments.get("kind") or "").strip().lower() == "plugin":
+        wants_plugin = str(arguments.get("kind") or "").strip().lower() == "plugin"
+        if wants_plugin:
             result = skill_package.export_plugin(name)
         else:
             result = skill_package.export_skill(name, keys=keys, scope=str(arguments.get("scope") or ""))
-        return _skill_result(
-            intent,
-            result,
-            response=(
+        if wants_plugin:
+            response = (
                 f"Exported `{result.get('name')}` to `{result.get('path')}` "
                 f"({result.get('bytes')} bytes). Anyone can import that zip into their VOOL."
-            ),
-        )
+            )
+        else:
+            # The one reply that names a place on disk: the file to hand over, and its folder.
+            exported = Path(str(result.get("path") or ""))
+            response = (
+                f'Saved the skill "{_display_name(str(result.get("name") or ""))}" as the file '
+                f"{exported.name}, in this folder: {exported.parent}. Send that file to share it."
+            )
+        return _skill_result(intent, result, response=response)
     if intent == "skill.import":
         from core import skill_package
 
@@ -8103,15 +8131,17 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
             )
         else:
             response = (
-                f"Imported `{result.get('name')}` into the drafts for "
-                f"{SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}; it is not active yet."
+                f'This file holds the skill "{_display_name(str(result.get("name") or ""))}", '
+                f"ready for {SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}. "
+                "It is not on yet: say turn it on."
             )
         return _skill_result(intent, result, response=response)
     if intent == "skill.remove":
         from core.skill_tools import remove_skill
 
-        result = remove_skill(str(arguments.get("name") or ""), scope=str(arguments.get("scope") or ""), keys=keys)
-        return _skill_result(
+        name = str(arguments.get("name") or "")
+        result = remove_skill(name, scope=str(arguments.get("scope") or ""), keys=keys)
+        outcome = _skill_result(
             intent,
             result,
             response=(
@@ -8119,6 +8149,13 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
                 "Its files and versions were kept."
             ),
         )
+        # A built-in skill is not the operator's to remove, so the refused turn names it plainly
+        # instead of quoting the storage reason. Every other outcome keeps its own reply.
+        if str(result.get("status") or "") != "ok":
+            built_in = _native_built_in_display(name)
+            if built_in:
+                outcome.response_text = f"{built_in} comes with VOOL and cannot be turned off here."
+        return outcome
     from core import skill_package
 
     result = skill_package.create_plugin(
@@ -8186,7 +8223,7 @@ def _skill_package_bytes(
 
 
 def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
-    from core.skill_tools import rollback_skill, skill_history
+    from core.skill_tools import rollback_skill
 
     keys = _skill_scope_keys(source_context)
     name = str(arguments.get("skill") or arguments.get("path") or "")
@@ -8201,14 +8238,14 @@ def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | 
         )
     result = rollback_skill(name, version=version, keys=keys)
     if result.get("status") == "ok":
-        history = skill_history(name, keys)
+        # The versions and counts stay in the result details; the reply says only what happened.
         return _skill_result(
             "skill.rollback",
             result,
             response=(
-                f"Rolled `{result.get('name')}` back to version {result.get('restored_from')} "
-                f"byte for byte; it is now head version {result.get('version')} of "
-                f"{history.get('head_version')} recorded. The loader picks it up next turn."
+                f'Restored version {result.get("restored_from")} of the skill '
+                f'"{_display_name(str(result.get("name") or ""))}". '
+                "It is used from your next message."
             ),
         )
     return _skill_result(
