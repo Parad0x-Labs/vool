@@ -732,11 +732,112 @@ def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
     return privacy({}, ctx).text
 
 
+# --- evidence staged before the first model call ------------------------------------------------
+#
+# A deterministic own-computer ask (how full the disk is, what is running, what sits in the folder
+# the ask points at) has one piece of evidence
+# behind it. Staging that one piece here lets the model answer in its first call instead of
+# spending one call choosing a tool, another reading it and a third answering.
+
+_LOOK_CHARS = 2200
+#: A write, a tidy or a bare reply to a card is never pre-answered: its turn shape is the card.
+_LOOK_WRITE_RE = re.compile(
+    r"\b(?:make|create|save|write|stick|put|move|tidy|organi[sz]e|sort|delete|remove|"
+    r"clear(?:\s+out)?|get\s+rid|rename|set\s+up|undo|yes|ok)\b"
+)
+#: The disk stages only on the explicit how-much shape: a bare "full" or "filling" rides asks
+#: about folders too, and a disk word alone does not say the answer is a measurement.
+_LOOK_DISK_ASK_RE = re.compile(r"\bhow\s+full\b|\bhow\s+much\s+(?:space|room|storage)\b")
+_LOOK_SPECS_RE = re.compile(r"\b(?:ram|specs|how\s+much\s+memory|what\s+chip|which\s+chip)\b")
+_LOOK_PROC_RE = re.compile(r"\b(?:running|slowing|sluggish|cpu)\b")
+_LOOK_BIG_RE = re.compile(r"\b(?:biggest|largest)\b")
+#: The whats-in/inside/show shape, and — separately — the folder must be what the ask points at
+#: ("in my downloads", "inside the lisbon folder"). A folder word sitting elsewhere in the ask
+#: ("my downloads is full of them") is not a request for that folder's contents.
+_LOOK_IN_RE = re.compile(
+    r"\b(?:what'?s\s+(?:sitting\s+)?(?:in|on)|what\s+is\s+(?:in|on)|inside|show\s+me|"
+    r"anything|any\s+new|what\s+do\s+i\s+have)\b"
+)
+_LOOK_WHERE_RE = re.compile(
+    r"\b(?:in|on|inside)\s+(?:my\s+|the\s+)?(downloads|desktop|documents|pictures|photos|movies|videos)\b"
+)
+_LOOK_FOLDER_NAME_RE = re.compile(
+    r"\b(?:in|on|inside)\s+(?:my\s+|the\s+)?([a-z0-9]+(?:\s+[a-z0-9]+){0,2})\s+folders?\b"
+)
+_LOOK_FILLER = frozenset({"the", "my", "a", "an", "in", "inside", "on", "at", "to", "from", "of"})
+
+
+def _look_root(word: str, ctx: ToolContext) -> str:
+    """The real label of a folder word the ask points at, when this loop can read it ("videos" is
+    Movies here, "photos" is Pictures)."""
+    for label in (word.capitalize(), _FOLDER_SYNONYMS.get(word, "")):
+        if not label:
+            continue
+        try:
+            if scope_path(label, ctx.home) in _safe_roots(ctx):
+                return label
+        except OutsideHome:
+            return ""
+    return ""
+
+
+def _look_folder(low: str, ctx: ToolContext) -> str:
+    """The folder an ask points at with in/on/inside: a named root, or the one readable folder
+    whose name carries the words before "folder" ("whats inside the lisbon folder")."""
+    where = _LOOK_WHERE_RE.search(low)
+    if where is not None:
+        return _look_root(where.group(1), ctx)
+    named = _LOOK_FOLDER_NAME_RE.search(low)
+    if named is None:
+        return ""
+    words = [word for word in named.group(1).split() if word not in _LOOK_FILLER]
+    if not words:
+        return ""
+    hits = _find_folders(" ".join(words), ctx)
+    return _plain(str(hits[0]), ctx.home) if len(hits) == 1 else ""
+
+
+def look_first_pre_step(ask: str, ctx: ToolContext) -> str | None:
+    """Stage the one piece of read-only evidence a deterministic own-computer ask needs before the
+    first model call, so the answer can come in that single call. Everything staged went through
+    the real tools, so the receipts say what truly ran; when nothing clearly matches, or the
+    staging comes back empty, nothing is staged and the turn runs exactly as before."""
+    from core.clean_loop.route import _RECALL_RE
+
+    low = str(ask or "").lower()
+    if _LOOK_WRITE_RE.search(_RECALL_RE.sub(" ", low)):
+        return None
+    before = len(ctx.receipts)
+
+    def settle(outcome: ToolOutcome) -> str | None:
+        if not outcome.ok or not str(outcome.text).strip():
+            del ctx.receipts[before:]  # a staging that failed or came back empty never burdens the turn
+            return None
+        return outcome.text[:_LOOK_CHARS]
+
+    if _LOOK_DISK_ASK_RE.search(low):
+        return settle(disk_usage({}, ctx))
+    if _LOOK_SPECS_RE.search(low):
+        return settle(system_info({}, ctx))
+    if _LOOK_PROC_RE.search(low):
+        return settle(processes({"sort": "cpu" if "cpu" in low else "memory"}, ctx))
+    if _LOOK_BIG_RE.search(low):
+        return settle(largest({"path": _look_folder(low, ctx)}, ctx))
+    if _LOOK_IN_RE.search(low):
+        folder = _look_folder(low, ctx)
+        return settle(list_dir({"path": folder}, ctx)) if folder else None
+    # A find-shaped ask is never staged: its name hits are not the answer (the amount, the date,
+    # the flight is inside the file), and a staged hit tempted the model to answer unread
+    # (clean-loop-speed HEAD run, F08/F16/F17 confident-wrong). The model finds and reads itself.
+    return None
+
+
 def install_builtin_tools(registry: Registry) -> None:
     for name, doc, run in BUILTIN_TOOLS:
         registry.register_tool(name, doc, run)
     # Names first, then the card: the card's own lines are never rewritten.
     registry.register_pre_step("privacy", privacy_pre_step)
+    registry.register_pre_step("look_first", look_first_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
 
