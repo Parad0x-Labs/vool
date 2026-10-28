@@ -86,6 +86,11 @@ cp my-skills/aisle-sorter/SKILL.md package-draft/skills/aisle-sorter/SKILL.md
 vool-community lint package-draft --scratch sdk-scratch
 ```
 
+`category` and `subcategory` must come from the fixed list in `core/registry/categories.py`
+(for example `productivity` / `meetings`); any other value is refused. The `source` above is the
+shape for an upload. A package imported from GitHub uses a GitHub `source` instead; the author
+guide (section 9) shows both.
+
 A pass prints `"status":"preflight_passed"` and exits 0. A problem prints `"status":"blocked"`,
 exits 1 and names it under `findings`, for example *description is empty*. Fix
 `my-skills/aisle-sorter/SKILL.md`, copy it into `package-draft` again and re-run `lint`.
@@ -236,8 +241,10 @@ What this means for authors:
 * Avoid single everyday words as triggers ("table", "list", "notes"): they either never match
   alone or match far too much.
 * Say the topic in the `description` with specific words, not only "Use when the user asks...".
-* Write your must-not-pick asks with one of your words in them, to prove one shared word is not
-  enough.
+* Write your must-not-pick asks with one ordinary word from your description in them, to prove
+  one shared word is not enough. Do not use a word of the skill's **name** there: a name word that
+  no other skill has picks the skill on its own (the last rule above). With a skill named
+  `meeting-actions`, "when is my next meeting?" picks it.
 
 ## 7. Update it
 
