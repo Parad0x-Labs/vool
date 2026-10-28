@@ -129,10 +129,80 @@ def _safe_roots(ctx: ToolContext) -> list[Path]:
     return [root for root in roots if root.is_dir() and (ctx.home in root.parents)]
 
 
+_RESOLVE_DEPTH = 4
+_RESOLVE_ENTRIES = 4000
+#: The owner says "my videos"; a Mac keeps them in Movies (and Linux the other way round).
+_FOLDER_SYNONYMS = {"videos": "Movies", "movies": "Videos", "photos": "Pictures"}
+
+
+def _readable_dirs(ctx: ToolContext) -> list[Path]:
+    """Every readable root that exists (Desktop, Downloads, Documents and the media folders)."""
+    return [root for root in _safe_roots(ctx)]
+
+
+def _find_folders(name: str, ctx: ToolContext) -> list[Path]:
+    """Folders under the readable roots whose name contains `name` (case-insensitive), breadth first.
+
+    Bounded (depth, entries), never follows a link and skips hidden folders: this only turns the
+    owner's "the Lisbon folder" into a path, and the listing itself still crosses the boundary.
+    """
+    needle = str(name or "").strip().lower()
+    if not needle:
+        return []
+    hits: list[Path] = []
+    frontier, seen = _readable_dirs(ctx), 0
+    for _depth in range(_RESOLVE_DEPTH):
+        nxt: list[Path] = []
+        for folder in frontier:
+            try:
+                entries = sorted(folder.iterdir(), key=lambda p: p.name.lower())
+            except OSError:
+                continue
+            for entry in entries:
+                seen += 1
+                if seen > _RESOLVE_ENTRIES:
+                    return hits
+                try:
+                    if entry.name.startswith(".") or not entry.is_dir(follow_symlinks=False):
+                        continue
+                except OSError:
+                    continue
+                if needle in entry.name.lower():
+                    hits.append(entry)
+                nxt.append(entry)
+        frontier = nxt
+    return hits
+
+
+def _resolve_folder(target: Path, ctx: ToolContext) -> Path | None:
+    """A folder the owner named that is not where they said: the synonym root, or a single folder by that name."""
+    try:
+        relative = target.relative_to(ctx.home)
+    except ValueError:
+        return None
+    parts = relative.parts
+    if not parts:
+        return None
+    synonym = _FOLDER_SYNONYMS.get(parts[0].lower())
+    if synonym and (ctx.home / synonym).is_dir():
+        candidate = (ctx.home / synonym).joinpath(*parts[1:])
+        if candidate.is_dir():
+            return candidate
+    matches = _find_folders(parts[-1], ctx)
+    return matches[0] if len(matches) == 1 else None
+
+
 def list_dir(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     target = _scoped(args, ctx)
     if isinstance(target, ToolOutcome):
         return target
+    if target != ctx.home and not target.is_dir():
+        resolved = _resolve_folder(target, ctx)
+        if resolved is not None:
+            outcome = _call(ctx, "machine.list_directory", {"path": str(resolved)})
+            label = _plain(str(resolved), ctx.home)
+            return ToolOutcome(text=f"(that folder is {label})\n{outcome.text}", ok=outcome.ok,
+                               status=outcome.status, intents=outcome.intents)
     if target == ctx.home:
         parts, outcomes = [], []
         for root in _safe_roots(ctx):
@@ -173,6 +243,16 @@ def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     target = _scoped(args, ctx)
     if isinstance(target, ToolOutcome):
         return target
+    if not target.exists():
+        # A guessed name ("Desktop/flat_viewing_notes.txt") is the small model's most common miss and it
+        # rarely searches afterwards on its own (Mac audit F16, F39): search the name's words for it.
+        words = " ".join(re.split(r"[_\-.\s]+", target.stem))
+        hits = find({"query": words}, ctx)
+        if hits.ok and hits.text.startswith("- "):
+            return ToolOutcome(
+                text=f"{_plain(str(target), ctx.home)} does not exist. Files with a similar name:\n{hits.text}",
+                ok=False, status="not_found_with_suggestions", intents=hits.intents,
+            )
     if target.suffix.lower() == ".pdf":
         extracted = _call(ctx, "pdf.extract_text", {"path": str(target), "max_pages": 5})
         if extracted.ok:
@@ -188,6 +268,8 @@ def largest(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     target = _scoped(args, ctx)
     if isinstance(target, ToolOutcome):
         return target
+    if target != ctx.home and not target.is_dir():
+        target = _resolve_folder(target, ctx) or target
     # The contract's argument is `drive` (a `path` key is refused as invalid_arguments).
     return _call(ctx, "machine.find_largest", {"drive": str(target), "kind": "files"})
 
@@ -197,9 +279,13 @@ def disk_usage(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
 
 
 def system_info(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
-    specs = _call(ctx, "machine.inspect_specs", {})
-    procs = _call(ctx, "machine.list_processes", {})
-    return _merge([specs, procs], f"{specs.text[:1500]}\n\n{procs.text[:1400]}")
+    return _call(ctx, "machine.inspect_specs", {})
+
+
+def processes(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
+    """Its own tool: merged under the specs, the process list was cut out of what the model saw (F30, F31)."""
+    sort = "cpu" if str(args.get("sort") or "").lower() == "cpu" else "memory"
+    return _call(ctx, "machine.list_processes", {"sort": sort, "limit": 15})
 
 
 def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -230,7 +316,8 @@ BUILTIN_TOOLS = (
     ("read_file", '{"tool": "read_file", "path": "Desktop/todo.txt"}  read a text, csv, md or pdf file', read_file),
     ("largest", '{"tool": "largest", "path": ""}  biggest files under a folder', largest),
     ("disk_usage", '{"tool": "disk_usage"}  how full the disk is', disk_usage),
-    ("system_info", '{"tool": "system_info"}  computer specs, memory, running processes', system_info),
+    ("system_info", '{"tool": "system_info"}  computer specs: model, chip, memory, disk', system_info),
+    ("processes", '{"tool": "processes", "sort": "cpu"}  what is running now, by cpu or memory', processes),
     ("propose_change", '{"tool": "propose_change", "what": "..."}  ask the owner to approve a change (write, move, rename, delete)', propose_change),
 )
 

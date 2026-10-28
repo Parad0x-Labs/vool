@@ -232,11 +232,47 @@ def test_a_pdf_falls_back_to_a_plain_read_when_the_pdf_reader_fails(home):
             return RuntimeExecutionResult(handled=True, ok=False, status="missing_dependency", response_text="no reader")
         return RuntimeExecutionResult(handled=True, ok=True, status="executed", response_text="Total due 129.40 EUR")
 
+    (home / "Downloads" / "invoice_4471.pdf").write_bytes(b"%PDF-1.4 Total due 129.40 EUR")
     ctx = ToolContext(home=home, source_context=dict(OWNER), execute=execute)
     outcome = _registry().tool("read_file").run({"path": "Downloads/invoice_4471.pdf"}, ctx)
     assert calls == ["pdf.extract_text", "machine.read_file"]
     assert outcome.ok and "129.40" in outcome.text
     assert [r["mode"] for r in ctx.receipts] == ["tool_failed", "tool_executed"]
+
+
+def test_a_guessed_name_comes_back_with_the_real_files(home):
+    (home / "Desktop" / "flat viewing notes.md").write_text("Flat A 950, Flat B 1020", encoding="utf-8")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("read_file").run({"path": "Desktop/flat_viewing_notes.txt"}, ctx)
+    assert outcome.status == "not_found_with_suggestions"
+    assert "flat viewing notes.md" in outcome.text
+
+
+def test_a_named_folder_is_found_where_it_really_is(home):
+    (home / "Pictures" / "Holiday Lisbon 2026").mkdir(parents=True)
+    (home / "Pictures" / "Holiday Lisbon 2026" / "lisbon_001.jpg").write_bytes(b"jpg")
+    (home / "Movies").mkdir()
+    (home / "Movies" / "kids_school_play.mov").write_bytes(b"x" * 64)
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    lisbon = _registry().tool("list_dir").run({"path": "Lisbon"}, ctx)
+    assert lisbon.ok and "lisbon_001.jpg" in lisbon.text and "Holiday Lisbon 2026" in lisbon.text
+    videos = _registry().tool("list_dir").run({"path": "Videos"}, ctx)
+    assert videos.ok and "kids_school_play.mov" in videos.text
+
+
+def test_the_folder_resolver_never_follows_a_link(home, tmp_path):
+    (tmp_path / "outside" / "Secret Lisbon").mkdir(parents=True)
+    (home / "Documents" / "link").symlink_to(tmp_path / "outside")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    from core.clean_loop.tools import _find_folders
+
+    assert _find_folders("lisbon", ctx) == []
+
+
+def test_processes_is_its_own_tool(home):
+    ctx, calls = _recording_ctx(home)
+    _registry().tool("processes").run({"sort": "cpu"}, ctx)
+    assert calls == [("machine.list_processes", {"sort": "cpu", "limit": 15})]
 
 
 def test_propose_change_never_executes(home):
