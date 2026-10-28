@@ -11,6 +11,13 @@ show", "at 9 Elm Street"), so a stated day and time survive an ordinal in the su
 "at 12 tonight" is the midnight that ends tonight; "last night" and "last friday" are past
 days; "the 30th of next month" names the month; "at 9.30" after "at" is 9:30.
 
+Job 5c: midnight in any words ("midnight", "12am", "12 midnight", "00:00") said with today
+or tonight is 00:00 the next day, in any word order, with and without "at"; a date the
+sentence names keeps its own day. An ordinal followed directly by a part-of-day noun
+("the 3rd night", "the 2nd morning") counts a thing, not a date, while "the 3rd at night"
+and "the 3rd in the evening" stay dates; and the stored subject drops a leading decimal
+clock ("at 9.30 tomorrow to leave" stores "leave").
+
 LABELLED: injected clock (both the UTC and the zoned door), isolated home; no live provider.
 """
 from __future__ import annotations
@@ -280,6 +287,80 @@ def test_the_reviewers_fresh_sentences_read_the_stated_day_and_time(clock, text,
         assert expected in reading.problem.lower(), (text, reading.problem)
 
 
+# ---------------------------------------------------------------------------
+# Job 5c: midnight in every wording, with today or tonight, in any order
+# ---------------------------------------------------------------------------
+
+MIDNIGHT_ROWS = [
+    # (text, expected due_at_utc prefix) -- all 00:00 on 29 October EET = 28 Oct 22:00 UTC
+    ("remind me tonight at midnight to post the letter", "2026-10-28T22:00"),   # was 20:00
+    ("remind me at midnight tonight to lock up", "2026-10-28T22:00"),           # word before the day
+    ("remind me at 12am tonight to lock up", "2026-10-28T22:00"),               # was refused as passed
+    ("remind me tonight at 12am to lock up", "2026-10-28T22:00"),
+    ("remind me 12am tonight to take the bins out", "2026-10-28T22:00"),        # no "at" at all
+    ("remind me midnight tonight to check the door", "2026-10-28T22:00"),
+    ("remind me today at midnight to water the plants", "2026-10-28T22:00"),
+    ("remind me at midnight today to water the plants", "2026-10-28T22:00"),
+    ("remind me at 00:00 tonight to switch the meter", "2026-10-28T22:00"),
+    ("remind me tonight at 00:00 to switch the meter", "2026-10-28T22:00"),
+    ("remind me at 12 midnight tonight to take the pills", "2026-10-28T22:00"),
+    ("remind me tonight at 12 midnight to take the pills", "2026-10-28T22:00"),
+    ("remind me at 12.00 am tonight to lock the studio", "2026-10-28T22:00"),
+    ("remind me this evening at 12am to shut the shop", "2026-10-28T22:00"),    # the anchored branch
+    ("remind me this evening at midnight to shut the shop", "2026-10-28T22:00"),
+    ("remind me at midnight", "2026-10-28T22:00"),                              # alone: today's has passed
+    # a day the sentence names keeps its own midnight
+    ("remind me tomorrow at midnight to post the letter", "2026-10-28T22:00"),  # 00:00 ON tomorrow
+    ("remind me on the 3rd at midnight about the accountant", "2026-11-02T22:00"),
+    # midnight as a label of a thing never moves the time the person gave
+    ("remind me tonight at 9 about the midnight launch", "2026-10-28T19:00"),
+    ("remind me tonight at 12pm to eat with the team", "2026-10-28T10:00"),     # 12pm is noon today
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", MIDNIGHT_ROWS)
+def test_midnight_in_any_words_ends_the_day_it_is_said_with(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, (text, reading.problem)
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+
+
+def test_midnight_tonight_stores_the_row_for_tomorrow(clock):
+    session = f"midnight-{uuid.uuid4().hex[:6]}"
+    result = _run("remind me tonight at midnight to post the letter", session_id=session)
+    assert result.ok, result.response_text
+    [row] = _pending(session)
+    assert row["due_at_utc"].startswith("2026-10-28T22:00"), row["due_at_utc"]  # 29 Oct 00:00 EET
+
+
+# ---------------------------------------------------------------------------
+# Job 5c: an ordinal directly before a part-of-day noun counts a thing
+# ---------------------------------------------------------------------------
+
+ORDINAL_PART_ROWS = [
+    # (text, ok, expected due prefix or problem substring)
+    ("remind me tomorrow at 10 to book the 3rd night at the hotel", True, "2026-10-29T08:00"),
+    ("remind me next monday at 9 for the 2nd morning of the course", True, "2026-11-02T07:00"),
+    ("remind me on friday at 6 to close the 2nd night shift roster", True, "2026-10-30T16:00"),
+    ("remind me tomorrow at 11 to confirm the 1st evening of the fair", True, "2026-10-29T09:00"),
+    ("remind me tomorrow to book the 2nd morning slot", False, "which time on tomorrow"),
+    # with its own preposition the part word still names a time on the date
+    ("remind me on the 3rd at night to take the bins out", True, "2026-11-03T18:00"),
+    ("remind me on the 3rd in the evening about the accountant", True, "2026-11-03T16:00"),
+    ("remind me on the 21st in the morning to file the report", True, "2026-11-21T07:00"),
+]
+
+
+@pytest.mark.parametrize("text,ok,expected", ORDINAL_PART_ROWS)
+def test_an_ordinal_before_a_part_of_day_noun_is_a_thing_not_a_date(clock, text, ok, expected):
+    reading = _parse(text)
+    assert reading.ok is ok, (text, reading.problem or reading.due_at_utc)
+    if ok:
+        assert reading.due_at_utc.startswith(expected), (text, reading.due_at_utc)
+    else:
+        assert expected in reading.problem.lower(), (text, reading.problem)
+
+
 def test_last_night_stores_nothing_and_never_suggests_a_time_on_it(clock):
     result = _run("remind me last night to lock up", session_id="lastnight")
     assert not result.ok and result.status == "invalid_request", result.response_text
@@ -404,6 +485,9 @@ def test_spans_keep_real_times_and_drop_the_noun_followers(clock):
     assert any("the 3rd" in span for span in third) and "at 11" in third, third
     last = covered("remind me last friday at 9:00 to lock up")
     assert "last friday" in last and "at 9:00" in last, last
+    night = covered("remind me tomorrow at 10 to book the 3rd night at the hotel")
+    assert "tomorrow" in night and "at 10" in night, night
+    assert not any("3rd" in span for span in night), night  # "the 3rd night" counts a thing
 
 
 @pytest.mark.parametrize("text,ok,expected", NOT_A_TIME_ROWS)
@@ -438,9 +522,12 @@ SUBJECT_ROWS = [
     ("remind me tomorrow at 9 to book a table for 4", "book a table for 4"),
     ("remind me tomorrow at 9am to buy tickets for the 2nd show", "buy tickets for the 2nd show"),
     ("remind me at 12 tonight to take the bins out", "take the bins out"),
+    ("remind me at 9.30 tomorrow to leave", "leave"),                       # decimal clock stripped
+    ("remind me at 8.15 pm tomorrow to shut the studio", "shut the studio"),
 ]
-# "at 9.30 tomorrow to leave" stores note "9.30 tomorrow to leave": the read-only subject
-# stripper in core/operator/handlers.py does not know the decimal clock yet (Needs, Job 5b).
+# "tomorrow at 9.30 to call mom" still keeps its when-head in the note: the decimal clock
+# inside a when-head needs the module-level _LEADING_WHEN_RE in core/operator/handlers.py,
+# which this job may not edit (Needs, Job 5c).
 
 
 @pytest.mark.parametrize("text,subject", SUBJECT_ROWS)

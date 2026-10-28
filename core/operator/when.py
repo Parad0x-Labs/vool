@@ -38,13 +38,13 @@ _ZONE_RE = re.compile(
 _ZONE_SLASH_RE = re.compile(r"\b([A-Za-z][A-Za-z_]*(?:/[A-Za-z0-9_+\-]+){1,2})\b")
 _ZONE_ROOTS = frozenset(z.split("/")[0] for z in available_timezones() if "/" in z)
 _ISO_DATETIME_RE = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?\b")
-# What may FOLLOW a number that names a time: a day word ("at 9 tomorrow", "the 3rd tomorrow
-# at 11"), a part of the day ("at 3 in the afternoon", "the 3rd morning"), the prepositions a
-# time phrase itself uses ("at", "in", "on"), "of this/next month", a word that starts the
-# subject or a new clause (to, about, for, that, and, so, please) and the clock suffix
-# "o'clock". Anything else -- and that is every noun ("the 2nd show", "the 1st aid kit",
-# "at 9 Elm Street", "my 2nd attempt") -- makes the number a count, a label or an address,
-# never a date or a clock time. No noun list can name them all, so the follower decides.
+# What may FOLLOW a number that names a time: a day word ("at 9 tomorrow"), a part of the
+# day ("at 3 in the afternoon"), the prepositions a time phrase itself uses ("at", "in",
+# "on"), "of this/next month", a word that starts the subject or a new clause (to, about,
+# for, that, and, so, please) and the clock suffix "o'clock". Anything else -- and that is
+# every noun ("the 2nd show", "the 1st aid kit", "at 9 Elm Street", "my 2nd attempt") --
+# makes the number a count, a label or an address, never a date or a clock time. No noun
+# list can name them all, so the follower decides.
 _TIME_END_WORDS = (
     r"(?:today|tonight|tomorrow|yesterday"
     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
@@ -56,6 +56,10 @@ _TIME_END_WORDS = (
 )
 # A space-then-word that is not one of those: what a noun after a number looks like.
 _FOLLOWED_BY_A_NOUN = r"\s+(?!" + _TIME_END_WORDS + r")\w"
+# The word midnight as a clock time, never a label: a noun straight after it ("the midnight
+# launch", "a midnight snack") makes it a modifier of that noun, exactly as a noun after a
+# number does. Only a midnight a sentence says as a time can end the day it is said with.
+_MIDNIGHT_WORD_RE = re.compile(r"\bmidnight\b(?!" + _FOLLOWED_BY_A_NOUN + r")", re.IGNORECASE)
 _TIME_RE = re.compile(
     r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b"
     # A bare 24-hour clock ("tomorrow 15:00"), the form this lane's own clarifications suggest.
@@ -110,15 +114,26 @@ _DAY_RE = re.compile(
 )
 # A day of the month with no month word ("on the 3rd at 11", "the 21st"). The ordinal is a date
 # only when what FOLLOWS it could follow a date: the end of the sentence, punctuation, a clock
-# time or "at", a day or part-of-day word, "of this/next month", or a word that starts the
-# subject or a new clause. A noun after it ("the 2nd show", "the 1st aid kit", "the 3rd time",
-# "the 4th floor") is a count or a label, not a date -- no noun list can name every noun, so
-# the follower decides (the same rule the bare hour after "at" follows).
+# time or "at", a day word, "of this/next month", or a word that starts the subject or a new
+# clause. A noun after it ("the 2nd show", "the 1st aid kit", "the 3rd time", "the 4th floor")
+# is a count or a label, not a date -- no noun list can name every noun, so the follower
+# decides (the same rule the bare hour after "at" follows). A part-of-day noun straight after
+# the ordinal counts a thing too ("book the 3rd night", "the 2nd morning of the course"): the
+# part word must bring its own preposition to name a time ("the 3rd at night", "the 3rd in
+# the evening" stay dates).
+_ORDINAL_END_WORDS = (
+    r"(?:today|tonight|tomorrow|yesterday"
+    r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|in|on|to|about|for|that|and|so|please"
+    r"|o'?clock"
+    r"|this\s+(?:morning|afternoon|evening|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    r"|of\s+(?:this|next)\s+month)\b"
+)
 _DAY_OF_MONTH_RE = re.compile(
     r"\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b"
     r"(?=\s*(?:$|[.,;:!?)]|\"|\b(?:at|am|pm)\b"
     r"|\b\d{1,2}\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b"
-    r"|" + _TIME_END_WORDS + r"))",
+    r"|" + _ORDINAL_END_WORDS + r"))",
     re.IGNORECASE,
 )
 # A part of the day people say instead of a clock time ("tomorrow afternoon", "this evening",
@@ -131,6 +146,9 @@ _PART_OF_DAY_RE = re.compile(
     r"\b(tonight|morning|noon|midday|afternoon|evening|midnight|night)\b", re.IGNORECASE,
 )
 _THIS_PART_RE = re.compile(r"\bthis\s+(morning|afternoon|evening|night)\b", re.IGNORECASE)
+# An ordinal straight before a part-of-day word, with nothing between them ("the 3rd night",
+# "the 2nd morning"): the two together count a thing, so the word is a label, not a time.
+_ORDINAL_BEFORE_PART_RE = re.compile(r"\b(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\s+$")
 _WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 MAX_FUTURE_DAYS = 366 * 2
@@ -300,7 +318,14 @@ def _parse_when_expression(
             # A past day with no clock time is asked about as a day that has passed, never
             # offered a time on it ("remind me yesterday ..."). With a clock time the parser
             # still reads the past instant; the caller that needs a future one refuses it.
-            if target_date < zone_now.date():
+            if day_word.lower() in ("today", "tonight") and _MIDNIGHT_WORD_RE.search(text):
+                # "tonight at midnight", "midnight today": the word midnight, in any order and
+                # with no "at", names the minute that ENDS the day said, so on today or tonight
+                # it reads 00:00 tomorrow, never the already-passed first minute of today. A
+                # day the sentence names itself ("tomorrow at midnight") keeps its own day.
+                target_date = target_date + timedelta(days=1)
+                hour, minute = _PART_SEED_HOURS["midnight"], 0
+            elif target_date < zone_now.date():
                 return WhenResolution(
                     ok=False, tz_name=tz_name,
                     problem=(
@@ -308,7 +333,7 @@ def _parse_when_expression(
                         "Give me a time in the future, for example 'tomorrow at 9:00' or 'in 20 minutes'."
                     ),
                 )
-            if part_match is not None:
+            elif part_match is not None:
                 hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
             else:
                 return WhenResolution(
@@ -340,11 +365,21 @@ def _parse_when_expression(
             zone, tz_name, basis=time_match.group(0), now=now, kind="wallclock",
         )
     if part_match is not None:
-        hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
+        midnight_word = _MIDNIGHT_WORD_RE.search(text)
+        hour, minute = (
+            (_PART_SEED_HOURS["midnight"], 0) if midnight_word
+            else (_PART_SEED_HOURS[part_match.group(1).lower()], 0)
+        )
         zone_now = now.astimezone(zone)
         target = zone_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         this_part = _THIS_PART_RE.search(text)
-        anchored = this_part is not None and this_part.group(1).lower() == part_match.group(1).lower()
+        # A midnight word ends the part it is said with, so it is never anchored to the part
+        # word's own day ("this evening at midnight" is 00:00 tomorrow, not 18:00 today).
+        anchored = (
+            not midnight_word
+            and this_part is not None
+            and this_part.group(1).lower() == part_match.group(1).lower()
+        )
         if target <= zone_now and not anchored:
             target = target + timedelta(days=1)
         return _resolve_wall(
@@ -500,11 +535,16 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
 
 
 def _part_of_day_match(text: str) -> re.Match | None:
-    """The first part-of-day word that names a time, skipping greetings ("good morning")."""
+    """The first part-of-day word that names a time, skipping greetings ("good morning") and
+    labels counted by an ordinal ("the 3rd night", "the 2nd morning"): an ordinal straight
+    before the word counts a thing, so that word never names the part of the day a time
+    lands in."""
     value = str(text or "")
     for match in _PART_OF_DAY_RE.finditer(value):
         before = value[max(0, match.start() - 12):match.start()].lower()
         if before.endswith(("good ", "hi ", "hello ", "top of the ")):
+            continue
+        if _ORDINAL_BEFORE_PART_RE.search(before):
             continue
         return match
     return None
@@ -532,17 +572,27 @@ def _read_clock(time_match: re.Match, text: str) -> tuple[int, int]:
 
 
 def _is_ending_midnight(time_match: re.Match | None, part_match: re.Match | None) -> bool:
-    """A bare 12 with an evening part word ("at 12 tonight", "at 12 this evening") is the
-    midnight that ENDS the day it names, not that day's first minute: on today that reads
-    00:00 tomorrow, an instant still ahead, where 00:00 today has already passed."""
-    if time_match is None or part_match is None:
+    """A clock time that IS midnight ("at 12 tonight", "12am", "at 12.00", "00:00") names the
+    midnight that ENDS the day it is said with, not that day's first minute: on today that
+    reads 00:00 tomorrow, an instant still ahead, where 00:00 today has already passed. A
+    bare 12 needs an evening part word to say which side of noon it is; "12am" and "00:00"
+    say it themselves."""
+    if time_match is None:
         return False
     hour_text = time_match.group(8) if time_match.group(8) is not None else time_match.group(9)
-    if hour_text is None or int(hour_text) != 12:
-        return False
-    if time_match.group(9) is not None and time_match.group(11) is not None:
-        return False  # "at 12.00 am" is already anchored to a side of noon
-    return part_match.group(1).lower() in ("evening", "night", "tonight")
+    if hour_text is not None:
+        if int(hour_text) != 12:
+            return False
+        if time_match.group(9) is not None and time_match.group(11) is not None:
+            # "at 12.00 am" is anchored to a side of noon by its own am; "at 12.00 pm" is noon.
+            return str(time_match.group(11)).lower() == "am"
+        return part_match is not None and part_match.group(1).lower() in ("evening", "night", "tonight", "midnight")
+    if time_match.group(1) is not None:
+        # "12am" in any minute form is midnight itself; "12pm" is noon and never this.
+        return int(time_match.group(1)) == 12 and str(time_match.group(3) or "").lower() == "am"
+    hour_g = time_match.group(4) if time_match.group(4) is not None else time_match.group(6)
+    minute_g = time_match.group(5) if time_match.group(4) is not None else time_match.group(7)
+    return hour_g is not None and int(hour_g) == 0 and int(minute_g or 0) == 0
 
 
 def _bare_hour_wall(hour: int, part_word: str | None) -> int:
