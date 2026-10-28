@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "כדי להצמיד, פתח את {settings} > {group} > {drop} בשני המחשבים: 1. הפעל שם את Drop עם אותה {folder}. 2. כל מחשב מציג „{fingerprint}”: הקלד את זו של המחשב השני ב„{peer}” וסמן את התיבה שמתחתיה. 3. לחץ {invite} במחשב אחד, ואז הדבק את {link} במחשב השני ולחץ {join}.",
     "lend.chat.off": "ב-VOOL, העברת משימה למחשב אחר שלך נקראת „{lend}”. התכונה כבויה, ולכן שום דבר לא הועבר. קודם צריך להפעיל את „{drop}”: פתח את {settings} > {group} > {drop}, סמן את „{enable}”, בחר {folder} ששני המחשבים יכולים לפתוח ולחץ {save}. אחר כך, ב-{settings} > {group} > {lend}, סמן את „{lend_box}” ולחץ {save}. משימות אפשריות: {jobs}.",
     "lend.chat.unpaired": "„{lend}” פועל, אבל המחשב הזה עדיין לא מוצמד למחשב אחר, ולכן שום דבר לא הועבר. משימות אפשריות: {jobs}.",
-    "lend.chat.pair": "כדי להצמיד, פתח את {settings} > {group} > {lend} בשני המחשבים: 1. כל מחשב מציג „{fingerprint}”: הקלד את זו של המחשב השני ב„{peer}” וסמן את התיבה שמתחתיה. 2. במחשב שיבצע את המשימה, בחר {host}, בחר את המשימה ולחץ {invite}. 3. במחשב הזה, בחר {borrow}, הדבק את {link}, לחץ {review} ואז {join}."
+    "lend.chat.pair": "כדי להצמיד, פתח את {settings} > {group} > {lend} בשני המחשבים: 1. כל מחשב מציג „{fingerprint}”: הקלד את זו של המחשב השני ב„{peer}” וסמן את התיבה שמתחתיה. 2. במחשב שיבצע את המשימה, בחר {host}, בחר את המשימה ולחץ {invite}. 3. במחשב הזה, בחר {borrow}, הדבק את {link}, לחץ {review} ואז {join}.",
+    "drop.chat.item": "לא שלחתי את {item} אל {target}.",
+    "drop.chat.phone": "{drop} פועל רק בין המחשבים שלך, ולכן אינו יכול לשלוח דבר לטלפון."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

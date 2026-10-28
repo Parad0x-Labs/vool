@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "Pour associer, ouvrez {settings} > {group} > {drop} sur les deux ordinateurs : 1. Activez Drop avec le même {folder}. 2. Chaque ordinateur affiche « {fingerprint} » : saisissez celle de l’autre ordinateur dans « {peer} » et cochez la case en dessous. 3. Appuyez sur {invite} sur un ordinateur, collez le {link} sur l’autre et appuyez sur {join}.",
     "lend.chat.off": "Dans VOOL, confier une tâche à un autre de vos ordinateurs s’appelle {lend}. C’est désactivé, donc rien n’a été confié. Il faut d’abord activer {drop} : ouvrez {settings} > {group} > {drop}, cochez « {enable} », choisissez un {folder} que les deux ordinateurs peuvent ouvrir, puis appuyez sur {save}. Ensuite, dans {settings} > {group} > {lend}, cochez « {lend_box} » et appuyez sur {save}. Tâches possibles : {jobs}.",
     "lend.chat.unpaired": "{lend} est activé, mais cet ordinateur n’est encore associé à aucun autre, donc rien n’a été confié. Tâches possibles : {jobs}.",
-    "lend.chat.pair": "Pour associer, ouvrez {settings} > {group} > {lend} sur les deux ordinateurs : 1. Chaque ordinateur affiche « {fingerprint} » : saisissez celle de l’autre ordinateur dans « {peer} » et cochez la case en dessous. 2. Sur l’ordinateur qui fera la tâche, choisissez {host}, choisissez la tâche et appuyez sur {invite}. 3. Sur cet ordinateur, choisissez {borrow}, collez le {link}, appuyez sur {review} puis sur {join}."
+    "lend.chat.pair": "Pour associer, ouvrez {settings} > {group} > {lend} sur les deux ordinateurs : 1. Chaque ordinateur affiche « {fingerprint} » : saisissez celle de l’autre ordinateur dans « {peer} » et cochez la case en dessous. 2. Sur l’ordinateur qui fera la tâche, choisissez {host}, choisissez la tâche et appuyez sur {invite}. 3. Sur cet ordinateur, choisissez {borrow}, collez le {link}, appuyez sur {review} puis sur {join}.",
+    "drop.chat.item": "Je n'ai pas envoyé {item} vers {target}.",
+    "drop.chat.phone": "{drop} ne fonctionne qu'entre vos ordinateurs : il ne peut rien envoyer vers un téléphone."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

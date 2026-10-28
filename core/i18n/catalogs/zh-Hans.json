@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "要配对，请在两台电脑上都打开{settings} > {group} > {drop}：1. 在那里用同一个{folder}开启 Drop。2. 每台电脑都会显示“{fingerprint}”：把另一台电脑的填入“{peer}”，并勾选下方的复选框。3. 在一台电脑上点按{invite}，然后把{link}粘贴到另一台电脑上并点按{join}。",
     "lend.chat.off": "在 VOOL 中，把一项任务交给你的另一台电脑叫做“{lend}”。它目前已关闭，因此没有交出任何内容。需要先开启“{drop}”：打开{settings} > {group} > {drop}，勾选“{enable}”，选择两台电脑都能打开的{folder}，然后点按{save}。接着在{settings} > {group} > {lend}中勾选“{lend_box}”并点按{save}。可以交给它的任务：{jobs}。",
     "lend.chat.unpaired": "“{lend}”已开启，但这台电脑还没有与其他电脑配对，因此没有交出任何内容。可以交给它的任务：{jobs}。",
-    "lend.chat.pair": "要配对，请在两台电脑上都打开{settings} > {group} > {lend}：1. 每台电脑都会显示“{fingerprint}”：把另一台电脑的填入“{peer}”，并勾选下方的复选框。2. 在要完成任务的电脑上选择{host}，选好任务后点按{invite}。3. 在这台电脑上选择{borrow}，粘贴{link}，点按{review}，然后点按{join}。"
+    "lend.chat.pair": "要配对，请在两台电脑上都打开{settings} > {group} > {lend}：1. 每台电脑都会显示“{fingerprint}”：把另一台电脑的填入“{peer}”，并勾选下方的复选框。2. 在要完成任务的电脑上选择{host}，选好任务后点按{invite}。3. 在这台电脑上选择{borrow}，粘贴{link}，点按{review}，然后点按{join}。",
+    "drop.chat.item": "我没有把{item}发送到{target}。",
+    "drop.chat.phone": "{drop}只能在你的电脑之间使用，因此无法向手机发送任何内容。"
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

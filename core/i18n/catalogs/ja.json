@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "ペアにするには、両方のコンピューターで {settings} > {group} > {drop} を開きます。1. 同じ{folder}で Drop をオンにします。2. それぞれのコンピューターに「{fingerprint}」が表示されます。相手のものを「{peer}」に入力し、その下のチェックボックスにチェックを入れます。3. 一方のコンピューターで {invite} を押し、{link}をもう一方に貼り付けて {join} を押します。",
     "lend.chat.off": "VOOL では、作業を自分の別のコンピューターに任せる機能を「{lend}」と呼びます。現在オフのため、何も引き渡されていません。先に「{drop}」をオンにする必要があります。{settings} > {group} > {drop} を開き、「{enable}」にチェックを入れ、両方のコンピューターで開ける{folder}を選んで {save} を押してください。次に {settings} > {group} > {lend} で「{lend_box}」にチェックを入れて {save} を押します。任せられる作業: {jobs}。",
     "lend.chat.unpaired": "「{lend}」はオンですが、このコンピューターはまだ他のコンピューターとペアになっていないため、何も引き渡されていません。任せられる作業: {jobs}。",
-    "lend.chat.pair": "ペアにするには、両方のコンピューターで {settings} > {group} > {lend} を開きます。1. それぞれのコンピューターに「{fingerprint}」が表示されます。相手のものを「{peer}」に入力し、その下のチェックボックスにチェックを入れます。2. 作業をするコンピューターで {host} を選び、作業を選んで {invite} を押します。3. このコンピューターで {borrow} を選び、{link}を貼り付けて {review}、続いて {join} を押します。"
+    "lend.chat.pair": "ペアにするには、両方のコンピューターで {settings} > {group} > {lend} を開きます。1. それぞれのコンピューターに「{fingerprint}」が表示されます。相手のものを「{peer}」に入力し、その下のチェックボックスにチェックを入れます。2. 作業をするコンピューターで {host} を選び、作業を選んで {invite} を押します。3. このコンピューターで {borrow} を選び、{link}を貼り付けて {review}、続いて {join} を押します。",
+    "drop.chat.item": "{item}を{target}に送信していません。",
+    "drop.chat.phone": "{drop}はお使いのコンピューター同士でのみ動作するため、電話には何も送信できません。"
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

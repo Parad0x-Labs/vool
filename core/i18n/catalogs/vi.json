@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "Để ghép đôi, hãy mở {settings} > {group} > {drop} trên cả hai máy: 1. Bật Drop ở đó với cùng {folder}. 2. Mỗi máy hiển thị “{fingerprint}”: nhập mã của máy kia vào “{peer}” và đánh dấu ô bên dưới. 3. Nhấn {invite} trên một máy, rồi dán {link} vào máy kia và nhấn {join}.",
     "lend.chat.off": "Trong VOOL, giao một việc cho một máy tính khác của bạn được gọi là {lend}. Tính năng này đang tắt nên chưa có gì được giao. Trước tiên cần bật {drop}: mở {settings} > {group} > {drop}, đánh dấu “{enable}”, chọn một {folder} mà cả hai máy đều mở được, rồi nhấn {save}. Sau đó, trong {settings} > {group} > {lend}, đánh dấu “{lend_box}” và nhấn {save}. Các việc có thể làm: {jobs}.",
     "lend.chat.unpaired": "{lend} đang bật nhưng máy này chưa được ghép đôi với máy nào khác, nên chưa có gì được giao. Các việc có thể làm: {jobs}.",
-    "lend.chat.pair": "Để ghép đôi, hãy mở {settings} > {group} > {lend} trên cả hai máy: 1. Mỗi máy hiển thị “{fingerprint}”: nhập mã của máy kia vào “{peer}” và đánh dấu ô bên dưới. 2. Trên máy sẽ làm việc, chọn {host}, chọn việc và nhấn {invite}. 3. Trên máy này, chọn {borrow}, dán {link}, nhấn {review} rồi {join}."
+    "lend.chat.pair": "Để ghép đôi, hãy mở {settings} > {group} > {lend} trên cả hai máy: 1. Mỗi máy hiển thị “{fingerprint}”: nhập mã của máy kia vào “{peer}” và đánh dấu ô bên dưới. 2. Trên máy sẽ làm việc, chọn {host}, chọn việc và nhấn {invite}. 3. Trên máy này, chọn {borrow}, dán {link}, nhấn {review} rồi {join}.",
+    "drop.chat.item": "Tôi chưa gửi {item} tới {target}.",
+    "drop.chat.phone": "{drop} chỉ hoạt động giữa các máy tính của bạn, nên không thể gửi gì tới điện thoại."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

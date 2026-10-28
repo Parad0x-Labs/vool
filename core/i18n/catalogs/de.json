@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "Zum Koppeln öffne {settings} > {group} > {drop} auf beiden Computern: 1. Schalte Drop dort mit demselben {folder} ein. 2. Jeder Computer zeigt „{fingerprint}“: Gib den des anderen Computers bei „{peer}“ ein und setze das Häkchen darunter. 3. Drücke auf einem Computer {invite}, füge dann den {link} auf dem anderen ein und drücke {join}.",
     "lend.chat.off": "In VOOL heißt das Übergeben einer Aufgabe an einen deiner anderen Computer {lend}. Es ist aus, deshalb wurde nichts übergeben. Zuerst muss {drop} an sein: Öffne {settings} > {group} > {drop}, setze das Häkchen bei „{enable}“, wähle einen {folder}, den beide Computer öffnen können, und drücke {save}. Setze dann unter {settings} > {group} > {lend} das Häkchen bei „{lend_box}“ und drücke {save}. Diese Aufgaben sind möglich: {jobs}.",
     "lend.chat.unpaired": "{lend} ist an, aber dieser Computer ist noch mit keinem anderen gekoppelt, deshalb wurde nichts übergeben. Diese Aufgaben sind möglich: {jobs}.",
-    "lend.chat.pair": "Zum Koppeln öffne {settings} > {group} > {lend} auf beiden Computern: 1. Jeder Computer zeigt „{fingerprint}“: Gib den des anderen Computers bei „{peer}“ ein und setze das Häkchen darunter. 2. Wähle auf dem Computer, der die Aufgabe erledigt, {host}, wähle die Aufgabe und drücke {invite}. 3. Wähle auf diesem Computer {borrow}, füge den {link} ein, drücke {review} und dann {join}."
+    "lend.chat.pair": "Zum Koppeln öffne {settings} > {group} > {lend} auf beiden Computern: 1. Jeder Computer zeigt „{fingerprint}“: Gib den des anderen Computers bei „{peer}“ ein und setze das Häkchen darunter. 2. Wähle auf dem Computer, der die Aufgabe erledigt, {host}, wähle die Aufgabe und drücke {invite}. 3. Wähle auf diesem Computer {borrow}, füge den {link} ein, drücke {review} und dann {join}.",
+    "drop.chat.item": "Ich habe {item} nicht an {target} gesendet.",
+    "drop.chat.phone": "{drop} funktioniert nur zwischen deinen Computern und kann daher nichts an ein Telefon senden."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

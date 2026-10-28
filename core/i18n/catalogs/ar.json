@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "للإقران، افتح {settings} > {group} > {drop} على الحاسوبين: 1. شغّل Drop هناك باستخدام {folder} نفسه. 2. يعرض كل حاسوب «{fingerprint}»: اكتب بصمة الحاسوب الآخر في «{peer}» وحدّد المربع أسفلها. 3. اضغط {invite} على أحد الحاسوبين، ثم الصق {link} على الآخر واضغط {join}.",
     "lend.chat.off": "في VOOL، يُسمّى تسليم مهمة إلى حاسوب آخر من حواسيبك «{lend}». هذه الميزة متوقفة، لذلك لم يُسلَّم أي شيء. يجب تشغيل «{drop}» أولًا: افتح {settings} > {group} > {drop}، وحدّد «{enable}»، واختر {folder} يمكن للحاسوبين فتحه، ثم اضغط {save}. بعد ذلك، في {settings} > {group} > {lend}، حدّد «{lend_box}» واضغط {save}. المهام الممكنة: {jobs}.",
     "lend.chat.unpaired": "«{lend}» قيد التشغيل، لكن هذا الحاسوب غير مقترن بحاسوب آخر بعد، لذلك لم يُسلَّم أي شيء. المهام الممكنة: {jobs}.",
-    "lend.chat.pair": "للإقران، افتح {settings} > {group} > {lend} على الحاسوبين: 1. يعرض كل حاسوب «{fingerprint}»: اكتب بصمة الحاسوب الآخر في «{peer}» وحدّد المربع أسفلها. 2. على الحاسوب الذي سينفّذ المهمة، اختر {host}، ثم اختر المهمة واضغط {invite}. 3. على هذا الحاسوب، اختر {borrow}، والصق {link}، واضغط {review} ثم {join}."
+    "lend.chat.pair": "للإقران، افتح {settings} > {group} > {lend} على الحاسوبين: 1. يعرض كل حاسوب «{fingerprint}»: اكتب بصمة الحاسوب الآخر في «{peer}» وحدّد المربع أسفلها. 2. على الحاسوب الذي سينفّذ المهمة، اختر {host}، ثم اختر المهمة واضغط {invite}. 3. على هذا الحاسوب، اختر {borrow}، والصق {link}، واضغط {review} ثم {join}.",
+    "drop.chat.item": "لم أرسل {item} إلى {target}.",
+    "drop.chat.phone": "يعمل {drop} بين حواسيبك فقط، لذا لا يمكنه إرسال أي شيء إلى هاتف."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

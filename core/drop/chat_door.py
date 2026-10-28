@@ -51,7 +51,13 @@ LEND_PAIR_EN = (
     "job, choose {host}, pick the job and press {invite}. 3. On this computer, choose {borrow}, paste the "
     "{link}, press {review} and then {join}."
 )
-KEYS = (DROP_OFF_KEY, DROP_UNPAIRED_KEY, DROP_PAIR_KEY, LEND_OFF_KEY, LEND_UNPAIRED_KEY, LEND_PAIR_KEY)
+#: Names what the owner asked to send and where, so the reply is about their file or note (recheck r9b D01, D03).
+DROP_ITEM_KEY = "drop.chat.item"
+DROP_ITEM_EN = "I have not sent {item} to {target}."
+DROP_PHONE_KEY = "drop.chat.phone"
+DROP_PHONE_EN = "{drop} only works between your computers, so it cannot send anything to a phone."
+KEYS = (DROP_OFF_KEY, DROP_UNPAIRED_KEY, DROP_PAIR_KEY, LEND_OFF_KEY, LEND_UNPAIRED_KEY, LEND_PAIR_KEY,
+        DROP_ITEM_KEY, DROP_PHONE_KEY)
 
 #: The words the reply names, read from the catalogs the Settings page itself shows.
 _PLACE_KEYS = (
@@ -90,10 +96,12 @@ _DEVICE = (
 _MINE = r"(?:my|the|our)\s+(?:[\w'-]+\s+){0,3}?" + _DEVICE + r"\b"
 #: Send a file or a note to one of them.
 _DROP_ASK = re.compile(
-    r"\b(?:send|push|drop|move|transfer|copy|put|share|beam|airdrop|throw|forward|get)\b[^.?!]{0,80}?"
-    r"\b(?:to|on|onto|into|over\s+to|across\s+to)\s+" + _MINE,
+    r"\b(?:send|push|drop|move|transfer|copy|put|share|beam|airdrop|throw|forward|get)\b(?P<item>[^.?!]{0,80}?)"
+    r"\b(?:to|on|onto|into|over\s+to|across\s+to)\s+(?P<target>" + _MINE + r")",
     re.I,
 )
+_PHONE = re.compile(r"\b(?:phone|iphone|android|tablet|ipad)\b", re.I)
+_YOURS = {"my": "your", "our": "your", "me": "you", "i": "you", "mine": "yours"}
 #: Hand a job to another VOOL or computer.
 _LEND_ASK = re.compile(
     r"\b(?:my|the|our)\s+(?:\w+\s+)?(?:other|second)\s+vool\b"
@@ -231,6 +239,42 @@ def reply_text(kind: str, state: str, locale: str = "") -> str:
     return head + "\n\n" + pair + "\n\n" + warning
 
 
+def _owner_words(phrase: str) -> str:
+    # The owner's own words, turned to face them: "my downloads" -> "your downloads".
+    words = [_YOURS.get(word.lower(), word) for word in phrase.split()]
+    return " ".join(words).strip(" ,;:'\"")
+
+
+def drop_item(text: str) -> tuple[str, str]:
+    """(what, where) the owner asked Drop to send, in their own words; ('', '') when unclear."""
+    match = _DROP_ASK.search(str(text or ""))
+    if not match:
+        return "", ""
+    item = re.sub(r"^(?:over|it\s+over)\s+", "", match.group("item").strip(), flags=re.I)
+    item = _owner_words(item)
+    target = _owner_words(match.group("target"))
+    if not item or len(item.split()) > 8:
+        return "", target
+    return item, target
+
+
+def drop_lead(text: str, locale: str = "") -> tuple[str, bool]:
+    """The opening line naming the owner's file or note, and whether the target is a phone."""
+    from core.i18n.catalog import catalog_for
+    from core.i18n.turn_locale import turn_locale
+
+    item, target = drop_item(text)
+    phone = bool(target and _PHONE.search(target))
+    catalog = catalog_for(str(locale or "").strip() or turn_locale())
+    fields = _fields(catalog)
+    lines = []
+    if item:
+        lines.append(_fill(catalog, DROP_ITEM_KEY, DROP_ITEM_EN, {**fields, "item": item, "target": target}))
+    if phone:
+        lines.append(_fill(catalog, DROP_PHONE_KEY, DROP_PHONE_EN, fields))
+    return " ".join(lines), phone
+
+
 def state_for(kind: str) -> str:
     """'off', 'unpaired', or '' when the feature is on and paired (or its pairing cannot be read)."""
     if kind == "drop":
@@ -247,11 +291,13 @@ def reply_if_unavailable(agent: Any, text: str, *, session_id: str, source_conte
     kind = kind_of_ask(text) or _follow_up_kind(text, session_id)
     if not kind:
         return None
-    state = state_for(kind)
+    locale = str((source_context or {}).get("ui_locale") or "")
+    lead, phone = drop_lead(text, locale) if kind == "drop" else ("", False)
+    # Drop never reaches a phone, so the answer is the same whether Drop is on or off.
+    state = "phone" if phone else state_for(kind)
     if not state:
         return None
-    locale = str((source_context or {}).get("ui_locale") or "")
-    response = reply_text(kind, state, locale)
+    response = lead if phone else ((lead + " " if lead else "") + reply_text(kind, state, locale))
     result = agent._fast_path_result(session_id=session_id, user_input=text, response=response,
                                      confidence=1.0, source_context=source_context,
                                      reason=f"{kind}_{state}")
@@ -259,4 +305,4 @@ def reply_if_unavailable(agent: Any, text: str, *, session_id: str, source_conte
     return result
 
 
-__all__ = ["KEYS", "kind_of_ask", "reply_if_unavailable", "reply_text", "state_for"]
+__all__ = ["KEYS", "drop_item", "kind_of_ask", "reply_if_unavailable", "reply_text", "state_for"]

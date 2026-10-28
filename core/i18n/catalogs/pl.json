@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "Aby sparować, otwórz {settings} > {group} > {drop} na obu komputerach: 1. Włącz tam Drop z tym samym {folder}. 2. Każdy komputer pokazuje „{fingerprint}”: wpisz odcisk drugiego komputera w „{peer}” i zaznacz pole pod spodem. 3. Naciśnij {invite} na jednym komputerze, potem wklej {link} na drugim i naciśnij {join}.",
     "lend.chat.off": "W VOOL przekazanie zadania innemu z Twoich komputerów nazywa się {lend}. Ta funkcja jest wyłączona, więc nic nie zostało przekazane. Najpierw musi być włączone {drop}: otwórz {settings} > {group} > {drop}, zaznacz „{enable}”, wybierz {folder}, który oba komputery mogą otworzyć, i naciśnij {save}. Potem w {settings} > {group} > {lend} zaznacz „{lend_box}” i naciśnij {save}. Możliwe zadania: {jobs}.",
     "lend.chat.unpaired": "{lend} jest włączone, ale ten komputer nie jest jeszcze sparowany z innym, więc nic nie zostało przekazane. Możliwe zadania: {jobs}.",
-    "lend.chat.pair": "Aby sparować, otwórz {settings} > {group} > {lend} na obu komputerach: 1. Każdy komputer pokazuje „{fingerprint}”: wpisz odcisk drugiego komputera w „{peer}” i zaznacz pole pod spodem. 2. Na komputerze, który wykona zadanie, wybierz {host}, wybierz zadanie i naciśnij {invite}. 3. Na tym komputerze wybierz {borrow}, wklej {link}, naciśnij {review}, a potem {join}."
+    "lend.chat.pair": "Aby sparować, otwórz {settings} > {group} > {lend} na obu komputerach: 1. Każdy komputer pokazuje „{fingerprint}”: wpisz odcisk drugiego komputera w „{peer}” i zaznacz pole pod spodem. 2. Na komputerze, który wykona zadanie, wybierz {host}, wybierz zadanie i naciśnij {invite}. 3. Na tym komputerze wybierz {borrow}, wklej {link}, naciśnij {review}, a potem {join}.",
+    "drop.chat.item": "Nie wysłałem {item} na {target}.",
+    "drop.chat.phone": "{drop} działa tylko między twoimi komputerami, więc nie może nic wysłać na telefon."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

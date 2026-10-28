@@ -3618,9 +3618,11 @@
     "drop.chat.pair": "Kad susietumėte, abiejuose kompiuteriuose atidarykite {settings} > {group} > {drop}: 1. Įjunkite ten Drop su tuo pačiu {folder}. 2. Kiekvienas kompiuteris rodo „{fingerprint}“: įveskite kito kompiuterio kodą į „{peer}“ ir pažymėkite langelį po juo. 3. Viename kompiuteryje paspauskite {invite}, tada kitame įklijuokite {link} ir paspauskite {join}.",
     "lend.chat.off": "VOOL programoje darbo perdavimas kitam jūsų kompiuteriui vadinamas „{lend}“. Ši funkcija išjungta, todėl niekas nebuvo perduota. Pirmiausia turi būti įjungta „{drop}“: atidarykite {settings} > {group} > {drop}, pažymėkite „{enable}“, pasirinkite {folder}, kurį gali atidaryti abu kompiuteriai, ir paspauskite {save}. Tada skiltyje {settings} > {group} > {lend} pažymėkite „{lend_box}“ ir paspauskite {save}. Galimi darbai: {jobs}.",
     "lend.chat.unpaired": "„{lend}“ įjungta, bet šis kompiuteris dar nesusietas su kitu, todėl niekas nebuvo perduota. Galimi darbai: {jobs}.",
-    "lend.chat.pair": "Kad susietumėte, abiejuose kompiuteriuose atidarykite {settings} > {group} > {lend}: 1. Kiekvienas kompiuteris rodo „{fingerprint}“: įveskite kito kompiuterio kodą į „{peer}“ ir pažymėkite langelį po juo. 2. Kompiuteryje, kuris atliks darbą, pasirinkite {host}, pasirinkite darbą ir paspauskite {invite}. 3. Šiame kompiuteryje pasirinkite {borrow}, įklijuokite {link}, paspauskite {review}, o tada {join}."
+    "lend.chat.pair": "Kad susietumėte, abiejuose kompiuteriuose atidarykite {settings} > {group} > {lend}: 1. Kiekvienas kompiuteris rodo „{fingerprint}“: įveskite kito kompiuterio kodą į „{peer}“ ir pažymėkite langelį po juo. 2. Kompiuteryje, kuris atliks darbą, pasirinkite {host}, pasirinkite darbą ir paspauskite {invite}. 3. Šiame kompiuteryje pasirinkite {borrow}, įklijuokite {link}, paspauskite {review}, o tada {join}.",
+    "drop.chat.item": "Nesiunčiau {item} į {target}.",
+    "drop.chat.phone": "{drop} veikia tik tarp jūsų kompiuterių, todėl negali nieko siųsti į telefoną."
   },
-  "source_catalog_sha256": "a2b288531d12ea81d27f95de9caf74e18304e2a60b9f4428c278de39393ce89f",
+  "source_catalog_sha256": "4e831ed6ab90c914127de427fa058db708c132d9a77889e98bdb39266fbe6262",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -67,14 +67,14 @@ def drop_off(isolated_home, monkeypatch):
     return isolated_home
 
 
-@pytest.mark.parametrize('ask', DROP_ASKS)
+@pytest.mark.parametrize('ask', [ask for ask in DROP_ASKS if 'phone' not in ask])
 def test_a_send_to_my_other_computer_with_drop_off_says_so_and_where_to_turn_it_on(drop_off, ask):
     from core.drop import enabled
 
     assert not enabled()
     text = str(_run(ask).get('response') or '')
-    assert text.startswith('In VOOL, sending a file or a note to another of your computers is called '
-                           'Send with Drop. It is off, so nothing was sent.'), text
+    assert ('In VOOL, sending a file or a note to another of your computers is called '
+            'Send with Drop. It is off, so nothing was sent.') in text, text
     assert 'Settings > Backup & restore > Send with Drop' in text, text
     assert '“Enable Drop and make this VOOL folder private”' in text and 'Shared folder' in text, text
     assert '1. ' in text and '2. ' in text and '3. ' in text and 'Create invite' in text and 'Join' in text, text
@@ -96,7 +96,7 @@ def test_the_confirmed_computer_in_the_next_turn_gets_the_same_answer(drop_off):
     agent = _agent()
     first = _run(DROP_ASKS[3], agent)
     second = _run('the macbook, yes', agent, session_id=first.get('session_id'))
-    assert str(second.get('response') or '').startswith('In VOOL, sending a file or a note'), second.get('response')
+    assert 'In VOOL, sending a file or a note' in str(second.get('response') or ''), second.get('response')
 
 
 def test_on_but_unpaired_says_how_to_pair_and_on_and_paired_is_left_alone(drop_off, monkeypatch):
@@ -122,7 +122,8 @@ def test_on_but_unpaired_says_how_to_pair_and_on_and_paired_is_left_alone(drop_o
     assert chat_door.reply_if_unavailable(Agent(), DROP_ASKS[0], session_id='s', source_context={}) is not None
     monkeypatch.setattr(chat_door, '_drop_paired', lambda: True)
     monkeypatch.setattr(chat_door, '_lend_paired', lambda: True)
-    for ask in DROP_ASKS + LEND_ASKS:
+    # A phone ask is answered whatever Drop's state (see the phone test below).
+    for ask in [ask for ask in DROP_ASKS if 'phone' not in ask] + list(LEND_ASKS):
         assert chat_door.reply_if_unavailable(Agent(), ask, session_id='s', source_context={}) is None, ask
     # Pairing that cannot be read is left to the existing flow, never answered as unpaired.
     monkeypatch.setattr(chat_door, '_drop_paired', lambda: None)
@@ -173,3 +174,30 @@ def test_the_replies_are_in_all_17_catalogs():
             if path.stem != 'en':
                 assert text != source, (path.stem, key)
                 assert data['source_catalog_sha256'] == source_catalog_sha256(), path.stem
+
+
+@pytest.mark.parametrize('ask, lead', [
+    ('send the invoice in my downloads to my laptop', 'I have not sent the invoice in your downloads to your laptop.'),
+    ('can you push that boarding pass pdf over to my other computer',
+     'I have not sent that boarding pass pdf to your other computer.'),
+    ('send the bank csv from downloads to my laptop', 'I have not sent the bank csv from downloads to your laptop.'),
+])
+def test_the_reply_names_the_file_and_the_computer_first(drop_off, ask, lead):
+    """Recheck r9b D01: the reply never said which file it was about."""
+    text = str(_run(ask).get('response') or '')
+    assert text.startswith(lead + ' In VOOL, sending a file'), text
+
+
+@pytest.mark.parametrize('on', [False, True])
+def test_a_note_for_a_phone_says_drop_cannot_reach_a_phone(drop_off, monkeypatch, on):
+    """Recheck r9b D03: Drop sends between computers; a phone gets a plain no, with no setup steps."""
+    from core.drop import chat_door
+
+    if on:
+        _turn_on(drop=True)
+        monkeypatch.setattr(chat_door, '_drop_on', lambda: True)
+        monkeypatch.setattr(chat_door, '_drop_paired', lambda: True)
+    text = str(_run('drop a quick note on my phone saying buy oat milk').get('response') or '')
+    assert text == ('I have not sent a quick note to your phone. Send with Drop only works between your '
+                    'computers, so it cannot send anything to a phone.'), text
+    _plain(text)
