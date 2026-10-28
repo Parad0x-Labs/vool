@@ -1100,18 +1100,55 @@ _LEADING_WHEN_RE = re.compile(
 )
 
 
+#: Job 6b (Fix 1): the leads the reminder seat accepts, at the START of the request, leave the
+#: subject together with their joiner (to, for, about, that, a colon or dash). Without this the
+#: stored note kept the ask's own frame ("i need a reminder to pay the rent" was the subject,
+#: and the person read those words back when it fired). The polite frame and each lead are
+#: optional in combination ("could you set me a reminder for 6pm, gym"); "remind me ..." stays
+#: with _REMINDER_NOTE_RE below, which also reads it mid-sentence ("tomorrow at 9 remind me to
+#: call mom"), so this anchored lead never touches that path.
+_REMINDER_LEAD_RE = re.compile(
+    r"^(?:please[,\s]+|pls[,\s]+)?(?:can\s+you\s+|could\s+you\s+|would\s+you\s+|will\s+you\s+)?"
+    r"(?:"
+    r"(?:(?:i|we)\s+)?(?:need|want)\s+(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+)?"
+    r"|(?:set|add|create|schedule)\s+(?:me\s+)?(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+|[:\-\u2013]\s*)?"
+    r"|(?:nudge|ping)\s+me\s*(?:to\s+|about\s+|on\s+|for\s+)?"
+    r"|don'?t\s+let\s+me\s+forget\s+(?:to\s+)?"
+    r"|make\s+sure\s+i\s+(?:don'?t\s+)?(?:remember|forget)\s+(?:to\s+)?"
+    r")",
+    re.IGNORECASE,
+)
+
+
 def _reminder_note_from_text(text: str) -> str:
-    """The reminder's SUBJECT: the words after 'remind me to/about', with the when-clause
-    stripped whether it trails the subject ('to call mom at 5pm') or leads it ('tomorrow at
-    9am to call mom'), so the note reads as the thing to do, not the schedule."""
+    """The reminder's SUBJECT: the thing to do, with every lead the seat accepts and the
+    when-clause stripped -- whether the when trails the subject ('to call mom at 5pm') or
+    leads it ('tomorrow at 9am to call mom') -- so the note never reads as the schedule or
+    as the ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
     raw = str(text or "").strip()
-    match = _REMINDER_NOTE_RE.search(raw)
-    note = (match.group("note") if match else raw).strip()
+    lead = _REMINDER_LEAD_RE.match(raw)
+    if lead:
+        note = raw[lead.end():].strip()
+    else:
+        match = _REMINDER_NOTE_RE.search(raw)
+        note = (match.group("note") if match else raw).strip()
     decimal_clock = re.match(r"(?:at\s+)?\d{1,2}\.\d{2}\s*(?:am|pm)?[\s,]*", note, re.IGNORECASE)
     if decimal_clock:
         # A decimal clock that leads the note ("9.30 tomorrow to leave") is the when-clause's
         # own form, so it leaves with the rest of the when-words below.
         note = note[decimal_clock.end():].strip()
+    leading_clock = re.match(
+        r"(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)\s*[,:]\s*"
+        r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*,\s*",
+        note, re.IGNORECASE,
+    )
+    if leading_clock:
+        # A clock time that leads the subject ("6pm, gym" after "set me a reminder for 6pm,
+        # gym") is the when-clause the reader already read; what follows it is the thing to
+        # do. The am/pm or comma is required: "10 press ups every morning" is the subject.
+        rest = note[leading_clock.end():].strip()
+        if rest:
+            note = rest
     leading = _LEADING_WHEN_RE.match(note)
     if leading:
         note = leading.group("note").strip()

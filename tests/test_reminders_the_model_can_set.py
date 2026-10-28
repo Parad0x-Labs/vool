@@ -278,3 +278,130 @@ def test_sentences_about_reminders_that_are_not_asks_seat_nothing(text) -> None:
 @pytest.mark.parametrize("text", CANCEL_WORDINGS)
 def test_cancel_wordings_seat_the_cancel_tool(text) -> None:
     assert "operator.cancel_reminder" in owner_local_operator_intents(text), text
+
+
+# ---------------------------------------------------------------------------
+# Job 6b
+
+#: Fix 1: a model call stores the THING TO DO, never the ask's own frame. Every lead the
+#: reminder seat accepts leaves with its joiner (to, for, about, that, colon, dash); each row
+#: carries a when the reader reads, so the row lands in the store and its note is checkable.
+STORED_SUBJECTS = {
+    # The four sentences the job measured on the parent (aad50d90 + 9933c519).
+    "i need a reminder to pay the rent on the 3rd at 9": "pay the rent",
+    "set a reminder for the dentist on friday at 9": "the dentist",
+    "add a reminder: bins out thursday night": "bins out thursday night",
+    "nudge me to stretch at 5pm": "stretch",
+    # Our own rows, one per lead shape (bare trailing day words stay, as on the parent).
+    "I want a reminder for the show tickets tomorrow at 10": "the show tickets tomorrow",
+    "could you set me a reminder for 6pm, gym": "gym",
+    "please nudge me to check the oven in 20 minutes": "check the oven",
+    "ping me tomorrow morning about the parcel": "the parcel",
+    "don't let me forget to call mum on sunday at 6": "call mum",
+    "make sure I remember to leave for the airport tomorrow at 7": "leave for the airport tomorrow",
+    "can you set me a reminder to take the bins out tomorrow at 7": "take the bins out tomorrow",
+    "I need a reminder to book the dentist on monday at 9": "book the dentist",
+    "set me a reminder for the gym at 7 tomorrow": "the gym",
+    "want a reminder to submit the timesheet on friday at 4": "submit the timesheet",
+}
+
+#: Fix 2 (too wide on the parent): talk about reminders, a memory, or someone else's
+#: reminder — none of these may seat a reminder intent.
+REMINDER_TALK_NOT_ASKS = (
+    # The four sentences the job measured on the parent.
+    "do you want reminders turned on in settings?",
+    "i need a reminder app recommendation",
+    "i want a reminder of how good last summer was, show me photos",
+    "set a reminder on my wife's phone for her yoga",
+    # Our own rows: a reminder noun followed by another thing's word, or another's device.
+    "which reminder sounds does this phone support?",
+    "i need a reminder email every morning, what do you recommend?",
+    "set a reminder on his phone for the medication",
+    "create a reminder on sarah's laptop for her flight",
+    "i want reminders for her yoga classes",
+    "the reminder notifications are too loud",
+    "what is the best reminders app for iOS right now?",
+    "turn off reminder notifications in settings, they're noisy",
+)
+
+#: Fix 2 (too narrow on the parent): person-addressed asks in other words — each seats the
+#: schedule tool. None of these is caught by the chat parser's own reminder hint.
+PERSON_ADDRESSSED_ASKS = (
+    # The four sentences the job measured on the parent.
+    "ping me tomorrow morning about the parcel",
+    "don't let me forget to call mum on sunday",
+    "could you set me a reminder for 6pm, gym",
+    "make sure I remember to renew my passport next month",
+    # Our own rows: the same shapes in other words (a missing apostrophe included).
+    "ping me at 6 to leave work",
+    "dont let me forget the pick up at 3",
+    "make sure i don't forget to charge the car tonight",
+    "please set me a reminder for the laundry at 8",
+    "could you ping me about the roast in 45 minutes",
+    "schedule me a reminder to stretch at 5",
+    "make sure we remember to water the plants at 7",
+    "don't let us forget the cake at noon",
+)
+
+#: Fix 3: settings/screen talk about a reminder is never a cancel ask.
+CANCEL_SETTINGS_TALK = (
+    # The sentence the job measured on the parent.
+    "remove the reminder from my phone's lock screen settings",
+    # Our own rows.
+    "remove the reminder widget from my home screen",
+    "delete the reminders app on my phone",
+    "cancel the reminder notifications",
+    "cancel the reminder alarm at 7",
+    "delete the reminder account on the family tablet",
+    "how do I remove the reminder from the notifications settings?",
+    "clear the reminder history before selling the phone",
+    "the reminder on the lock screen is stuck, how do I delete it?",
+)
+
+#: Fix 3: the cancel verb after the reminder noun, in the same clause.
+CANCEL_VERB_AFTER_NOUN = (
+    # The sentence the job measured on the parent.
+    "never mind the gym reminder, cancel it",
+    # Our own rows.
+    "never mind the dentist reminder, cancel it",
+    "that gym reminder is wrong, delete it",
+    "the bins reminder can go, remove it",
+    "cancel that reminder about the garage",
+    "delete the lunch reminder",
+    "the parcel reminder, cancel it please",
+    "remove the reminder about mum's birthday",
+    "cancel the reminder for the show tickets",
+)
+
+
+@pytest.mark.parametrize(("text", "subject"), sorted(STORED_SUBJECTS.items()))
+def test_a_model_call_stores_the_thing_to_do_not_the_ask(text, subject, home) -> None:
+    session = "chat-reminder-subject"
+    stored = _model_call("operator.schedule_reminder", {"text": text}, session_id=session)
+    assert stored.ok and stored.mode == "tool_executed", stored.response_text
+    [row] = _pending(session)
+    # The person reads this note back when the reminder fires: it is the thing to do.
+    assert row["note"] == subject, (text, row["note"])
+    assert stored.details["note"] == subject
+
+
+@pytest.mark.parametrize("text", REMINDER_TALK_NOT_ASKS)
+def test_reminder_talk_and_other_peoples_reminders_seat_nothing(text) -> None:
+    seated = owner_local_operator_intents(text)
+    assert not [intent for intent in seated if "reminder" in intent], (text, seated)
+
+
+@pytest.mark.parametrize("text", PERSON_ADDRESSSED_ASKS)
+def test_person_addressed_reminder_asks_seat_the_tool(text) -> None:
+    assert "operator.schedule_reminder" in owner_local_operator_intents(text), text
+
+
+@pytest.mark.parametrize("text", CANCEL_SETTINGS_TALK)
+def test_cancel_settings_talk_seats_nothing(text) -> None:
+    seated = owner_local_operator_intents(text)
+    assert not [intent for intent in seated if "reminder" in intent], (text, seated)
+
+
+@pytest.mark.parametrize("text", CANCEL_VERB_AFTER_NOUN)
+def test_the_cancel_verb_after_the_reminder_noun_seats_the_cancel_tool(text) -> None:
+    assert "operator.cancel_reminder" in owner_local_operator_intents(text), text

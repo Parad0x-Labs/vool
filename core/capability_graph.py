@@ -1606,7 +1606,24 @@ def model_visible_specs(
                 break
             else:
                 break
+    # Job 6b (Fix 5): when the expanded family itself does not fit the cap, what steps down
+    # is decided by the ask, not by declaration order. The drain seats the family in discover
+    # order (read-only first, declaration tie-break), so once the operator family grew past
+    # what the cap holds beside the reserved seats, the overflow fell off the declaration
+    # tail -- measured on the served rig, the two operator.command.* reads pushed
+    # operator.update_calendar_event and operator.schedule_calendar_event, the mutate tail,
+    # out of the very offer the expansion asked for. The family's own tools now rank by what
+    # the turn asks: its demand seats first (they are seated in step 3 and never evicted -- a
+    # tool the ask names never steps down), then mutate tools before inspection reads the ask
+    # did not name. The sort is stable, so the discover ranking keeps ordering each class and
+    # the overflow drops from the least-asked end: the unnamed inspection reads declared last.
+    def _expanded_family_rank(candidate: CapabilityCandidate) -> int:
+        if candidate.tool_intent in explicit:
+            return 0
+        return 1 if not candidate.read_only else 2
+
     for queue in expanded_queues:
+        queue.sort(key=_expanded_family_rank)
         while queue and len(result_specs) < seat_budget:
             candidate = queue.pop(0)
             if _intent_available(candidate.tool_intent):

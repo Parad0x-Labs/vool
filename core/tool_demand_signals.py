@@ -1192,13 +1192,18 @@ _OWNER_CLAUSE_LEAD_VERBS: tuple[str, ...] = (
     # Job 6: the reminder-ask clause leads ("i need a reminder to ...", "nudge me ...",
     # "cancel that reminder") — a segment opening with them must count as an ask or the
     # reminder seats are dead code, the same N4 trap as "review".
-    "need", "want", "nudge", "cancel",
+    # Job 6b (Fix 2): "ping me ..." is the same person-addressed ask as "nudge me ...".
+    "need", "want", "nudge", "ping", "cancel",
 )
 #: The seating verbs, at any clause lead, make the segment an imperative ask. Job 6: a
 #: first-person "i/we need/want" is the same imperative lead ("i need a reminder to ...") —
 #: the subject sits between the ask lead and the verb, so it gets its own arm.
+#: Job 6b (Fix 2): "don't let me forget ..." is the same first-person imperative lead, and it
+#: carries its own ask in full ("don't let me forget to call mum on sunday"), so it gets its
+#: own arm rather than a bare "let"/"forget" lead verb (a report can hold those too).
 _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
-    _OWNER_ASK_LEAD + r"(?:(?:i|we)\s+(?:need|want)|(?:" + "|".join(_OWNER_CLAUSE_LEAD_VERBS) + r"))\b",
+    _OWNER_ASK_LEAD + r"(?:(?:i|we)\s+(?:need|want)|don'?t\s+let\s+(?:me|us)\s+forget"
+    r"|(?:" + "|".join(_OWNER_CLAUSE_LEAD_VERBS) + r"))\b",
     re.IGNORECASE,
 )
 
@@ -1315,22 +1320,64 @@ _OWNER_LIST_REMINDERS_SEAT_RE = re.compile(
 _OWNER_RECALL_REMIND_RE = re.compile(
     r"\bremind\s+me\s+(?:what|when|where|who|how|why|which)\b", re.IGNORECASE
 )
-#: Job 6: a reminder ask is an ask to act by construction, like the scheduling idioms — "remind
-#: me ..." / "nudge me ..." addresses this runtime and carries no possessive, so the own-object
-#: rule is carried by the anchored verbs plus the chat parser's own recall veto (applied at the
-#: seat site: "remind me what I said about the May trip" is recall, not a reminder to store).
-#: The first two arms mirror the parser's _REMINDER_HINT_RE so both lanes read the same words;
-#: "need"/"want" are the shapes the typed parser misses and the model tool exists for.
+#: Job 6b (Fix 2): a reminder NOUN followed by another thing's word — an app, settings, a
+#: sound, an email, a list, the history — is talk about reminders ("do you want reminders
+#: turned on in settings?", "i need a reminder app recommendation"), never an ask to store
+#: one; "a reminder of <a memory>" is a recollection, not a reminder to set. The veto reads a
+#: short window past the noun so "reminders turned on in settings" is caught too.
+_OWNER_REMINDER_TALK_TAIL = (
+    r"(?![^.!?]{0,30}\b(?:of|app|apps|account|accounts|settings?|notifications?|sounds?|alarms?|"
+    r"tones?|history|emails?|lists?|icon|badge|widget|recommendations?|reviews?|features?|tips)\b)"
+)
+#: Job 6b (Fix 2): the person-addressed reminder asks. Each arm addresses this runtime in the
+#: first person, so it carries no possessive and is an ask by construction. "nudge/ping me"
+#: and the Job 6b shapes ("don't let me forget to ...", "make sure I remember to ...") join
+#: "remind me" here; the recall veto at the seat site still guards "remind me what I said".
 _OWNER_SCHEDULE_REMINDER_SEAT_RE = re.compile(
     r"\bremind\s+me\b"
-    r"|\b(?:set|create|schedule|add|need|want)\s+(?:(?:a|an|the|my)\s+)?reminders?\b"
-    r"|\bnudge\s+me\b",
+    r"|\b(?:nudge|ping)\s+(?:me|us)\b"
+    r"|\bdon'?t\s+let\s+(?:me|us)\s+forget\b"
+    r"|\bmake\s+sure\s+(?:i|we)\s+(?:don'?t\s+)?(?:remember|forget)\b",
+    re.IGNORECASE,
+)
+#: Job 6b (Fix 2): the noun asks ("set me a reminder for 6pm, gym"), behind the talk-tail
+#: veto. A reminder set on someone else's device or for someone else is not the owner's:
+#: "\w+'s phone/device/..." (a person's device, never "my phone") and "for her/his/their"
+#: after the noun step down. The first two arms mirror the parser's _REMINDER_HINT_RE so both
+#: lanes read the same words; "need"/"want" are the shapes the typed parser misses and the
+#: model tool exists for.
+_OWNER_SET_A_REMINDER_SEAT_RE = re.compile(
+    r"\b(?:set|create|schedule|add)\s+(?:me\s+)?(?:(?:a|an|the|my)\s+)?reminders?\b" + _OWNER_REMINDER_TALK_TAIL
+    + r"|\b(?:need|want)\s+(?:(?:a|an|the|my)\s+)?reminders?\b" + _OWNER_REMINDER_TALK_TAIL,
+    re.IGNORECASE,
+)
+#: Job 6b (Fix 2): a reminder on someone else's device or for someone else ("set a reminder
+#: on my wife's phone for her yoga"). "my phone" is the owner's own and never matches; only a
+#: person's possessive ('s) or a third-person possessive pronoun before the device noun does.
+_OWNER_REMINDER_ON_ANOTHERS_DEVICE_RE = re.compile(
+    r"\b\w+'s\s+(?:phone|mobile|device|laptop|computer|tablet|ipad|watch)\b"
+    r"|\b(?:his|her|their)\s+(?:phone|mobile|device|laptop|computer|tablet|ipad|watch)\b",
+    re.IGNORECASE,
+)
+_OWNER_REMINDER_FOR_ANOTHER_RE = re.compile(
+    r"\breminders?\b[^.!?]{0,40}?\bfor\s+(?:her|his|their)\b",
     re.IGNORECASE,
 )
 #: Job 6: a cancel ask, narrower than the parser's own _CANCEL_REMINDER_RE (no "call off"/"scrub"):
 #: only the words people say to this runtime about its own reminders.
+#: Job 6b (Fix 3): the cancel verb may follow the reminder noun in the same clause ("never
+#: mind the gym reminder, cancel it"), and settings talk about a reminder ("remove the
+#: reminder from my phone's lock screen settings") is not a cancel: the reminder noun followed
+#: by a place word that leads to a settings/screen/notification word steps down, and the same
+#: talk-tail veto as the schedule seat applies to both arms.
+_OWNER_REMINDER_SETTINGS_TALK_RE = re.compile(
+    r"\breminders?\s+(?:from|on|in|inside|at)\b[^.!?]{0,50}?\b(?:settings?|app|lock\s*screen|"
+    r"home\s*screen|notifications?|widget|icon|badge)\b",
+    re.IGNORECASE,
+)
 _OWNER_CANCEL_REMINDER_SEAT_RE = re.compile(
-    r"\b(?:cancel|delete|remove)\b[^\n!?.]*\breminders?\b",
+    r"\b(?:cancel|delete|remove)\b[^\n!?.]*\breminders?\b" + _OWNER_REMINDER_TALK_TAIL
+    + r"|\breminders?\b[^\n!?.]{0,60}?\b(?:cancel|delete|remove)\b" + _OWNER_REMINDER_TALK_TAIL,
     re.IGNORECASE,
 )
 _OWNER_AVAILABILITY_SEAT_RE = re.compile(
@@ -1600,10 +1647,20 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     if (
         not is_recall_ask
         and not _OWNER_RECALL_REMIND_RE.search(ask_text)
-        and _OWNER_SCHEDULE_REMINDER_SEAT_RE.search(ask_text)
+        and (
+            _OWNER_SCHEDULE_REMINDER_SEAT_RE.search(ask_text)
+            or (
+                _OWNER_SET_A_REMINDER_SEAT_RE.search(ask_text)
+                # A reminder on someone else's device or for someone else is not the owner's
+                # (Job 6b, Fix 2); the person-addressed arms above are exempt ("remind me to
+                # water her plants while she's away" is the owner's own reminder).
+                and not _OWNER_REMINDER_ON_ANOTHERS_DEVICE_RE.search(ask_text)
+                and not _OWNER_REMINDER_FOR_ANOTHER_RE.search(ask_text)
+            )
+        )
     ):
         intents.append("operator.schedule_reminder")
-    if _OWNER_CANCEL_REMINDER_SEAT_RE.search(ask_text):
+    if _OWNER_CANCEL_REMINDER_SEAT_RE.search(ask_text) and not _OWNER_REMINDER_SETTINGS_TALK_RE.search(ask_text):
         intents.append("operator.cancel_reminder")
     # The scheduling idioms are asks to act by construction ("schedule a meeting", "book a
     # dentist appointment Tuesday"): they carry no possessive, so the own-object rule is
