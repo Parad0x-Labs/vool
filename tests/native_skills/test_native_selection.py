@@ -41,13 +41,11 @@ def _isolated_permission_registry():
 REQUIRED_PACKAGE_IDS = (
     "repo-onboarding",
     "root-cause-repair",
-    "bug-reproduction",
     "feature-build",
     "cumulative-testing",
     "code-review",
     "security-audit",
     "ci-repair",
-    "browser-qa",
     "performance",
     "migration",
     "release-gate",

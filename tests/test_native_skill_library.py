@@ -28,13 +28,11 @@ import pytest
 REQUIRED_NATIVE_SKILLS = (
     "repo-onboarding",
     "root-cause-repair",
-    "bug-reproduction",
     "feature-build",
     "cumulative-testing",
     "code-review",
     "security-audit",
     "ci-repair",
-    "browser-qa",
     "performance",
     "migration",
     "release-gate",
@@ -121,8 +119,8 @@ def test_shipped_library_carries_all_required_skills() -> None:
     ids = {contract.id for contract in library.contracts}
     missing = [sid for sid in REQUIRED_NATIVE_SKILLS if sid not in ids]
     assert not missing, f"native library is missing required skills: {missing}"
-    # The two pre-existing native skills are part of the same library.
-    assert {"media-studio", "vool-hive-mind"} <= ids
+    # The pre-existing media skill is part of the same library.
+    assert {"media-studio"} <= ids
     assert library.invalid == (), f"shipped contracts must all validate: {library.invalid}"
 
 

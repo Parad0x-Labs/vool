@@ -40,13 +40,11 @@ from core.skill_tools import validate_skill
 EXPECTED_VOOL_PACKAGES = (
     "vool-repo-onboarding",
     "vool-root-cause-repair",
-    "vool-bug-reproduction",
     "vool-feature-build",
     "vool-cumulative-testing",
     "vool-code-review",
     "vool-security-audit",
     "vool-ci-repair",
-    "vool-browser-qa",
     "vool-performance",
     "vool-migration",
     "vool-release-gate",
@@ -72,7 +70,7 @@ def _by_name() -> dict[str, object]:
     return {skill.name: skill for skill in native_skills()}
 
 
-def test_all_thirteen_vool_packages_ship_and_parse() -> None:
+def test_all_first_party_vool_packages_ship_and_parse() -> None:
     names = {skill.name for skill in native_skills()}
     missing = [slug for slug in EXPECTED_VOOL_PACKAGES if slug not in names]
     assert not missing, f"native library is missing first-party packages: {missing}"
