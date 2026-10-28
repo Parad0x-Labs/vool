@@ -357,7 +357,14 @@ def apply_workspace_words_binding(
 
     from core import project_store
 
-    ok, project = project_store.create_project(resolution.name, resolution.path)
+    try:
+        ok, project = project_store.create_project(resolution.name, resolution.path)
+    except Exception:
+        return {
+            "status": "refused",
+            "bound": False,
+            "notice": "I found the folder but couldn't set it up as your project. Nothing was changed.",
+        }
     if not ok:
         reason = str(project or "").strip() or "that folder is not one I may work in."
         return {
