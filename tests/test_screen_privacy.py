@@ -43,7 +43,7 @@ CASES = [
     (MAC, "River\u2019s MacBook Pro", MASK),
     # Untouched: a web address, a drive that is not a home folder, ordinary text.
     (MAC, "https://example.com/home/page", "https://example.com/home/page"),
-    (MAC, "/Volumes/VOOL_WORK/VOOL-Work stays", "/Volumes/VOOL_WORK/VOOL-Work stays"),
+    (MAC, "/Volumes/Backup/Photos stays", "/Volumes/Backup/Photos stays"),
     (MAC, "nothing personal here", "nothing personal here"),
     # A Windows machine: either slash style, any letter case, JSON-escaped.
     (WINDOWS, "C:\\Users\\Jesse\\x", "~\\x"),
