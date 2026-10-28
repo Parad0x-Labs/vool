@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "VOOL kiểm tra một mô hình trên máy tính này trước khi trả lời bằng nó. Việc kiểm tra không bao giờ rời khỏi máy tính của bạn.",
     "settings.local_models.mp_intro": "Mô hình cục bộ trả lời ngay trên máy tính này, không cần internet và không tốn phí mỗi tin nhắn.",
     "settings.local_models.mp_open": "Chọn mô hình cục bộ",
-    "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu."
+    "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu.",
+    "chat.author_refusal.lead": "Mình chưa trả lời được câu này.",
+    "chat.author_refusal.failed": "{models} lần này không trả lời đúng cách. Bạn hãy hỏi lại sau giây lát. Nếu cứ bị vậy, hãy chọn mô hình khác trong Cài đặt → Mô hình và nhà cung cấp.",
+    "chat.author_refusal.not_ready": "{model} chưa sẵn sàng trả lời cho VOOL. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
+    "chat.author_refusal.not_ready_local_only": "{model} chưa sẵn sàng trả lời cho VOOL, và chế độ Chỉ máy tính này đang bật nên mô hình đám mây không thể trả lời thay. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} chưa sẵn sàng trả lời cho VOOL, và mô hình đám mây đang tắt. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc bật một mô hình đám mây.",
+    "chat.author_refusal.unresolved": "VOOL không xác định được mô hình nào đã viết câu trả lời nên đã giữ lại. Bạn hãy hỏi lại.",
+    "chat.author_refusal.not_running": "Hiện không có mô hình nào đang chạy trên máy tính này. Hãy mở ứng dụng mô hình (như Ollama) hoặc chọn mô hình đám mây trong menu mô hình."
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

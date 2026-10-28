@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "VOOL 在用某个模型回答之前，会先在这台电脑上检查它。检查过程不会离开你的电脑。",
     "settings.local_models.mp_intro": "本地模型在这台电脑上回答，无需联网，每条消息也不收费。",
     "settings.local_models.mp_open": "选择本地模型",
-    "settings.models.local_pick": "这台电脑上有一个模型。打开它并点“使用此模型”即可开始。"
+    "settings.models.local_pick": "这台电脑上有一个模型。打开它并点“使用此模型”即可开始。",
+    "chat.author_refusal.lead": "这个问题我没能回答。",
+    "chat.author_refusal.failed": "{models} 这次没有正常回复。请稍后再问一次。如果一直这样，请在 设置 → 模型与提供方 中换一个模型。",
+    "chat.author_refusal.not_ready": "{model} 还没准备好在 VOOL 里回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
+    "chat.author_refusal.not_ready_local_only": "{model} 还没准备好在 VOOL 里回答，而且“仅此电脑”已开启，所以云端模型也不能代为回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
+    "chat.author_refusal.not_ready_no_cloud": "{model} 还没准备好在 VOOL 里回答，而且云端模型已关闭。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或打开一个云端模型。",
+    "chat.author_refusal.unresolved": "VOOL 无法确定是哪个模型写的回复，所以先没有发出。请再问一次。",
+    "chat.author_refusal.not_running": "这台电脑上现在没有正在运行的模型。请打开你的模型应用（例如 Ollama），或在模型菜单里选一个云端模型。"
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

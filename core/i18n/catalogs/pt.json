@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "O VOOL verifica um modelo neste computador antes de responder com ele. A verificação nunca sai do seu computador.",
     "settings.local_models.mp_intro": "Modelos locais respondem neste computador, sem internet e sem custo por mensagem.",
     "settings.local_models.mp_open": "Escolher um modelo local",
-    "settings.models.local_pick": "Há um modelo neste computador. Abra-o e toque em Usar este modelo para começar."
+    "settings.models.local_pick": "Há um modelo neste computador. Abra-o e toque em Usar este modelo para começar.",
+    "chat.author_refusal.lead": "Não consegui responder a isto.",
+    "chat.author_refusal.failed": "{models} não respondeu direito desta vez. Pergunte de novo daqui a pouco. Se continuar acontecendo, escolha outro modelo em Ajustes → Modelos e provedores.",
+    "chat.author_refusal.not_ready": "{model} ainda não está pronto para responder no VOOL. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou escolha um modelo marcado como Pronto.",
+    "chat.author_refusal.not_ready_local_only": "{model} ainda não está pronto para responder no VOOL, e Só neste computador está ligado, então um modelo na nuvem não pode responder no lugar. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou escolha um modelo marcado como Pronto.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} ainda não está pronto para responder no VOOL, e os modelos na nuvem estão desligados. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou ligue um modelo na nuvem.",
+    "chat.author_refusal.unresolved": "O VOOL não conseguiu saber qual modelo escreveu a resposta, então a segurou. Pergunte de novo.",
+    "chat.author_refusal.not_running": "Nenhum modelo está rodando neste computador agora. Abra seu app de modelos (como o Ollama) ou escolha um modelo na nuvem no menu de modelos."
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

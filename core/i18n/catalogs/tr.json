@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "VOOL bir modelle yanıt vermeden önce onu bu bilgisayarda kontrol eder. Kontrol bilgisayarınızdan hiç çıkmaz.",
     "settings.local_models.mp_intro": "Yerel modeller bu bilgisayarda, internetsiz ve mesaj başına ücretsiz yanıt verir.",
     "settings.local_models.mp_open": "Yerel model seç",
-    "settings.models.local_pick": "Bu bilgisayarda bir model var. Açın ve başlamak için Bu modeli kullan’a basın."
+    "settings.models.local_pick": "Bu bilgisayarda bir model var. Açın ve başlamak için Bu modeli kullan’a basın.",
+    "chat.author_refusal.lead": "Buna yanıt veremedim.",
+    "chat.author_refusal.failed": "{models} bu sefer düzgün yanıt vermedi. Lütfen biraz sonra yeniden sorun. Sürekli oluyorsa Ayarlar → Modeller ve sağlayıcılar’dan başka bir model seçin.",
+    "chat.author_refusal.not_ready": "{model} henüz VOOL için yanıt vermeye hazır değil. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
+    "chat.author_refusal.not_ready_local_only": "{model} henüz VOOL için yanıt vermeye hazır değil ve Yalnızca bu bilgisayar açık, bu yüzden yerine bir bulut modeli yanıt veremez. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} henüz VOOL için yanıt vermeye hazır değil ve bulut modelleri kapalı. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da bir bulut modelini açın.",
+    "chat.author_refusal.unresolved": "VOOL yanıtı hangi modelin yazdığını anlayamadı, bu yüzden yanıtı tuttu. Lütfen yeniden sorun.",
+    "chat.author_refusal.not_running": "Şu anda bu bilgisayarda çalışan bir model yok. Model uygulamanızı (örneğin Ollama) açın ya da model menüsünden bir bulut modeli seçin."
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "VOOL בודק מודל במחשב הזה לפני שהוא עונה איתו. הבדיקה אף פעם לא יוצאת מהמחשב שלכם.",
     "settings.local_models.mp_intro": "מודלים מקומיים עונים במחשב הזה, בלי אינטרנט ובלי עלות להודעה.",
     "settings.local_models.mp_open": "בחירת מודל מקומי",
-    "settings.models.local_pick": "יש מודל במחשב הזה. פתחו אותו ולחצו על “השתמשו במודל הזה” כדי להתחיל."
+    "settings.models.local_pick": "יש מודל במחשב הזה. פתחו אותו ולחצו על “השתמשו במודל הזה” כדי להתחיל.",
+    "chat.author_refusal.lead": "לא הצלחתי לענות על זה.",
+    "chat.author_refusal.failed": "{models} לא ענה כראוי הפעם. שאלו שוב בעוד רגע. אם זה חוזר, בחרו מודל אחר בהגדרות → דגמים וספקים.",
+    "chat.author_refusal.not_ready": "{model} עדיין לא מוכן לענות ב-VOOL. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או בחרו מודל שמסומן “מוכן”.",
+    "chat.author_refusal.not_ready_local_only": "{model} עדיין לא מוכן לענות ב-VOOL, ו“מחשב זה בלבד” מופעל, כך שמודל ענן לא יכול לענות במקומו. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או בחרו מודל שמסומן “מוכן”.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} עדיין לא מוכן לענות ב-VOOL, ומודלי הענן כבויים. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או הפעילו מודל ענן.",
+    "chat.author_refusal.unresolved": "VOOL לא הצליח לדעת איזה מודל כתב את התשובה, ולכן עיכב אותה. שאלו שוב.",
+    "chat.author_refusal.not_running": "אין כרגע מודל שרץ במחשב הזה. פתחו את אפליקציית המודלים שלכם (למשל Ollama), או בחרו מודל ענן בתפריט המודלים."
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

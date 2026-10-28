@@ -2874,9 +2874,16 @@
     "settings.local_models.footer": "VOOL은 모델로 답하기 전에 이 컴퓨터에서 그 모델을 확인해요. 확인은 컴퓨터 밖으로 나가지 않아요.",
     "settings.local_models.mp_intro": "로컬 모델은 인터넷 없이, 메시지당 비용 없이 이 컴퓨터에서 답해요.",
     "settings.local_models.mp_open": "로컬 모델 고르기",
-    "settings.models.local_pick": "이 컴퓨터에 모델이 있어요. 열어서 '이 모델 사용'을 누르면 시작돼요."
+    "settings.models.local_pick": "이 컴퓨터에 모델이 있어요. 열어서 '이 모델 사용'을 누르면 시작돼요.",
+    "chat.author_refusal.lead": "이 질문에는 답하지 못했어요.",
+    "chat.author_refusal.failed": "{models}이(가) 이번에는 제대로 답하지 않았어요. 잠시 후 다시 물어봐 주세요. 계속 그러면 설정 → 모델과 공급자에서 다른 모델을 고르세요.",
+    "chat.author_refusal.not_ready": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
+    "chat.author_refusal.not_ready_local_only": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, '이 컴퓨터에서만'이 켜져 있어 클라우드 모델이 대신 답할 수도 없어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
+    "chat.author_refusal.not_ready_no_cloud": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, 클라우드 모델은 꺼져 있어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, 클라우드 모델을 켜세요.",
+    "chat.author_refusal.unresolved": "어떤 모델이 답을 썼는지 VOOL이 알 수 없어서 답을 보류했어요. 다시 물어봐 주세요.",
+    "chat.author_refusal.not_running": "지금 이 컴퓨터에서 실행 중인 모델이 없어요. 모델 앱(예: Ollama)을 열거나 모델 메뉴에서 클라우드 모델을 고르세요."
   },
-  "source_catalog_sha256": "37f1c7c817a9bab4994a0648fe22118c0d05c8bb2ec17fbb71ef032e62bde65e",
+  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
