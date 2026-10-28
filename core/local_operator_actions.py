@@ -304,7 +304,132 @@ def _handle_move_path(
         evaluate_local_action_fn=ExecutionGate.evaluate_local_action,
         move_fn=shutil.move,
         audit_log_fn=audit_logger.log,
+        resolve_everyday_move_fn=resolve_everyday_move,
     )
+
+
+def resolve_everyday_move(text: str) -> dict[str, str] | str | None:
+    """The one file "move the cat photo from Pictures to my Desktop" means, as a move request.
+
+    Returns ``{"source_path", "destination_dir"}``, a plain sentence when no file or several files fit, or ``None``
+    when the words are not such a move. Finds by the file's name words in the folder named (or in the owner's
+    readable folders), the same lookup as "find the pic of the cat on the sofa".
+    """
+    from core.execution.constants import _DESCRIBED_KIND, _DESCRIBED_STOP
+    from core.operator.parser import EVERYDAY_MOVE_RE
+    from core.runtime_execution_tools import _machine_find_file
+
+    match = EVERYDAY_MOVE_RE.search(str(text or ""))
+    if match is None:
+        return None
+    home = Path.home()
+    destination = home / match.group("dst").capitalize()
+    source_place = (match.group("src") or "").capitalize()
+    what = match.group("what").strip(" .'\"")
+    tokens = re.findall(r"[a-z0-9]+", what.lower())
+    if any(token in ("all", "every", "each", "both", "everything", "files", "photos", "pictures", "pics", "images",
+                     "screenshots", "videos", "documents", "pdfs") for token in tokens):
+        return "I move one file at a time here. Name the one file to move, like \"move cat_on_sofa.png to my Desktop\"."
+    kind = next((_DESCRIBED_KIND[token] for token in tokens if token in _DESCRIBED_KIND), "")
+    words = [token for token in tokens if token not in _DESCRIBED_STOP and token not in _DESCRIBED_KIND and len(token) >= 2]
+    named = Path(what).suffix and len(what.split()) == 1
+    if not words and not named:
+        return None
+    lead = what if named else max(words, key=len)
+    found = _machine_find_file({"name": lead})
+    if found.ok and ((found.details or {}).get("observation") or {}).get("truncated"):
+        return f"Too many files match \"{what}\" to pick one. Give more of its name, and nothing was moved."
+    candidates = [Path(os.path.expanduser(str(path))) for path in ((found.details or {}).get("matches") or [])] if found.ok else []
+    suffixes = {"image": (".png", ".jpg", ".jpeg", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp"),
+                "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"), "pdf": (".pdf",)}.get(kind)
+    fits = []
+    for path in dict.fromkeys(candidates):
+        lowered = str(path).lower()
+        if named and path.name.lower() != what.lower():
+            continue
+        if not named and not _has_every_word(path.stem, words):
+            continue
+        if suffixes and not lowered.endswith(suffixes):
+            continue
+        if source_place and (home / source_place) not in path.parents:
+            continue
+        if destination in path.parents and path.parent == destination:
+            continue
+        fits.append(path)
+    where = f"your {source_place}" if source_place else "your folders"
+    if not fits:
+        return f"I couldn't find a file like \"{what}\" in {where}, so nothing was moved."
+    if len(fits) > 1:
+        listed = "\n".join(f"- {_home_label(path)}" for path in fits[:10])
+        return f"More than one file fits \"{what}\" in {where}. Say which one to move:\n{listed}"
+    return {"source_path": str(fits[0]), "destination_dir": str(destination)}
+
+
+def _has_every_word(name: str, words: list[str]) -> bool:
+    """Each described word is a whole word of the file name ("cat" in cat_on_sofa, not in "allison_headshot")."""
+    have = set()
+    for token in re.findall(r"[a-z0-9]+", name.lower()):
+        have.update({token, token[:-1] if token.endswith("s") else token})
+    return all(word in have or (word.endswith("s") and word[:-1] in have) for word in words)
+
+
+def _home_label(path: Path) -> str:
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)
+
+
+_BARE_GO_AHEAD = frozenset({"ok", "okay", "sure", "yes move it", "move it", "ok move it", "yes go", "yep", "yeah", "y"})
+_OFFERED_MOVE_RE = re.compile(r"Reply with: approve move (?P<id>[0-9a-f][0-9a-f\-]{7,63})\s*$", re.IGNORECASE)
+
+
+def approval_the_answer_offered(
+    text: str, *, session_id: str, source_context: dict[str, Any] | None = None
+) -> OperatorActionIntent | None:
+    """A bare "yes please" right after the move preview this chat just showed approves THAT move.
+
+    Measured in the 2026-10-27 audit: the person answered the preview with "yes please" and nothing moved, because
+    only "approve move <id>" was read. Only a whole message that is a go-ahead counts, only when the answer the chat shows
+    last is a move preview ending in its approval line, and only while that action is still
+    pending in this chat and was offered in the last 15 minutes; anything else is not an approval.
+    """
+    from core.agent_runtime.proceed_intent_support import _PROCEED_PATTERNS
+
+    if str(text or "").strip().endswith("?"):
+        return None  # "yes?" asks; it does not approve
+    words = " ".join(re.sub(r"[.!,]+", " ", str(text or "").lower()).split())
+    if not words or (words not in _PROCEED_PATTERNS and words not in _BARE_GO_AHEAD):
+        return None
+    if words == "no proceed":
+        return None
+    # The answer the chat window shows last (what the person said yes to). It can only name an action this
+    # server previewed: the id must still be pending in THIS chat, and a fresh one.
+    history = [item for item in (list((source_context or {}).get("client_conversation_history") or [])
+                                 if isinstance(source_context, dict) else []) if isinstance(item, dict)]
+    if history and history[-1].get("role") == "user" and str(history[-1].get("content") or "").strip() == str(text or "").strip():
+        history = history[:-1]  # the window may send this very message along
+    last = history[-1] if history else {}
+    answer = str(last.get("content") or "").strip() if last.get("role") == "assistant" else ""
+    offered = _OFFERED_MOVE_RE.search(answer)
+    if offered is None or not answer.startswith("Move preview ready."):
+        return None
+    action_id = offered.group("id")
+    pending = _load_pending_action(session_id=session_id, action_kind="move_path", action_id=action_id)
+    if pending is None or not _offered_recently(pending):
+        return None
+    return OperatorActionIntent(kind="move_path", approval_requested=True, action_id=action_id,
+                                raw_text=f"approve move {action_id}")
+
+
+def _offered_recently(pending: dict[str, Any], *, minutes: int = 15) -> bool:
+    try:
+        created = datetime.fromisoformat(str(pending.get("created_at") or "").replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - created <= timedelta(minutes=minutes)
 
 
 def _handle_schedule_calendar_event(

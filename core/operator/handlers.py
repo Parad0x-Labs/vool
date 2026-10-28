@@ -427,6 +427,114 @@ def handle_cleanup_temp_files(
     )
 
 
+def _preview_new_move(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+    load_pending_action_fn: Any,
+    parse_move_request_fn: Any,
+    validate_move_scope_fn: Any,
+    resolved_move_target_fn: Any,
+    create_pending_action_fn: Any,
+    resolve_everyday_move_fn: Any,
+) -> OperatorActionResult:
+    parsed = parse_move_request_fn(
+        intent.raw_text,
+        fallback_source=intent.target_path,
+        fallback_destination=intent.destination_path,
+    )
+    if not parsed and resolve_everyday_move_fn is not None and not intent.target_path:
+        # "move the cat photo from Pictures to my Desktop": find the one file it means.
+        resolved = resolve_everyday_move_fn(intent.raw_text)
+        if isinstance(resolved, str):
+            return OperatorActionResult(ok=False, status="needs_choice", response_text=resolved, details={})
+        parsed = resolved
+    if not parsed:
+        return OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=(
+                "I can move or archive a bounded local path, but I need a quoted source path. "
+                'Use a format like: move "/path/to/source" to "/path/to/archive" '
+                'or archive "/path/to/source"'
+            ),
+            details={},
+        )
+    source = Path(str(parsed["source_path"])).expanduser()
+    destination_dir = Path(str(parsed["destination_dir"])).expanduser()
+    validation_error = validate_move_scope_fn(source, destination_dir)
+    if validation_error:
+        return OperatorActionResult(
+            ok=False,
+            status="blocked",
+            response_text=validation_error,
+            details={
+                "source_path": str(source),
+                "destination_dir": str(destination_dir),
+            },
+        )
+    final_path = resolved_move_target_fn(source, destination_dir)
+    if final_path.exists():
+        return OperatorActionResult(
+            ok=False,
+            status="conflict",
+            response_text=f"I won't move {source} because the destination already exists: {final_path}",
+            details={
+                "source_path": str(source),
+                "destination_path": str(final_path),
+            },
+        )
+    # The same move asked again ("... tomorrow", "... Actually, don't move it") keeps its preview waiting
+    # instead of replacing it, and never runs it: only an approval reaches a pending move.
+    latest = load_pending_action_fn(session_id=session_id, action_kind="move_path", action_id=None)
+    if latest:
+        latest_scope = json.loads(str(latest.get("scope_json") or "{}"))
+        if (latest_scope.get("source_path"), latest_scope.get("destination_path")) == (str(source), str(final_path)):
+            return OperatorActionResult(
+                ok=True,
+                status="approval_required",
+                response_text=(
+                    f"Move preview ready.\n"
+                    f"- Source: {source}\n"
+                    f"- Destination: {final_path}\n\n"
+                    f"Reply with: approve move {latest['action_id']}"
+                ),
+                details={
+                    "action_id": latest["action_id"],
+                    "source_path": str(source),
+                    "destination_dir": str(destination_dir),
+                    "destination_path": str(final_path),
+                },
+            )
+    action_id = create_pending_action_fn(
+        session_id=session_id,
+        task_id=task_id,
+        action_kind="move_path",
+        scope={
+            "source_path": str(source),
+            "destination_dir": str(destination_dir),
+            "destination_path": str(final_path),
+        },
+    )
+    return OperatorActionResult(
+        ok=True,
+        status="approval_required",
+        response_text=(
+            f"Move preview ready.\n"
+            f"- Source: {source}\n"
+            f"- Destination: {final_path}\n\n"
+            f"Reply with: approve move {action_id}"
+        ),
+        details={
+            "action_id": action_id,
+            "source_path": str(source),
+            "destination_dir": str(destination_dir),
+            "destination_path": str(final_path),
+        },
+    )
+
+
 def handle_move_path(
     intent: OperatorActionIntent,
     *,
@@ -441,75 +549,44 @@ def handle_move_path(
     evaluate_local_action_fn: Any,
     move_fn: Any,
     audit_log_fn: Any,
+    resolve_everyday_move_fn: Any = None,
 ) -> OperatorActionResult:
-    pending = load_pending_action_fn(session_id=session_id, action_kind="move_path", action_id=intent.action_id)
-    if pending is None:
-        parsed = parse_move_request_fn(
-            intent.raw_text,
-            fallback_source=intent.target_path,
-            fallback_destination=intent.destination_path,
-        )
-        if not parsed:
-            return OperatorActionResult(
-                ok=False,
-                status="invalid_request",
-                response_text=(
-                    "I can move or archive a bounded local path, but I need a quoted source path. "
-                    'Use a format like: move "/path/to/source" to "/path/to/archive" '
-                    'or archive "/path/to/source"'
-                ),
-                details={},
-            )
-        source = Path(str(parsed["source_path"])).expanduser()
-        destination_dir = Path(str(parsed["destination_dir"])).expanduser()
-        validation_error = validate_move_scope_fn(source, destination_dir)
-        if validation_error:
-            return OperatorActionResult(
-                ok=False,
-                status="blocked",
-                response_text=validation_error,
-                details={
-                    "source_path": str(source),
-                    "destination_dir": str(destination_dir),
-                },
-            )
-        final_path = resolved_move_target_fn(source, destination_dir)
-        if final_path.exists():
-            return OperatorActionResult(
-                ok=False,
-                status="conflict",
-                response_text=f"I won't move {source} because the destination already exists: {final_path}",
-                details={
-                    "source_path": str(source),
-                    "destination_path": str(final_path),
-                },
-            )
-        action_id = create_pending_action_fn(
-            session_id=session_id,
-            task_id=task_id,
-            action_kind="move_path",
-            scope={
-                "source_path": str(source),
-                "destination_dir": str(destination_dir),
-                "destination_path": str(final_path),
-            },
-        )
+    # Only an approval that names its id reaches a pending move. A request without one ("move the dog photo
+    # to my desktop, go ahead") is a NEW move: picking the session's latest pending move instead ran the
+    # earlier, different move (review 2026-10-28).
+    pending = (
+        load_pending_action_fn(session_id=session_id, action_kind="move_path", action_id=intent.action_id)
+        if intent.action_id
+        else None
+    )
+    if pending is None and intent.action_id:
         return OperatorActionResult(
-            ok=True,
-            status="approval_required",
-            response_text=(
-                f"Move preview ready.\n"
-                f"- Source: {source}\n"
-                f"- Destination: {final_path}\n\n"
-                f"Reply with: approve move {action_id}"
-            ),
-            details={
-                "action_id": action_id,
-                "source_path": str(source),
-                "destination_dir": str(destination_dir),
-                "destination_path": str(final_path),
-            },
+            ok=False,
+            status="missing_action",
+            response_text="That move is no longer waiting for approval, so nothing was moved.",
+            details={"action_id": intent.action_id},
         )
+    if pending is None:
+        result = _preview_new_move(
+            intent,
+            task_id=task_id,
+            session_id=session_id,
+            load_pending_action_fn=load_pending_action_fn,
+            parse_move_request_fn=parse_move_request_fn,
+            validate_move_scope_fn=validate_move_scope_fn,
+            resolved_move_target_fn=resolved_move_target_fn,
+            create_pending_action_fn=create_pending_action_fn,
+            resolve_everyday_move_fn=resolve_everyday_move_fn,
+        )
+        if not result.ok:
+            # A new move that could not be prepared leaves an earlier preview waiting: say so.
+            waiting = load_pending_action_fn(session_id=session_id, action_kind="move_path", action_id=None)
+            if waiting:
+                result.response_text += (
+                    "\n\nYour earlier move still needs explicit approval. "
+                    f"Reply with: approve move {waiting['action_id']}"
+                )
+        return result
 
     gate = evaluate_local_action_fn(
         "move_path",

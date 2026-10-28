@@ -268,6 +268,16 @@ _APPROVAL_ID_RE = re.compile(
     re.IGNORECASE,
 )
 _MOVE_WORD_RE = re.compile(r"\b(?:move|relocate|archive)\b", re.IGNORECASE)
+# "move the cat photo from Pictures to my Desktop": a file the owner names or describes, between two of their own
+# folders. The handler finds the one file (core.local_operator_actions.resolve_everyday_move) and previews the move.
+EVERYDAY_MOVE_RE = re.compile(
+    r"^\s*(?:(?:hey|ok|okay|so)\s*,?\s+)?(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?|please\s+|pls\s+|"
+    r"i\s+(?:want|need)\s+you\s+to\s+|i'?d\s+like\s+you\s+to\s+)?"
+    r"move\s+(?!on\b|it\b|over\b|up\b|forward\b)(?:the\s+|my\s+|this\s+|that\s+)?(?P<what>[\w'\-. ]+?)"
+    r"(?:\s+(?:from|out\s+of|in)\s+(?:the\s+|my\s+)?(?P<src>pictures|downloads|desktop|documents|movies|music)(?:\s+folder)?)?"
+    r"\s+(?:to|into|onto)\s+(?:the\s+|my\s+)?(?P<dst>desktop|downloads|documents|pictures|movies|music)(?:\s+folder)?\b",
+    re.IGNORECASE,
+)
 _QUOTED_PATH_RE = re.compile(r"""["']([^"']+)["']""")
 _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
@@ -451,7 +461,7 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
 
     if (target_path and _MOVE_WORD_RE.search(lowered)) or (
         action_id and any(token in lowered for token in ("move", "archive")) and _says_approve(text)
-    ):
+    ) or (not target_path and not action_id and _everyday_move(text)):
         return OperatorActionIntent(
             kind="move_path",
             target_path=target_path,
@@ -513,6 +523,24 @@ def request_own_words(text: str, *, data: tuple[str, ...] = ()) -> str:
     from core.operator.apple_notes import words_outside_values
 
     return text_without_paths(words_outside_values(text, data=data))
+
+
+def _everyday_move(text: str) -> bool:
+    """A request to move one file between the owner's folders, and nothing else in the message.
+
+    Not a how-to ("how do I move photos to my desktop"), not a question about a move ("did you move it?"), and not
+    a move with another ask after it ("... and then email it to bob"), which the planner splits.
+    """
+    from core.instructional_request import asks_for_instructions_not_execution
+
+    match = EVERYDAY_MOVE_RE.search(text)
+    if match is None or asks_for_instructions_not_execution(text):
+        return False
+    rest = re.sub(r"^[\s,]*(?:(?:and\s+)?go\s+ahead|please|pls|thanks|thank\s+you|now|for\s+me)?[\s,.!?]*$", "",
+                  text[match.end():], flags=re.IGNORECASE).strip(" .!?")
+    if rest and re.search(r"\b(?:and|then|also|after|but)\b|[,;]", rest, re.IGNORECASE):
+        return False
+    return not re.search(r"\b(?:don'?t|do\s+not|never)\b", text, re.IGNORECASE)
 
 
 def _approval_requested(text: str, *, data: tuple[str, ...] = (), action: re.Pattern[str] | None = None) -> bool:

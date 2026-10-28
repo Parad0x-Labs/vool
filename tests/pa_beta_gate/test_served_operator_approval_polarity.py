@@ -280,7 +280,8 @@ def test_under_auto_a_cleanup_request_that_negates_itself_does_not_run_the_pendi
     assert sorted(path.name for path in temp_root.rglob("*")) == before, f"the pending cleanup ran: {answer[:300]}"
 
 
-@pytest.mark.xfail(strict=True, reason=_KIND_ALONE_UNDER_AUTO)
+# The move half of that residual is repaired (2026-10-28): a move request without an action id is a new or repeated
+# preview, never the pending move (core/operator/handlers.py handle_move_path), so this now holds under Auto too.
 def test_under_auto_a_move_request_that_negates_itself_does_not_run_the_pending_move(served_notes, tmp_path):
     workspace, _install = served_notes
     with _session(workspace, _MANUAL) as turn:

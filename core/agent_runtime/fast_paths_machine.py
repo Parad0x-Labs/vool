@@ -597,6 +597,11 @@ def maybe_handle_safe_machine_write_guard(
         return None
     if looks_like_supported_machine_directory_create_request(user_input):
         return None
+    from core.local_operator_actions import parse_operator_action_intent
+
+    moving = parse_operator_action_intent(user_input)
+    if moving is not None and moving.kind == "move_path":
+        return None  # a move is the operator move lane's: it previews the exact paths and asks first
     if safe_machine_write_targets_workspace(
         user_input=user_input,
         source_context=source_context,

@@ -319,6 +319,20 @@ def prepare_turn_task_bundle(
         operator_intent = with_the_answer_it_follows(
             operator_intent, session_id=session_id, source_context=source_context
         )
+    if action_policy_from_context(source_context) is not ActionPolicy.FORBIDDEN:
+        # "yes please" right after the move preview this chat just showed approves that move. The person's own
+        # words are read: a go-ahead may already have been replaced by the paused request it resumes, which
+        # names the move again without approving it. The words are only a go-ahead, so the whole-turn and
+        # own-words checks above have nothing to read in them.
+        from core.local_operator_actions import approval_the_answer_offered
+
+        approved = approval_the_answer_offered(user_input, session_id=session_id, source_context=source_context)
+        _pinned = str((source_context or {}).get("requested_model") or "").strip()
+        _pinned_kind = str((source_context or {}).get("model_selection") or "").strip().lower()
+        if _pinned and _pinned_kind != "sticky":
+            approved = None  # a pinned model keeps the turn, as it does for a typed "approve move <id>"
+        if approved is not None and (operator_intent is None or operator_intent.kind == "move_path"):
+            operator_intent = approved
     if operator_intent is not None:
         # Mode enforcement: Ask/Plan is a READ-ONLY posture. A mutating operator action (anything
         # that would change the system) is refused BEFORE dispatch -- nothing is written and no
