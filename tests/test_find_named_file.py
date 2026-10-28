@@ -202,7 +202,7 @@ def test_more_ways_of_asking_for_a_file(text, expected):
 
 
 @pytest.mark.parametrize("text", [
-    "find the photo of my dog", "can you find a video 10 minutes long about rust", "find me a picture of a cat 4k",
+    "can you find a video 10 minutes long about rust", "find me a picture of a cat 4k",
     "find the movie dune2 on netflix", "find the document 'Q3 plan' and summarize it",
     'find the video "how to tie a tie" on youtube', "hunt down a good restaurant for 4 people",
     "dig up some info about the iphone 16", "which song called hello is the best", "which pdf reader is best for mac 14",
@@ -241,6 +241,7 @@ def test_a_name_from_a_word_start_wins_over_one_inside_a_word(home, monkeypatch)
     # With nothing from a word start, the inside-a-word match is still shown rather than nothing.
     only_inside = find_named_files(("jpg", ("day4",), "Downloads"), source_context={})
     assert [Path(p).name for p in only_inside.details["matches"]] == ["holiday4.jpg"]
+    assert only_inside.response_text.startswith("No JPG file named 'day4' in ~/Downloads. These have it inside")
 
 
 def test_many_matches_are_not_counted_as_all_of_them(home, monkeypatch):
@@ -256,3 +257,87 @@ def test_many_matches_are_not_counted_as_all_of_them(home, monkeypatch):
     assert lines[0] == "Many pictures match 'day-shot'. Here are the first 20:"
     assert len([line for line in lines if line.startswith("- ")]) == 20
     assert "Found 25" not in found.response_text
+
+
+# A second blind set (Mac, 2026-10-28) described the file instead of naming it in 11 of 13 asks.
+@pytest.mark.parametrize(("text", "expected"), [
+    ("grab the tax return pdf from downloads", ("pdf", ("tax return",), "Downloads")),
+    ("where'd my picture of grandmas birthday cake go", ("image", ("grandmas birthday cake",), "")),
+    ("find my scanned passport pdf", ("pdf", ("scanned passport",), "")),
+    ("i need the screenshot of the flight confirmation from my desktop", ("image", ("flight confirmation",), "Desktop")),
+    ("whats that screenshot called with the wifi password, can u find it", ("image", ("wifi password",), "")),
+    ("Could you locate my resume? I think it's called resume_final or resume new.", ("", ("resume_final", "resume new"), "")),
+    ("can you find the powerpoint i made named book club", ("", ("book club",), "")),
+    ("find the photo of my dog", ("image", ("dog",), "")),
+    ("is there a picture of the eiffel tower on my mac", ("image", ("eiffel tower",), "")),
+])
+def test_a_described_file_is_searched_by_its_words(text, expected):
+    assert machine_file_search_intent(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "find my documents", "find my photos", "where are my documents from last year", "find my documents folder",
+    "find the file we discussed yesterday", "where is the pdf you made for me", "show me my downloads",
+    "i need the best photo editor", "search the app store for a good photo editor", "pull up the weather",
+    "find a picture of mt4 charts online", "theres a doc in documents called thank you notes, open it pls",
+])
+def test_a_described_search_needs_a_described_file(text):
+    assert machine_file_search_intent(text) is None
+
+
+def test_described_words_need_not_be_in_a_row(home, monkeypatch):
+    import core.authorized_tool_execution as ate
+    from core.agent_runtime.fast_paths_machine import find_named_files
+    from core.runtime_execution_tools import _machine_find_file
+
+    (home / "Downloads" / "sunset at the beach.jpg").write_bytes(b"x")
+    (home / "Downloads" / "sunset drive.jpg").write_bytes(b"x")
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda intent, args, source_context=None: _machine_find_file(args))
+    found = find_named_files(("image", ("sunset beach",), ""), source_context={})
+    assert [Path(p).name for p in found.details["matches"]] == ["sunset at the beach.jpg"]
+
+
+def test_a_how_to_question_about_a_folder_is_not_a_near_miss():
+    from core.agent_runtime.intent_claims import near_miss
+
+    assert near_miss("how do i stop my downloads folder from filling up so fast?", []) is False
+    assert near_miss("give me a rundown of what lives in ~/Desktop/notes", []) is True
+
+
+def test_movie_is_not_corrected_to_move():
+    from core.input_normalizer import normalize_user_text
+
+    text = "looking for a movie file i saved called wedding highlights"
+    assert "movie" in str(normalize_user_text(text).normalized_text)
+    assert machine_file_search_intent(text) == ("video", ("wedding highlights",), "")
+
+
+def test_hidden_folders_are_not_listed_unless_named(tmp_path, monkeypatch):
+    """On the Mac (2026-10-28) a folder search for "downloads" listed ~/.claude/downloads and
+    ~/.gemini/... App and credential folders stay out unless the person names a dot-folder."""
+    import core.machine_diagnostics as md
+    from core.runtime_execution_tools import _machine_find_folder
+
+    (tmp_path / ".claude" / "downloads").mkdir(parents=True)
+    (tmp_path / "Work" / "downloads").mkdir(parents=True)
+    monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [{"mount": str(tmp_path)}])
+    found = _machine_find_folder({"name": "downloads"})
+    assert found.details["matches"] == [str(tmp_path / "Work" / "downloads")]
+    named = _machine_find_folder({"name": ".claude"})
+    assert named.details["matches"] == [str(tmp_path / ".claude")]
+
+
+def test_hidden_files_are_not_found_unless_named(home, monkeypatch):
+    from core.runtime_execution_tools import _machine_find_file
+
+    (home / "Documents" / ".secrets").mkdir()
+    (home / "Documents" / ".secrets" / "day4.png").write_bytes(b"x")
+    (home / "Documents" / ".day4-notes").write_text("x")
+    assert all("/." not in path for path in _machine_find_file({"name": "day4"}).details["matches"])
+    assert [Path(p).name for p in _machine_find_file({"name": ".day4-notes"}).details["matches"]] == [".day4-notes"]
+
+
+@pytest.mark.parametrize("text", ["where was this file stored?", "where was this pdf saved", "find the file i downloaded yesterday"])
+def test_a_file_from_the_chat_is_not_a_disk_search(text):
+    # "this file" is the one the chat just made; the receipt lane answers it.
+    assert machine_file_search_intent(text) is None
