@@ -175,8 +175,8 @@ def test_an_unknown_result_reports_both_numbers_as_unknown_not_as_limits():
 
 
 def test_a_direct_provider_lane_reads_its_curated_window_and_leaves_the_cap_unknown():
-    capability = capability_for("anthropic-byok", "claude-sonnet-4-5")
-    assert capability.context_window == 200_000
+    capability = capability_for("anthropic-byok", "claude-sonnet-5-5")
+    assert capability.context_window == 1_000_000
     assert capability.max_output_tokens == 0, "the curated rows publish no output cap; do not invent one"
     assert capability.source == SOURCE_CURATED
 

@@ -22,6 +22,7 @@ from core.anthropic_messages_protocol import (
     anthropic_response_to_openai,
     claude_api_error_message,
     openai_request_to_claude_api,
+    unfenced_json_text,
 )
 from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 from core.cloud_tool_call_contract import (
@@ -570,6 +571,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             if request.is_cancelled():
                 raise RuntimeError("model_call_cancelled")
             data = anthropic_response_to_openai(response.json()) if claude_api else response.json()
+            if claude_api and payload.get("response_format"):
+                _unfence_claude_json(data)
             if not native_tools:
                 # A cloud reasoning model that has no separate reasoning channel writes its
                 # `<think>` block into the content. Dropped here, at the single-shot boundary,
@@ -2310,6 +2313,15 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
 
 _HTTP_CAUSE_EXCERPT_CHARS = 300
+
+
+def _unfence_claude_json(data: dict[str, Any]) -> None:
+    """A JSON turn's answer without the code fence Claude may put around it (measured on
+    claude-haiku-5-5, 2026-10-28: ```json {...} ``` for an instructed json_object turn)."""
+    for choice in list(data.get("choices") or []):
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            message["content"] = unfenced_json_text(message["content"])
 
 
 def _raise_for_claude_status(response: Any) -> None:

@@ -466,6 +466,26 @@ def openai_request_to_claude_api(payload: Mapping[str, Any]) -> dict[str, Any]:
     return body
 
 
+def unfenced_json_text(text: str) -> str:
+    """``text`` without one Markdown code fence wrapped around the whole reply.
+
+    Asked for JSON by instruction (the contract had no schema the structured-output grammar can
+    carry), Claude can still wrap the object in ```json ... ```. Only a fence around the WHOLE
+    reply is removed; anything else is returned as written, for the contract to judge.
+    """
+    stripped = str(text or "").strip()
+    if not (stripped.startswith("```") and stripped.endswith("```")) or len(stripped) < 6:
+        return text
+    inner = stripped[3:-3]
+    first_newline = inner.find("\n")
+    if first_newline < 0:
+        return text
+    language = inner[:first_newline].strip().lower()
+    if language not in {"", "json"} or "```" in inner:
+        return text
+    return inner[first_newline + 1 :].strip()
+
+
 def claude_api_error_message(status_code: int, body: Any) -> str:
     """One plain sentence for a Claude API refusal, for the person and the failure record.
 
@@ -487,6 +507,30 @@ def claude_api_error_message(status_code: int, body: Any) -> str:
     if status_code >= 500 or kind in {"api_error", "overloaded_error"}:
         return f"Claude is having trouble right now ({status_code}). Try again shortly."
     return f"Claude rejected the request ({status_code}{', ' + kind if kind else ''}): {message or 'no detail given'}."
+
+
+#: The sentences :func:`claude_api_error_message` writes for refusals a retry cannot fix.
+_CLAUDE_FINAL_REFUSALS = (
+    "Claude refused the API key",
+    "Claude says this key may not",
+    "Claude does not know that model",
+    "The Claude account has no credit left",
+)
+
+
+def claude_refusal_sentence(error: Any) -> str:
+    """The plain sentence a Claude API refusal carried, when it is one a retry cannot fix.
+
+    Only text this module wrote is ever returned (it names the API's own error message, never the
+    key, the request or a URL), so a reply surface may show it as is."""
+    text = " ".join(str(error or "").split())
+    for start in _CLAUDE_FINAL_REFUSALS:
+        index = text.find(start)
+        if index >= 0:
+            sentence = text[index:]
+            cut = sentence.find(" [retry_after=")
+            return (sentence[:cut] if cut >= 0 else sentence)[:400]
+    return ""
 
 
 def normalize_anthropic_usage(*sources: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -727,7 +771,9 @@ __all__ = [
     "anthropic_response_to_openai",
     "claude_api_error_message",
     "claude_output_schema",
+    "claude_refusal_sentence",
     "normalize_anthropic_usage",
     "openai_request_to_anthropic",
     "openai_request_to_claude_api",
+    "unfenced_json_text",
 ]

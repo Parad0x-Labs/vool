@@ -293,13 +293,14 @@ def direct_checks(run: Run, key: str) -> None:
     from adapters.base_adapter import ModelRequest
     from core.cloud_tool_call_contract import build_cloud_tool_definitions
     from core.model_output_contracts import json_schema_for_mode
+    from core.provider_execution_boundary import invoke_provider_execution_boundary
 
     model = "claude-haiku-5-5"
     if run.room("direct.stream"):
         adapter = _claude_lane(model, key)
         request = ModelRequest(task_kind="chat", prompt="x", messages=[{"role": "user", "content": "Count from 1 to 5, separated by spaces."}], max_output_tokens=200)
         try:
-            chunks = list(adapter.stream_text_task(request))
+            chunks = list(invoke_provider_execution_boundary(adapter, "stream_text_task", request))
             text = "".join(c.delta_text for c in chunks)
             usage = dict(chunks[-1].usage or {})
             run.direct_usd += _usd(model, usage)
@@ -317,7 +318,7 @@ def direct_checks(run: Run, key: str) -> None:
             max_output_tokens=300,
         )
         try:
-            result = adapter.run_structured_task(request)
+            result = invoke_provider_execution_boundary(adapter, "run_structured_task", request)
             run.direct_usd += _usd(model, result.usage)
             parsed = json.loads(result.output_text)
             run.record("direct.structured", isinstance(parsed, dict) and bool(parsed.get("summary")), answer=parsed, usage=result.usage)
@@ -333,7 +334,7 @@ def direct_checks(run: Run, key: str) -> None:
             max_output_tokens=200,
         )
         try:
-            result = adapter.invoke(request)
+            result = invoke_provider_execution_boundary(adapter, "invoke", request)
             run.direct_usd += _usd(model, result.usage)
             parsed = json.loads(result.output_text)
             run.record("direct.json_object", parsed.get("country", "").lower() == "france", answer=parsed, usage=result.usage)
@@ -353,7 +354,7 @@ def direct_checks(run: Run, key: str) -> None:
                 tools=tools,
             )
             try:
-                result = adapter.invoke(request)
+                result = invoke_provider_execution_boundary(adapter, "invoke", request)
                 run.direct_usd += _usd(tool_model, result.usage)
                 calls = [{"name": c.name, "arguments": c.arguments} for c in result.tool_calls]
                 ok = bool(calls) and str(calls[0]["arguments"].get("city", "")).lower() == "oslo"
@@ -370,7 +371,7 @@ def direct_checks(run: Run, key: str) -> None:
         )
         t0 = time.time()
         try:
-            result = adapter.run_text_task(request)
+            result = invoke_provider_execution_boundary(adapter, "run_text_task", request)
             run.direct_usd += _usd("claude-opus-5-5", result.usage)
             run.record("direct.timeout", False, unexpected="answered inside 0.5 s", seconds=round(time.time() - t0, 2))
         except Exception as exc:
@@ -380,7 +381,7 @@ def direct_checks(run: Run, key: str) -> None:
     if run.room("direct.unknown_model"):
         adapter = _claude_lane("claude-nope-9-9", key)
         try:
-            adapter.run_text_task(ModelRequest(task_kind="chat", prompt="x", messages=[{"role": "user", "content": "hi"}], max_output_tokens=50))
+            invoke_provider_execution_boundary(adapter, "run_text_task", ModelRequest(task_kind="chat", prompt="x", messages=[{"role": "user", "content": "hi"}], max_output_tokens=50))
             run.record("direct.unknown_model", False, unexpected="answered")
         except Exception as exc:
             text = str(exc)
@@ -388,7 +389,7 @@ def direct_checks(run: Run, key: str) -> None:
     if run.room("direct.bad_key"):
         adapter = _claude_lane(model, BAD_KEY)
         try:
-            adapter.run_text_task(ModelRequest(task_kind="chat", prompt="x", messages=[{"role": "user", "content": "hi"}], max_output_tokens=50))
+            invoke_provider_execution_boundary(adapter, "run_text_task", ModelRequest(task_kind="chat", prompt="x", messages=[{"role": "user", "content": "hi"}], max_output_tokens=50))
             run.record("direct.bad_key", False, unexpected="answered")
         except Exception as exc:
             text = str(exc)
@@ -508,6 +509,9 @@ def main() -> int:
     parser.add_argument("--cap", type=float, default=3.0, help="USD; no new step starts once spend reaches it")
     parser.add_argument("--only", default="", help="direct,daemon (default both)")
     args = parser.parse_args()
+    # Absolute: the daemons run with the repository as their working directory.
+    args.out = args.out.resolve()
+    args.repo = args.repo.resolve()
     key = str(os.environ.pop("VOOL_LIVE_ANTHROPIC_KEY", "") or "").strip()
     if not key.startswith("sk-ant-"):
         print("VOOL_LIVE_ANTHROPIC_KEY is not set to an Anthropic key", file=sys.stderr)

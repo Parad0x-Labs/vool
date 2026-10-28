@@ -291,3 +291,45 @@ def test_catalog_and_prices_name_current_claude_models():
     assert price.known and round(price.prompt_usd_per_token * 1_000_000, 2) == 4.00
     haiku_long = lookup_model_price("anthropic-byok:claude-haiku-5-5", "claude-haiku-5-5", prompt_tokens=150_000)
     assert round(haiku_long.prompt_usd_per_token * 1_000_000, 2) == 0.50
+
+
+def test_a_json_turn_answer_loses_the_code_fence_claude_put_around_it():
+    # Measured live 2026-10-28: claude-haiku-5-5 answered an instructed json_object turn with
+    # ```json {...} ```, which every JSON reader downstream refused.
+    adapter = _claude_adapter()
+    fenced = '```json\n{"city": "Paris", "country": "France"}\n```'
+    request = ModelRequest(
+        task_kind="extract", prompt="x", messages=[{"role": "user", "content": "x"}], output_mode="json_object"
+    )
+    with mock.patch.object(adapter, "_dispatch_credential", return_value="sk-ant-test"), mock.patch(
+        "adapters.openai_compatible_adapter.requests.post", return_value=_ok(_message([{"type": "text", "text": fenced}]))
+    ):
+        result = adapter.invoke(request)
+    assert json.loads(result.output_text) == {"city": "Paris", "country": "France"}
+
+    from core.anthropic_messages_protocol import unfenced_json_text
+
+    prose = 'Here it is:\n```json\n{"a": 1}\n```'
+    assert unfenced_json_text(prose) == prose  # only a fence around the WHOLE reply is removed
+
+
+def test_an_unknown_model_reply_names_the_reason_instead_of_asking_for_a_retry():
+    from core.agent_runtime.memory_runtime import _typed_model_runtime_failure_hint
+
+    execution = SimpleNamespace(
+        source="no_provider_available",
+        model_name="",
+        details={
+            "attempted": ["anthropic-byok:claude-nope-9-9"],
+            "attempt_timings": [
+                {
+                    "model_id": "claude-nope-9-9",
+                    "error": "404 Claude does not know that model (404): model: claude-nope-9-9. Pick a model from the list.",
+                }
+            ],
+        },
+    )
+    hint = _typed_model_runtime_failure_hint(execution)
+    assert "Claude does not know that model" in hint
+    assert "Retry the turn" not in hint
+    assert "No other model was used" in hint

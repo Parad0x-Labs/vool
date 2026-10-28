@@ -547,7 +547,10 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
     timings = [item for item in list(details.get("attempt_timings") or []) if isinstance(item, dict)]
     attempted = [str(item).strip() for item in list(details.get("attempted") or []) if str(item).strip()]
     reasons = [str(item) for item in list(details.get("attempted_error_reasons") or [])]
+    from core.anthropic_messages_protocol import claude_refusal_sentence
+
     attempts: list[tuple[str, str]] = []
+    final_refusals: list[str] = []
     for index, provider_id in enumerate(attempted):
         timing = timings[index] if index < len(timings) else {}
         name = str(timing.get("model_id") or "").strip()
@@ -555,7 +558,12 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
             name = provider_id.split(":", 1)[-1]
         error = str(timing.get("error") or (reasons[index] if index < len(reasons) else ""))
         lowered = error.casefold()
-        if timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
+        refusal = claude_refusal_sentence(error)
+        if refusal:
+            # A bad key, an unknown model, no credit: say which, because retrying cannot help.
+            kind = f"could not answer. {refusal}"
+            final_refusals.append(refusal)
+        elif timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
             kind = "did not return a usable reply"
         elif _is_http_rate_limit(error):
             kind = "was refused by its provider with HTTP 429 (rate limit)"
@@ -580,6 +588,8 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
     prefix = "I couldn't get a usable model response: " if any(
         timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE" for timing in timings
     ) else ""
+    if final_refusals and len(final_refusals) == len(attempts):
+        return f"{prefix}{summary.rstrip('.')}. No other model was used."
     return f"{prefix}{summary}. No cached or remembered text was substituted. Retry the turn."
 
 

@@ -56,12 +56,23 @@ class _PostRecorder:
 
     def __call__(self, url, *args, **kwargs) -> Any:
         self.urls.append(str(url))
-        return SimpleNamespace(
-            raise_for_status=lambda: None,
-            json=lambda: {
+        # The Claude API lane speaks the Messages dialect; every other lane the OpenAI one.
+        body = (
+            {
+                "type": "message",
+                "content": [{"type": "text", "text": "cloud answer"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 11, "output_tokens": 7},
+            }
+            if str(url).endswith("/messages")
+            else {
                 "choices": [{"message": {"content": "cloud answer"}}],
                 "usage": {"prompt_tokens": 11, "completion_tokens": 7},
-            },
+            }
+        )
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: body,
             status_code=200,
         )
 
