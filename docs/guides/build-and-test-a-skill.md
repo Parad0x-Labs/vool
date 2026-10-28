@@ -43,7 +43,7 @@ Frontmatter keys VOOL reads:
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
 | `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails. Leaving it out narrows nothing. It never grants a permission. |
-| `license` | for publishing | Read by the publishing tools. Keep the full licence text in a `LICENSE` file beside `SKILL.md`. |
+| `license` | for publishing | Read by the publishing tools. Keep the full licence text in a `LICENSE` file beside `SKILL.md` (for MIT: the standard MIT text with your name and the year). |
 
 The instructions (everything after the frontmatter) must be under 8,000 characters; a longer
 body fails validation. The frontmatter must be a YAML object. A skill adds instructions only;
@@ -54,10 +54,18 @@ line). Then every test below shows at a glance whether the skill was used.
 
 ## 2. Lint with the SDK
 
-The `vool-community` SDK checks the file with VOOL's own validator. From a source checkout,
-`python -m tools.community_skills` is the same command. Work in a new folder of your own, with
-the skill at `my-skills/aisle-sorter/SKILL.md` and its licence at
-`my-skills/aisle-sorter/LICENSE`:
+The `vool-community` SDK checks the file with VOOL's own validator. From a source checkout, use
+`PYTHONPATH="$VOOL_SRC" python -m tools.community_skills` in its place: a `vool-community` on your
+PATH from another install may not match your checkout and can refuse with "invalid package
+metadata fields". Work in a new folder of your own, with the skill at
+`my-skills/aisle-sorter/SKILL.md` and its licence at `my-skills/aisle-sorter/LICENSE`. Set these
+once and keep the same shell for sections 2 to 7 (sections 3 and 5 use them too):
+
+```sh
+export VOOL_SRC=/full/path/to/vool          # the VOOL source checkout
+export SKILL_TEST_HOME="$(mktemp -d)"       # throwaway profile
+export SKILL_FOLDER="$PWD/my-skills/aisle-sorter"
+```
 
 ```sh
 python - <<'PY'
@@ -125,13 +133,15 @@ skill.install path=/full/path/to/my-skills/aisle-sorter
 
 Without `overwrite`, a second install of the same name stops with `exists`.
 
-For automated tests from a source checkout, call the same tool against a **throwaway profile**.
+The chat steps have matching tools for an agent: `skill.import` (zip), `skill.list`,
+`skill.validate`, `skill.remove` and `skill.rollback` (with `skill` and `version`). Their replies
+are worded for a tool result, not word for word the chat replies quoted on this page.
+
+For automated tests from a source checkout, call the same tool against a **throwaway profile**
+(the variables from section 2).
 This skips the Allow prompt, so never point it at a person's real VOOL profile:
 
 ```sh
-export VOOL_SRC=/full/path/to/vool          # the VOOL source checkout
-export SKILL_TEST_HOME="$(mktemp -d)"       # throwaway profile
-export SKILL_FOLDER="$PWD/my-skills/aisle-sorter"
 HOME="$SKILL_TEST_HOME" VOOL_HOME="$SKILL_TEST_HOME/vool" VOOL_PLUGINS_DIR="$SKILL_TEST_HOME/plugins" \
 PYTHONPATH="$VOOL_SRC" python - <<'PY'
 import os
@@ -254,7 +264,8 @@ remove the aisle-sorter skill
 > Turned off `aisle-sorter` for all of VOOL. Its files and versions were kept.
 
 The skill stops loading from the next message and its folder is moved aside, not deleted. To use it again,
-import or install it again. Built-in and Browse skills cannot be removed this way.
+import or install it again; that install says **Added** and starts a new version history.
+Built-in and Browse skills cannot be removed this way.
 
 ## 9. Publish
 

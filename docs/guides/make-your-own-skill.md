@@ -30,7 +30,8 @@ You can say where the skill should work:
 | **for this project** | every chat in this project (the chat must belong to a project) |
 | **for all of VOOL** | every chat. This is also what you get if you say nothing. |
 
-You can also give it a name straight away: *make me a skill called aisle-sorter that ...*.
+Put **that** after the place: *make me a skill for this project that ...*. You can also give
+it a name straight away: *make me a skill called aisle-sorter that ...*.
 
 ## 2. Give it a name, if VOOL asks
 
@@ -40,7 +41,7 @@ draft. When no model answers, VOOL writes the skill from your own words and asks
 > What should I call this skill? For example: Shopping list by aisle.
 
 Type a short name, for example **Shopping list by aisle**. Words like "ok" or "thanks" are not
-taken as a name; VOOL asks again. Say **never mind** to stop.
+taken as a name; VOOL asks again. To stop, just ask about something else.
 
 VOOL then shows you the draft:
 
@@ -48,7 +49,9 @@ VOOL then shows you the draft:
 * **Trigger words:** short phrases that tell VOOL to use the skill (more on these below).
 * **What it tells me to do:** the instructions themselves.
 
-Read it. If something is wrong, change it the way step 7 shows, before you turn it on.
+Read it. A draft written without an AI model copies your words, so its trigger words can look
+odd; the skill is still picked by its name and the words you used. If something is wrong, change
+it the way step 7 shows, before you turn it on.
 
 ## 3. Allow
 
@@ -104,8 +107,9 @@ skill you mean:
 
 > Change the skill "Shopping list by aisle" so that it sorts by aisle and puts frozen food last.
 
-Describe the whole job you want, not only the new part. When no AI model answers, VOOL writes
-the new version from the words of this message alone.
+Describe the whole job you want, not only the new part, with the words you will really use.
+When no AI model answers, VOOL writes the new version, trigger words included, from the words
+of this message alone.
 
 VOOL shows the new version and says it is not on yet. Say **turn it on** and click **Allow
 once**. This time VOOL says **Updated** instead of Added:
@@ -114,9 +118,25 @@ once**. This time VOOL says **Updated** instead of Added:
 
 Changed your mind? Every version is kept. Say *roll back the shopping-list-by-aisle skill*
 and VOOL lists the versions it has; then say which one, for example *roll back the
-shopping-list-by-aisle skill to version 1*.
+shopping-list-by-aisle skill to version 1*, and click **Allow once**. The old version is used
+from your next message.
 
-## 8. Turn it off or remove it
+## 8. Share it
+
+> Share the skill "Shopping list by aisle"
+
+(*export the skill "..."* works too.) Click **Allow once**; VOOL saves the skill as a zip file and tells you where.
+Send that file to a friend. They attach the zip to a message in their VOOL chat and say:
+
+> import this skill
+
+or *import this skill for this chat*. VOOL shows them the skill first. It is not on until they
+say **turn it on**. Share a skill while it is on: a skill you turned off cannot be shared.
+
+The zip holds only the skill's instructions. VOOL refuses a zip that carries programs or other
+files.
+
+## 9. Turn it off or remove it
 
 > Turn off the skill "Shopping list by aisle"
 
@@ -125,24 +145,10 @@ shopping-list-by-aisle skill to version 1*.
 
 > Turned off `shopping-list-by-aisle` for all of VOOL. Its files and versions were kept.
 
-VOOL stops using it from your next message and keeps a copy. To use it again, make it again
-or import its zip file (see the next step). This works for skills you made or imported, not
+VOOL stops using it from your next message and it leaves *which skills do I have?*; a copy is
+kept. There is no "turn it back on" by name: to use it again, import its zip file (step 8) or
+make it again. This works for skills you made or imported, not
 for the skills that come with VOOL.
-
-## 9. Share it
-
-> Share the skill "Shopping list by aisle"
-
-(*export the skill "..."* works too.) VOOL saves the skill as a zip file and tells you where.
-Send that file to a friend. They attach the zip to a message in their VOOL chat and say:
-
-> import this skill
-
-or *import this skill for this chat*. VOOL shows them the skill first. It is not on until they
-say **turn it on**.
-
-The zip holds only the skill's instructions. VOOL refuses a zip that carries programs or other
-files.
 
 ## How VOOL decides to use your skill
 
@@ -174,9 +180,9 @@ draft. If VOOL misses your skill later, change it and add the missing words.
   phrases (step 7), or name the skill in your message.
 * **VOOL uses your skill when you did not want it.** Make its trigger phrases more specific, or
   turn it off.
-* **"Which skill should I turn off?"** or **"I need to know what it should do"** when changing
-  a skill. VOOL could not tell which skill you meant. Put its name in quotes, exactly as the
-  skill list shows it.
+* **"I need to know what it should do"**. VOOL could not tell what you asked for or which skill
+  you meant. Start with *make me a skill that ...*, or put the skill's name in quotes, exactly
+  as the skill list shows it.
 * **"I can't keep a skill for this project"**. This chat is not part of a project. Say *for
   this chat* or *for all of VOOL* instead.
 * **"I did not import ..."** VOOL explains why. A skill zip may only hold the skill itself, plus
