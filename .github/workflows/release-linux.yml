@@ -112,4 +112,27 @@ jobs:
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes 'Release artifacts awaiting final approval.'
           fi
-          gh release upload "$RELEASE_TAG" assets/*.tar.gz assets/*-package-update.zip assets/*.sha256
+          # The publish may already have attached the signed package (its manifest pins those exact
+          # bytes). An asset already on the release is never replaced; its published checksum is
+          # compared with this build's and both are reported. Only missing assets are uploaded.
+          existing="$(gh release view "$RELEASE_TAG" --json assets -q '.assets[].name')"
+          missing=()
+          for f in assets/*.tar.gz assets/*-package-update.zip assets/*.sha256; do
+            name="$(basename "$f")"
+            if ! grep -Fxq "$name" <<<"$existing"; then
+              missing+=("$f")
+              continue
+            fi
+            if [[ "$name" != *.sha256 ]]; then
+              built="$(sha256sum "$f" | cut -d' ' -f1)"
+              kept="$(gh release download "$RELEASE_TAG" --pattern "$name.sha256" --output - | cut -d' ' -f1)"
+              if [[ "$built" == "$kept" ]]; then
+                echo "kept: $name is already on $RELEASE_TAG with the same sha256 $kept"
+              else
+                echo "::notice::kept the published $name (sha256 $kept); this rebuild is $built and was not uploaded"
+              fi
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            gh release upload "$RELEASE_TAG" "${missing[@]}"
+          fi

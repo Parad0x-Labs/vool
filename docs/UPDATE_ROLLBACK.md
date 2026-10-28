@@ -15,6 +15,11 @@ Press it to restore that copy's backend and frontend code. Your current chats,
 memory, facts, keys and settings stay in the existing runtime home, including
 records created after the update. Destructive work must finish first.
 
+The Linux download (the tarball install in `~/.local/share/vool`) does not offer
+**Roll back** yet. Its update is installed next to the running version, and the
+previous version folder is kept. If the new version does not start properly,
+VOOL switches `current` back to the previous version by itself.
+
 The terminal command also works when VOOL cannot start. Use the same runtime
 home and installation that you normally use. It asks a running app to honor its
 work gate; when the API is unavailable it starts the detached recovery helper.
@@ -26,7 +31,7 @@ cd "$APP_BUNDLE/Contents/Resources/app"
 ../python/bin/python3 -m installer.update_cli rollback --i-pressed-rollback --wait
 ```
 
-For a Linux installer-source installation:
+For a Linux installer-source installation (not the tarball install):
 
 ```sh
 cd "$VOOL_INSTALL_DIR"
