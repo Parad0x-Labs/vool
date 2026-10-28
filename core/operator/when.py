@@ -38,14 +38,37 @@ _ZONE_RE = re.compile(
 _ZONE_SLASH_RE = re.compile(r"\b([A-Za-z][A-Za-z_]*(?:/[A-Za-z0-9_+\-]+){1,2})\b")
 _ZONE_ROOTS = frozenset(z.split("/")[0] for z in available_timezones() if "/" in z)
 _ISO_DATETIME_RE = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?\b")
+# What may FOLLOW a number that names a time: a day word ("at 9 tomorrow", "the 3rd tomorrow
+# at 11"), a part of the day ("at 3 in the afternoon", "the 3rd morning"), the prepositions a
+# time phrase itself uses ("at", "in", "on"), "of this/next month", a word that starts the
+# subject or a new clause (to, about, for, that, and, so, please) and the clock suffix
+# "o'clock". Anything else -- and that is every noun ("the 2nd show", "the 1st aid kit",
+# "at 9 Elm Street", "my 2nd attempt") -- makes the number a count, a label or an address,
+# never a date or a clock time. No noun list can name them all, so the follower decides.
+_TIME_END_WORDS = (
+    r"(?:today|tonight|tomorrow|yesterday"
+    r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|morning|noon|midday|afternoon|evening|night|midnight"
+    r"|this\s+(?:morning|afternoon|evening|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    r"|at|in|on|to|about|for|that|and|so|please"
+    r"|o'?clock"
+    r"|of\s+(?:this|next)\s+month)\b"
+)
+# A space-then-word that is not one of those: what a noun after a number looks like.
+_FOLLOWED_BY_A_NOUN = r"\s+(?!" + _TIME_END_WORDS + r")\w"
 _TIME_RE = re.compile(
     r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b"
     # A bare 24-hour clock ("tomorrow 15:00"), the form this lane's own clarifications suggest.
     r"|(?<![\d:.\-/])\b(\d{1,2}):(\d{2})\b(?![:.]?\d)"
     # A bare hour after "at" ("tomorrow at 9", "the 21st at 11"): no minutes, no am/pm. A decimal
-    # ("9.30") is not one, but a sentence period ("at 9.") is. A number that is not after "at" is
-    # never a clock time ("buy 9 eggs"): see the Job 5 rules in this module.
-    r"|\bat\s+(\d{1,2})(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:st|nd|rd|th)\b)",
+    # is its own alternative below ("at 9.30"), a sentence period ("at 9.") is fine, and a number
+    # that is not after "at" is never a clock time ("buy 9 eggs"). A noun after the hour
+    # ("I live at 9 Elm Street") is an address, so the FIRST "at 9" is skipped and a later
+    # "at 10" in the same sentence is the time.
+    r"|\bat\s+(\d{1,2})(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:st|nd|rd|th)\b|" + _FOLLOWED_BY_A_NOUN + r")"
+    # A decimal clock after "at" ("at 9.30 tomorrow"): the point is the colon people did not
+    # type, with an optional am/pm, and the same not-followed-by-a-noun rule.
+    r"|\bat\s+(\d{1,2})\.(\d{2})(?!\d)(?:\s*(am|pm)\b)?(?!" + _FOLLOWED_BY_A_NOUN + r")",
     re.IGNORECASE,
 )
 _IN_RELATIVE_RE = re.compile(
@@ -81,22 +104,21 @@ _WORD_DATE_RE = re.compile(
 # A month and year with no day ("May 2026") names no single date: asked about, never dropped.
 _MONTH_YEAR_RE = re.compile(r"\b" + _MONTH_WORD.format(name="month") + r",?\s+20\d{2}\b(?!:)", re.IGNORECASE)
 _DAY_RE = re.compile(
-    r"\b(yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    r"\b(yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|last\s+(?:night|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b",
     re.IGNORECASE,
 )
-# A day of the month with no month word ("on the 3rd at 11", "the 21st"). An ordinal followed by
-# a counting or naming noun ("the 3rd time", "my 2nd attempt", "the 4th floor") is a count or a
-# label, not a date, so those never match.
-_ORDINAL_NOT_A_DAY = (
-    r"times?|attempts?|floors?|tries?|chances?|rounds?|places?|options?|versions?|editions?|grades?"
-    r"|rows?|seats?|pages?|steps?|items?|goals?|points?|games?|matches?|sets?|reps?|laps?|books?"
-    r"|chapters?|episodes?|parts?|instal?ments?|birthdays?|anniversar(?:y|ies)|meetings?|sessions?"
-    r"|interviews?|calls?|dates?|part(?:y|ies)|hal(?:f|ves)|quarters?|innings?|waves?|gears?|choices?"
-    r"|picks?|drafts?|readings?|warnings?|notices?|alerts?|reports?|emails?|messages?|notes?|reminders?"
-    r"|drinks?|beers?|meals?"
-)
+# A day of the month with no month word ("on the 3rd at 11", "the 21st"). The ordinal is a date
+# only when what FOLLOWS it could follow a date: the end of the sentence, punctuation, a clock
+# time or "at", a day or part-of-day word, "of this/next month", or a word that starts the
+# subject or a new clause. A noun after it ("the 2nd show", "the 1st aid kit", "the 3rd time",
+# "the 4th floor") is a count or a label, not a date -- no noun list can name every noun, so
+# the follower decides (the same rule the bare hour after "at" follows).
 _DAY_OF_MONTH_RE = re.compile(
-    r"\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b(?!\s*(?:" + _ORDINAL_NOT_A_DAY + r")(?!\w))",
+    r"\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b"
+    r"(?=\s*(?:$|[.,;:!?)]|\"|\b(?:at|am|pm)\b"
+    r"|\b\d{1,2}\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b"
+    r"|" + _TIME_END_WORDS + r"))",
     re.IGNORECASE,
 )
 # A part of the day people say instead of a clock time ("tomorrow afternoon", "this evening",
@@ -270,6 +292,10 @@ def _parse_when_expression(
         day_word = day_match.group(1)
         zone_now = now.astimezone(zone)
         target_date = _date_for_day_word(day_word, zone_now)
+        if _is_ending_midnight(time_match, part_match) and day_word.lower() in ("today", "tonight"):
+            # "at 12 tonight" is the midnight that ends tonight: 00:00 tomorrow, not the
+            # already-passed first minute of today.
+            target_date = target_date + timedelta(days=1)
         if time_match is None:
             # A past day with no clock time is asked about as a day that has passed, never
             # offered a time on it ("remind me yesterday ..."). With a clock time the parser
@@ -305,6 +331,9 @@ def _parse_when_expression(
         target = zone_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         # "this evening at 7" means today, so it never rolls to tomorrow; a bare clock time does.
         if target <= zone_now and not _says_this_part(text, part_match):
+            target = target + timedelta(days=1)
+        if _is_ending_midnight(time_match, part_match) and _says_this_part(text, part_match):
+            # "at 12 this evening" is the midnight that ends today: 00:00 tomorrow.
             target = target + timedelta(days=1)
         return _resolve_wall(
             target.year, target.month, target.day, hour, minute,
@@ -450,6 +479,17 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
         if not 1 <= hour <= 23:
             raise ValueError("Give me a valid clock time: a bare hour after 'at' is 1 to 23, or use am/pm or HH:MM.")
         return hour, 0
+    if match.group(9) is not None:
+        # A decimal clock after "at" ("at 9.30"): the point is the colon people did not type.
+        hour, minute = int(match.group(9)), int(match.group(10))
+        meridiem = str(match.group(11) or "").lower()
+        if not 1 <= hour <= 23 or not 0 <= minute <= 59:
+            raise ValueError("Give me a valid clock time: hours 00-23 and minutes 00-59.")
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+        return hour, minute
     if match.group(4) is not None:
         hour, minute = int(match.group(4)), int(match.group(5))
     else:
@@ -482,10 +522,27 @@ def _read_clock(time_match: re.Match, text: str) -> tuple[int, int]:
     """A clock match read against its whole sentence, so a bare hour after "at" lands on the
     side of noon the sentence names ("at 9 tonight" is 21:00)."""
     hour, minute = _clock_from_match(time_match)
-    if time_match.group(8) is not None:
+    bare_after_at = time_match.group(8) is not None or (
+        time_match.group(9) is not None and time_match.group(11) is None
+    )
+    if bare_after_at:
         part = _part_of_day_match(text)
         hour = _bare_hour_wall(hour, part.group(1).lower() if part is not None else None)
     return hour, minute
+
+
+def _is_ending_midnight(time_match: re.Match | None, part_match: re.Match | None) -> bool:
+    """A bare 12 with an evening part word ("at 12 tonight", "at 12 this evening") is the
+    midnight that ENDS the day it names, not that day's first minute: on today that reads
+    00:00 tomorrow, an instant still ahead, where 00:00 today has already passed."""
+    if time_match is None or part_match is None:
+        return False
+    hour_text = time_match.group(8) if time_match.group(8) is not None else time_match.group(9)
+    if hour_text is None or int(hour_text) != 12:
+        return False
+    if time_match.group(9) is not None and time_match.group(11) is not None:
+        return False  # "at 12.00 am" is already anchored to a side of noon
+    return part_match.group(1).lower() in ("evening", "night", "tonight")
 
 
 def _bare_hour_wall(hour: int, part_word: str | None) -> int:
@@ -509,8 +566,10 @@ def _resolve_day_of_month(
     match: re.Match, text: str, zone: Any, tz_name: str, *, now: datetime,
 ) -> WhenResolution:
     """A day of the month with no month word ("on the 3rd", "the 21st at 11"): the next time
-    that day comes round, this month if the time is still ahead, else next month. A month
-    without that day (the 31st in November) is asked about, never moved to another day."""
+    that day comes round, this month if the time is still ahead, else next month -- unless the
+    sentence names the month ("the 30th of next month"): that month is the one, and a "this
+    month" day already read stays in the past for `has_passed` to refuse. A month without that
+    day (the 31st in November) is asked about, never moved to another day."""
     day = int(match.group(1))
     if not 1 <= day <= 31:
         return WhenResolution(
@@ -520,6 +579,14 @@ def _resolve_day_of_month(
     said = re.sub(r"^on\s+", "", match.group(0).strip(), flags=re.IGNORECASE)
     zone_now = now.astimezone(zone)
     rest = text[:match.start()] + " " + text[match.end():]
+    # "the 30th of next month" names WHICH month, so the day is not rolled to the next time it
+    # comes round: "next" is the month after this one, and "this" is this one even when that day
+    # has already passed (a caller that needs a future instant refuses it, as for "yesterday").
+    month_of = re.match(r"\s*of\s+(this|next)\s+month\b", text[match.end():], re.IGNORECASE)
+    if month_of:
+        offsets = (0,) if month_of.group(1).lower() == "this" else (1,)
+    else:
+        offsets = (0, 1)
     time_match = _TIME_RE.search(text)
     if time_match is not None:
         try:
@@ -536,7 +603,7 @@ def _resolve_day_of_month(
             )
         hour, minute = _PART_SEED_HOURS[part_match.group(1).lower()], 0
         time_basis = str(part_match.group(0)).strip()
-    for month_offset in (0, 1):
+    for month_offset in offsets:
         year = zone_now.year + (zone_now.month - 1 + month_offset) // 12
         month = (zone_now.month - 1 + month_offset) % 12 + 1
         month_name = calendar.month_name[month]
@@ -546,7 +613,7 @@ def _resolve_day_of_month(
                 problem=f"{month_name} has no day {day}. Tell me the date you mean, with the day, the month and a clock time.",
             )
         candidate = zone_now.replace(year=year, month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
-        if month_offset == 0 and candidate <= zone_now:
+        if month_offset == 0 and candidate <= zone_now and month_of is None:
             continue  # that day already came and went this month: the next one it comes round
         for day_word in _DAY_RE.finditer(rest):
             if _date_for_day_word_on(day_word.group(1), candidate.date(), zone_now) is False:
@@ -571,6 +638,15 @@ def _date_for_day_word(day_word: str, zone_now: datetime) -> datetime:
         # Read as said: a past day stays in the past, and a caller that needs a future
         # instant refuses it (see `has_passed`), instead of rolling it into the future.
         return zone_now.date() - timedelta(days=1)
+    if word.startswith("last "):
+        # "last night" and "last friday" name a day that has already happened, exactly like
+        # "yesterday": read them as said (the night before, the previous weekday) and let the
+        # past-day reply and `has_passed` see the past, never a rolled-forward day.
+        named = word.split(None, 1)[1]
+        if named == "night":
+            return zone_now.date() - timedelta(days=1)
+        back = (zone_now.weekday() - _WEEKDAY_ORDER.index(named)) % 7 or 7
+        return zone_now.date() - timedelta(days=back)
     target_weekday = _WEEKDAY_ORDER.index(word)
     days_ahead = (target_weekday - zone_now.weekday()) % 7
     if days_ahead == 0:

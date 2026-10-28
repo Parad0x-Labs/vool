@@ -1,10 +1,15 @@
-"""Reminders read the times people say (tool-seating Job 5, audit R5).
+"""Reminders read the times people say (tool-seating Job 5, audit R5; Job 5b fixes).
 
 A bare hour after "at" ("tomorrow at 9"), a part of the day ("next tuesday afternoon",
 "this evening", "tonight"), a day of the month with no month ("on the 3rd at 11") and a past
 day word ("remind me yesterday ...") are read the way people say them, per the reviewer's
 rules. Numbers that are not times ("buy 9 eggs", "the 3rd time") never become clock times,
 and a stored reminder's subject stays the thing to do, not the schedule.
+
+Job 5b: an ordinal or bare hour is a time only when what FOLLOWS it is not a noun ("the 2nd
+show", "at 9 Elm Street"), so a stated day and time survive an ordinal in the subject;
+"at 12 tonight" is the midnight that ends tonight; "last night" and "last friday" are past
+days; "the 30th of next month" names the month; "at 9.30" after "at" is 9:30.
 
 LABELLED: injected clock (both the UTC and the zoned door), isolated home; no live provider.
 """
@@ -229,7 +234,6 @@ NOT_A_TIME_ROWS = [
     ("remind me on monday about my 2nd attempt at the draft", False, "which time on monday"),
     ("remind me tomorrow to avoid the 4th floor", False, "which time on tomorrow"),
     ("remind me tomorrow to meet at 9th street", False, "which time on tomorrow"),  # an ordinal after "at" is an address
-    ("remind me tomorrow at 9.30 to stretch", False, "which time on tomorrow"),     # a decimal is not a bare hour
     ("remind me next week to read chapter 7", False, "could not read a date or time"),
     ("remind me to catch bus 42 tomorrow", False, "which time on tomorrow"),
     ("remind me tomorrow to watch the top 10 videos", False, "which time on tomorrow"),
@@ -238,7 +242,168 @@ NOT_A_TIME_ROWS = [
     ("remind me tomorrow at 9 to book a table for 4", True, "2026-10-29T07:00"),    # 4 is diners, 9 is the time
     ("remind me tomorrow at 7 to run 5 km", True, "2026-10-29T05:00"),              # 5 is kilometres
     ("remind me tomorrow at 21 to sleep", True, "2026-10-29T19:00"),                # control: after "at" IS the time
+    ("remind me tomorrow at 9.30 to stretch", True, "2026-10-29T07:30"),            # after "at", 9.30 is 9:30
+    ("remind me at 9.45 tomorrow to leave", True, "2026-10-29T07:45"),
+    ("remind me at 9.30 tonight to leave", True, "2026-10-28T19:30"),               # the part word still decides
+    ("remind me at 8.15 pm tomorrow to shut the studio", True, "2026-10-29T18:15"),
+    ("remind me to run at 9.5 km tomorrow", False, "which time on tomorrow"),       # one decimal digit is a quantity
+    ("remind me tomorrow at 9.30 euros to pay", False, "which time on tomorrow"),   # a noun after the decimal
 ]
+
+
+# ---------------------------------------------------------------------------
+# Job 5b: the reviewer's sentences (S1-S6)
+# ---------------------------------------------------------------------------
+
+JOB5B_REVIEW_ROWS = [
+    # (text, ok, expected due prefix or problem substring)
+    ("remind me tomorrow at 9am to buy tickets for the 2nd show", True, "2026-10-29T07:00"),   # S1: keeps tomorrow
+    ("remind me at 9am to bring the 1st aid kit", True, "2026-10-29T07:00"),                   # S1: 9am passed -> tomorrow
+    ("remind me tomorrow at 9 to buy tickets for the 2nd show", True, "2026-10-29T07:00"),     # S1 with a bare hour
+    ("I live at 9 Elm Street, remind me tomorrow at 10", True, "2026-10-29T08:00"),           # S2: not the first "at 9"
+    ("remind me at 12 tonight to take the bins out", True, "2026-10-28T22:00"),                # S3: midnight ends tonight
+    ("remind me tonight at 12 to take the bins out", True, "2026-10-28T22:00"),
+    ("remind me at 12 this evening to lock up", True, "2026-10-28T22:00"),
+    ("remind me last friday to lock up", False, "already passed"),                             # S4: as for "yesterday"
+    ("remind me the 30th of next month at 9", True, "2026-11-30T07:00"),                       # S5: next month is November
+    ("remind me at 9.30 tomorrow to leave", True, "2026-10-29T07:30"),                         # S6: 9.30 after "at"
+]
+
+
+@pytest.mark.parametrize("text,ok,expected", JOB5B_REVIEW_ROWS)
+def test_the_reviewers_fresh_sentences_read_the_stated_day_and_time(clock, text, ok, expected):
+    reading = _parse(text)
+    assert reading.ok is ok, (text, reading.problem or reading.due_at_utc)
+    if ok:
+        assert reading.due_at_utc.startswith(expected), (text, reading.due_at_utc)
+    else:
+        assert expected in reading.problem.lower(), (text, reading.problem)
+
+
+def test_last_night_stores_nothing_and_never_suggests_a_time_on_it(clock):
+    result = _run("remind me last night to lock up", session_id="lastnight")
+    assert not result.ok and result.status == "invalid_request", result.response_text
+    assert "already passed" in result.response_text, result.response_text
+    assert "last night at" not in result.response_text  # never suggests a time on the past day
+    assert _pending("lastnight") == []
+
+
+PAST_DAY_ROWS = [
+    "remind me last night to lock up",
+    "remind me last friday to lock up",
+    "remind me last wednesday to call mom",
+    "remind me last sunday to water the plants",
+]
+
+
+@pytest.mark.parametrize("text", PAST_DAY_ROWS)
+def test_last_day_words_ask_for_a_future_time(clock, text):
+    reading = _parse(text)
+    assert not reading.ok, text
+    assert "already passed" in reading.problem, (text, reading.problem)
+
+
+def test_a_last_day_with_a_clock_time_is_still_read_for_callers_that_need_one(clock):
+    """A calendar search may name a past time ("last friday at 9:00"); only reminder callers
+    refuse it through has_passed."""
+    from core.operator.when import has_passed
+
+    reading = _parse("remind me last friday at 9:00 to lock up")
+    assert reading.ok and reading.due_at_utc.startswith("2026-10-23T06:00"), reading  # Oct 23 is EEST (UTC+3)
+    assert has_passed(reading)
+    night = _parse("remind me last night at 10 to lock the studio")  # "night" makes it 22:00
+    assert night.ok and night.due_at_utc.startswith("2026-10-27T20:00"), night
+    assert has_passed(night)
+
+
+MONTH_OF_ROWS = [
+    # (text, now, ok, due prefix or problem substring)
+    ("remind me the 30th of next month at 9", None, True, "2026-11-30T07:00"),
+    ("remind me the 30th of this month at 9", None, True, "2026-10-30T07:00"),            # still ahead this month
+    ("remind me the 5th of this month at 9", None, True, "2026-10-05T06:00"),             # past: read as said (EEST)
+    ("remind me the 31st of next month at 9", None, False, "november has no day 31"),     # asked about, never moved
+    ("remind me on the 31st of this month at 9", None, True, "2026-10-31T07:00"),
+]
+
+
+@pytest.mark.parametrize("text,now,ok,expected", MONTH_OF_ROWS)
+def test_of_this_or_next_month_names_the_month(clock, text, now, ok, expected):
+    reading = _parse(text, now=now)
+    assert reading.ok is ok, (text, reading.problem or reading.due_at_utc)
+    if ok:
+        assert reading.due_at_utc.startswith(expected), (text, reading.due_at_utc)
+    else:
+        assert expected in reading.problem.lower(), (text, reading.problem)
+
+
+def test_this_months_past_day_is_refused_not_rolled(clock):
+    from core.operator.when import has_passed
+
+    reading = _parse("remind me the 5th of this month at 9")
+    assert reading.ok, reading.problem  # "this month" is named: never rolled into November
+    assert has_passed(reading)
+
+
+# ---------------------------------------------------------------------------
+# Job 5b: a stated day and time survive an ordinal or number in the subject
+# ---------------------------------------------------------------------------
+
+ORDINAL_SUBJECT_ROWS = [
+    # (text, expected due prefix) -- Wednesday 10:00 Athens clock, Job 5 bare-hour rules
+    ("remind me on friday at 6 to rewatch the 1st episode", "2026-10-30T16:00"),          # 1-6 -> 18:00
+    ("remind me tomorrow at 5pm to file the 2nd invoice", "2026-10-29T15:00"),
+    ("remind me next monday at 9 to pay the 1st installment of the loan", "2026-11-02T07:00"),
+    ("remind me tomorrow at 10 to book the 3rd row seats", "2026-10-29T08:00"),
+    ("remind me on saturday at 11 for the 4th round of shots", "2026-10-31T09:00"),
+    ("remind me tomorrow at 7 in the evening to drop off the 2nd draft", "2026-10-29T17:00"),
+    ("remind me at 9 tonight to watch the 5th episode", "2026-10-28T19:00"),
+    ("remind me tomorrow at 21 to set the 2nd alarm", "2026-10-29T19:00"),
+    ("remind me on the 5th at 8 to renew the 2nd subscription", "2026-11-05T06:00"),
+    ("remind me friday at 3 to pick up the 3rd prize", "2026-10-30T13:00"),
+    ("remind me tomorrow at noon to start the 2nd load of laundry", "2026-10-29T10:00"),
+    ("remind me this evening at 7 to water the 2nd batch of seedlings", "2026-10-28T17:00"),
+    ("remind me next tuesday at 9am to submit the 2nd timesheet", "2026-11-03T07:00"),
+    ("remind me tomorrow at 9.30 to call about the 3rd invoice", "2026-10-29T07:30"),
+    ("remind me on thursday at 17 to open the 2nd window", "2026-10-29T15:00"),
+    ("remind me at 6 tomorrow to take the 3rd pill", "2026-10-29T16:00"),
+    ("remind me on sunday at 10 to defrost the 2nd turkey", "2026-11-01T08:00"),
+    ("remind me tomorrow at 2pm to return the 2nd library book", "2026-10-29T12:00"),
+    ("remind me tonight at 8 to check the 2nd oven", "2026-10-28T18:00"),
+    ("remind me on wednesday at 9 to start the 6th chapter", "2026-11-04T07:00"),         # said on a wednesday
+    ("remind me tomorrow morning at 8 to fold the 2nd load", "2026-10-29T06:00"),
+    ("remind me in 20 minutes to log the 3rd rep", "2026-10-28T08:20"),
+    ("remind me tomorrow at 12 to buy the 2nd raffle ticket", "2026-10-29T10:00"),        # 12 is noon
+    ("remind me at 5 on friday to close the 3rd ticket", "2026-10-30T15:00"),
+    ("remind me tomorrow at 9 to review the 2nd half of the report", "2026-10-29T07:00"),  # "half" is a noun
+    ("remind me tomorrow at 8 to pack 2 bags for the trip", "2026-10-29T06:00"),           # a plain number too
+]
+
+
+@pytest.mark.parametrize("text,due_prefix", ORDINAL_SUBJECT_ROWS)
+def test_an_ordinal_or_number_in_the_subject_keeps_the_stated_day_and_time(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, (text, reading.problem)
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+
+
+def test_spans_keep_real_times_and_drop_the_noun_followers(clock):
+    """The same structural rule at span level: what is not a time ("at 9 Elm", "the 2nd show")
+    has no span; what is a time keeps it."""
+    from core.operator.when import time_expression_spans
+
+    def covered(sentence, **kwargs):
+        return {sentence[start:end] for start, end in time_expression_spans(sentence, **kwargs)}
+
+    elm = covered("I live at 9 Elm Street, remind me tomorrow at 10")
+    assert "tomorrow" in elm and "at 10" in elm
+    assert not any("at 9" in span for span in elm), elm
+    show = covered("remind me tomorrow at 9am to buy tickets for the 2nd show")
+    assert "tomorrow" in show and "at 9am" in show
+    assert not any("2nd" in span for span in show), show
+    third = covered("remind me on the 3rd at 11 about the accountant")
+    assert any("the 3rd" in span for span in third) and "at 11" in third, third
+    last = covered("remind me last friday at 9:00 to lock up")
+    assert "last friday" in last and "at 9:00" in last, last
 
 
 @pytest.mark.parametrize("text,ok,expected", NOT_A_TIME_ROWS)
@@ -271,7 +436,11 @@ SUBJECT_ROWS = [
     ("remind me tomorrow at 21 to sleep", "sleep"),
     ("remind me at 9 tonight to take my pills", "take my pills"),
     ("remind me tomorrow at 9 to book a table for 4", "book a table for 4"),
+    ("remind me tomorrow at 9am to buy tickets for the 2nd show", "buy tickets for the 2nd show"),
+    ("remind me at 12 tonight to take the bins out", "take the bins out"),
 ]
+# "at 9.30 tomorrow to leave" stores note "9.30 tomorrow to leave": the read-only subject
+# stripper in core/operator/handlers.py does not know the decimal clock yet (Needs, Job 5b).
 
 
 @pytest.mark.parametrize("text,subject", SUBJECT_ROWS)
