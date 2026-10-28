@@ -265,6 +265,7 @@ def _claude_lane(model: str, key: str, **config):
                 "base_url": "https://api.anthropic.com/v1",
                 "api_path": "/messages",
                 "protocol": "anthropic_messages",
+                "supports_json_mode": True,  # as the registered lane (core.runtime_provider_defaults)
                 "supports_json_schema": True,
                 "timeout_seconds": 60.0,
                 "headers": {"anthropic-version": "2023-06-01"},
