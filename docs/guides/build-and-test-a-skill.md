@@ -276,6 +276,9 @@ Built-in and Browse skills cannot be removed this way.
 
 ## 9. Publish
 
+Adding a skill to the shared library (Skill Codex) is not open to every author yet. Until it is,
+share a skill as its zip file: anyone can import it with *import this skill* (section 3, Route A).
+
 Publishing to Skill Codex is a separate, reviewed process with its own metadata, licence and
 consent rules. Continue from the `package-draft` you linted in section 2 and follow the
 author guide, `AUTHOR-GUIDE.md` in the repository's
