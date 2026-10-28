@@ -7836,10 +7836,40 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
     by what the skill means to the person, and paths stay in the result details.
     """
 
+    from core.native_skill_library import disabled_skill_ids, skill_inventory
     from core.skill_scopes import SCOPE_LABELS
     from core.skill_tools import list_skills, plugins_root
 
     result = list_skills(str(arguments.get("workspace") or ""), keys=_skill_scope_keys(source_context))
+
+    # On/Off is read from the ONE disable store the skill picker reads (live from disk: native
+    # contracts by id, plain installed skills by name), so the list can never disagree with a
+    # turn that just seated or skipped the same skill.
+    disabled = set(disabled_skill_ids())
+    # The row's own availability: a built-in whose prerequisites or capabilities this machine
+    # cannot honour (media-studio on a fresh profile) is "not available here", never "on".
+    native_runs: dict[str, bool] = {
+        str(row.get("id") or ""): bool(row.get("available")) for row in skill_inventory()
+    }
+    # Browse rows run only while their add-on serves skills here: the same managed/available
+    # and lifecycle checks the picker applies, plus the add-on's own off switch.
+    plugin_off: set[str] = set()
+    plugin_serving: set[str] | None = None
+    try:
+        from core.addon_store import available as _addon_available
+        from core.addon_store import is_managed
+        from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
+        from core.plugin_lifecycle import is_available as _plugin_is_available
+        from core.plugin_lifecycle import record_for
+
+        plugin_off = {str(pid) for pid in _disabled_ids()}
+        plugin_serving = {
+            str(pid) for pid, path in discovered_plugin_sources()
+            if (not is_managed(pid) or _addon_available(pid, path))
+            and (record_for(pid) is None or _plugin_is_available(pid, root=path))
+        }
+    except Exception:
+        plugin_serving = None
 
     def _plain_use(row: dict[str, Any]) -> str:
         # One line of plain words; the reply itself must never become a path listing.
@@ -7851,30 +7881,51 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             r"\s+", " ", first_line.replace("`", "").replace(".md", "").replace("/", " ")
         ).strip()
 
-    def _row(row: dict[str, Any], *, off: bool) -> str:
+    def _state(row: dict[str, Any], *, kind: str) -> str:
+        # off beats not-available: a skill the person turned off says off even when it also
+        # could not run here. Drafts are off by nature (the section title says why).
+        if kind == "draft":
+            return "off"
+        name = str(row.get("name") or "").strip()
+        if name and name in disabled:
+            return "off"
+        if kind == "native" and name in native_runs and not native_runs[name]:
+            return "not available here"
+        if kind == "browse":
+            plugin_id = _plugin_id(row)
+            if plugin_id and plugin_id in plugin_off:
+                return "off"
+            if plugin_id and plugin_serving is not None and plugin_id not in plugin_serving:
+                return "not available here"
+        return "on"
+
+    def _row(row: dict[str, Any], state: str) -> str:
         label = _display_name(str(row.get("name") or "?"))
         scope = str(row.get("scope") or "")
         if scope in ("chat", "project"):
             label += f", for {SCOPE_LABELS.get(scope, scope)}"
-        text = f"- {label} — {'off' if off else 'on'}"
+        text = f"- {label} — {state}"
         use = _plain_use(row)
         return f"{text} — {use}" if use else text
 
     seen: set[str] = set()
 
-    def _section(title: str, rows: list[dict[str, Any]], *, off: bool = False) -> tuple[str, int]:
+    def _section(title: str, rows: list[dict[str, Any]], *, kind: str = "own") -> tuple[str, int, int]:
         # Every skill once across the whole reply, first section wins: a draft of an
         # installed skill, or a Browse copy of it, must not earn a second row.
         lines: list[str] = []
+        on_count = 0
         for row in rows:
             key = _display_name(str(row.get("name") or "?")).lower()
             if not key or key in seen:
                 continue
             seen.add(key)
-            lines.append(_row(row, off=off))
+            state = _state(row, kind=kind)
+            on_count += state == "on"
+            lines.append(_row(row, state))
         if not lines:
-            return "", 0
-        return f"**{title}** ({len(lines)})\n" + "\n".join(lines), len(lines)
+            return "", 0, 0
+        return f"**{title}** ({len(lines)})\n" + "\n".join(lines), len(lines), on_count
 
     def _plugin_id(row: dict[str, Any]) -> str:
         # Installed rows sit under plugins/plugins/<plugin id>/skills/<name>/SKILL.md; that
@@ -7896,18 +7947,25 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             *(result.get("workspace_skills") or []),
             *mine_rows,
         ]),
-        _section("Built in", list(result.get("native_skills") or [])),
-        _section("Added from Browse", browse_rows),
-        _section("Drafts not turned on yet", list(result.get("staged_skills") or []), off=True),
+        _section("Built in", list(result.get("native_skills") or []), kind="native"),
+        _section("Added from Browse", browse_rows, kind="browse"),
+        _section("Drafts not turned on yet", list(result.get("staged_skills") or []), kind="draft"),
     ]
-    body = "\n\n".join(text for text, _count in sections if text)
+    body = "\n\n".join(text for text, _count, _on in sections if text)
     total = int(result.get("total") or 0)
     if not total:
         body = "No skills found. I looked in this chat, this project and the installed skills."
     elif sections[1][1] and not (sections[0][1] or sections[2][1] or sections[3][1]):
-        # Only built-ins exist: say the number in one line rather than opening with a heading.
+        # Only built-ins exist: say the number in one line rather than opening with a heading,
+        # counting only the ones that are really on here.
+        count, on_count = sections[1][1], sections[1][2]
+        head = (
+            f"You have {count} built-in skills on."
+            if on_count == count
+            else f"You have {count} built-in skills, {on_count} of them on."
+        )
         body = (
-            f"You have {sections[1][1]} built-in skills on.\n\n"
+            f"{head}\n\n"
             f"{sections[1][0]}\n\n"
             "To make your own, ask me: make me a skill that ..."
         )
@@ -7991,11 +8049,18 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
     )
     display = _display_name(str(result.get("name") or ""))
     where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
+    try:
+        version = int(result.get("version") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    # Version 2+ means a skill of this name was already installed: the person replaced it,
+    # so the reply says Updated, not Added.
+    verb = "Updated" if version >= 2 else "Added"
     return _skill_result(
         "skill.install",
         result,
         response=(
-            f'Added the skill "{display}"{where}. '
+            f'{verb} the skill "{display}"{where}. '
             "It is on from your next message."
         ),
     )

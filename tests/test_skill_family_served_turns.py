@@ -418,7 +418,7 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
         daemon, family_rig, "turn-life-install-2",
         "install the skill called served-echo-skill",
     )
-    assert 'Added the skill "Served echo skill". It is on from your next message.' in _answer(replayed), _answer(replayed)[:300]
+    assert 'Updated the skill "Served echo skill". It is on from your next message.' in _answer(replayed), _answer(replayed)[:300]
     assert history()["head_version"] == 2
     assert "three times" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert (skill_dir / "versions" / "v1.md").read_text(encoding="utf-8") == v1_bytes

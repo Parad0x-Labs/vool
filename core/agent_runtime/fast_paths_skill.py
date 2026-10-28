@@ -739,13 +739,96 @@ def _zip_attachments(session_id: str, source_context: dict[str, Any] | None) -> 
 
 _PATH_RE = re.compile(r"(?P<path>(?:~|/)[^\s`\"']+\.zip)\b", re.IGNORECASE)
 
+# The one line the no-model flow asks for a name with. It is asked AGAIN, byte for byte, when the
+# reply was an acknowledgement rather than a name: the person must see the ask still standing.
+_ASK_NAME_LINE = "What should I call this skill? For example: Shopping list by aisle."
+
 # The lead-ins a name answer may carry ("Call it Plant care"), and the ways a person drops the ask
-# instead of answering it. The answer itself is what is left once the lead-in is gone.
+# instead of answering it. The answer itself is what is left once the lead-ins are gone.
 _NAME_ANSWER_LEAD_RE = re.compile(
     r"^\s*(?:you\s+can\s+)?(?:call|name)\s+(?:it|this\s+skill|the\s+skill)\s+",
     re.IGNORECASE,
 )
 _NAME_ANSWER_BAILOUTS = frozenset({"never mind", "cancel", "stop", "no thanks", "forget it", "no"})
+# Bare negatives are the drop-out shape of the bail-outs above: the ask is refused, not answered.
+_NAME_ANSWER_NEGATIVE_RE = re.compile(r"^(?:nope|nah|no\s+way|not\s+now)[\s,;.:!-]*$", re.IGNORECASE)
+
+# The noises a reply makes before its content ("hmm", "uh, well, okay"). Stripped repeatedly,
+# BEFORE the "call it" lead-in, so "hmm, ok, call it Plant care" still yields the name; when
+# nothing is left, the reply was filler only and answers nothing.
+_NAME_FILLER_HEAD_RE = re.compile(
+    r"^(?:h+m+|m{2,}|uh+h*|um+m*|er+r*|ah+h*|eh+h*|o+h|well|like|so|right|okay|ok)\b[\s,;.:!-]*",
+    re.IGNORECASE,
+)
+
+# A name is a short noun phrase, and these three shapes are not one: acknowledgement ("ok",
+# "sounds good"), thanks, thinking aloud ("let me think", "give me a sec", "maybe"). Each is a
+# closed word class or a grammatical shape, so the reply itself decides -- "yes" to the ask would
+# otherwise name the skill "Yes" two turns later, and "hmm let me think" would name it "Hmm".
+_NAME_ACK_PHRASE_RE = re.compile(
+    r"^(?:okay|ok|k+|yes|yeah|yep|yup|ya|sure(?:\s+thing)?|alright|fine|good|great|cool|nice|"
+    r"awesome|perfecto?|lovely|agreed|absolutely|definitely|certainly|of\s+course|"
+    r"sounds\s+(?:good|great)|you\s+got\s+it|got\s+it|will\s+do|roger|done|deal|excellent|"
+    r"wonderful|brilliant|fab)\b[\s,;.:!-]*",
+    re.IGNORECASE,
+)
+_NAME_THANKS_PHRASE_RE = re.compile(
+    r"^(?:(?:many\s+)?thanks?|thank\s+you|thanx|thx|ty|tysm|ta|(?:much\s+)?appreciated)"
+    r"(?:\s+(?:you|a\s+lot|a\s+bunch|so\s+much|very\s+much|again))*\b[\s,;.:!-]*",
+    re.IGNORECASE,
+)
+_NAME_THINKING_RE = re.compile(
+    r"^(?:(?:let\s+(?:me|us)|let's|i'll|i\s+will|i'm|i\s+am)\s+(?:\S+\s+){0,2}"
+    r"(?:think|see|wait|check|figur|consider|work\s+out|get\s+back|sleep\s+on)"
+    r"|give\s+me\s+(?:a\s+)?(?:sec|second|moment|minute)s?\b"
+    r"|(?:one|just\s+a)\s+(?:sec|second|moment)s?\b"
+    r"|hold\s+on\b|hang\s+on\b|wait\b|bear\s+with\s+me\b"
+    r"|maybe\b|perhaps\b|possibly\b|not\s+sure\b|unsure\b|i\s+(?:don't|do\s+not)\s+know\b"
+    r"|dunno\b|no\s+idea\b|(?:i\s+)?can(?:not|'t)\s+think\s+of\s+(?:a|one|any)\b"
+    r"|nothing\s+comes\s+to\s+mind\b)",
+    re.IGNORECASE,
+)
+
+
+def _strip_name_fillers(text: str) -> str:
+    """`text` minus its leading fillers and the punctuation between them."""
+    rest = str(text or "").strip()
+    while rest:
+        stripped = _NAME_FILLER_HEAD_RE.sub("", rest, count=1).lstrip()
+        if stripped == rest:
+            return rest
+        rest = stripped
+    return rest
+
+
+def _is_all_shape(text: str, shape: re.Pattern[str]) -> bool:
+    """Whether the whole message is those phrases and nothing else ("ok, got it, will do")."""
+    rest = str(text or "")
+    while rest:
+        stripped = shape.sub("", rest, count=1).strip()
+        if stripped == rest:
+            return False
+        rest = stripped
+    return True
+
+
+def _holds_name_ask(text: str) -> bool:
+    """Whether this reply holds the name ask open: it is neither a name nor a drop of the ask.
+
+    A yes word, thanks, a filler or thinking aloud each answer a different question than "what
+    should I call this skill?" -- none is a noun phrase -- so none may become the name, and none
+    means the ask was dropped either. Same bounds as an answer: a question or anything past the
+    80-character name limit is conversation moving on, not a hold.
+    """
+    body = " ".join(str(text or "").split()).lower()
+    if not body or len(body) > 80 or "?" in body:
+        return False
+    rest = _strip_name_fillers(body)
+    if not rest:
+        return True
+    if _is_all_shape(rest, _NAME_ACK_PHRASE_RE) or _is_all_shape(rest, _NAME_THANKS_PHRASE_RE):
+        return True
+    return bool(_NAME_THINKING_RE.match(rest))
 
 
 def _name_answer_in(text: str) -> str:
@@ -754,12 +837,16 @@ def _name_answer_in(text: str) -> str:
     The ask line asked for exactly one thing, so the answer is the next short, plain, non-question
     message. Anything longer than a name, any question and the bail-out words mean the
     conversation moved on, and the ask lapses instead of naming a skill "ok" two turns later.
+    Hold shapes are checked first, before any name is read: a yes word is an acknowledgement of
+    the ask, not a noun phrase answering it, so it must never survive as the name.
     """
     body = " ".join(str(text or "").split())
     if not body or len(body) > 80 or "?" in body:
         return ""
-    answer = _clean_name(_NAME_ANSWER_LEAD_RE.sub("", body))
-    if not answer or answer.lower() in _NAME_ANSWER_BAILOUTS:
+    if _holds_name_ask(body):
+        return ""
+    answer = _clean_name(_NAME_ANSWER_LEAD_RE.sub("", _strip_name_fillers(body)))
+    if not answer or answer.lower() in _NAME_ANSWER_BAILOUTS or _NAME_ANSWER_NEGATIVE_RE.match(answer):
         return ""
     return answer
 
@@ -774,18 +861,24 @@ def _answer_pending_skill_name(
     run: Any,
     refused: Any,
 ) -> dict[str, Any] | None:
-    """Create the waiting words-draft under the name this message gives, or None when it gives none.
+    """Create the waiting words-draft under the name this message gives; re-ask or lapse otherwise.
 
     This is the second half of the no-model flow: the previous turn asked "What should I call this
     skill?" and created nothing, so the name the operator types here is the only name the skill
     will ever have. The draft itself is rebuilt from the stashed request, so the bytes are the ones
-    the ask was about, now with the chosen name in the header.
+    the ask was about, now with the chosen name in the header. A reply that only acknowledged the
+    ask asks it again; a reply that dropped it lets the entry lapse.
     """
     pending = _pending_name_for(chat)
     if pending is None:
         return None
     answer = _name_answer_in(user_input)
     if not answer:
+        if _holds_name_ask(user_input):
+            # The reply acknowledged the ask instead of answering it, so the skill still has no
+            # name: ask the same line again and KEEP the entry -- the ask stays visibly open
+            # (its own clock still bounds it) instead of going silent or naming the skill "ok".
+            return plain(_ASK_NAME_LINE, reason="skill_needs_a_name")
         _clear_pending_name(chat)
         return None
     from core.skill_tools import _slug
@@ -1548,7 +1641,7 @@ def _create_or_edit(
                     },
                 )
                 return plain(
-                    "What should I call this skill? For example: Shopping list by aisle.",
+                    _ASK_NAME_LINE,
                     reason="skill_needs_a_name",
                 )
             draft, author = words, f"from your own words: {author}"
