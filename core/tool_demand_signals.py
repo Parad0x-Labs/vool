@@ -1181,7 +1181,7 @@ _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
     _OWNER_ASK_LEAD
     + r"(?:show|list|find|save|open|read|check|give|pull|put|book|schedule|add|create|make|set|"
     r"arrange|block|plan|organize|organise|tidy|clean|sort|summarize|summarise|digest|recap|"
-    r"display|remind|note|write|export|copy|move|delete|remove|search|look|walk|run)\b",
+    r"display|remind|note|write|export|copy|move|delete|remove|search|look|walk|run|jot|go)\b",
     re.IGNORECASE,
 )
 
@@ -1190,17 +1190,30 @@ _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
 #: Apple Notes and "note to self" (there is nobody else's on this machine), and the
 #: first-person relative ("the reminders I set in this chat"). "The calendar" or "a note"
 #: alone is the world's calendar, the world's note — no seat.
+#: Job 2b: the gate was too strict and dropped real asks, so these owner-by-construction
+#: shapes join it: the elliptical first-person inventory ("which reminders do I have set",
+#: "what appointments do I have this week"), a question that OPENS with "any meetings/
+#: appointments/..." ("any appointments today?" — an existential "are there any meetings in
+#: London?" does not open a segment with it), a note carried by its title ("the note called
+#: Venue plan" — titled notes on this machine are the owner's), and "time free" (the reverse
+#: of "free time").
 _OWNER_OWN_OBJECT_RE = re.compile(
-    r"\b(?:my|our)\s+(?:notes?|note|agenda|calendars?|calendar|schedule|reminders?|free\s+time|"
-    r"day|week|plate|disk|drive|storage|computer|mac|machine|laptop|apple\s+notes?)\b"
+    r"\b(?:my|our)\s+(?:notes?|note|agenda|calendars?|calendar|schedule|reminders?|"
+    r"meetings?|appointments?|calls?|free\s+time|day|week|plate|disk|drive|storage|"
+    r"computer|mac|machine|laptop|apple\s+notes?)\b"
     r"|\bapple\s+notes?\b"
     r"|\bnote\s+to\s+self\b"
+    r"|\bnotes?\s+(?:titled|called|named)\b"
     r"|\breminders?\s+(?:that\s+)?(?:i|we)\s+(?:set|added|created|made)\b"
     r"|\bwhat\s+am\s+i\s+doing\b"
     r"|\bwhat\s+have\s+(?:i|we)\s+got\s+on\b"
     r"|\bwhat\s+do\s+(?:i|we)\s+have\s+on\b"
+    r"|\b(?:what|which)\b[^.!?]{0,40}?\bdo\s+(?:i|we)\s+have\b(?!\s+to\b)"
+    r"|(?:^|(?<=\. ))any\s+(?:meetings?|events?|appointments?|calls?)\b"
+    r"|\b(?:my|our)\s+next\s+(?:meeting|appointment|call|event|agenda|day|week)\b"
     r"|\b(?:am\s+i|are\s+we)\s+(?:free|available|busy|open)\b"
     r"|\bfree\s+(?:time|slots?|windows?)\b"
+    r"|\btime\s+free\b"
     r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?))\b"
     r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
     r"(?:\s+(?:morning|afternoon|evening))?\s+(?:free|available|busy|open)\b",
@@ -1219,9 +1232,17 @@ _OWNER_AGENDA_SEAT_RE = re.compile(
     r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
     r"|\bwhat(?:'s| is| does)\s+(?:my|the|this|next)\s+week\b\s+look\s+like\b"
     r"|\bany\s+(?:meetings?|events?|appointments?)\b[^.!?]{0,30}?\b(?:on\s+)?"
-    r"(?:today|tonight|tomorrow|this week|next week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b\?"
+    r"(?:today|tonight|tomorrow|this week|next week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
+    r"|\bwhat\s+(?:meetings?|appointments?|events?|calls?)\s+do\s+(?:i|we)\s+have\b"
+    r"|\bwhat(?:'s| is)\s+(?:my|our)\s+next\s+(?:meeting|appointment|call|event)\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:show|read|open|check|give\s+me|walk\s+(?:me\s+)?through|run\s+through)\b"
     r"[^.!?]{0,60}?\b(?:my|the|this|today'?s|tomorrow'?s|this\s+week'?s|next\s+week'?s)\s+(?:day|agenda|schedule|calendar)\b"
+    # Job 2b: a combined report over the owner's own time ("look over my notes and my
+    # calendar and tell me what's coming up") seats the agenda beside the notes; without it
+    # the turn got no tool list at all. The calendar noun stays possessive (the world's
+    # calendar never seats), and an app/settings tail stays out.
+    r"|" + _OWNER_ASK_LEAD + r"(?:look\s+(?:over|through)|review|go\s+through|check)\b"
+    r"[^.!?]{0,60}?\b(?:my|our)\s+(?:calendar|schedule|agenda)\b(?!\s+(?:app|account|settings?|sync|widget))"
     # "plan my day" plans the owner's day; "plan my day trip to Rome" plans a trip — the day
     # noun is attributive there, and the trip (not the agenda) is the object.
     r"|" + _OWNER_ASK_LEAD + r"(?:plan|organise|organize|structure|map\s+out|sort\s+out|lay\s+out)\b"
@@ -1243,12 +1264,19 @@ _OWNER_AVAILABILITY_SEAT_RE = re.compile(
     # R2: "am I free to quit my job" asks about permission, not the calendar — the free-to
     # lookahead keeps it out. "any free will" is philosophy: a bare "free" needs the owner's
     # time behind it (free time/slot/window), not a noun it modifies.
+    # Job 2b: "do I have time free on Friday" is the ask's own shape (the reverse word order of
+    # "free time"); "do I have anything to worry about" carries an infinitive, not a schedule;
+    # "is Sunday free parking" asks what a thing costs or permits, so the day-free idiom may
+    # only end there or continue on a time word, never on the noun "free" modifies.
     r"\bam\s+i\s+(?:free|available|busy|open)\b(?!\s+to\b)"
     r"|\bare\s+we\s+(?:free|available|busy|open)\b(?!\s+to\b)"
     r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
     r"(?:\s+(?:morning|afternoon|evening))?\s+free\b"
+    r"(?=\s*(?:[?!,.]|$|\b(?:on|at|for|or|and|in|still|now|then|today|tonight|tomorrow|this|next"
+    r"|morning|afternoon|evening)\b))"
     r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?)"
-    r"|(?:a|any)\s+free\s+(?:time|slots?|windows?))\b"
+    r"|(?:a|any)\s+free\s+(?:time|slots?|windows?))\b(?!\s+to\b)"
+    r"|\bdo\s+(?:i|we)\s+have\s+(?:any\s+)?time\s+free\b"
     r"|\b(?:availability|available|free|busy|open)\b[^.!?]{0,60}?\b(?:slot|calendar|schedule|window)\b"
     r"|\b(?:slot|calendar|schedule)\b[^.!?]{0,60}?\b(?:availability|available|free|busy)\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:check|find)\b[^.!?]{0,60}?\b(?:my|the)\s+(?:availability|free\s+time)\b",
@@ -1257,11 +1285,22 @@ _OWNER_AVAILABILITY_SEAT_RE = re.compile(
 #: R2: "make an event poster", "put a meeting summary in a table" — when a document or thing
 #: noun follows the event noun, the event is attributive and the document is the object: not a
 #: calendar write. The event noun must stay the head of its object phrase.
+#: Job 2b: "a call to action" and "a meeting tone/topic" are the same shape — the thing named
+#: after the event noun is the real object of the verb.
 _EVENT_ATTRIBUTIVE_VETO = (
     r"(?!\s+(?:agenda|notes?|minutes|invite|room|link|points?|template|poster|summary|card|"
     r"graphic|banner|image|images|photo|photos|picture|pictures|illustration|flyer|draft|"
     r"report|memo|email|writeups?|write-ups?|recap|digest|outline|table|tables|chart|charts|"
-    r"list|lists|program|playlist|badge|ticket|tickets))"
+    r"list|lists|program|playlist|badge|ticket|tickets|to\s+action|tone|topic|vibe))"
+)
+#: Job 2b: a question about whether the ask is possible, allowed or free of charge ("is it free
+#: to schedule a meeting on Zoom?", "book a call with the Prime Minister? is that possible?")
+#: wants an answer about the world first, never a seated booking tool.
+_FEASIBILITY_ASK_RE = re.compile(
+    r"\bis\s+(?:that|it|this)\s+(?:even\s+|actually\s+|really\s+)?(?:free|possible|feasible|allowed|ok|okay)\b"
+    r"|\bcan\s+that\s+be\s+done\b"
+    r"|\bwould\s+that\s+(?:work|be\s+(?:ok|okay|possible))\b",
+    re.IGNORECASE,
 )
 _OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
     r"\b(?:schedule\s+a\s+meeting|schedule\s+meeting|schedule\s+an?\s+event|create\s+a?\s*calendar\s+event|create\s+a\s+meeting)\b"
@@ -1283,13 +1322,23 @@ _OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
     r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day\s+at|at\s+\d|\d\s*(?:am|pm|a\.m\.|p\.m\.)|o'?clock)\b",
     re.IGNORECASE,
 )
+#: Job 2b: the ask whose material is already in the message ("summarize my notes on the French
+#: revolution I pasted below: ...") reads words the model can already see — it is not a store
+#: lookup, so the note-reading seats stand down for it. A save is untouched: storing the very
+#: words someone pasted is the point of the ask.
+_NOTES_IN_MESSAGE_RE = re.compile(
+    r"\b(?:pasted|posted|copied|included|typed)\b[^.!?]{0,20}?\b(?:below|above)\b"
+    r"|\b(?:below|above)\s*:",
+    re.IGNORECASE,
+)
 _OWNER_FIND_NOTES_SEAT_RE = re.compile(
     # The object must be the owner's OWN notes ("my notes"): a bare "notes" noun seats nothing,
     # because compound nouns about other things ("look up the latest SQLite release notes online")
     # are web/grounded asks, and a false seat there flipped the turn's whole toolset.
     _OWNER_ASK_LEAD_STRICT + r"(?:find|search(?:\s+for)?|look\s+(?:up|for)|list|show)\b[^.!?]{0,60}?\b(?:my|our)\s+notes?\b"
     r"|\bwhere\s+(?:are|is)\s+(?:my|our)\s+notes?\b"
-    r"|" + _OWNER_ASK_LEAD + r"(?:tidy|clean|organize|organise|sort|go\s+through|gather|collect)\b"
+    r"|" + _OWNER_ASK_LEAD + r"(?:tidy|clean|organize|organise|sort|go\s+through|gather|collect"
+    r"|look\s+(?:over|through)|review)\b"
     r"[^.!?]{0,40}?\bmy\s+notes\b"
     r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:summarize|summarise|digest|round\s+up|recap|go\s+over)\b"
     r"[^.!?]{0,40}?\bmy\s+notes\b",
@@ -1298,15 +1347,20 @@ _OWNER_FIND_NOTES_SEAT_RE = re.compile(
 _OWNER_SHOW_NOTE_SEAT_RE = re.compile(
     _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\s+(?:the|my|that|this)\s+note\b"
     r"|\bwhat(?:'s| is|s)\s+in\s+(?:the|my|that)\s+note\b"
-    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\b[^.!?]{0,40}?\bnote\s+(?:titled|called|named)\b",
+    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\b[^.!?]{0,40}?\bnote\s+(?:titled|called|named)\b"
+    # Job 2b: the titled note asked about by name ("what does the note called Venue plan say?").
+    r"|\bwhat\s+(?:does|do|did)\s+(?:the|my|our|that|this)\s+notes?\s+(?:titled|called|named)\b",
     re.IGNORECASE,
 )
 _OWNER_APPLE_LIST_SEAT_RE = re.compile(
-    _OWNER_ASK_LEAD + r"(?:list|show)\b[^.!?]{0,40}?\bapple\s+notes\b",
+    _OWNER_ASK_LEAD + r"(?:list|show)\b[^.!?]{0,40}?\bapple\s+notes\b"
+    # Job 2b: "what's in my Apple Notes?" asks for the list, in question form.
+    r"|\bwhat(?:'s| is|s)\s+in\b[^.!?]{0,20}?\bapple\s+notes?\b",
     re.IGNORECASE,
 )
 _OWNER_APPLE_READ_SEAT_RE = re.compile(
-    _OWNER_ASK_LEAD_STRICT + r"(?:read|show|open|display)\b[^.!?]{0,60}?\bapple\s+note\b",
+    # Job 2b: "read my Apple Notes" is plural; the singular noun alone used to be the only shape.
+    _OWNER_ASK_LEAD_STRICT + r"(?:read|show|open|display)\b[^.!?]{0,60}?\bapple\s+notes?\b",
     re.IGNORECASE,
 )
 
@@ -1321,6 +1375,14 @@ _OWNER_DISK_ANALYSIS_SEAT_RE = re.compile(
     r"[^.!?]{0,60}?\b(?:my\s+)?(?:disk|drive|storage|ssd|mac|laptop|computer|machine)\b"
     r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
     r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
+    re.IGNORECASE,
+)
+
+
+#: Job 2b: the bare jot cue ("jot this down: buy milk", "jot down the wifi password"). Only at
+#: a clause lead, so a report ("she jotted it down") never reaches it.
+_OWNER_JOT_SAVE_RE = re.compile(
+    _OWNER_ASK_LEAD + r"jot\s+(?:down\b|(?:(?:this|that|it|them)\s+)?down\b)",
     re.IGNORECASE,
 )
 
@@ -1361,9 +1423,15 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         return ()
     ask_text = " . ".join(ask_segments)
     own_object = _OWNER_OWN_OBJECT_RE.search(ask_text) is not None
+    # The material-in-message veto (Job 2b) belongs to the reading seats only: a save of pasted
+    # words is the ask, a lookup of them is not.
+    notes_in_message = _NOTES_IN_MESSAGE_RE.search(ask_text) is not None
 
     def _seats(pattern: re.Pattern[str]) -> bool:
         return own_object and bool(pattern.search(ask_text))
+
+    def _reads_notes(pattern: re.Pattern[str]) -> bool:
+        return not notes_in_message and _seats(pattern)
 
     intents: list[str] = []
     if _seats(_OWNER_AGENDA_SEAT_RE):
@@ -1374,16 +1442,17 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         intents.append("operator.list_reminders")
     # The scheduling idioms are asks to act by construction ("schedule a meeting", "book a
     # dentist appointment Tuesday"): they carry no possessive, so the own-object rule is
-    # carried by their own anchored verbs and the attributive veto instead.
-    if _OWNER_PROPOSE_EVENT_SEAT_RE.search(ask_text):
+    # carried by their own anchored verbs and the attributive veto instead. A feasibility or
+    # price question around them ("is that possible?") is not the act itself.
+    if not _FEASIBILITY_ASK_RE.search(ask_text) and _OWNER_PROPOSE_EVENT_SEAT_RE.search(ask_text):
         intents.append("operator.propose_calendar_event")
-    if _seats(_OWNER_FIND_NOTES_SEAT_RE):
+    if _reads_notes(_OWNER_FIND_NOTES_SEAT_RE):
         intents.append("operator.find_notes")
-    if _seats(_OWNER_SHOW_NOTE_SEAT_RE):
+    if _reads_notes(_OWNER_SHOW_NOTE_SEAT_RE):
         intents.append("operator.show_note")
-    if _seats(_OWNER_APPLE_LIST_SEAT_RE):
+    if _reads_notes(_OWNER_APPLE_LIST_SEAT_RE):
         intents.append("operator.apple_note_list")
-    if _seats(_OWNER_APPLE_READ_SEAT_RE):
+    if _reads_notes(_OWNER_APPLE_READ_SEAT_RE):
         intents.append("operator.apple_note_read")
     if own_object and _OWNER_DISK_ANALYSIS_SEAT_RE.search(ask_text):
         # A disk-analysis ask stands down from the direct capacity read (see
@@ -1399,6 +1468,11 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         from core.operator.parser import _SAVE_NOTE_RE
 
         if _SAVE_NOTE_RE.search(ask_text) is not None:
+            intents.append("operator.save_note")
+        elif _OWNER_JOT_SAVE_RE.search(ask_text) is not None:
+            # Job 2b: the bare memorandum cue ("jot this down: buy milk") carries no note noun
+            # for the parser's recognizer to hold onto; at a clause lead, with content to store,
+            # the verb itself is the storing cue.
             intents.append("operator.save_note")
         elif re.match(r"\s*note\s+to\s+self\s*:(?!\d)", ask_text, re.IGNORECASE):
             # "note to self: buy milk" -- the memorandum header itself is the storing cue; the

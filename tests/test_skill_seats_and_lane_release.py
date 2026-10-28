@@ -146,8 +146,11 @@ def test_a_local_code_ask_is_not_planned_onto_the_web():
         "a test in my project fails, find out why without changing code", remote
     )
     assert not _local_code_ask_beats_web_planning("why does my build break, look it up", remote)
+    # Job 2b: the two no-anchor rows run with the OWNER-LOCAL context, because that is what
+    # proves the anchor rule; with the remote context they pass for another reason.
+    assert not _local_code_ask_beats_web_planning("why does my build break, look it up", owner_local)
     assert not _local_code_ask_beats_web_planning("find out why the Eiffel Tower is famous", owner_local)
-    assert not _local_code_ask_beats_web_planning("look up the latest docs for this API", remote)
+    assert not _local_code_ask_beats_web_planning("look up the latest docs for this API", owner_local)
 
 
 def test_a_beyond_reading_url_ask_is_not_answered_by_the_raw_fetch():
