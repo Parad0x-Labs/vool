@@ -183,3 +183,76 @@ def test_a_cut_short_search_says_so(home, monkeypatch):
     again = find_named_files(("image", ("day4",), "Downloads"), source_context={})
     first = again.response_text.splitlines()[0]
     assert not first.startswith(("Nothing in", "No ")), first
+
+
+# Measured on the Mac 2026-10-28 with the owner's own models (qwen2.5:7b, qwen3:0.6b arbiter): each
+# of these missed the file search and reached the model (which refused), the chat search, or a
+# whole-folder listing.
+@pytest.mark.parametrize(("text", "expected"), [
+    ("can you dig up the photo daily 4, think it's in Downloads", ("image", ("daily 4",), "Downloads")),
+    ('I saved an image "daily 4" somewhere in downloads, find it', ("image", ("daily 4",), "Downloads")),
+    ("find the pdf with invoice in the name on my desktop", ("pdf", ("invoice",), "Desktop")),
+    ("search downloads for any jpg named day4", ("jpg", ("day4",), "Downloads")),
+    ("which file in Downloads is named daily 4", ("", ("daily 4",), "Downloads")),
+    ("hunt down the spreadsheet called budget 2026", ("", ("budget 2026",), "")),
+    ("track down the screenshot IMG_2041", ("image", ("IMG_2041",), "")),
+])
+def test_more_ways_of_asking_for_a_file(text, expected):
+    assert machine_file_search_intent(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "find the photo of my dog", "can you find a video 10 minutes long about rust", "find me a picture of a cat 4k",
+    "find the movie dune2 on netflix", "find the document 'Q3 plan' and summarize it",
+    'find the video "how to tie a tie" on youtube', "hunt down a good restaurant for 4 people",
+    "dig up some info about the iphone 16", "which song called hello is the best", "which pdf reader is best for mac 14",
+    "find the picture day4 and send it to mom", "find the photo 2 of us",
+])
+def test_these_still_are_not_a_file_search(text):
+    assert machine_file_search_intent(text) is None
+
+
+@pytest.mark.parametrize("text", [
+    "got a picture somewhere called beach2, can you locate it",
+    'I saved an image "daily 4" somewhere in downloads, find it',
+])
+def test_a_file_lookup_is_not_a_chat_search(text):
+    from core.agent_runtime.housekeeping_lane import parse_housekeeping
+
+    assert parse_housekeeping(text) is None
+
+
+def test_a_chat_search_about_a_picture_stays_a_chat_search():
+    from core.agent_runtime.housekeeping_lane import parse_housekeeping
+
+    assert parse_housekeeping("find the chat where we talked about the picture named day4") is not None
+
+
+def test_a_name_from_a_word_start_wins_over_one_inside_a_word(home, monkeypatch):
+    import core.authorized_tool_execution as ate
+    from core.agent_runtime.fast_paths_machine import find_named_files
+    from core.runtime_execution_tools import _machine_find_file
+
+    (home / "Downloads" / "holiday4.jpg").write_bytes(b"x")
+    (home / "Downloads" / "Day 4.png").write_bytes(b"x")
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda intent, args, source_context=None: _machine_find_file(args))
+    found = find_named_files(("image", ("day4",), "Downloads"), source_context={})
+    assert [Path(p).name for p in found.details["matches"]] == ["Day 4.png"]
+    # With nothing from a word start, the inside-a-word match is still shown rather than nothing.
+    only_inside = find_named_files(("jpg", ("day4",), "Downloads"), source_context={})
+    assert [Path(p).name for p in only_inside.details["matches"]] == ["holiday4.jpg"]
+
+
+def test_many_matches_are_not_counted_as_all_of_them(home, monkeypatch):
+    import core.authorized_tool_execution as ate
+    from core.agent_runtime.fast_paths_machine import find_named_files
+    from core.runtime_execution_tools import _machine_find_file
+
+    for index in range(30):
+        (home / "Downloads" / f"day-shot-{index:02}.png").write_bytes(b"x")
+    monkeypatch.setattr(ate, "execute_authorized_runtime_tool", lambda intent, args, source_context=None: _machine_find_file(args))
+    found = find_named_files(("image", ("day-shot",), ""), source_context={})
+    lines = found.response_text.splitlines()
+    assert lines[0] == "Many pictures match 'day-shot'. Here are the first 20:"
+    assert len([line for line in lines if line.startswith("- ")]) == 20
+    assert "Found 25" not in found.response_text
