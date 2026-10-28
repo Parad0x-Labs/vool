@@ -3784,6 +3784,18 @@ _VERB_NAME_FOLDER_RE = re.compile(
     r"\b(?:create|make|crate|creat|mkdir)\s+(?:the\s+|a\s+|an\s+)?(?P<path>[A-Za-z0-9_./-]+)\s+(?:folder|directory|dir)\b",
     re.IGNORECASE,
 )
+# A folder name can stand attached to the folder noun with NO create verb in front of it:
+# "there's a docs folder", "make sure an assets directory exists". Measured on the audit
+# wording 2026-10-27: with only the verb-led patterns, "make sure there's a docs folder"
+# read "make sure" as the create verb plus a path named `sure`, and the approval card
+# targeted a folder called `sure`. The name standing immediately before the folder noun
+# (optional article in front) is the path; a create verb itself never names the folder.
+_ARTICLE_NOUN_PATH_RE = re.compile(
+    r"\b(?:a|an|the|this|my)?\s*[`\"']?"
+    r"(?P<path>(?!create\b|make\b|setup\b|mkdir\b|crate\b|creat\b|bootstrap\b)[A-Za-z0-9_./-]+)"
+    r"\s+(?:folder|directory|dir)\b",
+    re.IGNORECASE,
+)
 _FOLDER_PATH_RE = re.compile(
     r"\b(?:folder|directory|dir|path)\s+(?:called|named)?\s*[`\"']?(?P<path>[A-Za-z0-9_./-]+)",
     re.IGNORECASE,
@@ -3889,6 +3901,21 @@ _PATH_STOP_WORDS = {
     "desktop",
     "please",
     "pls",
+    # An idiom filler standing after a create verb is never a folder name. Measured on the
+    # audit wording 2026-10-27: "make sure there's a docs folder ..." supplied `sure` as the
+    # directory to create, and the approval card targeted a folder called `sure`. These words
+    # close that class; real folder words people ask for (note, notes, docs) stay extractable.
+    "sure",
+    "certain",
+    "certainly",
+    "them",
+    "those",
+    "then",
+    "so",
+    "everything",
+    "nothing",
+    "something",
+    "anything",
 }
 _BUILDER_RESEARCH_MARKERS = (
     "build",
