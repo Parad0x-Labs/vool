@@ -624,6 +624,36 @@ PENDING_NOTICE = "This is waiting for your approval; nothing has been changed ye
 CARD_NOTICE = "Nothing has changed yet. Say yes to do it, and afterwards \"undo\" puts it all back."
 
 
+_FUTURE_CHANGE_RE = re.compile(
+    r"\b(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to|i['’]?m)\s+"
+    r"(?:now\s+)?(?:go\s+ahead\s+and\s+)?(?:creat|mak|writ|sav|mov|renam|put|add|organi[sz]|tidy|tidi|sort)\w*\b",
+    re.I,
+)
+
+
+def _without_promises(answer: str) -> str:
+    """The card is the promise, said exactly and waiting for a yes. A model sentence such as "I'll
+    create the file on your desktop" says it as if under way, and the publication check (rightly)
+    tags it as unbacked; the card already says what will happen, so that sentence goes."""
+    text = str(answer or "").strip()
+    if not text:
+        return ""
+    try:
+        from core.agent_runtime.action_honesty_validator import _DELIVERABLE_PROMISE_RE as promise
+    except Exception:
+        promise = _FUTURE_CHANGE_RE
+
+    def promised(part: str) -> bool:
+        return bool(promise.search(part) or _FUTURE_CHANGE_RE.search(part))
+
+    lines = []
+    for line in text.split("\n"):
+        kept = [part for part in re.split(r"(?<=[.!?:])\s+", line) if not promised(part)]
+        if kept or not line.strip():
+            lines.append(" ".join(kept))
+    return "\n".join(lines).strip()
+
+
 def pending_proposal_notice(answer: str, result: Any) -> str:
     """Answer gate: a turn that proposed a change always says the change has not happened, and a
     rehearsed change shows its card: exactly what will happen."""
@@ -635,7 +665,7 @@ def pending_proposal_notice(answer: str, result: Any) -> str:
         # The card is shown whole: a change keeps its own list short (moves are summed up past 30)
         # and never cuts a new file or folder, so nothing it will do can scroll out of sight.
         lines = "\n".join(f"- {line}" for line in cards[-1]["card"])
-        return f"{str(answer or '').rstrip()}\n\nHere is what I will do:\n{lines}\n\n{CARD_NOTICE}".strip()
+        return f"{_without_promises(answer)}\n\nHere is what I will do:\n{lines}\n\n{CARD_NOTICE}".strip()
     if "approv" in str(answer or "").lower():
         return answer
     return f"{str(answer or '').rstrip()}\n\n{PENDING_NOTICE}".strip()

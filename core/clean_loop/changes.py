@@ -65,7 +65,7 @@ class NeedsPermission(ChangeRefused):
 #: card does not stand in for that ceremony: nothing changes, the card is kept, and the owner hears it
 #: plainly. One approval for a whole card, through VOOL's own approval store, is the next build.
 NEEDS_PERMISSION_TEXT = (
-    "your permission settings want to approve each file move one by one, and I won't go around that, "
+    "your permission settings want to approve each file change one by one, and I won't go around that, "
     "so nothing changed. The change is still ready"
 )
 
@@ -196,6 +196,12 @@ def _expand(home: Path, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
             else:
                 src = _checked(home, raw_src, must_exist=True)
                 target = _checked(home, dst.rstrip("/") + "/" + PurePosixPath(src).name if dst.endswith("/") else dst)
+                # A rename into a name that runs when opened ("Open me.command") is a new program, even
+                # when the long card sums its line up; a file keeping its own kind moves as before.
+                new_kind = PurePosixPath(target).suffix.lower()
+                if new_kind in _AUTORUN_SUFFIXES and new_kind != PurePosixPath(src).suffix.lower():
+                    raise ChangeRefused(f"{PurePosixPath(target).name} would be a file that runs when opened; "
+                                        "I won't rename things into that")
                 out.append({"op": "move", "src": src, "dst": target})
         else:
             raise ChangeRefused(f"'{kind or 'that'}' is not a change I can make here")
@@ -404,11 +410,17 @@ def apply(plan: Plan, call: Call) -> Done:
     for op in plan.ops:
         try:
             _apply_step(home, op, inverse, direct, call)
-        except ChangeRefused:
-            raise
+        except ChangeRefused as exc:
+            if hasattr(exc, "left"):
+                raise  # already put back (or said what could not be)
+            _fail(home, inverse, call, direct, str(exc))  # a refusal mid-change still puts back what happened
         except Exception as exc:  # a tool fault mid-change still puts back what happened
             _fail(home, inverse, call, direct, f"{type(exc).__name__}")
-    return Done(plan=plan, inverse=inverse, matches_preview=_matches(home, plan.ops), direct=direct)
+    try:
+        matches = _matches(home, plan.ops)
+    except (ChangeRefused, OSError):
+        matches = False  # the change happened; only the after-check could not look
+    return Done(plan=plan, inverse=inverse, matches_preview=matches, direct=direct)
 
 
 def _apply_step(home: Path, op: dict[str, Any], inverse: list[dict[str, Any]], direct: list[str], call: Call) -> None:
@@ -443,10 +455,13 @@ def _apply_step(home: Path, op: dict[str, Any], inverse: list[dict[str, Any]], d
         if step.get("rmdirs"):
             inverse.append({"rmdirs": step["rmdirs"]})
         _fail(home, inverse, call, direct, str(getattr(outcome, "text", "")), getattr(outcome, "status", ""))
+    inverse.append(step)  # recorded first: the step happened, whatever the look after it finds
     if op["op"] == "write":
-        info = _lstat(home / op["path"])
+        try:
+            info = _lstat(home / op["path"])
+        except ChangeRefused:
+            info = None
         step["ino"] = [info.st_dev, info.st_ino] if info is not None else None
-    inverse.append(step)
 
 
 def _matches(home: Path, ops: list[dict[str, Any]]) -> bool:
@@ -567,10 +582,15 @@ def _roll_back(home: Path, inverse: list[dict[str, Any]], call: Call, direct: li
             except ChangeRefused as exc:
                 problems.append(f"{dst} stayed where it is: {exc}")
                 continue
-            if _lstat(home / src) is not None:
+            try:
+                src_there, dst_there = _lstat(home / src) is not None, _lstat(home / dst) is not None
+            except ChangeRefused as exc:
+                problems.append(f"{dst} stayed where it is: {exc}")
+                continue
+            if src_there:
                 problems.append(f"something new is at {src}, so {dst} stayed where it is")
                 continue
-            if _lstat(home / dst) is not None:
+            if dst_there:
                 outcome = call("machine.move_path", {"source": str(home / dst), "destination": str(home / src)})
                 if not getattr(outcome, "ok", False):
                     problems.append(f"{dst} could not be moved back: {getattr(outcome, 'text', '')}")

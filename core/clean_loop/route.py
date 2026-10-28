@@ -186,9 +186,22 @@ def is_question(text: str) -> bool:
     return bool(_QUESTION_RE.search(str(text or "")))
 
 
+# Sending something out of this computer is RED even asked as a question ("can you upload my cv to
+# dropbox?", "is it ok to share these with my landlord"): the owner's things leave. Recalling it ("what
+# did i send to anna") is a question about the past and stays a question.
+_OUTWARD_RE = re.compile(r"\b(?:upload|send|share|post|publish|tweet|email|forward)\b", re.I)
+_OUTWARD_RECALL_RE = re.compile(
+    r"\b(?:did|have|had)\s+(?:i|we|you)\s+(?:ever\s+|already\s+|just\s+|last\s+)?"
+    r"(?:upload|send|share|post|publish|tweet|email|forward)\b",
+    re.I,
+)
+
+
 def is_red(text: str) -> bool:
     value = str(text or "")
     if _MONEY_RE.search(value) or _DESTRUCTIVE_RE.search(value):
+        return True
+    if _OUTWARD_RE.search(_OUTWARD_RECALL_RE.sub(" ", value)):
         return True
     return bool(_RED_RE.search(value)) and not is_question(value)
 
@@ -219,8 +232,15 @@ _PRIVACY_ASK_RE = re.compile(
 )
 
 
+# "search online for the privacy policy of my bank" asks for the web, not about what left this computer.
+_NOT_PRIVACY_RE = re.compile(
+    r"\b(?:search|look\s+up|google|browse|polic(?:y|ies)|website|https?://|www\.)\b", re.I
+)
+
+
 def is_privacy_ask(text: str) -> bool:
-    return bool(_PRIVACY_ASK_RE.search(str(text or "")))
+    value = str(text or "")
+    return bool(_PRIVACY_ASK_RE.search(value)) and not _NOT_PRIVACY_RE.search(value)
 
 
 def is_online_ask(text: str) -> bool:

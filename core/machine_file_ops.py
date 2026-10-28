@@ -220,10 +220,10 @@ def move_path(
         if exc.errno != errno.EXDEV:
             return FileOpResult(False, "error", f"Move failed: {exc}", str(src), str(dst))
         try:
-            # Another disk: a copy, then the source goes. Checked once more just before.
-            if dst.exists() or dst.is_symlink():
-                return FileOpResult(False, "dest_exists", f"Destination already exists: {dst}", str(src), str(dst))
-            shutil.move(str(src), str(dst))
+            # Another disk: a copy that never replaces, then the source goes.
+            copy_no_replace(src, dst)
+        except FileExistsError:
+            return FileOpResult(False, "dest_exists", f"Destination already exists: {dst}", str(src), str(dst))
         except Exception as move_exc:
             return FileOpResult(False, "error", f"Move failed: {move_exc}", str(src), str(dst))
     except Exception as exc:
@@ -238,9 +238,16 @@ _RENAME_NOREPLACE = 1  # Linux renameat2
 _RENAME_EXCL = 0x00000004  # macOS renameatx_np
 
 
+#: Folders opened link by link need descriptor-relative calls. Windows has neither those nor
+#: O_NOFOLLOW; there os.rename itself refuses to replace and O_EXCL creates without replacing.
+PINNED_DIRS = os.open in os.supports_dir_fd and hasattr(os, "O_NOFOLLOW")
+
+
 def open_pinned_dir(folder: Path) -> int:
     """A descriptor for an absolute, already-resolved folder, opened one part at a time from "/"
     without following links: a link swapped in anywhere on the way fails instead of being followed."""
+    if not PINNED_DIRS:
+        raise OSError(errno.ENOTSUP, "folders cannot be pinned on this system", str(folder))
     parts = Path(folder).parts
     if not parts or parts[0] != os.sep:
         raise ValueError(f"not an absolute path: {folder}")
@@ -289,6 +296,9 @@ def _native_rename_no_replace(src_fd: int, src_name: str, dst_fd: int, dst_name:
 def rename_no_replace(src: Path, dst: Path) -> None:
     """Rename `src` to `dst` (both absolute and resolved) without ever replacing what is at `dst`.
     FileExistsError when something is there; OSError(EXDEV) across disks."""
+    if not PINNED_DIRS:
+        os.rename(src, dst)  # Windows: never replaces an existing destination
+        return
     src_fd = open_pinned_dir(src.parent)
     try:
         dst_fd = open_pinned_dir(dst.parent)
@@ -315,13 +325,68 @@ def rename_no_replace(src: Path, dst: Path) -> None:
 
 def create_file_exclusive(target: Path, content: str) -> None:
     """Create a new text file at an absolute, resolved `target`, never replacing anything and never
-    through a link on the way (its folder is opened link by link). FileExistsError when taken."""
+    through a link on the way (its folder is opened link by link). FileExistsError when taken. A
+    write that fails part way removes the file it began, so "nothing was written" stays true."""
+    data = content.encode("utf-8")
+    if not PINNED_DIRS:
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
+        try:
+            _write_all(fd, data)
+        except BaseException:
+            os.close(fd)
+            os.unlink(target)
+            raise
+        os.close(fd)
+        return
     parent_fd = open_pinned_dir(target.parent)
     try:
         fd = os.open(
             target.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent_fd
         )
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(content)
+        try:
+            _write_all(fd, data)
+        except BaseException:
+            os.close(fd)
+            os.unlink(target.name, dir_fd=parent_fd)
+            raise
+        os.close(fd)
     finally:
         os.close(parent_fd)
+
+
+def _write_all(fd: int, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
+
+
+def copy_no_replace(src: Path, dst: Path) -> None:
+    """Across disks: copy `src` to `dst` without ever replacing what is at `dst`, then remove `src`.
+    A file is created exclusively; a folder's top is made exclusively. A failed copy removes what it
+    began, so the source stays the only copy."""
+    if src.is_dir() and not src.is_symlink():
+        os.mkdir(dst)  # FileExistsError when taken
+        try:
+            shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True)
+        except BaseException:
+            shutil.rmtree(dst, ignore_errors=True)
+            raise
+        shutil.rmtree(src)
+        return
+    if src.is_symlink():
+        os.symlink(os.readlink(src), dst)
+        os.unlink(src)
+        return
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    fd = os.open(dst, flags, 0o644)
+    try:
+        with open(src, "rb") as source:
+            for chunk in iter(lambda: source.read(1 << 20), b""):
+                _write_all(fd, chunk)
+    except BaseException:
+        os.close(fd)
+        os.unlink(dst)
+        raise
+    os.close(fd)
+    shutil.copystat(src, dst, follow_symlinks=False)
+    os.unlink(src)

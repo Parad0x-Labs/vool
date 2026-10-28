@@ -306,7 +306,7 @@ def test_a_move_keeps_vools_own_approval_and_the_card(home, monkeypatch):
     before = _snapshot(home)
     changes.remember_pending(SESSION, changes.preview(home, TIDY))
     result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
-    assert result is not None and "approve each file move one by one" in result["response"]
+    assert result is not None and "approve each file change one by one" in result["response"]
     assert _snapshot(home) == before
     assert changes.has_pending(SESSION), "the change is still ready"
 
@@ -563,7 +563,7 @@ def test_a_move_parked_for_approval_is_withdrawn_not_left_queued(home, monkeypat
     monkeypatch.setenv(route.CHANGES_ENV, "1")
     changes.remember_pending(SESSION, changes.preview(home, TIDY))
     result = hook.maybe_answer(_Agent(), text="yes", effective_input="yes", session_id=SESSION, source_context=dict(OWNER))
-    assert result is not None and "approve each file move one by one" in result["response"]
+    assert result is not None and "approve each file change one by one" in result["response"]
     modes._ensure_approvals_restored()
     with modes._LOCK:
         statuses = [str(a.get("status")) for a in modes._APPROVALS.values() if "move_path" in str(a.get("intent") or a)]
@@ -585,3 +585,79 @@ def test_the_privacy_question_is_answered_on_this_computer(home):
     ctx = ToolContext(home=home, source_context=dict(OWNER))
     assert "online AI models" in privacy_pre_step("how much of my stuff went to online AI today", ctx)
     assert privacy_pre_step("whats on my desktop", ctx) is None
+
+
+def test_a_rename_into_a_file_that_runs_when_opened_is_refused(home):
+    with pytest.raises(changes.ChangeRefused, match="runs when opened"):
+        changes.preview(home, [{"op": "move", "src": "Desktop/todo.txt", "dst": "Desktop/Open me.command"}])
+
+
+def test_a_refusal_mid_change_still_puts_back_what_happened(home, monkeypatch):
+    before = _snapshot(home)
+    plan = changes.preview(home, TIDY)
+    real = changes._missing_dirs
+    seen: list[int] = []
+
+    def missing(home_, rel):
+        seen.append(1)
+        if len(seen) == 3:
+            raise changes.ChangeRefused("could not look at Desktop/Screenshots")
+        return real(home_, rel)
+
+    monkeypatch.setattr(changes, "_missing_dirs", missing)
+    with pytest.raises(changes.ChangeRefused, match="put everything back") as caught:
+        changes.apply(plan, _call(home))
+    assert caught.value.left == []  # type: ignore[attr-defined]
+    assert _snapshot(home) == before
+
+
+def test_a_change_whose_after_check_cannot_look_still_counts_as_done(home, monkeypatch):
+    plan = changes.preview(home, TIDY)
+    monkeypatch.setattr(changes, "_matches", lambda *_a: (_ for _ in ()).throw(changes.ChangeRefused("x")))
+    done = changes.apply(plan, _call(home))
+    assert done.matches_preview is False and len(done.inverse) == 4
+
+
+def test_undo_that_cannot_look_keeps_the_step_and_says_so(home, monkeypatch):
+    plan = changes.preview(home, TIDY)
+    done = changes.apply(plan, _call(home))
+    real = changes._lstat
+
+    def lstat(path):
+        if path.name.startswith("Screenshot 2026-10-21"):
+            raise changes.ChangeRefused("could not look")
+        return real(path)
+
+    monkeypatch.setattr(changes, "_lstat", lstat)
+    problems = changes.undo(done, _call(home))
+    assert problems and any("stayed where it is" in p for p in problems)
+    assert not done.undone
+
+
+def test_a_card_drops_the_models_own_promise_of_the_file():
+    from types import SimpleNamespace
+
+    from core.clean_loop.tools import pending_proposal_notice
+
+    result = SimpleNamespace(proposals=[{"card": ["new file: Desktop/shopping_list.txt (10 bytes): \"milk / bread\""]}])
+    text = pending_proposal_notice("Sure. I'll create the shopping list file on your desktop now.", result)
+    assert "I'll create" not in text and text.startswith("Sure.")
+    assert "new file: Desktop/shopping_list.txt" in text
+
+
+@pytest.mark.parametrize("text", [
+    "can you upload my cv to dropbox?",
+    "is it ok to share these photos with my landlord",
+    "what if i send the lease to anna",
+])
+def test_sending_things_out_is_red_even_as_a_question(text):
+    assert route.is_red(text)
+
+
+def test_recalling_what_was_sent_is_still_a_question():
+    assert not route.is_red("what did i send to anna last week")
+
+
+def test_a_web_search_about_privacy_is_not_the_privacy_meter():
+    assert not route.is_privacy_ask("search online for the privacy policy of my bank")
+    assert route.is_privacy_ask("how much of my stuff went to online AI today")
