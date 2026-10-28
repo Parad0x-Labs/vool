@@ -145,6 +145,15 @@ def _search_roots() -> tuple[Path, ...]:
     return _readable_machine_roots()
 
 
+def _inside_search_roots(path: Path) -> bool:
+    """The file's real location (links resolved) is inside one of the readable roots."""
+    try:
+        real = path.resolve()
+    except OSError:
+        return False
+    return any(real == root or root in real.parents for root in _search_roots())
+
+
 def _expand(candidate: str) -> Path:
     from core.runtime_execution_tools import _expand_machine_user
 
@@ -177,12 +186,14 @@ def _find_by_basename(name: str) -> Path | None:
                 if seen > _SEARCH_MAX_ENTRIES:
                     return None
                 try:
-                    if entry.name.lower() == target and entry.is_file():
+                    if entry.name.lower() == target and entry.is_file() and _inside_search_roots(entry):
                         return entry
+                    # Never follow a folder link: a link in Pictures to a drive or ~/Library would
+                    # otherwise expose every PDF behind it by bare name.
                     if (
                         not entry.name.startswith(".")
                         and entry.name.lower() not in _SEARCH_SKIP_DIRS
-                        and entry.is_dir()
+                        and entry.is_dir(follow_symlinks=False)
                     ):
                         next_frontier.append(entry)
                 except OSError:

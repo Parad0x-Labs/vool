@@ -4626,7 +4626,8 @@ def resolve_write_target(intent: str, raw_path: str | None, source_context: dict
         return None
     try:
         if str(intent or "").strip().lower().startswith("machine."):
-            return _resolve_machine_directory(path)
+            # The writer's roots, not the wider read roots (Pictures/Movies/Music are read-only).
+            return _resolve_machine_directory(path, write=True)
         return _resolve_workspace_path(path, workspace_root=_workspace_root(source_context))
     except (ValueError, OSError, RuntimeError):
         return None
@@ -4734,11 +4735,14 @@ def _safe_machine_roots() -> tuple[Path, ...]:
 
 
 def _readable_machine_roots() -> tuple[Path, ...]:
-    """Every root a READ may resolve into: the write roots plus the read-only media folders."""
+    """Every root a READ may resolve into: the write roots plus the read-only media folders.
+
+    A media folder that is itself a link elsewhere (to "~", "/" or a library on another disk) is
+    left out: the folder the owner agreed to share is the one in their home, not what it points at.
+    """
     home = _machine_home().resolve()
-    return tuple(_safe_machine_roots()) + tuple(
-        (home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES
-    )
+    media = ((home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES)
+    return tuple(_safe_machine_roots()) + tuple(root for root in media if root.parent == home)
 
 
 def _readable_root_labels() -> list[str]:
@@ -4806,9 +4810,9 @@ def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False
                 "music": "Music", "my music": "Music", "~/music": "Music",
             }
         )
-    if lowered in alias_map:
-        return (_machine_home() / alias_map[lowered]).resolve()
-    candidate = _expand_machine_user(raw)
+    # An alias names a root but still passes the root check below (a media folder that is a link
+    # elsewhere is not a root).
+    candidate = _machine_home() / alias_map[lowered] if lowered in alias_map else _expand_machine_user(raw)
     if not candidate.is_absolute():
         candidate = (_machine_home() / candidate).resolve()
     else:

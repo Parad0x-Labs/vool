@@ -63,3 +63,30 @@ def test_a_write_into_pictures_is_refused_by_the_writer(home):
     )
     assert not result.ok
     assert (home / "Pictures" / "cat_on_sofa.png").exists() and not (home / "Desktop" / "cat.png").exists()
+
+
+def test_the_writer_target_resolver_never_names_a_media_folder(home):
+    assert rt.resolve_write_target("machine.write_file", "~/Pictures/new.txt", {}) is None
+    assert rt.resolve_write_target("machine.ensure_directory", "pictures", {}) is None
+    assert rt.resolve_write_target("machine.write_file", "~/Desktop/new.txt", {}) == home / "Desktop" / "new.txt"
+
+
+def test_a_pdf_search_never_follows_a_link_out_of_pictures(home, tmp_path):
+    from core.agent_runtime import fast_paths_pdf
+
+    outside = tmp_path / "outside" / "secret"
+    outside.mkdir(parents=True)
+    (outside / "taxes.pdf").write_bytes(b"%PDF-1.4")
+    (home / "Pictures" / "Archive").symlink_to(tmp_path / "outside")
+    (home / "Pictures" / "taxes_link.pdf").symlink_to(outside / "taxes.pdf")
+    assert fast_paths_pdf._find_by_basename("taxes.pdf") is None
+    assert fast_paths_pdf._find_by_basename("taxes_link.pdf") is None
+
+
+def test_a_media_folder_that_is_a_link_is_not_a_root(home, tmp_path):
+    (home / "Music").rmdir()
+    (home / "Music").symlink_to(tmp_path)
+    assert home / "Music" not in rt._readable_machine_roots()
+    assert tmp_path.resolve() not in rt._readable_machine_roots()
+    with pytest.raises(ValueError):
+        rt._resolve_machine_directory("Music")
