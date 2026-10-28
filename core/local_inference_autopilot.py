@@ -262,6 +262,7 @@ def build_local_inference_autopilot_plan(
     default_model_tag: str | None = None,
     resident_model_tags: Collection[str] | None = None,
     user_demand_text: str | None = None,
+    unready_local_models: Collection[str] | None = None,
 ) -> LocalInferenceAutopilotPlan:
     context = compile_context_capsule(user_text=user_text, source_context=source_context)
     capabilities = tuple(capability_truth or ())
@@ -293,6 +294,7 @@ def build_local_inference_autopilot_plan(
         requested_heavy_marker=requested_heavy_marker,
         eagle3_active=eagle3_active,
         default_model_tag=default_model_tag,
+        unready_local_models=unready_local_models,
     )
     risky = _needs_verifier(user_text=user_text, task_kind=task_kind, output_mode=output_mode, source_context=source_context)
     # `resident_model_tags` is measured by the CALLER (best-effort, [] on error) and defaults to
@@ -656,6 +658,7 @@ def _select_primary_capability(
     requested_heavy_marker: str | None,
     eagle3_active: bool = False,
     default_model_tag: str | None = None,
+    unready_local_models: Collection[str] | None = None,
 ) -> ProviderCapabilityTruth | None:
     if explicit_heavy:
         viable = [
@@ -688,6 +691,8 @@ def _select_primary_capability(
         ]
     if not viable:
         return None
+    if not explicit_heavy:
+        viable = _without_unready_local_models(viable, unready_local_models)
     daily_nonthinking_alternative = lane == "daily" and any(
         _is_reliable_daily_nonthinking_model(item) for item in viable
     )
@@ -710,10 +715,37 @@ def _select_primary_capability(
     return ranked[0]
 
 
+def _without_unready_local_models(
+    viable: list[ProviderCapabilityTruth],
+    unready_local_models: Collection[str] | None,
+) -> list[ProviderCapabilityTruth]:
+    """Never make a local model the primary while it is not ready to answer and another one is.
+
+    ``unready_local_models`` comes from the caller and names the local models the final-answer
+    gate would refuse while a ready local model exists (``final_answer_authorship.
+    unready_local_model_names``); it is empty when no local model is ready, so this changes
+    nothing then. The daily scoring alone preferred an installed non-thinking model the person
+    never made ready (qwen2.5:7b) over the one they pressed Use this model on (qwen3:8b), so every
+    turn first offered the refused model and then fell back. Nothing is removed from the ranking
+    itself: only the primary choice skips these models, and they keep their place as fallbacks.
+    """
+
+    unready = _normalized_model_tag_set(unready_local_models)
+    if not unready:
+        return viable
+    kept = [
+        item
+        for item in viable
+        if item.locality != "local" or str(item.model_id or "").strip().lower() not in unready
+    ]
+    return kept or viable
+
+
 def prioritize_daily_residency_capabilities(
     capabilities: tuple[ProviderCapabilityTruth, ...] | list[ProviderCapabilityTruth],
     *,
     default_model_tag: str | None = None,
+    unready_local_models: Collection[str] | None = None,
 ) -> tuple[ProviderCapabilityTruth, ...]:
     """Put the candidate ordinary Auto would keep resident first, preserving all fallbacks.
 
@@ -749,6 +781,7 @@ def prioritize_daily_residency_capabilities(
         explicit_heavy=False,
         requested_heavy_marker=None,
         default_model_tag=default_model_tag,
+        unready_local_models=unready_local_models,
     )
     if selected is None:
         return ordered
@@ -761,6 +794,7 @@ def select_daily_residency_model_tag(
     default_model_tag: str | None = None,
     resident_footprint_gb: Mapping[str, float] | None = None,
     probe: MachineProbe | None = None,
+    unready_local_models: Collection[str] | None = None,
 ) -> str:
     """Select the installed tag ordinary daily Auto is most likely to keep resident.
 
@@ -830,6 +864,7 @@ def select_daily_residency_model_tag(
     ordered = prioritize_daily_residency_capabilities(
         candidates,
         default_model_tag=default_model_tag,
+        unready_local_models=unready_local_models,
     )
     return str(ordered[0].model_id or "").strip() if ordered else ""
 
