@@ -386,7 +386,9 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
         daemon, family_rig, "turn-life-install-1",
         "install the skill called served-echo-skill",
     )
-    assert "as version 1" in _answer(replayed), _answer(replayed)[:300]
+    # The reply itself is plain words (no version jargon); the version record is what the next
+    # line pins, straight from the skill's own history.
+    assert 'Added the skill "Served echo skill". It is on from your next message.' in _answer(replayed), _answer(replayed)[:300]
     assert (skill_dir / "SKILL.md").is_file()
     assert history()["head_version"] == 1
     v1_bytes = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
@@ -416,7 +418,7 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
         daemon, family_rig, "turn-life-install-2",
         "install the skill called served-echo-skill",
     )
-    assert "as version 2" in _answer(replayed), _answer(replayed)[:300]
+    assert 'Updated the skill "Served echo skill". It is on from your next message.' in _answer(replayed), _answer(replayed)[:300]
     assert history()["head_version"] == 2
     assert "three times" in (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert (skill_dir / "versions" / "v1.md").read_text(encoding="utf-8") == v1_bytes

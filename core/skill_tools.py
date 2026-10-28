@@ -734,6 +734,52 @@ def _ensure_plugin_manifest(plugin_dir: Path, plugin_id: str) -> None:
         pass
 
 
+def _clear_staged_drafts(slug: str, keys: dict[str, str] | None) -> tuple[list[str], str]:
+    """Remove every staged draft of one just-installed skill: ``(paths removed, error or "")``.
+
+    Install COPIES the draft into the active tree and historically left the original in staging,
+    so the one skill was listed twice — staged ("drafted, not active") and installed ("active") —
+    and, because staging is deliberately searched before the installed tree, every later name
+    lookup kept answering with the leftover draft instead of the live copy (measured 2026-10-28:
+    draft a skill, turn it on, ask which skills exist — the same skill named twice). The fix
+    belongs to the install, not the listing: the moment a draft becomes active it stops being a
+    draft, so the install retires it.
+
+    Every staging home of the slug is cleared — the global staging tree always, this chat's and
+    this project's staged folders when their keys are present — because a copy surviving in any
+    one of them keeps the duplicate alive. Only the exact ``<slug>`` directory inside a staging
+    root is removed: the slug goes through ``_slug``, which cannot emit a path separator, so the
+    deletion cannot be steered to any folder but that one. A draft of a DIFFERENT skill is never
+    touched.
+
+    An unremovable leftover is reported, never raised: the skill is already active, and a stale
+    draft is a wrong listing, not a failed activation. Callers run this only AFTER the copy and
+    the version record have succeeded, so a failed install never costs the operator their draft.
+    """
+    clean = _slug(slug)
+    if not clean:
+        return [], ""
+    candidates = [staging_root() / clean]
+    for scope in ("chat", "project"):
+        dirs = _scoped_dirs(scope, keys)
+        if dirs is not None:
+            candidates.append(dirs[0] / clean)
+    removed: list[str] = []
+    error = ""
+    for candidate in candidates:
+        # rmtree, not unlink: a staged draft is its own folder (SKILL.md, maybe imported.json
+        # beside it), and an emptied folder would still read as the draft's home on the next
+        # name lookup.
+        try:
+            if candidate.is_dir():
+                shutil.rmtree(candidate)
+                removed.append(str(candidate))
+        except OSError as exc:
+            if not error:
+                error = f"{type(exc).__name__}: could not remove the staged draft"
+    return removed, error
+
+
 def install_skill(
     path: str,
     *,
@@ -754,6 +800,12 @@ def install_skill(
     install into that chat's or project's own skills folder, which only turns in that chat (or in
     chats bound to that project) load. ``expected_sha256`` binds the activation to the bytes the
     operator was shown: when the draft at that path no longer has that digest, nothing is installed.
+
+    A successful install also retires the draft it came from: the staged copies of the same skill
+    are removed from every staging area (``_clear_staged_drafts``), so the skill exists once
+    instead of being listed as both a draft and installed. The copy and the version record land
+    BEFORE anything is removed, so a failed install never loses the draft, and a removal that
+    fails leaves the install active and says so in the result.
     """
 
     scope = str(scope or "global").strip().lower()
@@ -894,7 +946,7 @@ def install_skill(
                 "path": str(destination),
             }
 
-        return {
+        result: dict[str, Any] = {
             "status": "ok",
             "path": str(destination),
             "plugin_id": clean_plugin if scoped_dirs is None else f"{scope}-skills",
@@ -906,6 +958,13 @@ def install_skill(
             "active": True,
             "note": "the loader picks this up on the next turn; no restart is needed",
         }
+        # The duplicate listing this fixes: install copied the draft into the active tree and left
+        # the staged original behind, so one skill showed up as both a draft and installed. Cleared
+        # only here, on the success path — a refused, existing or failed install keeps the draft.
+        result["cleared_staged_drafts"], clear_error = _clear_staged_drafts(slug, keys)
+        if clear_error:
+            result["staged_clear_error"] = clear_error
+        return result
 
 
 def list_skills(workspace: str = "", keys: dict[str, str] | None = None) -> dict[str, Any]:
