@@ -179,7 +179,8 @@ def largest(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     target = _scoped(args, ctx)
     if isinstance(target, ToolOutcome):
         return target
-    return _call(ctx, "machine.find_largest", {"path": str(target)})
+    # The contract's argument is `drive` (a `path` key is refused as invalid_arguments).
+    return _call(ctx, "machine.find_largest", {"drive": str(target), "kind": "files"})
 
 
 def disk_usage(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:

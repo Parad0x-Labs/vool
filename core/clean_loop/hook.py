@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.clean_loop import route
-from core.clean_loop.loop import run_loop
+from core.clean_loop.loop import NO_REPLY_TEXT, run_loop
 from core.clean_loop.registry import ToolContext, default_registry
 
 REASON = "clean_local_loop"
@@ -94,6 +94,11 @@ def maybe_answer(
     if loop_result.stopped == "brain_error" and not loop_result.steps:
         # The local model never answered: let the normal pipeline (and its own failover) try.
         context["clean_local_loop_route"] = "brain_error_fell_through"
+        return None
+    if loop_result.answer == NO_REPLY_TEXT and not loop_result.proposals:
+        # No answer came out of the loop (the audit's "mac or windows" and "what is a dmg" turns):
+        # an apology is never better than the normal pipeline's own try. Only reads ran so far.
+        context["clean_local_loop_route"] = "no_answer_fell_through"
         return None
     trace = {**loop_result.trace(), "provider_id": provider_id, "model_id": model_id}
     context["tool_receipts"] = list(context.get("tool_receipts") or []) + ctx.receipts

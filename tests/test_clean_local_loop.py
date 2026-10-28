@@ -112,6 +112,33 @@ def test_route_leaves_online_and_unrelated_asks_alone():
     assert online.reason == "online_ask" and chat.reason == "not_about_own_files"
 
 
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "stick an empty folder called Invoices on my desktop would you",
+        "make me a shopping list file on the desktop: milk, bread",
+        "can you move the cat photo from Pictures to my Desktop?",
+        "save a note somewhere saying: call the plumber",
+    ],
+)
+def test_route_leaves_writes_to_the_normal_ceremony(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert (decision.admit, decision.reason) == (False, "write_turn")
+
+
+@pytest.mark.parametrize(
+    "ask", ["where did i put my cv? the 2026 one", "what did i write in the flat viewing notes?", "my screenshot didnt save proper, read it"]
+)
+def test_route_keeps_recall_phrasing_as_a_read(ask):
+    assert route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON).admit
+
+
+def test_route_needs_the_machine_to_be_the_owners():
+    general = route.decide("mac or windows, which is better?", source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    own = route.decide("is my laptop any good?", source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert general.reason == "not_about_own_files" and own.admit
+
+
 def test_route_keeps_a_short_follow_up_but_not_a_bare_approval():
     route.note_clean_turn("sess-follow")
     follow = route.decide(
@@ -173,7 +200,7 @@ def test_no_tool_ever_roots_at_slash_or_leaves_home(home):
     paths = [str(args.get("path")) for _intent, args in calls if "path" in args]
     assert paths, "the in-home calls did reach the boundary"
     assert all(p != "/" and (Path(p) == home or home in Path(p).parents) for p in paths), paths
-    assert ("machine.find_largest", {"path": str(home)}) in calls
+    assert ("machine.find_largest", {"drive": str(home), "kind": "files"}) in calls
     assert not any(intent == "machine.find_folder" for intent, _ in calls), "no whole-disk folder walk"
 
 
@@ -184,6 +211,14 @@ def test_reads_go_through_the_real_authorized_boundary(home):
     assert "140.00" in outcome.text
     assert ctx.receipts[-1]["tool_name"] == "machine.read_file"
     assert ctx.receipts[-1]["permission"].get("effect") == "allow"
+
+
+def test_largest_passes_the_contract_argument_through_the_real_boundary(home):
+    # The Mac audit's clean-1 run: a `path` argument came back invalid_arguments on every call.
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = _registry().tool("largest").run({"path": "Downloads"}, ctx)
+    assert ctx.receipts[-1]["tool_name"] == "machine.find_largest"
+    assert outcome.status != "invalid_arguments", outcome.text
 
 
 def test_propose_change_never_executes(home):
@@ -318,6 +353,22 @@ def test_the_hook_answers_an_admitted_turn_and_records_the_tools(home, monkeypat
         {"event_type": "tool_executed", "tool_name": "machine.read_file", "status": "executed", "lane": "clean_local_loop"}
     ]
     assert "model" not in result["route_skips"]
+
+
+def test_the_hook_falls_through_when_the_loop_has_no_answer(home, monkeypatch):
+    from core.clean_loop import brain as brain_module
+    from core.clean_loop import hook
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setattr(brain_module, "resolve_local_manifest", lambda router, ctx: "manifest")
+    monkeypatch.setattr(brain_module, "model_label", lambda manifest: ("ollama-local", "qwen3:8b"))
+    monkeypatch.setattr(brain_module, "make_brain", lambda router, manifest, ctx: _scripted(['{"answer": ""}']))
+    context = dict(OWNER)
+    result = hook.maybe_answer(
+        _Agent(), text="whats a dmg file? my downloads is full of them", effective_input="x",
+        session_id="sess-empty", source_context=context,
+    )
+    assert result is None and context["clean_local_loop_route"] == "no_answer_fell_through"
 
 
 def test_the_hook_does_nothing_for_a_red_ask(home, monkeypatch):

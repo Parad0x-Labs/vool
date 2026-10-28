@@ -3,7 +3,9 @@
 1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default OFF).
 2. The turn is not RED: no pay/send/delete/post/cancel-style verb and no money words. VOOL has no
    text-level risky-action classifier to reuse (its consent gates sit at the effect, which this loop
-   never reaches), so this is a small verb floor. RED turns keep the normal ceremony.
+   never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
+   write (create, move, rename, save...): this loop only reads, and the normal path owns the change,
+   its approval and the "yes please" that follows it.
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
    project-bound chat or a chat with an active goal workflow, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn), and
@@ -35,6 +37,17 @@ _RED_RE = re.compile(
     r"|[$€£]\s*\d|\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|credit\s+card|bank\s+account)\b",
     re.I,
 )
+_WRITE_RE = re.compile(
+    r"\b(?:move|moving|rename|renaming|copy|copying|duplicate|create|creating|write|save|saving|put|stick|"
+    r"make\s+(?:me\s+)?(?:a|an|new)|set\s+up|organi[sz]e|tidy|sort\s+out|edit|append|add\s+(?:a|an|it|this|that|to))\b",
+    re.I,
+)
+# "where did i put my cv", "what did i write", "it didnt save": the owner recalling, not asking for a change.
+_RECALL_RE = re.compile(
+    r"\b(?:did\s+(?:i|you)|i|i'?ve|i\s+had|didn'?t|did\s+not|wasn'?t)\s+(?:just\s+|already\s+)?"
+    r"(?:move|rename|copy|create|write|save|put|stick|make|edit)\w*",
+    re.I,
+)
 _ONLINE_RE = re.compile(
     r"\b(?:weather|forecast|news|headlines|stock|share\s+price|exchange\s+rate|price\s+of|search\s+(?:the\s+)?(?:web|internet|online)|"
     r"google|online|website|https?://|www\.)\b",
@@ -43,10 +56,12 @@ _ONLINE_RE = re.compile(
 _TOPIC_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|"
     r"videos?|movies?|music|songs?|notes?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
-    r"tickets?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|laptop|computer|mac|pc|"
+    r"tickets?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|"
     r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp)\b",
     re.I,
 )
+# The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
+_MACHINE_RE = re.compile(r"\b(?:my|this|the)\s+(?:own\s+)?(?:laptop|computer|mac(?:book)?|pc|machine)\b", re.I)
 _OWNED_RE = re.compile(r"\b(?:my|mine|i\s+(?:wrote|saved|downloaded|took|put|keep|named|made|have|had|got))\b", re.I)
 _SELF_RE = re.compile(r"\b(?:my\s+name|call\s+me|who\s+am\s+i|about\s+me)\b|^\s*(?:please\s+)?(?:remember|forget)\b", re.I)
 _APPROVAL_RE = re.compile(r"^\s*(?:yes|yep|yeah|ok|okay|sure|go\s+ahead|do\s+it|approve[d]?|confirm(?:ed)?|no|nope|stop)\b", re.I)
@@ -72,6 +87,10 @@ def is_red(text: str) -> bool:
     return bool(_RED_RE.search(str(text or "")))
 
 
+def is_write(text: str) -> bool:
+    return bool(_WRITE_RE.search(_RECALL_RE.sub(" ", str(text or ""))))
+
+
 def is_online_ask(text: str) -> bool:
     return bool(_ONLINE_RE.search(str(text or "")))
 
@@ -80,7 +99,7 @@ def asks_about_own_files_or_computer(text: str) -> bool:
     value = str(text or "")
     if _SELF_RE.search(value):
         return False
-    return bool(_TOPIC_RE.search(value) or _OWNED_RE.search(value))
+    return bool(_TOPIC_RE.search(value) or _MACHINE_RE.search(value) or _OWNED_RE.search(value))
 
 
 def note_clean_turn(session_id: str) -> None:
@@ -140,6 +159,8 @@ def decide(
         return RouteDecision(False, "flag_off")
     if is_red(text):
         return RouteDecision(False, "red_turn")
+    if is_write(text):
+        return RouteDecision(False, "write_turn")
     if browser_turn:
         return RouteDecision(False, "browser_turn")
     blocked = _owner_context_blocks(dict(source_context or {}), session_id)
@@ -162,6 +183,7 @@ __all__ = [
     "decide",
     "flag_on",
     "is_online_ask",
+    "is_write",
     "is_red",
     "note_clean_turn",
 ]
