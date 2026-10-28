@@ -371,6 +371,24 @@ def test_the_hook_falls_through_when_the_loop_has_no_answer(home, monkeypatch):
     assert result is None and context["clean_local_loop_route"] == "no_answer_fell_through"
 
 
+def test_the_hook_falls_through_when_the_model_cannot_load(home, monkeypatch):
+    from core.clean_loop import brain as brain_module
+    from core.clean_loop import hook
+
+    def refused(messages):
+        raise RuntimeError("model_load_gated_low_memory")
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setattr(brain_module, "resolve_local_manifest", lambda router, ctx: "manifest")
+    monkeypatch.setattr(brain_module, "model_label", lambda manifest: ("ollama-local", "qwen3:8b"))
+    monkeypatch.setattr(brain_module, "make_brain", lambda router, manifest, ctx: refused)
+    context = dict(OWNER)
+    result = hook.maybe_answer(
+        _Agent(), text="whats on my desktop", effective_input="x", session_id="sess-oom", source_context=context
+    )
+    assert result is None and context["clean_local_loop_route"] == "brain_error_fell_through"
+
+
 def test_the_hook_does_nothing_for_a_red_ask(home, monkeypatch):
     from core.clean_loop import brain as brain_module
     from core.clean_loop import hook

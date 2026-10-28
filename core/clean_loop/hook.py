@@ -91,7 +91,9 @@ def maybe_answer(
         ctx=ctx,
         history=_history(context, text),
     )
-    if loop_result.stopped == "brain_error" and not loop_result.steps:
+    if loop_result.stopped == "brain_error" and not loop_result.tools_used:
+        # (`steps` also holds the error entry itself, so "no steps" never matched; the Mac audit
+        # saw this when VOOL refused to load the model on low memory.)
         # The local model never answered: let the normal pipeline (and its own failover) try.
         context["clean_local_loop_route"] = "brain_error_fell_through"
         return None
