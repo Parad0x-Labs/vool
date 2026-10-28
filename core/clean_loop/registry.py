@@ -42,6 +42,9 @@ class ToolContext:
     task_id: str = ""
     proposals: list[dict[str, Any]] = field(default_factory=list)
     receipts: list[dict[str, Any]] = field(default_factory=list)
+    # Changes rehearsed this turn (core.clean_loop.changes.Plan); the hook keeps the last one
+    # for the owner's "yes".
+    plans: list[Any] = field(default_factory=list)
     # The authorized boundary; replaceable only so tests can observe calls without a runtime.
     execute: Callable[..., Any] | None = None
 

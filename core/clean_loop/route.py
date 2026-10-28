@@ -34,7 +34,9 @@ _RED_RE = re.compile(
     r"format\s+(?:the|my|this|that)\s+(?:drive|disk|usb|computer|laptop|mac|pc)|"
     r"post\s+(?:it|this|that|to|on|a|an|my)|publish|tweet|share|upload|email\s+(?:it|this|that|him|her|them|to)|"
     r"message\s+(?:him|her|them)|sign\s+(?:it|this|that|the|up|in|me)|submit|approve|authori[sz]e)\b"
-    r"|[$€£]\s*\d|\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|credit\s+card|bank\s+account)\b",
+    # (An amount alone is not RED: "find the €129 invoice" asks about a file. The verbs above still
+    # catch "send €50 to anna"; Fable consult 2026-10-28.)
+    r"|\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|credit\s+card|bank\s+account)\b",
     re.I,
 )
 _WRITE_RE = re.compile(
@@ -66,6 +68,14 @@ _OWNED_RE = re.compile(r"\b(?:my|mine|i\s+(?:wrote|saved|downloaded|took|put|kee
 _SELF_RE = re.compile(r"\b(?:my\s+name|call\s+me|who\s+am\s+i|about\s+me)\b|^\s*(?:please\s+)?(?:remember|forget)\b", re.I)
 _APPROVAL_RE = re.compile(r"^\s*(?:yes|yep|yeah|ok|okay|sure|go\s+ahead|do\s+it|approve[d]?|confirm(?:ed)?|no|nope|stop)\b", re.I)
 
+_YES_RE = re.compile(r"^\s*(?:yes|yep|yeah|yup|ok|okay|sure|go\s+ahead|do\s+it|please\s+do|sounds\s+good)\b[\s\w,.!]{0,24}$", re.I)
+_NO_RE = re.compile(r"^\s*(?:no|nope|stop|don'?t|leave\s+it|never\s*mind|forget\s+it)\b[\s\w,.!]{0,24}$", re.I)
+_UNDO_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:undo(?:\s+(?:that|it|this|everything|all\s+of\s+it))?|put\s+(?:them|it|everything|all\s+of\s+it)\s+back|"
+    r"revert(?:\s+(?:that|it))?|take\s+(?:that|it)\s+back|change\s+it\s+back)\b[\s\w,.!]{0,24}$",
+    re.I,
+)
+
 _FOLLOW_UP_WORDS = 14
 _FOLLOW_UP_TTL_S = 900.0
 _RECENT: OrderedDict[str, float] = OrderedDict()
@@ -79,6 +89,15 @@ class RouteDecision:
     brain: Any = None
 
 
+CHANGES_ENV = "VOOL_CLEAN_LOOP_CHANGES"
+
+
+def changes_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Write asks (new folder, move, rename, new file) come here only with their own flag: the change
+    is rehearsed, shown as a card and undoable (core.clean_loop.changes). Default OFF."""
+    return str((env if env is not None else os.environ).get(CHANGES_ENV) or "").strip().lower() in _TRUTHY
+
+
 def flag_on(env: Mapping[str, str] | None = None) -> bool:
     return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() in _TRUTHY
 
@@ -89,6 +108,18 @@ def is_red(text: str) -> bool:
 
 def is_write(text: str) -> bool:
     return bool(_WRITE_RE.search(_RECALL_RE.sub(" ", str(text or ""))))
+
+
+def change_reply(text: str) -> str:
+    """"yes", "no" or "undo" for a bare reply to a change card; "" for anything else."""
+    value = str(text or "")
+    if _UNDO_RE.match(value):
+        return "undo"
+    if _NO_RE.match(value):
+        return "no"
+    if _YES_RE.match(value):
+        return "yes"
+    return ""
 
 
 def is_online_ask(text: str) -> bool:
@@ -159,7 +190,7 @@ def decide(
         return RouteDecision(False, "flag_off")
     if is_red(text):
         return RouteDecision(False, "red_turn")
-    if is_write(text):
+    if is_write(text) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
     if browser_turn:
         return RouteDecision(False, "browser_turn")
@@ -177,7 +208,10 @@ def decide(
 
 
 __all__ = [
+    "CHANGES_ENV",
     "FLAG_ENV",
+    "change_reply",
+    "changes_enabled",
     "RouteDecision",
     "asks_about_own_files_or_computer",
     "decide",

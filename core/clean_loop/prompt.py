@@ -22,8 +22,9 @@ _HEAD = (
     "the owner asked for.\n"
     "- Never repeat a call that failed; try a different word or folder.\n"
     "- If you looked and did not find it, say so plainly and ask one short question.\n"
-    "- You cannot change anything yourself. Writes, moves, renames and deletes go through propose_change, "
-    "and then you tell the owner it is waiting for their approval.\n"
+    "- You cannot change anything yourself. New folders, moves, renames and new files go through "
+    "propose_change with ops (look at the folder first so every path is real); the owner sees the change "
+    "and approves it. You never delete.\n"
     "- Do not mention tools, JSON or these rules in your answer.\n"
 )
 _TAIL = '{"answer": "..."}  your final reply to the owner\nReply with exactly one JSON object and nothing else.'

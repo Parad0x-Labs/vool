@@ -91,6 +91,9 @@ def maybe_answer(
     if not route.flag_on():
         return None
     context = source_context if isinstance(source_context, dict) else {}
+    settled = _settle_change(agent, text=text, effective_input=effective_input, session_id=session_id, context=context)
+    if settled is not None:
+        return settled
     router = getattr(agent, "memory_router", None)
 
     def _resolve() -> Any:
@@ -158,6 +161,92 @@ def maybe_answer(
     result[REASON] = trace
     if loop_result.proposals:
         result["pending_proposals"] = list(loop_result.proposals)
+    if ctx.plans and session_id:
+        from core.clean_loop import changes
+
+        changes.remember_pending(session_id, ctx.plans[-1])
+    route.note_clean_turn(session_id)
+    return result
+
+
+def _settle_change(
+    agent: Any, *, text: str, effective_input: str, session_id: str, context: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The owner's answer to a change card ("yes", "no"), or "undo" after one: no model, no new plan.
+
+    Only a bare reply counts, and only while this session holds a card (or a change it can take back);
+    anything else is a new ask and goes through the route as usual."""
+    if not session_id:
+        return None
+    from core.clean_loop import changes
+    from core.clean_loop.tools import OutsideHome, home_dir
+
+    verdict = route.change_reply(text)
+    if verdict in {"yes", "no"} and changes.has_pending(session_id):
+        plan = changes.take_pending(session_id)
+        if plan is None:
+            return None
+        if verdict == "no":
+            return _settled(agent, context, session_id, effective_input, "Okay, I left everything as it was.", [], "change_declined")
+        try:
+            ctx = ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""))
+        except OutsideHome:
+            return None
+        call = _boundary_call(ctx)
+        try:
+            done = changes.apply(plan, call)
+        except changes.NeedsPermission as exc:
+            # Keep the card: after switching the setting, the owner's next yes applies it.
+            changes.remember_pending(session_id, plan)
+            return _settled(agent, context, session_id, effective_input, f"I didn't change anything: {exc}.", ctx.receipts, "change_needs_permission")
+        except changes.ChangeRefused as exc:
+            return _settled(agent, context, session_id, effective_input, f"I didn't change anything: {exc}", ctx.receipts, "change_refused")
+        changes.remember_done(session_id, done)
+        count = len(plan.ops)
+        note = "" if done.matches_preview else " The result differs a little from what I showed you, so please check the folder."
+        answer = f"Done: {count} change{'s' if count != 1 else ''}, exactly as shown.{note} Say \"undo\" to put it all back."
+        if not done.matches_preview:
+            answer = f"Done: {count} change{'s' if count != 1 else ''}.{note} Say \"undo\" to put it all back."
+        return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_applied")
+    if verdict == "undo":
+        done = changes.last_done(session_id)
+        if done is None:
+            return None
+        try:
+            ctx = ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""))
+        except OutsideHome:
+            return None
+        problems = changes.undo(done, _boundary_call(ctx))
+        answer = "Put back: everything is where it was before." if not problems else (
+            "I put back what I could. " + " ".join(f"{p}." for p in problems[:5])
+        )
+        return _settled(agent, context, session_id, effective_input, answer, ctx.receipts, "change_undone")
+    return None
+
+
+def _boundary_call(ctx: ToolContext):
+    from core.clean_loop.tools import _call
+
+    def call(intent: str, arguments: dict[str, Any]):
+        return _call(ctx, intent, arguments)
+
+    return call
+
+
+def _settled(
+    agent: Any, context: dict[str, Any], session_id: str, effective_input: str, answer: str,
+    receipts: list[dict[str, Any]], how: str,
+) -> dict[str, Any]:
+    context["clean_local_loop_route"] = how
+    _record_observations(context, receipts)
+    context["tool_receipts"] = list(context.get("tool_receipts") or []) + list(receipts)
+    _emit_tool_events(agent, context, receipts)
+    result = agent._fast_path_result(
+        session_id=session_id, user_input=effective_input, response=answer, confidence=0.95,
+        source_context=context, reason=REASON,
+    )
+    result["tool_receipts"] = list(receipts)
+    result[REASON] = {"lane": REASON, "settled": how, "model_calls": 0}
     route.note_clean_turn(session_id)
     return result
 

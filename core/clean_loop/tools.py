@@ -480,8 +480,38 @@ def processes(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
 
 
 def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
-    """Never executes. The proposal waits for the owner; the loop's answer says so."""
+    """Never executes. With `ops` the change is rehearsed on a copy and the owner sees exactly what
+    will happen; it waits for their yes either way, and the loop's answer says so."""
     what = " ".join(str(args.get("what") or args.get("change") or "").split())[:400]
+    ops = args.get("ops")
+    if ops is not None:
+        from core.clean_loop import changes
+
+        try:
+            plan = changes.preview(ctx.home, ops if isinstance(ops, list) else [ops])
+        except changes.ChangeRefused as exc:
+            return ToolOutcome(text=f"not possible: {exc}", ok=False, status="change_refused")
+        except Exception as exc:
+            _LOG.exception("clean loop: preview failed")
+            return ToolOutcome(text=f"not possible: {error_text(exc, ctx.home)}", ok=False, status="error")
+        ctx.plans.append(plan)
+        proposal = {"what": what or "; ".join(plan.lines)[:400], "status": "pending_approval", "executed": False,
+                    "plan_id": plan.plan_id, "card": list(plan.lines)}
+        ctx.proposals.append(proposal)
+        ctx.receipts.append(
+            {
+                "tool_name": "propose_change",
+                "mode": "pending_approval",
+                "status": "pending_approval",
+                "execution": {"executed": False, "ok": True, "status": "pending_approval"},
+                "lane": "clean_local_loop",
+            }
+        )
+        card = "\n".join(f"- {line}" for line in plan.lines[:40])
+        return ToolOutcome(
+            text=f"rehearsed on a copy; nothing changed yet. The owner will see:\n{card}\nwaiting for their approval",
+            ok=True, status="pending_approval", proposal=proposal,
+        )
     proposal = {"what": what or "(unspecified change)", "status": "pending_approval", "executed": False}
     ctx.proposals.append(proposal)
     ctx.receipts.append(
@@ -509,16 +539,29 @@ BUILTIN_TOOLS = (
     ("disk_usage", '{"tool": "disk_usage"}  how full the disk is', disk_usage),
     ("system_info", '{"tool": "system_info"}  computer specs: model, chip, memory, disk', system_info),
     ("processes", '{"tool": "processes", "sort": "cpu"}  what is running now, by cpu or memory', processes),
-    ("propose_change", '{"tool": "propose_change", "what": "..."}  ask the owner to approve a change (write, move, rename, delete)', propose_change),
+    ("propose_change", '{"tool": "propose_change", "what": "...", "ops": [{"op": "mkdir", "path": "Desktop/Screenshots"}, '
+     '{"op": "move", "src": "Desktop/Screenshot*", "dst": "Desktop/Screenshots/"}, {"op": "write", "path": "Desktop/list.txt", '
+     '"text": "..."}]}  show the owner a change (new folder, move, rename, new file) to approve; it is undoable', propose_change),
 )
 
 
 PENDING_NOTICE = "This is waiting for your approval; nothing has been changed yet."
+CARD_NOTICE = "Nothing has changed yet. Say yes to do it, and afterwards \"undo\" puts it all back."
 
 
 def pending_proposal_notice(answer: str, result: Any) -> str:
-    """Answer gate: a turn that proposed a change always says the change has not happened."""
-    if not getattr(result, "proposals", None) or "approv" in str(answer or "").lower():
+    """Answer gate: a turn that proposed a change always says the change has not happened, and a
+    rehearsed change shows its card: exactly what will happen."""
+    proposals = list(getattr(result, "proposals", None) or [])
+    if not proposals:
+        return answer
+    cards = [p for p in proposals if p.get("card")]
+    if cards:
+        lines = "\n".join(f"- {line}" for line in cards[-1]["card"][:40])
+        more = len(cards[-1]["card"]) - 40
+        tail = f"\n- ...and {more} more" if more > 0 else ""
+        return f"{str(answer or '').rstrip()}\n\nHere is what I will do:\n{lines}{tail}\n\n{CARD_NOTICE}".strip()
+    if "approv" in str(answer or "").lower():
         return answer
     return f"{str(answer or '').rstrip()}\n\n{PENDING_NOTICE}".strip()
 
@@ -531,6 +574,7 @@ def install_builtin_tools(registry: Registry) -> None:
 
 __all__ = [
     "BUILTIN_TOOLS",
+    "CARD_NOTICE",
     "PENDING_NOTICE",
     "OutsideHome",
     "home_dir",
