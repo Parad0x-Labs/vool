@@ -480,3 +480,24 @@ def test_the_hook_is_inert_with_the_flag_off(monkeypatch):
     assert hook.maybe_answer(_Agent(), text="whats on my desktop", effective_input="x", session_id="s",
                              source_context=context) is None
     assert "clean_local_loop_route" not in context
+
+
+def test_reads_reach_a_lifecycle_opened_after_the_loop():
+    # Mac clean-4: the publication gate opened the turn's lifecycle after the loop had already
+    # recorded its reads, so five answers built from real reads were refused as "nothing retrieved".
+    from core import grounding_lifecycle as gl
+    from core.clean_loop.hook import _record_observations
+
+    gl.reset_for_tests()
+    context: dict[str, Any] = {"turn_id": "t-late", "session_id": "s-late"}
+    receipt = {
+        "tool_name": "processes",
+        "execution": {"executed": True},
+        "response_preview": "Google Chrome 41.2% CPU",
+    }
+    _record_observations(context, [receipt])
+    gl.register_required(context, request_text="whats eating my cpu right now")
+    gl.harvest_turn_observations(context)
+    record = gl.lifecycle_for_context(context)
+    assert record is not None
+    assert any("Google Chrome" in str(row.get("summary")) for row in record.typed_observations)

@@ -50,7 +50,7 @@ def _emit_tool_events(agent: Any, source_context: dict[str, Any], receipts: list
             continue
 
 
-def _record_observations(source_context: dict[str, Any], receipts: list[dict[str, Any]]) -> None:
+def _record_observations(context: dict[str, Any], receipts: list[dict[str, Any]]) -> None:
     """Each read that ran is this turn's own typed observation, the support a grounded answer is
     matched against. Without it the publication gate saw a model answer with nothing retrieved
     and withheld it whenever the ask sounded current ("any new photos from this week?")."""
@@ -66,10 +66,15 @@ def _record_observations(source_context: dict[str, Any], receipts: list[dict[str
     ]
     if not rows:
         return
+    # Also on the turn's own observation channel: the lifecycle row is often opened later, at
+    # publication, and a direct record before it exists is silently dropped (Mac clean-4: five
+    # answers built from real reads were refused as "nothing retrieved"). The seal harvests it.
+    channel = context.get("runtime_tool_observations")
+    context["runtime_tool_observations"] = [*(channel if isinstance(channel, list) else []), *rows]
     try:
         from core.grounding_lifecycle import record_typed_observations
 
-        record_typed_observations(source_context, entries=rows)
+        record_typed_observations(context, entries=rows)
     except Exception:
         return
 
