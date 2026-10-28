@@ -1173,15 +1173,26 @@ _OWNER_ASK_LEAD_STRICT = (
 _OWNER_QUESTION_HEAD_RE = re.compile(
     r"^\s*(?:so|ok|okay|alright|and|but|or|also)?[\s,]*"
     r"(?:what|where|when|which|who|whom|whose|how|why|am|is|are|was|were|do|does|did|"
-    r"can|could|will|would|shall|should|may|might|any)\b",
+    r"can|could|will|would|shall|should|may|might|any|have)\b",
     re.IGNORECASE,
+)
+#: Job 2c (N4): every verb a seat regex may put behind an ask lead, as ONE shared list. A seat
+#: verb missing from the clause-lead list is dead code — the segment never counts as an ask, so
+#: the seat can never fire ("review my notes and my schedule ...", "map out my week",
+#: "gather my notes", "round up my notes", "structure my day", "lay out my week", "place a
+#: booking on my calendar"). The wording test walks every seat regex against this list, so a
+#: seat verb that cannot make its segment an ask can never slip in again.
+_OWNER_CLAUSE_LEAD_VERBS: tuple[str, ...] = (
+    "show", "list", "find", "save", "open", "read", "check", "give", "pull", "put", "book",
+    "schedule", "add", "create", "make", "set", "arrange", "block", "plan", "organize",
+    "organise", "tidy", "clean", "sort", "summarize", "summarise", "digest", "recap",
+    "display", "remind", "note", "write", "export", "copy", "move", "delete", "remove",
+    "search", "look", "walk", "run", "jot", "go", "review", "structure", "map", "lay",
+    "place", "gather", "collect", "round",
 )
 #: The seating verbs, at any clause lead, make the segment an imperative ask.
 _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
-    _OWNER_ASK_LEAD
-    + r"(?:show|list|find|save|open|read|check|give|pull|put|book|schedule|add|create|make|set|"
-    r"arrange|block|plan|organize|organise|tidy|clean|sort|summarize|summarise|digest|recap|"
-    r"display|remind|note|write|export|copy|move|delete|remove|search|look|walk|run|jot|go)\b",
+    _OWNER_ASK_LEAD + r"(?:" + "|".join(_OWNER_CLAUSE_LEAD_VERBS) + r")\b",
     re.IGNORECASE,
 )
 
@@ -1197,9 +1208,31 @@ _OWNER_IMPERATIVE_CLAUSE_RE = re.compile(
 #: London?" does not open a segment with it), a note carried by its title ("the note called
 #: Venue plan" — titled notes on this machine are the owner's), and "time free" (the reverse
 #: of "free time").
+#: Job 2c (N2): ONE list of event nouns, shared by the own-object gate and the agenda seat,
+#: so a noun the gate admits can never be missing from the seat (the "any calls today?" miss,
+#: where "calls" sat in the gate's "any" shape but not in the seat's).
+_OWNER_EVENT_NOUNS_ALT = r"meetings?|appointments?|events?|calls?"
+#: Job 2c (N1): "have I got" / "have we got" is the same inventory ask as "do I have"
+#: ("what reminders have I got set for tomorrow", "have I got time free tomorrow morning").
+_OWNER_HAVE_INVENTORY = r"(?:do\s+(?:i|we)\s+have|have\s+(?:i|we)\s+got)"
+#: Job 2c (W3): a segment that OPENS with "any meetings/appointments/events/calls" is the
+#: owner's own only when nothing else in the segment names whose it is. Time words, "for
+#: me/us" and "on my calendar" keep it the owner's ("any appointments today?"); a place, an
+#: organisation, "available at ..." or "of the ..." make it the world's ("any events in Paris
+#: tomorrow?"). The tail after the noun may therefore hold ONLY these words, up to the end of
+#: the segment (segments join with " . " in the ask text).
+_OWNER_ANY_EVENT_TAIL = (
+    r"(?:\s+(?:for\s+(?:me|us)|on\s+(?:my|our)\s+(?:calendar|schedule|plate)"
+    r"|on\s+(?:mon|tues|wednes|thurs|fri|satur|sun)day|in\s+the\s+(?:morning|afternoon|evening)"
+    r"|at\s+all|left|still|already|booked|scheduled|set|due|pending|or|and|then"
+    r"|today|tonight|tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week|weekend|month)"
+    r"|next\s+(?:week|weekend|month)|(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+    r"|morning|afternoon|evening|night|weekend|at\s+\d(?:[.:]\d+)?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?))*"
+    r"(?=\s*\.\s|\s*$)"
+)
 _OWNER_OWN_OBJECT_RE = re.compile(
     r"\b(?:my|our)\s+(?:notes?|note|agenda|calendars?|calendar|schedule|reminders?|"
-    r"meetings?|appointments?|calls?|free\s+time|day|week|plate|disk|drive|storage|"
+    r"(?:" + _OWNER_EVENT_NOUNS_ALT + r")|free\s+time|day|week|plate|disk|drive|storage|"
     r"computer|mac|machine|laptop|apple\s+notes?)\b"
     r"|\bapple\s+notes?\b"
     r"|\bnote\s+to\s+self\b"
@@ -1208,18 +1241,27 @@ _OWNER_OWN_OBJECT_RE = re.compile(
     r"|\bwhat\s+am\s+i\s+doing\b"
     r"|\bwhat\s+have\s+(?:i|we)\s+got\s+on\b"
     r"|\bwhat\s+do\s+(?:i|we)\s+have\s+on\b"
-    r"|\b(?:what|which)\b[^.!?]{0,40}?\bdo\s+(?:i|we)\s+have\b(?!\s+to\b)"
-    r"|(?:^|(?<=\. ))any\s+(?:meetings?|events?|appointments?|calls?)\b"
-    r"|\b(?:my|our)\s+next\s+(?:meeting|appointment|call|event|agenda|day|week)\b"
+    r"|\b(?:what|which)\b[^.!?]{0,40}?\b" + _OWNER_HAVE_INVENTORY + r"\b(?!\s+to\b)"
+    r"|(?:^|(?<=\. ))any\s+(?:" + _OWNER_EVENT_NOUNS_ALT + r")\b" + _OWNER_ANY_EVENT_TAIL +
+    r"|\b(?:my|our)\s+next\s+(?:" + _OWNER_EVENT_NOUNS_ALT + r"|agenda|day|week)\b"
     r"|\b(?:am\s+i|are\s+we)\s+(?:free|available|busy|open)\b"
     r"|\bfree\s+(?:time|slots?|windows?)\b"
     r"|\btime\s+free\b"
-    r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?))\b"
+    r"|\b" + _OWNER_HAVE_INVENTORY + r"\s+(?:anything|something|any\s+(?:" + _OWNER_EVENT_NOUNS_ALT
+    + r"|conflicts?))\b"
     r"|\bis\s+(?:today|tonight|tomorrow|this\s+week|next\s+week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)"
     r"(?:\s+(?:morning|afternoon|evening))?\s+(?:free|available|busy|open)\b",
     re.IGNORECASE,
 )
 
+#: Job 2c (N2): the time words the bare "any ..." agenda shape accepts — the same notion of a
+#: time word as the own-object "any" tail, part-of-day words included ("any meetings this
+#: afternoon?").
+_OWNER_ANY_TIME_ALT = (
+    r"today|tonight|tomorrow|this\s+weekend|this\s+week|next\s+weekend|next\s+week"
+    r"|this\s+morning|this\s+afternoon|this\s+evening|in\s+the\s+(?:morning|afternoon|evening)"
+    r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day|morning|afternoon|evening"
+)
 _OWNER_AGENDA_SEAT_RE = re.compile(
     # R2: the agenda ask names the owner's own calendar ("my calendar"); "what's on the calendar
     # for the Olympics" is the world's event calendar, not the owner's. The show branch reads the
@@ -1231,12 +1273,12 @@ _OWNER_AGENDA_SEAT_RE = re.compile(
     r"|\bwhat\s+am\s+i\s+doing\b[^.!?]{0,30}?\b(?:on\s+)?(?:today|tonight|tomorrow|this\s+week|next\s+week"
     r"|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
     r"|\bwhat(?:'s| is| does)\s+(?:my|the|this|next)\s+week\b\s+look\s+like\b"
-    r"|\bany\s+(?:meetings?|events?|appointments?)\b[^.!?]{0,30}?\b(?:on\s+)?"
-    r"(?:today|tonight|tomorrow|this week|next week|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b"
-    r"|\bwhat\s+(?:meetings?|appointments?|events?|calls?)\s+do\s+(?:i|we)\s+have\b"
-    r"|\bwhat(?:'s| is)\s+(?:my|our)\s+next\s+(?:meeting|appointment|call|event)\b"
+    r"|\bany\s+(?:" + _OWNER_EVENT_NOUNS_ALT + r")\b[^.!?]{0,30}?\b(?:on\s+)?(?:" + _OWNER_ANY_TIME_ALT + r")\b"
+    r"|\b(?:what|which)\s+(?:" + _OWNER_EVENT_NOUNS_ALT + r")\s+" + _OWNER_HAVE_INVENTORY + r"\b"
+    r"|\b(?:what|when)(?:'s| is)\s+(?:my|our)\s+next\s+(?:" + _OWNER_EVENT_NOUNS_ALT + r")\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:show|read|open|check|give\s+me|walk\s+(?:me\s+)?through|run\s+through)\b"
     r"[^.!?]{0,60}?\b(?:my|the|this|today'?s|tomorrow'?s|this\s+week'?s|next\s+week'?s)\s+(?:day|agenda|schedule|calendar)\b"
+    r"(?!\s+(?:app|account|settings?|sync|widget))"
     # Job 2b: a combined report over the owner's own time ("look over my notes and my
     # calendar and tell me what's coming up") seats the agenda beside the notes; without it
     # the turn got no tool list at all. The calendar noun stays possessive (the world's
@@ -1274,9 +1316,10 @@ _OWNER_AVAILABILITY_SEAT_RE = re.compile(
     r"(?:\s+(?:morning|afternoon|evening))?\s+free\b"
     r"(?=\s*(?:[?!,.]|$|\b(?:on|at|for|or|and|in|still|now|then|today|tonight|tomorrow|this|next"
     r"|morning|afternoon|evening)\b))"
-    r"|\bdo\s+(?:i|we)\s+have\s+(?:anything|something|any\s+(?:meetings?|events?|appointments?|conflicts?)"
+    r"|\b" + _OWNER_HAVE_INVENTORY + r"\s+(?:anything|something|any\s+(?:" + _OWNER_EVENT_NOUNS_ALT
+    + r"|conflicts?)"
     r"|(?:a|any)\s+free\s+(?:time|slots?|windows?))\b(?!\s+to\b)"
-    r"|\bdo\s+(?:i|we)\s+have\s+(?:any\s+)?time\s+free\b"
+    r"|\b" + _OWNER_HAVE_INVENTORY + r"\s+(?:any\s+)?time\s+free\b"
     r"|\b(?:availability|available|free|busy|open)\b[^.!?]{0,60}?\b(?:slot|calendar|schedule|window)\b"
     r"|\b(?:slot|calendar|schedule)\b[^.!?]{0,60}?\b(?:availability|available|free|busy)\b"
     r"|" + _OWNER_ASK_LEAD + r"(?:check|find)\b[^.!?]{0,60}?\b(?:my|the)\s+(?:availability|free\s+time)\b",
@@ -1326,11 +1369,74 @@ _OWNER_PROPOSE_EVENT_SEAT_RE = re.compile(
 #: revolution I pasted below: ...") reads words the model can already see — it is not a store
 #: lookup, so the note-reading seats stand down for it. A save is untouched: storing the very
 #: words someone pasted is the point of the ask.
+#: Job 2c (W2): the veto belongs ONLY when the pasted words ARE the notes ("my notes on X I
+#: pasted below:", "these notes below:", "I pasted my notes below"). Something else pasted
+#: beside a real store lookup ("find my notes about the boiler, the error is below: E119")
+#: keeps the lookup: the veto needs the notes noun attached to the pasted cue with no clause
+#: boundary between them.
 _NOTES_IN_MESSAGE_RE = re.compile(
-    r"\b(?:pasted|posted|copied|included|typed)\b[^.!?]{0,20}?\b(?:below|above)\b"
-    r"|\b(?:below|above)\s*:",
+    r"\bnotes?\b[^,.!?]{0,60}?\b(?:pasted|posted|copied|included|typed)\b[^,.!?]{0,20}?\b(?:below|above)\b"
+    r"|\bnotes?\b[^,.!?]{0,25}?\b(?:below|above)\s*:"
+    r"|\b(?:pasted|posted|copied|included|typed)\b[^,.!?]{0,30}?\bnotes?\b[^,.!?]{0,20}?\b(?:below|above)\b",
     re.IGNORECASE,
 )
+#: Job 2c (W1): the booking verbs, so a segment that OPENS with one ("book a call with the
+#: Prime Minister?") reads as a booking clause of its own — as distinct from a polite request
+#: ("can you book ...?"), whose verb sits behind a frame.
+_BARE_BOOKING_LEAD_RE = re.compile(
+    r"^(?:set\s+up|put|book|schedule|add|create|make|set|arrange|block|place)\b",
+    re.IGNORECASE,
+)
+
+
+def _propose_event_asked_about(ask_text: str, segments: list[tuple[str, bool]]) -> bool:
+    """Job 2c (W1): does the text ask ABOUT the booking instead of making it?
+
+    The feasibility/price check ("is that possible?", "would that work?", "is it free to
+    ...?") vetoes the booking seat only where the booking itself is asked about: (a) a check
+    frame that wraps the verb — the check starts before the booking inside the same segment
+    ("is it free to schedule a meeting on Zoom?"); or (b) a booking clause that is itself a
+    bare question — the verb opens the segment and the segment ended on a question mark in
+    the caller's own words — with a check after it ("book a call with the Prime Minister? is
+    that possible?"). An order with a check attached ("book a dentist appointment tuesday at
+    9, would that work?") and a polite request ("can you book ...?") are orders and keep the
+    seat. `segments` carries the kept ask segments as (text, ended-on-a-question-mark) pairs,
+    in ask_text order.
+    """
+    matches = list(_OWNER_PROPOSE_EVENT_SEAT_RE.finditer(ask_text))
+    if not matches:
+        return False
+    checks = [m.start() for m in _FEASIBILITY_ASK_RE.finditer(ask_text)]
+    if not checks:
+        return False
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    for text, _ends_question in segments:
+        spans.append((pos, pos + len(text)))
+        pos += len(text) + 3  # the " . " join between kept segments
+
+    def segment_of(offset: int) -> int:
+        for index, (start, end) in enumerate(spans):
+            if start <= offset < end:
+                return index
+        return len(spans) - 1
+
+    order_found = False
+    for match in matches:
+        segment = segment_of(match.start())
+        framed = any(
+            check < match.start() and segment_of(check) == segment for check in checks
+        )
+        bare_question = (
+            segments[segment][1]
+            and _BARE_BOOKING_LEAD_RE.match(segments[segment][0])
+            and any(segment_of(check) > segment for check in checks)
+        )
+        if not framed and not bare_question:
+            order_found = True
+    return not order_found
+
+
 _OWNER_FIND_NOTES_SEAT_RE = re.compile(
     # The object must be the owner's OWN notes ("my notes"): a bare "notes" noun seats nothing,
     # because compound nouns about other things ("look up the latest SQLite release notes online")
@@ -1411,17 +1517,25 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     if not eligible or asks_for_instructions_not_execution(eligible):
         return ()
 
-    # R2: only ask-shaped segments seat (see the block comment above). Joining the kept
-    # segments with a full stop keeps every seat regex's `[^.!?]` window inside one segment.
-    ask_segments = [
-        part.strip()
-        for part in re.split(r"[.!?;\n]+", eligible)
-        if part.strip()
-        and (_OWNER_QUESTION_HEAD_RE.match(part) or _OWNER_IMPERATIVE_CLAUSE_RE.search(part))
-    ]
-    if not ask_segments:
+    # R2: only ask-shaped segments seat (see the block comment above). Job 2c (W1): each kept
+    # segment also remembers whether it ended on a question mark in the caller's own words —
+    # a booking clause that is itself a bare question ("book a call ... ?") is asked about,
+    # while a polite request ("can you book ... ?") is an order — so the propose seat's
+    # feasibility veto can tell them apart. Joining with a full stop keeps every seat regex's
+    # `[^.!?]` window inside one segment.
+    kept_segments: list[tuple[str, bool]] = []
+    pieces = re.split(r"([.!?;\n]+)", eligible)
+    for index in range(0, len(pieces), 2):
+        part = pieces[index]
+        if not part.strip():
+            continue
+        if not (_OWNER_QUESTION_HEAD_RE.match(part) or _OWNER_IMPERATIVE_CLAUSE_RE.search(part)):
+            continue
+        delimiter = pieces[index + 1] if index + 1 < len(pieces) else ""
+        kept_segments.append((part.strip(), "?" in delimiter))
+    if not kept_segments:
         return ()
-    ask_text = " . ".join(ask_segments)
+    ask_text = " . ".join(text for text, _ in kept_segments)
     own_object = _OWNER_OWN_OBJECT_RE.search(ask_text) is not None
     # The material-in-message veto (Job 2b) belongs to the reading seats only: a save of pasted
     # words is the ask, a lookup of them is not.
@@ -1443,8 +1557,12 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     # The scheduling idioms are asks to act by construction ("schedule a meeting", "book a
     # dentist appointment Tuesday"): they carry no possessive, so the own-object rule is
     # carried by their own anchored verbs and the attributive veto instead. A feasibility or
-    # price question around them ("is that possible?") is not the act itself.
-    if not _FEASIBILITY_ASK_RE.search(ask_text) and _OWNER_PROPOSE_EVENT_SEAT_RE.search(ask_text):
+    # price question around them is not the act itself — but only when it is the BOOKING the
+    # check asks about (a frame before the verb, or a bare-question clause with a check after
+    # it; see _propose_event_asked_about). An order with a check attached stays an order.
+    if _OWNER_PROPOSE_EVENT_SEAT_RE.search(ask_text) and not _propose_event_asked_about(
+        ask_text, kept_segments
+    ):
         intents.append("operator.propose_calendar_event")
     if _reads_notes(_OWNER_FIND_NOTES_SEAT_RE):
         intents.append("operator.find_notes")
