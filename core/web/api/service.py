@@ -938,6 +938,27 @@ def dispatch_get(
     client_host: str = "",
     headers: dict[str, str] | None = None,
 ) -> ApiResponse:
+    # The "Hide my name on screen" rules carry this machine's names: a page gets them only when
+    # it is served to this computer (core/screen_privacy.py page_peer).
+    from core.screen_privacy import page_peer
+
+    with page_peer(is_loopback_host(client_host)):
+        return _dispatch_get(
+            path=path, query=query, runtime=runtime, model_name=model_name,
+            capability_snapshot_provider=capability_snapshot_provider, client_host=client_host, headers=headers,
+        )
+
+
+def _dispatch_get(
+    *,
+    path: str,
+    query: dict[str, list[str]],
+    runtime: RuntimeServices,
+    model_name: str,
+    capability_snapshot_provider: Callable[[], dict[str, Any]] = runtime_capability_snapshot,
+    client_host: str = "",
+    headers: dict[str, str] | None = None,
+) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
     def resolve_page_locale(page_query: dict[str, list[str]], page_headers: dict[str, str] | None) -> str:
