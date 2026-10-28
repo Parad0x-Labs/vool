@@ -25,6 +25,13 @@ saved reply showed the note's file path.
   after the note. The listing replies' note lines are exactly "- <title>" (bare) /
   "- <title>: <excerpt>" (match), "(linked to an event)" in words when the link is shown,
   never a path, a file suffix or an event id; the paths stay in the result details.
+* AMENDMENT 3: the note-keeping family widens again — note down / write down (a save whose
+  words need no "note" word at all), pop / drop / jot / stick / put down aimed at the
+  owner's notes, with the words as a that-clause, a colon, a dash, "about ...", "for ..."
+  or a plain object. Bare "note" said as information or observation, the new verbs aimed
+  at a person or a non-store place, statements and questions about the habit, a definite
+  this/that note, and a "this" with no notes destination stay out. And each save's parsed
+  body (parse_note_request) carries the person's own words.
 """
 from __future__ import annotations
 
@@ -32,6 +39,7 @@ import uuid
 
 import pytest
 
+from core.operator.notes import parse_note_request
 from core.operator.parser import parse_operator_action_intent
 from tests.test_turn_attempt_chain import _SOURCE_CONTEXT, _Harness
 
@@ -135,6 +143,67 @@ _PLACE_MUST_NOT = (
     "add a note to the card that says happy birthday",
 )
 
+# The mandated AMENDMENT 3 set, verbatim (TASK.md ## AMENDMENT 3): the note-keeping family
+# widens past keep/add/put — note down and write down (the latter with no "note" word at
+# all), pop/drop/stick with the owner's notes as the destination, and "about ..." / "for
+# ..." as the cue the words ride on.
+_AMENDMENT3_MUST_SAVE = (
+    "note down that the meter reads 4471",
+    "write down that the meter reads 4471",
+    "pop a quick note in my notes: renew passport",
+    "drop a note in my notes that the spare tyre is flat",
+    "add a note about the boiler service, it was 90 euros",
+    "stick this in my notes: call the bank",
+    "put a note down for the plumber visit on friday",
+)
+# The mandated AMENDMENT 3 negatives, verbatim: bare "note" said as information or as an
+# observation, a note addressed to a person, and "write down" inside a statement of advice
+# rather than an ask. The first row restates the milestone-1 wording — it is mandated here
+# verbatim, on the new bare-"note" family.
+_AMENDMENT3_MUST_NOT = (
+    "note that the shop closes at 6",
+    "note how the light falls in the photo",
+    "drop a note to your landlord before you move out",
+    "write down your goals is good advice",
+)
+# AMENDMENT 3 fresh saves: note down / write down at the start or after please / can you /
+# would you, pop / drop / jot / stick / put down with the owner's notes or notebook as the
+# destination, and the words arriving as a that-clause, a colon, a dash, "about ...",
+# "for ..." or a plain object ("note down the gate code 1199").
+_AMENDMENT3_FRESH_MUST_SAVE = (
+    "please note down: the wifi code is flurp42",
+    "can you write down the gate code 1199",
+    "pop this in my notes: renew passport",
+    "drop a note in my notebook that the ladder is in the shed",
+    "jot a note about the parking fine, forty euros",
+    "put a note down for the chimney sweep on tuesday",
+    "would you write down that the boiler pressure is 1.5",
+    "stick that in my notes: the pharmacy closes at eight",
+    "keep a note - the bike lock code is 7291",
+    "put a note down in my notes that the meter reads 4471",
+    "note down the gate code 1199",
+)
+# AMENDMENT 3 fresh negatives: bare "note" without down, the new verbs aimed at a person,
+# statements and questions about the habit (I / why / you should / don't / is what she
+# suggests), a definite this/that note that already exists, the new verbs with a non-store
+# place, and a "this" whose destination is a thing in the house, not the owner's notes.
+_AMENDMENT3_FRESH_MUST_NOT = (
+    "note that the plumber charges by the hour",
+    "note how the paint dries patchy",
+    "pop a note to the teacher about the trip",
+    "drop a note for the nurse saying thanks",
+    "I note down every spending figure",
+    "why write down the gate code?",
+    "you should note down the password",
+    "don't write down the code on the card",
+    "keep this note: it is the good one",
+    "stick that note back on the fridge",
+    "pop a note on the whiteboard that the printer jams",
+    "drop a note in the letterbox that we are away",
+    "write down every idea is what she suggests",
+    "stick this on the fridge: buy milk",
+)
+
 
 def _ids(prefix: str, rows: tuple[str, ...]) -> list[str]:
     return [f"{prefix}{index + 1}" for index in range(len(rows))]
@@ -142,12 +211,19 @@ def _ids(prefix: str, rows: tuple[str, ...]) -> list[str]:
 
 @pytest.mark.parametrize(
     "text",
-    _AMENDMENT_MUST_SAVE + _AMENDMENT2_MUST_SAVE + _FRESH_MUST_SAVE + _PLACE_MUST_SAVE,
+    _AMENDMENT_MUST_SAVE
+    + _AMENDMENT2_MUST_SAVE
+    + _FRESH_MUST_SAVE
+    + _PLACE_MUST_SAVE
+    + _AMENDMENT3_MUST_SAVE
+    + _AMENDMENT3_FRESH_MUST_SAVE,
     ids=(
         _ids("amend-save-", _AMENDMENT_MUST_SAVE)
         + _ids("amend2-save-", _AMENDMENT2_MUST_SAVE)
         + _ids("fresh-save-", _FRESH_MUST_SAVE)
         + _ids("place-save-", _PLACE_MUST_SAVE)
+        + _ids("amend3-save-", _AMENDMENT3_MUST_SAVE)
+        + _ids("amend3-fresh-save-", _AMENDMENT3_FRESH_MUST_SAVE)
     ),
 )
 def test_a_note_keeping_ask_parses_as_save_note(text):
@@ -164,13 +240,17 @@ def test_a_note_keeping_ask_parses_as_save_note(text):
     + _AMENDMENT2_MUST_NOT
     + _MILESTONE_MUST_NOT
     + _FRESH_MUST_NOT
-    + _PLACE_MUST_NOT,
+    + _PLACE_MUST_NOT
+    + _AMENDMENT3_MUST_NOT
+    + _AMENDMENT3_FRESH_MUST_NOT,
     ids=(
         _ids("amend-not-", _AMENDMENT_MUST_NOT)
         + _ids("amend2-not-", _AMENDMENT2_MUST_NOT)
         + _ids("milestone-not-", _MILESTONE_MUST_NOT)
         + _ids("fresh-not-", _FRESH_MUST_NOT)
         + _ids("place-not-", _PLACE_MUST_NOT)
+        + _ids("amend3-not-", _AMENDMENT3_MUST_NOT)
+        + _ids("amend3-fresh-not-", _AMENDMENT3_FRESH_MUST_NOT)
     ),
 )
 def test_a_statement_or_question_about_notes_never_parses_as_a_note_save(text):
@@ -278,6 +358,52 @@ def test_second_wording_lands_in_the_notes_store_the_same_way(notes_env):
     listing = _turn(harness, "show my notes", workspace)
     title = _front_matter_title(saved[0].read_text(encoding="utf-8"))
     assert "plumber" in listing or title in listing, (
+        f"'show my notes' in the same session did not list the saved note: {listing!r}"
+    )
+
+
+def test_a_write_down_ask_with_no_note_word_lands_in_the_notes_store(notes_env):
+    """An AMENDMENT 3 shape whose words carry no "note" word at all — "write down that
+    ..." — is still a note save: the reply is the saved-note reply with no path, the note
+    lands as a real file, and the next turn in the SAME session lists it back."""
+    harness = notes_env["harness"]
+    workspace = notes_env["workspace"]
+
+    reply = _turn(harness, "write down that the meter reads 4471", workspace)
+    assert reply.startswith("Saved your note"), f"the saved reply's shape changed: {reply!r}"
+    assert "/" not in reply, f"the saved reply carries a machine path: {reply!r}"
+
+    files = _note_files(workspace)
+    assert files, f"no note file was written under the workspace notes directory; reply was {reply!r}"
+    saved = [path for path in files if "meter" in path.read_text(encoding="utf-8")]
+    assert saved, "the ask's content never reached the notes store"
+
+    listing = _turn(harness, "show my notes", workspace)
+    title = _front_matter_title(saved[0].read_text(encoding="utf-8"))
+    assert "meter" in listing or title in listing, (
+        f"'show my notes' in the same session did not list the saved note: {listing!r}"
+    )
+
+
+def test_a_stick_this_in_my_notes_ask_lands_in_the_notes_store(notes_env):
+    """The other AMENDMENT 3 served shape: "this" going into the owner's notes with the
+    words behind a colon — saved-note reply without a path, a real file carrying those
+    words, and the next turn in the SAME session lists it back."""
+    harness = notes_env["harness"]
+    workspace = notes_env["workspace"]
+
+    reply = _turn(harness, "stick this in my notes: call the bank", workspace)
+    assert reply.startswith("Saved your note"), f"the saved reply's shape changed: {reply!r}"
+    assert "/" not in reply, f"the saved reply carries a machine path: {reply!r}"
+
+    files = _note_files(workspace)
+    assert files, f"no note file was written under the workspace notes directory; reply was {reply!r}"
+    saved = [path for path in files if "call the bank" in path.read_text(encoding="utf-8")]
+    assert saved, "the ask's content never reached the notes store"
+
+    listing = _turn(harness, "show my notes", workspace)
+    title = _front_matter_title(saved[0].read_text(encoding="utf-8"))
+    assert "bank" in listing or title in listing, (
         f"'show my notes' in the same session did not list the saved note: {listing!r}"
     )
 
@@ -420,4 +546,42 @@ def test_a_linked_note_lists_in_plain_words_without_its_event_id(notes_env):
         rows = result.get("details", {}).get("notes") or []
         assert rows and rows[0].get("note_path") == str(path), (
             "the linked note's path left the result details: the listing must read it, not lose it"
+        )
+
+
+# --------------------------------- 5. the note's own words (AMENDMENT 3, parse_note_request)
+
+# One row per AMENDMENT 3 save shape: the sentence, then every fragment of the person's
+# own words the parsed body must carry (compared case-insensitively, so a capitalised
+# title or sentence-cased body still passes). The seven mandated sentences come first,
+# then the plain-object, wifi-code and down+place shapes.
+_AMENDMENT3_BODY_ROWS = (
+    ("note down that the meter reads 4471", ("meter reads 4471",)),
+    ("write down that the meter reads 4471", ("meter reads 4471",)),
+    ("pop a quick note in my notes: renew passport", ("renew passport",)),
+    ("drop a note in my notes that the spare tyre is flat", ("spare tyre is flat",)),
+    ("add a note about the boiler service, it was 90 euros", ("boiler service", "90 euros")),
+    ("stick this in my notes: call the bank", ("call the bank",)),
+    ("put a note down for the plumber visit on friday", ("plumber visit", "friday")),
+    ("can you write down the gate code 1199", ("gate code 1199",)),
+    ("please note down the wifi code is flurp42", ("wifi", "flurp42")),
+    ("put a note down in my notes that the meter reads 4471", ("meter reads 4471",)),
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "needles"),
+    _AMENDMENT3_BODY_ROWS,
+    ids=_ids("amend3-body-", tuple(row[0] for row in _AMENDMENT3_BODY_ROWS)),
+)
+def test_the_parsed_body_carries_the_persons_own_words(text, needles):
+    """Whatever shape the ask takes, the note that lands holds the person's words: for
+    every AMENDMENT 3 sentence, parse_note_request's body carries the said fragments."""
+    result = parse_note_request(text)
+    body = str(result.get("body") or "")
+    lowered = body.lower()
+    for needle in needles:
+        assert needle in lowered, (
+            f"the note's body lost the person's words {needle!r} from {text!r} "
+            f"(body was {body!r})"
         )

@@ -395,7 +395,23 @@ def parse_note_request(text: str) -> dict[str, Any]:
             or re.search(r"\bnote\b(?:\s+\w+){1,6}?\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
             # "save this one: buy zucchini for saturday's bbq": a demonstrative (optionally "one") then the
             # content colon; a clock time's colon never sits right after the demonstrative, so it never separates.
-            or re.search(r"\b(?:this|that)\b(?:\s+one)?\s*(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # The same demonstrative may name its destination first ("stick this in my notes: call the bank"),
+            # so a short note-free span may sit between it and the colon.
+            or re.search(r"\b(?:this|that)\b(?:\s+one)?[^\n:\"“]{0,40}?(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # The dash forms of the same separators: "keep a note - the bike lock code is 7291",
+            # "stick this in my notes - the gate code is 1199" (a spaced hyphen or any en/em dash).
+            or re.search(r"\bnotes?\b[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
+            or re.search(r"\b(?:this|that)\b(?:\s+one)?[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
+            # "add a note about the boiler service, it was 90 euros": "about" carries the words straight
+            # after the note, the same way "of" does ("keep a note of ...").
+            or re.search(r"\bnotes?\b(?:\s+down)?\s+about\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "put a note down for the plumber visit on friday": a "for" that is not the owner's own
+            # "for me"/"for later" waiting room names what the note is about.
+            or re.search(r"\bnotes?\b(?:\s+down)?\s+for\s+(?!me\b|later\b)(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "note down the gate code 1199" / "write down that the meter reads 4471": the phrasal verbs
+            # whose words are the object itself; a note word after them belongs to the note-anchored
+            # patterns above, not to this one.
+            or re.search(r"\b(?:note|write|jot)\s+down\s+(?!notes?\b)(?:(?:that|[-\u2013\u2014])\s*)?(.+)$", raw, re.IGNORECASE | re.DOTALL)
         )
         if plain:
             body = plain.group(1).strip()

@@ -317,11 +317,13 @@ _WRITE_NOTE_STORE_CUE_RE = re.compile(
     re.IGNORECASE,
 )
 # The keep-family verbs ("keep a note", "add a note", "put (down) a note", "stick a note in",
-# "retain a note"): their object is the INDEFINITE "a note" with at most a small adjective.
-# "the/this/that note" is a note that already exists ("keep that note, I like it") and "notes"
-# a habit ("keep notes of what you spend"); neither offers new words to the notes tool.
+# "pop/drop/jot a note", "retain a note"): their object is the INDEFINITE "a note" with at most
+# a small adjective. "the/this/that note" is a note that already exists ("keep that note, I
+# like it") and "notes" a habit ("keep notes of what you spend"); neither offers new words to
+# the notes tool. The "down" particle may sit before the object ("put down a note") or after it
+# ("put a note down for the plumber visit on friday"), where the gap check below reads it.
 _KEEP_NOTE_RE = re.compile(
-    r"\b(?P<verb>keep|add|put|stick|retain)(?:\s+down)?\s+a\s+(?:(?:quick|short|new|little)\s+)?note\b(?!-)"
+    r"\b(?P<verb>keep|add|put|stick|pop|drop|jot|retain)(?:\s+down)?\s+a\s+(?:(?:quick|short|new|little)\s+)?note\b(?!-)"
     r"(?P<after>[^\n!?.]*)",
     re.IGNORECASE,
 )
@@ -329,6 +331,29 @@ _KEEP_NOTE_RE = re.compile(
 # holding and the colon carries its words. Under the same ask gate as the keep family, because
 # "I'll save this: ..." is a promise, not a request.
 _SAVE_DEMONSTRATIVE_RE = re.compile(r"\b(?:save|store)\s+(?:this|that)(?:\s+one)?\s*:(?!\d)", re.IGNORECASE)
+# The same family holding the chat's own referent as the object ("stick this in my notes: call
+# the bank", "pop this in my notes: renew passport"): the notes store is REQUIRED as the
+# destination, because "this" offers no words of its own — "put this on the fridge" pins paper
+# somewhere and keeps nothing. "this note"/"that note" is a note that already exists ("keep
+# this note private") and stays out the same way as in the family above.
+_KEEP_DEMONSTRATIVE_RE = re.compile(
+    r"\b(?:keep|add|put|stick|pop|drop|jot|retain)(?:\s+down)?\s+(?:this|that)\b(?!\s+notes?\b)"
+    r"(?P<after>[^\n!?.]*)",
+    re.IGNORECASE,
+)
+# "note down that the meter reads 4471" / "write down the gate code 1199": the phrasal verb
+# itself stores, with no note object at all. Bare "note that ..." / "note how ..." — no "down" —
+# is information said to the chat and never matches here: the particle is what makes the verb a
+# storing one. A rest that still holds the word "note" belongs to the record lane below, whose
+# person and kind guards know it. The words after the verb are a that-clause, a non-clock
+# colon, a dash separator, or a plain object with no finite verb ("note down the gate code
+# 1199"); "write down your goals is good advice" is advice about writing, not a note to keep.
+_NOTE_DOWN_RE = re.compile(r"\b(?:note|write|jot)\s+down\b(?P<rest>[^\n!?.]*)", re.IGNORECASE)
+_NOTE_DOWN_FINITE_RE = re.compile(
+    r"\b(?:is|are|was|were|am|has|have|had|does|do|did|will|would|shall|should|could|might|must)\b"
+    r"|'s\b",
+    re.IGNORECASE,
+)
 # The only words allowed before the verb of an ask: nothing, a leading please/kindly, one
 # can/could/will/would you, and the fillers please/just/also. Measured 2026-10-28 (amendment 1,
 # SKILL MASTER thread) against the tool-seating branch (Job 4, R13): it passed its four probes
@@ -340,24 +365,34 @@ _ASK_CUE_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 # What after the object makes the request carry note words: a that-clause, a colon separator
-# (read through the clock-colon guard), saying/says, or an of-phrase ("keep a note of my
-# prescriptions"). A destination alone ("put a note on the piano") or "keep in mind ..." names
-# no words to keep, so it is not a save. "of" carries the words only straight after the note:
-# later in the sentence it belongs to those words ("know it is out of tune"), never to the ask.
-_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b", re.IGNORECASE)
+# (read through the clock-colon guard), saying/says, an about-phrase ("add a note about the
+# boiler service"), or an of-phrase ("keep a note of my prescriptions"). A destination alone
+# ("put a note on the piano") or "keep in mind ..." names no words to keep, so it is not a
+# save. "of" carries the words only straight after the note: later in the sentence it belongs
+# to those words ("know it is out of tune"), never to the ask.
+_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b|\babout\b", re.IGNORECASE)
 _KEEP_NOTE_OF_RE = re.compile(r"^\s*of\b", re.IGNORECASE)
+# "for ..." is a cue only when it is not the gap-filler "for me"/"for later": "put a note down
+# for the plumber visit on friday" carries the visit as the note's words, while "keep a note
+# for me: garage keypad code is 5523" waits behind the filler. A dash separator is a hyphen
+# between spaces or an en/em dash, never the hyphen inside "double-sided" or "note-taking".
+_KEEP_NOTE_FOR_RE = re.compile(r"\bfor\b(?!\s+(?:me|later)\b)", re.IGNORECASE)
+_KEEP_NOTE_DASH_RE = re.compile(r"(?<=\s)-(?=\s)|[\u2013\u2014]")
 # What the span between the note object and its first content cue may hold: nothing (the cue
 # follows the note), "for me"/"for later", or the notes store itself as the destination ("to
 # my notes app", "in my notebook", "on my workspace", "Apple Notes", "to myself"). Any other
 # thing in that span ("to the invoice", "on the piano", "in the email") is something the note
-# is added onto, and a note added onto another thing is not kept in the notes store.
-_KEEP_NOTE_STORE_PLACE_RE = re.compile(
+# is added onto, and a note added onto another thing is not kept in the notes store. The
+# particle "down" may also sit there, alone ("put a note down for the plumber visit on
+# friday") or in front of the store ("put a note down in my notes: ...").
+_STORE_PLACE_WORDS = (
     r"for\s+(?:me|later)"
     r"|(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)"
     r"|(?:(?:to|in|into|inside|on)\s+)?apple\s+notes"
-    r"|to\s+(?:my)?self",
-    re.IGNORECASE,
+    r"|to\s+(?:my)?self"
 )
+_KEEP_NOTE_STORE_PLACE_RE = re.compile(_STORE_PLACE_WORDS, re.IGNORECASE)
+_KEEP_NOTE_DOWN_PLACE_RE = re.compile(r"down(?:\s+(?:" + _STORE_PLACE_WORDS + r"))?", re.IGNORECASE)
 
 
 def _note_ask_is_positioned(text: str, start: int) -> bool:
@@ -370,29 +405,53 @@ def _note_ask_is_positioned(text: str, start: int) -> bool:
     return _ASK_CUE_PREFIX_RE.fullmatch(prefix) is not None
 
 
-def _keep_note_cue_gap(after: str) -> str | None:
-    """The span between the note object and its FIRST content cue, or None when no cue comes.
+def _keep_note_first_cue(after: str) -> int | None:
+    """The position of the FIRST content cue in `after`, or None when no cue comes.
 
     The cue set is the one `_KEEP_NOTE_CONTENT_RE` searches anywhere (that-clause, say/says/
-    saying), the first non-clock colon (`_NOTE_WORDS_COLON_RE`), and "of" only straight after
-    the note (`_KEEP_NOTE_OF_RE`)."""
+    saying, about), the first non-clock colon (`_NOTE_WORDS_COLON_RE`), "of" only straight
+    after the note (`_KEEP_NOTE_OF_RE`), "for" outside the gap-fillers "for me"/"for later"
+    (`_KEEP_NOTE_FOR_RE`), and a dash separator (`_KEEP_NOTE_DASH_RE`)."""
     cue: int | None = None
+
+    def earlier(candidate: int) -> None:
+        nonlocal cue
+        if cue is None or candidate < cue:
+            cue = candidate
+
     words = _KEEP_NOTE_CONTENT_RE.search(after)
     if words:
-        cue = words.start()
+        earlier(words.start())
     colon = _NOTE_WORDS_COLON_RE.match(after)
-    if colon and (cue is None or colon.end() - 1 < cue):
-        cue = colon.end() - 1
+    if colon:
+        earlier(colon.end() - 1)
     of = _KEEP_NOTE_OF_RE.match(after)
-    if of and (cue is None or of.start() < cue):
-        cue = of.start()
+    if of:
+        earlier(of.start())
+    for_word = _KEEP_NOTE_FOR_RE.search(after)
+    if for_word:
+        earlier(for_word.start())
+    dash = _KEEP_NOTE_DASH_RE.search(after)
+    if dash:
+        earlier(dash.start())
+    return cue
+
+
+def _keep_note_cue_gap(after: str) -> str | None:
+    """The span between the note object and its FIRST content cue, or None when no cue comes."""
+    cue = _keep_note_first_cue(after)
     return None if cue is None else after[:cue]
 
 
 def _keep_note_gap_may_store(gap: str) -> bool:
-    """True when the span before the content cue holds only whitespace or a store place."""
+    """True when the span before the content cue holds only whitespace, a store place, the
+    "down" particle, or "down" in front of a store place."""
     place = gap.strip()
-    return not place or _KEEP_NOTE_STORE_PLACE_RE.fullmatch(place) is not None
+    return (
+        not place
+        or _KEEP_NOTE_STORE_PLACE_RE.fullmatch(place) is not None
+        or _KEEP_NOTE_DOWN_PLACE_RE.fullmatch(place) is not None
+    )
 
 
 class _NoteSaveRecognizer:
@@ -428,6 +487,21 @@ class _NoteSaveRecognizer:
         demonstrated = _SAVE_DEMONSTRATIVE_RE.search(text)
         if demonstrated and _note_ask_is_positioned(text, demonstrated.start()):
             return demonstrated
+        for match in _KEEP_DEMONSTRATIVE_RE.finditer(text):
+            after = match.group("after")
+            # The ask gate as the keep family, then the notes store as a REQUIRED destination:
+            # the object "this"/"that" offers no words of its own, so they must sit behind the
+            # store ("stick this in my notes: call the bank"). Then the same person guard —
+            # a referent going to a person is composed writing, not a kept note.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            place = _KEEP_NOTE_STORE_PLACE_RE.search(after)
+            cue = _keep_note_first_cue(after)
+            if place is None or cue is None or cue < place.end():
+                continue
+            if _note_is_addressed(after):
+                continue
+            return match
         for match in _RECORD_NOTE_RE.finditer(text):
             verb = match.group("verb").lower()
             between, after = match.group("between"), match.group("after")
@@ -445,6 +519,21 @@ class _NoteSaveRecognizer:
             if verb == "write" and not stores and not _NOTE_WORDS_COLON_RE.match(after):
                 continue
             return match
+        for match in _NOTE_DOWN_RE.finditer(text):
+            rest = match.group("rest")
+            if re.search(r"\bnotes?\b", rest, re.IGNORECASE):
+                continue  # a note object belongs to the record lane above, with its own guards
+            # The ask gate as everywhere above: a subject or question word before the verb is
+            # someone talking about writing down, not asking this runtime to keep it.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            if (
+                re.match(r"\s*that\b", rest, re.IGNORECASE)
+                or _NOTE_WORDS_COLON_RE.match(rest)
+                or _KEEP_NOTE_DASH_RE.search(rest)
+                or (rest.strip() and not _NOTE_DOWN_FINITE_RE.search(rest))
+            ):
+                return match
         return None
 
 
