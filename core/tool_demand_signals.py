@@ -1298,8 +1298,7 @@ _OWNER_FIND_NOTES_SEAT_RE = re.compile(
 _OWNER_SHOW_NOTE_SEAT_RE = re.compile(
     _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\s+(?:the|my|that|this)\s+note\b"
     r"|\bwhat(?:'s| is|s)\s+in\s+(?:the|my|that)\s+note\b"
-    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\b[^.!?]{0,40}?\bnote\s+(?:titled|called|named)\b"
-    r"|" + _OWNER_ASK_LEAD_STRICT + r"open\s+my\s+note\b",
+    r"|" + _OWNER_ASK_LEAD_STRICT + r"(?:show|read|open|display)\b[^.!?]{0,40}?\bnote\s+(?:titled|called|named)\b",
     re.IGNORECASE,
 )
 _OWNER_APPLE_LIST_SEAT_RE = re.compile(

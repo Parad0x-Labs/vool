@@ -61,10 +61,16 @@ def test_log_records_a_turn_context_carrying_the_frozen_requirement_record():
     assert rows, "the audit row must be written"
     stored = json.loads(rows[0]["details_json"])
     assert stored["intent"] == "operator.schedule_reminder"
-    # The frozen record keeps its structure: a plain dict of its fields, still inspectable.
-    record_back = stored["source_context"]["_current_information_requirement"]
-    assert record_back["request_text"] == "am I free on Thursday at 3pm?"
-    assert record_back["requirements"]["reason_codes"] == ["x_action_request"]
+    # R10 (round 2): a turn context is stored as a BOUNDED SUMMARY — key names and value
+    # types only. The request text the frozen record carries never reaches the durable log;
+    # the row is still written and still JSON (the B7 law this file pins).
+    context_summary = stored["source_context"]
+    assert set(context_summary) == {"_current_information_requirement", "session_id"}
+    assert context_summary["session_id"] == "str"
+    # The frozen record itself is a TYPE LABEL inside the summary: its key name survives,
+    # its fields (and the request text they carry) never reach the durable log.
+    assert context_summary["_current_information_requirement"] == "CurrentRequirementRecord"
+    assert "am I free on Thursday at 3pm" not in rows[0]["details_json"]
 
 
 def test_log_renders_datetimes_enums_sets_and_unknown_objects_without_raising():

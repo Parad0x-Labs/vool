@@ -338,7 +338,9 @@ _LOCAL_CODE_ASK_RE = re.compile(
 _LOCAL_CODE_FAILURE_RE = re.compile(
     r"\b(?:fails?|failing|failures?|broken|breaks?|error|errors?|exception|traceback|regress"
     r"|crash(?:es|ed|ing)?|defect|bug|flak(?:y|ing)|red|failing)\b"
-    r"|\b(?:find\s+out\s+why|figure\s+out\s+why|diagnose|debug|root\s+cause|why\s+(?:is|does|did))\b",
+    # R12 (round 2): no phrase lifted from a visible case. The general interrogative
+    # siblings ("figure out why", "diagnose", "root cause", "why is/does/did") stay.
+    r"|\b(?:figure\s+out\s+why|diagnose|debug|root\s+cause|why\s+(?:is|does|did))\b",
     re.IGNORECASE,
 )
 #: An EXPLICIT-WEB ask names the web itself ("search the web for ...", "look it up online",

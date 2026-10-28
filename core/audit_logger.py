@@ -195,6 +195,37 @@ def _redact_details(details: dict | None) -> dict:
     return redacted
 
 
+#: Keys whose presence marks a mapping as a TURN CONTEXT (or a context nested inside details):
+#: the request's own words, its frozen decision records, or the context another seam handed on.
+#: R10 (round 2): such a payload is stored as a BOUNDED SUMMARY — key names and value TYPES
+#: only. The durable log never carries the request text, tool observations (note or email
+#: bodies ride inside contexts) or tokens, whatever a caller pours into ``details``.
+_CONTEXT_MARKER_KEYS = frozenset(
+    {"request_text", "retrieved_context", "_current_information_requirement"}
+)
+#: Keys whose VALUE is a turn context even when the mapping itself is ordinary details.
+_CONTEXT_VALUE_KEYS = frozenset({"source_context", "turn_context"})
+#: Bound the summary itself: a context can hold hundreds of keys; the first slice is plenty
+#: for an audit reader and keeps the row small whatever the caller attached.
+_CONTEXT_SUMMARY_MAX_KEYS = 64
+
+
+def _type_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "bool"
+    return type(value).__name__
+
+
+def _bounded_context_summary(value: Any) -> dict[str, str | dict]:
+    """Key names and value types only — never a value — for a turn-context payload."""
+    if isinstance(value, dict):
+        rows = list(value.items())[:_CONTEXT_SUMMARY_MAX_KEYS]
+        return {str(key): _bounded_context_summary(item) for key, item in rows}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return f"{type(value).__name__}[{_type_label(next(iter(value), None))}]"
+    return _type_label(value)
+
+
 def _json_safe(value: Any) -> Any:
     """Render any value into something json.dumps accepts, losing no string the row needs.
 
@@ -205,6 +236,11 @@ def _json_safe(value: Any) -> Any:
     with HTTP 500 before its own answer returned. Known shapes keep their structure (dataclass
     → dict, datetime → ISO string, enum → its value); anything unknown degrades to ``str()``
     rather than crashing the turn the row was meant to record.
+
+    A mapping marked as a TURN CONTEXT keeps only its SHAPE (R10, round 2): key names and
+    value types, no values — the request text and any tool observation a context carries are
+    never durable. Bounded summaries still serialize, so the B7 law (no TypeError, the row is
+    written, the turn's own answer returns) holds for contexts too.
     """
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
@@ -215,7 +251,17 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         return _json_safe(value.value)
     if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
+        keys = {str(key) for key in value}
+        if keys & _CONTEXT_MARKER_KEYS:
+            return _bounded_context_summary(value)
+        return {
+            str(key): (
+                _bounded_context_summary(item)
+                if key in _CONTEXT_VALUE_KEYS and isinstance(item, dict)
+                else _json_safe(item)
+            )
+            for key, item in value.items()
+        }
     if isinstance(value, (list, tuple, set, frozenset)):
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):

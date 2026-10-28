@@ -1369,6 +1369,21 @@ def _publish_canonical_turn_request(
         destination[TURN_REQUEST_KEY] = request
 
 
+def _k08_verify_immutable(*, unchanged: bool, message: str, arrived_unsealed: bool) -> None:
+    """Post-admission bytes are immutable (K-08) -- with ONE legal completion.
+
+    A result that arrived UNSEALED (a deterministic lane that answered before any model
+    round, so nothing was admitted) is COMPLETED here, not mutated: the backstop's first
+    application is the legal one and stands instead of raising. A sealed result keeps the
+    strict verify: re-applying any semantic transform to it must be a byte-level no-op, and
+    any divergence is refused loudly -- never applied. Shared by the honesty and grounding
+    verifies in ``_run_agent_locked`` (round 2, R14: one seam, pinned by test).
+    """
+    if unchanged or arrived_unsealed:
+        return
+    raise RuntimeError(message)
+
+
 def run_agent(
     runtime: RuntimeServices,
     user_text: str,
@@ -2052,17 +2067,21 @@ def _run_agent_locked(
             session_id=session_id,
             source_context=base_context,
         )
-        if str(result.get("response") or "") != _pre_honesty and not _arrived_unsealed:
-            raise RuntimeError(
-                "K-08 violation: final-action-honesty would mutate post-admission bytes"
+        if str(result.get("response") or "") != _pre_honesty:
+            _k08_verify_immutable(
+                unchanged=False,
+                message="K-08 violation: final-action-honesty would mutate post-admission bytes",
+                arrived_unsealed=_arrived_unsealed,
             )
         # Honesty backstop (verify-only here; the legal application is inside
         # the sealing context): invented URL summaries must already be replaced.
         _pre_grounding = str(result.get("response") or "")
         result = enforce_url_grounding(result, user_input=user_text, fetch_attempts=remote_fetch_attempt_count())
-        if str(result.get("response") or "") != _pre_grounding and not _arrived_unsealed:
-            raise RuntimeError(
-                "K-08 violation: url-grounding would mutate post-admission bytes"
+        if str(result.get("response") or "") != _pre_grounding:
+            _k08_verify_immutable(
+                unchanged=False,
+                message="K-08 violation: url-grounding would mutate post-admission bytes",
+                arrived_unsealed=_arrived_unsealed,
             )
         schedule_memory_extraction(
             runtime,

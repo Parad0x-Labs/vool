@@ -65,7 +65,7 @@ _READ_MARKERS = (
 #: which a raw fetch cannot serve. Those turns belong to the model (with the page's text and
 #: any matched skill), not to this lane's raw dump.
 _ANALYSIS_MARKERS = (
-    " quote ", " parts that matter ", " what matters ", " key points ", " key takeaways ",
+    " quote ", " what matters ", " key points ", " key takeaways ",
     " takeaways ", " extract ", " analyse ", " analyze ", " analysis of ", " critique ", " evaluate ",
     " fact-check ", " factcheck ", " proofread ", " review this ", " main points ", " highlights ",
     " summarize and ", " summarise and ", " pull out ", " pick out ", " the important bits ",
