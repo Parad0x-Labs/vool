@@ -7,7 +7,9 @@ This module only translates the verdict, and separates "the model cannot do it" 
 could not finish" so a slow or stopped Ollama is never blamed on the model.
 
 The download is an explicit person action (a button), limited to the models VOOL recommends and
-to an Ollama on this machine. Nothing here runs on boot.
+to an Ollama on this machine. The one thing that runs on boot is ``ready_local_models``: a profile
+that never checked any model (every profile before 0.7.7, and a fresh install) would otherwise
+refuse every model answer, so boot checks the installed local models itself until one is ready.
 """
 from __future__ import annotations
 
@@ -122,3 +124,68 @@ def start_recommended_pull(model_name: str) -> dict[str, Any]:
 
     threading.Thread(target=_run, name=f"vool-model-pull-{tag}", daemon=True).start()
     return pull_status(tag)
+
+
+# States boot checks on its own: never checked, or checked under an older Ollama/model build.
+# A model that already failed is not re-run on every boot; the person can press Try again.
+_BOOT_CHECK_STATES = frozenset({"unknown", "stale"})
+# At most this many models are checked per boot (each check takes up to a couple of minutes).
+_BOOT_CHECK_LIMIT = 3
+
+
+def ready_local_models(
+    manifests: Any,
+    *,
+    primary_model: str = "",
+    status_of: Any = None,
+    run_check: Any = None,
+    limit: int = _BOOT_CHECK_LIMIT,
+) -> list[dict[str, str]]:
+    """Make sure one installed local model is ready to answer, without asking the person.
+
+    Nothing runs when a local model is already ready. Otherwise the boot primary is checked
+    first, then the other local models, stopping at the first one that turns ready. Only models
+    the check can reach (an Ollama on this computer) are considered, and the check itself is the
+    same sealed one the Use this model button runs, so the final-answer rule is unchanged. Returns
+    one ``{"model", "readiness"}`` row per model checked.
+    """
+
+    from core.local_model_tool_certification import (
+        certification_applies,
+        certification_status,
+        run_local_model_tool_certification,
+    )
+
+    status_of = status_of or certification_status
+    run_check = run_check or (lambda m: run_local_model_tool_certification(m, timeout_seconds=150.0))
+    primary = str(primary_model or "").strip().lower()
+    candidates: list[tuple[Any, str]] = []
+    seen: set[str] = set()
+    for manifest in manifests or ():
+        name = str(getattr(manifest, "model_name", "") or "").strip().lower()
+        if not name or name in seen or not certification_applies(manifest):
+            continue
+        seen.add(name)
+        try:
+            state = str((status_of(manifest) or {}).get("state") or "unknown").strip().lower()
+        except Exception:
+            continue
+        if state == "verified":
+            return []
+        candidates.append((manifest, state))
+    candidates.sort(key=lambda item: 0 if str(item[0].model_name).strip().lower() == primary else 1)
+    checked: list[dict[str, str]] = []
+    for manifest, state in candidates:
+        if len(checked) >= max(0, int(limit)):
+            break
+        if state not in _BOOT_CHECK_STATES:
+            continue
+        try:
+            result = run_check(manifest)
+        except Exception:
+            result = {"state": "degraded"}
+        readiness = plain_readiness(result)
+        checked.append({"model": str(manifest.model_name), "readiness": readiness})
+        if readiness == READY:
+            break
+    return checked

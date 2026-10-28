@@ -519,11 +519,34 @@ def candidate_aware_daily_runtime_model_tag(
                 if item.size_bytes > 0
             },
             probe=probe,
+            unready_local_models=_unready_installed_models(installed),
         )
     except Exception:
         return configured
     installed_by_key = {item.name.strip().lower(): item.name.strip() for item in installed}
     return installed_by_key.get(str(selected).strip().lower(), configured)
+
+
+def _unready_installed_models(installed: tuple[Any, ...]) -> frozenset[str]:
+    """Installed models the final-answer gate would refuse while another installed one is ready.
+
+    Boot must pick the model the person pressed Use this model on, not an installed model the
+    daily scoring happens to like (measured: "aligned ... qwen3:8b -> qwen2.5:7b" with only
+    qwen3:8b ready, so every turn first offered the refused qwen2.5:7b and fell back).
+    """
+
+    names = {str(item.name or "").strip().lower() for item in installed}
+    try:
+        from core.final_answer_authorship import unready_local_model_names
+
+        manifests = [
+            manifest
+            for manifest in ModelRegistry().list_manifests(enabled_only=True)
+            if str(getattr(manifest, "model_name", "") or "").strip().lower() in names
+        ]
+        return unready_local_model_names(manifests)
+    except Exception:
+        return frozenset()
 
 
 def ollama_model_installed(model_tag: str, *, env: dict[str, str] | None = None) -> bool:
@@ -676,6 +699,68 @@ def ensure_default_provider(
         runtime_home=runtime_home,
     ):
         logger.info("Auto-registered default provider: %s", provider_id)
+
+
+def ready_a_local_model_on_boot(
+    registry: ModelRegistry,
+    *,
+    primary_model: str,
+    env: dict[str, str],
+) -> None:
+    """Check the installed local models until one is ready, so no profile stays unable to answer.
+
+    Runs after prewarm on the same background thread (the model is on disk and loaded). A profile
+    from before 0.7.7, or a fresh install, has never checked any model, and the final-answer rule
+    refuses every unchecked one: measured on a real 0.7.5 profile with 0 check runs, every file
+    question the quick router missed was refused. Off with VOOL_AUTO_READY_LOCAL_MODEL=0, and
+    skipped with the rest of prewarm.
+    """
+
+    if str(os.environ.get("VOOL_SKIP_PROVIDER_PREWARM") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        return
+    if str(env.get("VOOL_AUTO_READY_LOCAL_MODEL") or os.environ.get("VOOL_AUTO_READY_LOCAL_MODEL") or "").strip() == "0":
+        return
+    if not local_models_enabled(env=env) or not _automatic_ollama_access_allowed(env):
+        return
+    try:
+        from core.local_model_policy import manifest_is_local
+        from core.local_model_readiness import ready_local_models
+
+        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS
+
+        def _local_manifests() -> list[Any]:
+            return [
+                manifest
+                for manifest in registry.list_manifests(enabled_only=True)
+                if manifest_is_local(manifest) and is_text_generation_ollama_model(manifest.model_name)
+            ]
+
+        manifests = _local_manifests()
+        rows = ready_local_models(manifests, primary_model=primary_model)
+        if not any(row["readiness"] == READY for row in rows):
+            # None of the registered models could answer (or none was checkable). A recommended
+            # model that is installed but was never registered (an upgrade that pulled qwen3:8b
+            # beside the old qwen2.5:7b primary) is registered the way Use this model does it, and
+            # checked. Only the recommended tags: boot never adopts an arbitrary installed model.
+            from core.runtime_provider_defaults import register_installed_local_model
+
+            registered = {str(m.model_name).strip().lower() for m in manifests}
+            installed = {
+                str(item.name).strip().lower(): str(item.name).strip()
+                for item in installed_ollama_model_inventory(env=env, base_url=ollama_base_url(env), timeout_seconds=2.0)
+            }
+            added = []
+            for tag, _ram_gb, _size_gb in RECOMMENDED_LOCAL_MODELS:
+                if tag in installed and tag not in registered:
+                    manifest = register_installed_local_model(registry, model_tag=installed[tag])
+                    if manifest is not None:
+                        added.append(manifest)
+            if added:
+                rows += ready_local_models(added, primary_model=added[0].model_name)
+        for row in rows:
+            logger.info("Local model readiness on boot: %s is %s", row["model"], row["readiness"])
+    except Exception as exc:  # pragma: no cover - boot must never fail on this
+        logger.warning("Local model readiness on boot skipped: %s", type(exc).__name__)
 
 
 def log_prewarm_results(
@@ -1054,6 +1139,14 @@ def bootstrap_runtime_services(
             runtime_home=runtime_home,
             requested_profile=requested_profile,
         )
+        # Its own thread: a check can take minutes and must never hold bootstrap or prewarm.
+        threading.Thread(
+            target=ready_a_local_model_on_boot,
+            args=(model_registry,),
+            kwargs={"primary_model": runtime_model_tag, "env": provider_env},
+            name="vool-local-model-readiness",
+            daemon=True,
+        ).start()
 
     # Provider prewarm loads models into memory and can take minutes. When run_prewarm is False the
     # API server defers it (binding the port first) and runs this closure on a background thread, so

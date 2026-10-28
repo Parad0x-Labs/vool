@@ -810,6 +810,38 @@ def local_manifest_authorship_certified(manifest: Any) -> bool:
         return True
 
 
+def unready_local_model_names(manifests: Any) -> frozenset[str]:
+    """The local models that must not be the turn's or boot's primary, by model name (lowercase).
+
+    A local model whose final-answer check has not passed is listed only while at least one
+    other local model HAS passed: then the ready one (the model the person pressed Use this
+    model on) goes first and the unready one stays a fallback the call fence refuses. With no
+    ready local model the set is empty and the primary choice is left exactly as it was. A
+    lane outside the check's reach is never listed. Best-effort and cached like the fence.
+    """
+
+    ready: set[str] = set()
+    unready: set[str] = set()
+    for manifest in manifests or ():
+        name = str(getattr(manifest, "model_name", "") or "").strip().lower()
+        if not name:
+            continue
+        try:
+            from core.local_model_policy import manifest_is_local
+
+            if not manifest_is_local(manifest):
+                continue
+            certification = author_certification(manifest)
+        except Exception:
+            continue
+        if certification.state == STATE_NOT_APPLICABLE:
+            continue
+        (ready if certification.certified else unready).add(name)
+    if not ready:
+        return frozenset()
+    return frozenset(unready - ready)
+
+
 def precall_author_verdict(
     *,
     manifest: Any,
@@ -1585,4 +1617,5 @@ __all__ = [
     "record_authorship_decision",
     "record_runtime_support",
     "reset_for_tests",
+    "unready_local_model_names",
 ]
