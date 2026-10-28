@@ -28,7 +28,10 @@ VOOL rename.
 - **Crypto Pilot custody**: a backup key is shown **exactly once** at setup; there is no
   second reveal and no export (`wallet_backup_unavailable` fault enforces it).
 - **Pocket wallet**: requires a typed confirmation phrase and a PIN.
-- **Private keys are never exported** by any door in the runtime (`wallet_export_refused`).
+- **Private-key export has one door**: a VOOL Wallet made before Crypto Pilot can export its key for
+  Phantom or MetaMask, opened only by your Mac's own sign-in (Touch ID or your Mac password), never by
+  the wallet PIN; the key is shown once and not stored. Every other path refuses (`wallet_export_refused`),
+  and a Crypto Pilot backup has no later export. See [the wallet guide](guides/wallet.md#recovery).
 
 ## Spending controls
 

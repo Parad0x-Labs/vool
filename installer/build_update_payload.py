@@ -14,6 +14,7 @@ from pathlib import Path
 from core.build_provenance import capture_build_source
 from core.updater.archive import extract_update_zip
 from core.updater.trust import TrustedPublishers
+from core.updater.versions import payload_version_matches
 
 
 def write_tree_zip(source: Path, output: Path, *, prefix: str, case_sensitive_names: bool = False) -> None:
@@ -70,13 +71,14 @@ def build_payload(source: Path, output_dir: Path, *, platform: str, version: str
         arch = "arm64" if platform == "macos-arm64" else "x86_64"
         resources = source / "Contents/Resources"
         manifest = json.loads((resources / "BUILD_MANIFEST.json").read_text())
-        if (manifest.get("arch") != arch or manifest.get("version") != version + "-beta"
+        stamp = str(manifest.get("version") or "")
+        if (manifest.get("arch") != arch or not payload_version_matches(stamp, version)
                 or not manifest.get("source_tree_clean") or not manifest.get("release")
                 or not re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("exact_sha") or ""))):
             raise ValueError("app is not a clean release build of the requested version/architecture")
         _validate_source(resources / "app", version)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(source)], check=True)
-        output = output_dir / f"VOOL-{version}-beta-macos-{arch}-update.zip"
+        output = output_dir / f"VOOL-{stamp}-macos-{arch}-update.zip"
         write_tree_zip(source, output, prefix="VOOL.app")
     elif platform == "linux-x64":
         provenance = capture_build_source(source)
@@ -85,7 +87,10 @@ def build_payload(source: Path, output_dir: Path, *, platform: str, version: str
         _validate_source(source, version)
         if output_dir.is_relative_to(source):
             raise ValueError("put release outputs outside the source checkout")
-        output = output_dir / f"vool-{version}-beta-linux-update.zip"
+        stamp = str(json.loads((source / "config/release/update_channel.json").read_text()).get("release_version") or "")
+        if not payload_version_matches(stamp, version):
+            raise ValueError(f"release_version {stamp!r} does not match {version!r}")
+        output = output_dir / f"vool-{stamp}-linux-update.zip"
         with tempfile.TemporaryDirectory(prefix=".linux-payload-", dir=output_dir) as temporary:
             root = Path(temporary)
             archive = root / "source.zip"
@@ -94,19 +99,20 @@ def build_payload(source: Path, output_dir: Path, *, platform: str, version: str
             stage = root / "stage"
             extract_update_zip(archive, stage)
             (stage / "config/build-source.json").write_text(json.dumps(provenance, indent=2) + "\n")
-            write_tree_zip(stage, output, prefix=f"vool-{version}-beta")
+            write_tree_zip(stage, output, prefix=f"vool-{stamp}")
     elif platform == "linux-x64-bundle":
         # The per-user package exactly as the release tarball ships it (source = the extracted package folder).
         from installer.bundle.linux.install_bundle import verify_package
 
         commit = verify_package(source)
-        if (source / "VERSION").read_text().strip() != version + "-beta":
-            raise ValueError("package VERSION does not match the requested version")
+        stamp = (source / "VERSION").read_text().strip()
+        if not payload_version_matches(stamp, version):
+            raise ValueError(f"package VERSION {stamp!r} does not match the requested version {version!r}")
         if not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise ValueError("package has no exact source commit")
         _validate_source(source / "app", version)
-        output = output_dir / f"vool-{version}-beta-linux-x86_64-package-update.zip"
-        write_tree_zip(source, output, prefix=f"vool-{version}-beta-linux-x86_64", case_sensitive_names=True)
+        output = output_dir / f"vool-{stamp}-linux-x86_64-package-update.zip"
+        write_tree_zip(source, output, prefix=f"vool-{stamp}-linux-x86_64", case_sensitive_names=True)
     else:
         raise ValueError(f"unsupported release platform: {platform}")
     return output

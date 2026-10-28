@@ -320,6 +320,37 @@ class TestReleaseTools:
         repo_dir = REPO_ROOT / "workspace" / "should-not-exist"
         assert gen_main(["--key-id", "k2", "--out-dir", str(repo_dir)]) == 1
 
+    @pytest.mark.parametrize(("flags", "signed_channel"), [
+        ([], "beta"),
+        (["--channel", "beta"], "beta"),
+        (["--channel", "stable"], None),
+        (["--channel", "stable", "--allow-channel-change"], "stable"),
+    ])
+    def test_sign_release_signs_for_the_channel_installed_apps_follow(self, tmp_path, pinned_keys, flags, signed_channel):
+        """Installed apps ignore a manifest for any channel but their own: before this guard the signer
+        defaulted to "stable" while every installed app follows "beta", so a release signed without
+        --channel would never have been offered to anyone."""
+        from installer.update_release import main as sign_main
+        from installer.update_release import shipped_channel
+
+        assert shipped_channel() == "beta"
+        artifact = tmp_path / "VOOL-0.6.0-macos-arm64.zip"
+        artifact.write_bytes(b"MACOS-BUNDLE-BYTES")
+        template = tmp_path / "template.json"
+        template.write_text(json.dumps({"artifacts": {"macos-arm64": {"url": "https://updates.example.invalid/a.zip", "path": str(artifact)}}}))
+        key_file = tmp_path / "release.private.hex"
+        key_file.write_text(pinned_keys[0] + "\n")
+        out = tmp_path / "manifest.json"
+        argv = ["--template", str(template), "--key-file", str(key_file), "--key-id", "release-2026-01",
+                "--sequence", "7", "--version", "0.6.0", "--out", str(out), *flags]
+        if signed_channel is None:
+            with pytest.raises(SystemExit, match="installed apps follow 'beta'"):
+                sign_main(argv)
+            assert not out.exists()
+        else:
+            assert sign_main(argv) == 0
+            assert json.loads(out.read_text())["channel"] == signed_channel
+
     def test_sign_release_round_trips_through_the_verifier(self, tmp_path, pinned_keys):
         private_hex, public_hex = pinned_keys
         artifact = tmp_path / "VOOL-0.6.0-macos-arm64.zip"

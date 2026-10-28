@@ -20,6 +20,9 @@ on:
       to_tag:
         description: 'Gate mode: the DRAFT release whose Mac update ZIPs to install (empty = live feed)'
         required: false
+      expect_version:
+        description: 'Live mode after a publish: the version the live feed must now offer, e.g. 0.7.6 (fails if it is still a draft, a pre-release or not Latest)'
+        required: false
   pull_request:
     paths:
       - 'core/updater/**'
@@ -41,7 +44,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           version: '0.11.1'
-      - name: Build this commit and the same commit one patch version higher
+      - name: Build this commit, the same commit one patch version higher, and that version stamped without "-beta"
         run: |
           set -euo pipefail
           git config user.name journey && git config user.email journey@localhost
@@ -64,6 +67,11 @@ jobs:
           git commit -qam "journey: $next (never pushed)"
           echo "NEW_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/new"
+          # A release that is not a beta (a stable 0.8.0) is stamped with the bare version.
+          sed -i "s/$next-beta/$next/" config/release/update_channel.json config/release/update_channel.sample.json
+          git commit -qam "journey: $next without -beta (never pushed)"
+          echo "STABLE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/stable"
       - name: Update payloads (the real one, and one whose new version cannot start)
         run: |
           set -euo pipefail
@@ -79,6 +87,12 @@ jobs:
             uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py make-feed --out "$RUNNER_TEMP/feed-$kind" \
               --version "$NEW_VERSION" --commit "$NEW_COMMIT" --artifact "linux-x64-bundle=$(ls "$RUNNER_TEMP/$kind"/*.zip)"
           done
+          mkdir "$RUNNER_TEMP/xs"
+          tar -xzf "$RUNNER_TEMP/stable/vool-$NEW_VERSION-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/xs"
+          python3 -m installer.build_update_payload --platform linux-x64-bundle --version "$NEW_VERSION" \
+            --source "$RUNNER_TEMP/xs/vool-$NEW_VERSION-linux-x86_64" --out "$RUNNER_TEMP/payload-stable"
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py make-feed --out "$RUNNER_TEMP/feed-payload-stable" \
+            --version "$NEW_VERSION" --commit "$STABLE_COMMIT" --artifact "linux-x64-bundle=$(ls "$RUNNER_TEMP/payload-stable"/*.zip)"
       - name: Journey - notice without a Check press, one Update press, restart, data kept
         run: |
           uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
@@ -89,6 +103,11 @@ jobs:
           uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
             --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload-broken" \
             --new-version "$NEW_VERSION" --new-commit "$NEW_COMMIT" --scratch "$RUNNER_TEMP/journey-broken" --broken-update
+      - name: Journey - a release stamped without "-beta" installs the same way
+        run: |
+          uv run --no-project --python 3.12 --with cryptography python ops/update_journey.py --platform linux \
+            --old "$RUNNER_TEMP/old/vool-$OLD_VERSION-beta-linux-x86_64.tar.gz" --feed "$RUNNER_TEMP/feed-payload-stable" \
+            --new-version "$NEW_VERSION" --new-commit "$STABLE_COMMIT" --scratch "$RUNNER_TEMP/journey-stable"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -118,6 +137,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FROM_TAG: ${{ inputs.from_tag }}
           TO_TAG: ${{ inputs.to_tag }}
+          EXPECT_VERSION: ${{ inputs.expect_version }}
         run: |
           set -euo pipefail
           if [[ -z "$FROM_TAG" ]]; then
@@ -139,10 +159,14 @@ jobs:
             curl -fsSL -o "$RUNNER_TEMP/new/manifest.json" "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/manifest.json"
             build="$RUNNER_TEMP/new/manifest.json"
           fi
-          python3 - "$build" "$FROM_TAG" >> "$GITHUB_ENV" <<'PY'
+          python3 - "$build" "$FROM_TAG" "${EXPECT_VERSION:-}" >> "$GITHUB_ENV" <<'PY'
           import json, sys
           data = json.load(open(sys.argv[1]))
           version = str(data["version"]).removesuffix("-beta")
+          expected = sys.argv[3].removeprefix("v").removesuffix("-beta")
+          if expected and version != expected:
+              sys.exit(f"The live feed offers {version}, not {expected}. Installed apps read the release marked Latest: "
+                       f"the new release is still a draft, is marked pre-release, or another release is marked Latest.")
           print(f"NEW_VERSION={version}")
           print(f"NEW_COMMIT={data.get('build_commit') or data.get('exact_sha')}")
           old = tuple(int(p) for p in sys.argv[2].removeprefix("v").split("-")[0].split("."))

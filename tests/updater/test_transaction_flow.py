@@ -252,7 +252,7 @@ def harness(tmp_path: Path):
 
 
 class TestHappyPath:
-    @pytest.mark.parametrize("case", ["adhoc", "certificate", "mislabeled_architecture"])
+    @pytest.mark.parametrize("case", ["adhoc", "adhoc_stable_build", "certificate", "mislabeled_architecture", "other_version"])
     def test_production_trust_policy_and_payload_cpu_are_enforced(self, harness, case):
         import io
 
@@ -262,7 +262,8 @@ class TestHappyPath:
         with zipfile.ZipFile(archive, "w") as zipped:
             zipped.writestr("VOOL.app/Contents/marker.txt", "new")
             zipped.writestr("VOOL.app/Contents/Resources/BUILD_MANIFEST.json", json.dumps({
-                "arch": "x86_64" if case == "mislabeled_architecture" else "arm64", "version": "0.6.0-beta",
+                "arch": "x86_64" if case == "mislabeled_architecture" else "arm64",
+                "version": {"adhoc_stable_build": "0.6.0", "other_version": "0.5.9-beta"}.get(case, "0.6.0-beta"),
             }))
         blob = archive.getvalue()
         document, _ = build_manifest(private_hex=harness._keys[0], artifacts={"macos-arm64": blob})
@@ -285,7 +286,7 @@ class TestHappyPath:
         harness.installer._run = run
         flow = harness.make_flow(allow_publisher_verified_adhoc=True, notarization_waiver_reason="")
         result = flow.run(raw, manifest, decision)
-        if case == "adhoc":
+        if case in {"adhoc", "adhoc_stable_build"}:
             assert result.ok and harness.marker() == "new"
             journal = UpdateJournal(harness.data_dir / "update_v2/transactions" / result.txid)
             assert journal.payload_of(Step.PREFLIGHT_OK) == {"notarization_waiver": "", "trust_policy": "publisher-verified-adhoc"}
@@ -613,3 +614,25 @@ class TestNoDeclaredMigration:
         assert result.ok, result.detail
         assert harness.marker() == "new"
         assert harness.config()["setting"] == "original"  # user data untouched
+
+
+@pytest.mark.parametrize(
+    ("payload", "offered", "matches"),
+    [
+        ("0.7.5-beta", "0.7.5", True),
+        ("0.8.0", "0.8.0", True),
+        ("0.8.0-rc.1", "0.8.0-rc.1", True),
+        ("0.8.0-beta", "0.8.0-beta", True),
+        ("0.7.4-beta", "0.7.5", False),
+        ("0.8.0", "0.8.1", False),
+        ("0.8.0-rc.1", "0.8.0", False),
+        ("0.8.0-preview", "0.8.0", False),
+        ("", "0.8.0", False),
+        (None, "0.8.0", False),
+        ("-beta", "", False),
+    ],
+)
+def test_a_payload_matches_the_offer_with_or_without_the_beta_stamp(payload, offered, matches):
+    from core.updater.versions import payload_version_matches
+
+    assert payload_version_matches(payload, offered) is matches

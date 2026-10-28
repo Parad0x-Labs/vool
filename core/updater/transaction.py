@@ -56,6 +56,7 @@ from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import HighWaterStore, UpdaterPaths
 from core.updater.status import StatusStore, UpdateFault, UpdatePhase
 from core.updater.trust import TrustedPublishers
+from core.updater.versions import payload_version_matches
 from core.updater.work import ActiveStateReceipt, DestructiveWorkResolution, WorkCoordinator, prepare_to_pause
 
 logger = logging.getLogger("vool.updater.transaction")
@@ -576,8 +577,11 @@ class UpdateFlow:
             try:
                 metadata = json.loads((bundle_dir / "Contents/Resources/BUILD_MANIFEST.json").read_text())
                 expected_arch = "arm64" if self.platform == "macos-arm64" else "x86_64"
-                if metadata.get("arch") != expected_arch or metadata.get("version") != manifest.version + "-beta":
-                    raise ValueError("the Mac payload's architecture/version does not match this signed offer")
+                if metadata.get("arch") != expected_arch or not payload_version_matches(metadata.get("version"), manifest.version):
+                    raise ValueError(
+                        f"the Mac payload's architecture/version ({metadata.get('arch')} {metadata.get('version')}) "
+                        f"does not match this signed offer ({expected_arch} {manifest.version})"
+                    )
                 if manifest.build_commit and metadata.get("exact_sha") != manifest.build_commit:
                     raise ValueError("the Mac payload does not match the signed build commit")
             except (OSError, ValueError) as exc:
@@ -586,7 +590,7 @@ class UpdateFlow:
             try:
                 version = (bundle_dir / "VERSION").read_text(encoding="utf-8").strip()
                 commit = (bundle_dir / "SOURCE_COMMIT").read_text(encoding="utf-8").strip()
-                if version != manifest.version + "-beta":
+                if not payload_version_matches(version, manifest.version):
                     raise ValueError(f"the package is {version or 'unversioned'}, the signed offer is {manifest.version}")
                 if manifest.build_commit and commit != manifest.build_commit:
                     raise ValueError("the package does not match the signed build commit")

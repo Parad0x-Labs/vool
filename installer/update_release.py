@@ -30,6 +30,13 @@ from pathlib import Path
 from core.updater.manifest import CHANNELS, SCHEMA, canonical_manifest_bytes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SHIPPED_FEED = REPO_ROOT / "config" / "release" / "update_feed.json"
+
+
+def shipped_channel(feed_path: Path = SHIPPED_FEED) -> str:
+    """The channel installed apps follow (their bundled update_feed.json). A manifest for any
+    other channel is ignored by every installed app, so nobody would be offered the release."""
+    return str(json.loads(Path(feed_path).read_text(encoding="utf-8")).get("channel") or "")
 
 
 def load_private_key(path: Path | None, env: dict[str, str]) -> tuple[str, str]:
@@ -98,7 +105,7 @@ def build_signed_manifest(
     manifest = {
         "schema": SCHEMA,
         "product": "vool",
-        "channel": channel or str(template.get("channel") or "stable"),
+        "channel": channel or str(template.get("channel") or shipped_channel()),
         "version": version or str(template.get("version") or ""),
         "sequence": int(sequence),
         "published_at": published_at,
@@ -127,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--key-id", required=True)
     parser.add_argument("--sequence", type=int, required=True, help="monotonic per-channel sequence (anti-replay)")
     parser.add_argument("--version", default="")
-    parser.add_argument("--channel", default="stable", choices=CHANNELS)
+    parser.add_argument("--channel", default="", choices=("", *CHANNELS),
+                        help="default: the template's channel, else the channel installed apps follow")
+    parser.add_argument("--allow-channel-change", action="store_true",
+                        help="sign for a channel installed apps do not follow (they will ignore it)")
     parser.add_argument(
         "--build-commit",
         default="",
@@ -155,6 +165,13 @@ def main(argv: list[str] | None = None) -> int:
         notes=args.notes,
         build_commit=args.build_commit,
     )
+    followed = shipped_channel()
+    if manifest["channel"] != followed and not args.allow_channel_change:
+        raise SystemExit(
+            f"ERROR: this manifest is for the {manifest['channel']!r} channel, but installed apps follow "
+            f"{followed!r} (config/release/update_feed.json), so none of them would be offered this release. "
+            "Sign it for that channel, or pass --allow-channel-change if that is really intended."
+        )
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n", encoding="utf-8")

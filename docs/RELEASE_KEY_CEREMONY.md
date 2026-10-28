@@ -15,10 +15,16 @@ For the complete executable release sequence, use the private task's
 `manifest.json`. The manifest version is the numeric runtime version, currently
 `0.7.5`; the channel is `beta`, the tag is `v0.7.5-beta`, and the per-channel
 sequence must increase for each changed release document. Never reuse a sequence
-for different signed bytes.
+for different signed bytes. Installed apps ignore a manifest for any channel but the
+one in their `config/release/update_feed.json`; `installer.update_release` signs for
+that channel by default and refuses another one unless `--allow-channel-change` is
+given. A release that is not a beta (`release_version` without `-beta`) needs no other
+change: the updater and payload builder accept the bare version.
 
 Publish as a normal release marked **Latest**. Drafts and prereleases do not advance
 `https://github.com/Parad0x-Labs/vool/releases/latest/download/manifest.json`.
+After publishing, run the In-app update journey workflow with `expect_version` set to
+the new version: it fails if the live feed does not offer it yet.
 Only this repository's release URLs and GitHub's release-asset download host are
 allowed through the updater's outbound policy.
 

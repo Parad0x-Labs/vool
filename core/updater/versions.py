@@ -105,4 +105,15 @@ def is_strictly_newer(candidate: str, installed: str) -> bool:
     return parse_semver(candidate) > parse_semver(installed)
 
 
-__all__ = ["Semver", "is_strictly_newer", "parse_semver"]
+def payload_version_matches(payload_version: object, offered_version: str) -> bool:
+    """Whether a downloaded build is the version the signed offer names.
+
+    A build is stamped with its config/release release_version. Beta builds carry
+    "<version>-beta" while the offer names "<version>"; any other build (a stable "0.8.0",
+    a "0.8.0-rc.1") is stamped with exactly the offered version. Nothing else matches."""
+    payload = str(payload_version or "").strip()
+    offered = str(offered_version or "").strip()
+    return bool(offered) and payload in {offered, f"{offered}-beta"}
+
+
+__all__ = ["Semver", "is_strictly_newer", "parse_semver", "payload_version_matches"]
