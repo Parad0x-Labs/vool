@@ -63,3 +63,30 @@ def test_a_write_lands_in_the_throwaway_workspace_never_the_authors_folder(tmp_p
                       "--mode", "auto")
     assert report["status"] == "executed"
     assert not (tmp_path / "a.txt").exists()
+
+
+def test_seed_file_puts_a_file_in_the_throwaway_downloads(tmp_path):
+    source = tmp_path / "invoice.txt"
+    source.write_text("total 42\n", encoding="utf-8")
+    code, report = _call(tmp_path, "machine.read_file", "--args", json.dumps({"path": "~/Downloads/invoice.txt"}),
+                         "--seed-file", f"{source}:~/Downloads/invoice.txt")
+    assert code == 0 and report["ok"], report
+    assert "total 42" in report["reply"]
+    assert not (tmp_path / "Downloads").exists(), "the author's own home is untouched"
+
+
+def test_the_allowed_folders_exist_empty_and_bad_seeds_are_refused(tmp_path):
+    code, report = _call(tmp_path, "machine.list_directory", "--args", json.dumps({"path": "~/Documents"}))
+    assert code == 0 and report["ok"], report
+    code, report = _call(tmp_path, "machine.read_file", "--args", "{}", "--seed-file", f"{tmp_path}/missing.pdf:~/Downloads/a.pdf")
+    assert code == 1 and report["status"] == "refused" and "is not a file" in report["reason"]
+    (tmp_path / "a.pdf").write_bytes(b"%PDF")
+    code, report = _call(tmp_path, "machine.read_file", "--args", "{}", "--seed-file", f"{tmp_path}/a.pdf:/etc/a.pdf")
+    assert code == 1 and report["status"] == "refused"
+
+
+def test_a_home_startup_file_refusal_names_the_home_path(tmp_path):
+    code, report = _call(tmp_path, "machine.write_file", "--args", json.dumps({"path": "~/.bashrc", "content": "x"}),
+                         "--mode", "auto")
+    assert report["status"] == "blackbox_high_risk_refused", report
+    assert "/~/" not in report["reply"] and "/home/.bashrc (startup)" in report["reply"]

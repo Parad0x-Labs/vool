@@ -77,8 +77,41 @@ def call_tool(intent: str, arguments: dict[str, Any], *, mode: str = "manual",
     }
 
 
-def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve: bool = False) -> int:
-    """The `call` command: a fresh profile, one call, one JSON line; the exit code."""
+#: The folders machine.* tools may use; the throwaway home has each of them, empty.
+HOME_FOLDERS = ("Desktop", "Downloads", "Documents")
+
+
+def parse_seed(spec: str) -> tuple[Path, str]:
+    """`SRC:DEST` -> (source file, destination). DEST is `~/...` (the throwaway home) or a
+    relative path (the throwaway project folder). Raises ValueError with words an author can act on."""
+
+    source, sep, dest = str(spec or "").rpartition(":")
+    if not sep or not source or not dest:
+        raise ValueError(f"--seed-file {spec!r} must be SRC:DEST, like ./invoice.pdf:~/Downloads/invoice.pdf")
+    path = Path(source).expanduser()
+    if not path.is_file():
+        raise ValueError(f"--seed-file source {source!r} is not a file")
+    parts = Path(dest.removeprefix("~/")).parts
+    if Path(dest).is_absolute() or ".." in parts or not parts or (dest.startswith("~") and not dest.startswith("~/")):
+        raise ValueError(f"--seed-file destination {dest!r} must be ~/<path> or a relative path inside the project folder")
+    return path, dest
+
+
+def _place_seeds(seeds: list[tuple[Path, str]], *, home: Path, workspace: Path) -> None:
+    for source, dest in seeds:
+        target = home / dest[2:] if dest.startswith("~/") else workspace / dest
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+
+def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve: bool = False,
+             seed_files: tuple[str, ...] = ()) -> int:
+    """The `call` command: a fresh profile, one call, one JSON line; the exit code.
+
+    The throwaway home has empty ~/Desktop, ~/Downloads and ~/Documents folders. Each
+    `seed_files` entry `SRC:DEST` copies a file of the author's into it first, so a read of
+    `~/Downloads/invoice.pdf` has something to read.
+    """
 
     from core.registry.codec import canonical
 
@@ -96,6 +129,11 @@ def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve:
     if not isinstance(arguments, dict):
         say({"status": "refused", "reason": "--args must be a JSON object, like '{\"query\": \"tea\"}'"})
         return 1
+    try:
+        seeds = [parse_seed(spec) for spec in seed_files]
+    except ValueError as exc:
+        say({"status": "refused", "reason": str(exc)})
+        return 1
     from core.runtime_tool_contracts import runtime_tool_contract_map
 
     if str(intent) not in runtime_tool_contract_map():
@@ -112,6 +150,9 @@ def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve:
         home.mkdir()
         workspace = root / "workspace"
         workspace.mkdir()
+        for name in HOME_FOLDERS:
+            (home / name).mkdir()
+        _place_seeds(seeds, home=home, workspace=workspace)
         os.environ.update({"HOME": str(home), "VOOL_HOME": str(home / "vool"),
                            "VOOL_PLUGINS_DIR": str(root / "profile"),
                            "VOOL_BUNDLED_PLUGINS_DIR": str(root / "bundled")})

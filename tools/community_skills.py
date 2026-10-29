@@ -83,6 +83,46 @@ def starter_finding(path: str) -> dict:
                       "); write your own description, triggers and steps"}
 
 
+#: Frontmatter keys VOOL reads (core.plugin_skills.parse_skill_content), plus `license` and
+#: `metadata`, which the publishing tools read. Any other key is ignored by VOOL.
+KNOWN_FRONTMATTER_KEYS = frozenset({
+    "name", "description", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
+    "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
+    "cumulative-test-law", "cumulative_test_law", "license", "metadata",
+})
+#: Keys an author writes hoping the skill runs on its own. A skill never does.
+SCHEDULE_KEYS = frozenset({"schedule", "interval", "cron", "every", "timer", "repeat", "run-every", "run_every"})
+
+
+def frontmatter_warnings(text: str) -> list[str]:
+    """`warn` lines for frontmatter keys VOOL ignores. Advice only, never a failure."""
+
+    from core.plugin_skills import _FRONTMATTER_RE
+
+    match = _FRONTMATTER_RE.match(str(text or ""))
+    if not match:
+        return []
+    try:
+        import yaml
+
+        front = yaml.safe_load(match.group(1))
+    except Exception:
+        return []
+    if not isinstance(front, dict):
+        return []
+    lines = []
+    for key in sorted(str(key) for key in front if str(key) not in KNOWN_FRONTMATTER_KEYS):
+        if key.lower() in SCHEDULE_KEYS:
+            lines.append(f'warn frontmatter key "{key}" does nothing: a skill never runs by itself. To check '
+                         "something over time, have the skill ask for watch.add (a wallet or token price "
+                         "watch, which checks only while VOOL is open), or set a reminder with \"remind me "
+                         "...\" in operator.save_note")
+        else:
+            lines.append(f'warn frontmatter key "{key}" is not one VOOL reads, so it is ignored; '
+                         "see the key table in docs/guides/build-and-test-a-skill.md")
+    return lines
+
+
 def metadata_path(folder: Path) -> Path:
     """Where `new` puts the packaging metadata: BESIDE the skill folder, never inside it.
 
@@ -240,34 +280,37 @@ def preflight(raw: bytes, scratch: Path) -> dict:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="vool-community", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    init = commands.add_parser("init")
+    init = commands.add_parser("init", help="make a package folder from metadata.json and a licence file")
     init.add_argument("destination", type=Path)
     init.add_argument("--metadata", required=True, type=Path)
     init.add_argument("--license-file", required=True, type=Path)
     for name in ("lint", "pack"):
-        command = commands.add_parser(name)
+        command = commands.add_parser(name, help={"lint": "check a package folder with VOOL's own validator (local only)", "pack": "lint, then write the package file for upload"}[name])
         command.add_argument("source", type=Path)
         command.add_argument("--scratch", required=True, type=Path)
         if name == "pack":
             command.add_argument("--output", required=True, type=Path)
-    check = commands.add_parser("check")
+    check = commands.add_parser("check", help="check a packed package file")
     check.add_argument("artifact", type=Path)
     check.add_argument("--scratch", required=True, type=Path)
-    submit = commands.add_parser("submission-link")
+    submit = commands.add_parser("submission-link", help="print the GitHub link that opens a submission pull request")
     submit.add_argument("artifact", type=Path)
     submit.add_argument("--github-user", required=True)
     submit.add_argument("--branch", required=True)
-    starter = commands.add_parser("new")
+    starter = commands.add_parser("new", help="write a starter skill folder (SKILL.md, LICENSE) and its metadata file")
     starter.add_argument("folder", type=Path)
     starter.add_argument("--name", required=True)
     starter.add_argument("--namespace", default="your-namespace")
     starter.add_argument("--author", default="")
-    trial = commands.add_parser("try")
+    trial = commands.add_parser("try", help="install a skill in a throwaway profile and check which asks pick it")
     trial.add_argument("folder", type=Path)
     trial.add_argument("--pick", action="append", required=True)
     trial.add_argument("--not-pick", action="append", default=[])
+    trial.add_argument("--rank-with", action="append", default=[], type=Path, metavar="FOLDER",
+                       help="also install every SKILL.md under FOLDER, so the skill is ranked against them "
+                            "(without it the skill is ranked alone)")
     zipping = commands.add_parser("zip", help="write the importable zip of a skill folder")
     zipping.add_argument("folder", type=Path)
     zipping.add_argument("--output", type=Path, default=None)
@@ -276,16 +319,19 @@ def main(argv=None) -> int:
     calling.add_argument("--args", default="{}", help="the tool's arguments as a JSON object")
     calling.add_argument("--mode", default="manual", choices=("manual", "auto"))
     calling.add_argument("--approve", action="store_true", help="allow an approval request once and call again")
+    calling.add_argument("--seed-file", action="append", default=[], metavar="SRC:DEST",
+                         help="copy a file into the throwaway profile first, e.g. ./a.pdf:~/Downloads/a.pdf "
+                              "(~/... is the throwaway home, a relative DEST the project folder)")
     args = parser.parse_args(argv)
     if args.command == "call":
         from tools.community_skills_call import run_call
 
-        return run_call(args.tool, args.args, mode=args.mode, approve=args.approve)
+        return run_call(args.tool, args.args, mode=args.mode, approve=args.approve, seed_files=tuple(args.seed_file))
     if args.command == "try":
         # run_try owns its own error printing and never raises out.
         from tools.community_skills_try import run_try
 
-        return run_try(args.folder, tuple(args.pick), tuple(args.not_pick))
+        return run_try(args.folder, tuple(args.pick), tuple(args.not_pick), tuple(args.rank_with))
     try:
         if args.command == "init":
             initialize(args.destination, decode(args.metadata.read_bytes(), 32768), args.license_file.read_bytes())
@@ -320,6 +366,10 @@ def main(argv=None) -> int:
             info = bind(info, lambda path: (args.source / path_name(path)).read_bytes())
             raw = pack(args.source, info, args.scratch)
         report = preflight(raw, args.scratch)
+        warnings = [line for name, data in sorted(inspect(raw)["files"].items()) if name.endswith("SKILL.md")
+                    for line in frontmatter_warnings(data.decode("utf-8", "replace"))]
+        if warnings:
+            report["warnings"] = warnings
         if report["findings"]:
             print(canonical(report).decode())
             return 1

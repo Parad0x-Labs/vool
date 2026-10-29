@@ -24,7 +24,8 @@ __all__ = ["run_try"]
 _ISOLATED_ENV = ("HOME", "VOOL_HOME", "VOOL_PLUGINS_DIR", "VOOL_BUNDLED_PLUGINS_DIR")
 
 
-def run_try(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) -> int:
+def run_try(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...],
+            rank_with: tuple[Path, ...] = ()) -> int:
     """Check a skill folder against picks and not-picks; the process exit code.
 
     One line per ask, then one summary line. Returns 0 only when every pick was picked
@@ -33,14 +34,15 @@ def run_try(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) ->
     """
 
     try:
-        return _run(Path(folder), tuple(picks or ()), tuple(not_picks or ()))
+        return _run(Path(folder), tuple(picks or ()), tuple(not_picks or ()), tuple(Path(p) for p in rank_with or ()))
     except Exception as exc:  # an author gets words, never a traceback
         detail = " ".join(str(exc).split())[:200]
         print(f"the check could not finish: {detail or type(exc).__name__}")
         return 1
 
 
-def _run(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) -> int:
+def _run(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...],
+         rank_with: tuple[Path, ...] = ()) -> int:
     from core.registry.codec import canonical
     from core.skill_tools import resolve_skill_markdown, validate_skill
 
@@ -87,7 +89,7 @@ def _run(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) -> in
     os.environ["VOOL_BUNDLED_PLUGINS_DIR"] = str(bundled)
     code = 1
     try:
-        code = _run_in_profile(Path(source), skill, picks, not_picks)
+        code = _run_in_profile(Path(source), skill, picks, not_picks, rank_with)
     finally:
         for name, value in saved.items():
             if value is None:
@@ -98,8 +100,39 @@ def _run(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) -> in
     return code
 
 
+def _other_skill_files(rank_with: tuple[Path, ...], own: Path) -> list[Path]:
+    """Every SKILL.md under the --rank-with folders, except the skill being tried."""
+
+    found: list[Path] = []
+    for folder in rank_with:
+        folder = Path(folder).expanduser()
+        candidates = [folder] if folder.name == "SKILL.md" else sorted(folder.rglob("SKILL.md"))
+        found.extend(path for path in candidates if path.is_file() and path.resolve() != own.resolve())
+    return found
+
+
+def _install_others(rank_with: tuple[Path, ...], source: Path, ours: str) -> int:
+    """Install the --rank-with skills beside the tried one, as the person's own; how many went in."""
+
+    from core.plugin_skills import parse_skill
+    from core.skill_tools import install_skill
+
+    count = 0
+    for path in _other_skill_files(rank_with, source):
+        other = parse_skill(path)
+        name = str(getattr(other, "name", "") or "").strip()
+        if not name or name == ours:
+            continue
+        result = install_skill(str(path), plugin_id="local-skills", scope="global")
+        if str(result.get("status") or "") == "ok":
+            count += 1
+        else:
+            print(f"warn --rank-with skill {path} was left out: {_finding(result)}")
+    return count
+
+
 def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
-                    not_picks: tuple[str, ...]) -> int:
+                    not_picks: tuple[str, ...], rank_with: tuple[Path, ...] = ()) -> int:
     """Install and judge, already inside the throwaway profile."""
 
     from core.plugin_catalog import invalidate_storage_listing
@@ -111,6 +144,7 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
     if str(result.get("status") or "") != "ok":
         print(f"the skill could not be installed for the check: {_finding(result)}")
         return 1
+    others = _install_others(rank_with, source, str(skill.name or "").strip()) if rank_with else 0
     # The catalog and the guidance seam both cache what they last saw on disk; both must
     # re-read the tree this install just created, or the asks below judge yesterday's list.
     invalidate_storage_listing()
@@ -122,7 +156,13 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
     # name the slugger would rewrite is still recognised as this skill.
     ours = {skill_name} | ({slug} if slug else set())
 
-    for line in trigger_and_name_warnings(skill):
+    from tools.community_skills import frontmatter_warnings
+
+    try:
+        warnings = frontmatter_warnings(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError):
+        warnings = []
+    for line in warnings + trigger_and_name_warnings(skill):
         print(line)
 
     failures = {"pick": 0, "not-pick": 0}
@@ -136,11 +176,14 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
                 continue
             guidance = skill_guidance_for(user_text=text)
             picked = any(str(row.get("name") or "") in ours for row in guidance.skills)
+            chosen = [str(row.get("name") or "") for row in guidance.skills
+                      if str(row.get("name") or "") and str(row.get("name") or "") not in ours]
             if kind == "pick" and picked:
                 print(f'ok   {"pick":<8} "{text}"')
             elif kind == "pick":
                 failures["pick"] += 1
-                print(f'FAIL {"pick":<8} "{text}" -> not picked: {_miss_reason(text, skill)}')
+                taken = f" (picked instead: {', '.join(chosen)})" if chosen else ""
+                print(f'FAIL {"pick":<8} "{text}" -> not picked: {_miss_reason(text, skill)}{taken}')
             elif not picked:
                 print(f'ok   {"not-pick":<8} "{text}"')
             else:
@@ -157,6 +200,8 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
         "not_picks": len(not_picks),
         "not_pick_failures": failures["not-pick"],
         "skill": skill_name,
+        # How many other skills it was ranked against (--rank-with); 0 means it was ranked alone.
+        "ranked_with": others,
     }).decode("ascii"))
     return 0 if passed else 1
 

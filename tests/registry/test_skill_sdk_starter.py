@@ -369,3 +369,55 @@ def test_try_uses_the_pickers_own_reasons_when_it_has_them(tmp_path, capsys, per
     out = capsys.readouterr().out.splitlines()
     assert any(line.startswith("FAIL not-pick") and "picked by picker said so" in line for line in out)
     assert calls == ["use the pantry meals skill please"]
+
+
+def test_try_warns_about_frontmatter_keys_vool_ignores(tmp_path, capsys, person_home):
+    folder = tmp_path / "pantry"
+    folder.mkdir()
+    body = PANTRY_SKILL.replace("license: MIT\n", "license: MIT\nschedule: every morning\ncolour: blue\n")
+    (folder / "SKILL.md").write_text(body, encoding="utf-8")
+    assert main(["try", str(folder), "--pick", "plan meals from my pantry"]) == 0
+    out, summary = _last_json(capsys)
+    assert summary["status"] == "passed" and summary["ranked_with"] == 0
+    schedule = [line for line in out if line.startswith('warn frontmatter key "schedule"')]
+    assert schedule and "watch.add" in schedule[0] and "only while VOOL is open" in schedule[0]
+    assert any(line.startswith('warn frontmatter key "colour" is not one VOOL reads') for line in out)
+    assert not any('frontmatter key "license"' in line for line in out)
+
+
+def test_lint_reports_frontmatter_warnings_without_blocking(tmp_path, capsys):
+    folder = _scaffold(tmp_path, capsys)
+    (folder / "SKILL.md").write_text(PANTRY_SKILL.replace("license: MIT\n", "license: MIT\ncron: 0 9 * * *\n"),
+                                     encoding="utf-8")
+    info = json.loads(metadata_path(folder).read_text(encoding="utf-8"))
+    info["summary"] = "Turn the ingredients the user already has into meals and a shopping list."
+    metadata_path(folder).write_text(json.dumps(info), encoding="utf-8")
+    package = tmp_path / "package-draft"
+    assert main(["init", str(package), "--metadata", str(metadata_path(folder)),
+                 "--license-file", str(folder / "LICENSE")]) == 0
+    shutil.copyfile(folder / "SKILL.md", package / "skills" / "pantry-meals" / "SKILL.md")
+    assert main(["lint", str(package), "--scratch", str(tmp_path / "scratch")]) == 0
+    report = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert report["status"] == "preflight_passed"
+    assert any('"cron"' in line and "watch.add" in line for line in report["warnings"])
+
+
+def test_try_rank_with_installs_the_other_skills_beside_it(tmp_path, capsys, person_home):
+    folder = tmp_path / "pantry"
+    folder.mkdir()
+    (folder / "SKILL.md").write_text(PANTRY_SKILL, encoding="utf-8")
+    other = tmp_path / "others" / "photo-sorter"
+    other.mkdir(parents=True)
+    (other / "SKILL.md").write_text(PHOTO_SKILL, encoding="utf-8")
+    assert main(["try", str(folder), "--pick", "plan meals from my pantry",
+                 "--rank-with", str(tmp_path / "others")]) == 0
+    _out, summary = _last_json(capsys)
+    assert summary["status"] == "passed" and summary["ranked_with"] == 1
+
+
+def test_help_lists_every_command(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    text = capsys.readouterr().out
+    for command in ("init", "lint", "pack", "check", "submission-link", "new", "try", "zip", "call"):
+        assert re.search(rf"^\s+{re.escape(command)}\s+\S", text, re.MULTILINE), command
