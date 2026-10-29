@@ -848,12 +848,16 @@ def install_skill(
             "problems": [verdict.get("reason") or "not found"],
         }
     if verdict.get("status") != "ok":
+        problems = [str(item).strip() for item in (verdict.get("problems") or []) if str(item).strip()]
+        problems = problems or [str(verdict.get("reason") or "").strip() or "the file could not be read"]
+        # The refusal carries the validator's own findings, so the author reads WHAT to fix
+        # (an unknown tool name, an empty description) in the same line that says it was refused.
         return {
             "status": "refused",
-            "reason": "the skill does not validate, so installing it would add a capability that "
-                      "cannot work",
+            "reason": "the skill was not installed because it does not pass the skill check: "
+                      + "; ".join(problems),
             "path": str(source),
-            "problems": verdict.get("problems") or [verdict.get("reason") or "unreadable"],
+            "problems": problems,
         }
 
     slug = _slug(str(verdict.get("name") or source.parent.name))
