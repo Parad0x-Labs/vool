@@ -553,10 +553,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="local_models",
                     help=(
-                        "Models installed in Ollama on this machine. Registering one adds it as a "
-                        "lane VOOL can route to; certifying it runs the sealed tool probe that "
-                        "decides whether it may write final answers. Nothing is downloaded and "
-                        "nobody is contacted — this reads your local Ollama only."
+                        "Models on this computer. Press Use this model and VOOL quietly checks that "
+                        "it can answer for you. Nothing is downloaded unless you press Download."
                     ),
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
@@ -3515,10 +3513,10 @@ function widgetProviderGuide(host) {
 }
 
 /* --- Local models: the Ollama inventory on THIS machine, its registration state here, and the
-   sealed tool-certification verdict per lane. Every action stays on this machine: registering
-   writes a local manifest row, certifying runs the observe-only probe. A model that is not
-   certified cannot author final answers -- that is the runtime's law, and this widget shows it
-   rather than hiding it. */
+   sealed tool-certification verdict per lane, shown as one plain readiness word. Every action
+   stays on this machine except the Download button: registering writes a local manifest row,
+   certifying runs the observe-only probe. A model that is not certified cannot author final
+   answers -- that is the runtime's law, and this widget says so in plain words. */
 // ---- Models & Providers redesign: overview, provider detail, guided setup, review sheet ----
 // Layout from the reviewed design (the 2026-09-16 models-and-providers design review); every action
 // goes through the authority that already owns it: pin /api/cloud/model, price limits
@@ -3731,10 +3729,11 @@ function widgetModelsOverview(stack) {
     /* "ready" is earned from the real local listing, never assumed: a fresh install with no local
        model is told so, and where to go instead. */
     const localModels = (reads.local && reads.local.models) || [];
-    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.length);
+    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.some(m => m.readiness === 'ready'));
     const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
       : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
       : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
+      : localModels.length ? T('settings.models.local_pick', 'A model is on this computer. Open it and press Use this model to start.')
       : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
     cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
@@ -3763,9 +3762,9 @@ function mpDrawDetail(root, reads, st, redraw) {
   return mpDrawLocal(body, reads);
 }
 function mpDrawLocal(body) {
-  body.appendChild(el('div', 'row-label', 'Local models'));
-  body.appendChild(el('div', null, 'Local models answer on this machine with no network and no per-token cost. Registering and certifying stay where they always lived.'));
-  const btn = el('button', 'btn', 'Open local model controls'); btn.type = 'button';
+  body.appendChild(el('div', 'row-label', T('settings.row.local_models.label', 'Local models')));
+  body.appendChild(el('div', null, T('settings.local_models.mp_intro', 'Local models answer on this computer, with no internet and no cost per message.')));
+  const btn = el('button', 'btn', T('settings.local_models.mp_open', 'Choose a local model')); btn.type = 'button';
   btn.addEventListener('click', () => mpOpenRow('local_models'));
   body.appendChild(btn);
 }
@@ -3994,75 +3993,153 @@ async function mpDrawGuided(body, reads, st, redraw) {
 }
 
 function widgetLocalModels(stack) {
+  /* One action per model: "Use this model" adds it here and checks it quietly. The check is the
+     same tool certification as before (POST /api/model-tool-certification/run), and the server's
+     final-answer authority still refuses a model that did not pass it; only the words changed.
+     The server turns each verdict into one plain `readiness`, so the page never shows probe
+     states or failure codes. When a model is not a good fit, the person gets a way forward: the
+     model VOOL recommends (used, or downloaded with one click) or a cloud model. */
   const body = el('div', 'stack');
   stack.appendChild(body);
-  const draw = async (note) => {
-    body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading your local Ollama…'));
-    let data;
+  const LM = (k, f, p) => tfmt('settings.local_models.' + k, f, p);
+  let data = null, busy = '', outcome = null, pull = null;
+  const post = async (url, payload) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    return j;
+  };
+  const stateText = (r) => r === 'ready' ? LM('state.ready', 'Ready')
+    : r === 'checking' ? LM('state.checking', 'Checking…')
+    : r === 'not_suitable' ? LM('state.not_suitable', 'Not a good fit')
+    : r === 'check_unfinished' ? LM('state.check_unfinished', 'Check didn’t finish')
+    : r === 'needs_recheck' ? LM('state.needs_recheck', 'Needs a quick check')
+    : LM('state.not_checked', 'Not set up yet');
+  const load = async () => {
     try { data = await getJSON('/api/models/local'); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { data = null; }
+  };
+  const useModel = async (m) => {
+    if (busy) return;
+    busy = m.model_name; outcome = null; render();
+    let kind = 'check_unfinished';
+    try {
+      if (!m.registered) await post('/api/models/local/register', { model_name: m.model_name });
+      const j = await post('/api/model-tool-certification/run', { provider_name: 'ollama-local', model_name: m.model_name, timeout_seconds: 150 });
+      kind = String(j.readiness || 'check_unfinished');
+    } catch (e) { kind = 'check_unfinished'; }
+    busy = ''; outcome = { model: m.model_name, kind };
+    await load(); render();
+    announce(outcomeText(outcome));
+  };
+  const outcomeText = (o) => o.kind === 'ready'
+    ? LM('result.ready', '{model} is ready. VOOL will answer with it on this computer.', { model: o.model })
+    : o.kind === 'not_suitable'
+      ? LM('result.not_suitable', '{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it.', { model: o.model })
+      : LM('result.unfinished', 'VOOL couldn’t finish checking {model}. Make sure Ollama is open, then try again. A slow computer may need a second try.', { model: o.model });
+  const announce = (text) => { const live = document.getElementById('live'); if (live) live.textContent = text; };
+  const pollPull = async () => {
+    if (!pull || !body.isConnected) return;
+    let st = null;
+    try { st = await getJSON('/api/models/local/pull?model_name=' + encodeURIComponent(pull.model)); } catch (e) { st = null; }
+    if (!pull) return;
+    const status = st ? String(st.status || '') : 'failed';
+    if (status === 'ready') {
+      const name = pull.model; pull = null;
+      await load();
+      const m = ((data && data.models) || []).find(x => x.model_name === name);
+      if (m) { useModel(m); return; }
+      outcome = { model: name, kind: 'check_unfinished' }; render(); return;
+    }
+    if (status === 'failed' || status === 'idle' || status === 'skipped') { pull.failed = true; render(); return; }
+    pull.percent = Number(st.percent || 0); render();
+    setTimeout(pollPull, 1500);
+  };
+  const startPull = async (rec) => {
+    pull = { model: rec.model_name, percent: 0, failed: false }; outcome = null; render();
+    try { await post('/api/models/local/pull', { model_name: rec.model_name }); }
+    catch (e) { pull.failed = true; render(); return; }
+    setTimeout(pollPull, 800);
+  };
+  const ways = (models) => {
+    const wrap = el('div', 'stack');
+    if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
+    const line = el('div', 'inline');
+    const rec = data && data.recommended;
+    if (pull) {
+      wrap.appendChild(el('div', pull.failed ? 'state failed' : 'state loading', pull.failed
+        ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: pull.model })
+        : (pull.percent ? LM('download.progress', 'Downloading {model}… {percent}%', { model: pull.model, percent: pull.percent })
+          : LM('download.starting', 'Starting the download of {model}…', { model: pull.model }))));
+    }
+    if (rec && rec.model_name) {
+      const have = models.find(x => x.model_name === rec.model_name);
+      if (have && have.readiness !== 'ready' && have.readiness !== 'not_suitable') {
+        const b = el('button', 'btn primary', LM('suggest.use', 'Use {model}', { model: rec.model_name })); b.type = 'button';
+        b.disabled = !!busy;
+        b.addEventListener('click', () => useModel(have));
+        line.appendChild(b);
+      } else if (!have && (!pull || pull.failed)) {
+        const b = el('button', 'btn primary', LM('suggest.download', 'Download {model} ({gb} GB)', { model: rec.model_name, gb: rec.download_gb }));
+        b.type = 'button'; b.disabled = !!busy;
+        b.addEventListener('click', () => startPull(rec));
+        line.appendChild(b);
+      }
+    }
+    const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
+    cloud.addEventListener('click', () => mpOpenRow('model_pin'));
+    line.appendChild(cloud);
+    wrap.appendChild(line);
+    return wrap;
+  };
+  const render = () => {
     body.textContent = '';
+    if (!data) {
+      body.appendChild(el('div', 'empty', LM('unavailable', 'VOOL can’t see the models on this computer right now. Make sure Ollama is open, then reopen Settings.')));
+      return;
+    }
     if (data.local_models_disabled) {
-      body.appendChild(el('div', 'empty', 'Local models are disabled by policy on this runtime.'));
+      body.appendChild(el('div', 'empty', LM('disabled', 'Local models are turned off on this computer.')));
       return;
     }
     if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
-      const cmd = el('div', 'inline');
-      cmd.appendChild(el('span', 'subtle', T('settings.models.terminal', 'For people comfortable with a terminal:')));
-      cmd.appendChild(el('code', 'mono', 'ollama pull qwen3:8b'));
-      body.appendChild(cmd);
+      body.appendChild(ways(models));
       return;
     }
-    const certLabel = (s) => s === 'verified' ? 'certified author' : (s === 'degraded' || s === 'incompatible' || s === 'stale') ? 'probe ' + s : s === 'probing' ? 'probing…' : 'not certified';
     for (const m of models) {
       const rowEl = el('div', 'stack profile-item');
       const head = el('div', 'inline');
+      const working = busy === m.model_name;
+      const readiness = working ? 'checking' : String(m.readiness || 'not_checked');
       head.appendChild(el('span', 'profile-value', m.model_name));
-      head.appendChild(el('span', 'subtle', m.size_gb ? String(m.size_gb) + ' GB' : 'size unknown'));
-      const state = !m.registered ? 'installed, not registered'
-        : (m.certification_state === 'verified' ? 'registered · certified author'
-          : m.certification_state ? 'registered · ' + certLabel(m.certification_state) : 'registered');
-      head.appendChild(el('span', 'subtle', state));
-      if (!m.registered) {
-        const b = el('button', 'btn', 'Register'); b.type = 'button';
-        b.addEventListener('click', async () => {
-          b.disabled = true; b.textContent = 'Registering…';
-          try {
-            const r = await fetch('/api/models/local/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model_name: m.model_name }) });
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
-            await draw('Registered ' + m.model_name + '. Run the certification to see if it may author answers.');
-          } catch (e) { b.disabled = false; b.textContent = 'Register'; body.appendChild(el('div', 'state failed', 'Not registered — ' + (e && e.message ? e.message : e))); }
-        });
-        head.appendChild(b);
-      } else if (m.certification_state !== 'verified') {
-        const b = el('button', 'btn', m.certification_state ? 'Re-run certification' : 'Certify'); b.type = 'button';
-        b.addEventListener('click', async () => {
-          b.disabled = true; b.textContent = 'Running the sealed probe…';
-          try {
-            const r = await fetch('/api/model-tool-certification/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: 'ollama-local', model_name: m.model_name, timeout_seconds: 150 }) });
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
-            const st = String(j.state || 'unknown');
-            const failed = Object.values(j.stages || {}).filter(s => s && s.state === 'failed').map(s => s.failure_code || 'failed');
-            await draw(st === 'verified'
-              ? m.model_name + ' passed every sealed stage — it is a certified author now.'
-              : m.model_name + ' did not certify (' + st + (failed.length ? ': ' + failed.join(', ') : '') + ').');
-          } catch (e) { b.disabled = false; b.textContent = 'Certify'; body.appendChild(el('div', 'state failed', 'Certification did not run — ' + (e && e.message ? e.message : e))); }
-        });
+      if (m.size_gb) head.appendChild(el('span', 'subtle', String(m.size_gb) + ' GB'));
+      head.appendChild(el('span', readiness === 'ready' ? 'state saved' : 'subtle', stateText(readiness)));
+      /* No button on a model that is not a good fit (a re-run fails the same way; the ways forward
+         are listed below), and none while THIS page is checking it. A check left "checking" by a
+         stopped VOOL still gets Try again, so the row is never a dead end. */
+      if (readiness !== 'ready' && readiness !== 'not_suitable' && !working) {
+        const again = readiness === 'check_unfinished' || readiness === 'checking';
+        const b = el('button', again ? 'btn' : 'btn primary', again ? LM('try_again', 'Try again') : LM('use', 'Use this model')); b.type = 'button';
+        b.disabled = !!busy;
+        b.addEventListener('click', () => useModel(m));
         head.appendChild(b);
       }
       rowEl.appendChild(head);
+      if (working) rowEl.appendChild(el('div', 'state loading', LM('checking_note', 'Checking {model}. This can take a minute or two.', { model: m.model_name })));
+      if (outcome && outcome.model === m.model_name && !working) {
+        rowEl.appendChild(el('div', outcome.kind === 'ready' ? 'state saved' : 'state failed', outcomeText(outcome)));
+      }
       body.appendChild(rowEl);
     }
-    if (note) body.appendChild(el('div', 'state saved', note));
-    body.appendChild(el('div', 'subtle', 'Certification is a sealed local probe (synthetic tools, no workspace, no credentials). A model that fails it can still route and call tools; it just cannot write a final answer.'));
+    const anyReady = models.some(m => m.readiness === 'ready');
+    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models));
+    body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
   };
-  draw();
+  body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));
+  load().then(render);
 }
 
 /* --- Model: the authoritative pin, read locally. The provider's catalogue is NOT fetched until

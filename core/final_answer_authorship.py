@@ -88,7 +88,10 @@ from core.enum_compat import StrEnum
 #: withheld, and it is how this transform recognises its own output and stays a fixed point --
 #: finalization admits identical duplicates, so gating already-gated bytes must return them
 #: byte-identically.
-UNCERTIFIED_AUTHOR_NOTICE_LEAD = "I can't publish this answer:"
+UNCERTIFIED_AUTHOR_NOTICE_LEAD = "I couldn\u2019t answer this one."
+#: How the refusal began before 0.7.7 (engineering words; still in people's saved chats). Recognised,
+#: never emitted.
+LEGACY_AUTHOR_REFUSAL_LEAD = "I can't publish this answer:"
 
 #: The first sentence of the refusal for the case where nothing at all can write a reply (no
 #: local model runs and no other author was tried): the first answer most new users ever get, so
@@ -112,7 +115,7 @@ NO_MODEL_NOTICE_DETAIL = (
 NO_MODEL_NOTICE_DETAIL_KEY = "chat.no_model.reply_detail"
 #: How the same refusal began before 0.7.2 (still in people's saved chats). Recognised by the chat
 #: page only, so those replies get the same button; the lead above already covers it server-side.
-LEGACY_NO_MODEL_NOTICE_LEAD = f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} no AI model is connected and ready yet"
+LEGACY_NO_MODEL_NOTICE_LEAD = f"{LEGACY_AUTHOR_REFUSAL_LEAD} no AI model is connected and ready yet"
 
 #: How many turns' decisions are kept. Same order of magnitude as the model-call ledger's own
 #: bound; a decision is only read once, by the finalization of the turn that made it.
@@ -240,57 +243,7 @@ class AuthorshipDecision:
         """
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
-        author = self.selected_model or self.requested_model or "the model that wrote it"
-        if self.reason == REASON_AUTHOR_UNRESOLVED:
-            cause = (
-                "this runtime could not resolve which configured model wrote it, so there is no "
-                "identity to hold the answer to."
-            )
-        elif self.reason == REASON_BLOCKED_BEFORE_GENERATION:
-            if attempted:
-                tried = ", ".join(f"`{name}`" for name in attempted)
-                cause = (
-                    f"`{author}` is not certified to author on this runtime, so the call was "
-                    f"never made; the certified model{'s' if len(attempted) > 1 else ''} this "
-                    f"turn did call ({tried}) each failed before producing a usable answer."
-                )
-            else:
-                cause = (
-                    f"`{author}` is not certified to author on this runtime, so the call was never "
-                    "made, and no certified model was available and permitted to write it instead."
-                )
-        elif self.reason == REASON_UNCERTIFIED_AUTHOR:
-            cause = (
-                f"`{author}` has no certification run on this runtime, so it is not certified to "
-                "take the final-answer role."
-            )
-        elif self.reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
-            cause = (
-                f"`{author}` has no certification run on this runtime, and this turn is in Local "
-                "Only, so no configured cloud model may be reached to write it instead."
-            )
-        elif self.reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
-            cause = (
-                f"`{author}` has no certification run on this runtime. A configured cloud model "
-                "could write it, but cloud escalation is not enabled for this runtime."
-            )
-        elif attempted:
-            tried = ", ".join(f"`{name}`" for name in attempted)
-            cause = (
-                f"`{author}` has no certification run on this runtime; the certified model"
-                f"{'s' if len(attempted) > 1 else ''} this turn did call ({tried}) each failed "
-                "before producing a usable answer."
-            )
-        else:
-            cause = (
-                f"`{author}` has no certification run on this runtime, and no certified model was "
-                "available to write it instead."
-            )
-        remedy = (
-            "What would make this answerable: run the local model tool certification for that "
-            "model (Settings → Models & Providers → Local models → Certify), pick a certified "
-            "model, or ask something this runtime can look up, compute or read for you."
-        )
+        author = self.selected_model or self.requested_model or ""
         if (not attempted and self.reason not in (REASON_CLOUD_ESCALATION_NOT_PERMITTED, REASON_AUTHOR_UNRESOLVED)
                 and _local_author_not_running(author)):
             # Nothing can write a reply at all: this is the first answer most new users ever get,
@@ -298,18 +251,128 @@ class AuthorshipDecision:
             # forward. No model id, no engine words: the chat page puts a Set up button under it
             # and folds the last paragraph -- the cause -- behind "details".
             return no_model_notice_text()
-        if _local_author_not_running(author):
-            # Certifying a model that is not running cannot help; name the fix that can.
-            remedy = (
-                f"What would make this answerable: no local model is running on this computer, so "
-                f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
-                "Setup under \u201cWhere should it think?\u201d, or start a local model."
-            )
-        return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} nothing this turn retrieved, computed or observed "
-            f"backs it, so the answer would rest on the writing model alone. {cause}\n\n"
-            f"{remedy}"
+        return author_refusal_text(
+            reason=self.reason,
+            author=author,
+            attempted=attempted,
+            author_not_running=_local_author_not_running(author),
         )
+
+
+#: The refusal a person reads when the answer is held back. Plain words in the turn's app language:
+#: no "certified", no runtime or role words, model names without their provider prefix. The cause
+#: picks one sentence; when models were called and failed, they are what the person is told about,
+#: never the unchecked model the ranked loop reached after them (GLM audit R2, Oct 27: 97 refusals
+#: blamed `qwen2.5:7b` after `qwen3:8b` had failed).
+AUTHOR_REFUSAL_LEAD = UNCERTIFIED_AUTHOR_NOTICE_LEAD
+AUTHOR_REFUSAL_LEAD_KEY = "chat.author_refusal.lead"
+_AUTHOR_REFUSAL_TEXTS: dict[str, tuple[str, str]] = {
+    "failed": (
+        "chat.author_refusal.failed",
+        "{models} didn\u2019t reply properly this time. Please ask again in a moment. If it keeps "
+        "happening, pick another model in Settings \u2192 Models & Providers.",
+    ),
+    "not_ready": (
+        "chat.author_refusal.not_ready",
+        "{model} isn\u2019t ready to answer for VOOL yet. Open Settings \u2192 Models & Providers "
+        "\u2192 Local models and press Use this model, or pick a model marked Ready.",
+    ),
+    "not_ready_local_only": (
+        "chat.author_refusal.not_ready_local_only",
+        "{model} isn\u2019t ready to answer for VOOL yet, and This computer only is on, so a cloud "
+        "model can\u2019t answer instead. Open Settings \u2192 Models & Providers \u2192 Local models "
+        "and press Use this model, or pick a model marked Ready.",
+    ),
+    "not_ready_no_cloud": (
+        "chat.author_refusal.not_ready_no_cloud",
+        "{model} isn\u2019t ready to answer for VOOL yet, and cloud models are turned off. Open "
+        "Settings \u2192 Models & Providers \u2192 Local models and press Use this model, or "
+        "turn on a cloud model.",
+    ),
+    "unresolved": (
+        "chat.author_refusal.unresolved",
+        "VOOL couldn\u2019t tell which model wrote the reply, so it held it back. Please ask again.",
+    ),
+    "not_running": (
+        "chat.author_refusal.not_running",
+        "No model on this computer is running right now. Open your model app (such as Ollama), "
+        "or pick a cloud model in the model menu.",
+    ),
+}
+
+
+def _plain_model_name(model_id: str) -> str:
+    """`ollama-local:qwen3:8b` -> `qwen3:8b`, `openrouter:x/y` -> `x/y`; a bare tag stays as is."""
+    text = str(model_id or "").strip()
+    provider, sep, rest = text.partition(":")
+    if not (sep and rest):
+        return text
+    cloud = _cloud_provider_ids()
+    # A tag such as `deepseek-r1:8b` must stay whole, so a provider variant (`openrouter-byok`)
+    # only counts when what follows is a catalog model id (`vendor/model`, `model:free`).
+    if provider.endswith("-local") or provider in cloud or (
+        provider.split("-", 1)[0] in cloud and ("/" in rest or ":" in rest)
+    ):
+        return rest
+    return text
+
+
+def _cloud_provider_ids() -> frozenset[str]:
+    try:
+        from core.cloud_providers import PROVIDERS
+
+        return frozenset(PROVIDERS)
+    except Exception:
+        return frozenset()
+
+
+def author_refusal_text(
+    *, reason: str, author: str, attempted: tuple[str, ...] = (), author_not_running: bool = False, locale: str = ""
+) -> str:
+    from core.i18n.turn_locale import turn_text
+
+    def say(kind: str, **fields: str) -> str:
+        key, english = _AUTHOR_REFUSAL_TEXTS[kind]
+        return turn_text(key, english, locale, **fields)
+
+    model = _plain_model_name(author) or "This model"
+    if reason == REASON_AUTHOR_UNRESOLVED:
+        cause = say("unresolved")
+    elif attempted:
+        names = ", ".join(dict.fromkeys(_plain_model_name(name) for name in attempted))
+        cause = say("failed", models=names)
+    elif reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
+        cause = say("not_ready_local_only", model=model)
+    elif reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
+        cause = say("not_ready_no_cloud", model=model)
+    else:
+        cause = say("not_ready", model=model)
+    if author_not_running and reason != REASON_AUTHOR_UNRESOLVED:
+        cause = (cause + " " + say("not_running")) if attempted else say("not_running")
+    lead = turn_text(AUTHOR_REFUSAL_LEAD_KEY, AUTHOR_REFUSAL_LEAD, locale)
+    return f"{lead} {cause}"
+
+
+_AUTHOR_REFUSAL_LEADS: tuple[str, ...] | None = None
+
+
+def author_refusal_leads() -> tuple[str, ...]:
+    """The refusal lead in English and in every shipped catalog, plus the pre-0.7.7 lead."""
+    global _AUTHOR_REFUSAL_LEADS
+    if _AUTHOR_REFUSAL_LEADS is None:
+        leads = [AUTHOR_REFUSAL_LEAD, LEGACY_AUTHOR_REFUSAL_LEAD]
+        try:
+            from core.i18n.catalog import catalog_for
+            from core.i18n.locales import ui_catalog_tags
+
+            for tag in ui_catalog_tags():
+                text = str(catalog_for(tag).text(AUTHOR_REFUSAL_LEAD_KEY) or "").strip()
+                if text and text != AUTHOR_REFUSAL_LEAD_KEY and text not in leads:
+                    leads.append(text)
+        except Exception:
+            pass
+        _AUTHOR_REFUSAL_LEADS = tuple(leads)
+    return _AUTHOR_REFUSAL_LEADS
 
 
 def no_model_notice_text(locale: str = "") -> str:
@@ -347,10 +410,10 @@ def no_model_notice_leads() -> tuple[str, ...]:
 def is_authorship_refusal_text(text: str) -> bool:
     """Whether ``text`` already carries a refusal this module shipped (either lead family)."""
     body = str(text or "")
-    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in body:
+    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in body or LEGACY_AUTHOR_REFUSAL_LEAD in body:
         return True
     stripped = body.lstrip()
-    return any(stripped.startswith(lead) for lead in no_model_notice_leads())
+    return any(stripped.startswith(lead) for lead in (*author_refusal_leads(), *no_model_notice_leads()))
 
 
 def _local_author_not_running(author: str) -> bool:
@@ -745,6 +808,38 @@ def local_manifest_authorship_certified(manifest: Any) -> bool:
     except Exception:
         # The fence owns the decision; ranking must never break on this read.
         return True
+
+
+def unready_local_model_names(manifests: Any) -> frozenset[str]:
+    """The local models that must not be the turn's or boot's primary, by model name (lowercase).
+
+    A local model whose final-answer check has not passed is listed only while at least one
+    other local model HAS passed: then the ready one (the model the person pressed Use this
+    model on) goes first and the unready one stays a fallback the call fence refuses. With no
+    ready local model the set is empty and the primary choice is left exactly as it was. A
+    lane outside the check's reach is never listed. Best-effort and cached like the fence.
+    """
+
+    ready: set[str] = set()
+    unready: set[str] = set()
+    for manifest in manifests or ():
+        name = str(getattr(manifest, "model_name", "") or "").strip().lower()
+        if not name:
+            continue
+        try:
+            from core.local_model_policy import manifest_is_local
+
+            if not manifest_is_local(manifest):
+                continue
+            certification = author_certification(manifest)
+        except Exception:
+            continue
+        if certification.state == STATE_NOT_APPLICABLE:
+            continue
+        (ready if certification.certified else unready).add(name)
+    if not ready:
+        return frozenset()
+    return frozenset(unready - ready)
 
 
 def precall_author_verdict(
@@ -1515,8 +1610,12 @@ __all__ = [
     "invalidate_author_certification",
     "is_authorship_refusal_text",
     "no_model_notice_leads",
+    "author_refusal_leads",
+    "author_refusal_text",
+    "AUTHOR_REFUSAL_LEAD",
     "no_model_notice_text",
     "record_authorship_decision",
     "record_runtime_support",
     "reset_for_tests",
+    "unready_local_model_names",
 ]
