@@ -1399,7 +1399,7 @@ _FIND_FOLDER_STOPWORDS = frozenset(
         "am", "are", "be", "been", "being", "can", "could", "did", "do", "does", "give", "had",
         "has", "have", "he", "i", "kept", "lives", "look", "may", "might", "must", "name", "peek",
         "see", "she", "should", "sitting", "stashed", "stored", "stuff", "tell", "they", "things",
-        "walk", "was", "we", "were", "will", "would", "you",
+        "walk", "was", "we", "were", "will", "would", "you", "find", "locate",
         # Discourse fillers. "ok and where is the foldeR?!" (measured live 2026-09-18) reduced to
         # the folder name `ok` and the runtime answered a where-question with a whole-disk search
         # for folders named "ok". An acknowledgement can never name a folder either.
@@ -1416,6 +1416,25 @@ _FIND_FOLDER_SCOPE_HINTS = {
     "documents": "~/Documents",
     "home": "~",
 }
+
+
+_FIND_FOLDER_PICTURE_WORDS = frozenset({"pics", "pictures", "photos", "pix"})
+
+
+def _folder_name_matches(lowered_name: str, needle: str, needle_sep: str) -> bool:
+    """Whether a folder name matches the reduced name: as one run of words, or word by word.
+
+    Word by word because people say the words in their own order: "lisbon holiday" is the folder
+    "Holiday Lisbon 2026". Each word of three or more letters must appear in the folder name, a
+    plural matching its singular ("holidays" finds "Holiday").
+    """
+    compact = re.sub(r"[\s_\-]+", "", lowered_name)
+    if needle in lowered_name or (needle_sep and needle_sep in compact):
+        return True
+    words = [w for w in re.split(r"[^\w]+", needle) if len(w) >= 3]
+    if len(words) < 2:
+        return False
+    return all(w in compact or (len(w) > 4 and w.endswith("s") and w[:-1] in compact) for w in words)
 
 
 def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
@@ -1438,7 +1457,7 @@ def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
     if _resolved_existing_directory(raw) is not None or "/" in raw or os.sep in raw:
         return raw, ""
     words = [w for w in re.split(r"[^\w\-]+", raw.lower()) if w]
-    if not words or not any(w in _FIND_FOLDER_STOPWORDS for w in words):
+    if not words or not any(w in _FIND_FOLDER_STOPWORDS or w in _FIND_FOLDER_PICTURE_WORDS for w in words):
         return raw, ""
 
     scope = ""
@@ -1446,6 +1465,17 @@ def _find_folder_name_from_phrase(text: str) -> tuple[str, str]:
         if word in _FIND_FOLDER_SCOPE_HINTS:
             scope = _FIND_FOLDER_SCOPE_HINTS[word]
             break
+    # "my lisbon holiday pics" names the Lisbon holiday folder and says it holds pictures: the
+    # picture word is where to look first, not part of the name (measured 2026-10-28: the search
+    # looked for a folder literally called "my lisbon holiday pics" and missed
+    # ~/Pictures/Holiday Lisbon 2026). Alone ("find my photos folder") it stays the name.
+    picture_words = [w for w in words if w in _FIND_FOLDER_PICTURE_WORDS]
+    if picture_words and any(
+        w not in _FIND_FOLDER_STOPWORDS and w not in _FIND_FOLDER_SCOPE_HINTS
+        and w not in _FIND_FOLDER_PICTURE_WORDS for w in words
+    ):
+        words = [w for w in words if w not in _FIND_FOLDER_PICTURE_WORDS]
+        scope = scope or "~/Pictures"
     # A scope word is also a location, so drop it from the name only when it is not the only
     # thing left — "what is on the desktop" genuinely means the Desktop itself.
     meaningful = [w for w in words if w not in _FIND_FOLDER_STOPWORDS and w not in _FIND_FOLDER_SCOPE_HINTS]
@@ -1558,8 +1588,9 @@ def _machine_find_folder(
                             continue
                         if _is_other_git_project(Path(entry.path), workspace_root=workspace_root):
                             continue
-                        compact = re.sub(r"[\s_\-]+", "", entry.name.lower())
-                        if needle_sep_probe and needle_sep_probe in compact:
+                        if needle_sep_probe and _folder_name_matches(
+                            entry.name.lower(), phrase_name.lower(), needle_sep_probe
+                        ):
                             return RuntimeExecutionResult(
                                 handled=True, ok=True, status="executed",
                                 response_text=f"Found 1 folder matching '{name}':\n- {entry.path}",
@@ -1683,7 +1714,7 @@ def _machine_find_folder(
                     if not _first_visit(entry.path):
                         continue
                     scanned_dirs += 1
-                    if needle in lowered_name or (needle_sep and needle_sep in re.sub(r"[\s_\-]+", "", lowered_name)):
+                    if _folder_name_matches(lowered_name, needle, needle_sep):
                         matches.append(entry.path)
                         if len(matches) >= _FIND_FOLDER_MAX_MATCHES:
                             queue.clear()
