@@ -2850,7 +2850,7 @@
     "settings.row.live_browser.help": "実行前に各操作を確認してください。ページのスクリプトは無効です。支払いにはウォレットを使ってください。",
     "settings.row.live_browser.label": "ブラウザー"
   },
-  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
+  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

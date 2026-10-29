@@ -339,7 +339,7 @@ function mountInto(host){
       if ((key === 'google' || key === 'graph') && !bindingSelect.value) {
         return (view.bindings || []).some(function(b){ return b.status === 'verified'; })
           ? CE('vcs.add.need_binding', 'Choose the sign-in for this account first.')
-          : CE('vcs.add.need_connect', 'This calendar needs a connected account sign-in first, and there is none yet. Adding one from Settings is not available in this version.');
+          : CE('vcs.add.need_connect', 'This calendar kind needs a connected account sign-in first, and there is none yet. Pick a different Source (for example \u2018iCloud or another CalDAV server\u2019, which needs only a server address), or connect that account\u2019s sign-in on this computer first, then pick it here.');
       }
       return '';
     }

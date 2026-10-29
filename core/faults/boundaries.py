@@ -152,7 +152,7 @@ BOUNDARIES: tuple[FailureBoundary, ...] = (
         ),
         mapped_at="denial['reason'] set by the refusing authority, carried verbatim to the blocked-pin terminal",
         user_surface="_selected_model_block_cause: 'running it would exceed your spend cap' -- pre-send wording, never claims the provider was contacted",
-        recovery="Raise the cap/ceiling deliberately in Settings, approve the model's price, or pick a model inside the cap.",
+        recovery="Raise the limits deliberately: open Settings, choose Models & Providers, open ‘UsePod marketplace’, and raise the limits under ‘Maximum input and output prices’; then approve the model's price, or pick a model inside the cap.",
     ),
     FailureBoundary(
         name="wallet_payment",
