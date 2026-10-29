@@ -315,9 +315,9 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
-  #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
-  #sessions .side-loading { color:var(--muted); font-size:12px; padding:8px 10px; }
-  .server-turn-working { color:var(--muted); }
+#sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
+#sessions .side-loading { color:var(--muted); font-size:12px; padding:8px 10px; }
+.server-turn-working { color:var(--muted); }
 /* Chat/project lifecycle indicator: a compact, terminal-style status tag -- never a progress bar,
    never a percentage, only what the runtime has actually reported. Priority (highest first) is
    needs_user > working > complete_unseen, enforced in chatLifecycleState(), not here -- only one
