@@ -1,0 +1,922 @@
+[
+ {
+  "id": "R01",
+  "turns": [
+   "where's that letter from ellas school about the trip"
+  ],
+  "must_include": [
+   "class trip letter"
+  ],
+  "must_not_include": [
+   "trip letter.pdf"
+  ],
+  "category": "find",
+  "source_files": [
+   "Documents/School/class trip letter.txt"
+  ],
+  "computation": "",
+  "rationale": "The school trip letter is in Documents/School."
+ },
+ {
+  "id": "R02",
+  "turns": [
+   "can u find the mot thing for the car"
+  ],
+  "must_include": [
+   "MOT certificate 2024"
+  ],
+  "must_not_include": [
+   "MOT 2023"
+  ],
+  "category": "find",
+  "source_files": [
+   "Documents/Car/MOT certificate 2024.pdf"
+  ],
+  "computation": "",
+  "rationale": "The MOT certificate PDF is in Documents/Car."
+ },
+ {
+  "id": "R03",
+  "turns": [
+   "i saved our train tickets for edinburgh somewhere, where are they"
+  ],
+  "must_include": [
+   "ticket_LDS_EDB_0607"
+  ],
+  "must_not_include": [
+   "train_ticket.pdf"
+  ],
+  "category": "find",
+  "source_files": [
+   "Downloads/ticket_LDS_EDB_0607.pdf"
+  ],
+  "computation": "",
+  "rationale": "The LNER e-ticket is in Downloads."
+ },
+ {
+  "id": "R04",
+  "turns": [
+   "find my grans lasagne recipe pls"
+  ],
+  "must_include": [
+   "lasagne recipe"
+  ],
+  "must_not_include": [
+   "Recipes/"
+  ],
+  "category": "find",
+  "source_files": [
+   "Documents/lasagne recipe.txt"
+  ],
+  "computation": "",
+  "rationale": "The recipe file is in the Documents folder itself, not in a subfolder."
+ },
+ {
+  "id": "R05",
+  "turns": [
+   "where did i put the wifi password"
+  ],
+  "must_include": [
+   "wifi password"
+  ],
+  "must_not_include": [
+   "Documents/wifi"
+  ],
+  "category": "find",
+  "source_files": [
+   "Desktop/wifi password.txt"
+  ],
+  "computation": "",
+  "rationale": "The wifi password note is on the Desktop."
+ },
+ {
+  "id": "R06",
+  "turns": [
+   "the receipt from when the washing machine got fixed?"
+  ],
+  "must_include": [
+   "washing machine repair"
+  ],
+  "must_not_include": [
+   "boiler"
+  ],
+  "category": "find",
+  "source_files": [
+   "Documents/House/washing machine repair.pdf"
+  ],
+  "computation": "",
+  "rationale": "The repair receipt is in Documents/House."
+ },
+ {
+  "id": "R07",
+  "turns": [
+   "find the gym contract"
+  ],
+  "must_include": [
+   "gym membership contract"
+  ],
+  "must_not_include": [
+   "Documents/Gym"
+  ],
+  "category": "find",
+  "source_files": [
+   "Downloads/gym membership contract.pdf"
+  ],
+  "computation": "",
+  "rationale": "The PureGym agreement is in Downloads."
+ },
+ {
+  "id": "R08",
+  "turns": [
+   "wheres the photo of biscuit asleep"
+  ],
+  "must_include": [
+   "biscuit sleeping"
+  ],
+  "must_not_include": [
+   "biscuit asleep.jpg"
+  ],
+  "category": "find",
+  "source_files": [
+   "Pictures/Biscuit/biscuit sleeping.jpg"
+  ],
+  "computation": "",
+  "rationale": "The file name describes the dog sleeping."
+ },
+ {
+  "id": "R09",
+  "turns": [
+   "theres a video of ella in her school play somewhere"
+  ],
+  "must_include": [
+   "Ella school play"
+  ],
+  "must_not_include": [
+   "Cornwall drone clip"
+  ],
+  "category": "find",
+  "source_files": [
+   "Movies/Ella school play.mov"
+  ],
+  "computation": "",
+  "rationale": "The play video is in Movies."
+ },
+ {
+  "id": "R10",
+  "turns": [
+   "my list of seeds to buy for the allotment, where is it"
+  ],
+  "must_include": [
+   "seed shopping list"
+  ],
+  "must_not_include": [
+   "planting plan.md is the list"
+  ],
+  "category": "find",
+  "source_files": [
+   "Projects/Allotment/seed shopping list.csv"
+  ],
+  "computation": "",
+  "rationale": "The shopping list is in Projects/Allotment."
+ },
+ {
+  "id": "R11",
+  "turns": [
+   "how much did the garage charge me in march altogether"
+  ],
+  "must_include": [
+   "322.20"
+  ],
+  "must_not_include": [
+   "268.50 in total",
+   "54.85"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/Car/garage invoice March.pdf"
+  ],
+  "computation": "",
+  "rationale": "The invoice says Total due: \u00a3322.20, which includes VAT."
+ },
+ {
+  "id": "R12",
+  "turns": [
+   "when does my mot run out"
+  ],
+  "must_include": [
+   "07/04/2025"
+  ],
+  "must_not_include": [
+   "08/04/2025"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/Car/MOT certificate 2024.pdf"
+  ],
+  "computation": "",
+  "rationale": "The certificate gives Expiry date: 07/04/2025."
+ },
+ {
+  "id": "R13",
+  "turns": [
+   "whats the wifi password again"
+  ],
+  "must_include": [
+   "Marmalade!2219"
+  ],
+  "must_not_include": [
+   "Marmalade2219"
+  ],
+  "category": "value",
+  "source_files": [
+   "Desktop/wifi password.txt"
+  ],
+  "computation": "",
+  "rationale": "The password is written in the wifi note."
+ },
+ {
+  "id": "R14",
+  "turns": [
+   "how much is ellas school trip and when do i have to pay"
+  ],
+  "must_include": [
+   "18.50",
+   "24 May"
+  ],
+  "must_not_include": [
+   "52.50"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/School/class trip letter.txt"
+  ],
+  "computation": "",
+  "rationale": "The letter says \u00a318.50, to be paid by Friday 24 May."
+ },
+ {
+  "id": "R15",
+  "turns": [
+   "what time does our train leave leeds"
+  ],
+  "must_include": [
+   "09:45"
+  ],
+  "must_not_include": [
+   "09:15"
+  ],
+  "category": "value",
+  "source_files": [
+   "Downloads/ticket_LDS_EDB_0607.pdf"
+  ],
+  "computation": "",
+  "rationale": "The ticket says Depart Leeds 09:45."
+ },
+ {
+  "id": "R16",
+  "turns": [
+   "how much was the deposit on the flat"
+  ],
+  "must_include": [
+   "1,010"
+  ],
+  "must_not_include": [
+   "1,680"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/House/tenancy agreement.pdf"
+  ],
+  "computation": "",
+  "rationale": "The tenancy agreement says Deposit: \u00a31,010."
+ },
+ {
+  "id": "R17",
+  "turns": [
+   "whats the booking ref for the train"
+  ],
+  "must_include": [
+   "QX7P2RM"
+  ],
+  "must_not_include": [
+   "31-55820"
+  ],
+  "category": "value",
+  "source_files": [
+   "Downloads/ticket_LDS_EDB_0607.pdf"
+  ],
+  "computation": "",
+  "rationale": "The ticket gives Booking reference: QX7P2RM."
+ },
+ {
+  "id": "R18",
+  "turns": [
+   "how much is the rent for the allotment plot"
+  ],
+  "must_include": [
+   "38"
+  ],
+  "must_not_include": [
+   "29.74"
+  ],
+  "category": "value",
+  "source_files": [
+   "Projects/Allotment/planting plan.md"
+  ],
+  "computation": "",
+  "rationale": "The plan says Plot rent: \u00a338 a year."
+ },
+ {
+  "id": "R19",
+  "turns": [
+   "whats the cheapest car insurance quote i got"
+  ],
+  "must_include": [
+   "Direct Line",
+   "574.25"
+  ],
+  "must_not_include": [
+   "cheapest is Aviva"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/Car/insurance notes.txt"
+  ],
+  "computation": "lowest of 689.00, 574.25, 598.10, 640.00 = 574.25 (Direct Line)",
+  "rationale": "Direct Line at \u00a3574.25 is the lowest quote listed."
+ },
+ {
+  "id": "R20",
+  "turns": [
+   "what temp do i put the oven on for the lasagne"
+  ],
+  "must_include": [
+   "190"
+  ],
+  "must_not_include": [
+   "180"
+  ],
+  "category": "value",
+  "source_files": [
+   "Documents/lasagne recipe.txt"
+  ],
+  "computation": "",
+  "rationale": "The recipe says Oven 190C (fan 170C)."
+ },
+ {
+  "id": "R21",
+  "turns": [
+   "did the mot money actually come out of my account, same amount?"
+  ],
+  "must_include": [
+   "54.85"
+  ],
+  "must_not_include": [
+   "322.20"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Documents/Car/MOT certificate 2024.pdf",
+   "Documents/Money/bank_april_2024.csv"
+  ],
+  "computation": "MOT fee 54.85 = bank row 2024-04-08 Kirkstall Autocare MOT -54.85",
+  "rationale": "The fee matches the 8 April payment in the bank file."
+ },
+ {
+  "id": "R22",
+  "turns": [
+   "how much did i spend at tesco in april"
+  ],
+  "must_include": [
+   "165.77"
+  ],
+  "must_not_include": [
+   "203.42"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Documents/Money/bank_april_2024.csv"
+  ],
+  "computation": "62.47 + 48.20 + 55.10 = 165.77",
+  "rationale": "There are three Tesco rows; Aldi does not count."
+ },
+ {
+  "id": "R23",
+  "turns": [
+   "is the aviva quote more or less than what im paying now for the car"
+  ],
+  "must_include": [
+   "598.10",
+   "612.40",
+   "14.30"
+  ],
+  "must_not_include": [
+   "689.00 is what"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Documents/Car/insurance notes.txt"
+  ],
+  "computation": "612.40 - 598.10 = 14.30 less",
+  "rationale": "Aviva is \u00a314.30 cheaper than the current premium."
+ },
+ {
+  "id": "R24",
+  "turns": [
+   "does the rent going out of my bank match what the tenancy says"
+  ],
+  "must_include": [
+   "875"
+  ],
+  "must_not_include": [
+   "1,010 a month"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Documents/Money/bank_april_2024.csv",
+   "Documents/House/tenancy agreement.pdf"
+  ],
+  "computation": "bank -875.00 on 2024-04-01 = tenancy \u00a3875 per calendar month due on the 1st",
+  "rationale": "Both say \u00a3875, paid on the 1st."
+ },
+ {
+  "id": "R25",
+  "turns": [
+   "how much did the edinburgh train and the concert tickets cost together"
+  ],
+  "must_include": [
+   "209.20"
+  ],
+  "must_not_include": [
+   "201.40"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Downloads/ticket_LDS_EDB_0607.pdf",
+   "Downloads/eticket_kaiser_chiefs.pdf"
+  ],
+  "computation": "96.40 + 112.80 = 209.20",
+  "rationale": "Train total plus concert total including fees."
+ },
+ {
+  "id": "R26",
+  "turns": [
+   "was my tesco spending in april under the target in my budget"
+  ],
+  "must_include": [
+   "165.77",
+   "200"
+  ],
+  "must_not_include": [
+   "203.42"
+  ],
+  "category": "compare",
+  "source_files": [
+   "Documents/Money/bank_april_2024.csv",
+   "Documents/Money/budget.md"
+  ],
+  "computation": "62.47 + 48.20 + 55.10 = 165.77 < 200",
+  "rationale": "Yes, it was under the \u00a3200 target."
+ },
+ {
+  "id": "R27",
+  "turns": [
+   "whats taking up the most space in my videos"
+  ],
+  "must_include": [
+   "Ella school play"
+  ],
+  "must_not_include": [
+   "holiday photos.zip"
+  ],
+  "category": "list",
+  "source_files": [
+   "Movies/Ella school play.mov",
+   "Movies/Cornwall drone clip.mp4"
+  ],
+  "computation": "912,000,000 bytes (about 912 MB) > 340,500,000 bytes",
+  "rationale": "The play video is the biggest file in Movies."
+ },
+ {
+  "id": "R28",
+  "turns": [
+   "how many pics from cornwall have i got"
+  ],
+  "must_include": [
+   "3",
+   "beach day",
+   "st ives harbour",
+   "IMG_3120"
+  ],
+  "must_not_include": [
+   "IMG_4501"
+  ],
+  "category": "list",
+  "source_files": [
+   "Pictures/Cornwall 2023/beach day.jpg",
+   "Pictures/Cornwall 2023/st ives harbour.jpg",
+   "Pictures/Cornwall 2023/IMG_3120.HEIC"
+  ],
+  "computation": "3 files in Pictures/Cornwall 2023",
+  "rationale": "The Cornwall 2023 folder holds three pictures."
+ },
+ {
+  "id": "R29",
+  "turns": [
+   "how big is the holiday photos zip"
+  ],
+  "must_include": [
+   "156"
+  ],
+  "must_not_include": [
+   "48.3"
+  ],
+  "category": "list",
+  "source_files": [
+   "Downloads/holiday photos.zip"
+  ],
+  "computation": "156,000,000 bytes = about 156 MB",
+  "rationale": "The size is set in bytes."
+ },
+ {
+  "id": "R30",
+  "turns": [
+   "what have i got in my music folder"
+  ],
+  "must_include": [
+   "laura wedding first dance",
+   "choir practice"
+  ],
+  "must_not_include": [
+   "Ella school play"
+  ],
+  "category": "list",
+  "source_files": [
+   "Music/laura wedding first dance.m4a",
+   "Music/voice memo choir practice.m4a"
+  ],
+  "computation": "2 files",
+  "rationale": "Music contains two audio files."
+ },
+ {
+  "id": "R31",
+  "turns": [
+   "how many things are on my desktop"
+  ],
+  "must_include": [
+   "4",
+   "todo",
+   "wifi password"
+  ],
+  "must_not_include": [
+   "lasagne recipe"
+  ],
+  "category": "list",
+  "source_files": [
+   "Desktop/todo.txt",
+   "Desktop/wifi password.txt",
+   "Desktop/Screenshot 2024-05-14 at 09.12.33.png",
+   "Desktop/Screenshot 2024-05-02 at 18.40.07.png"
+  ],
+  "computation": "2 notes + 2 screenshots = 4",
+  "rationale": "There are four files on the Desktop."
+ },
+ {
+  "id": "R32",
+  "turns": [
+   "how much space do my two videos take up together"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "1,252,500,000",
+     "1.25",
+     "1252.5"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "340.5 GB"
+  ],
+  "category": "list",
+  "source_files": [
+   "Movies/Ella school play.mov",
+   "Movies/Cornwall drone clip.mp4"
+  ],
+  "computation": "912,000,000 + 340,500,000 = 1,252,500,000 bytes = about 1252.5 MB = about 1.25 GB",
+  "rationale": "Adds the two Movies file sizes."
+ },
+ {
+  "id": "R33",
+  "turns": [
+   "can you find my passport scan"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "couldn't find",
+     "could not find",
+     "can't find",
+     "no passport",
+     "not find",
+     "isn't",
+     "not there",
+     "don't see"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "passport.pdf",
+   "passport scan.jpg"
+  ],
+  "category": "absent",
+  "source_files": [],
+  "computation": "",
+  "rationale": "There is no passport file in the home folder."
+ },
+ {
+  "id": "R34",
+  "turns": [
+   "wheres my payslip from work"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "couldn't find",
+     "could not find",
+     "can't find",
+     "no payslip",
+     "not find",
+     "isn't",
+     "not there",
+     "don't see"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "payslip_april.pdf",
+   "payslip.pdf"
+  ],
+  "category": "absent",
+  "source_files": [],
+  "computation": "",
+  "rationale": "There is no payslip; salary only appears as a bank row."
+ },
+ {
+  "id": "R35",
+  "turns": [
+   "find the photos from ellas birthday party"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "couldn't find",
+     "could not find",
+     "can't find",
+     "no birthday",
+     "not find",
+     "isn't",
+     "not there",
+     "don't see"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "birthday party.jpg"
+  ],
+  "category": "absent",
+  "source_files": [],
+  "computation": "",
+  "rationale": "There is no birthday party photo or folder."
+ },
+ {
+  "id": "R36",
+  "turns": [
+   "whens my next hair appointment"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "couldn't find",
+     "could not find",
+     "can't find",
+     "no hair",
+     "not find",
+     "isn't",
+     "not there",
+     "don't see",
+     "nothing about"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "hair appointment at",
+   "hairdresser on"
+  ],
+  "category": "absent",
+  "source_files": [],
+  "computation": "",
+  "rationale": "No file mentions a hair appointment."
+ },
+ {
+  "id": "R37",
+  "turns": [
+   "find my home insurance documents"
+  ],
+  "must_include": [
+   {
+    "any_of": [
+     "couldn't find",
+     "could not find",
+     "can't find",
+     "no home insurance",
+     "not find",
+     "isn't",
+     "not there",
+     "don't see",
+     "only car"
+    ]
+   }
+  ],
+  "must_not_include": [
+   "home insurance policy.pdf",
+   "contents insurance policy"
+  ],
+  "category": "absent",
+  "source_files": [],
+  "computation": "",
+  "rationale": "Only car insurance notes exist; there is no home insurance file."
+ },
+ {
+  "id": "R38",
+  "turns": [
+   "whats the reg on my car",
+   "and when does the insurance on it renew"
+  ],
+  "must_include": [
+   "YK17 HBN",
+   "2 June"
+  ],
+  "must_not_include": [
+   "07/04/2025"
+  ],
+  "category": "followup",
+  "source_files": [
+   "Documents/Car/insurance notes.txt"
+  ],
+  "computation": "",
+  "rationale": "The reg is YK17 HBN; the Admiral policy renews 2 June 2024."
+ },
+ {
+  "id": "R39",
+  "turns": [
+   "which teacher am i seeing first at parents evening",
+   "what room is that in"
+  ],
+  "must_include": [
+   "Mrs Patel",
+   "16:10",
+   "Room 4"
+  ],
+  "must_not_include": [
+   "Library"
+  ],
+  "category": "followup",
+  "source_files": [
+   "Documents/School/parents evening schedule.csv"
+  ],
+  "computation": "",
+  "rationale": "The first slot is Mrs Patel at 16:10 on 2024-05-21, in Room 4."
+ },
+ {
+  "id": "R40",
+  "turns": [
+   "what did i order from amazon last",
+   "when do i have to send the wellies back by"
+  ],
+  "must_include": [
+   "Russell Hobbs",
+   {
+    "any_of": [
+     "wellington boots",
+     "wellies"
+    ]
+   },
+   "8 June"
+  ],
+  "must_not_include": [
+   "9 June"
+  ],
+  "category": "followup",
+  "source_files": [
+   "Downloads/amazon_order_204-7781.pdf",
+   "Desktop/todo.txt"
+  ],
+  "computation": "",
+  "rationale": "The order was a kettle and kids wellies; the return-by date is 8 June 2024."
+ },
+ {
+  "id": "R41",
+  "turns": [
+   "how much are the seeds and stuff on my allotment list all together",
+   "and how much of that is from dobbies"
+  ],
+  "must_include": [
+   "29.74",
+   "17.49"
+  ],
+  "must_not_include": [
+   "22.24"
+  ],
+  "category": "followup",
+  "source_files": [
+   "Projects/Allotment/seed shopping list.csv"
+  ],
+  "computation": "total: 6.50 + 2x1.75 + 2.99 + 3x1.50 + 2x5.00 + 2.25 = 29.74; Dobbies: 2.99 + 4.50 + 10.00 = 17.49",
+  "rationale": "Quantities times prices, then only the Dobbies rows."
+ },
+ {
+  "id": "R42",
+  "turns": [
+   "can you put the screenshots on my desktop into a new folder called screenshots"
+  ],
+  "must_include": [
+   "Screenshots",
+   "Screenshot 2024-05-14 at 09.12.33.png",
+   "Screenshot 2024-05-02 at 18.40.07.png"
+  ],
+  "must_not_include": [
+   "done",
+   "i've moved",
+   "all set"
+  ],
+  "category": "change",
+  "source_files": [
+   "Desktop/Screenshot 2024-05-14 at 09.12.33.png",
+   "Desktop/Screenshot 2024-05-02 at 18.40.07.png"
+  ],
+  "computation": "",
+  "rationale": "Should show the new folder and both moves, then ask before doing it."
+ },
+ {
+  "id": "R43",
+  "turns": [
+   "rename notes (1).txt to something sensible like landlord issues"
+  ],
+  "must_include": [
+   "notes (1).txt",
+   "landlord issues"
+  ],
+  "must_not_include": [
+   "done",
+   "i've renamed",
+   "all set"
+  ],
+  "category": "change",
+  "source_files": [
+   "Documents/House/notes (1).txt"
+  ],
+  "computation": "",
+  "rationale": "Should propose Documents/House/landlord issues.txt and ask for confirmation."
+ },
+ {
+  "id": "R44",
+  "turns": [
+   "move the zoom installer out of downloads into a folder called old installers"
+  ],
+  "must_include": [
+   "Zoom_installer.dmg",
+   "old installers"
+  ],
+  "must_not_include": [
+   "done",
+   "i've moved",
+   "all set"
+  ],
+  "category": "change",
+  "source_files": [
+   "Downloads/Zoom_installer.dmg"
+  ],
+  "computation": "",
+  "rationale": "Should show the new folder and the move, then ask first."
+ },
+ {
+  "id": "R45",
+  "turns": [
+   "make me a new note on the desktop called packing list for edinburgh with toothbrush, phone charger and ellas coat"
+  ],
+  "must_include": [
+   "packing list",
+   "toothbrush",
+   "Desktop"
+  ],
+  "must_not_include": [
+   "done",
+   "i've created",
+   "all set"
+  ],
+  "category": "change",
+  "source_files": [],
+  "computation": "",
+  "rationale": "Should show the proposed new file and its contents, then ask before creating it."
+ }
+]
