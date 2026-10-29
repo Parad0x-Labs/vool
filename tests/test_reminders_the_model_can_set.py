@@ -336,6 +336,19 @@ STORED_SUBJECTS = {
     "remind me to catch the Friday at 6 train tomorrow at 7": "catch the Friday at 6 train",
     "remind me to prep for the Thursday at 4 review tomorrow at 5": "prep for the Thursday at 4 review",
     "remind me to book the Monday at 8 class tomorrow at 6": "book the Monday at 8 class",
+    # Job 6e: the same holds when the LAST when-expression starts with a weekday; the
+    # weekday+clock cut takes the due time and the subject's own weekday+clock stays.
+    "remind me to book the Friday at 10 workshop on monday at 9": "book the Friday at 10 workshop",
+    "remind me to move the Tuesday at 4 sync on monday at 10": "move the Tuesday at 4 sync",
+    "remind me to call the Monday at 3 caller back on friday at 10": "call the Monday at 3 caller back",
+    # Our own rows of that shape, in everyday words.
+    "remind me to reschedule the Thursday at 2 dentist on wednesday at 11": "reschedule the Thursday at 2 dentist",
+    "remind me to prep the Saturday at 8 brunch on friday at 6pm": "prep the Saturday at 8 brunch",
+    "remind me to confirm the Sunday at 11 lunch on saturday at 10": "confirm the Sunday at 11 lunch",
+    "nudge me to cancel the Wednesday at 5 call on tuesday at 9": "cancel the Wednesday at 5 call",
+    # Job 6e: "an hour and a quarter" is a when-phrase too, in either place.
+    "remind me to stretch in an hour and a quarter": "stretch",
+    "remind me in an hour and a quarter to check the oven": "check the oven",
 }
 
 #: Fix 2 (too wide on the parent): talk about reminders, a memory, or someone else's
@@ -438,3 +451,34 @@ def test_cancel_settings_talk_seats_nothing(text) -> None:
 @pytest.mark.parametrize("text", CANCEL_VERB_AFTER_NOUN)
 def test_the_cancel_verb_after_the_reminder_noun_seats_the_cancel_tool(text) -> None:
     assert "operator.cancel_reminder" in owner_local_operator_intents(text), text
+
+
+#: Job 6e: through the model's own call, "half an hour and a half" is asked about and
+#: stores nothing; "an hour and a quarter" stores the reminder 75 minutes out.
+DOUBLE_HALF_MODEL_ASKS = (
+    "ping me in half an hour and a half to stir the soup",
+    "nudge me in half an hour and a half about the laundry",
+)
+
+
+@pytest.mark.parametrize("text", DOUBLE_HALF_MODEL_ASKS)
+def test_a_model_call_with_half_an_hour_and_a_half_asks_and_stores_nothing(text, home) -> None:
+    session = "chat-reminder-double-half"
+    stored = _model_call("operator.schedule_reminder", {"text": text}, session_id=session)
+    assert not stored.ok, stored.response_text
+    assert "minutes" in str(stored.response_text), stored.response_text
+    assert _pending(session) == []
+
+
+def test_a_model_call_with_an_hour_and_a_quarter_is_due_in_seventy_five_minutes(home) -> None:
+    session = "chat-reminder-quarter"
+    before = _now_in_saved_zone()
+    stored = _model_call(
+        "operator.schedule_reminder", {"text": "nudge me in an hour and a quarter about the oven"}, session_id=session
+    )
+    after = _now_in_saved_zone()
+    assert stored.ok, stored.response_text
+    [row] = _pending(session)
+    assert row["note"] == "the oven"
+    due = datetime.fromisoformat(row["due_at_utc"])
+    assert before + timedelta(minutes=75) - timedelta(seconds=2) <= due <= after + timedelta(minutes=75, seconds=2)

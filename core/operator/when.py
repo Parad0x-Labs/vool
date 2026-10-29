@@ -81,9 +81,11 @@ _IN_RELATIVE_RE = re.compile(
 )
 # The same delay said in words, not digits: "in an hour" and "in half an hour" read like
 # "in 60 minutes" / "in 30 minutes". Only the hour ("in a week" is a day-word matter). An
-# "and a half" after the hour adds half an hour ("in an hour and a half" = 90 minutes).
+# "and a half" after the hour adds half an hour ("in an hour and a half" = 90 minutes) and an
+# "and a quarter" adds a quarter ("in an hour and a quarter" = 75 minutes). Both halves at
+# once ("in half an hour and a half") name no delay anyone says, so that reading is asked about.
 _IN_WORDY_RELATIVE_RE = re.compile(
-    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?P<more>\s+and\s+a\s+half\b)?",
+    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?:\s+and\s+a\s+(?P<more>half|quarter)\b)?",
     re.IGNORECASE,
 )
 # A calendar date in words: "5 November", "5th of Nov", "November 5th", with an optional year.
@@ -263,10 +265,22 @@ def _parse_when_expression(
             basis = relative.group(0)
         else:
             # "in an hour" / "in half an hour": the word form of the same delay reading.
-            # "and a half" after the hour adds half an hour ("in an hour and a half" = 90 min).
+            # "and a half" after the hour adds half an hour ("in an hour and a half" = 90 min),
+            # "and a quarter" a quarter ("in an hour and a quarter" = 75 min).
+            more = (wordy.group("more") or "").lower()
+            if wordy.group("half") and more:
+                return WhenResolution(
+                    ok=False, tz_name=tz_name,
+                    problem=(
+                        f"I could not tell how long \"{wordy.group(0).strip()}\" is. "
+                        "Say it in minutes, for example 'in 45 minutes' or 'in 90 minutes'."
+                    ),
+                )
             seconds = 1800.0 if wordy.group("half") else 3600.0
-            if wordy.group("more"):
+            if more == "half":
                 seconds += 1800.0
+            elif more == "quarter":
+                seconds += 900.0
             basis = wordy.group(0)
         if not math.isfinite(seconds) or seconds > MAX_FUTURE_DAYS * 86400:
             return WhenResolution(ok=False, problem="That is too far in the future to schedule reliably; give me a date within the next two years.")

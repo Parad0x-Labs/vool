@@ -22,12 +22,18 @@ Job 6d: the compound "an hour and a half" reads as 90 minutes (it stayed refused
 Job 6c), and a midnight lead leaves the stored subject whole ("remind me tonight at
 midnight to lock the shed" stores "lock the shed").
 
+Job 6e: the due time agrees with the stored subject. The due time is the LAST time phrase
+of the ask, also when the subject itself names a weekday and a clock ("call the Monday at 3
+caller back tomorrow at 10" is due tomorrow at 10:00, not Monday); a subject day the words
+left over give no day of their own is asked about, never guessed. "in an hour and a quarter"
+reads as 75 minutes, and "in half an hour and a half" is asked about.
+
 LABELLED: injected clock (both the UTC and the zoned door), isolated home; no live provider.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -581,3 +587,127 @@ def test_an_hour_and_a_half_reads_as_ninety_minutes(clock):
     reading = _parse("remind me in an hour and a half to leave")
     assert reading.ok, reading.problem
     assert reading.due_at_utc.startswith("2026-10-28T09:30"), reading.due_at_utc
+
+
+# ---------------------------------------------------------------------------
+# Job 6e: the due time is the LAST time phrase, the same one the subject cut removes
+# ---------------------------------------------------------------------------
+
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+#: Clocks on four different weekdays, 07:00 in Athens (05:00 UTC), so no single weekday clock
+#: (a Friday one, where "tomorrow" and "friday" agree) can hide a reader that took the wrong day.
+LAST_PHRASE_CLOCKS = {
+    "mon": datetime(2026, 10, 26, 5, 0, tzinfo=timezone.utc),
+    "wed": datetime(2026, 10, 28, 5, 0, tzinfo=timezone.utc),
+    "thu": datetime(2026, 10, 29, 5, 0, tzinfo=timezone.utc),
+    "fri": datetime(2026, 10, 30, 5, 0, tzinfo=timezone.utc),
+    "sun": datetime(2026, 11, 1, 5, 0, tzinfo=timezone.utc),
+}
+#: (ask, stored subject, due day word, due local hour, due local minute)
+LAST_PHRASE_ROWS = [
+    # The review's rows.
+    ("remind me to book the Friday at 10 workshop on monday at 9", "book the Friday at 10 workshop", "monday", 9, 0),
+    ("remind me to move the Tuesday at 4 sync on monday at 10", "move the Tuesday at 4 sync", "monday", 10, 0),
+    ("remind me to call the Monday at 3 caller back on friday at 10", "call the Monday at 3 caller back", "friday", 10, 0),
+    ("remind me to call the Monday at 3 caller back tomorrow at 10", "call the Monday at 3 caller back", "tomorrow", 10, 0),
+    ("remind me to book the Friday at 10 workshop tomorrow at 9", "book the Friday at 10 workshop", "tomorrow", 9, 0),
+    # Our own rows.
+    ("remind me to reschedule the Thursday at 2 dentist on wednesday at 11", "reschedule the Thursday at 2 dentist", "wednesday", 11, 0),
+    ("remind me to prep the Saturday at 8 brunch on friday at 6pm", "prep the Saturday at 8 brunch", "friday", 18, 0),
+    ("remind me to confirm the Sunday at 11 lunch on saturday at 10", "confirm the Sunday at 11 lunch", "saturday", 10, 0),
+    ("remind me to print the 9am agenda tomorrow at 8", "print the 9am agenda", "tomorrow", 8, 0),
+    # A bare "at 5" reads as 17:00 under the reader's bare-hour rule, as it does alone.
+    ("remind me to check the 6 pm train times tomorrow at 5", "check the 6 pm train times", "tomorrow", 17, 0),
+    ("remind me to watch the Tuesday at 9 show tomorrow at 8", "watch the Tuesday at 9 show", "tomorrow", 8, 0),
+]
+
+
+def _expected_day(day_word: str, local_now: datetime):
+    # The reader's day rule: "tomorrow" is the next date, a weekday the next one after today.
+    if day_word == "tomorrow":
+        return local_now.date() + timedelta(days=1)
+    ahead = (_WEEKDAYS.index(day_word) - local_now.weekday()) % 7 or 7
+    return local_now.date() + timedelta(days=ahead)
+
+
+@pytest.mark.parametrize("clock_name", sorted(LAST_PHRASE_CLOCKS))
+@pytest.mark.parametrize(("text", "subject", "day_word", "hour", "minute"), LAST_PHRASE_ROWS)
+def test_the_due_time_is_the_last_time_phrase_and_agrees_with_the_subject(
+    tmp_path, monkeypatch, clock_name, text, subject, day_word, hour, minute
+):
+    prepare_home(tmp_path, monkeypatch)
+    from core.time_authority import CLOCK
+
+    fixed = Clock(LAST_PHRASE_CLOCKS[clock_name], monkeypatch)
+    monkeypatch.setattr(CLOCK, "now_for_timezone", lambda name: fixed.now.astimezone(ZoneInfo(name)))
+    session = f"last-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert result.ok, (clock_name, text, result.response_text)
+    [row] = _pending(session)
+    assert row["note"] == subject, (clock_name, text, row["note"])
+    local_now = fixed.now.astimezone(ATHENS)
+    due_local = datetime.fromisoformat(row["due_at_utc"]).astimezone(ATHENS)
+    assert due_local.date() == _expected_day(day_word, local_now), (clock_name, text, due_local.isoformat())
+    assert (due_local.hour, due_local.minute) == (hour, minute), (clock_name, text, due_local.isoformat())
+
+
+#: The subject names a day, and the clock left over has no day of its own: the two readings
+#: disagree on the day, so the ask is answered with a question and nothing is stored.
+SUBJECT_DAY_WITHOUT_DUE_DAY = [
+    "remind me to call the Monday at 3 caller back at 10",
+    "remind me to book the Friday at 10 workshop at 9",
+    "remind me to confirm the Sunday at 11 lunch at 4pm",
+]
+
+
+@pytest.mark.parametrize("text", SUBJECT_DAY_WITHOUT_DUE_DAY)
+def test_a_subject_day_with_a_dayless_due_clock_is_asked_about(clock, text):
+    session = f"askday-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert not result.ok and result.status == "invalid_request", result.response_text
+    assert "Which day" in result.response_text, result.response_text
+    assert _pending(session) == []
+
+
+# ---------------------------------------------------------------------------
+# Job 6e: "an hour and a quarter" reads; "half an hour and a half" is asked about
+# ---------------------------------------------------------------------------
+
+QUARTER_ROWS = [
+    # 10:00 Athens (08:00 UTC) + 75 minutes = 09:15 UTC.
+    ("remind me in an hour and a quarter to stretch", "2026-10-28T09:15"),
+    ("remind me to stretch in an hour and a quarter", "2026-10-28T09:15"),
+    ("remind me in an hour and a quarter about the oven", "2026-10-28T09:15"),
+    ("could you remind me in an hour and a quarter to call mum", "2026-10-28T09:15"),
+]
+
+
+@pytest.mark.parametrize(("text", "due_prefix"), QUARTER_ROWS)
+def test_an_hour_and_a_quarter_reads_as_seventy_five_minutes(clock, text, due_prefix):
+    reading = _parse(text)
+    assert reading.ok, reading.problem
+    assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
+    session = f"quarter-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert result.ok, result.response_text
+    [row] = _pending(session)
+    assert row["due_at_utc"].startswith(due_prefix), (row["due_at_utc"], row["note"])
+
+
+DOUBLE_HALF_ASKS = [
+    "remind me in half an hour and a half to stir the soup",
+    "remind me in half an hour and a half",
+    "remind me to turn the roast in half an hour and a half",
+    "remind me in half an hour and a quarter to check the bread",
+]
+
+
+@pytest.mark.parametrize("text", DOUBLE_HALF_ASKS)
+def test_half_an_hour_and_a_half_is_asked_about_not_guessed(clock, text):
+    reading = _parse(text)
+    assert not reading.ok, (text, reading.due_at_utc)
+    assert "minutes" in reading.problem, reading.problem
+    session = f"dbl-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert not result.ok and result.status == "invalid_request", result.response_text
+    assert _pending(session) == []

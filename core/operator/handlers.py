@@ -840,7 +840,16 @@ def handle_schedule_reminder(
     schedule_reminder_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    when = parse_when_fn(intent.raw_text)
+    note = _reminder_note_from_text(intent.raw_text)
+    when_text, day_problem = _reminder_when_text(intent.raw_text, note)
+    if day_problem:
+        return OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=day_problem,
+            details={"kind": "schedule_reminder", "problem": day_problem, "reason": "two_days_named"},
+        )
+    when = parse_when_fn(when_text)
     if not when.ok:
         return OperatorActionResult(
             ok=False,
@@ -850,7 +859,6 @@ def handle_schedule_reminder(
         )
     if has_passed(when):
         return _passed_due_time_result(when, kind="schedule_reminder")
-    note = _reminder_note_from_text(intent.raw_text)
     repeat_every = _reminder_repeat_from_text(intent.raw_text)
     record = schedule_reminder_fn(
         session_id=session_id,
@@ -1068,23 +1076,7 @@ _MONTH_WORDS = (
     r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
     r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?"
 )
-_WHEN_TAIL_RE = re.compile(
-    r"\s+(?:at|on|in|by)\s+("
-    r"(?:20\d{2}-\d{2}-\d{2})(?:[ T]\d{1,2}:\d{2})?"
-    r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b.*"
-    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b.*"
-    r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b.*"
-    r"|(?:half\s+)?an?\s+hours?\b.*"
-    r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b.*"
-    r"|(?:at\s+)?(?:noon|midday|midnight)\b[\s.,;]*$"
-    r")$",
-    re.IGNORECASE | re.DOTALL,
-)
-
-
-#: Job 6d (Fix 2): the head of a when-tail -- a preposition followed by a when-word, the same
-#: vocabulary _WHEN_TAIL_RE anchors at the end. The DUE time is the LAST when-expression of
+#: Job 6d (Fix 2): the head of a when-tail -- a preposition followed by a when-word. The DUE time is the LAST when-expression of
 #: the ask, so the subject cut lands on the RIGHT-MOST head and everything from it to the end
 #: leaves; an earlier when-expression inside the subject ("the Friday at 10 workshop") is a
 #: thing the note names and stays. The old first-match cut landed on the first clock and ate
@@ -1097,7 +1089,7 @@ _WHEN_TAIL_HEAD_RE = re.compile(
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b"
     r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b"
-    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?half)?"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?(?:half|quarter))?"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?\b"
     r"|(?:at\s+)?(?:noon|midday|midnight)\b"
     r")",
@@ -1144,7 +1136,7 @@ _LEADING_WHEN_RE = re.compile(
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b(?:\s+of\b)?[\s,]*"
     r"|20\d{2}\b[\s,]*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
-    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?half)?[\s,]*"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?(?:half|quarter))?[\s,]*"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
     r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"
     r"|(?:utc|gmt)(?:[+-]\d{1,2}(?::?\d{2})?)?\b[\s,]*"
@@ -1248,6 +1240,7 @@ def _reminder_note_from_text(text: str) -> str:
     if leading:
         note = leading.group("note").strip()
     day_clock = _DAY_CLOCK_TAIL_RE.search(note)
+    day_clock_cut = False
     if day_clock:
         # A weekday that carries the due time's clock ("send the invoice friday at 10",
         # "renew parking permit, tuesday 9am") leaves WITH that clock, before the plain
@@ -1255,11 +1248,16 @@ def _reminder_note_from_text(text: str) -> str:
         stripped = note[: day_clock.start()].strip()
         if stripped:
             note = stripped
+            day_clock_cut = True
     # Job 6d (Fix 2): the due time is the LAST when-expression of the ask. The cut lands on
     # the right-most when-head (everything from it to the end leaves -- the old first-match
     # cut landed on the FIRST clock and ate the subject after it), and a day phrase the cut
     # clock was riding leaves with it under the _CARRIED_DAY_TAIL_RE rule.
-    heads = list(_WHEN_TAIL_HEAD_RE.finditer(note))
+    # Job 6e (Fix 1): when that weekday+clock cut already took the LAST when-expression
+    # ("... workshop on monday at 9"), the due time has left the subject, and what remains
+    # is the thing to do; a second cut would land on a when-expression INSIDE the subject
+    # ("book the Friday at 10 workshop" lost "Friday at 10 workshop").
+    heads = [] if day_clock_cut else list(_WHEN_TAIL_HEAD_RE.finditer(note))
     if heads:
         cut = note[: heads[-1].start()].strip()
         if cut:
@@ -1277,6 +1275,79 @@ def _reminder_note_from_text(text: str) -> str:
                     note = rest
     note = note.rstrip(".,;:")
     return (note or raw)[:400]
+
+
+#: Job 6e (Fix 2): a clock time inside a subject, also one that labels a noun ("the Monday at
+#: 3 caller", "the 9am standup"), which the due-time reader's own clock pattern skips.
+_SUBJECT_CLOCK_RE = re.compile(
+    r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)(?!\w)|\bat\s+\d{1,2}(?::\d{2})?\b",
+    re.IGNORECASE,
+)
+_TODAY_WORDS = frozenset({"yesterday", "today", "tonight", "tomorrow"})
+
+
+def _reminder_when_text(text: str, note: str) -> tuple[str, str]:
+    """Job 6e (Fix 2): the words the due-time reader reads, so the due time agrees with the
+    stored subject. Returns ``(when_text, problem)``.
+
+    The subject keeps a when-expression that names the thing to do ("the Friday at 10
+    workshop", "the 9am standup") and the cut takes the LAST when-expression of the ask as
+    the due time. The reader reads the first clock and the first day word it meets, so on
+    those asks it read the subject's own time ("call the Monday at 3 caller back tomorrow
+    at 10" was due Monday). When the stored subject holds a clock time, the reader now
+    reads the ask WITHOUT the subject: exactly the when-words the cut removed. A subject
+    with no clock of its own changes nothing ("the show tickets tomorrow at 10" keeps the
+    whole-ask reading, its "tomorrow" is the due day too).
+
+    When the subject names a day and the words left over give a clock with no day of their
+    own ("call the Monday at 3 caller back at 10"), the two readings disagree on the day and
+    neither can be settled from the words, so the ask is answered with a question instead
+    of a guess.
+    """
+    from .when import (
+        _DAY_OF_MONTH_RE,
+        _DAY_RE,
+        _IN_RELATIVE_RE,
+        _IN_WORDY_RELATIVE_RE,
+        _ISO_DATETIME_RE,
+        _PART_OF_DAY_RE,
+        _TIME_RE,
+        _WORD_DATE_RE,
+    )
+
+    raw = str(text or "")
+    subject = str(note or "")
+    # What in the subject the whole-ask reader could take for the due time: a clock (also a
+    # clock that labels a noun, "the Friday at 10 workshop", which the reader skips there but
+    # whose day word it still reads) or a schedule-marked day (a weekday, a date). A
+    # today-word alone keeps the whole-ask reading (Job 6b: "the show tickets tomorrow").
+    subject_clock = _TIME_RE.search(subject) is not None or _SUBJECT_CLOCK_RE.search(subject) is not None
+    subject_days = [m.group(1).lower() for m in _DAY_RE.finditer(subject)]
+    subject_marked_day = any(day not in _TODAY_WORDS for day in subject_days) or any(
+        pattern.search(subject) is not None for pattern in (_WORD_DATE_RE, _DAY_OF_MONTH_RE, _ISO_DATETIME_RE)
+    )
+    if not subject or not (subject_clock or subject_marked_day):
+        return raw, ""
+    at = raw.find(subject)
+    if at < 0:
+        return raw, ""
+    rest = f"{raw[:at]} {raw[at + len(subject):]}".strip()
+    has_clock = _TIME_RE.search(rest) is not None or _PART_OF_DAY_RE.search(rest) is not None
+    has_delay = _IN_RELATIVE_RE.search(rest) is not None or _IN_WORDY_RELATIVE_RE.search(rest) is not None
+    has_day = any(
+        pattern.search(rest) is not None
+        for pattern in (_DAY_RE, _WORD_DATE_RE, _DAY_OF_MONTH_RE, _ISO_DATETIME_RE)
+    )
+    if not (has_clock or has_delay or has_day):
+        return raw, ""
+    if subject_days and has_clock and not has_day and not has_delay:
+        day_word = subject_days[0]
+        return rest, (
+            f"Which day should I remind you: {day_word}, or another day? \"{subject}\" names "
+            f"{day_word}, and the time you gave has no day of its own. Say the day with the time, "
+            "for example 'tomorrow at 10' or 'on monday at 9'."
+        )
+    return rest, ""
 
 
 def _reminder_repeat_from_text(text: str) -> str:
