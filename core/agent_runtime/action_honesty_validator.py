@@ -1377,6 +1377,90 @@ def _enforce_inspection_claims(
     return guarded
 
 
+_NO_MAIL_ACCOUNT_RESPONSE = (
+    "No email account is connected to VOOL yet, so I haven't checked any inbox and can't tell you what "
+    "is in it. Add your email account in Settings > Email accounts, then ask me again."
+)
+_MAIL_READING_OFF_RESPONSE = (
+    "Reading email is switched off in VOOL's settings, so I haven't checked your inbox and can't tell "
+    "you what is in it. Turn email reading on in Settings, then ask me again."
+)
+
+
+def _mail_access_gap() -> str:
+    """Why no inbox can be read on this runtime right now: "no_account", "reading_off", or "".
+
+    The same two facts the email.read seat is gated on (core.runtime_tool_contracts): the read
+    lane must be enabled AND an account able to read must be stored. Fails open ("") on any error,
+    so a broken lookup never rewrites a reply."""
+    try:
+        from core import email_accounts, policy_engine
+
+        records = email_accounts.configured_accounts()
+        if not any(record.read for record in records.values()):
+            return "no_account"
+        if not bool(policy_engine.get("email.read_enabled", False)):
+            return "reading_off"
+    except Exception:
+        return ""
+    return ""
+
+
+def _enforce_mailbox_answer_needs_mail_access(
+    output: dict[str, Any],
+    *,
+    user_input: str,
+    effective_input: str | None,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any]:
+    """A question about the user's own received mail, on a runtime that cannot read any mailbox.
+
+    Measured 2026-10-29 with no account configured: "did i get any new emails today?" was answered
+    "No new emails received today. - Checked email inbox for today's messages." and "any messages
+    from the bank in my inbox?" with "No messages from the bank found in your inbox. - Checked the
+    inbox". The email lane was off, so no email tool was offered, the turn stayed in plain chat and
+    the model invented the check. No reply wording can be grounded on such a turn: nothing could
+    have read the inbox. So the decision is made from the REQUEST (the same typed mailbox
+    recognizer the email.read seat uses) and the runtime's mail access, never from the reply's
+    sentences: the answer is the honest one, naming where to connect an account.
+
+    A turn that also ran other tools keeps its reply, with the mailbox fact stated first."""
+    request = str(user_input or "").strip() or str(effective_input or "").strip()
+    if not request:
+        return output
+    try:
+        from core.tool_demand_signals import mailbox_retrieval_intents
+
+        if not mailbox_retrieval_intents(request):
+            return output
+    except Exception:
+        return output
+    gap = _mail_access_gap()
+    if not gap:
+        return output
+    honest = _NO_MAIL_ACCOUNT_RESPONSE if gap == "no_account" else _MAIL_READING_OFF_RESPONSE
+    original = str(output.get("response") or "")
+    executed = _collect_executed_tools(session_id, source_context)
+    if any(str(entry.get("tool") or "").startswith("email.") for entry in executed) or any(
+        str(output.get(key) or "").startswith("email.") for key in ("intent", "tool_intent", "tool_name")
+    ):
+        return output  # an email tool answered this turn; its own result is the grounding
+    ran = executed
+    guarded = dict(output)
+    guarded["response"] = f"{honest}\n\n{original.strip()}" if ran and original.strip() else honest
+    guarded["action_honesty_validator"] = {
+        "applied": True,
+        "reason": "mailbox_request_without_mail_access",
+        "claim_kind": "mailbox_check",
+        "mail_access_gap": gap,
+        "original_response_excerpt": original[:240],
+    }
+    guarded["route"] = str(output.get("route") or "action_honesty_final_validator")
+    guarded["route_reason"] = "mailbox_request_without_mail_access"
+    return guarded
+
+
 def _current_turn_has_executed_receipt(
     *,
     session_id: str | None,
@@ -1871,6 +1955,12 @@ def enforce_final_action_honesty(
     output = _enforce_active_mission_forbidden_terms(output, session_id=session_id)
     output = _enforce_user_rule_words(output, session_id=session_id, source_context=source_context)
     output = _suppress_leaked_tool_call(output)
+    output = _enforce_mailbox_answer_needs_mail_access(
+        output, user_input=user_input, effective_input=effective_input,
+        session_id=session_id, source_context=source_context,
+    )
+    if output.get("response") in (_NO_MAIL_ACCOUNT_RESPONSE, _MAIL_READING_OFF_RESPONSE):
+        return output  # the whole reply is the runtime's own fact; nothing left to judge
     output = _enforce_inspection_claims(output, user_input=user_input, session_id=session_id)
     output = _apply_answer_binding(output, user_input=user_input, session_id=session_id)
     # Before the claim-shaped guards below, because those read `output["response"]` and must judge
