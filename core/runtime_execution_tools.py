@@ -1490,27 +1490,41 @@ def _looks_like_a_name(word: str) -> bool:
 _SYSTEM_MOUNT_PREFIXES = ("/System/", "/private/", "/boot", "/snap/", "/dev", "/proc", "/sys", "/var/", "/usr/", "/efi")
 
 
-def _find_folder_roots() -> list[str]:
-    """Home first, then every other mounted drive that is not the system's own ("/" never)."""
+def _find_folder_drives() -> list[str]:
+    """Every mounted drive that is not the system's own ("/" never) and not the home folder."""
     from core import machine_diagnostics
 
     home = str(_machine_home())
-    roots = [home] if os.path.isdir(home) else []
+    drives: list[str] = []
     for row in machine_diagnostics.disk_usage():
         mount = str(row.get("mount") or "")
-        if not mount or mount == "/" or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
+        if not mount or mount == "/" or mount == home or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
             continue
         if mount.startswith("/run/") and not mount.startswith("/run/media/"):
             continue
-        if mount not in roots:
-            roots.append(mount)
+        if mount not in drives:
+            drives.append(mount)
+    return drives
+
+
+def _find_folder_roots(include_drives: bool = False) -> list[str]:
+    """The home folder, plus the plugged-in drives only when the person asked for them."""
+    home = str(_machine_home())
+    roots = [home] if os.path.isdir(home) else []
+    if include_drives:
+        roots.extend(drive for drive in _find_folder_drives() if drive not in roots)
     return roots
+
+
+# Folders apps keep at the top of the home folder (~/Library, %USERPROFILE%\AppData): theirs, not
+# the person's. A folder search does not walk them.
+_FIND_FOLDER_HOME_APP_DIRS = frozenset({"library", "appdata", "snap"})
 
 
 def _machine_find_folder(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
-    """Case-insensitive folder-name search across the machine's drive roots.
+    """Case-insensitive folder-name search in the home folder, and the plugged-in drives when asked.
 
     Read-only, bounded (depth/time/match caps), skips system/noise directories and
     never follows symlinks or junctions. Returns verified paths, the searched scope,
@@ -1529,6 +1543,10 @@ def _machine_find_folder(
 
     name = " ".join(str((arguments or {}).get("name") or (arguments or {}).get("query") or "").split()).strip(" .'\"")
     wants_hidden = str((arguments or {}).get("name") or (arguments or {}).get("query") or "").strip(" '\"").startswith(".")
+    from core.execution.constants import FOLDER_ON_DRIVE_RE
+
+    include_drives = (arguments or {}).get("drives") is True or bool(FOLDER_ON_DRIVE_RE.search(name))
+    name = " ".join(FOLDER_ON_DRIVE_RE.sub(" ", name).split()).strip(" .'\"")
     if not name:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="missing_argument",
@@ -1631,7 +1649,8 @@ def _machine_find_folder(
     # on both sides before comparing. (Without this, a folder plainly visible in a listing reads as
     # "not found" the moment its name uses a different separator than the query — a real reported bug.)
     needle_sep = re.sub(r"[\s_\-]+", "", needle)
-    roots = _find_folder_roots()
+    roots = _find_folder_roots(include_drives)
+    home_root = str(_machine_home())
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="no_results",
@@ -1679,6 +1698,8 @@ def _machine_find_folder(
                     entry_name = entry.name
                     lowered_name = entry_name.lower()
                     if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                        continue
+                    if current == home_root and lowered_name in _FIND_FOLDER_HOME_APP_DIRS:
                         continue
                     if lowered_name.startswith(".") and not wants_hidden:
                         # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
@@ -1730,6 +1751,8 @@ def _machine_find_folder(
     ]
     if timed_out:
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
+    if not include_drives and _find_folder_drives():
+        not_found.append('I looked in your home folder only. Say "on my external drive" to search your other drives too.')
     return RuntimeExecutionResult(
         handled=True, ok=True, status="executed",
         response_text=" ".join(not_found),

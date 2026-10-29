@@ -907,6 +907,20 @@ def refers_to_current_scope(text: str) -> bool:
     )
 
 
+# A plugged-in drive the person names: "on my external drive", "on the usb stick", "on all my drives".
+# Without one, a folder search stays in the person's home folder.
+FOLDER_ON_DRIVE_RE = re.compile(
+    r"\b(?:on|in|from|across)\s+(?:(?:my|the|an?|any|all|every|of)\s+)*"
+    r"(?:(?:external|usb|thumb|flash|backup|portable|plugged[\s-]?in|other|hard)\s+)*"
+    r"(?:drives?|disks?|sticks?|volumes?|sd\s+cards?)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_folder_search_wants_drives(text: str) -> bool:
+    return bool(FOLDER_ON_DRIVE_RE.search(str(text or "")))
+
+
 def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     """Map a local folder-search request to ``("machine.find_folder", <name>)``, else ``None``.
 

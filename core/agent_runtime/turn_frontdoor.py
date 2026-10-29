@@ -2432,6 +2432,13 @@ def _explicit_path_in(text: str) -> str:
     return explicit_path_in(text)
 
 
+def _drives_asked(text: str) -> dict[str, bool]:
+    """A folder search reaches the plugged-in drives only when the person names one."""
+    from core.execution.constants import machine_folder_search_wants_drives
+
+    return {"drives": True} if machine_folder_search_wants_drives(text) else {}
+
+
 _CREATE_FOLDER_RE = re.compile(
     r"\b(?:create|make|set\s+up|add|stick|put|new|mkdir|build)\b(?:\s+\S+){0,4}?\s+(?:folders?|director(?:y|ies))\b",
     re.IGNORECASE,
@@ -2556,7 +2563,7 @@ def _execute_arbitrated_family(
         # nothing unambiguous to list, and the ordinary find_folder answer is the honest one.
         from core.authorized_tool_execution import execute_authorized_runtime_tool as _execute
 
-        located = _execute("machine.find_folder", {"name": argument}, source_context=dict(source_context or {}))
+        located = _execute("machine.find_folder", {"name": argument, **_drives_asked(effective_input)}, source_context=dict(source_context or {}))
         matches = list(((located.details or {}) if located is not None else {}).get("matches") or [])
         if located is not None and located.ok and matches:
             # A common word matches widely — "budget" hit 22 directories across the machine. The
@@ -2611,7 +2618,7 @@ def _execute_arbitrated_family(
             source_context=source_context,
         )
     tool_map: dict[str, tuple[str, dict[str, str] | None]] = {
-        FAMILY_FIND_FOLDER: ("machine.find_folder", {"name": argument} if argument else None),
+        FAMILY_FIND_FOLDER: ("machine.find_folder", {"name": argument, **_drives_asked(effective_input)} if argument else None),
         FAMILY_MACHINE_SPECS: ("machine.inspect_specs", {}),
         FAMILY_DISK_USAGE: ("machine.disk_usage", {}),
         # The ranking comes from the sentence, not from the arbiter: it picked the family, and

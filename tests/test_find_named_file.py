@@ -359,7 +359,8 @@ def test_folder_search_starts_at_home_and_plugged_in_drives_not_the_system(tmp_p
         {"mount": "/"}, {"mount": "/System/Volumes/Data"}, {"mount": "/private/var/vm"}, {"mount": "/boot/efi"},
         {"mount": "/run/user/1000"}, {"mount": str(drive)},
     ])
-    assert _find_folder_roots() == [str(home), str(drive)]
+    assert _find_folder_roots() == [str(home)]
+    assert _find_folder_roots(include_drives=True) == [str(home), str(drive)]
 
 
 @pytest.mark.parametrize("text", [

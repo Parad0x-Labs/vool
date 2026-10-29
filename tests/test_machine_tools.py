@@ -5,6 +5,7 @@ windows for errors") that VOOL was missing.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from unittest import mock
 
 import core.machine_diagnostics as md
@@ -106,6 +107,7 @@ def test_find_folder_tool_finds_nested_matches(tmp_path, monkeypatch) -> None:
     (tmp_path / "misc" / "dropbox-backup").mkdir(parents=True)
     (tmp_path / "unrelated").mkdir()
     monkeypatch.setattr(md, "disk_usage", lambda: [{"mount": str(tmp_path), "total_gb": 1.0, "used_gb": 0.5, "free_gb": 0.5, "percent_used": 50.0}])
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))  # a folder search starts at home
     result = execute_runtime_tool("machine.find_folder", {"name": "dropbox"})
     assert result is not None and result.ok and result.status == "executed"
     assert "Dropbox" in result.response_text
@@ -121,6 +123,7 @@ def test_find_folder_tool_matches_across_separators(tmp_path, monkeypatch) -> No
     (tmp_path / "alpha_beta").mkdir()
     (tmp_path / "unrelated").mkdir()
     monkeypatch.setattr(md, "disk_usage", lambda: [{"mount": str(tmp_path), "total_gb": 1.0, "used_gb": 0.5, "free_gb": 0.5, "percent_used": 50.0}])
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))  # a folder search starts at home
     for query in ("token hunter", "token-hunter", "token_hunter", "TOKEN HUNTER", "tokenhunter"):
         result = execute_runtime_tool("machine.find_folder", {"name": query})
         assert result is not None and result.ok, query
@@ -133,6 +136,7 @@ def test_find_folder_tool_matches_across_separators(tmp_path, monkeypatch) -> No
 def test_find_folder_tool_honest_not_found(tmp_path, monkeypatch) -> None:
     (tmp_path / "something").mkdir()
     monkeypatch.setattr(md, "disk_usage", lambda: [{"mount": str(tmp_path), "total_gb": 1.0, "used_gb": 0.5, "free_gb": 0.5, "percent_used": 50.0}])
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))  # a folder search starts at home
     result = execute_runtime_tool("machine.find_folder", {"name": "dropbox"})
     assert result is not None and result.ok and result.status == "executed"
     assert "No folder matching 'dropbox'" in result.response_text
@@ -143,6 +147,7 @@ def test_find_folder_tool_skips_system_dirs(tmp_path, monkeypatch) -> None:
     (tmp_path / "$RECYCLE.BIN" / "dropbox").mkdir(parents=True)
     (tmp_path / "node_modules" / "dropbox").mkdir(parents=True)
     monkeypatch.setattr(md, "disk_usage", lambda: [{"mount": str(tmp_path), "total_gb": 1.0, "used_gb": 0.5, "free_gb": 0.5, "percent_used": 50.0}])
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))  # a folder search starts at home
     result = execute_runtime_tool("machine.find_folder", {"name": "dropbox"})
     assert result is not None and result.ok
     assert result.details["matches"] == []
