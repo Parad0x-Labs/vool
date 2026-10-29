@@ -15,7 +15,7 @@ your own.
 
 | | Bundled (ships with VOOL) | Externally installed |
 | --- | --- | --- |
-| Where it lives | Inside the app | Your plugins folder (set in Settings) |
+| Where it lives | Inside the app | Your plugins folder (managed from the plugins window in VOOL, not from Settings) |
 | Updates | With the app | When you update the pack |
 | Can be disabled | Yes — individually | Yes — individually |
 | Grants permissions | **No** | **No** |

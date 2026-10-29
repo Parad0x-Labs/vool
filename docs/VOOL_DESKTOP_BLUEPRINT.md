@@ -2208,7 +2208,7 @@ Group by stage:
 
 Keep raw trace behind:
 
-`Settings → Advanced → Diagnostics`
+`Settings → About & Diagnostics`
 
 It should not occupy the default header.
 
@@ -3080,8 +3080,8 @@ When opened:
 ## Web0 and Trace
 
 - remove both from header;
-- Web0 in `Settings → Labs`;
-- trace in `Settings → Advanced → Diagnostics`;
+- Web0 in `Settings → Advanced`;
+- trace in `Settings → About & Diagnostics`;
 - Activity remains user-facing.
 
 ---

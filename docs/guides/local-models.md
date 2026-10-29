@@ -17,7 +17,7 @@ ollama pull qwen2.5-coder:7b
 
 ## Point VOOL at it
 
-Open **Settings → Models**. Running local runtimes are detected automatically. Select a
+Open **Settings → Models & Providers**. Running local runtimes are detected automatically. Select a
 model and the mode indicator changes to `LOCAL`.
 
 ## Certify it once

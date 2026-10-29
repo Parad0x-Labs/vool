@@ -9,8 +9,8 @@ OpenRouter account.
 
 ## Connect
 
-1. Open **Settings → Models → OpenRouter**.
-2. Choose **Connect**. Your browser opens OpenRouter's authorization page.
+1. Open **Settings → API Keys** and find OpenRouter under **Find a provider**.
+2. Add your key. Your browser may open OpenRouter's authorization page.
 3. Approve. The browser returns to VOOL's callback page, which hands the
    authorization back to the desktop app.
 4. The app completes the exchange **on your machine** and stores the key in your
@@ -35,5 +35,6 @@ and identities are not published.
 
 ## Disconnect
 
-**Settings → Models → OpenRouter → Disconnect** removes the key from the credential
+To remove the OpenRouter key, open **Settings**, choose **API Keys**, find the OpenRouter
+key under **Your keys**, and press **Remove**. This removes the key from the credential
 store. Revoke the key in your OpenRouter account as well if you want it dead server-side.

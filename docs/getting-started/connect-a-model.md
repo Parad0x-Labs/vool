@@ -15,8 +15,9 @@ Selecting one puts the app in `LOCAL` mode. Setup details are in
 
 ## Cloud
 
-Add a provider key in **Settings → Models**. The key is stored in your operating
-system's credential store and is used to make requests **from your machine directly to
+Open **Settings**, choose **API Keys**, and add your key under **Your keys**. Then pick
+your model under **Models & Providers**. The key is stored in your operating system's
+credential store and is used to make requests **from your machine directly to
 the provider**.
 
 Selecting a cloud model puts the app in `CLOUD` mode, and the indicator changes before
