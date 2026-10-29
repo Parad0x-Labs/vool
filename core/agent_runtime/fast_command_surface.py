@@ -256,8 +256,9 @@ def _cloud_status_text(cep: Any, policy: Any, *, prefix: str = "") -> str:
         lines.append(
             "Note: no cloud key is configured yet, so nothing will burst to cloud. Give me your "
             "OpenRouter key with `cloud key <your-key>` — I seal it in the encrypted credential "
-            "store on this machine and mask it out of the chat log (Settings > Cloud and "
-            "OPENROUTER_API_KEY also work)."
+            "store on this machine and mask it out of the chat log (you can also open Settings, "
+            "choose API Keys, and under 'Your keys' paste the key, pick the provider, and press "
+            "'Save key')."
         )
     try:
         from core import policy_engine
@@ -375,8 +376,9 @@ def maybe_handle_cloud_key_command(user_input: str, *, owner_local: bool = False
     return (
         "I could not tell which provider that key belongs to from its shape, so I stored "
         "nothing. If you know it, add the provider after the key — `cloud key <your-key> "
-        "openai` (or openrouter, groq, deepseek, moonshot, anthropic) — or paste it into the "
-        "Cloud field in Settings and pick the provider there."
+        "openai` (or openrouter, groq, deepseek, moonshot, anthropic) — or open Settings, "
+        "choose API Keys, and under 'Your keys' paste it into the Key box and pick the "
+        "provider."
     )
 
 
@@ -641,8 +643,9 @@ def maybe_handle_bare_secret(user_input: str, *, owner_local: bool = False) -> s
     return (
         "That looks like a secret, so I did not pass it to any model and will not repeat it — the "
         "chat log keeps only a masked copy. If it is your cloud provider key, paste it as "
-        "`cloud key <key>` (or on its own — I detect the provider). For any other credential, use "
-        "Settings > credentials so it is sealed in the encrypted store."
+        "`cloud key <key>` (or on its own — I detect the provider). For any other credential, "
+        "open Settings, choose API Keys, and paste it under 'Your keys' so it is sealed in the "
+        "encrypted store."
     )
 
 
