@@ -410,6 +410,7 @@ def set_cloud_model(
                 f"Cloud model set to auto — I route each burst to the current best FREE model and "
                 f"re-pick as the live catalog changes (refreshed hourly on use). Today that is "
                 f"{picked}.{lane_note}{_FREE_CLOUD_ON_NOTE}"
+                f"{'' if _cloud_key_usable('openrouter') else ' Nothing goes out until you add an OpenRouter key.'}"
             ), "auto"
 
     if arg.lower() in ("default", "reset"):

@@ -1696,7 +1696,13 @@ def maybe_handle_cloud_command(user_input: str, *, owner_local: bool = False) ->
         # fail soft (a store write can fail without raising), so re-read and confirm rather
         # than report a mode change that never hit disk.
         saved = cep.load_policy()
-        if saved.mode != arg or (arg == cep.MODE_OFF and saved.free_cloud_enabled):
+        if saved.mode == arg and arg == cep.MODE_OFF and saved.free_cloud_enabled:
+            return (
+                "Cloud escalation is off, but I could not turn the free cloud lane off just now, so "
+                "free cloud models can still answer. Check that VOOL can write its data directory, "
+                "then send `cloud off` again."
+            )
+        if saved.mode != arg:
             return (
                 f"I could not save the cloud setting ({arg}) just now, so it is unchanged. "
                 "Check that VOOL can write its data directory, then try again."

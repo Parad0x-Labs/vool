@@ -381,11 +381,14 @@ def _handle_models_current(inp, ctx):
                 from core.cloud_providers import config_for
 
                 pin_provider = str(payload["provider"] or "") or "openrouter"
-                payload["key_ready"] = _cloud_key_usable(pin_provider)
+                # UsePod can answer from the wallet lane with no token, so a missing token says
+                # nothing about it; the field is left out rather than reported false.
+                if pin_provider != "usepod":
+                    payload["key_ready"] = _cloud_key_usable(pin_provider)
                 cfg = config_for(pin_provider)
                 payload["provider_label"] = cfg.label if cfg else pin_provider
             except Exception:
-                payload["key_ready"] = False
+                payload.pop("key_ready", None)
     except Exception:
         payload = {"ok": False, "model": "", "provider": "", "source": "server", "error": "unavailable"}
     return HandlerOk(data=payload, summary=f"Pinned model: {payload.get('model') or 'none'}")

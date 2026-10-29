@@ -83,6 +83,7 @@ def test_cloud_model_auto_online_turns_it_on_and_says_so(home):
 
     assert reply.startswith("Cloud model set to auto")
     assert "leave this computer" in reply and "`cloud off`" in reply
+    assert "Nothing goes out until you add an OpenRouter key." in reply
     policy = _policy()
     assert policy.free_cloud_enabled is True and policy.model == "auto"
 
@@ -188,3 +189,25 @@ def test_saved_for_later_key_is_not_reported_as_no_keys():
     assert widget.index("const quarantine = el('div', 'stack');") < widget.index("const xRow = el('div', 'inline x-setup-entry');")
     assert "'btn danger key-quarantine-delete', T('keys.remove', 'Remove')" in widget
 
+
+
+def test_usepod_pin_is_not_called_keyless(home):
+    from core import cloud_escalation_policy as cep
+    from dataclasses import replace
+
+    cep.save_policy(replace(cep.load_policy(), model="some/route", provider="usepod"))
+    body = _current()
+    assert body["model"] == "some/route"
+    assert "key_ready" not in body, "the wallet lane can answer without a token"
+
+
+def test_cloud_off_says_which_part_did_not_save(home, monkeypatch):
+    from core import cloud_escalation_policy as cep
+    from core.agent_runtime.fast_command_surface import maybe_handle_cloud_command
+
+    cep.set_free_cloud_enabled(True)
+    monkeypatch.setattr(cep, "set_free_cloud_enabled", lambda enabled: cep.load_policy())
+    reply = maybe_handle_cloud_command("cloud off", owner_local=True)
+
+    assert "free cloud lane off" in reply and "can still answer" in reply
+    assert "unchanged" not in reply
