@@ -701,7 +701,7 @@ def test_served_javascript_repo_journey(served_factory, request_text, test_sourc
 
         turn("code__task__open", {"objective": "repair the JS add defect"}, "o1", request_text)
         task_id = _task_ids(store_dir).pop()
-        turn("code__task__step", {"task_id": task_id, "step_id": "s1", "intent": "workspace.run_tests", "arguments": {"command": "node --test test_calc.js"}}, "s1")
+        turn("code__task__step", {"task_id": task_id, "step_id": "s1", "intent": "workspace.run_tests", "arguments": {"command": "node --test --test-reporter=tap test_calc.js"}}, "s1")
         task = _journal_task(store_dir, task_id)
         assert task["stage"] == "identify", task["stage"]
         assert task["steps"]["s1"]["executed"] is True and task["steps"]["s1"]["result"]["success"] is False
@@ -730,12 +730,14 @@ def test_served_javascript_repo_journey(served_factory, request_text, test_sourc
             "m1",
         )
         assert (workspace / "calc.js").read_bytes() == JS_FIXED.encode()
-        turn("code__task__step", {"task_id": task_id, "step_id": "narrow", "intent": "workspace.run_tests", "arguments": {"command": "node --test test_calc.js"}}, "n1")
+        turn("code__task__step", {"task_id": task_id, "step_id": "narrow", "intent": "workspace.run_tests", "arguments": {"command": "node --test --test-reporter=tap test_calc.js"}}, "n1")
+        # `--test-reporter=tap` pins the output format: newer Node prints the spec reporter even
+        # when piped, and the cumulative checkpoint below reads the TAP summary line.
         # Default discovery does not include test_calc.js: `node --test` exits green with
         # zero tests. This repository has one test file, so execute its complete retained
         # suite explicitly for the required cumulative checkpoint.
         turn("code__task__step", {"task_id": task_id, "step_id": "cum", "intent": "workspace.run_tests",
-                                 "arguments": {"command": "node --test test_calc.js"},
+                                 "arguments": {"command": "node --test --test-reporter=tap test_calc.js"},
                                  "rerun_reason": "Validate the complete single-file suite for the cumulative checkpoint."}, "c1")
         turn("code__task__step", {"task_id": task_id, "step_id": "diff", "intent": "workspace.git_diff", "arguments": {}}, "d1")
         task = _journal_task(store_dir, task_id)

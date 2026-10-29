@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} câu trả lời không được đưa vào do chính sách quyền riêng tư.} other {{n} câu trả lời không được đưa vào do chính sách quyền riêng tư.}}",
     "online_access.open_setting": "Mở “Tự lên mạng”",
     "update.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không kiểm tra bản cập nhật.",
+    "update.checks_off": "Đã tắt kiểm tra cập nhật",
     "vcs.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không đọc lịch từ internet. Lịch trên máy tính này vẫn hoạt động.",
     "chat.no_model.line_text": "VOOL cần một mô hình AI trước khi có thể trả lời. Việc thiết lập mất khoảng hai phút.",
     "chat.no_model.reply_body": "Việc thiết lập mất khoảng hai phút: mở phần thiết lập và chọn nơi VOOL sẽ suy nghĩ. Nếu máy tính này đã có ứng dụng mô hình, như Ollama, hãy mở nó và hỏi lại.",
@@ -2848,6 +2849,9 @@
     "live.upload": "Tải lên",
     "settings.row.live_browser.help": "Xem xét từng thao tác trước khi chạy. Tập lệnh của trang đã tắt. Dùng ví để thanh toán.",
     "settings.row.live_browser.label": "Trình duyệt",
+    "settings.row.hide_name_on_screen.label": "Ẩn tên tôi trên màn hình",
+    "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
+    "settings.row.hide_name_on_screen.effect": "Áp dụng ngay.",
     "settings.local_models.reading": "Đang tìm các mô hình trên máy tính này…",
     "settings.local_models.unavailable": "VOOL hiện không thấy các mô hình trên máy tính này. Hãy bảo đảm Ollama đang mở, rồi mở lại Cài đặt.",
     "settings.local_models.disabled": "Mô hình cục bộ đang tắt trên máy tính này.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "Mô hình cục bộ trả lời ngay trên máy tính này, không cần internet và không tốn phí mỗi tin nhắn.",
     "settings.local_models.mp_open": "Chọn mô hình cục bộ",
     "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu.",
+    "chat.author_refusal.lead": "Mình chưa trả lời được câu này.",
+    "chat.author_refusal.failed": "{models} lần này không trả lời đúng cách. Bạn hãy hỏi lại sau giây lát. Nếu cứ bị vậy, hãy chọn mô hình khác trong Cài đặt → Mô hình và nhà cung cấp.",
+    "chat.author_refusal.checking": "VOOL vẫn đang chuẩn bị {model}. Trên máy tính này việc đó có thể mất vài phút. Bạn hãy hỏi lại sau ít phút.",
+    "chat.author_refusal.not_ready": "{model} chưa sẵn sàng trả lời cho VOOL. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
+    "chat.author_refusal.not_ready_local_only": "{model} chưa sẵn sàng trả lời cho VOOL, và chế độ Chỉ máy tính này đang bật nên mô hình đám mây không thể trả lời thay. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} chưa sẵn sàng trả lời cho VOOL, và mô hình đám mây đang tắt. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc bật một mô hình đám mây.",
+    "chat.author_refusal.unresolved": "VOOL không xác định được mô hình nào đã viết câu trả lời nên đã giữ lại. Bạn hãy hỏi lại.",
+    "chat.author_refusal.not_running": "Hiện không có mô hình nào đang chạy trên máy tính này. Hãy mở ứng dụng mô hình (như Ollama) hoặc chọn mô hình đám mây trong menu mô hình.",
     "phone.account": "Tài khoản ví",
     "phone.approve_on_pc": "Trong phiên bản này, bạn phải phê duyệt thanh toán và hành động trên máy tính.",
     "phone.bot_approve_pc": "Bot không bao giờ được phê duyệt thanh toán hoặc hành động. Hãy phê duyệt trên máy tính.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "Đã lưu trên điện thoại này.",
     "phone.ui.save_file_failed": "Không thể lưu tệp này. Hãy thử lại."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

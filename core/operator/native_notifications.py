@@ -163,6 +163,10 @@ def _content(source_kind: str, title: str, body: str, preferences: dict[str, Any
 def _submit_op(*, identifier: str, kind: str, deliver_at: str, source_kind: str, title: str, body: str,
                preferences: dict[str, Any], thread: str, notification_id: str = "", schedule_id: str = "") -> dict[str, Any]:
     shown_title, shown_body = _content(source_kind, title, body, preferences)
+    # A notification banner is on screen like any page: "Hide my name on screen" covers it too.
+    from core.screen_privacy import mask_text
+
+    shown_title, shown_body = mask_text(shown_title), mask_text(shown_body)
     return {
         "op": "submit", "identifier": identifier, "kind": kind, "deliver_at_utc": deliver_at,
         "title": shown_title[:200], "body": shown_body[:400], "sound": bool(preferences.get("sound", True)),

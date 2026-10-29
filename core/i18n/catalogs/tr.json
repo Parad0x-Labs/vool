@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.} other {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.}}",
     "online_access.open_setting": "“Kendi başına çevrimiçi olma” ayarını aç",
     "update.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL güncellemeleri kontrol etmiyor.",
+    "update.checks_off": "Güncelleme denetimi kapalı",
     "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor.",
     "chat.no_model.line_text": "VOOL'un yanıt verebilmesi için bir yapay zekâ modeli gerekiyor. Kurulum yaklaşık iki dakika sürer.",
     "chat.no_model.reply_body": "Kurulum yaklaşık iki dakika sürer: kurulumu açın ve VOOL'un nerede düşüneceğini seçin. Bu bilgisayarda Ollama gibi bir model uygulaması zaten varsa onu açın ve yeniden sorun.",
@@ -2848,6 +2849,9 @@
     "live.upload": "Yükle",
     "settings.row.live_browser.help": "Her işlemi çalıştırmadan önce inceleyin. Sayfa betikleri kapalıdır. Ödemeler için cüzdanı kullanın.",
     "settings.row.live_browser.label": "Tarayıcı",
+    "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
+    "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
+    "settings.row.hide_name_on_screen.effect": "Hemen geçerli.",
     "settings.local_models.reading": "Bu bilgisayardaki modeller aranıyor…",
     "settings.local_models.unavailable": "VOOL şu anda bu bilgisayardaki modelleri göremiyor. Ollama’nın açık olduğundan emin olun, sonra Ayarlar’ı yeniden açın.",
     "settings.local_models.disabled": "Yerel modeller bu bilgisayarda kapalı.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "Yerel modeller bu bilgisayarda, internetsiz ve mesaj başına ücretsiz yanıt verir.",
     "settings.local_models.mp_open": "Yerel model seç",
     "settings.models.local_pick": "Bu bilgisayarda bir model var. Açın ve başlamak için Bu modeli kullan’a basın.",
+    "chat.author_refusal.lead": "Buna yanıt veremedim.",
+    "chat.author_refusal.failed": "{models} bu sefer düzgün yanıt vermedi. Lütfen biraz sonra yeniden sorun. Sürekli oluyorsa Ayarlar → Modeller ve sağlayıcılar’dan başka bir model seçin.",
+    "chat.author_refusal.checking": "VOOL, {model} modelini hâlâ hazırlıyor. Bu bilgisayarda bu birkaç dakika sürebilir. Lütfen birazdan yeniden sorun.",
+    "chat.author_refusal.not_ready": "{model} henüz VOOL için yanıt vermeye hazır değil. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
+    "chat.author_refusal.not_ready_local_only": "{model} henüz VOOL için yanıt vermeye hazır değil ve Yalnızca bu bilgisayar açık, bu yüzden yerine bir bulut modeli yanıt veremez. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} henüz VOOL için yanıt vermeye hazır değil ve bulut modelleri kapalı. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da bir bulut modelini açın.",
+    "chat.author_refusal.unresolved": "VOOL yanıtı hangi modelin yazdığını anlayamadı, bu yüzden yanıtı tuttu. Lütfen yeniden sorun.",
+    "chat.author_refusal.not_running": "Şu anda bu bilgisayarda çalışan bir model yok. Model uygulamanızı (örneğin Ollama) açın ya da model menüsünden bir bulut modeli seçin.",
     "phone.account": "Cüzdan hesabı",
     "phone.approve_on_pc": "Bu sürümde ödemeler ve işlemler bilgisayarınızda onaylanmalıdır.",
     "phone.bot_approve_pc": "Botlar hiçbir zaman ödemeleri veya işlemleri onaylayamaz. Bilgisayarınızdan onaylayın.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "Bu telefona kaydedildi.",
     "phone.ui.save_file_failed": "Bu dosya kaydedilemedi. Yeniden deneyin."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

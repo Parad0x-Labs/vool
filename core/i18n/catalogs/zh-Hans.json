@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, other {因隐私政策，有 {n} 条回答未包含在内。}}",
     "online_access.open_setting": "打开“自行联网”",
     "update.online_off": "联网已关闭，因此 VOOL 不会检查更新。",
+    "update.checks_off": "更新检查已关闭",
     "vcs.online_off": "联网已关闭，因此 VOOL 不会读取互联网上的日历。这台电脑上的日历仍可正常使用。",
     "chat.no_model.line_text": "VOOL 需要一个 AI 模型才能回答。设置大约需要两分钟。",
     "chat.no_model.reply_body": "设置大约需要两分钟：打开设置，选择 VOOL 在哪里思考。如果这台电脑上已经有模型应用（例如 Ollama），请打开它后再问一次。",
@@ -2848,6 +2849,9 @@
     "live.upload": "上传",
     "settings.row.live_browser.help": "执行前请逐项确认。网页脚本已关闭。付款请使用钱包。",
     "settings.row.live_browser.label": "浏览器",
+    "settings.row.hide_name_on_screen.label": "在屏幕上隐藏我的名字",
+    "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
+    "settings.row.hide_name_on_screen.effect": "立即生效。",
     "settings.local_models.reading": "正在查找这台电脑上的模型…",
     "settings.local_models.unavailable": "VOOL 现在看不到这台电脑上的模型。请确认 Ollama 已打开，然后重新打开设置。",
     "settings.local_models.disabled": "这台电脑上的本地模型已关闭。",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "本地模型在这台电脑上回答，无需联网，每条消息也不收费。",
     "settings.local_models.mp_open": "选择本地模型",
     "settings.models.local_pick": "这台电脑上有一个模型。打开它并点“使用此模型”即可开始。",
+    "chat.author_refusal.lead": "这个问题我没能回答。",
+    "chat.author_refusal.failed": "{models} 这次没有正常回复。请稍后再问一次。如果一直这样，请在 设置 → 模型与提供方 中换一个模型。",
+    "chat.author_refusal.checking": "VOOL 仍在准备 {model}。在这台电脑上可能需要几分钟。请稍后再问一次。",
+    "chat.author_refusal.not_ready": "{model} 还没准备好在 VOOL 里回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
+    "chat.author_refusal.not_ready_local_only": "{model} 还没准备好在 VOOL 里回答，而且“仅此电脑”已开启，所以云端模型也不能代为回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
+    "chat.author_refusal.not_ready_no_cloud": "{model} 还没准备好在 VOOL 里回答，而且云端模型已关闭。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或打开一个云端模型。",
+    "chat.author_refusal.unresolved": "VOOL 无法确定是哪个模型写的回复，所以先没有发出。请再问一次。",
+    "chat.author_refusal.not_running": "这台电脑上现在没有正在运行的模型。请打开你的模型应用（例如 Ollama），或在模型菜单里选一个云端模型。",
     "phone.account": "钱包账户",
     "phone.approve_on_pc": "此版本需要在电脑上批准付款和操作。",
     "phone.bot_approve_pc": "机器人永远不能批准付款或操作。请在电脑上批准。",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "已保存到这部手机。",
     "phone.ui.save_file_failed": "无法保存此文件。请重试。"
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

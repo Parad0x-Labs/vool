@@ -1,6 +1,10 @@
 # v0.7 update protocol
 
-One background checker owns the signed beta feed. It accepts an offer only for a
+One background checker owns the signed beta feed. While **Go online on its own**
+is on (Settings > Privacy & Permissions), it checks the feed when VOOL starts and
+once a day (`auto_check: true` in the shipped feed config) and shows a notice
+without a Check press. While the switch is off, nothing is fetched and the header
+says **Update checks off**. It accepts an offer only for a
 strictly newer runtime version and the exact local OS/architecture. An Intel Mac
 does not offer an Apple Silicon or Linux download. Missing compatible artifacts,
 invalid signatures, older releases and network failures are explained in status.
@@ -12,14 +16,20 @@ is active. It downloads and verifies both publisher signatures and SHA-256,
 extracts a bounded link-preserving ZIP, checks the platform payload, snapshots
 SQLite through its backup API and saves runtime config. A detached continuation
 outside the replacement target survives app shutdown. The Mac helper swaps the
-bundle; Linux reuses the installer's protected code-swap and rollback helpers,
-retaining the runtime home, virtual environment, receipt and local protected paths.
-Raw Git checkouts use `git pull` instead of the installer-source swap.
+bundle. The Linux tarball install runs the new package's own `install.sh`, which
+puts it beside the running version under `~/.local/share/vool/versions/` and
+switches the `current` link in one rename; the previous version folder is the
+backup. A Linux installer-source install reuses the installer's protected
+code-swap and rollback helpers, retaining the runtime home, virtual environment,
+receipt and local protected paths. Raw Git checkouts use `git pull` instead of
+the installer-source swap.
 
 The continuation relaunches and requires the release's pinned build identity on
 the health endpoint. An unhealthy or failed migration restores the prior code and
 saved data. Failed restoration or relaunch is reported as incomplete recovery;
-backups are retained. Rollback does not claim that unsnapshotted external effects
+backups are retained. For the tarball install, restoring means switching
+`current` back to the previous version folder; the manual **Roll back** action is
+not offered for it yet. Rollback does not claim that unsnapshotted external effects
 or concurrent post-snapshot activity were reversed.
 
 Startup recovery also runs outside any app it may stop. The installed-source

@@ -93,7 +93,9 @@ def test_after_the_forget_no_retrieval_surface_carries_the_value(home):
             cols = [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
             for col in cols:
                 try:
-                    n = con.execute(f"SELECT COUNT(*) FROM {table} WHERE CAST({col} AS TEXT) LIKE ?", (f"%{SECRET}%",)).fetchone()[0]
+                    # Stored bytes only: a numeric clock value can spell the digits by chance (epoch 1793234417).
+                    n = con.execute(f"SELECT COUNT(*) FROM {table} WHERE typeof({col}) IN ('text', 'blob') "
+                                    f"AND CAST({col} AS TEXT) LIKE ?", (f"%{SECRET}%",)).fetchone()[0]
                 except sqlite3.Error:
                     continue
                 if n:

@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} atsakymas neįtrauktas dėl privatumo taisyklių.} few {{n} atsakymai neįtraukti dėl privatumo taisyklių.} other {{n} atsakymų neįtraukta dėl privatumo taisyklių.}}",
     "online_access.open_setting": "Atidaryti „Prisijungti prie interneto savarankiškai“",
     "update.online_off": "Prieiga prie interneto išjungta, todėl VOOL netikrina atnaujinimų.",
+    "update.checks_off": "Atnaujinimų tikrinimas išjungtas",
     "vcs.online_off": "Prieiga prie interneto išjungta, todėl VOOL neskaito kalendorių iš interneto. Šio kompiuterio kalendoriai toliau veikia.",
     "chat.no_model.line_text": "Kad galėtų atsakyti, VOOL reikia DI modelio. Nustatymas užtrunka apie dvi minutes.",
     "chat.no_model.reply_body": "Nustatymas užtrunka apie dvi minutes: atidarykite sąranką ir pasirinkite, kur VOOL turėtų mąstyti. Jei šiame kompiuteryje jau turite modelių programą, pavyzdžiui, Ollama, atidarykite ją ir paklauskite dar kartą.",
@@ -2848,6 +2849,9 @@
     "live.upload": "Įkelti",
     "settings.row.live_browser.help": "Peržiūrėkite kiekvieną veiksmą prieš jį vykdydami. Puslapių scenarijai išjungti. Mokėkite per piniginę.",
     "settings.row.live_browser.label": "Naršyklė",
+    "settings.row.hide_name_on_screen.label": "Slėpti mano vardą ekrane",
+    "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
+    "settings.row.hide_name_on_screen.effect": "Taikoma iškart.",
     "settings.local_models.reading": "Ieškoma modelių šiame kompiuteryje…",
     "settings.local_models.unavailable": "VOOL dabar nemato šio kompiuterio modelių. Įsitikinkite, kad Ollama atidaryta, ir vėl atidarykite Nustatymus.",
     "settings.local_models.disabled": "Vietiniai modeliai šiame kompiuteryje išjungti.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "Vietiniai modeliai atsako šiame kompiuteryje, be interneto ir be mokesčio už žinutę.",
     "settings.local_models.mp_open": "Pasirinkti vietinį modelį",
     "settings.models.local_pick": "Šiame kompiuteryje yra modelis. Atidarykite jį ir paspauskite Naudoti šį modelį, kad pradėtumėte.",
+    "chat.author_refusal.lead": "Į tai atsakyti nepavyko.",
+    "chat.author_refusal.failed": "{models} šį kartą tinkamai neatsakė. Paklauskite dar kartą po akimirkos. Jei tai kartojasi, pasirinkite kitą modelį: Nustatymai → Modeliai ir tiekėjai.",
+    "chat.author_refusal.checking": "VOOL dar ruošia {model}. Šiame kompiuteryje tai gali užtrukti kelias minutes. Paklauskite dar kartą netrukus.",
+    "chat.author_refusal.not_ready": "{model} dar neparuoštas atsakyti VOOL. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba pasirinkite modelį, pažymėtą Paruošta.",
+    "chat.author_refusal.not_ready_local_only": "{model} dar neparuoštas atsakyti VOOL, o įjungta Tik šiame kompiuteryje, todėl debesies modelis negali atsakyti vietoj jo. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba pasirinkite modelį, pažymėtą Paruošta.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} dar neparuoštas atsakyti VOOL, o debesies modeliai išjungti. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba įjunkite debesies modelį.",
+    "chat.author_refusal.unresolved": "VOOL negalėjo nustatyti, kuris modelis parašė atsakymą, todėl jo nerodė. Paklauskite dar kartą.",
+    "chat.author_refusal.not_running": "Šiuo metu šiame kompiuteryje neveikia joks modelis. Atidarykite modelių programą (pvz., Ollama) arba modelių meniu pasirinkite debesies modelį.",
     "phone.account": "Piniginės sąskaita",
     "phone.approve_on_pc": "Šioje versijoje mokėjimus ir veiksmus reikia patvirtinti kompiuteryje.",
     "phone.bot_approve_pc": "Botai niekada negali patvirtinti mokėjimų ar veiksmų. Tvirtinkite kompiuteryje.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "Išsaugota šiame telefone.",
     "phone.ui.save_file_failed": "Nepavyko išsaugoti šio failo. Bandykite dar kartą."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

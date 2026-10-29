@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -95,10 +96,28 @@ def test_launcher_is_never_looked_up_on_path(tmp_path, monkeypatch):
             runner._with_network_isolation(["true"], (ws.resolve(),))
 
 
+def _root_owned_regular_binary() -> str:
+    """The real file behind a standard system binary that is root-owned and not group/world
+    writable, in a directory with the same properties."""
+    for name in ("/usr/bin/env", "/bin/sh", "/usr/bin/true", "/bin/ls"):
+        real = os.path.realpath(name)
+        try:
+            binary, directory = os.lstat(real), os.lstat(os.path.dirname(real))
+        except OSError:
+            continue
+        if not (stat.S_ISREG(binary.st_mode) and stat.S_ISDIR(directory.st_mode)):
+            continue
+        if all(e.st_uid == 0 and not e.st_mode & (stat.S_IWGRP | stat.S_IWOTH) for e in (binary, directory)):
+            return real
+    pytest.fail("no root-owned regular system binary found to stand in for sandbox-exec")
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and modes")
 def test_launcher_must_be_a_root_owned_regular_file_in_a_root_owned_directory(tmp_path):
-    # A real root-owned binary in a root-owned, non-writable directory on every POSIX host.
-    trusted = "/usr/bin/env"
+    # A real root-owned binary in a root-owned, non-writable directory. Resolve it: on some
+    # hosts /usr/bin/env is itself a symlink (to a multi-call coreutils binary), which the
+    # launcher check rightly refuses, so the trusted fixture is its real target.
+    trusted = _root_owned_regular_binary()
     with patch.object(jr, "_SANDBOX_EXEC", trusted):
         assert _trusted_sandbox_exec() == trusted
 

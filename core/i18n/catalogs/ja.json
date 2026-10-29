@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, other {プライバシーのルールにより、{n} 件の回答は含まれていません。}}",
     "online_access.open_setting": "「自動でオンラインに接続」を開く",
     "update.online_off": "オンラインアクセスがオフのため、VOOL は更新を確認しません。",
+    "update.checks_off": "更新の確認はオフ",
     "vcs.online_off": "オンラインアクセスがオフのため、VOOL はインターネット上のカレンダーを読みません。このコンピューター上のカレンダーは引き続き使えます。",
     "chat.no_model.line_text": "VOOLが答えるにはAIモデルが必要です。設定は2分ほどで終わります。",
     "chat.no_model.reply_body": "設定は2分ほどで終わります。セットアップを開いて、VOOLがどこで考えるかを選んでください。Ollamaなどのモデルアプリがすでにこのコンピューターにある場合は、それを開いてからもう一度お尋ねください。",
@@ -2848,6 +2849,9 @@
     "live.upload": "アップロード",
     "settings.row.live_browser.help": "実行前に各操作を確認してください。ページのスクリプトは無効です。支払いにはウォレットを使ってください。",
     "settings.row.live_browser.label": "ブラウザー",
+    "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
+    "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
+    "settings.row.hide_name_on_screen.effect": "即時に適用されます。",
     "settings.local_models.reading": "このコンピューターのモデルを探しています…",
     "settings.local_models.unavailable": "VOOL は今このコンピューターのモデルを確認できません。Ollama が開いていることを確かめてから、設定を開き直してください。",
     "settings.local_models.disabled": "このコンピューターではローカルモデルがオフになっています。",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "ローカルモデルはこのコンピューターで答えます。インターネット不要、メッセージごとの費用もかかりません。",
     "settings.local_models.mp_open": "ローカルモデルを選ぶ",
     "settings.models.local_pick": "このコンピューターにモデルがあります。開いて「このモデルを使う」を押すと始められます。",
+    "chat.author_refusal.lead": "この質問には答えられませんでした。",
+    "chat.author_refusal.failed": "{models} から今回は正しい返事がありませんでした。少ししてからもう一度聞いてください。何度も起きる場合は、設定 → モデルとプロバイダで別のモデルを選んでください。",
+    "chat.author_refusal.checking": "VOOL はまだ {model} の準備をしています。このコンピュータでは数分かかることがあります。少ししてからもう一度聞いてください。",
+    "chat.author_refusal.not_ready": "{model} はまだ VOOL で答える準備ができていません。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、「準備完了」のモデルを選んでください。",
+    "chat.author_refusal.not_ready_local_only": "{model} はまだ VOOL で答える準備ができていません。「このコンピューターのみ」がオンなので、代わりにクラウドモデルが答えることもできません。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、「準備完了」のモデルを選んでください。",
+    "chat.author_refusal.not_ready_no_cloud": "{model} はまだ VOOL で答える準備ができていません。クラウドモデルもオフになっています。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、クラウドモデルをオンにしてください。",
+    "chat.author_refusal.unresolved": "どのモデルが返事を書いたのか VOOL が判断できなかったため、返事を保留しました。もう一度聞いてください。",
+    "chat.author_refusal.not_running": "このコンピューターでは今、動いているモデルがありません。モデルのアプリ（Ollama など）を開くか、モデルメニューでクラウドモデルを選んでください。",
     "phone.account": "ウォレット口座",
     "phone.approve_on_pc": "このバージョンでは、支払いと操作をコンピューターで承認してください。",
     "phone.bot_approve_pc": "ボットは支払いや操作を承認できません。コンピュータで承認してください。",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "このスマートフォンに保存しました。",
     "phone.ui.save_file_failed": "このファイルを保存できませんでした。もう一度お試しください。"
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

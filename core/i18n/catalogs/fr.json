@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} réponse n’est pas incluse en raison de la politique de confidentialité.} many {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.} other {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.}}",
     "online_access.open_setting": "Ouvrir « Se connecter de lui-même »",
     "update.online_off": "L’accès à internet est désactivé, donc VOOL ne recherche pas de mises à jour.",
+    "update.checks_off": "Recherche de mises à jour désactivée",
     "vcs.online_off": "L’accès à internet est désactivé, donc VOOL ne lit pas d’agendas sur internet. Les agendas de cet ordinateur continuent de fonctionner.",
     "chat.no_model.line_text": "VOOL a besoin d'un modèle d'IA avant de pouvoir répondre. La configuration prend environ deux minutes.",
     "chat.no_model.reply_body": "La configuration prend environ deux minutes : ouvrez la configuration et choisissez où VOOL doit réfléchir. Si vous avez déjà une application de modèles sur cet ordinateur, comme Ollama, ouvrez-la et reposez la question.",
@@ -2848,6 +2849,9 @@
     "live.upload": "Importer",
     "settings.row.live_browser.help": "Vérifiez chaque action avant son exécution. Les scripts des pages sont désactivés. Utilisez le portefeuille pour payer.",
     "settings.row.live_browser.label": "Navigateur",
+    "settings.row.hide_name_on_screen.label": "Masquer mon nom à l’écran",
+    "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
+    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement.",
     "settings.local_models.reading": "Recherche des modèles sur cet ordinateur…",
     "settings.local_models.unavailable": "VOOL ne voit pas les modèles de cet ordinateur pour le moment. Vérifiez qu’Ollama est ouvert, puis rouvrez les Réglages.",
     "settings.local_models.disabled": "Les modèles locaux sont désactivés sur cet ordinateur.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "Les modèles locaux répondent sur cet ordinateur, sans internet et sans coût par message.",
     "settings.local_models.mp_open": "Choisir un modèle local",
     "settings.models.local_pick": "Un modèle est présent sur cet ordinateur. Ouvrez-le et appuyez sur Utiliser ce modèle pour commencer.",
+    "chat.author_refusal.lead": "Je n’ai pas pu répondre à cela.",
+    "chat.author_refusal.failed": "{models} n’a pas répondu correctement cette fois. Reposez la question dans un instant. Si cela se répète, choisissez un autre modèle dans Réglages → Modèles et fournisseurs.",
+    "chat.author_refusal.checking": "VOOL est encore en train de préparer {model}. Sur cet ordinateur, cela peut prendre quelques minutes. Reposez la question d’ici peu.",
+    "chat.author_refusal.not_ready": "{model} n’est pas encore prêt à répondre pour VOOL. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou choisissez un modèle marqué Prêt.",
+    "chat.author_refusal.not_ready_local_only": "{model} n’est pas encore prêt à répondre pour VOOL, et Cet ordinateur uniquement est activé, donc un modèle cloud ne peut pas répondre à sa place. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou choisissez un modèle marqué Prêt.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} n’est pas encore prêt à répondre pour VOOL, et les modèles cloud sont désactivés. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou activez un modèle cloud.",
+    "chat.author_refusal.unresolved": "VOOL n’a pas pu savoir quel modèle a écrit la réponse, il l’a donc retenue. Reposez la question.",
+    "chat.author_refusal.not_running": "Aucun modèle ne tourne sur cet ordinateur pour le moment. Ouvrez votre app de modèles (comme Ollama) ou choisissez un modèle cloud dans le menu des modèles.",
     "phone.account": "Compte du portefeuille",
     "phone.approve_on_pc": "Dans cette version, les paiements et les actions doivent être approuvés sur votre ordinateur.",
     "phone.bot_approve_pc": "Les bots ne peuvent jamais approuver de paiements ni d’actions. Approuvez sur votre ordinateur.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "Enregistré sur ce téléphone.",
     "phone.ui.save_file_failed": "Impossible d’enregistrer ce fichier. Réessayez."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

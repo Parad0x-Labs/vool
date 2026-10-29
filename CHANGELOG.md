@@ -3,6 +3,39 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## [0.7.5-beta] — 2026-10-27
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta).
+From this version on, VOOL tells you about new versions by itself and installs them with one press, on Mac and on Linux.
+
+Updating from 0.7.4 or 0.7.3 (one time only):
+- **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Download and update. From 0.7.5 on, the notice comes by itself.
+- **Linux:** install 0.7.5 from the release once. From 0.7.5 on, updates install in the app.
+- From 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app.
+
+### Added
+- **Updates arrive on their own.** With "Go online on its own" on (Settings > Privacy & Permissions), VOOL checks for a new version at start and once a day and shows a notice. Press Download and update: VOOL installs it, restarts on the new version and keeps your data. With it off, VOOL fetches nothing and the header says Update checks off.
+- **Linux updates in the app.** The Linux download now updates itself from inside VOOL. The new version is installed next to the old one; if it does not start properly, VOOL switches back by itself.
+- **Your VOOL on the local network stays yours.** When VOOL listens on your local network, only this computer reaches settings, files, keys and tools. Another device gets plain chat and can read one public web page; web searches, research, the browser, quotes, payments and your paid keys stay on your own computer. The Discord bridge answers only its owner.
+- **Notes and agenda do what you said.** Saving to notes, the agenda or Apple Notes keeps exactly what you asked for. An answer is saved only when you ask, only the answer you saw, and never from a private chat.
+- **VOOL's own skills first.** Skills & Plugins lists VOOL's own skills first, and Browse Skill Codex ships with 53 ready skills.
+
+### Fixed
+- Reminders keep the right date and time.
+- A message with a link while web lookups are off gets a plain answer instead of an error.
+- The model list loads after an upgrade, even when two parts of VOOL open it at once.
+- A reply you stop is recorded once, as you saw it.
+- The first browser step on a slow computer no longer times out while the browser is still starting.
+- The update status no longer shows an old setup message after an upgrade.
+- Random IDs, dates and times are no longer mistaken for card numbers, while real card numbers are still caught.
+
+### Security
+- Research reads web pages only through checked public addresses: a search result or redirect that points at this computer or your local network is refused.
+- A very long run of spaces in a message can no longer stall VOOL.
+- Security updates for bundled libraries (PDF reading, packaging, reportlab and a network library).
+- Installing from source now needs Python 3.11 or newer. The app downloads include their own Python.
+
 ## [0.7.4-beta] — 2026-10-22
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

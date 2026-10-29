@@ -5814,6 +5814,9 @@ class MemoryFirstRouter:
             eagle3_active=_eagle3_active,
             default_model_tag=_cached_default_model_tag(),
             resident_model_tags=_recent_resident_model_tags(),
+            # The model the person made ready goes first: a local model the call fence would
+            # refuse is never the primary while a ready one is ranked (it stays a fallback).
+            unready_local_models=_unready_local_models(ranked_manifests),
         )
         autopilot_plan = autopilot.to_dict()
         emergency_rejected = False
@@ -6821,6 +6824,14 @@ class MemoryFirstRouter:
                     if manifest.provider_id not in attempted:
                         attempted.append(manifest.provider_id)
                     failover_used = True
+                    # This model WAS called and its reply was unusable. Recorded now, because when
+                    # the next candidate is one the fence refuses, the turn's refusal otherwise named
+                    # that refused model ("qwen2.5:7b isn't ready") instead of the ready model that
+                    # replied badly (cloud re-audit Oct 29, mailweb:E07).
+                    with contextlib.suppress(Exception):
+                        from core.final_answer_authorship import record_authorship_attempts
+
+                        record_authorship_attempts(source_context, [manifest.provider_id])
                     _emit_model_routing_event(
                         source_context,
                         "model_lane_contract_failed",
@@ -8254,6 +8265,15 @@ def _local_remote_race_pair(ranked_manifests: list[Any]) -> tuple[Any, Any] | No
     if local_manifest.provider_id == remote_manifest.provider_id:
         return None
     return local_manifest, remote_manifest
+
+
+def _unready_local_models(ranked_manifests: list[Any]) -> frozenset[str]:
+    try:
+        from core.final_answer_authorship import unready_local_model_names
+
+        return unready_local_model_names(ranked_manifests)
+    except Exception:
+        return frozenset()
 
 
 def _can_prioritize_autopilot_selection(

@@ -178,10 +178,14 @@ WALLET_PAGE_FRAMING_HEADERS: dict[str, str] = {"Content-Security-Policy": "frame
 
 
 def html_response(status: int, html: str, *, headers: dict[str, str] | None = None) -> ApiResponse:
+    # Every page VOOL draws carries the "Hide my name on screen" mask (core/screen_privacy.py),
+    # running before the page's own markup so nothing is painted unmasked.
+    from core.screen_privacy import inject
+
     return ApiResponse(
         status=status,
         content_type="text/html; charset=utf-8",
-        body=str(html).encode("utf-8"),
+        body=inject(str(html)).encode("utf-8"),
         headers=dict(headers or {}),
     )
 
@@ -591,7 +595,9 @@ def runtime_model_status_response(
             "deterministic": True,
             "requested_model": selected,
         }
-    default_model = str(runtime.runtime_model_tag or "").strip() or "unknown"
+    from core.local_model_readiness import model_in_use
+
+    default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
     lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
@@ -665,7 +671,9 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines.append(f"- Build: `{build}`" + (" (uncommitted changes)" if bool(stamp.get("dirty")) else ""))
     if commit:
         lines.append(f"- Commit: `{commit}`")
-    model = str(runtime.runtime_model_tag or "").strip()
+    from core.local_model_readiness import model_in_use
+
+    model = model_in_use(str(runtime.runtime_model_tag or "").strip())
     if model:
         lines.append(f"- Local model: `{model}`")
     return {
@@ -925,6 +933,27 @@ def _stream_under_update_work(stream: Iterable[bytes], _work_id: str) -> Iterabl
 
 
 def dispatch_get(
+    *,
+    path: str,
+    query: dict[str, list[str]],
+    runtime: RuntimeServices,
+    model_name: str,
+    capability_snapshot_provider: Callable[[], dict[str, Any]] = runtime_capability_snapshot,
+    client_host: str = "",
+    headers: dict[str, str] | None = None,
+) -> ApiResponse:
+    # The "Hide my name on screen" rules carry this machine's names: a page gets them only when
+    # it is served to this computer (core/screen_privacy.py page_peer).
+    from core.screen_privacy import page_peer
+
+    with page_peer(is_loopback_host(client_host)):
+        return _dispatch_get(
+            path=path, query=query, runtime=runtime, model_name=model_name,
+            capability_snapshot_provider=capability_snapshot_provider, client_host=client_host, headers=headers,
+        )
+
+
+def _dispatch_get(
     *,
     path: str,
     query: dict[str, list[str]],
@@ -1244,6 +1273,15 @@ def dispatch_get(
             ),
             runtime,
         )
+
+    if normalized_path == "/api/screen-privacy":
+        # "Hide my name on screen": what an open page needs to follow the switch live. Off carries
+        # no names. Owner-local like every projection of this machine's identity.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import screen_privacy
+
+        return apply_runtime_headers(json_response(200, screen_privacy.config()), runtime)
 
     if normalized_path == "/api/setup/state":
         # The derived first-run setup state (core/setup_progress.py): which steps are really done,

@@ -1,4 +1,4 @@
-"""Build updater ZIPs from verified Mac apps or a clean Linux release checkout."""
+"""Build updater ZIPs from verified Mac apps, a clean Linux release checkout or the Linux package."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,7 @@ from core.updater.archive import extract_update_zip
 from core.updater.trust import TrustedPublishers
 
 
-def write_tree_zip(source: Path, output: Path, *, prefix: str) -> None:
+def write_tree_zip(source: Path, output: Path, *, prefix: str, case_sensitive_names: bool = False) -> None:
     """Keep Unix modes and relative symlinks; never follow a link into other data."""
     if output.exists():
         raise ValueError(f"refusing to overwrite {output}")
@@ -43,7 +43,7 @@ def write_tree_zip(source: Path, output: Path, *, prefix: str) -> None:
         # Exercise the EXACT production extractor, including link containment,
         # namespace collisions, entry counts and expanded-size limits.
         with tempfile.TemporaryDirectory(prefix=".payload-verify-", dir=output.parent) as temporary:
-            extract_update_zip(output, Path(temporary) / "stage")
+            extract_update_zip(output, Path(temporary) / "stage", case_sensitive_names=case_sensitive_names)
     except Exception:
         output.unlink(missing_ok=True)
         raise
@@ -95,6 +95,18 @@ def build_payload(source: Path, output_dir: Path, *, platform: str, version: str
             extract_update_zip(archive, stage)
             (stage / "config/build-source.json").write_text(json.dumps(provenance, indent=2) + "\n")
             write_tree_zip(stage, output, prefix=f"vool-{version}-beta")
+    elif platform == "linux-x64-bundle":
+        # The per-user package exactly as the release tarball ships it (source = the extracted package folder).
+        from installer.bundle.linux.install_bundle import verify_package
+
+        commit = verify_package(source)
+        if (source / "VERSION").read_text().strip() != version + "-beta":
+            raise ValueError("package VERSION does not match the requested version")
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError("package has no exact source commit")
+        _validate_source(source / "app", version)
+        output = output_dir / f"vool-{version}-beta-linux-x86_64-package-update.zip"
+        write_tree_zip(source, output, prefix=f"vool-{version}-beta-linux-x86_64", case_sensitive_names=True)
     else:
         raise ValueError(f"unsupported release platform: {platform}")
     return output
@@ -104,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--platform", required=True, choices=("macos-arm64", "macos-x64", "linux-x64"))
+    parser.add_argument("--platform", required=True, choices=("macos-arm64", "macos-x64", "linux-x64", "linux-x64-bundle"))
     parser.add_argument("--version", required=True)
     args = parser.parse_args(argv)
     print(build_payload(args.source, args.out, platform=args.platform, version=args.version))

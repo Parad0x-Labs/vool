@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, other {개인정보 보호 정책에 따라 답변 {n}개는 포함되지 않았습니다.}}",
     "online_access.open_setting": "‘스스로 온라인 연결’ 열기",
     "update.online_off": "온라인 접근이 꺼져 있어 VOOL이 업데이트를 확인하지 않습니다.",
+    "update.checks_off": "업데이트 확인 꺼짐",
     "vcs.online_off": "온라인 접근이 꺼져 있어 VOOL이 인터넷의 캘린더를 읽지 않습니다. 이 컴퓨터의 캘린더는 계속 작동합니다.",
     "chat.no_model.line_text": "VOOL이 답하려면 AI 모델이 필요합니다. 설정은 2분 정도 걸립니다.",
     "chat.no_model.reply_body": "설정은 2분 정도 걸립니다. 설정을 열고 VOOL이 어디에서 생각할지 고르세요. 이 컴퓨터에 Ollama 같은 모델 앱이 이미 있다면 그 앱을 열고 다시 물어보세요.",
@@ -2848,6 +2849,9 @@
     "live.upload": "업로드",
     "settings.row.live_browser.help": "실행 전에 각 작업을 확인하세요. 페이지 스크립트는 꺼져 있습니다. 결제에는 지갑을 사용하세요.",
     "settings.row.live_browser.label": "브라우저",
+    "settings.row.hide_name_on_screen.label": "화면에서 내 이름 숨기기",
+    "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
+    "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다.",
     "settings.local_models.reading": "이 컴퓨터에서 모델을 찾는 중…",
     "settings.local_models.unavailable": "지금은 VOOL이 이 컴퓨터의 모델을 볼 수 없어요. Ollama가 열려 있는지 확인한 뒤 설정을 다시 여세요.",
     "settings.local_models.disabled": "이 컴퓨터에서는 로컬 모델이 꺼져 있어요.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "로컬 모델은 인터넷 없이, 메시지당 비용 없이 이 컴퓨터에서 답해요.",
     "settings.local_models.mp_open": "로컬 모델 고르기",
     "settings.models.local_pick": "이 컴퓨터에 모델이 있어요. 열어서 '이 모델 사용'을 누르면 시작돼요.",
+    "chat.author_refusal.lead": "이 질문에는 답하지 못했어요.",
+    "chat.author_refusal.failed": "{models}이(가) 이번에는 제대로 답하지 않았어요. 잠시 후 다시 물어봐 주세요. 계속 그러면 설정 → 모델과 공급자에서 다른 모델을 고르세요.",
+    "chat.author_refusal.checking": "VOOL이 아직 {model}을(를) 준비하고 있어요. 이 컴퓨터에서는 몇 분 걸릴 수 있어요. 잠시 후 다시 물어봐 주세요.",
+    "chat.author_refusal.not_ready": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
+    "chat.author_refusal.not_ready_local_only": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, '이 컴퓨터에서만'이 켜져 있어 클라우드 모델이 대신 답할 수도 없어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
+    "chat.author_refusal.not_ready_no_cloud": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, 클라우드 모델은 꺼져 있어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, 클라우드 모델을 켜세요.",
+    "chat.author_refusal.unresolved": "어떤 모델이 답을 썼는지 VOOL이 알 수 없어서 답을 보류했어요. 다시 물어봐 주세요.",
+    "chat.author_refusal.not_running": "지금 이 컴퓨터에서 실행 중인 모델이 없어요. 모델 앱(예: Ollama)을 열거나 모델 메뉴에서 클라우드 모델을 고르세요.",
     "phone.account": "지갑 계정",
     "phone.approve_on_pc": "이 버전에서는 컴퓨터에서 결제와 작업을 승인해야 합니다.",
     "phone.bot_approve_pc": "봇은 결제나 작업을 승인할 수 없습니다. 컴퓨터에서 승인하세요.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "이 휴대폰에 저장했습니다.",
     "phone.ui.save_file_failed": "이 파일을 저장할 수 없습니다. 다시 시도하세요."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

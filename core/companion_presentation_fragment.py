@@ -1704,6 +1704,10 @@ function vnDesktopPayload(pres, state) {
   const activity = vnActivity(pres);
   if (activity) payload.activity = activity;
   if (vnPos.desktop && Number.isFinite(vnPos.desktop.x) && Number.isFinite(vnPos.desktop.y)) payload.desktop_position = vnPos.desktop;
+  /* The desktop pet is its own native window: "Hide my name on screen" (core/screen_privacy.py)
+     masks its lines here, before they leave the page. */
+  const privacy = window.VoolScreenPrivacy;
+  if (privacy && privacy.enabled()) ["caption","chatTitle","activity"].forEach(k => { if (typeof payload[k] === "string") payload[k] = privacy.mask(payload[k]); });
   return payload;
 }
 /* The native side reports where the pet actually ended up; the page owns persistence. */

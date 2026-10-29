@@ -278,19 +278,14 @@ _BROWSER_SEARCH_MAX_TIMEOUT_S = 20.0
 
 
 def _browser_may_read_hit(hit_url: str, final_url: str) -> bool:
-    """A search hit goes to the browser only while its names still answer with public addresses.
+    """A search hit is never handed to the browser, until the browser checks every address it reaches.
 
-    The browser resolves on its own, so this is not the pinned check http_fetch makes; it keeps a
-    hit that names, or now resolves to, this computer or its local network out of the browser.
+    The browser resolves names and follows redirects on its own, so a hit that served the checked
+    fetch a short page could send the browser to this computer or its local network. Research reads
+    hits only through the checked, pinned fetch; a page that needs JavaScript keeps its snippet.
     """
-    from core.remote_turn_fetch import RemoteTurnTargetRefused, resolve_public_target
-
-    try:
-        for url in dict.fromkeys((hit_url, final_url)):
-            resolve_public_target(url)
-    except RemoteTurnTargetRefused:
-        return False
-    return True
+    del hit_url, final_url
+    return False
 
 
 def _should_try_browser() -> bool:

@@ -973,12 +973,27 @@ def dispatch_companion(
         if fresh_refusal:
             store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": fresh_refusal})
             return _err(403, fresh_refusal, "This phone's permission changed. Check its settings on your computer.")
+    if action in _SCREEN_ONLY_ACTIONS:
+        # "Hide my name on screen" covers the phone too: these results are only ever drawn on
+        # the phone's screen, so the phone gets the same masked text the desktop pages show.
+        # Nothing the phone sends back (ids, decisions, its own messages) passes through here.
+        from core.screen_privacy import mask_value
+
+        result = mask_value(result)
     payload = {"ok": status < 400, "action": action, "device_id": device_id, "result": result}
     if status >= 400:
         payload["error"] = str(result.get("error") or "This action could not be completed.")
         code = str(result.get("code") or result.get("error") or "")
         payload["code"] = code if code and code.replace("_", "").isalnum() else "companion_action_refused"
     return _json(status, payload)
+
+
+# Phone reads whose results only reach the phone's screen. proof.get stays whole: its hashes are
+# checked against the text they cover.
+_SCREEN_ONLY_ACTIONS = frozenset({
+    "devices.me", "status.snapshot", "chats.list", "chats.history", "chats.send",
+    "approvals.pending", "approvals.resolve", "notifications.poll",
+})
 
 
 # ---------------------------------------------------------------------------

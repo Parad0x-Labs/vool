@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from storage.db import get_connection
+
+_T = TypeVar("_T")
 
 ProviderSourceType = Literal["local_path", "http", "subprocess"]
 WeightLocation = Literal["external", "user-supplied", "bundled"]
@@ -132,23 +135,34 @@ def _table_columns(conn: Any) -> set[str]:
 def _add_column_if_missing(conn: Any, name: str, definition: str) -> None:
     columns = _table_columns(conn)
     if name not in columns:
-        conn.execute(f"ALTER TABLE model_provider_manifests ADD COLUMN {name} {definition}")
+        try:
+            conn.execute(f"ALTER TABLE model_provider_manifests ADD COLUMN {name} {definition}")
+        except sqlite3.OperationalError as exc:
+            # Upgrading a store from before the column existed: concurrent first reads all see it
+            # missing, one ALTER wins and the others get "duplicate column name". The column is
+            # there either way, which is all this step promises.
+            if "duplicate column name" not in str(exc) or name not in _table_columns(conn):
+                raise
 
 
-def _init_table() -> None:
-    # Every manifest read runs this on a fresh connection. While a new daemon is starting,
-    # other services are still creating their own tables in the same store, and SQLite can
-    # answer a statement here with "database schema has changed". The table statements are
-    # idempotent, so a short retry is safe; this failure used to surface as a 500 on the
-    # first model certification of a fresh install.
+def _retry_on_schema_change(operation: Callable[[], _T]) -> _T:
+    # Every manifest call opens a fresh connection. While a new daemon is starting, other
+    # services are still creating their own tables in the same WAL store, and SQLite can answer
+    # any statement here, the table setup and the reads alike, with "database schema has
+    # changed". Every operation below is idempotent, so a short retry is safe; this failure used
+    # to surface as a 500 on the first model certification of a fresh install.
     for attempt in range(5):
         try:
-            _create_table()
-            return
+            return operation()
         except sqlite3.OperationalError as exc:
             if "schema has changed" not in str(exc) or attempt == 4:
                 raise
             time.sleep(0.05 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
+def _init_table() -> None:
+    _retry_on_schema_change(_create_table)
 
 
 def _create_table() -> None:
@@ -191,6 +205,10 @@ def _create_table() -> None:
 
 def upsert_provider_manifest(manifest: ModelProviderManifest) -> None:
     _init_table()
+    _retry_on_schema_change(lambda: _upsert(manifest))
+
+
+def _upsert(manifest: ModelProviderManifest) -> None:
     conn = get_connection()
     try:
         conn.execute(
@@ -237,6 +255,10 @@ def upsert_provider_manifest(manifest: ModelProviderManifest) -> None:
 
 def list_provider_manifests(*, enabled_only: bool = False, limit: int = 256) -> list[ModelProviderManifest]:
     _init_table()
+    return _retry_on_schema_change(lambda: _list(enabled_only=enabled_only, limit=limit))
+
+
+def _list(*, enabled_only: bool, limit: int) -> list[ModelProviderManifest]:
     conn = get_connection()
     try:
         where = "WHERE enabled = 1" if enabled_only else ""
@@ -257,6 +279,10 @@ def list_provider_manifests(*, enabled_only: bool = False, limit: int = 256) -> 
 
 def get_provider_manifest(provider_name: str, model_name: str) -> ModelProviderManifest | None:
     _init_table()
+    return _retry_on_schema_change(lambda: _get(provider_name, model_name))
+
+
+def _get(provider_name: str, model_name: str) -> ModelProviderManifest | None:
     conn = get_connection()
     try:
         row = conn.execute(

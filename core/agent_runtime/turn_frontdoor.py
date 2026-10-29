@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from core.agent_runtime.fast_command_surface import deferred_turn_rows, record_deferred_turn_rows
@@ -2468,6 +2469,12 @@ def _explicit_path_in(text: str) -> str:
     return explicit_path_in(text)
 
 
+_CREATE_FOLDER_RE = re.compile(
+    r"\b(?:create|make|set\s+up|add|stick|put|new|mkdir|build)\b(?:\s+\S+){0,4}?\s+(?:folders?|director(?:y|ies))\b",
+    re.IGNORECASE,
+)
+
+
 def _execute_arbitrated_family(
     agent: Any,
     *,
@@ -2548,6 +2555,14 @@ def _execute_arbitrated_family(
             # leaves the arbiter's filler span as the "name". A filler is never a folder name:
             # clear it so the family falls open to the model turn instead of walking the disk
             # for folders named "ok" (measured live 2026-09-18).
+            argument = ""
+        # Measured 2026-10-28 on the owner's Mac: the 0.6B arbiter picked find_folder for "stick an
+        # empty folder called Invoices on my desktop" (a CREATE), and for "find the folder with my
+        # lisbon holiday pics" it returned the menu's own words, "the folder name", which then walked
+        # the disk. A create ask is never a search, and a name the person did not say is no name.
+        if _CREATE_FOLDER_RE.search(str(effective_input or "")):
+            return None
+        if argument and argument.lower() not in str(effective_input or "").lower():
             argument = ""
 
     if family == FAMILY_LIST_DIRECTORY and argument and not explicit_path:

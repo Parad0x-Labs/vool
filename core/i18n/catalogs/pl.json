@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} odpowiedź nie została dołączona z powodu zasad prywatności.} few {{n} odpowiedzi nie zostały dołączone z powodu zasad prywatności.} many {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.} other {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.}}",
     "online_access.open_setting": "Otwórz „Samodzielne łączenie z internetem”",
     "update.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie sprawdza aktualizacji.",
+    "update.checks_off": "Sprawdzanie aktualizacji wyłączone",
     "vcs.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie odczytuje kalendarzy z internetu. Kalendarze na tym komputerze nadal działają.",
     "chat.no_model.line_text": "Zanim VOOL będzie mógł odpowiadać, potrzebuje modelu AI. Konfiguracja zajmuje około dwóch minut.",
     "chat.no_model.reply_body": "Konfiguracja zajmuje około dwóch minut: otwórz konfigurację i wybierz, gdzie VOOL ma myśleć. Jeśli masz już na tym komputerze aplikację z modelami, na przykład Ollama, otwórz ją i zapytaj ponownie.",
@@ -2848,6 +2849,9 @@
     "live.upload": "Prześlij",
     "settings.row.live_browser.help": "Sprawdź każdą czynność przed wykonaniem. Skrypty stron są wyłączone. Do płatności używaj portfela.",
     "settings.row.live_browser.label": "Przeglądarka",
+    "settings.row.hide_name_on_screen.label": "Ukryj moje imię na ekranie",
+    "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
+    "settings.row.hide_name_on_screen.effect": "Działa natychmiast.",
     "settings.local_models.reading": "Szukam modeli na tym komputerze…",
     "settings.local_models.unavailable": "VOOL nie widzi teraz modeli na tym komputerze. Upewnij się, że Ollama jest otwarta, i otwórz ponownie Ustawienia.",
     "settings.local_models.disabled": "Modele lokalne są wyłączone na tym komputerze.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "Modele lokalne odpowiadają na tym komputerze, bez internetu i bez opłat za wiadomość.",
     "settings.local_models.mp_open": "Wybierz model lokalny",
     "settings.models.local_pick": "Na tym komputerze jest model. Otwórz go i naciśnij Użyj tego modelu, aby zacząć.",
+    "chat.author_refusal.lead": "Nie udało mi się na to odpowiedzieć.",
+    "chat.author_refusal.failed": "{models} tym razem nie odpowiedział poprawnie. Zapytaj ponownie za chwilę. Jeśli to się powtarza, wybierz inny model w Ustawienia → Modele i dostawcy.",
+    "chat.author_refusal.checking": "VOOL wciąż przygotowuje {model}. Na tym komputerze może to potrwać kilka minut. Zapytaj ponownie za chwilę.",
+    "chat.author_refusal.not_ready": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo wybierz model oznaczony jako Gotowy.",
+    "chat.author_refusal.not_ready_local_only": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL, a włączona jest opcja Tylko ten komputer, więc model w chmurze nie może odpowiedzieć zamiast niego. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo wybierz model oznaczony jako Gotowy.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL, a modele w chmurze są wyłączone. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo włącz model w chmurze.",
+    "chat.author_refusal.unresolved": "VOOL nie rozpoznał, który model napisał odpowiedź, więc ją wstrzymał. Zapytaj ponownie.",
+    "chat.author_refusal.not_running": "Na tym komputerze nie działa teraz żaden model. Otwórz aplikację z modelami (np. Ollama) albo wybierz model w chmurze w menu modeli.",
     "phone.account": "Konto portfela",
     "phone.approve_on_pc": "W tej wersji płatności i działania trzeba zatwierdzać na komputerze.",
     "phone.bot_approve_pc": "Boty nigdy nie mogą zatwierdzać płatności ani działań. Zatwierdzaj na komputerze.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "Zapisano na tym telefonie.",
     "phone.ui.save_file_failed": "Nie udało się zapisać tego pliku. Spróbuj ponownie."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

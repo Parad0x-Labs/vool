@@ -235,6 +235,7 @@ def _handle_prefs_list(inp, ctx):
             "setup_skipped_steps": p.setup_skipped_steps,
             "setup_dismissed": p.setup_dismissed,
             "speech_notice_dismissed": p.speech_notice_dismissed,
+            "hide_name_on_screen": p.hide_name_on_screen,
         },
         summary="User preferences",
     )

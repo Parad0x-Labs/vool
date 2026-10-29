@@ -245,7 +245,10 @@ def _rank_provider_candidates_internal(
         if _any_certified_local(unfiltered):
             base_ranked = unfiltered
     if normalized_role == "auto":
-        base_ranked = _context_eligible(base_ranked, required_context_tokens)
+        base_ranked = _context_eligible(
+            _ready_local_models_first(base_ranked, certified=_cached_ready),
+            required_context_tokens,
+        )
         return base_ranked[:resolved_swarm_size] if limit_to_swarm_size else base_ranked
 
     total = max(len(base_ranked), 1)
@@ -278,6 +281,41 @@ def _rank_provider_candidates_internal(
     rescored.sort(key=lambda item: (item[0], item[1].provider_name, item[1].model_name), reverse=True)
     ranked = _context_eligible([manifest for _, manifest in rescored], required_context_tokens)
     return ranked[:resolved_swarm_size] if limit_to_swarm_size else ranked
+
+
+def _cached_ready(manifest: ModelProviderManifest) -> bool:
+    # The fence's own short-TTL certification cache: auto ranking runs every turn.
+    try:
+        from core.final_answer_authorship import STATE_NOT_APPLICABLE, author_certification
+
+        certification = author_certification(manifest)
+        return certification.certified or certification.state == STATE_NOT_APPLICABLE
+    except Exception:
+        return True
+
+
+def _ready_local_models_first(
+    manifests: list[ModelProviderManifest], *, certified: Any
+) -> list[ModelProviderManifest]:
+    """Auto ranking with the same rule as every other role: a ready local model before an unready one.
+
+    The auto role returned the registry order untouched, so the turn's plan and fallback ladder
+    named the installed qwen2.5:7b (never made ready) first and the qwen3:8b the person pressed Use
+    this model on second (measured, cloud re-audit Oct 29: "selected_model": "qwen2.5:7b"). Only
+    the local slots are reordered, stably; remote candidates keep their places, and nothing moves
+    when no local model is ready.
+    """
+
+    local_slots = [index for index, manifest in enumerate(manifests) if manifest_is_local(manifest)]
+    locals_in_order = [manifests[index] for index in local_slots]
+    ready = [manifest for manifest in locals_in_order if certified(manifest)]
+    if not ready or len(ready) == len(locals_in_order):
+        return list(manifests)
+    reordered = ready + [manifest for manifest in locals_in_order if not certified(manifest)]
+    out = list(manifests)
+    for index, manifest in zip(local_slots, reordered):
+        out[index] = manifest
+    return out
 
 
 def resolve_provider_routing_plan(

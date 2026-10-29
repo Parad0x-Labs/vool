@@ -2,7 +2,7 @@
 
 Placed FIRST on a scratch daemon's ``PYTHONPATH`` it is imported by ``site`` at interpreter start.
 It does nothing unless ``VOOL_FIXTURE_TRANSPORT_MANIFEST`` names a JSON manifest. With a manifest
-it replaces ``urllib.request.urlopen`` -- the one call the governed door
+it replaces ``urllib.request.urlopen`` and every opener's ``open`` -- the calls the governed door
 (``core.remote_fetch_policy.open_remote``) makes after its veto, ledger and lifecycle work -- so
 every production seam above the socket runs unchanged while the bytes come from dated synthetic
 fixtures. Every host the manifest does not name is refused with ``URLError``: a scratch daemon
@@ -164,6 +164,38 @@ if _MANIFEST:
         return _FixtureResponse(_body_of(rule), url, status, headers)
 
     urllib.request.urlopen = _fixture_urlopen
+
+    # The checked public-only door (core.remote_turn_fetch.open_public_only) resolves the host
+    # itself and opens through its own pinned opener, never urllib.request.urlopen. Both seams are
+    # covered: a host the manifest names resolves to one fixed public address (nothing ever
+    # connects to it), and every opener's open() answers from the same rules as urlopen does.
+    import socket
+
+    _real_getaddrinfo = socket.getaddrinfo
+    _FIXTURE_PUBLIC_ADDRESS = "93.184.215.14"
+
+    def _fixture_getaddrinfo(host, port, *args, **kwargs):
+        name = str(host or "").lower().rstrip(".")
+        if name and name not in _LOOPBACK and any(
+            isinstance(rule, dict) and str(rule.get("host") or "").lower() == name
+            for rule in list(_load_manifest().get("rules") or [])
+        ):
+            return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (_FIXTURE_PUBLIC_ADDRESS, int(port or 0)))]
+        return _real_getaddrinfo(host, port, *args, **kwargs)
+
+    socket.getaddrinfo = _fixture_getaddrinfo
+
+    _real_opener_open = urllib.request.OpenerDirector.open
+
+    def _fixture_opener_open(self, fullurl, data=None, timeout=None, *args, **kwargs):
+        url = fullurl.full_url if hasattr(fullurl, "full_url") else str(fullurl)
+        if (urllib.parse.urlparse(url).hostname or "").lower() in _LOOPBACK:
+            if timeout is None:
+                return _real_opener_open(self, fullurl, data, *args, **kwargs)
+            return _real_opener_open(self, fullurl, data, timeout, *args, **kwargs)
+        return _fixture_urlopen(fullurl, timeout=timeout)
+
+    urllib.request.OpenerDirector.open = _fixture_opener_open
 
 
 # ---------------------------------------------------------------------------------------------

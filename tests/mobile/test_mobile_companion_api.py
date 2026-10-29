@@ -707,6 +707,41 @@ class TestJourneyActions:
         still_pending = _companion(claim, "approvals.pending", runtime=runtime)
         assert any(a["approval_id"] == token for a in _body(still_pending)["result"]["approvals"])
 
+    def test_hide_name_on_screen_reaches_the_phone_and_never_the_stored_approval(self, runtime, tmp_path, monkeypatch):
+        """The phone shows what the desktop shows: with "Hide my name on screen" on, a pending
+        approval naming a file in the home folder reads ~/... on the phone, the approval itself
+        keeps the real path, and the phone can still resolve it by id."""
+        from core import screen_privacy
+        from core.user_preferences import load_preferences, save_preferences
+
+        home = tmp_path / "rivermaple"
+        monkeypatch.setattr(screen_privacy, "_machine_identity", lambda: (str(home), ("rivermaple",), ()))
+        session = "chat-mobile-mask"
+        set_active_mode(session, "manual", project_id="", client_turn_id="turn-mask")
+        decision = decide_tool_call(
+            intent="workspace.write_file",
+            arguments={"path": "notes/rivermaple-plan.txt", "content": "x"},
+            task_id="turn-mask",
+            source_context={"runtime_session_id": session, "operating_mode": "manual", "workspace_root": str(home)},
+        )
+        token = decision.approval_request["approval_id"]
+        claim = _body(_pair(runtime)[0])
+
+        def shown() -> str:
+            rows = _body(_companion(claim, "approvals.pending", runtime=runtime))["result"]["approvals"]
+            return json.dumps(next(a for a in rows if a["approval_id"] == token))
+
+        assert "rivermaple" in shown()                       # off by default: the real text
+        prefs = load_preferences()
+        prefs.hide_name_on_screen = True
+        save_preferences(prefs)
+        masked = shown()
+        assert "rivermaple" not in masked.lower() and "\\u2022\\u2022\\u2022" in masked
+        import core.mode_permission_policy as mpp
+        assert "rivermaple" in json.dumps(mpp._APPROVALS[token], default=str)   # stored bytes unchanged
+        resolved = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
+        assert resolved.status == 200 and _body(resolved)["result"]["approval"]["status"] == "denied"
+
     def test_notifications_poll_classifies_completion_and_failure(self, runtime):
         from core.runtime_task_events import emit_runtime_event
 

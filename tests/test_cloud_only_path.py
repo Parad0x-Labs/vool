@@ -238,7 +238,7 @@ def test_the_authorship_refusal_is_unchanged_while_the_local_model_runs(home, mo
         eligible=False, author_role="final_answer", task_class="general",
         selected_model=local_id, reason=REASON_BLOCKED_BEFORE_GENERATION,
     )
-    assert "run the local model tool certification" in decision.refusal_text()
+    assert "press Use this model" in decision.refusal_text()
 
 
 # --- setup -------------------------------------------------------------------------------------

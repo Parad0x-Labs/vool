@@ -19,24 +19,24 @@ from core.execution.constants import (
     content_is_a_brief,
     elliptical_drive_followup,
     largest_kind,
+    machine_described_file_intent,
     machine_diagnostics_intent,
     machine_disk_scope,
     machine_display_intent,
-    machine_described_file_intent,
     machine_file_search_intent,
-    machine_folder_size_intent,
-    machine_kind_listing_intent,
-    machine_named_folder_contents_intent,
-    machine_open_newest_intent,
-    machine_send_to_phone_intent,
-    machine_place_file_read_path,
     machine_folder_audit_intent,
     machine_folder_search_intent,
+    machine_folder_size_intent,
     machine_host_state_intent,
+    machine_kind_listing_intent,
     machine_largest_intent,
     machine_live_load_intent,
+    machine_named_folder_contents_intent,
+    machine_open_newest_intent,
     machine_path_listing_intent,
+    machine_place_file_read_path,
     machine_process_sort,
+    machine_send_to_phone_intent,
     resolve_drive_scope,
     resolve_named_folder_under_home,
 )
@@ -1554,7 +1554,15 @@ _FILE_KIND_SUFFIXES = {
     "pdf": (".pdf",),
     "video": (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"),
     "audio": (".mp3", ".m4a", ".wav", ".aac", ".flac", ".aiff"),
+    # A type the user said by name ("any jpg named day4") keeps only that type.
+    "jpg": (".jpg", ".jpeg"), "png": (".png",), "heic": (".heic", ".heif"), "gif": (".gif",),
+    "mp4": (".mp4",), "mov": (".mov",), "mp3": (".mp3",),
 }
+
+
+def _has_every_word(path: str, words: list[str]) -> bool:
+    tokens = re.findall(r"[0-9a-z]+", os.path.basename(path).lower())
+    return all(any(token.startswith(word) for token in tokens) for word in words)
 
 
 def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context: dict | None) -> Any:
@@ -1583,10 +1591,34 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
         observation = details.get("observation") or {}
         timed_out = timed_out or bool(observation.get("timed_out"))
         truncated = truncated or bool(observation.get("truncated"))
-        matches.extend(path for path in details.get("matches") or [] if path not in matches)
+        found = list(details.get("matches") or [])
+        words = re.findall(r"[0-9a-z]+", name.lower())
+        if not found and len(words) >= 2:
+            # "the photo of the sunset at the beach" is "sunset at the beach.jpg": the words, not in a
+            # row. Walk for the longest word, keep files whose name has every word from a word start.
+            longest = max(words, key=len)
+            wider = execute_authorized_runtime_tool("machine.find_file", {"name": longest}, source_context=dict(source_context or {}))
+            if wider is not None and getattr(wider, "ok", False):
+                wider_details = getattr(wider, "details", None) or {}
+                wider_observation = wider_details.get("observation") or {}
+                timed_out = timed_out or bool(wider_observation.get("timed_out"))
+                truncated = truncated or bool(wider_observation.get("truncated"))
+                found = [path for path in wider_details.get("matches") or [] if _has_every_word(path, words)]
+        matches.extend(path for path in found if path not in matches)
     suffixes = _FILE_KIND_SUFFIXES.get(kind)
     if suffixes:
         matches = [path for path in matches if path.lower().endswith(suffixes)]
+    # The tool also matches inside a word, so 'day4' finds holiday4.jpg. When some files have the
+    # name from a word start (Day 4.png, day4-final.jpg), those are the ones asked for.
+    from core.runtime_execution_tools import _squeezed_word_match
+
+    def _from_word_start(path: str) -> bool:
+        base = os.path.basename(path).lower()
+        return any(_squeezed_word_match(re.sub(r"[^0-9a-z]", "", name.lower()), base) for name in names)
+
+    word_start = [path for path in matches if _from_word_start(path)]
+    inside_only = bool(matches) and not word_start
+    matches = word_start or matches
     where = f"~/{place}" if place else "Desktop, Downloads and Documents"
     elsewhere = False
     if place:
@@ -1596,17 +1628,25 @@ def find_named_files(search: tuple[str, tuple[str, ...], str], *, source_context
         elsewhere = bool(matches) and not in_place
         matches = in_place or matches
     asked = " or ".join(f"'{name}'" for name in names)
-    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(kind, "file")
+    noun = {"image": "picture", "pdf": "PDF", "video": "video", "audio": "recording"}.get(kind) or (
+        f"{kind.upper()} file" if kind else "file")
     if matches:
         plural = "s" if len(matches) != 1 else ""
         if elsewhere and truncated:
             head = f"None of the files I checked for {asked} is a {noun} in {where}. Other {noun}s that match:"
         elif elsewhere:
             head = f"Nothing in {where}, but I found {len(matches)} {noun}{plural} matching {asked} elsewhere:"
+        elif inside_only:
+            # "day4" asked, only holiday4.jpg there: say it is not the name, rather than "Found 1".
+            head = f"No {noun} named {asked} in {where}. These have it inside a longer name:"
+        elif truncated:
+            head = f"Many {noun}s match {asked}. Here are the first {min(len(matches), 20)}:"
         else:
             head = f"Found {len(matches)} {noun}{plural} matching {asked}:"
         lines = [head]
         lines.extend(f"- {path}" for path in matches[:20])
+        if len(matches) > 20 and not truncated:
+            lines.append(f"...and {len(matches) - 20} more.")
     elif truncated:
         lines = [f"So many files match {asked} that the search stopped before finding a {noun} in {where}; "
                  "give a longer part of the name."]
@@ -2470,6 +2510,11 @@ def maybe_handle_direct_machine_read_request(
     file_search = None if email_owns_folder_reference else machine_file_search_intent(user_input)
     if file_search is not None:
         found = find_named_files(file_search, source_context=source_context)
+        if found is not None and getattr(found, "ok", False) and not (getattr(found, "details", None) or {}).get("matches"):
+            # Searched as one name, "the photos from my lisbon trip" finds nothing; read as a description
+            # it finds the Holiday Lisbon 2026 pictures.
+            described = machine_described_file_intent(user_input)
+            found = (find_described_files(described, source_context=source_context) if described else None) or found
         if found is not None:
             return _machine_tool_fast_path_result(
                 agent,

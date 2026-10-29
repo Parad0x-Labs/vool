@@ -23,9 +23,9 @@ from core.execution.constants import (
     image_generation_intent,
     machine_diagnostics_intent,
     machine_file_search_intent,
-    machine_kind_listing_intent,
     machine_folder_search_intent,
     machine_host_state_intent,
+    machine_kind_listing_intent,
     machine_path_listing_intent,
 )
 from core.retrieval_constraints import analyze_retrieval_constraints
@@ -230,6 +230,10 @@ _CONVERSATIONAL_OPENING_RE = re.compile(
     r"|how\s+do\s+you\s+feel\b"
     r"|what(?:'s|\s+is)\s+a\s+sensible\b"
     r"|explain\s+(?:this|that|why|conceptually)\b"
+    # "how do i stop my downloads folder from filling up" asks for advice. Measured on the Mac
+    # 2026-10-28: as a near-miss on "folder" the arbiter picked find_folder and listed real folders.
+    r"|how\s+(?:do|can|should|would)\s+(?:i|you|we|one)\b"
+    r"|how\s+to\b"
     r")",
     re.IGNORECASE,
 )

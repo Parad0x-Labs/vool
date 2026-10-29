@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {תשובה אחת לא נכללה בגלל מדיניות הפרטיות.} two {שתי תשובות לא נכללו בגלל מדיניות הפרטיות.} other {{n} תשובות לא נכללו בגלל מדיניות הפרטיות.}}",
     "online_access.open_setting": "פתיחת „יציאה לאינטרנט באופן עצמאי”",
     "update.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא בודק עדכונים.",
+    "update.checks_off": "בדיקת עדכונים כבויה",
     "vcs.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא קורא לוחות שנה מהאינטרנט. לוחות שנה במחשב הזה ממשיכים לעבוד.",
     "chat.no_model.line_text": "VOOL צריך מודל בינה מלאכותית כדי לענות. ההגדרה לוקחת בערך שתי דקות.",
     "chat.no_model.reply_body": "ההגדרה לוקחת בערך שתי דקות: פתחו את ההגדרה ובחרו איפה VOOL יחשוב. אם כבר יש לכם במחשב הזה אפליקציית מודלים, כמו Ollama, פתחו אותה ושאלו שוב.",
@@ -2848,6 +2849,9 @@
     "live.upload": "להעלות",
     "settings.row.live_browser.help": "בדקו כל פעולה לפני ביצועה. סקריפטים בדפים כבויים. לתשלום השתמשו בארנק.",
     "settings.row.live_browser.label": "דפדפן",
+    "settings.row.hide_name_on_screen.label": "הסתרת השם שלי על המסך",
+    "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
+    "settings.row.hide_name_on_screen.effect": "חל מיד.",
     "settings.local_models.reading": "מחפשים מודלים במחשב הזה…",
     "settings.local_models.unavailable": "VOOL לא רואה כרגע את המודלים במחשב הזה. ודאו ש-Ollama פתוח, ואז פתחו שוב את ההגדרות.",
     "settings.local_models.disabled": "מודלים מקומיים כבויים במחשב הזה.",
@@ -2874,6 +2878,14 @@
     "settings.local_models.mp_intro": "מודלים מקומיים עונים במחשב הזה, בלי אינטרנט ובלי עלות להודעה.",
     "settings.local_models.mp_open": "בחירת מודל מקומי",
     "settings.models.local_pick": "יש מודל במחשב הזה. פתחו אותו ולחצו על “השתמשו במודל הזה” כדי להתחיל.",
+    "chat.author_refusal.lead": "לא הצלחתי לענות על זה.",
+    "chat.author_refusal.failed": "{models} לא ענה כראוי הפעם. שאלו שוב בעוד רגע. אם זה חוזר, בחרו מודל אחר בהגדרות → דגמים וספקים.",
+    "chat.author_refusal.checking": "VOOL עדיין מכין את {model}. במחשב הזה זה יכול לקחת כמה דקות. שאלו שוב בעוד רגע.",
+    "chat.author_refusal.not_ready": "{model} עדיין לא מוכן לענות ב-VOOL. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או בחרו מודל שמסומן “מוכן”.",
+    "chat.author_refusal.not_ready_local_only": "{model} עדיין לא מוכן לענות ב-VOOL, ו“מחשב זה בלבד” מופעל, כך שמודל ענן לא יכול לענות במקומו. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או בחרו מודל שמסומן “מוכן”.",
+    "chat.author_refusal.not_ready_no_cloud": "{model} עדיין לא מוכן לענות ב-VOOL, ומודלי הענן כבויים. פתחו הגדרות → דגמים וספקים → דגמים מקומיים ולחצו על “השתמשו במודל הזה”, או הפעילו מודל ענן.",
+    "chat.author_refusal.unresolved": "VOOL לא הצליח לדעת איזה מודל כתב את התשובה, ולכן עיכב אותה. שאלו שוב.",
+    "chat.author_refusal.not_running": "אין כרגע מודל שרץ במחשב הזה. פתחו את אפליקציית המודלים שלכם (למשל Ollama), או בחרו מודל ענן בתפריט המודלים.",
     "phone.account": "חשבון הארנק",
     "phone.approve_on_pc": "בגרסה זו יש לאשר תשלומים ופעולות במחשב.",
     "phone.bot_approve_pc": "בוטים לעולם אינם יכולים לאשר תשלומים או פעולות. יש לאשר במחשב.",
@@ -3103,12 +3115,13 @@
     "phone.ui.saved_on_phone": "נשמר בטלפון הזה.",
     "phone.ui.save_file_failed": "לא ניתן לשמור את הקובץ. נסה שוב."
   },
-  "source_catalog_sha256": "945c906ebc1ea48e47ad34e3c1827205e701fbe97e9cf30e6149670ca83f8e0a",
+  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
