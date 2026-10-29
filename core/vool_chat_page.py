@@ -13090,7 +13090,7 @@ function renderSkills(d, query) {
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug })));
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
   if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
   skills.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
@@ -13109,6 +13109,17 @@ function renderSkills(d, query) {
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
+    // Each skill turns on and off on its own, through the one disable store the skill picker
+    // reads (POST /api/skills/enable), with the same status line and button as a plugin card.
+    if (typeof s.enabled === 'boolean') {
+      const act = document.createElement('div'); act.className = 'p-actions';
+      const off = s.enabled === false;
+      const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
+      st.textContent = off ? pageT('plugins.status.off', 'Off') : pageT('plugins.status.on', 'On');
+      const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
+      tg.addEventListener('click', () => toggleSkill(s.name, off));
+      act.appendChild(st); act.appendChild(tg); card.appendChild(act);
+    }
     // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
     if (d.skill_codex_open === true && s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
     body.appendChild(card);
@@ -13119,6 +13130,22 @@ async function togglePlugin(id, enable) {
   if (!id) return;
   try {
     const r = await fetch('/api/plugins/enable', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, enabled: !!enable }),
+    });
+    const d = await r.json();
+    if (d && d.ok) {
+      _pluginCatalog = await (await fetch('/api/plugins')).json();
+      const s = document.getElementById('pluginsSearch');
+      renderPluginPanel(_pluginCatalog, s ? s.value : '');
+    }
+  } catch (e) { /* fail-soft: leave the card as-is */ }
+}
+
+async function toggleSkill(id, enable) {
+  if (!id) return;
+  try {
+    const r = await fetch('/api/skills/enable', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: id, enabled: !!enable }),
     });
