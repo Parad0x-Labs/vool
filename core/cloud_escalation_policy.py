@@ -130,6 +130,9 @@ class CloudEscalationPolicy:
     # the active provider from which credential slot is keyed, defaulting to OpenRouter). Lets a
     # direct-provider model route + meter on the correct lane instead of always OpenRouter.
     provider: str = ""
+    # The owner said `cloud off`. Saving or retrying a key never turns the free lane back on over
+    # it; only an explicit turn-on (set_free_cloud_enabled(True), `cloud ask|auto`) lifts it.
+    cloud_off_by_owner: bool = False
 
     def normalized(self) -> CloudEscalationPolicy:
         """Coerce to valid values, failing safe: unknown mode -> off, bad cap -> default."""
@@ -171,6 +174,8 @@ class CloudEscalationPolicy:
             model=model,
             auto_free_model=auto_free_model,
             provider=provider,
+            # A free lane that is on means cloud is not off, whichever door turned it on.
+            cloud_off_by_owner=self.cloud_off_by_owner is True and self.free_cloud_enabled is not True,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -183,6 +188,7 @@ class CloudEscalationPolicy:
             "model": p.model,
             "auto_free_model": p.auto_free_model,
             "provider": p.provider,
+            "cloud_off_by_owner": p.cloud_off_by_owner,
         }
 
     @classmethod
@@ -196,6 +202,7 @@ class CloudEscalationPolicy:
             model=data.get("model", ""),
             auto_free_model=data.get("auto_free_model", "auto"),
             provider=data.get("provider", ""),
+            cloud_off_by_owner=data.get("cloud_off_by_owner", False) is True,
         ).normalized()
 
 
@@ -431,13 +438,26 @@ def record_escalation(*, now: float | None = None) -> int:
 
 
 def set_mode(mode: str) -> CloudEscalationPolicy:
-    """Convenience: change only the mode, keeping cap/on_cap_reached."""
-    return save_policy(replace(load_policy(), mode=mode))
+    """Convenience: change only the mode, keeping cap/on_cap_reached. ``ask``/``auto`` are the
+    owner turning cloud on, so they lift a standing `cloud off`; ``off`` leaves the mark to
+    :func:`turn_cloud_off`."""
+    current = load_policy()
+    lifted = False if mode in {MODE_ASK, MODE_AUTO} else current.cloud_off_by_owner
+    return save_policy(replace(current, mode=mode, cloud_off_by_owner=lifted))
 
 
 def set_free_cloud_enabled(enabled: bool) -> CloudEscalationPolicy:
-    """Enable or disable the zero-cost cloud lane without authorizing paid inference."""
-    return save_policy(replace(load_policy(), free_cloud_enabled=bool(enabled)))
+    """Enable or disable the zero-cost cloud lane without authorizing paid inference. Turning it
+    on is an explicit owner choice and lifts a standing `cloud off`."""
+    current = load_policy()
+    lifted = False if enabled else current.cloud_off_by_owner
+    return save_policy(replace(current, free_cloud_enabled=bool(enabled), cloud_off_by_owner=lifted))
+
+
+def turn_cloud_off() -> CloudEscalationPolicy:
+    """The owner's `cloud off`: escalation off, the free lane off, and a mark that keeps it off
+    when a key is saved or retried later."""
+    return save_policy(replace(load_policy(), mode=MODE_OFF, free_cloud_enabled=False, cloud_off_by_owner=True))
 
 
 __all__ = [
@@ -458,6 +478,7 @@ __all__ = [
     "record_escalation",
     "save_policy",
     "set_free_cloud_enabled",
+    "turn_cloud_off",
     "set_mode",
     "used_today",
 ]

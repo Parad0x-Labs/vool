@@ -625,8 +625,10 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
         )
     # Make this provider the active cloud lane and register it now, so a Settings save goes live
     # immediately (resetting the model to the provider's default only when switching providers).
-    bind_saved_cloud_key(provider_id)
+    kept_off = bind_saved_cloud_key(provider_id)
     saved = {"name": name, "provider": provider_id, "connected": has_credential(name)}
+    if kept_off:
+        saved.update({"cloud_kept_off": True, "cloud_kept_off_note": CLOUD_KEPT_OFF_NOTE})
     if usepod_binding is not None:
         # Non-secret facts about what was bound; the fingerprint identifies the binding, not the token.
         saved.update(
@@ -649,12 +651,16 @@ def cloud_key_save_refusal() -> dict | None:
     return _cred_pin_lock.pin_write_refusal("", owner_local=True)
 
 
-def bind_saved_cloud_key(provider_id: str) -> None:
+def bind_saved_cloud_key(provider_id: str) -> bool:
     """Make ``provider_id`` the active cloud lane and register its BYOK lane now, so a stored key goes
     live immediately (resetting the model to the provider's default only when switching providers).
 
     Moved out of set_credentials_authority unchanged, so the Settings credentials door and the
-    credential intake flow bind a saved key identically. Best-effort by contract, as it was inline."""
+    credential intake flow bind a saved key identically. Best-effort by contract, as it was inline.
+
+    An OpenRouter key turns the free lane on, unless the owner said `cloud off`: then it stays off
+    and this returns True, so the door that saved the key can offer to turn cloud on in one line."""
+    kept_off = False
     with contextlib.suppress(Exception):
         from dataclasses import replace
 
@@ -666,13 +672,14 @@ def bind_saved_cloud_key(provider_id: str) -> None:
         prev = active_provider(str(cep.load_policy().provider or "")) or "openrouter"
         keep_model = cep.load_policy().model if provider_id == prev else ""
         current_policy = cep.load_policy()
+        kept_off = provider_id == "openrouter" and current_policy.cloud_off_by_owner
         cep.save_policy(
             replace(
                 current_policy,
                 provider=provider_id,
                 model=keep_model,
                 free_cloud_enabled=(
-                    True if provider_id == "openrouter" else current_policy.free_cloud_enabled
+                    (not kept_off) if provider_id == "openrouter" else current_policy.free_cloud_enabled
                 ),
             )
         )
@@ -691,6 +698,10 @@ def bind_saved_cloud_key(provider_id: str) -> None:
             from core.runtime_provider_defaults import refresh_path_token_lanes
 
             refresh_path_token_lanes(provider_id)
+    return kept_off
+
+
+CLOUD_KEPT_OFF_NOTE = "Key saved. Cloud stays off, as you set it."
 
 
 def _commit_operator_pair(provider_id: str, secret: str, endpoint: str, runtime, *, auth: str = "") -> ApiResponse | None:

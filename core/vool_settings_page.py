@@ -2621,6 +2621,26 @@ function keyFamilyOf(name) {
 }
 function isOperatorKey(name) { const f = keyFamilyOf(name); return f !== 'managed' && f !== 'quarantine'; }
 
+/* "Key saved. Cloud stays off, as you set it." with the one button that turns free cloud on: the same
+   switch as choosing "No default — VOOL chooses" on OpenRouter, pressed by the person. */
+function cloudKeptOffOffer() {
+  const line = el('div', 'inline cloud-kept-off');
+  const said = el('span', 'subtle', 'Key saved. Cloud stays off, as you set it. Turning it on lets chats use free OpenRouter models, which means they leave this computer.');
+  const on = el('button', 'btn cloud-kept-off-on', 'Turn cloud on'); on.type = 'button';
+  on.addEventListener('click', async () => {
+    on.disabled = true;
+    try {
+      const r = await fetch('/api/cloud/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'auto', provider: 'openrouter' }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) throw new Error((j && (j.message || j.error)) || ('HTTP ' + r.status));
+      said.textContent = 'Cloud is on: chats can use free OpenRouter models.';
+      on.remove();
+    } catch (e) { said.textContent = 'Cloud is still off — ' + (e && e.message ? e.message : e); on.disabled = false; }
+  });
+  line.appendChild(said); line.appendChild(on);
+  return line;
+}
+
 function widgetKeys(stack) {
   const src = state.sources['/api/settings/credentials'];
   const err = state.sourceErr['/api/settings/credentials'];
@@ -2947,6 +2967,7 @@ function widgetKeys(stack) {
       const note = tfmt('keys.stored_sealed', 'Stored, sealed on this machine after {label} accepted the key.', { label: label }) + use + credit + bound;
       setSt('saved', note);
       widgetCache.keySaveNote = note;
+      widgetCache.cloudKeptOff = done.j.cloud_kept_off === true;
       await readSource('/api/settings/credentials');
       renderPane();
     } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
@@ -3079,6 +3100,9 @@ function widgetKeys(stack) {
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);
   stack.appendChild(st);
+  /* The person said "cloud off" earlier, so saving an OpenRouter key kept cloud off. One plain line
+     says so and offers the turn-on; nothing goes online unless they press it. */
+  if (widgetCache.cloudKeptOff) { widgetCache.cloudKeptOff = false; stack.appendChild(cloudKeptOffOffer()); }
   /* The two save buttons do different things, and the note says both (it used to say "only a verified
      key is stored" right under "Save for later (unverified)"). */
   stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
@@ -3125,7 +3149,7 @@ function widgetKeys(stack) {
           const r = await fetch('/api/intake/quarantine/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_id: row.provider_id }) });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
-          if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
+          if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); widgetCache.cloudKeptOff = j.cloud_kept_off === true; await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
           else qst.textContent = quarantineOutcome(row.provider_label || row.provider_id, String(j.outcome || ''));
         } catch (e) { qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
       });

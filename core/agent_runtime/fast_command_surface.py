@@ -1687,11 +1687,12 @@ def maybe_handle_cloud_command(user_input: str, *, owner_local: bool = False) ->
 
     prefix = ""
     if arg in (cep.MODE_OFF, cep.MODE_ASK, cep.MODE_AUTO):
-        cep.set_mode(arg)
         if arg == cep.MODE_OFF:
             # Off means no cloud at all: the free lane (`cloud model auto`) sends chats online
-            # too, so it goes off with the rest.
-            cep.set_free_cloud_enabled(False)
+            # too, so it goes off with the rest, and stays off when a key is saved later.
+            cep.turn_cloud_off()
+        else:
+            cep.set_mode(arg)
         # Verify the change actually persisted before claiming success: set_mode/save_policy
         # fail soft (a store write can fail without raising), so re-read and confirm rather
         # than report a mode change that never hit disk.

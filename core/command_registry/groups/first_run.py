@@ -776,11 +776,12 @@ def _intake_complete_asserted(session: _IntakeSession, descriptor):
         return _intake_fault("secure_storage_unavailable", f"secure storage did not complete ({type(exc).__name__}); the key was not bound", 503)
     finally:
         session.value = ""
-    bind_saved_cloud_key(descriptor.provider_id)
+    kept_off = bind_saved_cloud_key(descriptor.provider_id)
     from core import credential_store
 
     return HandlerOk(
         data={
+            **_cloud_kept_off_facts(kept_off),
             "slot": descriptor.credential_slot,
             "label": descriptor.label,
             "kind": descriptor.kind,
@@ -793,6 +794,16 @@ def _intake_complete_asserted(session: _IntakeSession, descriptor):
         },
         summary="stored as an unconfirmed custom endpoint; the first request judges the key",
     )
+
+
+def _cloud_kept_off_facts(kept_off: bool) -> dict:
+    """What a key save answers when the owner's `cloud off` kept the free lane off: a flag and the
+    one plain line the page shows beside its offer to turn cloud on."""
+    if not kept_off:
+        return {}
+    from core.web.api.registry_authorities import CLOUD_KEPT_OFF_NOTE
+
+    return {"cloud_kept_off": True, "cloud_kept_off_note": CLOUD_KEPT_OFF_NOTE}
 
 
 def _intake_complete(inp, ctx):
@@ -914,10 +925,11 @@ def _intake_complete(inp, ctx):
         return _intake_fault("secure_storage_unavailable", f"secure storage did not complete ({type(exc).__name__}); the key was not bound", 503)
     finally:
         session.value = ""  # the raw value's last stop: drop it (provider intake law)
+    kept_off = False
     if descriptor.kind == "llm_cloud":
         from core.web.api.registry_authorities import bind_saved_cloud_key
 
-        bind_saved_cloud_key(descriptor.provider_id)
+        kept_off = bind_saved_cloud_key(descriptor.provider_id)
     return HandlerOk(
         data={
             "slot": descriptor.credential_slot,
@@ -929,6 +941,7 @@ def _intake_complete(inp, ctx):
             "binding": binding.to_dict(),
             "account_state": str(outcome.account_state),
             **path_facts,
+            **_cloud_kept_off_facts(kept_off),
         },
         summary="verified key stored in secure local storage and bound",
     )
@@ -1017,13 +1030,14 @@ def _intake_quarantine_retry(inp, ctx):
             )
         except (StoreWriteTimeoutError, StorageUnavailableError, StorageConflictError, SecureStorageError, MalformedBindingIndexError) as exc:
             return _intake_fault("secure_storage_unavailable", f"promotion did not complete ({type(exc).__name__}); the key stays quarantined", 503)
+        kept_off = False
         if descriptor.kind == "llm_cloud":
             from core.web.api.registry_authorities import bind_saved_cloud_key
 
-            bind_saved_cloud_key(descriptor.provider_id)
+            kept_off = bind_saved_cloud_key(descriptor.provider_id)
         return HandlerOk(
             data={"outcome": outcome.status, "promoted": True, "binding": binding.to_dict(),
-                  "account_state": outcome.account_state},
+                  "account_state": outcome.account_state, **_cloud_kept_off_facts(kept_off)},
             summary="the key verified and was promoted out of quarantine",
         )
     # keep the row honest about the newest attempt

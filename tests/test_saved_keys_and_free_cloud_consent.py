@@ -206,8 +206,74 @@ def test_cloud_off_says_which_part_did_not_save(home, monkeypatch):
     from core.agent_runtime.fast_command_surface import maybe_handle_cloud_command
 
     cep.set_free_cloud_enabled(True)
-    monkeypatch.setattr(cep, "set_free_cloud_enabled", lambda enabled: cep.load_policy())
+    # Only the mode lands; the free lane write is lost.
+    monkeypatch.setattr(cep, "turn_cloud_off", lambda: cep.set_mode(cep.MODE_OFF))
     reply = maybe_handle_cloud_command("cloud off", owner_local=True)
 
     assert "free cloud lane off" in reply and "can still answer" in reply
     assert "unchanged" not in reply
+
+
+# ---- "cloud off" sticks through a key save ------------------------------------------------------
+
+
+def test_cloud_off_survives_an_openrouter_key_save_and_offers_one_line(home):
+    from core import cloud_escalation_policy as cep
+    from core.agent_runtime.fast_command_surface import maybe_handle_cloud_command
+    from core.web.api.registry_authorities import CLOUD_KEPT_OFF_NOTE, bind_saved_cloud_key
+
+    maybe_handle_cloud_command("cloud off", owner_local=True)
+    assert _policy().cloud_off_by_owner is True
+
+    assert bind_saved_cloud_key("openrouter") is True
+    policy = _policy()
+    assert policy.free_cloud_enabled is False and policy.cloud_off_by_owner is True
+    assert policy.mode == cep.MODE_OFF
+    assert CLOUD_KEPT_OFF_NOTE == "Key saved. Cloud stays off, as you set it."
+
+    from core.command_registry.groups.first_run import _cloud_kept_off_facts
+
+    assert _cloud_kept_off_facts(True) == {"cloud_kept_off": True, "cloud_kept_off_note": CLOUD_KEPT_OFF_NOTE}
+    assert _cloud_kept_off_facts(False) == {}
+
+
+def test_without_cloud_off_an_openrouter_key_save_still_turns_free_cloud_on(home):
+    from core.web.api.registry_authorities import bind_saved_cloud_key
+
+    assert bind_saved_cloud_key("openrouter") is False
+    assert _policy().free_cloud_enabled is True
+
+
+def test_an_explicit_turn_on_lifts_cloud_off(home):
+    from core import cloud_escalation_policy as cep
+    from core.agent_runtime.fast_command_surface import maybe_handle_cloud_command, maybe_handle_cloud_model_command
+    from core.web.api.registry_authorities import bind_saved_cloud_key
+
+    maybe_handle_cloud_command("cloud off", owner_local=True)
+    reply = maybe_handle_cloud_model_command("cloud model auto --online", owner_local=True)
+    assert reply.startswith("Cloud model set to auto")
+    assert _policy().cloud_off_by_owner is False
+
+    maybe_handle_cloud_command("cloud off", owner_local=True)
+    cep.set_mode(cep.MODE_ASK)
+    assert _policy().cloud_off_by_owner is False
+    assert bind_saved_cloud_key("openrouter") is False and _policy().free_cloud_enabled is True
+
+
+def test_cloud_off_mark_round_trips_through_storage(home):
+    from core import cloud_escalation_policy as cep
+
+    cep.turn_cloud_off()
+    stored = json.loads((home / "cloud_escalation.json").read_text()) if (home / "cloud_escalation.json").exists() else None
+    assert cep.load_policy().cloud_off_by_owner is True
+    if stored is not None:
+        assert stored.get("cloud_off_by_owner") is True or stored.get("policy", {}).get("cloud_off_by_owner") is True
+
+
+def test_settings_shows_the_kept_off_line_with_its_turn_on():
+    page = (ROOT / "core" / "vool_settings_page.py").read_text(encoding="utf-8")
+    offer = page[page.index("function cloudKeptOffOffer()"):page.index("function widgetKeys(stack)")]
+    assert "Key saved. Cloud stays off, as you set it." in offer and "'Turn cloud on'" in offer
+    assert "body: JSON.stringify({ model: 'auto', provider: 'openrouter' })" in offer
+    assert "widgetCache.cloudKeptOff = done.j.cloud_kept_off === true;" in page
+    assert "widgetCache.cloudKeptOff = j.cloud_kept_off === true;" in page
