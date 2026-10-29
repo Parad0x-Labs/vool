@@ -143,6 +143,42 @@ def test_sent_folder_reconciliation_finds_a_folded_copy_of_our_id(monkeypatch):
     assert found.ok and found.found, found.message
 
 
+def test_the_wire_message_keeps_a_long_message_id_on_its_header_line(monkeypatch):
+    """The sending side: a long reserved id is not folded off its header line on the wire, so a
+    receiver reading the raw header gets exactly the id we reserved (the flaky served test of R10)."""
+    from email import policy as mail_policy
+    from email.parser import BytesParser
+
+    blob = {"host": "smtp.example.com", "port": 465, "username": "me@example.com", "password": "pw",
+            "from_addr": "me@orchard-farm.example.test"}
+    credential_store.store_credential("email.smtp.default", json.dumps(blob), label="test smtp")
+    sent: list[bytes] = []
+
+    class FakeSMTP:
+        def login(self, *_a):
+            pass
+
+        def send_message(self, message, *_a, **_k):
+            # What smtplib puts on the wire: the message flattened under its own policy.
+            sent.append(message.as_bytes(policy=message.policy.clone(linesep="\r\n")))
+            return {}
+
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(email_tools, "_smtp_connect", lambda *_a, **_k: FakeSMTP())
+    # The served test's real reserved id: it fits on a line of its own but not beside "Message-ID: ",
+    # which is exactly when the default policy folds it.
+    reserved_id = "<179328941894.10714.16952925255350836330@orchard-farm.example.test>"
+    result = email_tools.send_email(to="you@example.com", subject="s", body="b",
+                                    message_id_override=reserved_id)
+    assert result.ok, result.message
+    reserved = result.details["message_id"]
+    assert reserved == reserved_id and len(f"Message-ID: {reserved}") > 78 >= len(f" {reserved}")
+    wire = BytesParser(policy=mail_policy.default).parsebytes(sent[0])
+    assert str(wire["Message-ID"]) == reserved
+
+
 def test_search_results_report_the_canonical_id(monkeypatch):
     _store_imap()
     _fake_imap(monkeypatch, {b"1": _folded(f"From: a@example.com\nSubject: s\nMessage-ID:\n {CHILD}")})

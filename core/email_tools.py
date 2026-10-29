@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import email as email_lib
+import email.policy
 import email.utils
 import imaplib
 import ipaddress
@@ -72,6 +73,9 @@ def _header_safe(value: Any) -> str:
     """Collapse CR/LF (and trim) out of a header value so it can neither inject extra headers nor
     raise a ValueError when assigned to an EmailMessage."""
     return " ".join(str(value or "").splitlines()).strip()
+
+
+_WIRE_POLICY = email.policy.default.clone(max_line_length=998)
 
 
 def _strip_comments(text: str) -> str:
@@ -448,7 +452,10 @@ def send_email(
     message_id = (normalize_message_id(_header_safe(message_id_override))
                   or _generate_message_id(creds.get("from_addr") or creds.get("username") or ""))
     try:
-        message = EmailMessage()
+        # Header lines up to RFC 5322's 998-character limit: at the default 78 a long generated
+        # Message-ID is folded onto its own line ('Message-ID:\n <id>'), and a receiver reading the
+        # raw value back gets ' <id>', which no longer matches the id we reserved (audit R10).
+        message = EmailMessage(policy=_WIRE_POLICY)
         message["From"] = _header_safe(creds.get("from_addr") or creds.get("username") or "")
         message["To"] = _header_safe(", ".join(recipients))
         message["Subject"] = _header_safe(subj)
