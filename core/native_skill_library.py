@@ -371,6 +371,46 @@ def native_skills_root() -> Path:
     return Path(__file__).resolve().parent.parent / "skills"
 
 
+#: The skills the VOOL team builds VOOL itself with: code review, test runs, release gates,
+#: pipeline repair and the like. They ship in the repo's library, but a person using VOOL for
+#: everyday things must never see them listed or have them steer a reply ("write a complaint to
+#: my landlord, the heating is broken" was classed as debugging and seated root-cause-repair,
+#: measured 2026-10-29). They stay loadable for the selection law and its tests; the person-facing
+#: list and the per-turn guidance leave them out unless the developer setting is on.
+DEVELOPER_SKILL_IDS: frozenset[str] = frozenset({
+    "ci-repair",
+    "code-review",
+    "cumulative-testing",
+    "database",
+    "feature-build",
+    "migration",
+    "performance",
+    "project-archaeology",
+    "release-gate",
+    "repo-onboarding",
+    "root-cause-repair",
+    "security-audit",
+})
+
+
+def developer_skills_on() -> bool:
+    """The developer setting: ``VOOL_DEVELOPER_SKILLS=1`` shows and seats the developer skills."""
+    return str(os.environ.get("VOOL_DEVELOPER_SKILLS") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_developer_skill(skill_id: str) -> bool:
+    """Whether this id (or its ``vool-`` folder name) is one of VOOL's own developer skills."""
+    cleaned = str(skill_id or "").strip().lower()
+    if cleaned.startswith("vool-"):
+        cleaned = cleaned[len("vool-"):]
+    return cleaned in DEVELOPER_SKILL_IDS
+
+
+def shown_to_people(skill_id: str) -> bool:
+    """Whether a person-facing list or a turn may carry this skill."""
+    return developer_skills_on() or not is_developer_skill(skill_id)
+
+
 def load_native_library(root: Path | None = None) -> LibraryLoad:
     """Parse and validate every native SKILL.md. Invalid contracts are refused, not injected."""
     from core.plugin_skills import parse_skill
@@ -1170,13 +1210,16 @@ __all__ = [
     "SkillAvailabilityRecord",
     "SkillContract",
     "SkillContractError",
+    "DEVELOPER_SKILL_IDS",
     "SkillSelection",
     "contract_from_frontmatter",
     "contract_to_dict",
     "contract_violations",
+    "developer_skills_on",
     "disabled_skill_ids",
     "guidance_for_selection",
     "inspect_skill",
+    "is_developer_skill",
     "load_mcp_skill_contracts",
     "load_native_library",
     "load_plugin_typed_contracts",
@@ -1186,5 +1229,6 @@ __all__ = [
     "reset_contract_caches",
     "select_native_skills",
     "set_skill_enabled",
+    "shown_to_people",
     "skill_inventory",
 ]

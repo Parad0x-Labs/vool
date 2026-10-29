@@ -367,6 +367,31 @@ def _render_lexical(
     return remaining
 
 
+def _people_safe(selected: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
+    """The selected native skills minus VOOL's own developer skills, unless the developer setting
+    is on or the words themselves ask for what the skill does (its tool intents or families).
+
+    The task class alone is too weak for these: "write a polite complaint to my landlord, the
+    heating has been broken for 3 weeks" is classed as debugging, and seated root-cause-repair,
+    project-archaeology and cumulative-testing into an everyday letter (measured 2026-10-29).
+    """
+    from core.native_skill_library import developer_skills_on, is_developer_skill
+
+    if developer_skills_on() or not any(is_developer_skill(c.id) for c in selected):
+        return tuple(selected)
+    from core.tool_demand_signals import resolve_demand_signals
+
+    demands = resolve_demand_signals(user_text)
+    intents = frozenset(demands.explicit_intents)
+    families = frozenset(demands.required_families)
+    return tuple(
+        contract for contract in selected
+        if not is_developer_skill(contract.id)
+        or intents & frozenset(contract.tool_intents)
+        or families & frozenset(contract.capability_families)
+    )
+
+
 def skill_guidance_for(
     user_text: str,
     *,
@@ -461,7 +486,7 @@ def skill_guidance_for(
             task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget - user_slots
         )
         native_text, native_provenance, _native_permitted = guidance_for_selection(
-            selection.selected,
+            _people_safe(selection.selected, str(user_text or "")),
             task_chars=remaining if user_slots else task_chars,
             doctrine_chars=doctrine_chars,
         )

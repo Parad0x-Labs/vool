@@ -7916,9 +7916,13 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             (line.strip() for line in str(row.get("description") or "").splitlines() if line.strip()),
             "",
         )
-        return re.sub(
+        text = re.sub(
             r"\s+", " ", first_line.replace("`", "").replace(".md", "").replace("/", " ")
         ).strip()
+        # One short phrase per row: the first sentence (or what comes before a colon) when it
+        # says enough on its own, so a list of skills does not read as a wall of instructions.
+        head = re.split(r"(?<=[^\s]):\s|\.\s", text, maxsplit=1)[0].strip().rstrip(".")
+        return head if len(head) >= 12 else text
 
     def _state(row: dict[str, Any], *, kind: str) -> str:
         # off beats not-available: a skill the person turned off says off even when it also
@@ -7978,20 +7982,43 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
 
     installed = list(result.get("installed_skills") or [])
     mine_rows = [row for row in installed if _plugin_id(row) == "local-skills"]
+    # VOOL's own developer skills are not the person's: never listed unless the developer setting
+    # is on. And a workspace that is VOOL's own program folder (the 0.7.5 Linux launcher made it
+    # so) holds the built-ins' source files, which are not skills the person made.
+    from core.native_skill_library import native_skills_root, shown_to_people
+
+    native_rows = [
+        row for row in (result.get("native_skills") or [])
+        if shown_to_people(str(row.get("name") or ""))
+    ]
+    try:
+        own_library = native_skills_root().resolve()
+    except OSError:
+        own_library = None
+
+    def _from_vool_itself(row: dict[str, Any]) -> bool:
+        if own_library is None:
+            return False
+        try:
+            return own_library in Path(str(row.get("path") or "")).resolve().parents
+        except (OSError, ValueError):
+            return False
+
+    workspace_rows = [row for row in (result.get("workspace_skills") or []) if not _from_vool_itself(row)]
     browse_rows = [row for row in installed if _plugin_id(row) != "local-skills"]
     sections = [
         _section("Made by you", [
             *(result.get("chat_skills") or []),
             *(result.get("project_skills") or []),
-            *(result.get("workspace_skills") or []),
+            *workspace_rows,
             *mine_rows,
         ]),
-        _section("Built in", list(result.get("native_skills") or []), kind="native"),
+        _section("Built in", native_rows, kind="native"),
         _section("Added from Browse", browse_rows, kind="browse"),
         _section("Drafts not turned on yet", list(result.get("staged_skills") or []), kind="draft"),
     ]
     body = "\n\n".join(text for text, _count, _on in sections if text)
-    total = int(result.get("total") or 0)
+    total = sum(count for _text, count, _on in sections)
     if not total:
         body = "No skills found. I looked in this chat, this project and the installed skills."
     elif sections[1][1] and not (sections[0][1] or sections[2][1] or sections[3][1]):
@@ -8008,7 +8035,12 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             f"{sections[1][0]}\n\n"
             "To make your own, ask me: make me a skill that ..."
         )
-    return _skill_result("skill.list", result, response=body or f"{total} skill(s).")
+    if total:
+        body += (
+            "\n\nMore ready-made skills are in Skills & Plugins, under Browse. "
+            "To turn one off, open My add-ons there, or ask me."
+        )
+    return _skill_result("skill.list", result, response=body or "No skills found.")
 
 
 def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
