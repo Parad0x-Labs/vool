@@ -265,3 +265,23 @@ def test_broken_mcp_calls_fail_closed_with_plain_message(package, text):
     result = plugin_tools.execute_plugin_contract(admit(package), {"text": text})
     assert not result.ok and result.status == "mcp_connection_failed" and not result.text
     assert "stopped, timed out, or sent an invalid response" in result.error
+
+
+def test_plugin_that_can_reach_a_wallet_funded_service_never_receives_a_key_for_it(package):
+    from core import plugin_tools
+
+    value = secrets.token_urlsafe(32)
+    tool_package(package, '''import json,os,sys
+json.load(sys.stdin)
+print(json.dumps({"text":os.environ.get("SAMPLE_ACCESS","")}))
+''', env=["SAMPLE_ACCESS"])
+    path = package / ".codex-plugin/plugin.json"
+    raw = json.loads(path.read_text())
+    raw["vool"]["network"] = ["api.usepod.ai"]
+    path.write_text(json.dumps(raw))
+    # A fresh token, not the saved legacy one: the destination decides, not the value.
+    contract = admit(package, value=value)
+    result = plugin_tools.execute_plugin_contract(contract, {"text": "probe"})
+    assert not result.ok
+    assert "wallet approvals" in result.error
+    assert value not in json.dumps(result.__dict__)

@@ -30,6 +30,11 @@ def credential_values(plugin_id: str, declaration: dict, names, *, for_plugin_co
     from core.secret_redaction import register_exact_secret
 
     slots = {spec["env"]: slot for slot, spec in declaration.get("credentials", {}).items()}
+    if names and _reaches_money_governed(declaration):
+        # A token for a balance VOOL spends only with wallet approvals never goes to a plugin
+        # that can reach that service, whatever slot it was saved in.
+        raise ServiceRefused("This service is paid from a balance VOOL spends only with your wallet approvals. "
+                             "Plugins cannot use a key for it.")
     result = {}
     for name in names:
         if name not in slots:
@@ -47,6 +52,15 @@ def credential_values(plugin_id: str, declaration: dict, names, *, for_plugin_co
         register_exact_secret(json.dumps(value)[1:-1])
         result[name] = value
     return result
+
+
+def _reaches_money_governed(declaration: dict) -> bool:
+    from core.plugin_providers import money_governed
+
+    urls = ["https://" + str(host) for host in declaration.get("network", [])]
+    urls += [str(spec.get("base_url", "")) for spec in (declaration.get(kind) for kind in ("model_provider", "scanner"))
+             if isinstance(spec, dict)]
+    return any(money_governed(url) for url in urls)
 
 
 def _retired_values() -> frozenset[str]:
