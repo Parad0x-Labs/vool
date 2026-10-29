@@ -3096,9 +3096,11 @@
     "addons.plugin_message_96b8e83efb56": "이 Mac에서는 macOS 샌드박스 안에서 플러그인 코드를 실행할 수 없으므로 자체 코드를 실행하는 플러그인은 꺼진 상태로 유지됩니다. 제공자와 검사 플러그인은 계속 작동합니다.",
     "addons.plugin_message_1461237e0e9b": "이 키는 이전 VOOL 설정에서 가져온 것으로, VOOL 자체 요청에만 사용됩니다. 애드온에서 이 플러그인용 키를 연결하세요.",
     "update.checks_off": "업데이트 확인 꺼짐",
-    "addons.plugin_message_fc4f8c7be062": "이 플러그인 이름은 VOOL이 만든 플러그인의 이름입니다. 설치하려면 플러그인에 고유한 ID를 지정하세요."
+    "addons.plugin_message_fc4f8c7be062": "이 플러그인 이름은 VOOL이 만든 플러그인의 이름입니다. 설치하려면 플러그인에 고유한 ID를 지정하세요.",
+    "addons.plugin_tools_switch": "채팅에서 플러그인 도구 사용 허용",
+    "addons.plugin_tools_switch_help": "켜면 VOOL이 사용 설정한 플러그인의 도구를 사용할 수 있습니다. 끄면 해당 도구는 사용되지 않습니다. 모델 및 스캐너 플러그인은 어느 경우에나 작동합니다."
   },
-  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
+  "source_catalog_sha256": "69d425531e0cb6a117272adce91bed9283c8eb5b9d20c762de9b2932b792065e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

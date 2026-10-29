@@ -413,6 +413,13 @@ def handle(action: str, body: dict) -> dict:
                                   approved=body.get("approved") is True, update=body.get("update") is True)
         if action == "plugin_install":
             return install(body.get("review_id"), accepted=body.get("accepted") is True, digest=body.get("digest"))
+        if action == "plugin_tools_setting":
+            from core.plugin_tools import plugin_tools_on, set_plugin_tools_setting
+
+            if not isinstance(body.get("enabled"), bool):
+                raise lifecycle.LifecycleError("Choose a supported plugin action.")
+            set_plugin_tools_setting(body["enabled"])
+            return {"ok": True, "enabled": plugin_tools_on()}
         if action == "plugin_notice_dismiss":
             from core.plugin_migration import dismiss_selection_notice
 

@@ -297,9 +297,10 @@ def catalog() -> dict:
     rows.sort(key=lambda row: not row["first_party"])
     from core.plugin_manager import inventory
     from core.plugin_migration import notices
+    from core.plugin_tools import plugin_tools_on
 
     return {"entries": rows, "reviews": pending, "plugins": inventory(), "plugin_notices": notices(),
-            "scanners": scanners(),
+            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(),
             "supported": "Skills and explicitly reviewed plugins."}
 
 

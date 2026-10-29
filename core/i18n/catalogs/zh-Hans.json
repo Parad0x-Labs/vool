@@ -3096,9 +3096,11 @@
     "addons.plugin_message_96b8e83efb56": "这台 Mac 无法在 macOS 沙盒中运行插件代码，因此运行自身代码的插件保持关闭。提供方和扫描插件仍可正常使用。",
     "addons.plugin_message_1461237e0e9b": "此密钥沿用自 VOOL 以前的设置，仅用于 VOOL 自身的请求。请在“附加组件”中为此插件连接一个密钥。",
     "update.checks_off": "更新检查已关闭",
-    "addons.plugin_message_fc4f8c7be062": "此插件名称属于 VOOL 制作的插件。请为你的插件设置自己的 ID 后再安装。"
+    "addons.plugin_message_fc4f8c7be062": "此插件名称属于 VOOL 制作的插件。请为你的插件设置自己的 ID 后再安装。",
+    "addons.plugin_tools_switch": "允许聊天使用插件工具",
+    "addons.plugin_tools_switch_help": "开启后，VOOL 可以使用你已启用的插件中的工具。关闭后，这些工具不会被使用。模型插件和扫描插件在两种情况下都能使用。"
   },
-  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
+  "source_catalog_sha256": "69d425531e0cb6a117272adce91bed9283c8eb5b9d20c762de9b2932b792065e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

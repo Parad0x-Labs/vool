@@ -3096,9 +3096,11 @@
     "addons.plugin_message_96b8e83efb56": "Este Mac no puede ejecutar código de plugins dentro del entorno aislado de macOS, así que los plugins que ejecutan su propio código permanecen desactivados. Los plugins de proveedor y de análisis siguen funcionando.",
     "addons.plugin_message_1461237e0e9b": "Esta clave se trajo de un ajuste anterior de VOOL y solo la usan las solicitudes del propio VOOL. Conecta una clave para este plugin en Complementos.",
     "update.checks_off": "Búsqueda de actualizaciones desactivada",
-    "addons.plugin_message_fc4f8c7be062": "Este nombre de complemento pertenece a un complemento creado por VOOL. Dale a tu complemento su propio id para instalarlo."
+    "addons.plugin_message_fc4f8c7be062": "Este nombre de complemento pertenece a un complemento creado por VOOL. Dale a tu complemento su propio id para instalarlo.",
+    "addons.plugin_tools_switch": "Permitir que los chats usen herramientas de complementos",
+    "addons.plugin_tools_switch_help": "Si está activado, VOOL puede usar las herramientas de los complementos que hayas activado. Si está desactivado, esas herramientas no se usan. Los complementos de modelos y de análisis funcionan en ambos casos."
   },
-  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
+  "source_catalog_sha256": "69d425531e0cb6a117272adce91bed9283c8eb5b9d20c762de9b2932b792065e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

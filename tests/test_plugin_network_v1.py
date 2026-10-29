@@ -396,3 +396,26 @@ def test_consented_plugin_tools_stay_off_until_the_plugin_tools_switch_is_on(pac
         assert not any(spec["intent"] == "sample-provider.echo" for spec in _plugin_tool_specs())
     with override("plugin_runtime_tools", True):
         assert runtime_lane_open("sample-provider")
+
+
+def test_owner_setting_turns_plugin_tools_on_and_off_through_the_addons_api(package):
+    from core.plugin_tools import plugin_tools_setting, runtime_lane_open
+    from core.runtime_flags import override
+    from core.web.api.addon_api import handle_addon_post
+
+    def post(body, host="127.0.0.1"):
+        return handle_addon_post(body, {"Content-Type": "application/json"}, host)
+
+    tool_package(package, "import json,sys\njson.load(sys.stdin)\nprint(json.dumps({'text':'ok'}))\n")
+    admit(package)
+    with override("plugin_runtime_tools", False):
+        assert not plugin_tools_setting() and not runtime_lane_open("sample-provider")
+        status, body = post({"action": "plugin_tools_setting", "enabled": True})
+        assert status == 200 and body["enabled"] is True
+        assert runtime_lane_open("sample-provider")
+        status, body = post({"action": "plugin_tools_setting", "enabled": "yes"})
+        assert status == 400 and plugin_tools_setting()
+        status, _body = post({"action": "plugin_tools_setting", "enabled": True}, host="192.168.1.20")
+        assert status == 403 and runtime_lane_open("sample-provider")
+        post({"action": "plugin_tools_setting", "enabled": False})
+        assert not runtime_lane_open("sample-provider")

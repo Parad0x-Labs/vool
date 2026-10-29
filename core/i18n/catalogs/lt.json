@@ -3096,9 +3096,11 @@
     "addons.plugin_message_96b8e83efb56": "Šis „Mac“ negali vykdyti papildinių kodo „macOS“ smėlio dėžėje, todėl papildiniai, vykdantys savo kodą, lieka išjungti. Teikėjų ir tikrinimo papildiniai veikia toliau.",
     "addons.plugin_message_1461237e0e9b": "Šis raktas perkeltas iš ankstesnio VOOL nustatymo ir naudojamas tik paties VOOL užklausoms. Prijunkite šio papildinio raktą skiltyje „Priedai“.",
     "update.checks_off": "Atnaujinimų tikrinimas išjungtas",
-    "addons.plugin_message_fc4f8c7be062": "Šis papildinio pavadinimas priklauso VOOL sukurtam papildiniui. Kad jį įdiegtumėte, suteikite savo papildiniui atskirą ID."
+    "addons.plugin_message_fc4f8c7be062": "Šis papildinio pavadinimas priklauso VOOL sukurtam papildiniui. Kad jį įdiegtumėte, suteikite savo papildiniui atskirą ID.",
+    "addons.plugin_tools_switch": "Leisti pokalbiams naudoti papildinių įrankius",
+    "addons.plugin_tools_switch_help": "Kai tai įjungta, VOOL gali naudoti jūsų įjungtų papildinių įrankius. Kai išjungta, tie įrankiai nenaudojami. Modelių ir tikrinimo papildiniai veikia abiem atvejais."
   },
-  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
+  "source_catalog_sha256": "69d425531e0cb6a117272adce91bed9283c8eb5b9d20c762de9b2932b792065e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

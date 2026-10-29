@@ -429,21 +429,63 @@ def lifecycle_reason(plugin_id: str) -> str:
     )
 
 
-def runtime_lane_open(plugin_id: str) -> bool:
-    """The plugin-tools feature switch, and for a v1 package also its verified, enabled consent."""
+def _plugin_tools_setting_path() -> Path:
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "config" / "plugin_tools.json"
+
+
+def plugin_tools_setting() -> bool:
+    """The owner's "Let chats use plugin tools" choice. Off unless the owner turned it on."""
+    try:
+        return json.loads(_plugin_tools_setting_path().read_text()).get("enabled") is True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def set_plugin_tools_setting(enabled: bool) -> bool:
+    import os
+    import uuid
+
+    path = _plugin_tools_setting_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + "." + uuid.uuid4().hex)
+    try:
+        with temp.open("x", encoding="utf-8") as handle:
+            os.chmod(temp, 0o600)
+            json.dump({"enabled": enabled is True}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+    return plugin_tools_setting()
+
+
+def plugin_tools_on() -> bool:
+    """The owner's setting, or the plugin-tools feature switch set for the whole process."""
     from core.runtime_flags import flag_enabled
 
-    if not flag_enabled("plugin_runtime_tools"):
-        return False
+    return flag_enabled("plugin_runtime_tools") or plugin_tools_setting()
+
+
+def runtime_lane_open(plugin_id: str) -> bool:
+    """Plugin tools switched on, and for a v1 package also its verified, enabled consent.
+
+    The owner's setting covers v1 packages, which carry reviewed access declarations. Legacy
+    packages still need the process-wide feature switch.
+    """
+    from core.runtime_flags import flag_enabled
+
     try:
         from core.plugin_lifecycle import is_available, record_for
 
         record = record_for(plugin_id)
         if record and load_manifest(Path(record.root) / ".codex-plugin/plugin.json").vool:
-            return bool(is_available(plugin_id))
+            return bool(plugin_tools_on() and is_available(plugin_id))
     except (OSError, ValueError, RuntimeError):
         return False
-    return True
+    return flag_enabled("plugin_runtime_tools")
 
 
 def register_plugin(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:

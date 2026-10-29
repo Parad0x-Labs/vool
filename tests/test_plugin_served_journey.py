@@ -49,7 +49,7 @@ class PluginDaemon:
                    VOOL_CREDENTIAL_STORE="vault", VOOL_KEY_STORAGE_MODE="file", VOOL_KEY_PASSPHRASE=secrets.token_urlsafe(24),
                    VOOL_INSTALL_PROFILE="full-orchestrated", VOOL_LOCAL_MODELS_ENABLED="0", VOOL_DISABLE_MESH_DAEMON="1",
                    VOOL_DISABLE_STUN="1", VOOL_DISABLE_COMPUTE_MODE="1", VOOL_SKIP_PROVIDER_PREWARM="1",
-                   VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0", VOOL_PLUGIN_RUNTIME_TOOLS="1")
+                   VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0")
         with self.log.open("w") as output:
             self.child = subprocess.Popen([sys.executable, "-B", "-m", "tests.plugin_served_fixture", "--port", str(self.port),
                                            "--bind", "127.0.0.1"], cwd=ROOT, env=env, stdin=subprocess.PIPE,
@@ -193,6 +193,14 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         plugins_page(page, daemon)
         card = install_folder(page, ROOT / "examples/plugins/template", "vool-plugin-template")
         accept_access(page, card)
+        # Plugin tools stay unused until the owner turns them on, off by default.
+        switch = page.get_by_label("Let chats use plugin tools")
+        assert not switch.is_checked()
+        switch.check()
+        page.get_by_label("Let chats use plugin tools").wait_for()
+        assert page.get_by_label("Let chats use plugin tools").is_checked()
+        assert daemon.get("/api/addons")[1]["plugin_tools_enabled"] is True
+        page.screenshot(path=str(tmp_path / "plugin-tools-setting.png"), full_page=True)
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
         supplied = "Fresh text " + secrets.token_hex(18)
         if digest_shape == "base58_collision":

@@ -3096,9 +3096,11 @@
     "addons.plugin_message_96b8e83efb56": "لا يستطيع جهاز Mac هذا تشغيل شيفرة الإضافات داخل بيئة macOS المعزولة، لذلك تبقى الإضافات التي تشغّل شيفرتها الخاصة متوقفة. لا تزال إضافات المزوّدين والفحص تعمل.",
     "addons.plugin_message_1461237e0e9b": "نُقل هذا المفتاح من إعداد سابق في VOOL ولا يُستخدم إلا في طلبات VOOL نفسه. اربط مفتاحًا لهذه الإضافة في قسم الإضافات.",
     "update.checks_off": "التحقق من التحديثات متوقف",
-    "addons.plugin_message_fc4f8c7be062": "اسم هذه الإضافة مخصص لإضافة من صنع VOOL. امنح إضافتك معرّفًا خاصًا بها لتثبيتها."
+    "addons.plugin_message_fc4f8c7be062": "اسم هذه الإضافة مخصص لإضافة من صنع VOOL. امنح إضافتك معرّفًا خاصًا بها لتثبيتها.",
+    "addons.plugin_tools_switch": "السماح للمحادثات باستخدام أدوات الإضافات",
+    "addons.plugin_tools_switch_help": "عند تشغيل هذا الخيار، يمكن لـ VOOL استخدام أدوات الإضافات التي فعّلتها. وعند إيقافه، لا تُستخدم هذه الأدوات. تعمل إضافات النماذج والفحص في الحالتين."
   },
-  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
+  "source_catalog_sha256": "69d425531e0cb6a117272adce91bed9283c8eb5b9d20c762de9b2932b792065e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
