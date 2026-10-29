@@ -1607,9 +1607,10 @@ _BARE_RUNNING_PROCESSES_RE = re.compile(
     r"\b(?:what(?:'s|s|\s+is)|everything(?:\s+that(?:'s|s)?)?|anything(?:\s+that(?:'s|s)?)?"
     r"|everything\s+thats|anything\s+thats|all(?:\s+that(?:'s|s)?)?)"
     r"\s+(?:all\s+|currently\s+|actually\s+|even\s+|is\s+)?running\b"
+    # Up to two tails, so a place AND a time ("on my computer right now", files:F30) still match.
     r"(?:\s+(?:right\s+now|now|currently|at\s+the\s+moment|at\s+present"
     r"|on\s+(?:this|my)\s+(?:machine|mac|computer|laptop|pc|system|box|host)"
-    r"|on\s+here|here))?"
+    r"|on\s+here|here)){0,2}"
     r"\s*[?.!]*$",
     re.IGNORECASE,
 )
