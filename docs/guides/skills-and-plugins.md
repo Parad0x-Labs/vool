@@ -37,6 +37,19 @@ Browse lists them without a lookup online. VOOL skills that use VOOL tools are l
 the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
 enable it.
 
+## Turning a skill on or off
+
+Open **Skills & Plugins**, then **My add-ons**, then **Skills**. Each skill shows **On** or
+**Off** with an **Enable** or **Disable** button. A skill you turn off is not used in any chat
+until you turn it on again.
+
+## Skills for building VOOL
+
+The library also holds the skills the VOOL team builds VOOL with: code review, test runs,
+release checks, pipeline repair and similar. They are not listed in chat or on the Skills page,
+and they do not steer everyday answers. Developers can show and use them by starting VOOL with
+`VOOL_DEVELOPER_SKILLS=1`.
+
 ## Availability states
 
 A skill can show as unavailable with a typed reason: a missing prerequisite (for example, the
