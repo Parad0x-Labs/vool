@@ -1067,6 +1067,12 @@ def maybe_handle_cloud_model_command(user_input: str, *, owner_local: bool = Fal
             confirm_paid = True
             arg = arg[: -len(flag)].strip()
             break
+    # The same kind of request-scoped yes for sending chats online: `auto` turning the free cloud
+    # lane on asks first unless the message carries `--online`.
+    confirm_online = False
+    if arg.lower().endswith("--online"):
+        confirm_online = True
+        arg = arg[: -len("--online")].strip()
 
     # A bare partial name ("hunyuan", "deepseek") is a search, not a full id: surface the matching
     # ids to pick from rather than failing to switch. Full ids (vendor/name[:tag]), 'auto' and
@@ -1084,7 +1090,7 @@ def maybe_handle_cloud_model_command(user_input: str, *, owner_local: bool = Fal
     from core.cloud_model_control import set_cloud_model
 
     _ok, message, _chosen = set_cloud_model(
-        arg, owner_local=owner_local, confirm_paid=confirm_paid
+        arg, owner_local=owner_local, confirm_paid=confirm_paid, ask_before_online=not confirm_online
     )
     return message
 
@@ -1682,10 +1688,15 @@ def maybe_handle_cloud_command(user_input: str, *, owner_local: bool = False) ->
     prefix = ""
     if arg in (cep.MODE_OFF, cep.MODE_ASK, cep.MODE_AUTO):
         cep.set_mode(arg)
+        if arg == cep.MODE_OFF:
+            # Off means no cloud at all: the free lane (`cloud model auto`) sends chats online
+            # too, so it goes off with the rest.
+            cep.set_free_cloud_enabled(False)
         # Verify the change actually persisted before claiming success: set_mode/save_policy
         # fail soft (a store write can fail without raising), so re-read and confirm rather
         # than report a mode change that never hit disk.
-        if cep.load_policy().mode != arg:
+        saved = cep.load_policy()
+        if saved.mode != arg or (arg == cep.MODE_OFF and saved.free_cloud_enabled):
             return (
                 f"I could not save the cloud setting ({arg}) just now, so it is unchanged. "
                 "Check that VOOL can write its data directory, then try again."

@@ -254,6 +254,22 @@ def _provider_default_model(provider_id: str) -> str:
     return cfg.default_model if cfg else ""
 
 
+_FREE_CLOUD_ON_NOTE = (
+    " Free cloud is on now: chats that use the cloud lane leave this computer and go to "
+    "OpenRouter. `cloud off` turns it off."
+)
+
+
+def _free_cloud_consent_text() -> str:
+    """The ask before ``cloud model auto`` turns the free cloud lane on: what it means, that
+    nothing changed, and the exact words that say yes."""
+    return (
+        "`cloud model auto` uses free models online: chats that use the cloud lane would leave "
+        "this computer and go to OpenRouter. Nothing changed. To turn it on, send "
+        "`cloud model auto --online`. `cloud off` turns it off again any time."
+    )
+
+
 def set_cloud_model(
     model_or_keyword: str,
     *,
@@ -261,6 +277,7 @@ def set_cloud_model(
     owner_local: bool = False,
     confirm_paid: bool = False,
     council_capability: str = "",
+    ask_before_online: bool = False,
 ) -> tuple[bool, str, str]:
     """Persist + activate a cloud model choice for a provider. Returns (ok, message, chosen_model).
 
@@ -280,6 +297,12 @@ def set_cloud_model(
 
     (The former ``_verified_free`` caller-asserted bypass is gone: no surface certifies pricing;
     only the mechanical classifier does.)
+
+    ``ask_before_online`` is for the typed ``cloud model auto``: the word says nothing about going
+    online, so while the free cloud lane is off the switch is refused with a sentence saying chats
+    would leave this computer and how to say yes (``--online``), before anything is fetched or
+    saved. Naming a concrete cloud model is that choice already, so it switches and its reply says
+    the free lane went on. Settings asks with its own dialog and calls without it.
     """
     arg = str(model_or_keyword or "").strip()
     if not arg:
@@ -341,6 +364,8 @@ def set_cloud_model(
                 f"OpenRouter for free-first routing."
             ), ""
         else:
+            if ask_before_online and not cep.load_policy().free_cloud_enabled:
+                return False, _free_cloud_consent_text(), ""
             # Resolve the free pick BEFORE persisting. `auto` is a request for a FREE model, so with
             # no verified-free candidate there is nothing to switch to and the command refuses with
             # the policy untouched. Standing in the paid default instead would answer "pick a free
@@ -384,7 +409,7 @@ def set_cloud_model(
             return True, (
                 f"Cloud model set to auto — I route each burst to the current best FREE model and "
                 f"re-pick as the live catalog changes (refreshed hourly on use). Today that is "
-                f"{picked}.{lane_note}"
+                f"{picked}.{lane_note}{_FREE_CLOUD_ON_NOTE}"
             ), "auto"
 
     if arg.lower() in ("default", "reset"):
@@ -428,6 +453,11 @@ def set_cloud_model(
             code = classification["reason_code"] or "PAID_MODEL_CONFIRM_REQUIRED"
             return False, f"{code}: {refusal}", ""
         previous_policy = cep.load_policy()
+        turns_free_lane_on = (
+            prov == "openrouter"
+            and classification.get("row_verified_free") is True
+            and not previous_policy.free_cloud_enabled
+        )
         if not _save(arg):
             return False, (
                 f"I could not save the model choice ({arg}) just now, so it is unchanged. Check "
@@ -444,6 +474,8 @@ def set_cloud_model(
             if not cep.load_policy().free_cloud_enabled:
                 cep.save_policy(previous_policy)
                 return False, "I could not enable the verified-free cloud lane just now, so I left the choice unchanged.", ""
+            if turns_free_lane_on:
+                verify_note = _FREE_CLOUD_ON_NOTE
         elif (
             prov == "openrouter"
             and classification["cost_state"] == COST_STATE_FREE

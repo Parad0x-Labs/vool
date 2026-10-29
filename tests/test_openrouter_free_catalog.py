@@ -199,7 +199,7 @@ def test_cloud_model_auto_persists(monkeypatch, tmp_path, cached_catalog):
     from core.agent_runtime.fast_command_surface import maybe_handle_cloud_model_command as cmd
 
     monkeypatch.setattr("core.credential_store.has_credential", lambda name: False)
-    reply = cmd("cloud model auto", owner_local=True)
+    reply = cmd("cloud model auto --online", owner_local=True)
     assert "auto" in reply and "qwen/qwen3-coder:free" in reply
     from core.cloud_escalation_policy import load_policy
 

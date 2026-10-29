@@ -374,6 +374,18 @@ def _handle_models_current(inp, ctx):
                 )["cost_state"]
             except Exception:
                 payload["cost_state"] = "unknown"
+            # Whether the pinned model's provider has a key that resolves. A pin saved without one
+            # cannot answer, and Settings must say so instead of calling the pin ready.
+            try:
+                from core.cloud_model_control import _cloud_key_usable
+                from core.cloud_providers import config_for
+
+                pin_provider = str(payload["provider"] or "") or "openrouter"
+                payload["key_ready"] = _cloud_key_usable(pin_provider)
+                cfg = config_for(pin_provider)
+                payload["provider_label"] = cfg.label if cfg else pin_provider
+            except Exception:
+                payload["key_ready"] = False
     except Exception:
         payload = {"ok": False, "model": "", "provider": "", "source": "server", "error": "unavailable"}
     return HandlerOk(data=payload, summary=f"Pinned model: {payload.get('model') or 'none'}")

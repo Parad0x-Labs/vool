@@ -2630,7 +2630,11 @@ function widgetKeys(stack) {
   else {
     const creds = src.credentials || src.items || [];
     const yours = creds.filter(c => isOperatorKey(c.name));
-    if (!yours.length) list.appendChild(el('div', 'empty', T('keys.empty_plain', 'No keys yet. Without a key VOOL can only use a model installed on this computer.')));
+    /* A key saved for later is still the person's key on this machine: "No keys yet" above it
+       would tell them it is gone. Its own list, with Retry and Remove, sits under the key form. */
+    const savedForLater = creds.filter(c => keyFamilyOf(c.name) === 'quarantine');
+    if (!yours.length && !savedForLater.length) list.appendChild(el('div', 'empty', T('keys.empty_plain', 'No keys yet. Without a key VOOL can only use a model installed on this computer.')));
+    else if (!yours.length) list.appendChild(el('div', 'empty', 'No key in use yet. ' + (savedForLater.length === 1 ? 'One key is' : savedForLater.length + ' keys are') + ' saved for later and unused: see "Saved for later" below to retry or remove ' + (savedForLater.length === 1 ? 'it.' : 'them.')));
     const groups = [...KEY_FAMILIES.map(f => f.id), 'managed'];
     groups.forEach(fam => {
       const rows = creds.filter(c => keyFamilyOf(c.name) === fam);
@@ -3079,6 +3083,10 @@ function widgetKeys(stack) {
      key is stored" right under "Save for later (unverified)"). */
   stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
   stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
+  /* The saved-for-later list sits right under the form that fills it, ahead of the X setup, so
+     "the list below" in the notes above is the next thing on the page. Filled by drawQuarantine. */
+  const quarantine = el('div', 'stack');
+  stack.appendChild(quarantine);
   /* X has more than one key, so it gets a guided setup instead of the single paste field. */
   const xRow = el('div', 'inline x-setup-entry');
   xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
@@ -3092,9 +3100,7 @@ function widgetKeys(stack) {
   }
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
-     deletes it. Nothing here can touch a verified binding. */
-  const quarantine = el('div', 'stack');
-  stack.appendChild(quarantine);
+     removes it. Nothing here can touch a verified binding. */
   const drawQuarantine = async () => {
     quarantine.textContent = '';
     let q;
@@ -3123,7 +3129,7 @@ function widgetKeys(stack) {
           else qst.textContent = quarantineOutcome(row.provider_label || row.provider_id, String(j.outcome || ''));
         } catch (e) { qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
       });
-      const del = el('button', 'btn danger key-quarantine-delete', T('keys.delete', 'Delete')); del.type = 'button'; del.dataset.provider = row.provider_id;
+      const del = el('button', 'btn danger key-quarantine-delete', T('keys.remove', 'Remove')); del.type = 'button'; del.dataset.provider = row.provider_id;
       del.addEventListener('click', async () => {
         if (!confirm(tfmt('keys.quarantine_delete_confirm', 'Delete the unverified key for {label} from this machine? Nothing is sent anywhere.', { label: (row.provider_label || row.provider_id) }))) return;
         del.disabled = true; qst.textContent = T('keys.deleting', 'Deleting…');
@@ -3683,7 +3689,12 @@ function widgetModelsOverview(stack) {
       ? ((reads.pin.provider && reads.pin.provider !== 'openrouter' ? reads.pin.provider + ':' : '') + reads.pin.model)
       : T('settings.models.auto_pick', 'VOOL picks automatically');
     const pinState = reads.pin ? String(reads.pin.cost_state || '') : '';
-    head.appendChild(el('div', null, pinLine + (pinState ? ' — ' + pinState + (pinState === 'paid' ? ' · ready for answers once its limits and budget are set' : '') : '')));
+    /* A pin whose provider has no key cannot answer whatever its price, so that is said first;
+       only a pin with a key is described by what is left to set. */
+    const pinNote = reads.pin && reads.pin.model && reads.pin.key_ready === false
+      ? ' · cannot answer yet: add a ' + (reads.pin.provider_label || reads.pin.provider || 'OpenRouter') + ' key under API Keys'
+      : (pinState === 'paid' ? ' · ready for answers once its limits and budget are set' : '');
+    head.appendChild(el('div', null, pinLine + (pinState ? ' — ' + pinState : '') + pinNote));
     if (mpView.pane === 'detail') return mpDrawDetail(root, reads, st, draw);
     // Problems strip (composed from the same reads).
     const problems = [];
@@ -4122,6 +4133,10 @@ function widgetModel(stack) {
     const dl = el('dl', 'kv');
     dl.appendChild(el('dt', null, 'Default model'));
     dl.appendChild(el('dd', m.model ? 'mono' : null, m.model ? String(m.model) : 'None — VOOL picks for each chat'));
+    if (m.model && m.key_ready === false) {
+      dl.appendChild(el('dt', null, 'Can it answer?'));
+      dl.appendChild(el('dd', null, 'Not yet: add a ' + (m.provider_label || m.provider || 'OpenRouter') + ' key under API Keys.'));
+    }
     dl.appendChild(el('dt', null, 'Provider'));
     dl.appendChild(el('dd', m.model && m.provider ? 'mono' : null, m.model && m.provider ? String(m.provider) : 'None — each chat keeps its own choice'));
     if (m.cost_state) {
@@ -4206,7 +4221,12 @@ function widgetModel(stack) {
     search.addEventListener('input', () => { searchText = search.value; renderMatches(); });
     renderMatches();
     pinBtn.addEventListener('click', async () => {
-      const id = sel.value; const clearing = (id === 'auto'); pinBtn.disabled = true; pst.textContent = clearing ? 'Clearing the pin…' : 'Pinning…';
+      const id = sel.value; const clearing = (id === 'auto');
+      /* On OpenRouter, "VOOL chooses" follows its free catalog, which sends chats online. Said
+         before it turns on, never found out afterwards. */
+      if (clearing && provider === 'openrouter' && !m.free_cloud_enabled
+          && !window.confirm('"No default — VOOL chooses" turns on free OpenRouter models. Chats that use the cloud lane will leave this computer and go to OpenRouter. Turn it on?')) { pst.textContent = 'Nothing changed.'; return; }
+      pinBtn.disabled = true; pst.textContent = clearing ? 'Clearing the pin…' : 'Pinning…';
       try {
         let r = await fetch('/api/cloud/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id, provider: provider }) });
         let j = await r.json().catch(() => ({}));
