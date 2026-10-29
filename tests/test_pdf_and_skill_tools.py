@@ -171,7 +171,8 @@ def test_a_missing_framework_says_so_rather_than_returning_nothing(tmp_path) -> 
 
     pdf = tmp_path / "x.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"):
+    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
+            mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True):  # the macOS route
         result = pdf_tools.extract_text(str(pdf))
 
     assert result["status"] == "missing_dependency"

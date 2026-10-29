@@ -31,6 +31,13 @@ def _helper_reply(pages: list[str]) -> dict:
     return {"status": "ok", "pages_total": len(pages), "pages_read": len(pages), "page_text": pages}
 
 
+
+@pytest.fixture(autouse=True)
+def _pdfkit_path(monkeypatch):
+    # These drive the macOS PDFKit helper's replies; off macOS pdf_tools reads with pypdf instead.
+    monkeypatch.setattr(pdf_tools, "_uses_pdfkit", lambda: True)
+
+
 @pytest.fixture
 def scan(tmp_path):
     target = tmp_path / "scan.pdf"

@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+import platform
 import socket
 import subprocess
 import sys
@@ -39,7 +40,10 @@ from core.artifact_readers._sandbox import (
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 from tests.reader_fixtures import docx_document, native_text_pdf, pdf_with_text, scanned_pdf, zip_archive
 
-pytestmark = pytest.mark.skipif(not confinement_available(), reason="confinement is macOS-only; these assert what it enforces")
+pytestmark = pytest.mark.skipif(
+    platform.system() != "Darwin" or not confinement_available(),
+    reason="these assert what the macOS sandbox enforces (Linux: tests/test_linux_pdf_reading.py)",
+)
 
 #: Credential-SHAPED, assembled at runtime so this file never contains a scannable literal.
 CANARY_AWS = "AKIA" + "Q7X4M2NPLVZW9TCD"
