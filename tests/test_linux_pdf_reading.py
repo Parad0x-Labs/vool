@@ -76,3 +76,100 @@ def test_without_bubblewrap_the_reason_says_what_to_install(tmp_path, monkeypatc
     result = extract_text(str(path))
     assert result["status"] == "missing_dependency"
     assert "bubblewrap" in result["reason"] and "macOS" not in result["reason"]
+
+
+@needs_bwrap
+def test_the_linux_sandbox_writes_nowhere_but_its_scratch():
+    # Review 2026-10-29: the root, /dev and a /tmp tmpfs took 2.3 GB of memory-backed files that the
+    # scratch quota never saw.
+    with _sandbox.Scratch("vool-test-") as scratch:
+        probe = _sandbox.run_confined(
+            ["/bin/sh", "-c", "for p in /tmp/x /x /dev/x /dev/shm/x /usr/x; do echo z > $p 2>/dev/null && echo WROTE $p; done; "
+             "echo z > /dev/null && echo z > ./mine && echo SCRATCH"],
+            scratch=scratch.path,
+        )
+        assert probe.stdout.split() == [b"SCRATCH"], probe.stdout
+        assert (scratch.path / "mine").read_text() == "z\n"
+
+
+@needs_bwrap
+def test_the_linux_sandbox_cannot_open_a_socket_to_anywhere(tmp_path):
+    import socket
+    import sys
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    port = listener.getsockname()[1]
+    with _sandbox.Scratch("vool-test-") as scratch:
+        script = scratch.path / "net.py"
+        script.write_text(
+            "import socket\n"
+            f"for target in (('127.0.0.1', {port}), ('1.1.1.1', 443)):\n"
+            "    try:\n"
+            "        socket.create_connection(target, timeout=3).close(); print('CONNECTED', target)\n"
+            "    except OSError:\n"
+            "        print('REFUSED')\n"
+        )
+        probe = _sandbox.run_confined([sys.executable, "-I", "-S", str(script)], scratch=scratch.path, extra_read=_interpreter_scope())
+    listener.close()
+    assert probe.stdout.split() == [b"REFUSED", b"REFUSED"], probe.stdout
+
+
+def _interpreter_scope() -> list[str]:
+    from core.artifact_readers import pdf
+
+    return pdf._fallback_read_scope()
+
+
+@needs_bwrap
+def test_a_decoder_cannot_make_itself_a_user_namespace():
+    if not _sandbox._bwrap_supports("--disable-userns"):
+        pytest.skip("this bubblewrap is older than 0.8.0 and cannot refuse it")
+    with _sandbox.Scratch("vool-test-") as scratch:
+        probe = _sandbox.run_confined(["/bin/sh", "-c", "unshare -Ur true 2>/dev/null && echo NESTED || echo REFUSED"], scratch=scratch.path)
+    assert probe.stdout.strip() == b"REFUSED"
+
+
+@needs_bwrap
+def test_a_decoder_cannot_take_more_memory_than_its_ceiling():
+    import sys
+
+    with _sandbox.Scratch("vool-test-") as scratch:
+        script = scratch.path / "mem.py"
+        script.write_text("try:\n    b = bytearray(6 * 1024 ** 3); print('GOT')\nexcept MemoryError:\n    print('REFUSED')\n")
+        probe = _sandbox.run_confined([sys.executable, "-I", "-S", str(script)], scratch=scratch.path, extra_read=_interpreter_scope())
+    assert probe.stdout.strip() == b"REFUSED", probe.stdout
+
+
+@needs_bwrap
+def test_a_frame_the_decoder_links_elsewhere_is_not_read(tmp_path, monkeypatch):
+    from core.artifact_readers import video
+
+    secret = tmp_path / "id_rsa"
+    secret.write_text("PRIVATE KEY")
+    fake = tmp_path / "bin" / "ffmpeg"
+    fake.parent.mkdir()
+    fake.write_text(f'#!/bin/sh\nfor last; do :; done\nln -sf "{secret}" "$last"\n')
+    fake.chmod(0o755)
+    monkeypatch.setattr(video, "_require_tools", lambda: (str(fake), "/bin/true"))
+    with _sandbox.Scratch("vool-test-") as scratch, _sandbox.extraction_budget(scratch=scratch.path):
+        source = scratch.path / "input.bin"
+        source.write_bytes(b"\0" * 64)
+        frames = video._extract_frames(source, [1.0], scratch=scratch.path, max_edge=512)
+    assert frames == []
+
+
+@needs_bwrap
+def test_installing_bubblewrap_works_without_a_restart(monkeypatch):
+    import time
+
+    real = _sandbox._bwrap
+    monkeypatch.setattr(_sandbox, "_BWRAP_WORKS", {})
+    monkeypatch.setattr(_sandbox, "_BWRAP_OPTIONS", {})
+    monkeypatch.setattr(_sandbox, "_BWRAP_CHECKED_AT", {})
+    monkeypatch.setattr(_sandbox, "_bwrap", lambda: "")
+    assert not _sandbox.confinement_available()
+    monkeypatch.setattr(_sandbox, "_bwrap", real)  # the person installs it, as the reply told them
+    _sandbox._BWRAP_CHECKED_AT["ok"] = time.monotonic() - _sandbox._BWRAP_RECHECK_SECONDS - 1
+    assert _sandbox.confinement_available()

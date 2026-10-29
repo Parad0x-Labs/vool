@@ -54,6 +54,7 @@ from ._limits import (
     MAX_SCRATCH_SCAN_ENTRIES,
     SCRATCH_POLL_SECONDS,
     SUBPROCESS_CPU_SECONDS,
+    SUBPROCESS_MAX_ADDRESS_SPACE_BYTES,
     SUBPROCESS_MAX_OPEN_FILES,
     SUBPROCESS_MAX_OUTPUT_BYTES,
     SUBPROCESS_MAX_STDERR_BYTES,
@@ -176,6 +177,15 @@ class SandboxResult:
 # system's own program and library trees (read-only), the paths a caller names (read-only) and its
 # scratch directory (read-write); every namespace is unshared, so it has no network, no view of
 # other processes and no home folder. The same contract the macOS profile enforces by path.
+#
+# Three things the namespaces alone did not give, each measured 2026-10-29 on bubblewrap 0.9.0:
+# * The root, /dev and a /tmp tmpfs were writable and outside the scratch quota's scan: 2.3 GB of
+#   memory-backed files written by one decoder, exit 0. So there is no /tmp tmpfs (TMPDIR is the
+#   scratch directory) and the root and /dev are remounted read-only once the binds are in place.
+# * Run by root, bubblewrap keeps root's capabilities inside: the decoder remounted /usr read-write
+#   and wrote a file the host could see. Every capability is dropped.
+# * A decoder could create a nested user namespace holding every capability (the entry point of
+#   most unprivileged kernel exploits). Refused where this bubblewrap can refuse it (0.8.0+).
 _BWRAP_SYSTEM_READ = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/etc/ld.so.cache",
                       "/etc/ld.so.conf", "/etc/ld.so.conf.d", "/etc/alternatives")
 
@@ -187,20 +197,44 @@ def _bwrap() -> str:
     return ""
 
 
+_BWRAP_OPTIONS: dict[str, str] = {}
+
+
+def _bwrap_supports(option: str) -> bool:
+    if "help" not in _BWRAP_OPTIONS:
+        try:
+            shown = subprocess.run([_bwrap(), "--help"], stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+            _BWRAP_OPTIONS["help"] = (shown.stdout + shown.stderr).decode("utf-8", "replace")
+        except (OSError, subprocess.SubprocessError):
+            _BWRAP_OPTIONS["help"] = ""
+    return option in _BWRAP_OPTIONS["help"]
+
+
 def _bwrap_prefix(*, scratch: str, extra_read: Sequence[str]) -> list[str]:
-    command = [_bwrap(), "--unshare-all", "--die-with-parent", "--new-session",
-               "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    command = [_bwrap(), "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL"]
+    if _bwrap_supports("--disable-userns"):
+        command += ["--unshare-user", "--disable-userns"]
+    command += ["--proc", "/proc", "--dev", "/dev"]
     for path in (*_BWRAP_SYSTEM_READ, *extra_read):
         if os.path.exists(path):
             command += ["--ro-bind", path, path]
-    return [*command, "--bind", scratch, scratch, "--chdir", scratch, "--"]
+    command += ["--bind", scratch, scratch, "--remount-ro", "/dev", "--remount-ro", "/"]
+    return [*command, "--chdir", scratch, "--"]
 
 
 _BWRAP_WORKS: dict[str, bool] = {}
+_BWRAP_RECHECK_SECONDS = 30.0
+_BWRAP_CHECKED_AT: dict[str, float] = {}
 
 
 def _bwrap_works() -> bool:
-    """Present is not enough: a kernel that refuses unprivileged namespaces makes bwrap exit 1."""
+    """Present is not enough: a kernel that refuses unprivileged namespaces makes bwrap exit 1.
+
+    Only a pass is kept for good. A failure is checked again after a short wait, so a person who
+    installs bubblewrap (the reply tells them to) can read the file without restarting VOOL."""
+    if _BWRAP_WORKS.get("ok") is False and time.monotonic() - _BWRAP_CHECKED_AT.get("ok", 0.0) > _BWRAP_RECHECK_SECONDS:
+        _BWRAP_WORKS.clear()
+        _BWRAP_OPTIONS.clear()
     if "ok" not in _BWRAP_WORKS:
         ok = False
         if _bwrap() and os.access(_SHELL, os.X_OK):
@@ -214,6 +248,7 @@ def _bwrap_works() -> bool:
             finally:
                 shutil.rmtree(probe_dir, ignore_errors=True)
         _BWRAP_WORKS["ok"] = ok
+        _BWRAP_CHECKED_AT["ok"] = time.monotonic()
     return _BWRAP_WORKS["ok"]
 
 
@@ -232,10 +267,19 @@ def confinement_unavailable_reason() -> str:
     if platform.system() == "Linux":
         if not _bwrap():
             return "the Linux sandbox (bubblewrap) is not installed on this computer"
-        return "the Linux sandbox (bubblewrap) cannot start here, because this system does not allow it to create namespaces"
+        return "the Linux sandbox (bubblewrap) is installed but this system does not let it start"
     if platform.system() != "Darwin":
         return f"process confinement for untrusted decoders is implemented for macOS and Linux only; this host is {platform.system()}"
     return "the macOS sandbox (/usr/bin/sandbox-exec) is not available on this machine"
+
+
+def _remediation() -> str:
+    if platform.system() != "Linux":
+        return "Use a macOS host where the sandbox is available, or attach the content as text."
+    if not _bwrap():
+        return "On Linux, install bubblewrap (for example: sudo apt install bubblewrap) and try again, or paste the text instead."
+    # Installed but refused: Ubuntu 24.04 blocks it by default. Installing it again changes nothing.
+    return "Paste the text instead. Your system blocks the Linux sandbox that VOOL reads files in."
 
 
 def require_confinement(fmt: str = "") -> None:
@@ -246,11 +290,7 @@ def require_confinement(fmt: str = "") -> None:
         f"Reading this file needs an external decoder, and {confinement_unavailable_reason()}. "
         f"It was not read: this runtime does not run untrusted document parsers unconfined.",
         code="confinement_unavailable",
-        remediation=(
-            "On Linux, install bubblewrap (for example: sudo apt install bubblewrap) and try again, or paste the text instead."
-            if platform.system() == "Linux"
-            else "Use a macOS host where the sandbox is available, or attach the content as text."
-        ),
+        remediation=_remediation(),
         fmt=fmt,
     )
 
@@ -416,9 +456,10 @@ def _limited_argv(argv: Sequence[str], *, cpu_seconds: int) -> list[str]:
     # 2026-09-03: at 64 it made every decoder that spawns a helper exit 128 before doing any work.
     # Runaway children are bounded by the process-group kill in `_kill_group` instead, which is
     # what actually reaps them.
+    memory = f"ulimit -v {int(SUBPROCESS_MAX_ADDRESS_SPACE_BYTES // 1024)}; " if platform.system() == "Linux" else ""
     script = (
         f"ulimit -c 0; ulimit -t {int(cpu_seconds)}; ulimit -n {int(SUBPROCESS_MAX_OPEN_FILES)}; "
-        f'ulimit -f {int(MAX_SCRATCH_BYTES // 512)}; exec "$0" "$@"'
+        f'ulimit -f {int(MAX_SCRATCH_BYTES // 512)}; {memory}exec "$0" "$@"'
     )
     return [_SHELL, "-c", script, *argv]
 

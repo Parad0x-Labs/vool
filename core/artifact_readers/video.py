@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from . import _sandbox
 from ._limits import (
     MAX_VIDEO_DURATION_S,
     MAX_VIDEO_FRAMES,
+    SUBPROCESS_MAX_OUTPUT_BYTES,
     SUBPROCESS_TIMEOUT_S,
     VIDEO_FRAME_MAX_EDGE,
     VIDEO_SWEEP_FRAMES,
@@ -173,6 +175,24 @@ def probe(data: bytes) -> dict[str, Any]:
     }
 
 
+def _read_decoder_output(path: Path) -> bytes:
+    """A file the decoder wrote, read by THIS process -- so never through a link the decoder made.
+
+    The decoder owns the scratch directory. A hijacked one can leave a symlink where its frame
+    should be, pointing at a file it could never read itself (measured 2026-10-29: ~/.ssh/id_rsa
+    came back as a frame). Only a plain file, opened without following links, is a frame.
+    """
+    try:
+        handle = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return b""
+    with os.fdopen(handle, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > SUBPROCESS_MAX_OUTPUT_BYTES:
+            return b""
+        return stream.read()
+
+
 def _extract_frames(source: Path, timestamps: list[float], *, scratch: Path, max_edge: int) -> list[Frame]:
     """One decode per timestamp, seeking to it. Input-seeking makes a 40-minute file as cheap as
     a 40-second one, which is what makes a targeted second pass affordable at all."""
@@ -191,10 +211,11 @@ def _extract_frames(source: Path, timestamps: list[float], *, scratch: Path, max
             scratch=scratch,
             fmt="video",
         )
-        if result.returncode != 0 or not out.exists() or out.stat().st_size == 0:
-            continue
-        frames.append(Frame(timestamp=when, png=out.read_bytes(), locator=f"t={_timestamp(when)}"))
+        png = _read_decoder_output(out) if result.returncode == 0 else b""
         out.unlink(missing_ok=True)
+        if not png:
+            continue
+        frames.append(Frame(timestamp=when, png=png, locator=f"t={_timestamp(when)}"))
     return frames
 
 
