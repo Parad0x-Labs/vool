@@ -474,7 +474,7 @@ def test_6_toolset_grain_refuses_only_what_the_parent_froze(harness, workspace):
     assert _ETH_PRICE_TEXT not in answer
 
 
-def test_6_toolset_grain_does_not_over_block_other_families(harness, workspace):
+def test_6_toolset_grain_does_not_over_block_other_families(harness, workspace, enable_web):
     """The other half of toolset grain: under a market-prices-only prohibition
     a WEATHER child still runs (canned observation) — the intersection refuses
     the frozen family, never the child's whole capability."""

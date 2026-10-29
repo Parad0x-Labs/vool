@@ -86,7 +86,7 @@ class _FakeResp:
         return self._payload
 
 
-def test_news_rss_fallback_sorts_newest_first_and_windows_recency() -> None:
+def test_news_rss_fallback_sorts_newest_first_and_windows_recency(enable_web) -> None:
     from tools.web import web_research
 
     now = datetime.now(timezone.utc)

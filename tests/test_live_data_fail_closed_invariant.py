@@ -48,8 +48,10 @@ def agent() -> VoolAgent:
 
 
 def test_plan_is_none_never_reaches_the_ordinary_turn(enable_web, agent: VoolAgent) -> None:
-    # Web lookups on (the lane only plans when they are); the cold ticker index stays offline so
-    # the count below is this lane's own fetches, which must be none.
+    # Web lookups on (the lane only plans when they are). Counting the named assets loads
+    # CoinGecko's coin list on a cold machine -- a real lookup of this lane, allowed with the switch
+    # on -- so the index is held warm-and-empty here: what this test counts is the PLAN's fetches,
+    # and a plan that was never built must make none.
     with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire), \
          mock.patch("tools.web.coin_index._fetch_index", return_value={}), \
          mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):

@@ -838,8 +838,28 @@ def maybe_handle_direct_machine_download_request(
 ) -> dict[str, Any] | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
-    download_target = _extract_machine_download_target(user_input)
+    download_target = _extract_machine_download_target(user_input, check_target=False)
     if download_target is None:
+        return None
+    # A download is a fetch from the web the person asked for, so it answers to Web lookups like
+    # every other: with the switch off nothing goes online, not even the DNS query the address
+    # check below would send.
+    from core.remote_fetch_policy import effective_web_available
+
+    if not effective_web_available(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return agent._fast_path_result(
+            session_id=session_id,
+            user_input=user_input,
+            response=web_lookups_off_text("to download that", source_context=source_context),
+            confidence=0.9,
+            source_context=source_context,
+            reason="machine_download_fast_path",
+        )
+    from core.null_dial import is_ssrf_safe_url
+
+    if not is_ssrf_safe_url(download_target["url"]):
         return None
     try:
         # R-9c (H-8): the ONE outbound HTTP door (veto + reporting) — this
@@ -851,7 +871,7 @@ def maybe_handle_direct_machine_download_request(
             download_target["url"],
             headers={"User-Agent": "Mozilla/5.0", "Accept": "text/*"},
         )
-        with _open_remote(_request, timeout=20) as response:
+        with _open_remote(_request, timeout=20, lookup=True) as response:
             raw_bytes = response.read(1_500_001)
             content_type = str(getattr(response.headers, "get_content_type", lambda: "")() or response.headers.get("Content-Type") or "").lower()
             charset = str(getattr(response.headers, "get_content_charset", lambda _default=None: None)() or "utf-8").strip() or "utf-8"
@@ -1313,7 +1333,7 @@ def _render_plaintext_transcript(history: list[dict[str, str]], *, agent_name: s
     return "\n\n".join(blocks).strip()
 
 
-def _extract_machine_download_target(raw: str) -> dict[str, str] | None:
+def _extract_machine_download_target(raw: str, *, check_target: bool = True) -> dict[str, str] | None:
     text = " ".join(str(raw or "").split()).strip()
     lowered = f" {text.lower()} "
     if not text:
@@ -1376,26 +1396,30 @@ def _extract_machine_download_target(raw: str) -> dict[str, str] | None:
     # failing CLOSED on any doubt. It had NO callers anywhere in the runtime. This is the wiring,
     # not a second implementation.
     #
-    # Placed after the local gates because it resolves DNS: the cost is only paid on a turn that
-    # has already earned a download.
-    from core.null_dial import is_ssrf_safe_url
-
-    if not is_ssrf_safe_url(url):
-        return None
-
+    # Placed LAST because it resolves DNS: the cost is only paid on a turn that has already earned
+    # a download, and "fetch <url> and tell me what it says" (no folder, so no download) sends no
+    # DNS query. `check_target=False` leaves the check to the caller, which first asks whether the
+    # turn may go online at all.
     direct_path = _extract_machine_download_path(text)
     if direct_path:
-        return {"url": url, "path": direct_path}
-    explicit_filename = _extract_machine_download_filename(text)
-    folder = _extract_machine_folder_target(text)
-    root_label = _explicit_safe_machine_root_label(lowered)
-    root_dir = _resolve_safe_machine_root_directory(folder=folder, root_label=root_label)
-    if root_dir is None:
-        return None
-    filename = explicit_filename or _infer_machine_download_filename(url=url)
-    if not filename:
-        return None
-    return {"url": url, "path": _home_relative_safe_machine_path(root_dir / filename)}
+        target = {"url": url, "path": direct_path}
+    else:
+        explicit_filename = _extract_machine_download_filename(text)
+        folder = _extract_machine_folder_target(text)
+        root_label = _explicit_safe_machine_root_label(lowered)
+        root_dir = _resolve_safe_machine_root_directory(folder=folder, root_label=root_label)
+        if root_dir is None:
+            return None
+        filename = explicit_filename or _infer_machine_download_filename(url=url)
+        if not filename:
+            return None
+        target = {"url": url, "path": _home_relative_safe_machine_path(root_dir / filename)}
+    if check_target:
+        from core.null_dial import is_ssrf_safe_url
+
+        if not is_ssrf_safe_url(url):
+            return None
+    return target
 
 
 def _extract_machine_download_filename(raw: str) -> str:

@@ -186,6 +186,7 @@ def _read_index_rows() -> Any:
                 keyed_or_keyless="keyed" if auth else "keyless",
                 no_proxy=bool(auth),
                 credential_headers=tuple(auth) if auth else None,
+                lookup=True,
             ) as response:
                 return json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
         except RemoteFetchRefusedError:

@@ -343,7 +343,7 @@ def _currency_reply(
             **reply,
             # Plain words and the switch's place, like every other lookup refusal; the rate
             # itself is still never guessed from training data.
-            "response": web_lookups_off_text("for a current exchange rate"),
+            "response": web_lookups_off_text("for a current exchange rate", source_context=source),
             "grounded": "retrieval_disabled_declined",
         }
     elif (
@@ -2223,8 +2223,11 @@ def handle_turn_frontdoor(
         # honest refusal is destroyed by a task-failure that was policy all along (the
         # first-run denial demo measured exactly this shape).
         from core import policy_engine as _policy_engine
+        from core.remote_fetch_policy import local_only_active as _local_only_active
 
-        if (
+        # Local Only chosen for this chat blocks the same lanes: continuing sent the weather to
+        # the model, which had nothing to answer it with.
+        if _local_only_active(source_context) or (
             bool(_policy_engine.local_only_mode())
             and not bool(_policy_engine.allow_web_fallback())
             and not bool(_policy_engine.get("network.outbound_enabled", False))

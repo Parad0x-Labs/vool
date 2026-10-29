@@ -427,6 +427,16 @@ class ServedDaemon:
         env.pop("PYTEST_CURRENT_TEST", None)
         return env
 
+    def switch_web_lookups_on(self) -> None:
+        """Settings > Privacy & Permissions > Web lookups, on, in this home -- before `start()`.
+
+        A fresh home has it off, and every lookup (weather, prices, rates, news, search) answers to
+        it at the shared door. A drive of a lookup lane switches it on exactly as the person would:
+        the same operator-policy write Settings makes, run inside this home."""
+        from tests._web_lookups import switch_web_lookups_on_in_home
+
+        switch_web_lookups_on_in_home(self.env())
+
     def register_provider(self) -> str:
         """Register the scripted provider as its OWN local model, in this home's manifest store.
 

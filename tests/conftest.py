@@ -808,19 +808,10 @@ def enable_web():
     `system.allow_web_fallback` in the cached policy and restores the prior
     cache afterwards.
     """
-    from core import policy_engine
+    from tests._web_lookups import web_lookups_on
 
-    previous_cache = getattr(policy_engine, "_POLICY_CACHE", None)
-    base = dict(policy_engine.load())
-    system = dict(base.get("system") or {})
-    system["allow_web_fallback"] = True
-    system["local_only_mode"] = False
-    base["system"] = system
-    policy_engine._POLICY_CACHE = base
-    try:
+    with web_lookups_on():
         yield
-    finally:
-        policy_engine._POLICY_CACHE = previous_cache
 
 
 @pytest.fixture

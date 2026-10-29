@@ -208,7 +208,7 @@ def _fetch(url: str, *, timeout_s: float, max_retries: int = 1) -> str:
         try:
             # The ONE outbound door: veto is enforced and the attempt reported
             # into the owning turn's ledger BEFORE any socket opens.
-            with open_remote(req, timeout=timeout_s) as resp:
+            with open_remote(req, timeout=timeout_s, lookup=True) as resp:
                 return resp.read().decode("utf-8", errors="ignore")
         except urllib.error.HTTPError as exc:
             last_exc = exc

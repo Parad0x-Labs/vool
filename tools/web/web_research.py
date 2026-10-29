@@ -23,10 +23,11 @@ from core.remote_fetch_policy import (
     RemoteFetchRefusedError as _RemoteFetchRefusedError,
 )
 from core.remote_fetch_policy import (
+    WEB_LOOKUPS_OFF_DENIAL,
     open_remote as _open_remote_door,
 )
 from core.remote_fetch_policy import (
-    effective_web_available,
+    local_only_active,
     remote_fetch_forbidden,
     remote_turn_active,
 )
@@ -135,19 +136,13 @@ def _open_remote(request: Any, *, timeout: float):
     """
     if remote_turn_active():
         raise RemoteFetchRefusedError("owner_local_required")
-    # Every site behind this door is a lookup the user asked for (weather, prices, rates, news,
-    # page text), and Settings promises "nothing goes online for lookups until you switch this
-    # on". Measured on 1cbf433 with Web lookups off: weather (wttr.in) and the bitcoin price
-    # (CoinGecko) were fetched live by the typed live-data lane, which never asked the switch.
-    # The door asks it, so a lane that forgets still cannot go online.
-    if not effective_web_available():
-        raise RemoteFetchRefusedError(WEB_LOOKUPS_OFF_REFUSAL)
-
-    return _open_remote_door(request, timeout=timeout)
+    # Every site behind this door is a lookup the person asked for (weather, prices, rates, news,
+    # page text), so the shared door holds it to the Web lookups switch.
+    return _open_remote_door(request, timeout=timeout, lookup=True)
 
 
-#: Why the door refused: Web lookups (system.allow_web_fallback) is off, or Local Only binds the turn.
-WEB_LOOKUPS_OFF_REFUSAL = "web_lookups_off"
+#: Why the door refused: Web lookups (system.allow_web_fallback) is off.
+WEB_LOOKUPS_OFF_REFUSAL = WEB_LOOKUPS_OFF_DENIAL
 
 
 def _provider_order() -> list[str]:
@@ -264,6 +259,10 @@ def _browser_search_available() -> bool:
     """
 
     if not _should_try_browser():
+        return False
+    # A browser opens no door of ours, so the door cannot refuse it: Local Only and the Web
+    # lookups switch are asked here, before it is ever put in the chain.
+    if local_only_active() or not policy_engine.allow_web_fallback():
         return False
     try:
         from tools.web.browser_search import browser_available
@@ -3097,6 +3096,10 @@ def web_research(
 ) -> ResearchResult:
     if remote_turn_active():
         return ResearchResult(query=query, provider="disabled", hits=[], pages=[], notes=["owner_local_required"], ts_utc=time.time())
+    if not policy_engine.allow_web_fallback() and not local_only_active():
+        # The door refuses each fetch too; this also stops the browser search, which opens no
+        # door, and sends no query anywhere. Local Only is left to the door, which records it.
+        return ResearchResult(query=query, provider="disabled", hits=[], pages=[], notes=[WEB_LOOKUPS_OFF_REFUSAL], ts_utc=time.time())
     notes: list[str] = []
     hits: list[WebHit] = []
     pages: list[PageEvidence] = []

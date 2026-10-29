@@ -127,9 +127,9 @@ def http_fetch_text(
 
     try:
         opened = (
-            open_public_only(url, make_request=_request, timeout=timeout_s)
+            open_public_only(url, make_request=_request, timeout=timeout_s, lookup=True)
             if public_only or not_local
-            else open_remote(_request(url), timeout=timeout_s)
+            else open_remote(_request(url), timeout=timeout_s, lookup=True)
         )
         with opened as response:
             final_url = str(response.geturl() or url)

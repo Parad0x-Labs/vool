@@ -34,6 +34,7 @@ from core.runtime_continuity import (
 )
 from storage.migrations import run_migrations
 from tests._turn_session_identity import echoed_session_identity
+from tests._web_lookups import switch_web_lookups_on
 
 
 def _mp_create_retry_worker_sabotaged_no_uniqueness(db_path: str, parent_attempt_id: str, trigger_turn: str, barrier, out_queue) -> None:
@@ -281,6 +282,7 @@ class MutationDRemoveTurnWiringTests(unittest.TestCase):
     create_runtime_attempt cannot build a durable idempotency key at all and refuses outright."""
 
     def setUp(self) -> None:
+        switch_web_lookups_on(self)
         self._tmp = tempfile.TemporaryDirectory()
         self._db_path = Path(self._tmp.name) / "mutation_d.db"
         run_migrations(db_path=self._db_path)

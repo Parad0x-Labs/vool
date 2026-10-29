@@ -97,6 +97,8 @@ _EXCEPTION_PREFIX_RE = re.compile(
 # polarity -- see `_looks_like_leaked_internals` below.
 _INTERNAL_REASON_PHRASES = (
     ("comparison needs at least two dependencies", "not enough of the values it compares came back"),
+    # The door's refusal code for a lookup while Web lookups is off (core.remote_fetch_policy).
+    ("web_lookups_off", "Web lookups are off; turn them on in Settings > Privacy & Permissions"),
     ("no weather observation returned", "no weather reading came back for it"),
     ("no quote returned", "no price came back for it"),
     ("no evaluable arithmetic", "there was no calculation in it to run"),

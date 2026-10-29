@@ -97,14 +97,14 @@ def test_the_door_reports_the_attempt_when_the_turn_permits_it(enable_web, fake_
     assert len(fake_open) == 1
 
 
-def test_the_door_refuses_without_opening_a_socket_when_vetoed(never_opens) -> None:
+def test_the_door_refuses_without_opening_a_socket_when_vetoed(enable_web, never_opens) -> None:
     with remote_fetch_policy_scope({"allow_remote_fetch": False}):
         with pytest.raises(wr.RemoteFetchRefusedError):
             wr._open_remote(urllib.request.Request("https://example.invalid/"), timeout=5)
         assert remote_fetch_attempt_count() == 0
 
 
-def test_a_refused_fetch_is_not_counted_as_an_attempt(never_opens) -> None:
+def test_a_refused_fetch_is_not_counted_as_an_attempt(enable_web, never_opens) -> None:
     """A refusal is not a remote call and must not inflate the turn's account either."""
 
     with remote_fetch_policy_scope({"allow_remote_fetch": False}):
@@ -129,7 +129,7 @@ _FETCHERS = (
 
 
 @pytest.mark.parametrize("name,call", _FETCHERS, ids=[n for n, _ in _FETCHERS])
-def test_no_outbound_path_opens_a_socket_under_a_veto(name, call, never_opens) -> None:
+def test_no_outbound_path_opens_a_socket_under_a_veto(name, call, enable_web, never_opens) -> None:
     """The invariant, per path: vetoed means no socket, whatever the caller does with the refusal.
 
     Some of these swallow exceptions and return None; that is fine. What must never happen is the

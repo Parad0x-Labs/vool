@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from core import policy_engine
 from core.retrieval_constraints import analyze_retrieval_constraints
 from core.stipulated_frame import stipulated_frame_active
 
@@ -49,7 +48,17 @@ def prepare_live_info_request(
         return "", "", None
     if _explicit_remote_fetch_disabled(source_context):
         return "", "", None
-    if not policy_engine.allow_web_fallback():
+    from core.remote_fetch_policy import effective_web_available
+
+    # Local Only chosen for this chat binds as the switch does: searched anyway, every engine was
+    # refused at the door and the person read "no current conditions found" for a lookup that
+    # was never allowed to run.
+    if not effective_web_available(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import asks_only_for_general_knowledge
+
+        if asks_only_for_general_knowledge(candidate_input):
+            # Nothing to look up: the model's to answer offline, not a refusal.
+            return "", "", None
         return live_mode, "", disabled_live_info_result(
             agent,
             session_id=session_id,

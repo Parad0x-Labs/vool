@@ -3608,11 +3608,21 @@ class VoolAgent(
         # before any plan is built. Measured on 1cbf433 with the switch off: "whats the weather in
         # London today" and "what is the bitcoin price right now" were fetched live, because only
         # the fast path behind this lane asked the switch. A refusal here keeps the honest answer
-        # on this lane; falling through would hand the model a live question with no data.
-        from core.remote_fetch_policy import effective_web_available
+        # on this lane; falling through would hand the model a live question with no data. Under
+        # Local Only the lane still attempts, so the door refuses there and records it: that
+        # record is what the first-run denial demo completes from.
+        from core.remote_fetch_policy import effective_web_available, local_only_active
 
-        if not effective_web_available(dict(source_context or {})):
-            from core.agent_runtime.fast_live_info_runtime_results import disabled_live_info_result
+        if not effective_web_available(source_context) and not local_only_active(source_context):
+            from core.agent_runtime.fast_live_info_runtime_results import (
+                asks_only_for_general_knowledge,
+                disabled_live_info_result,
+            )
+
+            # "Explain how the bitcoin price is determined" classifies LIVE_DATA too, but asks for
+            # no reading: with nothing to look up it is the model's to answer, offline.
+            if asks_only_for_general_knowledge(str(raw_input or effective_input)):
+                return None
 
             return disabled_live_info_result(
                 self,

@@ -588,7 +588,8 @@ def test_runtime_web_policy_can_disable_fx_even_when_the_surface_requests_remote
         )
     assert reply is not None
     assert reply["grounded"] == "retrieval_disabled_declined"
-    assert "disabled by the runtime policy" in reply["response"]
+    # The refusal names the switch that held and where it is.
+    assert "Web lookups are off" in reply["response"]
     fetcher.assert_not_called()
 
 

@@ -1456,6 +1456,11 @@ def build_planner_run_one(
             raise PlannedTaskNeedsApprovalError(text or "Approval required.")
         if response_class in {"task_failed_user_safe", "system_error_user_safe"}:
             raise RuntimeError(text or "the task could not be completed")
+        if result.get("live_info_refusal"):
+            # A lookup refused because Web lookups is off (or Local Only binds) answered nothing:
+            # filed as an answer, the part read as served and its refusal sat in the merged reply
+            # as if it were the answer to it. Failed, it is listed with the plain reason why.
+            raise RuntimeError(str(result.get("live_info_refusal_reason") or text or "not looked up"))
         # P0 MIXED-DEMAND (served) — A RUNTIME NOTICE IS NOT AN ANSWER.
         #
         # `turn_reasoning` stamps `runtime_notice_not_an_answer` on the turn that

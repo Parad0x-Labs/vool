@@ -226,7 +226,7 @@ def search(
         # guard above is unconditional), so "keyed" is a fact here rather than a
         # lookup — and it is the fact every downstream surface needs to prove
         # the user's key actually did the work.
-        return open_remote(current, timeout=timeout, provider_id=cfg.provider_id, keyed_or_keyless="keyed")
+        return open_remote(current, timeout=timeout, provider_id=cfg.provider_id, keyed_or_keyless="keyed", lookup=True)
 
     try:
         # The key rides this request, so it is exchanged as a keyed request: an answer that came

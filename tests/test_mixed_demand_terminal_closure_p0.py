@@ -353,7 +353,7 @@ def test_S_time_conversion_creative_all_served(harness, workspace):
     assert ("EUR" in answer) or ("euro" in lowered) or ("failed" in lowered) or (
         "couldn't" in lowered or "could not" in lowered
         or "retrieval is disabled" in lowered
-        or "live observation" in lowered
+        or "web lookups are off" in lowered
     ), (
         f"neither the conversion nor its honest failure is represented: {answer!r}"
     )
@@ -424,7 +424,7 @@ def test_C_refused_unit_named_beside_served_sibling(harness, workspace):
     answer, context = _turn(harness, _REFUSAL_MIXED, workspace)
 
     assert "CREATIVE-STAND-IN" in answer, f"the servable sibling vanished behind the refusal: {answer!r}"
-    assert "live observation" in answer.lower() or "EUR" in answer, (
+    assert "web lookups are off" in answer.lower() or "EUR" in answer, (
         f"the conversion sibling vanished behind the refusal: {answer!r}"
     )
     rows = _ledger(context)

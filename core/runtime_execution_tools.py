@@ -4315,9 +4315,9 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
     remote_turn = turn_is_remote(source_context)
     try:
         opened = (
-            open_public_only(url, make_request=_request, timeout=timeout_seconds)
+            open_public_only(url, make_request=_request, timeout=timeout_seconds, lookup=True)
             if remote_turn
-            else open_remote(_request(url), timeout=timeout_seconds)
+            else open_remote(_request(url), timeout=timeout_seconds, lookup=True)
         )
         with opened as response:
             final_url = str(response.geturl() or url)

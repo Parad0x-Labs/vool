@@ -219,7 +219,7 @@ def test_a_refusal_the_front_door_serves_under_local_only_is_kept_as_the_one_tur
                 WEATHER, source_context=dict(_SOURCE_CONTEXT), session_id_override=harness.session_id
             )
         response = str(result.get("response") or "")
-        assert "Web lookups are off, so I didn't go online" in response
+        assert "keep everything on this machine, so I can't go online" in response
         rows = recent_conversation_events(harness.session_id, limit=20)
         assert [(row["user"], row["assistant"]) for row in rows] == [(WEATHER, response)]
     finally:

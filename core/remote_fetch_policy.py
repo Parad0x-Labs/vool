@@ -210,8 +210,28 @@ def local_only_active(source_context: dict[str, Any] | None = None) -> bool:
         return False
 
 
+#: Names that only a resolver on this machine or this network answers for. Anything else is a
+#: public name, and resolving it already tells a public DNS server what the turn was about to read.
+_LOCAL_NAME_SUFFIXES = (".local", ".lan", ".home.arpa", ".internal", ".localhost")
+
+
+def _could_be_local_without_public_dns(url: str) -> bool:
+    import ipaddress
+    from urllib.parse import urlparse
+
+    host = str(urlparse(str(url or "")).hostname or "").strip().lower().strip("[]")
+    if not host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    return "." not in host or host.endswith(_LOCAL_NAME_SUFFIXES)
+
+
 def _local_only_egress_forbidden(
-    source_context: dict[str, Any] | None, url: str
+    source_context: dict[str, Any] | None, url: str, *, lookup: bool = False
 ) -> tuple[bool, str]:
     """Is this URL public egress under an active Local Only?
 
@@ -232,6 +252,11 @@ def _local_only_egress_forbidden(
     """
     if not local_only_active(source_context):
         return False, ""
+    if lookup and not _could_be_local_without_public_dns(url):
+        # A lookup to a public name (wttr.in, a search engine) is refused WITHOUT resolving it:
+        # measured, Local Only refused the fetch only after the name had gone to DNS. A loopback,
+        # LAN or literal address (a self-hosted SearXNG) is still classified as before.
+        return True, LOCAL_ONLY_EGRESS_DENIAL
     try:
         from core.auto_local_only_mode import endpoint_is_local
 
@@ -254,6 +279,16 @@ def effective_web_available(source_context: dict[str, Any] | None = None) -> boo
     """
     if local_only_active(source_context):
         return False
+    try:
+        from core.policy_engine import allow_web_fallback
+
+        return bool(allow_web_fallback())
+    except Exception:
+        return False
+
+
+def _web_lookups_switched_on() -> bool:
+    """The Web lookups switch alone; Local Only is the door's own, earlier check."""
     try:
         from core.policy_engine import allow_web_fallback
 
@@ -300,6 +335,7 @@ def open_remote(
     no_proxy: bool = False,
     redirect_policy: str = "follow",
     pinned_addresses: tuple[str, ...] | None = None,
+    lookup: bool = False,
 ) -> Any:
     """The ONE outbound HTTP door: enforce the veto, then report, then open.
 
@@ -348,6 +384,14 @@ def open_remote(
     reached with their key, and the keyless scraper that reads Brave's HTML,
     are the same host and opposite facts about whether the credential they pay
     for did any work.
+
+    `lookup=True` marks a fetch made to look something up for the person: search, a page read,
+    weather, prices, rates, news. Settings promises "nothing goes online for lookups until you
+    switch this on", so the door refuses such a fetch while Web lookups is off, with a record,
+    before any DNS or socket. Measured on 1cbf433 with the switch off: weather (wttr.in) and the
+    bitcoin price (CoinGecko) were fetched live because the lane that fetched them never asked
+    the switch; asked HERE, a lane that forgets still cannot go online. Fetches that are not
+    lookups (update checks, model downloads, keyed services the person set up) leave it False.
     """
 
     from core.effect_gateway import current_effect_ledger
@@ -364,7 +408,13 @@ def open_remote(
         no_proxy=no_proxy,
         redirect_policy=redirect_policy,
         pinned_addresses=pinned_addresses,
+        lookup=lookup,
     )
+
+
+#: Why the door refused a lookup: Web lookups (`system.allow_web_fallback`) is off. Local Only
+#: keeps its own denial, LOCAL_ONLY_EGRESS_DENIAL, which the door checks first.
+WEB_LOOKUPS_OFF_DENIAL = "web_lookups_off"
 
 
 #: The typed denial for a fetch attempt with no active ledger. Named once so
@@ -420,6 +470,61 @@ def _file_transport_fault(exc: BaseException, *, url: str, provider_id: str) -> 
         pass
 
 
+def _refuse_local_only_or_lookup(
+    ledger: Any, url: str, *, lookup: bool, provider_id: str = "", keyed_or_keyless: str = "", retry_of: str = ""
+) -> None:
+    """Local Only, then (for a lookup) the Web lookups switch: each refusal leaves a record and raises."""
+    from core.effect_gateway import DECISION_DENIED, EFFECT_NETWORK_FETCH, LIFECYCLE_DENIED, EffectReceipt
+
+    _lo_forbidden, _lo_reason = _local_only_egress_forbidden(_SCOPE_CONTEXT.get() or {}, url, lookup=lookup)
+    if _lo_forbidden:
+        ledger.open_effect(
+            EffectReceipt(
+                effect_class=EFFECT_NETWORK_FETCH,
+                decision=DECISION_DENIED,
+                lifecycle=LIFECYCLE_DENIED,
+                reason=_lo_reason,
+                host=_host_of(url),
+                provider_id=str(provider_id or ""),
+                keyed_or_keyless=str(keyed_or_keyless or ""),
+                mode=_active_mode_label(),
+                decided_by="remote_fetch_policy.local_only_egress",
+                recorded_at=_utcnow_iso(),
+            ),
+            retry_of=retry_of,
+        )
+        raise RemoteFetchRefusedError(_lo_reason)
+    if lookup and not _web_lookups_switched_on():
+        ledger.open_effect(
+            EffectReceipt(
+                effect_class=EFFECT_NETWORK_FETCH,
+                decision=DECISION_DENIED,
+                lifecycle=LIFECYCLE_DENIED,
+                reason=WEB_LOOKUPS_OFF_DENIAL,
+                host=_host_of(url),
+                provider_id=str(provider_id or ""),
+                keyed_or_keyless=str(keyed_or_keyless or ""),
+                mode=_active_mode_label(),
+                decided_by="remote_fetch_policy.web_lookups_off",
+                recorded_at=_utcnow_iso(),
+            ),
+            retry_of=retry_of,
+        )
+        raise RemoteFetchRefusedError(WEB_LOOKUPS_OFF_DENIAL)
+
+
+def refuse_lookup_before_dns(url: str) -> None:
+    """For a lookup that resolves its target before the door (pinned public-only reads): refuse
+    under Local Only or with Web lookups off before any DNS query leaves the machine, with the
+    same record the door writes. Raises RemoteFetchRefusedError; returns when the lookup may run."""
+    from core.effect_gateway import current_effect_ledger
+
+    ledger = current_effect_ledger()
+    if ledger is None:
+        raise RemoteFetchRefusedError(NO_ACTIVE_LEDGER_DENIAL)
+    _refuse_local_only_or_lookup(ledger, str(url or ""), lookup=True)
+
+
 def _open_enforced(
     request: Any,
     *,
@@ -431,6 +536,7 @@ def _open_enforced(
     no_proxy: bool = False,
     redirect_policy: str = "follow",
     pinned_addresses: tuple[str, ...] | None = None,
+    lookup: bool = False,
 ) -> Any:
     """The door's enforcement body: veto, gateway consult, lifecycle, open.
 
@@ -498,24 +604,9 @@ def _open_enforced(
     # LOCAL ONLY — zero public egress, checked before anything else this door does.
     # The receipt carries the HOST and nothing else from the request: evidence
     # without transmission.
-    _lo_forbidden, _lo_reason = _local_only_egress_forbidden(_SCOPE_CONTEXT.get() or {}, url)
-    if _lo_forbidden:
-        ledger.open_effect(
-            EffectReceipt(
-                effect_class=EFFECT_NETWORK_FETCH,
-                decision=DECISION_DENIED,
-                lifecycle=LIFECYCLE_DENIED,
-                reason=_lo_reason,
-                host=_host_of(url),
-                provider_id=str(provider_id or ""),
-                keyed_or_keyless=str(keyed_or_keyless or ""),
-                mode=_active_mode_label(),
-                decided_by="remote_fetch_policy.local_only_egress",
-                recorded_at=_utcnow_iso(),
-            ),
-            retry_of=retry_of,
-        )
-        raise RemoteFetchRefusedError(_lo_reason)
+    _refuse_local_only_or_lookup(
+        ledger, url, lookup=lookup, provider_id=provider_id, keyed_or_keyless=keyed_or_keyless, retry_of=retry_of
+    )
     if remote_fetch_forbidden():
         ledger.open_effect(
             EffectReceipt(
@@ -678,6 +769,7 @@ def open_remote_url(
     no_proxy: bool = False,
     credential_headers: tuple[str, ...] | None = None,
     redirect_policy: str = "follow",
+    lookup: bool = False,
 ) -> Any:
     """Same ONE door, convenience form: build the urllib Request here so a
     caller with `(method, url, body, headers)` needs no raw urlopen/requests
@@ -716,6 +808,7 @@ def open_remote_url(
             keyed_or_keyless=keyed_or_keyless,
             no_proxy=no_proxy,
             redirect_policy=redirect_policy,
+            lookup=lookup,
         )
 
     if credential_headers is None:
@@ -1006,7 +1099,9 @@ __all__ = [
     "local_only_active",
     "note_remote_fetch_attempt",
     "open_keyed_request",
+    "WEB_LOOKUPS_OFF_DENIAL",
     "open_remote",
+    "refuse_lookup_before_dns",
     "open_remote_url",
     "remote_fetch_allowed_by_context",
     "remote_fetch_attempt_count",

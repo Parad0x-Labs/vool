@@ -130,20 +130,26 @@ def open_public_only(
     *,
     make_request: Callable[[str], Any],
     timeout: float,
+    lookup: bool = False,
 ) -> Any:
     """Open ``url`` through the one outbound door, reaching only public addresses.
 
     ``make_request(url)`` builds the request for each hop. A redirect is followed only after its
-    target passes the same check; more than :data:`MAX_HOPS` hops refuse.
+    target passes the same check; more than :data:`MAX_HOPS` hops refuse. ``lookup`` is the door's
+    (see `open_remote`); a refused lookup is refused before the target is resolved.
     """
 
-    from core.remote_fetch_policy import open_remote
+    from core.remote_fetch_policy import open_remote, refuse_lookup_before_dns
 
     current = str(url)
     for _hop in range(MAX_HOPS + 1):
+        if lookup:
+            refuse_lookup_before_dns(current)
         addresses = resolve_public_target(current)
         try:
-            return open_remote(make_request(current), timeout=timeout, redirect_policy="refuse", pinned_addresses=addresses)
+            return open_remote(
+                make_request(current), timeout=timeout, redirect_policy="refuse", pinned_addresses=addresses, lookup=lookup
+            )
         except urllib.error.HTTPError as exc:
             message = str(getattr(exc, "msg", "") or "")
             if int(exc.code or 0) not in _REDIRECT_CODES or not message.startswith("redirect_refused:"):

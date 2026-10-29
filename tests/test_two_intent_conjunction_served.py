@@ -121,6 +121,7 @@ def drive(tmp_path_factory):
     provider = rig.CapturingProvider(default="Nothing further was found in the sources available for this request.")
     provider.__enter__()
     daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra=env_extra)
+    daemon.switch_web_lookups_on()
     daemon.register_provider()
     daemon.start()
     try:

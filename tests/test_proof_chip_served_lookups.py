@@ -36,6 +36,7 @@ def _daemon(tmp_path: Path, provider, manifest: Path):
         "VOOL_FIXTURE_TRANSPORT_LOG": str(log),
     }
     daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra=env_extra)
+    daemon.switch_web_lookups_on()
     daemon.register_provider()
     daemon.start()
     return daemon, log

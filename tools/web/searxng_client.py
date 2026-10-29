@@ -89,7 +89,7 @@ class SearXNGClient:
         # other provider's.
         start = time.time()
         try:
-            with open_remote(request, timeout=self.timeout_s) as response:
+            with open_remote(request, timeout=self.timeout_s, lookup=True) as response:
                 body = response.read().decode("utf-8", "replace")
         except RemoteFetchRefusedError:
             # A turn-level veto. Not this instance's fault and not a provider outcome; the caller
