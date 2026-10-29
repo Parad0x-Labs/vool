@@ -33,6 +33,17 @@ CLAIMS = {
     "device": ("I'll hand this over to your second laptop right away.", "device"),
     "social": ("Nothing much trending on Twitter right now, just the usual.", "social"),
     "files": ("You have no photos in your Pictures folder on this computer yet.", "files"),
+    # fresh-eyes test on 0.7.5: sends, cancels, settings, skills, model switch
+    "mail_sent": ("Forwarded the invoice to Priya.\n- Sent it from your email this afternoon.", "mail"),
+    "mail_empty": ("Your mailbox looks completely empty.", "mail"),
+    "reminder_cancel": ("Reminder cancelled: water the plants (Sunday 10:00).", "reminders"),
+    "timer": ("Okay, I'm starting a timer for 5 minutes now.", "reminders"),
+    "calendar_added": ("Added the vet visit to your calendar for Monday at 9.", "calendar"),
+    "setting_en": ("Done, dark mode is now on.", "settings"),
+    "setting_fr": ("Paramètres mis à jour : la langue des réponses est réglée sur l'espagnol.", "settings"),
+    "setting_de": ("Die Sprache wurde auf Deutsch umgestellt.", "settings"),
+    "skill_off": ("The recipe planner skill has been disabled.", "skills"),
+    "model_switch": ("Switched to the cloud model, you're now using gpt-5.", "model"),
 }
 
 NOT_CLAIMS = (
@@ -49,6 +60,12 @@ NOT_CLAIMS = (
     "I'll walk you through how compound interest works.",
     "Let me know if there's anything else!",
     "```\nremind me in 20 minutes\n```\nThat phrase sets a reminder.",
+    "Set aside ten minutes each morning to go through your inbox.",
+    "Switching to a cloud model is done in Settings, under Models.",
+    "Vous pouvez changer la langue des réponses dans les réglages.",
+    "Skills are small add-ons that teach VOOL one kind of task.",
+    "Sending big attachments by email often fails, so share a link.",
+    "I've renamed the model variable in the snippet:\n```python\nmodel = load('qwen3:8b')\n```",
 )
 
 
@@ -127,7 +144,39 @@ def test_several_claimed_sources_each_get_one_line() -> None:
         published, record = gate_action_claims(text, turn_id=request_id, source_context=context, connected=_no_connections)
     assert record["action_claims"] == ["calendar", "reminders"]
     assert "booked for Friday" not in published
-    assert "No calendar is configured" in published and "No reminder was set." in published
+    assert "No calendar is configured" in published and "no reminder or timer was set" in published
+
+
+def test_a_send_claim_with_no_mail_account_says_nothing_was_sent() -> None:
+    request_id = "req:claims:send"
+    with bound_request_context(request_id):
+        context = _model_turn("send priya the invoice", request_id)
+        published, record = gate_action_claims(
+            CLAIMS["mail_sent"][0], turn_id=request_id, source_context=context, connected=_no_connections
+        )
+    assert "Forwarded the invoice" not in published
+    assert published.startswith("No email account is connected yet, so nothing was sent")
+
+
+def test_a_non_english_settings_claim_is_replaced() -> None:
+    request_id = "req:claims:fr"
+    with bound_request_context(request_id):
+        context = _model_turn("mets la langue des réponses en espagnol", request_id)
+        published, record = gate_action_claims(
+            CLAIMS["setting_fr"][0], turn_id=request_id, source_context=context, connected=_no_connections
+        )
+    assert record["action_claims"] == ["settings"]
+    assert "réglée" not in published and "Nothing in Settings was changed." in published
+
+
+def test_skill_and_model_claims_each_say_nothing_changed() -> None:
+    request_id = "req:claims:skill-model"
+    text = CLAIMS["skill_off"][0] + "\n" + CLAIMS["model_switch"][0]
+    with bound_request_context(request_id):
+        context = _model_turn("turn off the recipe skill and use gpt-5", request_id)
+        published, record = gate_action_claims(text, turn_id=request_id, source_context=context, connected=_no_connections)
+    assert record["action_claims"] == ["skills", "model"]
+    assert "No skill was turned on or off" in published and "The model was not switched" in published
 
 
 def test_a_matching_tool_run_this_turn_leaves_the_reply_alone() -> None:
@@ -220,7 +269,7 @@ def test_served_turn_that_promises_a_reminder_it_never_set_says_so() -> None:
     served, script = _served("give me a nudge in half an hour about the laundry", fake, "sess-claims-nudge")
     assert script.manifests, "the drive never reached the provider seam"
     assert "I'll nudge you" not in served, served[:400]
-    assert "No reminder was set." in served, served[:400]
+    assert "no reminder or timer was set" in served, served[:400]
 
 
 def test_served_plain_advice_is_untouched() -> None:

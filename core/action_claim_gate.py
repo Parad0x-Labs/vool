@@ -78,6 +78,29 @@ _SOURCES: tuple[tuple[str, re.Pattern[str], re.Pattern[str]], ...] = (
         re.compile(r"^x\.|twitter|social|web\.", re.I),
     ),
     (
+        "settings",
+        re.compile(
+            r"\b(?:settings?|language|answer language|dark mode|theme|langue|langage|r[ée]glages?|param[èe]tres?"
+            r"|idioma|configuraci[óo]n|sprache|einstellungen?)\b",
+            re.I,
+        ),
+        re.compile(r"setting|pref|locale|language", re.I),
+    ),
+    (
+        "skills",
+        re.compile(r"\b(?:skills?|comp[ée]tences?|habilidad(?:es)?|f[äa]higkeit(?:en)?)\b", re.I),
+        re.compile(r"^skill\.", re.I),
+    ),
+    (
+        "model",
+        re.compile(
+            r"\b(?:(?:local|cloud|ai|language|chat|default) model|gpt-[\w.]+|qwen[\w.:]*|llama[\w.:]*|ollama"
+            r"|mod[èe]le (?:local|cloud)|modelo (?:local|en la nube)|(?:lokale|cloud-)modell)\b",
+            re.I,
+        ),
+        re.compile(r"model|lane|provider", re.I),
+    ),
+    (
         "files",
         re.compile(
             r"\b(?:videos?|photos?|pictures?|files?|folders?|documents folder|downloads folder|desktop)"
@@ -92,7 +115,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str], re.Pattern[str]], ...] = (
 _ACT_VERBS = (
     r"add|put|set|schedul|book|creat|sav|jot|nudg|remind|ping|mov|adjust|chang|updat|reschedul"
     r"|cancel|delet|remov|pass|send|sent|forward|hand|check|scan|look|search|edit|replac|log|mark"
-    r"|block|pencil|note"
+    r"|block|pencil|note|turn|switch|enabl|disabl|activat|deactivat|repli|start"
 )
 _FIRST_PERSON_ACTION = re.compile(
     r"\b(?:i['’]ll|i will|i['’]ve|i have|i['’]m going to|i am going to|let me|i just"
@@ -103,12 +126,47 @@ _FIRST_PERSON_ACTION = re.compile(
 _PASSIVE_DONE = re.compile(
     r"\b(?:your|it|that|this|the)\b[^.?!\n]{0,60}?\b(?:is|are|has been|have been|was|were|['’]s|['’]re)\s+"
     r"(?:now\s+|all\s+)?(?:scheduled|rescheduled|booked|set(?: up)?|added|saved|noted|created|moved|updated"
-    r"|cancel+ed|deleted|removed|sent|forwarded|passed(?: on| along)?|handed (?:off|over)|logged|blocked)\b",
+    r"|cancel+ed|deleted|removed|sent|forwarded|passed(?: on| along)?|handed (?:off|over)|logged|blocked"
+    r"|turned (?:on|off)|switched (?:on|off|to)|enabled|disabled|activated|deactivated|changed|installed)\b",
     re.I,
 )
 _NOUN_DONE = re.compile(
     r"\b(?:reminder|note|event|appointment|alarm|timer|meeting)\s+(?:has been\s+|is\s+)?"
-    r"(?:set|saved|added|created|scheduled|booked|moved|updated)\b",
+    r"(?:set|saved|added|created|scheduled|booked|moved|updated|cancel+ed|deleted|removed|started)\b",
+    re.I,
+)
+# A report that starts with the done verb and no subject: "Sent the reply via email.", "Added
+# dentist to calendar.", "Switching back to the local model." Bare "Set"/"Turn"/"Switch" are left
+# out: they read as advice ("Set aside ten minutes ...").
+_SUBJECTLESS_DONE = re.compile(
+    r"^(?:sent|replied|added|scheduled|rescheduled|booked|cancel+ed|saved|created|moved|updated|deleted"
+    r"|removed|forwarded|enabled|disabled|activated|deactivated|turned (?:on|off)|switched (?:on|off|to|back)"
+    r"|changed)\b"
+    r"|^(?:switching|changing|turning|sending|cancel+ing|adding|scheduling|moving|enabling|disabling)\b"
+    r"(?![^.!?\n]*\b(?:is|are|can|takes|means|lets|needs|requires|works|fails|often|usually|should|will|may|might|helps|could|would|tends)\b)",
+    re.I,
+)
+_STATE_REPORT = re.compile(
+    r"\byour (?:inbox|mailbox|calendar|schedule|agenda) (?:is|looks) (?:completely |totally )?(?:empty|clear|free)\b"
+    r"|\b(?:is|are) (?:now )?(?:turned |switched )?(?:on|off) now\b|\bis now (?:on|off|active|inactive)\b"
+    r"|\b(?:now|from now on) (?:using|set to|in)\b",
+    re.I,
+)
+# The same done-forms in the other answer languages VOOL ships most (fr, es, de): a past participle
+# of a change or send verb in a sentence that names a live source.
+_FOREIGN_DONE = re.compile(
+    r"\b(?:d[ée]fini(?:e|s|es)?|activ[ée](?:e|s|es)?|d[ée]sactiv[ée](?:e|s|es)?|r[ée]gl[ée](?:e|s|es)?"
+    r"|chang[ée](?:e|s|es)?|modifi[ée](?:e|s|es)?|envoy[ée](?:e|s|es)?|annul[ée](?:e|s|es)?"
+    r"|ajout[ée](?:e|s|es)?|programm[ée](?:e|s|es)?|enregistr[ée](?:e|s|es)?"
+    r"|configurad[oa]s?|establecid[oa]s?|activad[oa]s?|desactivad[oa]s?|enviad[oa]s?|cancelad[oa]s?"
+    r"|añadid[oa]s?|programad[oa]s?|cambiad[oa]s?|guardad[oa]s?"
+    r"|eingestellt|aktiviert|deaktiviert|gesendet|verschickt|abgesagt|storniert|hinzugef[üu]gt|gesetzt"
+    r"|ge[äa]ndert|gespeichert|umgestellt)\b",
+    re.I,
+)
+_FOREIGN_HEDGE = re.compile(
+    r"\b(?:ne peux pas|n['’]ai pas|pas pu|vous pouvez|pouvez-vous|si vous|no puedo|no he|puedes|si quieres"
+    r"|kann nicht|konnte nicht|nicht m[öo]glich|sie k[öo]nnen|wenn sie)\b",
     re.I,
 )
 _CHECKED = re.compile(
@@ -168,13 +226,20 @@ _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _LEAD_FILLER = re.compile(r"^[\s>*_#`\-•]*(?:(?:got it|sure(?: thing)?|okay|ok|done|alright|all set|great)\b[\s,.!:;—–-]*)*", re.I)
 
 
+_CODE_REPLY_SOURCES = frozenset({"settings", "skills", "model", "files"})
+
+
 def _claim_form(sentence: str) -> str:
     body = _LEAD_FILLER.sub("", sentence).strip()
     if not body or body.endswith("?") or _NOT_A_CLAIM.search(body):
         return ""
     if _FIRST_PERSON_ACTION.search(body):
         return "action"
-    if _PASSIVE_DONE.search(body) or _NOUN_DONE.search(body):
+    if _PASSIVE_DONE.search(body) or _NOUN_DONE.search(body) or _SUBJECTLESS_DONE.search(body):
+        return "action"
+    if _STATE_REPORT.search(body):
+        return "read"
+    if _FOREIGN_DONE.search(body) and not _FOREIGN_HEDGE.search(body):
         return "action"
     if _CHECKED.search(body) or _BASED_ON_READ.search(body) or _YOU_HAVE_COUNT.search(body):
         return "read"
@@ -195,6 +260,7 @@ def _sources_of(sentence: str, form: str) -> list[str]:
 def action_claims(content: str) -> list[tuple[str, str, str]]:
     """`(sentence, form, source)` for every sentence of ``content`` that says an action on, or a
     read of, a live source happened. ``form`` is "action" or "read". Code blocks never count."""
+    has_code = bool(_FENCE.search(str(content or "")))
     text = _FENCE.sub("\n", str(content or ""))
     kept_lines: list[str] = []
     for line in text.split("\n"):
@@ -215,6 +281,10 @@ def action_claims(content: str) -> list[tuple[str, str, str]]:
         if not form:
             continue
         for source in _sources_of(sentence, form):
+            if has_code and source in _CODE_REPLY_SOURCES:
+                # A reply carrying code changes text inside the reply ("I've changed the model
+                # name below"); it is not a claim about this app's settings, skills or model.
+                continue
             claims.append((sentence, form, source))
     return claims
 
@@ -250,13 +320,20 @@ def _x_connected() -> bool | None:
         return None
 
 
-def _line_for(source: str, connected: Callable[[str], bool | None]) -> str:
+def _line_for(source: str, connected: Callable[[str], bool | None], forms: frozenset[str] = frozenset({"read"})) -> str:
     if source == "mail":
         if connected("mail") is False:
+            if "action" in forms:
+                return (
+                    "No email account is connected yet, so nothing was sent and I haven't read any "
+                    "inbox. You can add one under Settings > Email accounts."
+                )
             return (
                 "No email account is connected yet, so I haven't checked any inbox and can't say "
                 "what's in it. You can add one under Settings > Email accounts."
             )
+        if "action" in forms:
+            return "No email was sent. Ask me to draft the reply and I'll show it to you before anything goes out."
         return "I haven't checked your email, so I can't say what's in your inbox. Ask me to check your email and I'll read it."
     if source == "calendar":
         if connected("calendar") is False:
@@ -269,7 +346,10 @@ def _line_for(source: str, connected: Callable[[str], bool | None]) -> str:
             "the day and time and I'll use the calendar."
         )
     if source == "reminders":
-        return "No reminder was set. Ask me to remind you, with the time, and I'll set one."
+        return (
+            "Nothing was changed in your reminders: no reminder or timer was set or cancelled. "
+            "Ask me again with the reminder's name or time and I'll do it."
+        )
     if source == "notes":
         return "No note was saved. Ask me to add it as a note and I'll save it."
     if source == "system":
@@ -279,6 +359,15 @@ def _line_for(source: str, connected: Callable[[str], bool | None]) -> str:
         )
     if source == "device":
         return "Nothing was sent to another machine; I haven't contacted any other device."
+    if source == "settings":
+        return (
+            "Nothing in Settings was changed. You can change it yourself in Settings (the answer "
+            "language is under Answer language)."
+        )
+    if source == "skills":
+        return "No skill was turned on or off; nothing changed. You can turn a skill on or off in the skills settings."
+    if source == "model":
+        return "The model was not switched; VOOL is still using the same one. You can choose the model in Settings → Models."
     if source == "social":
         if connected("x") is False:
             return (
@@ -301,10 +390,20 @@ def _connected_reader() -> Callable[[str], bool | None]:
     return read
 
 
-def no_action_reply(sources: list[str], *, connected: Callable[[str], bool | None] | None = None) -> str:
+def no_action_reply(
+    sources: list[str],
+    *,
+    connected: Callable[[str], bool | None] | None = None,
+    forms: dict[str, set[str]] | None = None,
+) -> str:
     """The plain reply that replaces a claimed action or read, one line per source."""
     read = connected or _connected_reader()
-    lines = list(dict.fromkeys(_line_for(source, read) for source in dict.fromkeys(sources)))
+    form_map = dict(forms or {})
+    lines = list(
+        dict.fromkeys(
+            _line_for(source, read, frozenset(form_map.get(source) or {"read"})) for source in dict.fromkeys(sources)
+        )
+    )
     return "\n\n".join(lines)
 
 
@@ -386,7 +485,10 @@ def gate_action_claims(
             unbacked.append(source)
     if not unbacked:
         return text, {"action_claims": sorted({c[2] for c in claims}), "publication": "tool_result_present"}
-    return no_action_reply(unbacked, connected=connected), {
+    forms: dict[str, set[str]] = {}
+    for _sentence, form, source in claims:
+        forms.setdefault(source, set()).add(form)
+    return no_action_reply(unbacked, connected=connected, forms=forms), {
         "action_claims": unbacked,
         "claimed_sentences": [c[0] for c in claims if c[2] in unbacked][:6],
         "publication": "action_claims_replaced",
