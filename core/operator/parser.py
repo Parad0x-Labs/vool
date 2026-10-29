@@ -94,6 +94,14 @@ _AVAILABILITY_RE = re.compile(
     r"|\b(?:check|show|what|find|look)\b[^\n!?.]*\b(?:my|the)\s+(?:calendar|schedule)\b",
     re.IGNORECASE,
 )
+# "calendar" used as the name of a piece of code ("what does the calendar script print", "open
+# calendar.py") is a project file, not the user's calendar. Measured 2026-10-29 (re-audit coding:S2):
+# that question was read as an availability check and answered "no calendar provider is configured".
+_CALENDAR_AS_CODE_RE = re.compile(
+    r"\b(?:calendar|schedule|scheduler)(?:[\s_-]+|\.)"
+    r"(?:script|scripts|file|module|code|program|function|class|component|py|js|ts|sh)\b",
+    re.IGNORECASE,
+)
 # The agenda lane: the request asks WHAT IS ON the chosen calendars on a day/range. It must
 # be checked before _AVAILABILITY_RE, whose broad "(show|what) ... my calendar" would otherwise
 # claim every agenda question for the free-slot lane.
@@ -348,23 +356,25 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
         return OperatorActionIntent(kind="edit_reminder", action_id=reminder_id, target_label=_reminder_edit_text(text), raw_text=text)
     if _LIST_REMINDERS_RE.search(words):
         return OperatorActionIntent(kind="list_reminders", raw_text=text)
-    if _CANCEL_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
-    if _MOVE_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+    calendar_names_code = bool(_CALENDAR_AS_CODE_RE.search(words))
+    if not calendar_names_code:
+        if _CANCEL_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+        if _MOVE_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
 
-    # --- Provider-backed calendar reads and proposals. Availability first: "check
-    # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
-    # with the scheduling family so "remind me to take notes" is still a reminder (the
-    # reminder regex above already claimed it).
-    if _AGENDA_RE.search(words):
-        return OperatorActionIntent(kind="show_agenda", raw_text=text)
-    if _SEARCH_CALENDAR_RE.search(words):
-        return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
-    if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
-        return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
+        # --- Provider-backed calendar reads and proposals. Availability first: "check
+        # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
+        # with the scheduling family so "remind me to take notes" is still a reminder (the
+        # reminder regex above already claimed it).
+        if _AGENDA_RE.search(words):
+            return OperatorActionIntent(kind="show_agenda", raw_text=text)
+        if _SEARCH_CALENDAR_RE.search(words):
+            return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
+        if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
+            return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
     if _LIST_CALENDARS_RE.search(words):
         return OperatorActionIntent(kind="list_calendars", raw_text=text)
     if _INSPECT_EVENT_RE.search(words):
