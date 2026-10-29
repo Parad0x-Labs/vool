@@ -260,6 +260,22 @@ def single_plain_know_question(
             return False
     except Exception:
         pass
+    # The owner asking about their own notes, calendar, reminders, processes, files or mailbox
+    # is a live-source ask, not world knowledge: the tool lane owns it. Measured 2026-10-29 on
+    # qwen3:8b ("do i have any notes about the car insurance?"): the probe spent the turn's first
+    # model call judging entity ambiguity, the call failed under load, and the turn asked back
+    # "tell me which place, person or thing" while the notes tools it now seats never ran.
+    if source_context is not None:
+        try:
+            from core.request_trust import request_is_owner_local
+            from core.tool_demand_signals import owner_live_sources, owner_local_operator_intents
+
+            if request_is_owner_local(dict(source_context)) and (
+                owner_live_sources(message) or owner_local_operator_intents(message)
+            ):
+                return False
+        except Exception:
+            pass
     # CAPABILITY ROUTING BEFORE ADJUDICATION (FINDINGS F15, owner transcript 2026-09-10 23:43 on
     # c647b707). A turn that REFERS to work already on the table is not a plain knowledge
     # question, whatever its clause reads as: "why?" after a failed lookup is a follow-up the

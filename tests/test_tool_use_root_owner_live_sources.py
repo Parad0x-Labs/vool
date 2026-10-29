@@ -282,3 +282,18 @@ def test_a_mailbox_ask_with_no_account_never_reaches_the_model(monkeypatch) -> N
     result = _drive("did the bank email me this week?", router, OWNER)
     assert router.contexts == []
     assert "No email account is connected" in str(result.get("response") or "")
+
+
+@pytest.mark.parametrize(("text", "toolset"), NEEDS)
+def test_a_live_source_ask_is_not_adjudicated_for_entity_ambiguity(text: str, toolset: str) -> None:
+    """The entity-ambiguity probe spends a model call before the tool lane; a live-source ask skips it."""
+    from core.entity_ambiguity import single_plain_know_question
+
+    assert not single_plain_know_question(text, source_context=dict(OWNER))
+
+
+def test_the_ambiguity_probe_still_owns_plain_knowledge_questions() -> None:
+    from core.entity_ambiguity import single_plain_know_question
+
+    for text in ("what is the population of springfield?", "who wrote the odyssey?"):
+        assert single_plain_know_question(text, source_context=dict(OWNER)) == single_plain_know_question(text)
