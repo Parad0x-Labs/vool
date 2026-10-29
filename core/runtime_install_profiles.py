@@ -1288,10 +1288,15 @@ def _nearest_existing_path(path: Path) -> Path:
 
 
 def _path_target_available(path: Path) -> bool:
+    # A path this process may not even stat (a sandbox, a volume without access granted) is not
+    # available: the denied stat used to raise PermissionError and take the whole daemon down.
     current = path
-    while not current.exists() and current != current.parent:
-        current = current.parent
-    return current.exists()
+    try:
+        while not current.exists() and current != current.parent:
+            current = current.parent
+        return current.exists()
+    except OSError:
+        return False
 
 
 def _windows_ollama_models_env_paths() -> tuple[Path, ...]:
