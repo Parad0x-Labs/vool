@@ -1658,6 +1658,7 @@ def handle_turn_frontdoor(
         effective_input,
         source_surface=source_surface,
         source_context=source_context,
+        session_id=session_id,
     )
     if same_chat_recall is not None:
         from core.agent_runtime.same_chat_recall import gate_transcript_recall
