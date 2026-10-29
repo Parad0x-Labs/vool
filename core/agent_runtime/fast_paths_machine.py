@@ -945,6 +945,29 @@ def _extract_machine_transcript_export_target(user_input: str) -> str:
 _URL_SPAN_RE = re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s`\"']+", re.IGNORECASE)
 
 
+# "read notes.txt in Documents": a plain file name and the safe folder it is in. Read from that folder
+# only when the file is really there; anything else is not this lane's to guess.
+_NAMED_FOLDER_FILE_RE = re.compile(
+    r"(?<![\w/~.\-])(?P<name>[\w][\w\-]*(?:\.[\w\-]+)*\.[A-Za-z0-9]{1,8})\b"
+    r"(?:\s+\w+){0,3}?\s+(?:in|from|on|inside)\s+(?:(?:my|the)\s+)?(?P<place>desktop|documents|downloads)\b",
+    re.IGNORECASE,
+)
+
+
+def _named_safe_folder_file(text: str) -> dict[str, Any] | None:
+    match = _NAMED_FOLDER_FILE_RE.search(text)
+    if match is None:
+        return None
+    place = match.group("place").capitalize()
+    name = match.group("name")
+    try:
+        if not (Path.home() / place / name).is_file():
+            return None
+    except OSError:
+        return None
+    return {"path": f"~/{place}/{name}", "start_line": 1, "max_lines": 120, "verbatim": False}
+
+
 def _extract_machine_file_read_target(raw: str) -> dict[str, Any] | None:
     text = " ".join(str(raw or "").split()).strip()
     lowered = f" {text.lower()} "
@@ -1006,7 +1029,7 @@ def _extract_machine_file_read_target(raw: str) -> dict[str, Any] | None:
             text,
         )
         if not plain_match:
-            return None
+            return _named_safe_folder_file(text)
         path = str(plain_match.group("path") or "").strip()
     if not path:
         return None
