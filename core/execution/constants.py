@@ -1332,6 +1332,23 @@ _LISTING_SHAPES = (
     re.compile(r"\bwhat\s+(?:have\s+i|did\s+i|i(?:'ve)?)\s+(?:just\s+|recently\s+)?(?P<verb>download)(?:ed)?\b", re.IGNORECASE),
     # "sort my downloads by size"
     re.compile(r"\b(?:sort|order)\s+" + _PLACE_PATTERN + r"(?:\s+folder)?\s+by\s+(?P<by>size|date|age|time)\b", re.IGNORECASE),
+    # "i took some screenshots last week i think, where are they?" (phone audit 2026-10-29): a listing only
+    # when "where are they" follows, see _WHERE_ARE_THEY_RE.
+    re.compile(
+        r"\bi\s+(?:just\s+|recently\s+)?(?P<verb>took|made|saved|grabbed|downloaded)\s+"
+        r"(?:some\s+|a\s+few\s+|a\s+couple(?:\s+of)?\s+|a\s+bunch\s+of\s+|loads\s+of\s+|\d+\s+)?" + _KIND_PATTERN + r"\b",
+        re.IGNORECASE,
+    ),
+)
+# "...where are they", "...can you find them": what turns "i took some screenshots" into a listing.
+_WHERE_ARE_THEY_RE = re.compile(
+    r"\bwhere\s+(?:are|did|have|do)\s+(?:they|those|these|it|i\s+(?:put|save|keep)\s+(?:them|those|it))\b"
+    r"|\b(?:find|locate|show\s+me)\s+(?:them|those|these)\b",
+    re.IGNORECASE,
+)
+_WHERE_ARE_THEY_CLAUSE_RE = re.compile(
+    r"^(?:so\s+|but\s+)?(?:(?:can|could)\s+you\s+)?(?:" + _WHERE_ARE_THEY_RE.pattern + r")(?:\s+\w+){0,3}?(?:\s+please)?$",
+    re.IGNORECASE,
 )
 _KIND_LISTING_CUE_RE = re.compile(
     r"\b(?:find|show|list|give|get|fetch|grab|see|what|which|any|are\s+there|do\s+i\s+have|look|how\s+many|count|"
@@ -1413,7 +1430,12 @@ def machine_kind_listing_intent(text: str) -> KindListing | None:
     if not raw or re.search(r"\b(?:named|called|titled)\b", raw, re.IGNORECASE):
         return None
     match = _listing_match(raw)
-    if match is None or not _KIND_LISTING_CUE_RE.search(raw[: match.start()] or raw):
+    if match is None:
+        return None
+    if match.re is _LISTING_SHAPES[-1]:
+        if not _WHERE_ARE_THEY_RE.search(raw[match.end():]):
+            return None  # "i took some photos, what should i call the album" is not a listing
+    elif not _KIND_LISTING_CUE_RE.search(raw[: match.start()] or raw):
         return None
     # The verb that makes it a listing ("files I EDITED today") is not an action on the files.
     checked = (raw[: match.start("verb")] + raw[match.end("verb"):]) if match.groupdict().get("verb") else raw
@@ -1491,7 +1513,7 @@ def machine_kind_listing_covers_turn(text: str) -> bool:
         if _listing_match(clause) and not listing_seen:
             listing_seen = True
             continue
-        if _RESULTS_CLAUSE_RE.match(clause) or _PICK_LATER_CLAUSE_RE.match(clause):
+        if _RESULTS_CLAUSE_RE.match(clause) or _PICK_LATER_CLAUSE_RE.match(clause) or _WHERE_ARE_THEY_CLAUSE_RE.match(clause):
             continue
         if _AGE_RE.search(clause) or _AGE_WORDS_RE.search(clause):
             rest = _AGE_WORDS_RE.sub(" ", _AGE_RE.sub(" ", clause))
@@ -2155,6 +2177,21 @@ _AUTHORING_NOT_MEASURING_RE = re.compile(
 )
 
 
+# "my laptop has been proper sluggish today, whats slowing it down?" (phone audit 2026-10-29): the owner's own
+# machine named as slow, and a question about the cause. The model asked what was meant; the process list answers.
+_SLOW_OWN_MACHINE_RE = re.compile(
+    r"\b(?:my|this)\s+(?:laptop|computer|mac|macbook(?:\s+(?:air|pro))?|imac|pc|machine|desktop)\b[^.?!\n]{0,40}?"
+    r"\b(?:slow|slower|sluggish|laggy|lagging|crawling|struggling|freezing|hanging)\b"
+    r"|\b(?:slowing|bogging|lagging)\s+(?:down\s+)?(?:my|this)\s+(?:laptop|computer|mac|macbook|imac|pc|machine|desktop)\b",
+    re.IGNORECASE,
+)
+_SLOWNESS_CAUSE_RE = re.compile(
+    r"\b(?:what(?:'s|s|\s+is)?|why|which)\b[^.?!\n]{0,40}?\b(?:slow\w*|lag\w*|making|causing|hogging|eating|bogging|wrong)\b"
+    r"|\bwhy\s+is\b",
+    re.IGNORECASE,
+)
+
+
 def machine_live_load_intent(text: str) -> str | None:
     """Map a "what is consuming this machine right now" question to ``machine.list_processes``.
 
@@ -2196,6 +2233,8 @@ def machine_live_load_intent(text: str) -> str | None:
     ranked_by_resource = bool(
         _PROCESS_RANKING_RE.search(lowered) and _PROCESS_RESOURCE_WORD_RE.search(lowered)
     )
+    if _SLOW_OWN_MACHINE_RE.search(lowered) and _SLOWNESS_CAUSE_RE.search(lowered):
+        return "machine.list_processes"
     if not asks_runtime_for_a_fact(text, _PROCESS_TOPIC_RE, also_anchored=ranked_by_resource):
         return None
     if (

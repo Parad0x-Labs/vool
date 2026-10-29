@@ -42,6 +42,7 @@ _SERVICE_HINTS = (
     "startup services",
     "startup items",
     "launch agents",
+    "background services",
 )
 _TOOL_HINTS = (
     "what tools do you have",
