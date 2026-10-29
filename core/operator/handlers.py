@@ -954,6 +954,26 @@ def handle_cancel_reminder(
         list_reminders_fn=list_reminders_fn,
     )
     if target is None:
+        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+        pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+        if pending:
+            # More than one candidate and no id: name them instead of sending the user elsewhere.
+            lines = []
+            for row in pending[:3]:
+                wall = format_due_time(
+                    str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
+                )
+                lines.append(f"- {row.get('note')} — due {wall} (id {str(row.get('reminder_id'))[:8]})")
+            more = f"\n(and {len(pending) - 3} more)" if len(pending) > 3 else ""
+            return OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text=(
+                    f"This chat has {len(pending)} pending reminders:\n" + "\n".join(lines) + more
+                    + "\nWhich one should I cancel? Say it with the reminder id."
+                ),
+                details={"kind": "cancel_reminder", "pending_count": len(pending)},
+            )
         return OperatorActionResult(
             ok=False,
             status="invalid_request",
@@ -981,10 +1001,15 @@ def handle_cancel_reminder(
             response_text=f"I could not cancel that reminder: {outcome.get('reason') or outcome.get('status')}.",
             details=outcome,
         )
+    wall = format_due_time(
+        str(target.get("due_at_utc") or ""), str(target.get("tz_name") or ""), str(target.get("due_wall") or "")
+    )
     return OperatorActionResult(
         ok=True,
         status="executed",
-        response_text=f"Reminder cancelled: {target.get('note')} will not be delivered.",
+        response_text=(
+            f"Reminder cancelled: {target.get('note')} will not be delivered. It was due {wall}."
+        ),
         details={**outcome, "reminder_id": str(target.get("reminder_id")), "note": target.get("note")},
         learned_plan=_learned_plan(
             "Verified reminder cancellation workflow: resolve target by id or most recent, CAS the store row, verify the transition.",
