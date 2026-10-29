@@ -112,6 +112,7 @@ def test_a_chat_left_dark_by_the_old_check_reads_again_after_the_forget_is_said_
     _record_call("", SMOKE_ID)
     with monkeypatch.context() as before_the_fix:  # the check as 9ef0e1ad shipped it: nested ids read as words
         before_the_fix.setattr(run_history, "_without_runtime_ids", lambda value: value)
+        before_the_fix.setattr(run_history, "_without_call_ids", lambda value: value)  # the later call-id rule too
         handled, reply = command(isolated_pages, chat, "Forget 14.")
         assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
     assert _facts(chat) == []  # the open erasure keeps every memory of the chat from being read
