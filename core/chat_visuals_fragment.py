@@ -170,7 +170,9 @@ def render_chat_visuals_fragment() -> str:
       };
       frames.set(frame.contentWindow,job);
       job.timer = setTimeout(job.fail,12000);
-      frame.srcdoc = frameHTML(job.kind, job.input);
+      // A chart or diagram draws in its own frame, outside the page's "Hide my name on screen" mask.
+      const privacy = window.VoolScreenPrivacy;
+      frame.srcdoc = frameHTML(job.kind, privacy && privacy.enabled() ? privacy.maskValue(job.input) : job.input);
     }
   }
   function hydrate(root) {

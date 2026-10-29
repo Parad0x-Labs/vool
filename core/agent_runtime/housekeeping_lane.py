@@ -374,6 +374,12 @@ def _fold_simple(text: str) -> str:
 def looks_like_search(clause: str) -> bool:
     """Whether a clause asks WHERE something was said or done across the operator's chats."""
     f = _fold_simple(clause)
+    # "got a picture somewhere called beach2, can you locate it" is a file on this disk, not a chat.
+    # Measured on the Mac 2026-10-28: "somewhere" read as a past-chat cue and the chat search took it.
+    from core.execution.constants import machine_file_search_intent
+
+    if not _CHAT_NOUN.search(f) and machine_file_search_intent(clause) is not None:
+        return False
     if _S_LOC.search(f) and _S_HERE_NOW.search(f) and not _S_PAST.search(f):
         return False
     if _S_LOC.search(f) or _S_WHERE.search(f) or _S_FORGOT.search(f) or _S_ALL.search(f):

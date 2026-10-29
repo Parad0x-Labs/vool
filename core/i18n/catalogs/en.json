@@ -2848,7 +2848,10 @@
     "live.up": "Up",
     "live.upload": "Upload",
     "settings.row.live_browser.help": "Review every action before it runs. Page scripts are off. Use the wallet for payments.",
-    "settings.row.live_browser.label": "Browser"
+    "settings.row.live_browser.label": "Browser",
+    "settings.row.hide_name_on_screen.label": "Hide my name on screen",
+    "settings.row.hide_name_on_screen.help": "Turn this on before you stream or share your screen. VOOL then shows your home folder as ~, and your name and your computer's name as •••, here and on your phone. Only what you see changes: your files, chats and everything VOOL does stay the same. Text you are typing is not hidden.",
+    "settings.row.hide_name_on_screen.effect": "Applies immediately."
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -948,6 +948,22 @@ def _settings_groups() -> list[dict]:
             "blurb": "Extra pages for people who want to look under the hood.",
             "rows": [
                 _row(
+                    id="hide_name_on_screen",
+                    label="Hide my name on screen",
+                    help=(
+                        "Turn this on before you stream or share your screen. VOOL then shows your "
+                        "home folder as ~, and your name and your computer's name as \u2022\u2022\u2022, "
+                        "here and on your phone. Only what you see changes: your files, chats and "
+                        "everything VOOL does stay the same. Text you are typing is not hidden."
+                    ),
+                    kind="toggle",
+                    read={"url": PREFS, "field": "hide_name_on_screen"},
+                    write={"url": PREFS, "field": "hide_name_on_screen", "type": "bool"},
+                    scope=SCOPE_GLOBAL,
+                    effect=EFFECT_IMMEDIATE,
+                    keywords="stream streaming streamer screen share sharing record recording hide name username user computer folder path home privacy private",
+                ),
+                _row(
                     id="advanced_surfaces",
                     label="Extra pages",
                     kind="custom",
@@ -1423,6 +1439,8 @@ async function commit(row, rawValue) {
   }
   /* Read back from the authority rather than trusting the 200. */
   const ok = await readSource(row.read ? row.read.url : row.write.url);
+  /* "Hide my name on screen" changes what every open VOOL window draws: tell them now. */
+  if (row.write.field === 'hide_name_on_screen' && window.VoolScreenPrivacy) window.VoolScreenPrivacy.announce();
   if (superseded()) return;
   if (!ok) {
     setState(row.id, 'stale', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
