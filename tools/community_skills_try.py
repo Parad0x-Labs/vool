@@ -11,7 +11,6 @@ and one line per ask plus a single summary line is all the output there is.
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -52,6 +51,16 @@ def _run(folder: Path, picks: tuple[str, ...], not_picks: tuple[str, ...]) -> in
 
     # Validate with the same check `skill.install` runs, BEFORE anything is installed.
     source = resolve_skill_markdown(str(folder))
+    from tools.community_skills import STARTER_MARKER, starter_text_left
+
+    try:
+        starter_left = source.is_file() and starter_text_left(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError):
+        starter_left = False
+    if starter_left:
+        print("the skill was not installed: SKILL.md still holds the starter text from `new` "
+              f"(lines with {STARTER_MARKER}); write your own description, triggers and steps first")
+        return 1
     verdict = validate_skill(str(source))
     if str(verdict.get("status") or "") != "ok":
         print(f"the skill was not installed: {_finding(verdict)}")
@@ -113,6 +122,9 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
     # name the slugger would rewrite is still recognised as this skill.
     ours = {skill_name} | ({slug} if slug else set())
 
+    for line in trigger_and_name_warnings(skill):
+        print(line)
+
     failures = {"pick": 0, "not-pick": 0}
     for kind, asks in (("pick", picks), ("not-pick", not_picks)):
         for ask in asks:
@@ -128,12 +140,12 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
                 print(f'ok   {"pick":<8} "{text}"')
             elif kind == "pick":
                 failures["pick"] += 1
-                print(f'FAIL {"pick":<8} "{text}" -> not picked')
+                print(f'FAIL {"pick":<8} "{text}" -> not picked: {_miss_reason(text, skill)}')
             elif not picked:
                 print(f'ok   {"not-pick":<8} "{text}"')
             else:
                 failures["not-pick"] += 1
-                why = _picked_reason(text, skill, slug)
+                why = "; ".join(_pick_reasons(text, skill, slug))
                 tail = f"picked by {why}" if why else "picked"
                 print(f'FAIL {"not-pick":<8} "{text}" -> {tail}')
 
@@ -149,35 +161,130 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
     return 0 if passed else 1
 
 
-def _picked_reason(ask: str, skill: Any, slug: str) -> str:
-    """Why the ranker matched, in the order it weighs: name word, trigger, shared words.
+def _pick_reasons(ask: str, skill: Any, slug: str) -> list[str]:
+    """Why the picker chose this skill for the ask, in plain words.
 
-    Mirrors core.plugin_skills.rank_skills: the skill named outright is the strongest
-    signal, an explicit trigger counts next, and shared description words are the
-    weakest way a match can happen.
+    The picker's own explanation comes first: core.plugin_skills.match_reasons, when this
+    checkout has it, gives the reasons rank_skills itself used. Without it, the fallback below
+    mirrors rank_skills's rules on folded words.
     """
 
-    from core.plugin_skills import _tokens
+    from core import plugin_skills
 
-    wanted = _tokens(ask)
-    spoken = " " + " ".join(re.split(r"[^a-z0-9]+", str(ask or "").lower())) + " "
+    # --- the picker's own reasons (match_reasons(skills, user_text) -> {name: [reasons]}) ---
+    match_reasons = getattr(plugin_skills, "match_reasons", None)
+    if callable(match_reasons):
+        try:
+            found = match_reasons((skill,), ask) or {}
+            for key in (str(skill.name or ""), slug):
+                reasons = [str(item).strip() for item in (found.get(key) or ()) if str(item).strip()]
+                if reasons:
+                    return reasons
+        except Exception:
+            pass  # fall through to the local mirror of the rules
+    # --- fallback: the same rules, read on the same folded words rank_skills reads ---
+    return _fallback_reasons(ask, skill, slug)
+
+
+def _spoken_forms(ask: str) -> dict[str, str]:
+    """Each folded content word of the ask, mapped to the way the person wrote it."""
+
+    from core.plugin_skills import _STOPWORDS, _raw_tokens, _stem
+
+    forms: dict[str, str] = {}
+    for token in _raw_tokens(ask):
+        if len(token) > 2 and token not in _STOPWORDS and not token.isdigit():
+            forms.setdefault(_stem(token), token)
+    return forms
+
+
+def _quoted(stems: list[str], forms: dict[str, str]) -> str:
+    return ", ".join(f'"{forms.get(stem, stem)}"' for stem in stems)
+
+
+def _fallback_reasons(ask: str, skill: Any, slug: str) -> list[str]:
+    from core.plugin_skills import _KIND_STEMS, _contains_phrase, _content_stems, _raw_tokens
+
+    ask_stems = _content_stems(ask)
+    forms = _spoken_forms(ask)
+    spoken = " " + " ".join(_raw_tokens(ask)) + " "
+    reasons: list[str] = []
     for candidate in (str(skill.name or ""), slug):
-        words = " ".join(re.split(r"[^a-z0-9]+", candidate.lower())).strip()
+        words = " ".join(_raw_tokens(candidate)).strip()
         if len(words) > 2 and f" {words} " in spoken:
-            return f'name word "{candidate.strip()}"'
-    for phrase in tuple(skill.triggers or ()):
-        tokens = _tokens(phrase)
-        if tokens and tokens <= wanted:
-            return f'trigger "{str(phrase).strip()}"'
-    shared: list[str] = []
-    for token in re.split(r"[^a-z0-9]+", str(skill.description or "").lower()):
-        if token in wanted and token not in shared:
-            shared.append(token)
-        if len(shared) >= 3:
+            reasons.append(f'the ask names the skill ("{words}")')
             break
-    if shared:
-        return "shared words " + ", ".join(f'"{token}"' for token in shared)
-    return ""
+    name_stems = set(_content_stems(str(skill.name or "")))
+    trigger_words: set[str] = set()
+    for phrase in tuple(skill.triggers or ()):
+        stems = _content_stems(phrase)
+        if len(stems) == 1:
+            trigger_words.update(stems)
+        if _contains_phrase(ask_stems, stems):
+            reasons.append(f'trigger "{str(phrase).strip()}"')
+    topic = set(ask_stems) - _KIND_STEMS
+    from_name = sorted(stem for stem in topic & name_stems)
+    if from_name and not reasons:
+        reasons.append("word from the skill's name " + _quoted(from_name, forms))
+    corpus = set(_content_stems(str(skill.description or ""))) | trigger_words
+    shared = [stem for stem in dict.fromkeys(ask_stems) if stem in corpus and stem not in name_stems]
+    if len(set(shared) | set(from_name)) >= 2 and shared:
+        reasons.append("shared words " + _quoted(shared, forms))
+    return reasons
+
+
+def _miss_reason(ask: str, skill: Any) -> str:
+    """Why an ask the author meant for the skill did not pick it."""
+
+    from core.plugin_skills import _KIND_STEMS, _content_stems
+
+    ask_stems = _content_stems(ask)
+    if not ask_stems:
+        return "the ask has no content words once function words are dropped"
+    corpus = (set(_content_stems(str(skill.name or ""))) | set(_content_stems(str(skill.description or "")))
+              | {stem for phrase in tuple(skill.triggers or ()) for stem in _content_stems(phrase)})
+    forms = _spoken_forms(ask)
+    shared = [stem for stem in dict.fromkeys(ask_stems) if stem in corpus]
+    topic = [stem for stem in shared if stem not in _KIND_STEMS]
+    if not shared:
+        return "no trigger matched; shares no words with the skill"
+    if not topic:
+        return ("no trigger matched; shares only kind-of-help words " + _quoted(shared, forms)
+                + ", which never pick a skill alone")
+    if len(shared) == 1:
+        return "no trigger matched; shares only " + _quoted(shared, forms)
+    return ("no trigger matched; shares " + _quoted(shared, forms)
+            + ", but another skill matched better or a word sits only inside a longer trigger")
+
+
+def trigger_and_name_warnings(skill: Any) -> list[str]:
+    """Warnings, never failures: triggers that shrink to one word or none, and name words that
+    pick the skill on their own."""
+
+    from core.plugin_skills import _KIND_STEMS, _content_stems, _raw_tokens
+
+    lines: list[str] = []
+    for phrase in tuple(skill.triggers or ()):
+        text = str(phrase).strip()
+        stems = _content_stems(text)
+        if not stems:
+            lines.append(f'warn trigger "{text}" has no words left once function words are dropped, '
+                         "so it can never pick the skill; use the topic words a person would say")
+        elif len(stems) == 1 and len(_raw_tokens(text)) > 1:
+            lines.append(f'warn trigger "{text}" comes down to the one word "{stems[0]}": '
+                         "any ask with that word picks the skill")
+    name = str(skill.name or "")
+    forms = {}
+    for token in _raw_tokens(name):
+        for stem in _content_stems(token):
+            forms.setdefault(stem, token)
+    alone = [token for stem, token in forms.items() if stem not in _KIND_STEMS]
+    if alone:
+        words = ", ".join(f'"{token}"' for token in alone)
+        lines.append(f"warn name words {words} pick this skill by themselves wherever no other "
+                     f'installed skill uses them (for example "where is my {alone[0]}?"); '
+                     "keep them out of your --not-pick asks or choose a more specific name")
+    return lines
 
 
 def _finding(report: dict) -> str:

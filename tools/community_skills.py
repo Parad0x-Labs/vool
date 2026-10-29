@@ -17,9 +17,18 @@ from core.registry.requirements import require_for_new_version
 
 # core.registry.artifact.metadata() refuses these publisher namespaces inline; keep in step with it.
 RESERVED_NAMESPACES = frozenset({"vool", "parad0x-labs", "official", "native"})
-NEW_SUMMARY = "REPLACE ME: DESCRIBE WHAT THIS SKILL DOES in one line, then say when to use it"
-NEW_TRIGGER = "REPLACE WITH A PHRASE A USER WOULD SAY FOR THIS SKILL"
-NEW_TRIGGER_TWO = "REPLACE WITH A SECOND PHRASE A USER WOULD SAY FOR THIS SKILL"
+# Every placeholder `new` writes carries this one word. `try`, `zip` and `lint` refuse a skill
+# that still holds it, so untouched starter text can never pass as a finished skill.
+STARTER_MARKER = "REPLACE"
+NEW_SUMMARY = STARTER_MARKER + " ME: DESCRIBE WHAT THIS SKILL DOES in one line, then say when to use it"
+NEW_TRIGGER = STARTER_MARKER + " WITH A PHRASE A USER WOULD SAY FOR THIS SKILL"
+NEW_TRIGGER_TWO = STARTER_MARKER + " WITH A SECOND PHRASE A USER WOULD SAY FOR THIS SKILL"
+NEW_BODY_NOTE = (STARTER_MARKER + " these steps with the steps of your own skill, and replace the\n"
+                 "description and the two trigger phrases above, then delete this paragraph. This skill\n"
+                 "produces text only. VOOL's rules, budgets, settings, permissions and approval\n"
+                 "requirements remain authoritative.\n")
+# What a skill zip may hold besides SKILL.md (core.skill_package._SIDE_FILES).
+ZIP_SIDE_FILES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "README.md", "README.txt")
 # The upload shape the author guide documents for a private-upload source object.
 NEW_CATEGORY = ("productivity", "planning-tasks")
 NEW_BODY_STEPS = """\
@@ -63,8 +72,29 @@ SOFTWARE.
 """
 
 
+def starter_text_left(text: str) -> bool:
+    """True while text still holds a placeholder that `new` wrote."""
+    return STARTER_MARKER in str(text or "")
+
+
+def starter_finding(path: str) -> dict:
+    return {"check": "starter-text", "path": path,
+            "reason": "still holds the starter text from `new` (lines with " + STARTER_MARKER +
+                      "); write your own description, triggers and steps"}
+
+
+def metadata_path(folder: Path) -> Path:
+    """Where `new` puts the packaging metadata: BESIDE the skill folder, never inside it.
+
+    The skill folder is what a person zips and imports, and the zip import takes only SKILL.md
+    plus a LICENSE or README, so a metadata.json inside the folder made it refuse the folder.
+    """
+    folder = Path(folder)
+    return folder.parent / (folder.name + ".metadata.json")
+
+
 def scaffold(destination: Path, name: str, namespace: str, author: str) -> None:
-    """Create a fill-in starter folder: SKILL.md, LICENSE and metadata.json."""
+    """Create a fill-in starter: the folder holds SKILL.md and LICENSE; metadata goes beside it."""
     # Every check runs before the first write, so a refusal never leaves a partial folder.
     require(bool(IDENTITY.fullmatch(name)),
             "skill name: use lowercase letters, digits and hyphens (like tidy-notes), "
@@ -79,6 +109,8 @@ def scaffold(destination: Path, name: str, namespace: str, author: str) -> None:
             str(destination) + " exists and is not a folder")
     require(not destination.exists() or not any(destination.iterdir()),
             "the folder " + str(destination) + " already has files in it; give a new or an empty folder")
+    require(not metadata_path(destination).exists(),
+            str(metadata_path(destination)) + " already exists; remove it or give a new folder name")
     skill = ("---\n"
              "name: " + name + "\n"
              "description: " + json.dumps(NEW_SUMMARY) + "\n"
@@ -90,10 +122,7 @@ def scaffold(destination: Path, name: str, namespace: str, author: str) -> None:
              "# " + name + "\n\n"
              "Use only the information the user gives in the current request. Ask before any\n"
              "action that reaches outside this conversation.\n\n" + NEW_BODY_STEPS + "\n"
-             "Replace these steps with the steps of your own skill, and replace the\n"
-             "description and the two trigger phrases above before publishing. This skill\n"
-             "produces text only. VOOL's rules, budgets, settings, permissions and approval\n"
-             "requirements remain authoritative.\n")
+             + NEW_BODY_NOTE)
     info = {"id": namespace + "/" + name, "kind": "skill", "version": "1.0.0",
             "summary": NEW_SUMMARY, "category": NEW_CATEGORY[0], "subcategory": NEW_CATEGORY[1],
             "license": "MIT", "languages": ["en"],
@@ -102,7 +131,49 @@ def scaffold(destination: Path, name: str, namespace: str, author: str) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "SKILL.md").write_text(skill, encoding="utf-8")
     (destination / "LICENSE").write_text(mit_licence(author.strip() or "the author"), encoding="utf-8")
-    (destination / "metadata.json").write_bytes(canonical(info))
+    metadata_path(destination).write_bytes(canonical(info))
+
+
+def zip_skill(folder: Path, output: Path | None = None) -> dict:
+    """Write the importable zip of a skill folder: SKILL.md plus an optional LICENSE/README.
+
+    The skill is checked with VOOL's own validator first, and the finished zip is read back with
+    the same reader `import this skill` uses, so a zip this writes is one VOOL takes.
+    """
+    import io
+    import zipfile
+
+    from core.skill_package import PackageRefused, read_package
+    from core.skill_tools import _slug, validate_skill
+
+    folder = Path(folder)
+    skill_md = folder / "SKILL.md"
+    require(skill_md.is_file(), "no SKILL.md in " + str(folder))
+    text = skill_md.read_text(encoding="utf-8")
+    require(not starter_text_left(text), "SKILL.md " + starter_finding("SKILL.md")["reason"])
+    verdict = validate_skill(str(skill_md))
+    require(verdict.get("status") == "ok",
+            "SKILL.md does not pass the skill check: " + "; ".join(verdict.get("problems") or ["unreadable"]))
+    # The zip's top folder is the skill's own name, so the import names it the way SKILL.md does
+    # even when the folder on disk is called something else.
+    top = _slug(str(verdict.get("name") or "")) or _slug(folder.name) or "skill"
+    target = Path(output) if output else folder.parent / (top + ".zip")
+    require(not target.resolve().is_relative_to(folder.resolve()), "write the zip outside the skill folder")
+    included = ["SKILL.md"] + [name for name in ZIP_SIDE_FILES if (folder / name).is_file()]
+    left_out = sorted(p.name for p in folder.iterdir() if p.name not in included)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in included:
+            archive.writestr(top + "/" + name, (folder / name).read_bytes())
+    raw = buffer.getvalue()
+    try:
+        read_package(raw)
+    except PackageRefused as exc:
+        raise RegistryError("VOOL would not import this zip: " + str(exc)) from exc
+    with target.open("xb") as handle:  # never replace a zip already there
+        handle.write(raw)
+    return {"status": "created", "zip": str(target.resolve()), "files": included, "left_out": left_out,
+            "next": "In VOOL say: import this skill " + str(target.resolve())}
 
 
 def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
@@ -110,6 +181,8 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
             "add icon and banner to registry.json after init, once the picture files are in the package")
     metadata(info)
     require_for_new_version(info)
+    require(not any(starter_text_left(info.get(key, "")) for key in ("summary", "title")),
+            "metadata summary " + starter_finding("summary")["reason"])
     require(bool(license_bytes.strip()) and len(license_bytes) <= 1024 * 1024, "licence text required")
     destination.mkdir()  # Never overwrite an existing project.
     publisher, name = info["id"].split("/")
@@ -144,6 +217,10 @@ def preflight(raw: bytes, scratch: Path) -> dict:
     artifact = inspect(raw)
     require_for_new_version(artifact["metadata"])
     findings = secret_findings(artifact["files"])
+    findings.extend(starter_finding(name) for name, data in sorted(artifact["files"].items())
+                    if name.endswith("SKILL.md") and starter_text_left(data.decode("utf-8", "replace")))
+    if any(starter_text_left(artifact["metadata"].get(key, "")) for key in ("summary", "title")):
+        findings.append(starter_finding("registry.json summary"))
     boundaries = analyze(artifact["files"])
     findings.extend(boundaries["conflicts"])
     with execution_directory(scratch) as owned:
@@ -191,6 +268,9 @@ def main(argv=None) -> int:
     trial.add_argument("folder", type=Path)
     trial.add_argument("--pick", action="append", required=True)
     trial.add_argument("--not-pick", action="append", default=[])
+    zipping = commands.add_parser("zip", help="write the importable zip of a skill folder")
+    zipping.add_argument("folder", type=Path)
+    zipping.add_argument("--output", type=Path, default=None)
     calling = commands.add_parser("call", help="run one VOOL tool in a throwaway profile, through the approval check")
     calling.add_argument("tool")
     calling.add_argument("--args", default="{}", help="the tool's arguments as a JSON object")
@@ -213,8 +293,15 @@ def main(argv=None) -> int:
             return 0
         if args.command == "new":
             scaffold(args.folder, args.name, args.namespace, args.author)
-            print(canonical({"status": "created",
-                             "next": "Edit SKILL.md, then: vool-community try <folder> --pick ... --not-pick ..."}).decode())
+            print(canonical({"status": "created", "skill_folder": str(args.folder),
+                             "metadata": str(metadata_path(args.folder)),
+                             "next": "Replace every " + STARTER_MARKER + " line in SKILL.md, then: "
+                                     "vool-community try <folder> --pick ... --not-pick ...; "
+                                     "vool-community zip <folder> writes the zip to share or import. "
+                                     "Tool names and limits: docs/guides/skill-tools-and-limits.md"}).decode())
+            return 0
+        if args.command == "zip":
+            print(canonical(zip_skill(args.folder, args.output)).decode())
             return 0
         if args.command == "submission-link":
             artifact = inspect(args.artifact.read_bytes())
