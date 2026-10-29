@@ -155,6 +155,14 @@ _NOT_A_CLAIM = re.compile(
     r"|do you want|want me to|should i|shall i|i can (?:help|add|set|check)|i could|i would|i['’]d)\b",
     re.I,
 )
+# Text the reply hands over for the user to send or keep (a draft, a template) is theirs, not a
+# claim about what VOOL did: everything after such an introduction is not read.
+_DRAFT_INTRO = re.compile(
+    r"\b(?:here(?:['\u2019]s| is| are)\s+(?:a|an|the|your|some)?\s*(?:\w+\s+){0,2}"
+    r"(?:draft|message|email|text|reply|template|version|example|wording)s?\b"
+    r"|you (?:can|could) (?:send|copy|paste|use)\b)",
+    re.I,
+)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _LEAD_FILLER = re.compile(r"^[\s>*_#`\-•]*(?:(?:got it|sure(?: thing)?|okay|ok|done|alright|all set|great)\b[\s,.!:;—–-]*)*", re.I)
@@ -188,6 +196,16 @@ def action_claims(content: str) -> list[tuple[str, str, str]]:
     """`(sentence, form, source)` for every sentence of ``content`` that says an action on, or a
     read of, a live source happened. ``form`` is "action" or "read". Code blocks never count."""
     text = _FENCE.sub("\n", str(content or ""))
+    kept_lines: list[str] = []
+    for line in text.split("\n"):
+        if line.lstrip().startswith(">"):
+            continue
+        intro = _DRAFT_INTRO.search(line)
+        if intro:
+            kept_lines.append(line[: intro.start()])
+            break
+        kept_lines.append(line)
+    text = "\n".join(kept_lines)
     claims: list[tuple[str, str, str]] = []
     for raw in _SENTENCE_SPLIT.split(text):
         sentence = raw.strip()
