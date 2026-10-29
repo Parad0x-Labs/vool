@@ -8248,6 +8248,9 @@ function adoptServerRunningTurn(chatId) {
   if (!row) {
     if (!owner.serverTurn) return;
     owner.serverTurn = null;
+    // Off the screen at once: the working row is gone the moment the server stops saying the
+    // turn runs. The finished words arrive with the re-reads below.
+    if (isDisplayed(id)) renderChat(id);
     // The turn's log row can land just after the lifecycle flip, so read now and once more.
     restoreCurrent(id);
     setTimeout(function () { restoreCurrent(id); }, 3000);
