@@ -230,3 +230,41 @@ def test_dependent_parts_do_not_guess_when_prerequisite_fails(home, monkeypatch)
         assert list_reminders(session_id=session, get_connection_fn=get_connection) == [], "no reminder was guessed"
     finally:
         server.shutdown(); server.server_close()
+
+
+def test_note_with_a_due_date_keeps_the_remind_me_date(home, monkeypatch):
+    """A note that mentions a due date and then says "remind me on <date>" schedules the reminder
+    on the "remind me" date, not on the first date in the note."""
+    Clock(T0, monkeypatch)
+    session = "note-due-date"
+    result = _run(
+        'save a note called "ACME" saying invoice ACME due 2026-11-10. remind me on 2026-11-08 at 09:00',
+        session_id=session,
+    )
+    parts = {part["kind"]: part for part in result.details["parts"]}
+    assert parts["save_note"]["ok"], result.response_text
+    assert parts["schedule_reminder"]["ok"], result.response_text
+
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    [reminder] = list_reminders(session_id=session, get_connection_fn=get_connection)
+    due = datetime.fromisoformat(str(reminder["due_at_utc"]).replace("Z", "+00:00"))
+    local = due.astimezone(ZoneInfo("Europe/Athens"))
+    assert (local.date().isoformat(), local.hour, local.minute) == ("2026-11-08", 9, 0), reminder
+    assert "ACME" in reminder["note"], reminder
+
+
+def test_reminder_before_a_due_date_uses_the_remind_me_date(home, monkeypatch):
+    """The same rule without a note: the date after "remind me" is the due time."""
+    Clock(T0, monkeypatch)
+    session = "reminder-due-date"
+    result = _run("the ACME invoice is due 2026-11-10, remind me on 2026-11-08 at 09:00 to pay it", session_id=session)
+    assert result.ok, result.response_text
+
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    [reminder] = list_reminders(session_id=session, get_connection_fn=get_connection)
+    local = datetime.fromisoformat(str(reminder["due_at_utc"]).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Athens"))
+    assert (local.date().isoformat(), local.hour) == ("2026-11-08", 9), reminder

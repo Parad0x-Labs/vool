@@ -831,6 +831,26 @@ def _passed_due_time_result(when: Any, *, kind: str) -> OperatorActionResult:
     )
 
 
+_REMIND_ME_RE = re.compile(r"\bremind\s+me\b", re.IGNORECASE)
+
+
+def _reminder_when(text: str, parse_when_fn: Any) -> Any:
+    """The due time comes from the "remind me ..." words when they name one.
+
+    A note such as "invoice ACME due 2026-11-10. remind me on 2026-11-08 at 09:00" holds two
+    dates; the one after "remind me" is the reminder's. Only the first "remind me" phrase is
+    read: one request makes one reminder. When those words name no time ("tomorrow at 9,
+    remind me to call mom"), the whole request is read as before.
+    """
+    raw = str(text or "")
+    match = _REMIND_ME_RE.search(raw)
+    if match and match.start() > 0:
+        clause = parse_when_fn(raw[match.start():])
+        if clause.ok:
+            return clause
+    return parse_when_fn(raw)
+
+
 def handle_schedule_reminder(
     intent: OperatorActionIntent,
     *,
@@ -840,7 +860,7 @@ def handle_schedule_reminder(
     schedule_reminder_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    when = parse_when_fn(intent.raw_text)
+    when = _reminder_when(intent.raw_text, parse_when_fn)
     if not when.ok:
         return OperatorActionResult(
             ok=False,
@@ -1115,6 +1135,22 @@ def _reminder_note_from_text(text: str) -> str:
         note = note[: tail.start()].strip()
     note = note.rstrip(".,;:")
     return (note or raw)[:400]
+
+
+def reminder_names_a_subject(text: str) -> bool:
+    """Whether the "remind me ..." words say what to be reminded of, not only when."""
+    if not _REMIND_ME_RE.search(str(text or "")):
+        return False
+    words = re.findall(r"[^\W\d_]+", _reminder_note_from_text(text).lower())
+    return any(word not in _WHEN_ONLY_WORDS for word in words)
+
+
+_WHEN_ONLY_WORDS = frozenset(
+    "on at in by am pm utc gmt today tonight tomorrow morning afternoon evening noon midnight next this "
+    "monday tuesday wednesday thursday friday saturday sunday minutes minute hours hour days day weeks week "
+    "january february march april may june july august september october november december "
+    "jan feb mar apr jun jul aug sep sept oct nov dec st nd rd th of the".split()
+)
 
 
 def _reminder_repeat_from_text(text: str) -> str:
