@@ -200,3 +200,32 @@ def test_user_install_docs_pin_shell_script_and_source_to_the_beta_tag():
                 assert "--ref v0.7.5-beta" in line
             if "bootstrap_vool.ps1" in line and " -File " in line:
                 assert "-Ref" not in line
+
+
+def test_the_installed_launcher_keeps_vool_out_of_its_own_install_folder(tmp_path, monkeypatch):
+    # A fresh Linux tarball (2026-10-29): "read README.md" answered with VOOL's own bundled README and
+    # "which file is biggest" listed its own Python library, because the launcher's working folder
+    # (the install's app/) became the chat's workspace. It names its source root like the Mac app does.
+    package = tmp_path / "package"
+    package.mkdir()
+    shutil.copy2(LINUX / "launch.py", package / "launch.py")
+    (package / "app").symlink_to(ROOT, target_is_directory=True)
+    spec = importlib.util.spec_from_file_location("linux_launch", package / "launch.py")
+    launch = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launch)
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "vool-home"))
+    monkeypatch.delenv("VOOL_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("VOOL_WORKSPACE_ROOT", raising=False)
+    monkeypatch.setattr(launch.os, "chdir", lambda path: None)
+    monkeypatch.setattr(sys, "argv", ["launch.py", "--headless"])
+
+    class Started(Exception):
+        pass
+
+    def execv(*args):
+        raise Started
+
+    monkeypatch.setattr(launch.os, "execv", execv)
+    with pytest.raises(Started):
+        launch.main()
+    assert os.environ["VOOL_PROJECT_ROOT"] == str(package.resolve() / "app")
