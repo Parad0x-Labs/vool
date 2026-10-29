@@ -43,8 +43,9 @@ def archive_source(raw: bytes) -> tuple[list[dict], dict[str, bytes]]:
             seen.add(path)
             if item.isdir():
                 continue
+            # 'size' as GitHub's tree API gives it: the import check allows small pictures in assets/.
             tree.append({'path':path, 'type':'blob',
-                         'mode':'100644' if item.isfile() else '120000'})
+                         'mode':'100644' if item.isfile() else '120000', 'size':item.size})
             if (item.isfile() and item.size <= 128 * 1024
                     and (Path(path).name.lower() in {'skill.md','license','license.txt','license.md'}
                          or path == '.gitmodules')):
