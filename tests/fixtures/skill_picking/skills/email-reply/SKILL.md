@@ -1,7 +1,7 @@
 ---
 name: email-reply
 description: Drafts a clear, polite reply to an email or customer message the user pastes, in the tone the user chooses. Use when the user shares an email they received, or a customer complaint or question, and wants help writing the reply.
-triggers: [reply to this email, answer this email, draft a reply, polite reply, respond to the message, help me reply, email response, reply to this customer, customer complaint, customer is angry, reply to a bad review, answer a refund question, write back, response to this email, reply politely, angry customer, complaint email, reply to my boss, answer this message, email back]
+triggers: [reply to this email, answer this email, draft a reply, polite reply, respond to the message, help me reply, email response, reply to this customer, customer complaint, customer is angry, reply to a bad review, answer a refund question, write back, response to this email, reply politely, angry customer, complaint email, reply to my boss, email back]
 license: MIT
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: weekly-plan
 description: Turns a task list and fixed commitments into a realistic plan for the week, or a time-blocked plan for today with breaks and buffer. Use when the user lists what must happen this week or today and wants it placed in time, or wants to see whether everything fits.
-triggers: [plan out my week, weekly schedule, fit everything in this week, sort out my week, block out my week, plan around appointments, spread these tasks out, plan my day, organise my day, plan for today, will it all fit today, schedule my day, schedule, time blocking, busy week, appointments, deadlines this week, my week ahead, organise my week, week plan, daily schedule, my timetable, shifts and deadlines, study schedule]
+triggers: [plan out my week, weekly schedule, fit everything in this week, sort out my week, block out my week, plan around appointments, spread these tasks out, plan my day, organise my day, plan for today, will it all fit today, schedule my day, schedule, time blocking, busy week, appointments, deadlines this week, my week ahead, organise my week, week plan, daily schedule, my timetable, shifts and deadlines, study schedule, errands, commitments, juggle, juggling, plan my week, fit my tasks into the week, organise my time, weekly timetable, slot in, free time this week, school run, work shifts, study time, tasks for the week, monday to sunday, monday to friday, lay out my week]
 license: MIT
 ---
 

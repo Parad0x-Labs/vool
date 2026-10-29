@@ -361,6 +361,9 @@ _KIND_PAIR_BAR = 0.55
 # The rarity scale treats a small candidate set as if it were a library of this many skills, so a
 # lane of one or two of the person's own skills does not make every word look common.
 _LIBRARY_FLOOR = 30
+# What a whole multi-word trigger adds to the score, on top of its words.
+_PHRASE_BASE = 0.4
+_PHRASE_STEP = 0.15
 
 
 @dataclass(frozen=True)
@@ -437,7 +440,7 @@ _QUESTION_OPENERS = frozenset(
 )
 _POINTERS = frozenset({"this", "these", "here", "heres", "below", "attached", "pasted", "following", "those", "them"})
 _REQUEST_RE = re.compile(r"^(?:can|could|would|will) (?:you|u|we)\b")
-_GENERAL_BAR = 3.5
+_GENERAL_BAR = 3.0
 
 
 _SUBJECT_RE = re.compile(r"\babout\b([^.,;:!?]*)")
@@ -551,13 +554,13 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         )
         if not qualified:
             continue
-        # An explicit trigger is a stronger statement of intent than a word in prose, so a whole
-        # trigger outweighs description overlap; without that, a long description outranks a
-        # precise trigger list on volume alone.
+        # A whole trigger adds a little on top of its words, which already count at trigger
+        # weight; a larger bonus let incidental two-word phrases outrank the skill an ask
+        # describes (measured 2026-10-29).
         score = (
             (5.0 if named else 0.0)
             + (3.5 if name_covered else 0.0)
-            + sum(1.0 + 0.3 * len(stems) for _trigger, stems in hits)
+            + sum(_PHRASE_BASE + _PHRASE_STEP * len(stems) for _trigger, stems in hits)
             + words
         )
         reasons: list[str] = []
@@ -590,22 +593,23 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
     Overlap only — nothing here decides whether a tool is available. A request that matches no
     skill still reaches the model with the full catalog; it just gets no extra instructions.
 
-    Measured 2026-10-28 against 53 real Browse skills: one shared ordinary word was enough to
-    inject a skill ("what rows of seats are best on a plane" seated the database skill), so a
-    match now needs one of:
+    Measured against the 70 Browse skills (2026-10-28 and 2026-10-29): one shared ordinary word
+    must never inject a skill ("what rows of seats are best on a plane"), yet everyday wording
+    ("my phone bill doubled") must reach its skill. A skill qualifies when the ask:
 
-    * the ask names the skill — its name verbatim, or every stem of a multi-word name;
-    * the ask contains a whole declared trigger (a multi-word trigger must appear as a phrase,
-      in order — one word out of it is not a match);
-    * the ask shares at least two distinct content stems with the skill's name, description and
-      triggers, at least one of which is a topic word. Kind-of-help words (explain, write,
-      make, help, plan, check, list, table, summarise, draft, fix) never carry a match alone,
-      and may only stand behind a topic word no other candidate skill carries or that only a
-      few do: "fix the spelling" reaches the proofreading skill, "explain how it works" must
-      not reach whichever skill happens to say "worked example";
-    * the ask uses one word that is BOTH distinctive (no other candidate skill contains it) and
-      part of this skill's own name — "which chart should I use" is about the chart skill even
-      though "chart" is its only overlap.
+    * names the skill — its name verbatim, or every stem of a specific multi-word name;
+    * contains one of its triggers — a multi-word trigger as a phrase (two words close together,
+      three or more anywhere), a single-word trigger as that word;
+    * uses a word of the skill's name that few other candidates carry;
+    * shares enough weighed words: each is worth its field weight (name, trigger, description,
+      phrase word, instructions) times its rarity across the candidates, and two or more must
+      reach the bar together. Kind-of-help words (explain, write, help, plan, check, list, ...)
+      carry no weight; one may only stand behind a specific topic word the skill's card uses.
+
+    A general question that points at no material of the person's own ("is it legal to ...",
+    "why do cats sleep so much") needs a much higher score, and the subject after "about"
+    ("a haiku about databases") never seats a skill alone. Naming the skill wins; `limit` caps
+    the result.
     """
 
     return tuple(match.skill for match in _qualify(skills, user_text)[:limit])
