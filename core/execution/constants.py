@@ -1495,6 +1495,37 @@ def machine_open_newest_one_followup(text: str, previous_reply: str) -> KindList
     return KindListing("", listed.group("place").capitalize(), None, "newest", 1, None, "")
 
 
+_NAMED_FOLDER_CONTENTS_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|so|can\s+you|could\s+you|vool)[\s,]+)*"
+    r"(?:what(?:'s|s|\s+is)?\s+(?:inside|in)|what\s+do\s+i\s+have\s+in|show\s+me(?:\s+what(?:'s|s|\s+is)\s+(?:inside|in))?"
+    r"|list|open|look\s+(?:inside|in))\s+(?:the\s+|my\s+|that\s+)?"
+    r"(?P<name>[\w][\w'\-]*(?:\s+[\w][\w'\-]*){0,3}?)\s+folder[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+_NAMED_FOLDER_NOT_A_NAME = frozenset({
+    "desktop", "downloads", "download", "documents", "docs", "pictures", "photos", "home", "this", "current",
+    "project", "workspace", "the", "my", "that", "a", "an", "same", "other", "new", "old", "music", "movies",
+    "videos", "applications", "trash", "bin", "temp", "tmp",
+})
+
+
+def machine_named_folder_contents_intent(text: str) -> str | None:
+    """The folder name in "whats inside the lisbon folder?", for a folder found by name and then listed.
+
+    Measured 2026-10-28 on qwen3:8b: "whats inside the lisbon folder?" was answered with "Are you referring to the
+    city of Lisbon, the album by The Kinks, or the film?" while ~/Pictures/Holiday Lisbon 2026 sat on the disk.
+    The home folders VOOL already knows by place (Desktop, Downloads...) and "this folder" are not names.
+    """
+    match = _NAMED_FOLDER_CONTENTS_RE.match(" ".join(str(text or "").split()))
+    if match is None or refers_to_current_scope(text):  # "the work folder" is the folder we are in
+        return None
+    name = match.group("name").strip()
+    words = [w.lower() for w in name.split()]
+    if not words or all(w in _NAMED_FOLDER_NOT_A_NAME for w in words) or words[0] in {"this", "current", "project", "workspace"}:
+        return None
+    return name
+
+
 def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> SendToPhone | None:
     """What to send when the WHOLE message asks for a file on this computer to go to the owner's phone.
 

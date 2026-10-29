@@ -26,6 +26,7 @@ from core.execution.constants import (
     machine_file_search_intent,
     machine_folder_size_intent,
     machine_kind_listing_intent,
+    machine_named_folder_contents_intent,
     machine_open_newest_intent,
     machine_send_to_phone_intent,
     machine_place_file_read_path,
@@ -1822,6 +1823,37 @@ def _open_newest_one_followup(user_input: str, *, session_id: str, source_contex
 OPEN_ON_COMPUTER_NOTE = "I can't open files in other apps from the chat, so it is still in that folder."
 
 
+def _names_the_bound_workspace(name: str, source_context: dict | None) -> bool:
+    """"what's in the work folder?" in a chat bound to a folder called work is about that folder: its lane answers."""
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if not root:
+        return False
+
+    def squashed(value: str) -> str:
+        return re.sub(r"[\s_\-]+", "", value.lower())
+
+    return squashed(Path(root).name) == squashed(name)
+
+
+def list_named_folder(name: str, *, source_context: dict | None) -> Any:
+    """Find a folder by a word of its name and list it when exactly one folder matches.
+
+    "whats inside the lisbon folder?" means ~/Pictures/Holiday Lisbon 2026: the exact resolver misses it, and
+    the model asked whether Lisbon was the city or the Kinks album. Several matches, or none, answer with the
+    search itself, so VOOL never picks one folder for the person. ``None`` when no tool ran.
+    """
+    found = execute_authorized_runtime_tool("machine.find_folder", {"name": name}, source_context=dict(source_context or {}))
+    if found is None or not getattr(found, "ok", False):
+        return found
+    matches = [str(path) for path in list((getattr(found, "details", None) or {}).get("matches") or []) if str(path)]
+    if len(matches) != 1:
+        return found
+    listed = execute_authorized_runtime_tool(
+        "machine.list_directory", {"path": matches[0], "limit": 200}, source_context=dict(source_context or {}),
+    )
+    return listed if listed is not None and getattr(listed, "ok", False) else found
+
+
 def open_newest_file(listing: Any, *, phone_turn: bool, source_context: dict | None) -> Any:
     """Find the newest file of a kind; send it to the phone on a phone turn, else say where it is.
 
@@ -2398,6 +2430,21 @@ def maybe_handle_direct_machine_read_request(
                 confidence=0.96,
                 source_context=source_context,
                 reason="folder_audit_fast_path",
+            )
+    # "whats inside the lisbon folder?" names the folder by one word of its name: find it, then list it.
+    contents_name = None if email_owns_folder_reference else machine_named_folder_contents_intent(user_input)
+    if contents_name is not None and not _names_the_bound_workspace(contents_name, source_context):
+        listed = list_named_folder(contents_name, source_context=source_context)
+        if listed is not None:
+            listed_matches = (getattr(listed, "details", None) or {}).get("matches")
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_folder" if listed_matches is not None else "machine.list_directory",
+                execution=listed,
+                reason="machine_read_fast_path",
             )
     # "read notes.txt in my documents" names the file AND the folder: read it there. The workspace
     # lane below used to take it and answer that the project has no notes.txt.
