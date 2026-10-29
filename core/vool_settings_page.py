@@ -1191,11 +1191,22 @@ label.inline { cursor:pointer; }
 .profile-export { max-height:240px; overflow:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; white-space:pre-wrap; margin:0; }
 
 /* ---- narrow windows ---- */
+/* The section list becomes the drawer the chat page already uses for its sidebar: stacked on top,
+   the list, the language box and the search took about half a phone screen and the content scrolled
+   in the strip left over. Now a Menu button in the pane opens the list over the page; the content
+   keeps the screen. Desktop keeps the static side column. */
+#sideScrim { display:none; position:fixed; inset:0; z-index:19; background:rgba(0,0,0,.45); }
+#sideToggle { display:none; align-items:center; gap:8px; position:sticky; top:0; z-index:5; width:fit-content; margin:0 0 14px; background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+#sideToggle:hover { border-color:var(--accent); }
+#sideToggle .ico { flex:0 0 14px; width:14px; text-align:center; color:var(--muted); font-size:14px; }
 @media (max-width: 720px) {
-  body { flex-direction:column; overflow:auto; }
-  #side { flex:0 0 auto; width:100%; border-right:none; border-bottom:1px solid var(--border); }
-  #nav { max-height:190px; }
-  #pane { padding:20px 16px 60px; }
+  body { flex-direction:column; overflow:hidden; }
+  #side { position:fixed; left:0; top:0; bottom:0; width:min(78vw,300px); z-index:20; box-shadow:2px 0 12px #0008; }
+  body:not(.side-open) #side { display:none; }
+  body.side-open #sideScrim { display:block; }
+  #nav { max-height:none; }
+  #pane { flex:1 1 auto; overflow-y:auto; padding:16px 16px 60px; }
+  #sideToggle { display:inline-flex; }
   .row { flex-direction:column; gap:10px; }
   .row-ctl { align-items:stretch; width:100%; }
   .rangewrap input[type=range] { width:100%; }
@@ -1205,6 +1216,7 @@ label.inline { cursor:pointer; }
 </head>
 <body>
 <a id="skipToPane" href="#pane" data-i18n="settings.nav.skip">Skip to settings</a>
+<div id="sideScrim" aria-hidden="true"></div>
 <nav id="side" aria-label="Settings sections">
   <div id="backRow"><button id="back" type="button" data-i18n="settings.nav.back">&larr; Back to VOOL</button></div>
   <div id="searchWrap">
@@ -1217,6 +1229,7 @@ label.inline { cursor:pointer; }
 </nav>
 <main id="pane" tabindex="-1">
   <div id="paneInner">
+    <button id="sideToggle" type="button" aria-expanded="false" aria-controls="side"><span class="ico" aria-hidden="true">&#9776;</span> <span data-i18n="settings.nav.menu">Menu</span></button>
     <div id="offlineBanner" class="offline-banner" role="alert" hidden><span data-i18n="settings.offline.banner">VOOL isn&rsquo;t responding. Changes can&rsquo;t be saved right now.</span> <button type="button" class="btn" id="offlineRetry" data-i18n="addons.retry">Try again</button></div>
     <h1 id="paneTitle">Settings</h1>
     <p class="pane-blurb" id="paneBlurb"></p>
@@ -1584,7 +1597,7 @@ function renderNav() {
     b.appendChild(ico);
     b.appendChild(el('span', null, g.title));
     if (q) b.appendChild(el('span', 'hits', String(hits)));
-    b.addEventListener('click', () => { state.onlyRow = ''; state.focusPart = ''; state.focusRow = ''; state.notice = ''; go(g.id); });
+    b.addEventListener('click', () => { state.onlyRow = ''; state.focusPart = ''; state.focusRow = ''; state.notice = ''; closeSide(); go(g.id); });
     nav.appendChild(b);
   });
   if (!any) nav.appendChild(el('div', 'nav-empty', tfmt('settings.search.no_match', 'No setting matches “{query}”', { query: state.query })));
@@ -5862,7 +5875,20 @@ function installKeys() {
     if (e.key === 'Escape') { search.value = ''; onSearch(''); }
     if (e.key === 'Enter') { e.preventDefault(); $('#pane').focus(); }
   });
-  document.addEventListener('keydown', e => {
+
+  /* The narrow-window drawer (CSS at the bottom of the style block): the section list overlays
+     the page, so it carries its own way out — the scrim, Escape (escapeClosesInnermost treats it
+     as the innermost open thing) and any section choice. Opening it puts focus on the search,
+     the first thing a hand reaches for in that list. */
+  const toggle = $('#sideToggle');
+  const scrim = $('#sideScrim');
+  if (toggle) toggle.addEventListener('click', () => {
+    const open = document.body.classList.toggle('side-open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { search.focus(); search.select(); } else $('#pane').focus();
+  });
+  if (scrim) scrim.addEventListener('click', closeSide);
+  window.matchMedia('(max-width: 720px)').addEventListener('change', (e) => { if (!e.matches) closeSide(); });  document.addEventListener('keydown', e => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); search.focus(); search.select(); return; }
     if (e.key === '/' && !typing) { e.preventDefault(); search.focus(); return; }
@@ -5885,6 +5911,11 @@ function installKeys() {
    <dialog> closes itself), then nothing at all while focus sits on a control or a field in the
    content. Settings itself closes on Escape only when nothing is open and focus is on the page or
    the section list, and never while a field in the pane holds typed text. Returns whether it acted. */
+function closeSide() {
+  document.body.classList.remove('side-open');
+  const toggle = $('#sideToggle');
+  if (toggle) toggle.setAttribute('aria-expanded', 'false');
+}
 function escapeClosesInnermost(typing) {
   if (document.querySelector('dialog[open]')) return false;           /* the dialog handles its own Escape */
   const sheets = [...document.querySelectorAll('.mp-sheet, [role="dialog"], [aria-modal="true"]')]
@@ -5895,6 +5926,7 @@ function escapeClosesInnermost(typing) {
     if (close) close.click();
     return true;
   }
+  if (document.body.classList.contains('side-open')) { closeSide(); return true; }   /* the drawer, under any sheet */
   if (typing) return false;
   const a = document.activeElement;
   const onPage = !a || a === document.body || a === document.documentElement || a.id === 'pane'

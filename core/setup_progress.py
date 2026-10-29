@@ -42,7 +42,7 @@ STEPS: tuple[StepSpec, ...] = (
     StepSpec(
         id="thinking",
         title="Where should it think?",
-        sentence="On my Mac keeps everything private. Online with a key is smarter, but it costs money.",
+        sentence="On this computer keeps everything private. Online with a key is smarter, but it costs money.",
         later="Settings → Models & Providers, and Settings → API Keys",
     ),
     StepSpec(
@@ -60,7 +60,7 @@ STEPS: tuple[StepSpec, ...] = (
     StepSpec(
         id="name",
         title="What should it call you?",
-        sentence="Optional. A first name or nickname is enough, and it stays on this Mac.",
+        sentence="Optional. A first name or nickname is enough, and it stays on this computer.",
         later="Settings → Memory & Personalisation, in the name field",
     ),
 )

@@ -49,7 +49,7 @@ COPY = {
 
 # Per-step caption: the text alternative for the animated example (the mock itself is aria-hidden).
 CAPTIONS = {
-    "thinking": "The pointer clicks “On my Mac”. A tick appears — nothing you type leaves this computer.",
+    "thinking": "The pointer clicks “On this computer”. A tick appears — nothing you type leaves this computer.",
     "folder": "The pointer clicks “+ Project”, picks the Documents folder, and the folder appears in the list.",
     "permissions": "The pointer opens the list and picks “Ask me first”. It saves right away.",
     "name": "The pointer clicks the box, types a name, and presses Save.",
@@ -307,10 +307,11 @@ const framed = () => { try { return window.top !== window.self; } catch (e) { re
 const reducedMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? '' : vars[k]));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// Not on a Mac, the words that name "this Mac" come from their "_pc" twins ("this computer").
+// These words say "this computer" on every platform; off a Mac the catalog lookups also read
+// the "_pc" twins, which carry the same words.
 const PC = (key) => (ON_MAC ? key : key + '_pc');
 const PC_WORDS = ON_MAC
-  ? { local_title: 'On my Mac', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this Mac.', saved_thinking: 'Saved: VOOL thinks on this Mac.' }
+  ? { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' }
   : { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
 const OFFLINE = () => T('setup.status.offline', 'VOOL isn’t running right now, so nothing was saved. Open VOOL again and try once more.');
 
@@ -502,7 +503,7 @@ function render() {
     dots.appendChild(li);
   });
   $('#stepTitle').textContent = step.title;
-  // The page's own step model words the sentence for this computer ("this Mac" only on a Mac).
+  // The page's own step model words the sentence for this computer on every platform.
   $('#stepSentence').textContent = (STEPS.find((s) => s.id === step.id) || step).sentence;
   // The thinking example shows a click that succeeds. With no private model here, clicking the private
   // choice cannot succeed, so the example picks "Online" instead of promising it.
@@ -859,7 +860,8 @@ window.__voolSetup = {
 """
 
 
-# Keys whose words name "this Mac". Off a Mac the page uses their "_pc" twin, which says "this computer".
+# Keys that once carried "this Mac" wording. Base key and "_pc" twin now both say "this computer",
+# so the twin swap below is a no-op for the words; it stays so older catalogs resolve identically.
 _MAC_WORDED_KEYS = frozenset({"setup.step.thinking.sentence", "setup.step.name.sentence", "setup.caption.thinking"})
 # The page says "you can change this any time in {later}"; the folder step's shared wording ("the “+ Project”
 # button in the chat sidebar") does not follow "in", so the page names the place instead.

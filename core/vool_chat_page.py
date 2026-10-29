@@ -4206,7 +4206,11 @@ function renderChat(chatId) {
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
+  if (!st.history.length && !run) {
+    showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []);
+    if (isDisplayed(chatId)) setupLineReflect();   // an empty chat is the setup line's one home
+    return;
+  }
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
@@ -4226,6 +4230,7 @@ function renderChat(chatId) {
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
+  if (isDisplayed(chatId)) setupLineReflect();   // a chat with a transcript (or a live run) is not new
 }
 
 // Restore the single permission bar for the chat now on screen: show ITS pending request, or hide
@@ -4334,6 +4339,7 @@ function newChat() {
   reflectModel();       // a new chat starts back on local-first Auto (its bucket has no sticky)
   reflectComposer(); hidePermBar();
   showEmpty();
+  setupLineReflect();   // a brand-new empty chat is where the setup line may appear
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue();
@@ -4403,6 +4409,7 @@ async function newChatInProject(pid) {
   reflectModel();
   reflectComposer(); hidePermBar();
   showEmpty();
+  setupLineReflect();   // same law as newChat(): a minted chat starts empty
   document.body.classList.remove('sidebar-open');
   if (pid) {
     let bound = false;
@@ -4466,6 +4473,9 @@ async function restoreCurrent() {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
       privateReloadNote(target);
     }
+    // Boot hydration just resolved this chat's emptiness: reflect it, so a restored transcript
+    // cannot keep (or flash) the line that the pre-hydration empty bucket allowed.
+    if (isDisplayed(chatId)) setupLineReflect();
   } catch (e) {
     if (isDisplayed(chatId) && !target.run && !target.history.length) {
       if (isNetworkFailure(e)) showLoadFailed(chatId); else showEmpty();
@@ -9076,6 +9086,7 @@ async function runTurn(text, queueItemId, opts) {
     const sentAt = new Date().toISOString();
     if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
+    if (isDisplayed(chatId)) setupLineReflect();   // the first message ends this chat's "new, empty"
     userHistoryIndex = owner.history.length - 1;
     // Marked private only when the server's commit for this turn says so (applyPrivateCommit).
     ensureSessionInSidebar(chatId, text);
@@ -14513,6 +14524,11 @@ window.VoolPageActions = Object.freeze({
 // (derived state, core/setup_progress.py). No polling: fetch at boot, on focus/visibility, and
 // after the setup frame closes. Dismissing is the one "don't remind me" choice, persisted as an
 // ordinary preference through the prefs door; every step stays reachable as a Settings row.
+// LAW: the line belongs to a NEW, EMPTY chat only -- no transcript yet and no live turn of its
+// own -- while setup is unfinished. Any message, any running turn, or switching to a chat that
+// already has a transcript hides it (setupLineEligible / setupLineReflect below). Dismissal and
+// completion are the server's verdicts (setup_dismissed / complete, core/setup_progress.py); the
+// page only adds "and this chat is still empty" on top of them.
 async function setupLineLoad() {
   const line = document.getElementById('setupLine');
   if (!line) return;
@@ -14534,7 +14550,7 @@ async function setupLineLoad() {
       } catch (e) {}
       text.textContent = prog;
     }
-    line.hidden = !show;
+    setupLineReflect();   // wanted AND this chat still empty; the finally's noModelLinePaint paints once loaded
   } catch (e) { line.hidden = true; noModelState = null; }
   finally { line.dataset.loaded = '1'; noModelLinePaint(); }   // the markup starts hidden; this says the decision was made
 }
@@ -14552,6 +14568,21 @@ async function setupLineLoad() {
 var noModelState = null;
 var setupLineWanted = false;
 var noModelPoll = null;
+// The line's one home: the displayed chat is NEW -- no transcript yet, and no live turn of its
+// own. `view` is the displayed chat's bucket (reassigned only by setDisplayedChat), so this
+// verdict always describes the chat on screen, never the chat a background turn belongs to.
+function setupLineEligible() {
+  return !!view && !view.history.length && !(view.run && !view.run.ended);
+}
+// Repaint the line from BOTH halves of the law: the server wants it (setup unfinished, not
+// dismissed) AND the displayed chat is still empty. The no-model form outranks this paint -- it
+// is not dismissible and shows wherever no model can answer, empty chat or not.
+function setupLineReflect() {
+  const line = document.getElementById('setupLine');
+  if (!line || line.dataset.loaded !== '1') return;
+  if (line.classList.contains('no-model-line')) return;
+  line.hidden = !(setupLineWanted && setupLineEligible());
+}
 function noModelNeeded() {
   const cd = noModelState;
   if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
@@ -14569,7 +14600,7 @@ function noModelLinePaint() {
   const show = noModelNeeded();
   line.classList.toggle('no-model-line', show);
   if (show) line.hidden = false;
-  else if (line.dataset.loaded === '1') line.hidden = !setupLineWanted;
+  else if (line.dataset.loaded === '1') setupLineReflect();   // wanted AND this chat still empty
   if (show && !noModelPoll) noModelPoll = setInterval(() => { if (!document.hidden) setupLineLoad(); }, 20000);
   if (!show && noModelPoll) { clearInterval(noModelPoll); noModelPoll = null; }
 }
