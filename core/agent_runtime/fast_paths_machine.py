@@ -37,6 +37,7 @@ from core.execution.constants import (
     machine_place_file_read_path,
     machine_process_sort,
     machine_send_to_phone_intent,
+    machine_todo_list_read_intent,
     resolve_drive_scope,
     resolve_named_folder_under_home,
 )
@@ -1795,6 +1796,15 @@ _KIND_WALK_DEPTH = 3
 _KIND_WALK_MAX_FILES = 20000
 _KIND_WALK_SKIP = frozenset({"node_modules", "__pycache__", "venv", ".venv", "Library"})
 
+# The to-do file scan is bounded like the kind walk, but tighter: a list file lives at the top of
+# a folder, and the ask is a person waiting on their list.
+_TODO_SCAN_DEPTH = 3
+_TODO_SCAN_MAX_ENTRIES = 2000
+_TODO_SCAN_SKIP = frozenset({"node_modules", "__pycache__", "venv", ".venv", "Library"})
+_TODO_SCAN_SUFFIXES = (".txt", ".md")
+_TODO_SCAN_PREFIXES = ("todo", "to-do", "to_do", "to do")
+_TODO_INFIX_RE = re.compile(r"\btodos?\b")
+
 
 def _files_under(folder: str, label_root: str) -> list[dict[str, str]]:
     """The files in ``folder`` and up to three levels below, labelled from ``label_root``."""
@@ -2071,6 +2081,183 @@ def read_home_file_the_project_lacks(
     return _machine_tool_fast_path_result(
         agent, user_input=user_input, session_id=session_id, source_context=source_context,
         intent=intent, execution=execution, reason="machine_read_fast_path",
+    )
+
+
+def _todo_list_files(roots: list[str]) -> list[tuple[float, str]]:
+    """The to-do-looking text files under ``roots``, newest first (ties by name).
+
+    Bounded the way the kind listing bounds its walk: three levels deep, hidden and app-owned
+    folders skipped, a hard entry cap so a huge folder cannot stall the turn.
+    """
+    import time as _time
+
+    found: list[tuple[float, str]] = []
+    scanned = 0
+    deadline = _time.monotonic() + 4.0
+    for root_label in roots:
+        root = os.path.expanduser(root_label)
+        root_depth = root.rstrip(os.sep).count(os.sep)
+        try:
+            walk = os.walk(root, followlinks=False)
+            for dirpath, dirnames, filenames in walk:
+                if dirpath.rstrip(os.sep).count(os.sep) - root_depth >= _TODO_SCAN_DEPTH:
+                    dirnames[:] = []
+                dirnames[:] = [d for d in dirnames if d not in _TODO_SCAN_SKIP and not d.startswith(".")]
+                for name in filenames:
+                    scanned += 1
+                    if scanned > _TODO_SCAN_MAX_ENTRIES or _time.monotonic() > deadline:
+                        found.sort(key=lambda item: (-item[0], item[1]))
+                        return found
+                    if name.startswith("."):
+                        continue
+                    stem, ext = os.path.splitext(name)
+                    if ext.lower() not in _TODO_SCAN_SUFFIXES:
+                        continue
+                    lowered = stem.lower()
+                    if not (lowered.startswith(_TODO_SCAN_PREFIXES) or _TODO_INFIX_RE.search(lowered)):
+                        continue
+                    path = os.path.join(dirpath, name)
+                    try:
+                        found.append((os.stat(path).st_mtime, path))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    found.sort(key=lambda item: (-item[0], item[1]))
+    return found
+
+
+def _todo_label(path: str) -> str:
+    """``Desktop/todo.txt`` for a path under the home folder, else the path as typed."""
+    home = os.path.expanduser("~")
+    if path == home or path.startswith(home + os.sep):
+        tail = path[len(home):].lstrip(os.sep)
+        return tail if tail else path
+    return path
+
+
+def read_the_named_todo_list(
+    agent: Any,
+    user_input: str,
+    *,
+    session_id: str,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any] | None:
+    """Read the owner's to-do list FILE when the ask names the list ("what's on my to do list?").
+
+    Measured on the phone parity audit 2026-10-29: with ~/Desktop/todo.txt on the disk, "whats on
+    my to do list again" reached a model seated with no file tool and was refused ("I don't have
+    access to your personal to-do list"), and "what was on that todo list on my desktop again?"
+    was answered with a directory listing of the Desktop. The noun names a file here: resolve it
+    to the real file (the folder the ask names, else Desktop and Documents, newest first), read it
+    with the file read tool and show the items. A phone turn runs the same read through the same
+    authorized door, so its grants and folder limits are enforced exactly as for any other read.
+    """
+    todo = machine_todo_list_read_intent(user_input)
+    if todo is None:
+        return None
+    from core.request_trust import (
+        REMOTE_GRANT_COMPUTER,
+        REMOTE_GRANT_REFUSAL_TEXT,
+        remote_turn_device,
+        remote_turn_folders,
+        remote_turn_lacks,
+        turn_is_remote,
+    )
+
+    if todo.place is not None:
+        roots = [f"~/{todo.place}"]
+        miss_text = f"I couldn't find a to-do list file on your {todo.place}. Tell me where it is."
+    else:
+        roots = ["~/Desktop", "~/Documents", "~/Downloads"]
+        miss_text = "I couldn't find a to-do list file in Desktop or Documents. Tell me where it is."
+    if turn_is_remote(source_context):
+        if remote_turn_device(source_context) is None:
+            # A remote stamp this runtime cannot read back as a paired phone did not come through
+            # the sealed phone door; the turn keeps the lanes it has always had.
+            return None
+        if remote_turn_lacks(source_context, REMOTE_GRANT_COMPUTER):
+            # The scan never runs for a phone without the computer right: what is or is not on
+            # this disk is not this lane's to disclose there, and the answer the person needs is
+            # where to turn the right on.
+            return agent._fast_path_result(
+                session_id=session_id,
+                user_input=user_input,
+                response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
+                confidence=0.95,
+                source_context=source_context,
+                reason="phone_without_computer_rights",
+            )
+        folders = remote_turn_folders(source_context)
+        if folders is not None:
+            # A phone the owner held to chosen folders never hears about -- let alone reads -- a
+            # file outside them, so the scan itself runs inside those folders only.
+            chosen = [folder for folder in folders if folder]
+            roots = chosen
+            named = ", ".join(_todo_label(folder) for folder in chosen) or "the folders you allowed"
+            miss_text = f"I couldn't find a to-do list file in {named}. Tell me where it is."
+    matches = _todo_list_files(roots)
+    if not matches:
+        return agent._fast_path_result(
+            session_id=session_id,
+            user_input=user_input,
+            response=miss_text,
+            confidence=0.9,
+            source_context=source_context,
+            reason="todo_list_read_fast_path",
+        )
+    newest = matches[0][1]
+    execution: Any = None
+    read_candidate = newest
+    for _, candidate in matches[:3]:
+        read_candidate = candidate
+        execution = execute_authorized_runtime_tool(
+            "machine.read_file",
+            {"path": candidate, "start_line": 1, "max_lines": 200, "verbatim": True},
+            source_context=dict(source_context or {}),
+        )
+        if execution is None:
+            return None
+        status = str(getattr(execution, "status", "") or "")
+        if getattr(execution, "ok", False) or status in REFUSAL_STATUSES or status in {"not_allowed"}:
+            break
+        # The newest candidate was unreadable (binary, vanished between scan and read): the next
+        # one is a real answer too, so it is tried before any failure text is shown.
+    if not getattr(execution, "ok", False):
+        # The read itself was refused (a phone without the computer right, a path outside the
+        # lane, or no candidate was readable): that refusal is the answer, in its own words.
+        return _machine_tool_fast_path_result(
+            agent,
+            user_input=user_input,
+            session_id=session_id,
+            source_context=source_context,
+            intent="machine.read_file",
+            execution=execution,
+            reason="todo_list_read_fast_path",
+        )
+    if len(matches) == 1:
+        header = f"Your to-do list ({_todo_label(read_candidate)}):"
+    else:
+        others = [_todo_label(path) for _, path in matches[:3] if path != read_candidate]
+        if len(matches) > 3:
+            others.append(f"+{len(matches) - 3} more")
+        header = (
+            f"I found {len(matches)} to-do list files and read "
+            f"{'the newest one' if read_candidate == newest else 'the newest one I could read'}, {_todo_label(read_candidate)}."
+        )
+        if others:
+            header += f" The other{'s' if len(others) > 1 else ''}: {', '.join(others)}."
+    body = str(getattr(execution, "response_text", "") or "").strip()
+    return _machine_tool_fast_path_result(
+        agent,
+        user_input=user_input,
+        session_id=session_id,
+        source_context=source_context,
+        intent="machine.read_file",
+        execution=execution,
+        reason="todo_list_read_fast_path",
+        response_text=f"{header}\n{body}" if body else header,
     )
 
 
@@ -2505,6 +2692,17 @@ def maybe_handle_direct_machine_read_request(
                 execution=execution,
                 reason="machine_read_fast_path",
             )
+    # "what's on my to do list again?" names a list FILE, not a folder and not a concept: resolve
+    # it to the real file and read it. Before this lane, the ask fell through to the planner,
+    # which listed the FOLDER ("Visible entries under ~/Desktop"), or reached a model seated with
+    # no file tool that answered "I don't have access to your personal to-do list". While email
+    # work owns the folder references of this session, the same stand-down its file neighbours
+    # take applies: a list ask mid-email-thread is the mailbox's to answer.
+    todo_read = None if email_owns_folder_reference else read_the_named_todo_list(
+        agent, user_input, session_id=session_id, source_context=source_context
+    )
+    if todo_read is not None:
+        return todo_read
     # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
     # folder search below can read "Downloads folder" as the thing being looked for.
     file_search = None if email_owns_folder_reference else machine_file_search_intent(user_input)
