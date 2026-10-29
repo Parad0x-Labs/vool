@@ -6,9 +6,10 @@ intermittently with "Forget could not be verified ... provider invocation manife
 other digit, so "27" (today's day of the month) stood as its own number. A random uuid4 does this for a two-digit
 number about once in 559, and every served turn writes such ids.
 
-Only that table's ids are left out, only under a key ending in ``_id``, and only when the value is a UUID or plain
-hex of 16 or more characters. Any other value under an ``_id`` key, the same UUID under another key, and the same
-UUID in another chat table are still read as words.
+In that table, ids under a key ending in ``_id`` are left out when the value is a UUID or plain hex of 16 or more
+characters. Any other value under an ``_id`` key (words, a long decimal number) is still read as words. Main's own
+rule since 0.7.2 (``_without_runtime_ids``) also leaves out runtime-made ids nested under other keys and in other
+chat tables, so this file does not pin that those are read.
 """
 from __future__ import annotations
 
@@ -124,38 +125,6 @@ def test_a_value_of_another_shape_under_an_id_key_still_refuses_the_forget(isola
     handled, reply = command(isolated_pages, chat, f"forget {FORGOTTEN}")
 
     assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
-
-
-@pytest.mark.parametrize("key", ["context_manifest", "context_manifest_ids", "note"])
-def test_the_same_uuid_under_another_key_still_refuses_the_forget(isolated_pages, key):
-    chat = "forget-uuid-other-key"
-    _remember(isolated_pages, chat, f"my locker is {FORGOTTEN}.")
-    _insert_raw_record(isolated_pages, chat, "req-uuid-key", {"links": {key: NESTED_UUID}})
-
-    handled, reply = command(isolated_pages, chat, f"forget {FORGOTTEN}")
-
-    assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
-
-
-def test_the_same_uuid_in_another_table_still_refuses_the_forget(isolated_pages):
-    """Only the gateway's own call records are exempt: the same id in another chat table is read as words."""
-    from storage.db import get_connection
-
-    chat = "forget-uuid-other-table"
-    _remember(isolated_pages, chat, f"my locker is {FORGOTTEN}.")
-    conn = get_connection()
-    try:
-        conn.execute("CREATE TABLE turn_scratch_notes (note_id TEXT PRIMARY KEY, session_id TEXT, args_json TEXT)")
-        conn.execute("INSERT INTO turn_scratch_notes VALUES (?, ?, ?)",
-                     ("pasted", chat, json.dumps({"context_manifest_id": NESTED_UUID})))
-        conn.commit()
-    finally:
-        conn.close()
-
-    handled, reply = command(isolated_pages, chat, f"forget {FORGOTTEN}")
-
-    assert handled and "could not be verified" in reply and "unclassified turn scratch notes" in reply, reply
-    assert "provider invocation manifests" not in reply, reply
 
 
 def test_control_a_call_record_without_the_number_forgets_clean(isolated_pages):
