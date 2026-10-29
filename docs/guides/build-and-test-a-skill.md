@@ -17,6 +17,11 @@ refusal a skill can run into are listed in [Skill tools and limits](skill-tools-
 
 From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
 
+The `new`, `try`, `zip` and `call` commands are in the source checkout and planned for VOOL 0.7.7,
+not released yet. A `vool-community` command from an installed release has only `init`, `lint`,
+`pack`, `check` and `submission-link`, so run every command on this page from the checkout as
+shown. `python -m tools.community_skills --help` lists the commands the checkout has.
+
 ```sh
 PYTHONPATH="$VOOL_SRC" python -m tools.community_skills new meeting-actions --name meeting-actions --author "Your Name"
 ```
@@ -41,8 +46,18 @@ PYTHONPATH="$VOOL_SRC" python -m tools.community_skills try meeting-actions \
 says why: `picked by trigger "..."`, `picked by word from the skill's name "meeting"`,
 `picked by shared words "notes", "action"`, or `not picked: no trigger matched; shares only "notes"`.
 `warn` lines (never failures) name a trigger that comes down to one word or to none once
-function words are dropped ("what do they want from me" has none left), and name words that pick
-the skill on their own. It exits 0 only when every ask behaved. Fix the description or triggers
+function words are dropped ("what do they want from me" has none left), name words that pick
+the skill on their own, and frontmatter keys VOOL does not read (a `schedule`, `interval`, `cron`
+or `every` key does nothing: a skill never runs by itself; see `watch.add` in
+[Skill tools and limits](skill-tools-and-limits.md#what-a-skill-can-and-can-never-do)).
+
+By default `try` ranks the skill alone, like a person who has no other skills of their own.
+With `--rank-with FOLDER` (repeatable) it also installs every `SKILL.md` under that folder into
+the same throwaway profile, so the skill is ranked against them the way it would be in a VOOL
+that has them; a FAIL then also says which skill was picked instead, and the summary's
+`ranked_with` says how many skills took part. `$VOOL_SRC/tests/fixtures/skill_picking/skills`
+holds copies of real Browse skills to rank against. VOOL's own built-in skills are chosen by a
+separate rule and never take the place of a person's own skill, so they are not needed here. It exits 0 only when every ask behaved. Fix the description or triggers
 and run it again until it passes.
 
 Then write the zip to share or import:
@@ -168,12 +183,30 @@ Add it to `metadata.json` before `init` (it becomes `registry.json` in the packa
 a block): `SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to the "needs" list in
 metadata.json (registry.json in the package folder), like "needs": ["wallet"].`
 
-`category` and `subcategory` must come from the fixed list in `core/registry/categories.py`
-(for example `productivity` / `meetings`); any other value is refused. The `source` above is the
+`category` and `subcategory` must come from the fixed list in `core/registry/categories.py`;
+any other value is refused. The list as it stands (new ids may be added later, none are removed):
+
+| `category` | `subcategory` ids |
+| --- | --- |
+| `writing` | `emails-letters`, `articles-blogs`, `social-posts`, `editing-proofreading`, `translation`, `cv-job-applications` |
+| `productivity` | `meetings`, `notes-summaries`, `planning-tasks`, `scheduling` |
+| `research-learning` | `web-research`, `study-tutoring`, `fact-checking`, `reading` |
+| `coding` | `code-review`, `debugging`, `docs`, `scripts-devops`, `data-sql` |
+| `business` | `marketing`, `sales-outreach`, `customer-support`, `hiring`, `contracts-documents` |
+| `money-crypto` | `budgeting`, `wallet-explained`, `market-data`, `tax-notes`, `invoices-receipts` |
+| `data-analysis` | `spreadsheets`, `charts`, `reports`, `data-cleanup` |
+| `creative` | `image-prompts`, `video-scripts`, `music-audio`, `design-ideas` |
+| `personal-home` | `health-fitness`, `food-recipes`, `travel`, `family-home`, `paperwork-admin`, `shopping` |
+| `automation` | `files-folders`, `browser-tasks`, `system-helpers`, `integrations` |
+| `privacy-security` | `privacy-checkup`, `scams-phishing`, `safe-sharing`, `account-safety` |
+ The `source` above is the
 shape for an upload. A package imported from GitHub uses a GitHub `source` instead; the author
 guide (section 9) shows both.
 
-A pass prints `"status":"preflight_passed"` and exits 0. A problem prints `"status":"blocked"`,
+A pass prints `"status":"preflight_passed"` and exits 0. The report always says
+`"admitted": false`: lint is a local check, and only the shared library's own checks and signing
+admit a package, so a local run can never say it was admitted. Frontmatter keys VOOL does not
+read are listed under `warnings`; they never block. A problem prints `"status":"blocked"`,
 exits 1 and names it under `findings`, for example *description is empty*. Fix
 `my-skills/aisle-sorter/SKILL.md`, copy it into `package-draft` again and re-run `lint`.
 `init` refuses an existing `package-draft`, and the script above refuses an existing
@@ -272,7 +305,18 @@ PYTHONPATH="$VOOL_SRC" python -m tools.community_skills call operator.schedule_c
 ```
 
 `--mode auto` checks Auto mode instead, and `--approve` clicks **Allow once** for you and calls
-again, so you see the result after approval. The same call from your own Python, in a throwaway
+again, so you see the result after approval.
+
+The throwaway home has empty `~/Desktop`, `~/Downloads` and `~/Documents` folders, and nothing
+else. To give a tool a file to read, copy one in first with `--seed-file SRC:DEST` (repeatable).
+`DEST` is `~/<path>` for the throwaway home or a relative path for the throwaway project folder:
+
+```sh
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills call pdf.extract_text \
+  --args '{"path": "~/Downloads/invoice.pdf"}' --seed-file ./invoice.pdf:~/Downloads/invoice.pdf
+```
+
+Your own files are only copied; the throwaway profile and the copies are removed afterwards. The same call from your own Python, in a throwaway
 profile (the variables from section 2):
 
 ```sh
@@ -353,8 +397,10 @@ other, so install the other skills you care about into the same profile before y
 
 ## 6. How picking works
 
-Before each answer VOOL compares the message with each skill's `name`, `description` and
-`triggers` (code: `rank_skills` in `core/plugin_skills.py`). Words are lowercased, short words
+Before each answer VOOL compares the message with each skill's `name`, `description`,
+`triggers` and instructions (the body after the frontmatter) (code: `rank_skills` and `_qualify`
+in `core/plugin_skills.py`). Instruction words count least, and a word most skills' instructions
+use ("paste", "steps") counts for almost nothing. Words are lowercased, short words
 and function words are dropped, and light suffixes are folded (`polite`/`politely`,
 `organise`/`organize`, `translate`/`translation`). A skill qualifies when:
 
@@ -366,7 +412,14 @@ and function words are dropped, and light suffixes are folded (`polite`/`politel
 * the message shares **two or more distinct content words** with the skill. Kind-of-help words
   (`explain`, `write`, `make`, `help`, `plan`, `check`, `list`, `table`, `summarise`,
   `summarize`, `draft`, `fix`) never carry a match alone; or
-* one word that is in the skill's **name** and in no other skill.
+* one word that is in the skill's **name** and in no other skill; or
+* one **rare card word backed by a kind-of-help word**: the message has one word that is on
+  this skill's card (name, triggers or description) and on few or no other skills' cards (a
+  description word: on no other card), and
+  also a kind-of-help word (such as `list`) that the card uses too. With a description saying
+  "Sorts a shopping list by store aisle", "help me with my shopping list" picks the skill:
+  `try` shows it as `shared word "shopping" backed by "list"`. A word only in the instructions
+  is never enough for this.
 
 **One ordinary shared word is not enough.** A whole trigger scores more than description
 overlap, and rare words score more than words many skills share. Up to three skills are added
