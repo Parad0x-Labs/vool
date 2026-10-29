@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "फ़ाइलें — VOOL ने जो कुछ भी बनाया, सभी चैट में",
     "sidebar.home": "होम",
     "sidebar.home_title": "होम — टूल और सेटिंग्स",
+    "sidebar.load_retry": "आपकी चैट अभी तक लोड नहीं हो सकीं, फिर से कोशिश हो रही है",
+    "sidebar.loading": "आपकी चैट लोड हो रही हैं…",
     "sidebar.new_chat": "+ नई",
     "sidebar.new_project": "+ प्रोजेक्ट",
     "sidebar.new_project_title": "नया प्रोजेक्ट — एक फ़ोल्डर चुनें; उसकी चैट उसी फ़ोल्डर में काम करती हैं और अलग-अलग रहती हैं",
@@ -1741,6 +1743,7 @@
     "chat.toast_move_failed": "यह चैट नहीं ले जाई जा सकी — कुछ नहीं बदला। दोबारा कोशिश करें।",
     "chat.toast_project_failed": "यह चैट प्रोजेक्ट में नहीं ले जाई जा सकी — यह अलग-अलग है ही नहीं। दोबारा कोशिश करें।",
     "chat.toast_try_once_grant": "एक मोड़ के लिए “{label}” आज़माया गया — अब आपका सामान्य मॉडल वापस चल रहा है।",
+    "chat.turn_working": "आपके मैसेज पर काम चल रहा है…",
     "chats.project_note": "प्रोजेक्ट के भीतर की चैट उसी फ़ोल्डर में काम करती हैं और दूसरे प्रोजेक्टों से — फ़ाइलों और स्मृति दोनों में — अलग-अलग रहती हैं।",
     "palette.hint_activity": "गतिविधि",
     "palette.hint_esc_stop": "रोकें",
@@ -2850,7 +2853,7 @@
     "settings.row.live_browser.help": "हर कार्रवाई चलने से पहले जाँचें। पेज की स्क्रिप्ट बंद हैं। भुगतान के लिए वॉलेट इस्तेमाल करें।",
     "settings.row.live_browser.label": "ब्राउज़र"
   },
-  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
+  "source_catalog_sha256": "98b710c6362117517a6e2ed8f232ce94baa0d393db43704f4673dc1b0d1b6e1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

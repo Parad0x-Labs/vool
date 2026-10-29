@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Файли — усе, що згенерував VOOL, у всіх чатах",
     "sidebar.home": "Домівка",
     "sidebar.home_title": "Домівка — інструменти й налаштування",
+    "sidebar.load_retry": "Поки не вдалося завантажити ваші чати, пробуємо ще раз",
+    "sidebar.loading": "Завантажуємо ваші чати…",
     "sidebar.new_chat": "+ Новий",
     "sidebar.new_project": "+ Проєкт",
     "sidebar.new_project_title": "Новий проєкт — оберіть теку; чати в ній працюють у цій теці та залишаються ізольованими",
@@ -1741,6 +1743,7 @@
     "chat.toast_move_failed": "Не вдалося перемістити цей чат — його не змінено. Спробуйте ще раз.",
     "chat.toast_project_failed": "Не вдалося додати цей чат до проєкту — він НЕ ізольований. Спробуйте ще раз.",
     "chat.toast_try_once_grant": "Один хід виконано моделлю «{label}» — тепер знову ваша звичайна модель.",
+    "chat.turn_working": "Обробляємо ваше повідомлення…",
     "chats.project_note": "Чати всередині проєкту працюють у його теці та залишаються ізольованими — і файли, і пам'ять — від інших проєктів.",
     "palette.hint_activity": "активність",
     "palette.hint_esc_stop": "стоп",
@@ -2850,7 +2853,7 @@
     "settings.row.live_browser.help": "Переглядайте кожну дію перед виконанням. Сценарії сторінок вимкнено. Для оплати використовуйте гаманець.",
     "settings.row.live_browser.label": "Браузер"
   },
-  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
+  "source_catalog_sha256": "98b710c6362117517a6e2ed8f232ce94baa0d393db43704f4673dc1b0d1b6e1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

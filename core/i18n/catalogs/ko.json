@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "파일 — 모든 채팅에서 VOOL이 생성한 모든 것",
     "sidebar.home": "홈",
     "sidebar.home_title": "홈 — 도구와 설정",
+    "sidebar.load_retry": "아직 채팅을 불러오지 못해 다시 시도하고 있습니다",
+    "sidebar.loading": "채팅을 불러오는 중…",
     "sidebar.new_chat": "+ 새 채팅",
     "sidebar.new_project": "+ 프로젝트",
     "sidebar.new_project_title": "새 프로젝트 — 폴더를 선택하세요. 그 안의 채팅은 해당 폴더에서 작업하며 격리됩니다",
@@ -1741,6 +1743,7 @@
     "chat.toast_move_failed": "이 채팅을 옮길 수 없었습니다 — 아무 것도 변경되지 않았습니다. 다시 시도하세요.",
     "chat.toast_project_failed": "이 채팅을 프로젝트에 넣을 수 없었습니다 — 이 채팅은 격리되어 있지 않습니다. 다시 시도하세요.",
     "chat.toast_try_once_grant": "“{label}”을(를) 한 턴 동안 시도했습니다 — 이제 평소 모델로 돌아왔습니다.",
+    "chat.turn_working": "메시지를 처리하고 있습니다…",
     "chats.project_note": "프로젝트 안의 채팅은 해당 폴더에서 작업하며, 파일과 기억은 다른 프로젝트로부터 격리되어 유지됩니다.",
     "palette.hint_activity": "활동",
     "palette.hint_esc_stop": "중지",
@@ -2850,7 +2853,7 @@
     "settings.row.live_browser.help": "실행 전에 각 작업을 확인하세요. 페이지 스크립트는 꺼져 있습니다. 결제에는 지갑을 사용하세요.",
     "settings.row.live_browser.label": "브라우저"
   },
-  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
+  "source_catalog_sha256": "98b710c6362117517a6e2ed8f232ce94baa0d393db43704f4673dc1b0d1b6e1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

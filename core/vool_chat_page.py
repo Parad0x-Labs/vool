@@ -315,7 +315,9 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
-#sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
+  #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
+  #sessions .side-loading { color:var(--muted); font-size:12px; padding:8px 10px; }
+  .server-turn-working { color:var(--muted); }
 /* Chat/project lifecycle indicator: a compact, terminal-style status tag -- never a progress bar,
    never a percentage, only what the runtime has actually reported. Priority (highest first) is
    needs_user > working > complete_unseen, enforced in chatLifecycleState(), not here -- only one
@@ -2258,6 +2260,10 @@ function newChatState(chatId) {
     chatActivityOpen: {},
     recoveredTask: null,
     recoveredActivityOpen: {},
+    // The server's own record that THIS chat has a turn executing right now ({preview} or null),
+    // adopted when this page holds no run of its own -- after a reload or a restart. See
+    // adoptServerRunningTurn; the persisted transcript replaces it when the turn ends.
+    serverTurn: null,
   };
 }
 function chatState(chatId) {
@@ -3183,6 +3189,32 @@ function loadCollapsed() { return _jget('vool_project_collapsed', '{}'); }
 function saveCollapsed(c) { localStorage.setItem('vool_project_collapsed', JSON.stringify(c)); }
 let _serverProjects = {};   // {id: {id, name, root, exists}}
 let _lastSessions = [];
+// The sidebar's FIRST answer is a state of its own: until it lands the list is unknown, not
+// empty -- a VOOL restart made that window read as data loss (fresh-test item 14). One quiet
+// row while the ask is out, a retry row when it failed, and the empty state only after the
+// server itself says there are none.
+let sessionsFirstLoadDone = false;
+let sessionsLoadFailed = false;
+let sessionsRetryTimer = null;
+let sessionsRetryDelay = 1000;
+function paintSessionsLoadState() {
+  sessionsEl.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'side-loading';
+  row.setAttribute('role', 'status');
+  row.textContent = sessionsLoadFailed
+    ? pageT('sidebar.load_retry', 'Could not load your chats yet, retrying')
+    : pageT('sidebar.loading', 'Loading your chats…');
+  sessionsEl.appendChild(row);
+}
+function scheduleSessionsRetry() {
+  if (sessionsRetryTimer || sessionsFirstLoadDone) return;
+  sessionsRetryTimer = setTimeout(function () {
+    sessionsRetryTimer = null;
+    loadSessions();
+  }, sessionsRetryDelay);
+  sessionsRetryDelay = Math.min(15000, sessionsRetryDelay * 2);
+}
 let _sessionCounts = null;   // true per-group chat counts from the server; the page is capped
 function loadProjects() { return _serverProjects; }
 async function refreshProjects() {
@@ -3932,6 +3964,7 @@ async function refreshSidebarActivity() {
     const data = await fetchSidebarLifecycle();
     sidebarActivityHistory = Array.isArray(data.sessions) ? data.sessions : sidebarActivityHistory;
   } catch (e) { /* transient; the next tick retries */ }
+  adoptServerRunningTurn(displayedChat);
   maybeRepaintSidebarLifecycle();
   await refreshReminderArtifacts(displayedChat);
   // The queue's bounded fallback wakeup. Common cases never reach here (the sending page's own
@@ -4004,6 +4037,9 @@ function groupCount(pid, pageLength) {
 }
 
 function renderSessions(sessions) {
+  // Until the server has answered the chat list even once, the list is unknown -- never painted
+  // as empty. The loading/retry row is the only thing the sidebar shows in that window.
+  if (!sessionsFirstLoadDone) { paintSessionsLoadState(); return; }
   // A chat that has sent its first message but is not yet in the server's log is overlaid here, so
   // it survives every re-render until the server's own record replaces it.
   _lastSessions = mergePendingSessions(sessions);
@@ -4173,11 +4209,24 @@ async function loadSessions() {
   try {
     await refreshProjects();   // server-side project list drives the sidebar grouping
     const r = await fetch('/api/chat/sessions');
+    if (!r.ok) throw new Error('chat list read failed (HTTP ' + r.status + ')');
     const data = await r.json();
     _sessionCounts = (data && typeof data.counts === 'object') ? data.counts : null;
+    sessionsFirstLoadDone = true;
+    sessionsLoadFailed = false;
+    if (sessionsRetryTimer) { clearTimeout(sessionsRetryTimer); sessionsRetryTimer = null; }
     renderSessions(data.sessions || []);
     await restoreChatBypass(displayedChat);
-  } catch (e) {}
+  } catch (e) {
+    // The first answer never came (VOOL restarting, or unreachable): the list stays unknown --
+    // say so where the list would be and ask again. Later refreshes keep their old behaviour:
+    // the list on screen is already the server's last word.
+    if (!sessionsFirstLoadDone) {
+      sessionsLoadFailed = true;
+      paintSessionsLoadState();
+      scheduleSessionsRetry();
+    }
+  }
 }
 
 // Paint a chat: its transcript from its OWN bucket, and -- if it owns a run -- that run's card,
@@ -4206,7 +4255,7 @@ function renderChat(chatId) {
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
+  if (!st.history.length && !run && !st.serverTurn) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
@@ -4221,6 +4270,14 @@ function renderChat(chatId) {
   });
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
+  // A turn the SERVER is still executing (this page reloaded mid-answer): its request text and a
+  // working row come from the server's own record. Nothing here invents an answer; the persisted
+  // transcript replaces both rows when the turn ends.
+  if (st.serverTurn && !run) {
+    if (st.serverTurn.preview) addMsg('user', st.serverTurn.preview);
+    const working = addMsg('assistant', pageT('chat.turn_working', 'Working on your message…'));
+    if (working && working.classList) working.classList.add('server-turn-working');
+  }
   privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
   followLog(true);   // opening a chat starts at its latest message
@@ -8166,6 +8223,47 @@ function fetchSidebarLifecycle() {
   }
   return sidebarLifecycleRequest;
 }
+// A reload throws away every run this page held, but the server keeps executing the turn. The
+// lifecycle rows are the page's evidence: status 'running' with a live worker means a turn of
+// THIS chat is in flight right now, whatever this page's own state says.
+function serverRunningRow(chatId) {
+  const id = String(chatId || '');
+  if (!id) return null;
+  for (const row of (sidebarActivityHistory || [])) {
+    if (row && row.session_id === id && row.status === 'running' && row.worker_live === true) return row;
+  }
+  return null;
+}
+// Adopt the server's running turn for a chat this page cannot otherwise show. After a reload
+// mid-answer the transcript reads empty (a turn reaches the log only when it ends), so the chat
+// looked brand new and its queued message like an orphan on it. This paints the turn's own
+// request text plus a working row -- from the server's record, never invented words -- and keeps
+// a sidebar row for the chat until the server's chat list knows it. When the turn ends, the
+// transcript is re-read and the serverTurn painting is dropped.
+function adoptServerRunningTurn(chatId) {
+  const id = String(chatId || '');
+  if (!id) return;
+  const owner = chatState(id);
+  const row = serverRunningRow(id);
+  if (!row) {
+    if (!owner.serverTurn) return;
+    owner.serverTurn = null;
+    // The turn's log row can land just after the lifecycle flip, so read now and once more.
+    restoreCurrent(id);
+    setTimeout(function () { restoreCurrent(id); }, 3000);
+    loadSessions();
+    return;
+  }
+  // This page's own run paints the turn; a claim being decided may become one any moment.
+  if ((owner.run && !owner.run.ended) || owner.pumpHold) return;
+  if (!_lastSessions.some(function (s) { return s.session_id === id && !s.pending; })) {
+    ensureSessionInSidebar(id, String(row.request_preview || ''));
+  }
+  const preview = String(row.request_preview || '');
+  if (owner.serverTurn && owner.serverTurn.preview === preview) return;
+  owner.serverTurn = { preview: preview };
+  if (isDisplayed(id)) renderChat(id);
+}
 let runtimeActivityRequest = null;
 function fetchRuntimeActivity() {
   // Concurrent detail readers share one request. Periodic sidebar refreshes
@@ -8910,7 +9008,10 @@ function queueWaitingState(chatId) {
     return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
   });
   const owner = chatState(chatId);
-  if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold) return [];
+  // A turn the server is executing for this chat (a reload took this page's own run away) means
+  // the chat is not idle: its queued item is waiting behind that turn by design, shown as this
+  // chat's own chip -- never as an orphan "waiting to send" banner.
+  if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold || serverRunningRow(chatId)) return [];
   return waiting;
 }
 function paintQueueWaiting(chatId) {
@@ -14204,6 +14305,7 @@ if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopProp
 })();
 initComposerControls();
 buildTabs();
+paintSessionsLoadState();   // the quiet "Loading your chats…" row is up before the first ask resolves
 loadSessions();
 showEmpty();      // paint the welcome instantly so boot never flashes blank; restoreCurrent swaps in the transcript if the session has one
 restoreCurrent();

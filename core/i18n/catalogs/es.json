@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Archivos — todo lo que VOOL ha generado, en todos los chats",
     "sidebar.home": "Inicio",
     "sidebar.home_title": "Inicio — herramientas y ajustes",
+    "sidebar.load_retry": "No se pudieron cargar tus chats todavía, intentándolo de nuevo",
+    "sidebar.loading": "Cargando tus chats…",
     "sidebar.new_chat": "+ Nuevo",
     "sidebar.new_project": "+ Proyecto",
     "sidebar.new_project_title": "Nuevo proyecto — elige una carpeta; sus chats trabajan en esa carpeta y permanecen aislados",
@@ -1741,6 +1743,7 @@
     "chat.toast_move_failed": "No se pudo mover este chat — quedó como estaba. Reintenta.",
     "chat.toast_project_failed": "No se pudo poner este chat en el proyecto — NO está aislado. Reintenta.",
     "chat.toast_try_once_grant": "Se usó «{label}» durante un turno — ya estás de vuelta en tu modelo normal.",
+    "chat.turn_working": "Trabajando en tu mensaje…",
     "chats.project_note": "Los chats dentro de un proyecto trabajan en esa carpeta y permanecen aislados — archivos y memoria — de otros proyectos.",
     "palette.hint_activity": "actividad",
     "palette.hint_esc_stop": "detener",
@@ -2850,7 +2853,7 @@
     "settings.row.live_browser.help": "Revisa cada acción antes de ejecutarla. Los scripts de las páginas están desactivados. Usa la cartera para pagar.",
     "settings.row.live_browser.label": "Navegador"
   },
-  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
+  "source_catalog_sha256": "98b710c6362117517a6e2ed8f232ce94baa0d393db43704f4673dc1b0d1b6e1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
