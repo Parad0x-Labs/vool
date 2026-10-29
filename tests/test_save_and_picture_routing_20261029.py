@@ -79,7 +79,10 @@ def test_a_note_to_keep_goes_to_the_notes_tool_with_its_words(text, body):
     assert handled is False
 
 
-@pytest.mark.parametrize("text", ["keep the note short", "save this for later", "save it"])
+@pytest.mark.parametrize("text", [
+    "keep the note short", "save this for later", "save it", "save this: my bike rack is spot 12 on level 2",
+    "save this: I take the 8:10 train",
+])
 def test_words_about_a_note_or_a_bare_save_are_not_a_note_save(text):
     intent = parse_operator_action_intent(text)
     assert intent is None or intent.kind != "save_note"
