@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .fast_live_info_news_topic import wants_prose_summary
-from .fast_live_info_runtime_results import live_info_result
+from .fast_live_info_runtime_results import disabled_live_info_result, live_info_result, lookups_refused_this_turn
 from .fast_live_info_runtime_truth import (
     chat_truth_live_info_result,
     should_use_chat_truth_wording,
@@ -28,6 +28,15 @@ def build_live_info_response_result(
     if live_mode == "news" and not str(query or "").strip():
         return None
 
+    if lookups_refused_this_turn(source_context):
+        # Local Only keeps the web plan and the door refuses it (and records that). Rendered as
+        # results, the refusal read "no current conditions found".
+        return disabled_live_info_result(
+            agent,
+            session_id=session_id,
+            user_input=user_input,
+            source_context=source_context,
+        )
     unresolved_price = agent._unresolved_price_lookup_response(query=query, notes=notes, mode=live_mode)
     if unresolved_price:
         return live_info_result(

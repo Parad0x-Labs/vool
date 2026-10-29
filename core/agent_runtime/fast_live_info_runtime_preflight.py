@@ -48,12 +48,12 @@ def prepare_live_info_request(
         return "", "", None
     if _explicit_remote_fetch_disabled(source_context):
         return "", "", None
-    from core.remote_fetch_policy import effective_web_available
+    from core import policy_engine
+    from core.remote_fetch_policy import local_only_active
 
-    # Local Only chosen for this chat binds as the switch does: searched anyway, every engine was
-    # refused at the door and the person read "no current conditions found" for a lookup that
-    # was never allowed to run.
-    if not effective_web_available(source_context):
+    # Web lookups off: nothing is looked up, and the person is told why. Under Local Only the
+    # web plan is kept and refused at the door, which records the refusal the turn answers from.
+    if not policy_engine.allow_web_fallback() and not local_only_active(source_context):
         from core.agent_runtime.fast_live_info_runtime_results import asks_only_for_general_knowledge
 
         if asks_only_for_general_knowledge(candidate_input):

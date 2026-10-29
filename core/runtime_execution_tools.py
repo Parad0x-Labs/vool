@@ -3362,7 +3362,7 @@ def _dispatch_runtime_tool(
             handled=True,
             ok=False,
             status="disabled",
-            response_text=contract.unsupported_reason,
+            response_text=_unsupported_response_text(intent, contract, source_context),
             details={
                 "observation": _tool_observation(
                     intent=intent,
@@ -4244,6 +4244,32 @@ def _marketplace_purchase_knowledge(arguments: dict[str, Any]) -> RuntimeExecuti
     )
 
 
+def _web_lookups_held(source_context: dict[str, Any] | None) -> bool:
+    from core.remote_fetch_policy import effective_web_available
+
+    return not effective_web_available(source_context)
+
+
+def _web_fetch_refused_text(url: str, source_context: dict[str, Any] | None) -> str:
+    """What the person reads when a page was not opened: the switch (or Local Only) by name when
+    that is what held, else the per-turn refusal as before."""
+    if _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(f"to open `{url}`", source_context=source_context)
+    return f"Web fetch is disabled by policy for `{url}`."
+
+
+def _unsupported_response_text(intent: str, contract: Any, source_context: dict[str, Any] | None) -> str:
+    if intent in {"web.fetch", "web.search"} and _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(
+            "to open that page" if intent == "web.fetch" else "to search the web", source_context=source_context
+        )
+    return str(contract.unsupported_reason or "")
+
+
 def _remote_fetch_allowed(source_context: dict[str, Any] | None) -> bool:
     if "allow_remote_fetch" in (source_context or {}):
         return bool((source_context or {}).get("allow_remote_fetch"))
@@ -4279,7 +4305,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4348,7 +4374,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",

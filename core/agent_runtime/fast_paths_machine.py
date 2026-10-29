@@ -1668,7 +1668,9 @@ def _recover_recent_machine_download_path(
         direct_match = re.search(r"(~/(?:Desktop|Downloads|Documents)/[^`\s\"']+\.[A-Za-z0-9_+-]+)", content)
         if direct_match:
             return str(direct_match.group(1) or "").strip()
-        download_target = _extract_machine_download_target(content)
+        # Only the path is wanted here; checking the address would resolve its host over DNS for
+        # a question about a file already on disk.
+        download_target = _extract_machine_download_target(content, check_target=False)
         if download_target is not None:
             return str(download_target.get("path") or "").strip()
     return ""

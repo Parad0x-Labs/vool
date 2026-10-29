@@ -140,7 +140,9 @@ def _default_json_fetcher(
     # The built-in endpoint is fixed HTTPS; an operator-supplied endpoint is explicit runtime
     # configuration, not an argument derived from a model or user message. Fetched through the
     # ONE outbound door so the per-turn veto applies here too.
-    with open_remote_url(str(url), headers=dict(headers), method="GET", timeout=timeout_s) as response:
+    # A rate is a lookup: the door holds it to Web lookups and, under Local Only, refuses it
+    # without resolving the provider's name.
+    with open_remote_url(str(url), headers=dict(headers), method="GET", timeout=timeout_s, lookup=True) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("FX endpoint returned a non-object payload")

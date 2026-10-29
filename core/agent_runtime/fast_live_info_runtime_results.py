@@ -51,17 +51,31 @@ MACHINE_LOCAL_ONLY_LOOKUP_TEXT = (
 # A live-data ask names a reading taken NOW. These words make it one whatever else the text says.
 _CURRENT_READING_RE = re.compile(
     r"\b(?:now|right\s+now|today|tonight|tomorrow|current(?:ly)?|latest|live|at\s+the\s+moment|"
-    r"this\s+(?:morning|afternoon|evening|minute|hour)|as\s+of|real[\s-]?time)\b",
+    r"this\s+(?:morning|afternoon|evening|minute|hour|week)|as\s+of|real[\s-]?time|"
+    r"forecast|look(?:s|ing)?|doing|worth|how\s+much|convert)\b",
     re.IGNORECASE,
 )
-# An explanation, a cause, a history or a trait: what the model can answer without going online.
+# An explanation, a cause, a history, a typical value or a trait: what the model can answer without
+# going online. Every form is anchored at the START of the message: a trait word further on ("what's
+# the bitcoin price? it's so volatile") does not make the reading a question about traits.
 _GENERAL_KNOWLEDGE_RE = re.compile(
-    r"^\s*(?:please\s+)?(?:explain|why|how\s+(?:does|do|did|can|could|would)|"
-    r"what\s+(?:determines|affects|drives|causes|moves|influences)|"
-    r"tell\s+me\s+(?:about\s+)?(?:why|how))\b"
-    r"|^\s*how\s+(?:is|are)\b[^?.]*\b(?:determined|calculated|measured|decided|set|formed|forecast)\b"
-    r"|\b(?:history|historical(?:ly)?|over\s+(?:time|the\s+years)|volatil(?:e|ity)|"
-    r"in\s+general|usually|typically|tends?\s+to|so\s+often)\b",
+    r"^\s*(?:please\s+|can\s+you\s+)?(?:"
+    r"explain\b"
+    r"|why\b"
+    r"|how\s+(?:does|do|did|can|could|would)\b"
+    r"|how\s+(?:is|are)\b[^?.]*\b(?:determined|calculated|measured|decided|set|formed)\b"
+    r"|what\s+(?:determines|affects|drives|causes|moves|influences)\b"
+    r"|tell\s+me\s+(?:about\s+)?why\b"
+    r"|(?:is|are|does|do)\b[^?.]*\b(?:volatil(?:e|ity)|usually|typically|in\s+general|tends?\s+to|so\s+often)\b"
+    r"|what(?:'s|\s+is|\s+are)\s+the\s+(?:typical|average|usual|normal)\b"
+    r"|(?:\w+\s+){0,4}(?:history|historical|climate)\b"
+    r")",
+    re.IGNORECASE,
+)
+# A second clause can carry a live reading beside the explanation ("explain how the price is set
+# and what's the weather in Paris"); only a message that is one question qualifies.
+_SECOND_CLAUSE_RE = re.compile(
+    r"[?!.;]\s*\S|\b(?:and|also|plus|then)\s+(?:what|how|tell|give|show|is|are|get|check|the)\b",
     re.IGNORECASE,
 )
 
@@ -70,9 +84,10 @@ def asks_only_for_general_knowledge(text: str) -> bool:
     """A question that mentions prices or weather without asking for a reading taken now:
     "explain how the bitcoin price is determined", "why is London so often rainy", "gold price
     history". With Web lookups off these are the model's to answer; refusing them as live lookups
-    (as the first cut of the switch gate did) answered nothing anyone asked about."""
-    clean = " ".join(str(text or "").split())
-    if not clean or _CURRENT_READING_RE.search(clean):
+    (as the first cut of the switch gate did) answered nothing anyone asked about. Anything that
+    could be asking for a reading stays a lookup, and is refused."""
+    clean = " ".join(str(text or "").split()).rstrip(" ?!.")
+    if not clean or _CURRENT_READING_RE.search(clean) or _SECOND_CLAUSE_RE.search(clean):
         return False
     return bool(_GENERAL_KNOWLEDGE_RE.search(clean))
 
@@ -113,8 +128,34 @@ def refusal_reason_text(reason: object, *, source_context: dict[str, object] | N
 
     text = str(reason or "")
     if WEB_LOOKUPS_OFF_DENIAL in text or LOCAL_ONLY_EGRESS_DENIAL in text:
-        return web_lookups_off_text(source_context=source_context)
+        # The short form: it is printed in one cell of a table, and the reply's guard keeps or
+        # drops whole sentences -- the two-sentence refusal lost its first one there.
+        return lookup_refusal_reason(source_context)
     return ""
+
+
+_LOOKUP_REFUSALS = frozenset({"remote_fetch_policy.local_only_egress", "remote_fetch_policy.web_lookups_off"})
+
+
+def lookups_refused_this_turn(source_context: dict[str, object] | None = None) -> bool:
+    """The turn's lookups were all refused at the door (Local Only or Web lookups off) and none
+    went out: what comes back empty was never asked for, so it is not "nothing found"."""
+    from core.remote_fetch_policy import effective_web_available
+
+    if effective_web_available(source_context):
+        return False
+    try:
+        from core.effect_gateway import current_effect_ledger
+
+        ledger = current_effect_ledger()
+        entries = ledger.entries() if ledger is not None else ()
+    except Exception:
+        return False
+    fetches = [entry for entry in entries if entry.get("effect_class") == "network_fetch"]
+    refused = [entry for entry in fetches if str(entry.get("decided_by") or "") in _LOOKUP_REFUSALS]
+    # The tool call that carried the refused fetches is on the ledger too, as failed: only a fetch
+    # that came back means something was found.
+    return bool(refused) and not any(entry.get("lifecycle") == "succeeded" for entry in fetches)
 
 
 def disabled_live_info_result(

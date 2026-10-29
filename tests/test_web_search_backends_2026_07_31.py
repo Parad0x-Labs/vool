@@ -70,7 +70,7 @@ def test_a_stale_launcher_env_cannot_reduce_the_chain_to_dead_providers(monkeypa
     assert order.index("google_html") < order.index("ddg_instant"), order
 
 
-def test_no_provider_may_invent_hits_when_every_backend_is_down(monkeypatch) -> None:
+def test_no_provider_may_invent_hits_when_every_backend_is_down(monkeypatch, enable_web) -> None:
     # Honest degradation: when all backends genuinely fail the caller must see
     # provider "none" and an empty hit list, never a fabricated result set that a
     # model answer could be dressed up as a citation.
@@ -194,7 +194,7 @@ def test_brave_still_covers_a_yahoo_outage(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("code", [429, 500, 502, 503])
-def test_a_transient_http_status_is_retried_once(monkeypatch, code: int) -> None:
+def test_a_transient_http_status_is_retried_once(monkeypatch, code: int, enable_web) -> None:
     # Yahoo intermittently answers "HTTP Error 500: INKApi Error" for a query it serves
     # fine a moment later; Brave answers 429. Failing out on the first attempt threw away
     # a backend that was about to work.
@@ -228,7 +228,7 @@ def test_a_transient_http_status_is_retried_once(monkeypatch, code: int) -> None
     assert attempts["n"] == 2
 
 
-def test_a_second_consecutive_transient_failure_surfaces_after_exactly_one_retry(monkeypatch) -> None:
+def test_a_second_consecutive_transient_failure_surfaces_after_exactly_one_retry(monkeypatch, enable_web) -> None:
     # The ceiling of the retry above: one retry, never a loop. A backend that stays
     # transient must surface its HTTPError after exactly two attempts -- a second backoff
     # would burn the turn budget the retry exists to protect.
@@ -263,7 +263,7 @@ def test_a_second_consecutive_transient_failure_surfaces_after_exactly_one_retry
     assert sleeps["n"] == 1, "only the first failed attempt may back off"
 
 
-def test_a_real_refusal_is_not_retried(monkeypatch) -> None:
+def test_a_real_refusal_is_not_retried(monkeypatch, enable_web) -> None:
     # 403/404 mean the endpoint is refusing us; retrying only burns the turn budget.
     attempts = {"n": 0}
 

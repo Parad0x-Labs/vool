@@ -3607,7 +3607,7 @@ class VoolAgent(
         # Every subtask of this lane is a live lookup, so it answers to the Web lookups switch
         # before any plan is built. Measured on 1cbf433 with the switch off: "whats the weather in
         # London today" and "what is the bitcoin price right now" were fetched live, because only
-        # the fast path behind this lane asked the switch. A refusal here keeps the honest answer
+        # the fast path behind this lane asked the switch. A refusal here keeps the true answer
         # on this lane; falling through would hand the model a live question with no data. Under
         # Local Only the lane still attempts, so the door refuses there and records it: that
         # record is what the first-run denial demo completes from.

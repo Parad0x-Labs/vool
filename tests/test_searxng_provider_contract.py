@@ -96,12 +96,12 @@ def _search(base_url: str = "http://searx.test:8080", **kw):
 # =============================================================== POSITIVE (1-5)
 
 
-def test_1_a_configured_instance_returns_results(searx) -> None:
+def test_1_a_configured_instance_returns_results(searx, enable_web) -> None:
     with remote_fetch_policy_scope(ALLOWED):
         assert len(_search()) == 3
 
 
-def test_2_multiple_results_normalise_in_order(searx) -> None:
+def test_2_multiple_results_normalise_in_order(searx, enable_web) -> None:
     with remote_fetch_policy_scope(ALLOWED):
         results = _search()
 
@@ -112,7 +112,7 @@ def test_2_multiple_results_normalise_in_order(searx) -> None:
     ]
 
 
-def test_3_title_url_and_snippet_are_preserved(searx) -> None:
+def test_3_title_url_and_snippet_are_preserved(searx, enable_web) -> None:
     with remote_fetch_policy_scope(ALLOWED):
         first = _search()[0]
 
@@ -121,7 +121,7 @@ def test_3_title_url_and_snippet_are_preserved(searx) -> None:
     assert first.snippet == "DNS translates names to addresses."
 
 
-def test_4_provenance_identifies_the_engine_and_score(searx) -> None:
+def test_4_provenance_identifies_the_engine_and_score(searx, enable_web) -> None:
     with remote_fetch_policy_scope(ALLOWED):
         results = _search()
 
@@ -129,7 +129,7 @@ def test_4_provenance_identifies_the_engine_and_score(searx) -> None:
     assert results[0].score == 1.0
 
 
-def test_5_the_request_uses_the_json_api_not_html(searx) -> None:
+def test_5_the_request_uses_the_json_api_not_html(searx, enable_web) -> None:
     _, opened = searx
     with remote_fetch_policy_scope(ALLOWED):
         _search()
@@ -153,7 +153,7 @@ def test_5_the_request_uses_the_json_api_not_html(searx) -> None:
         (urllib.error.HTTPError("u", 404, "Not Found", {}, None), "bad_request"),
     ),
 )
-def test_6_to_10_each_transport_failure_is_named(searx, raised, reason) -> None:
+def test_6_to_10_each_transport_failure_is_named(searx, raised, reason, enable_web) -> None:
     behaviour, _ = searx
     behaviour["respond"] = raised
     with remote_fetch_policy_scope(ALLOWED):
@@ -163,7 +163,7 @@ def test_6_to_10_each_transport_failure_is_named(searx, raised, reason) -> None:
     assert caught.value.reason == reason
 
 
-def test_11_a_non_json_body_is_reported_as_such(searx) -> None:
+def test_11_a_non_json_body_is_reported_as_such(searx, enable_web) -> None:
     """An HTML login page or proxy notice returning 200 is a misconfigured endpoint, and saying so
     beats reporting an empty result set."""
     behaviour, _ = searx
@@ -175,14 +175,14 @@ def test_11_a_non_json_body_is_reported_as_such(searx) -> None:
     assert caught.value.reason == "invalid_json"
 
 
-def test_12_an_empty_result_set_is_not_a_failure(searx) -> None:
+def test_12_an_empty_result_set_is_not_a_failure(searx, enable_web) -> None:
     behaviour, _ = searx
     behaviour["respond"] = {"results": []}
     with remote_fetch_policy_scope(ALLOWED):
         assert _search() == []
 
 
-def test_12b_a_malformed_row_does_not_discard_the_good_ones(searx) -> None:
+def test_12b_a_malformed_row_does_not_discard_the_good_ones(searx, enable_web) -> None:
     behaviour, _ = searx
     behaviour["respond"] = {
         "results": [None, "junk", {"no_url": 1},
@@ -194,7 +194,7 @@ def test_12b_a_malformed_row_does_not_discard_the_good_ones(searx) -> None:
     assert [r.url for r in results] == ["https://a.example"]
 
 
-def test_12c_a_row_with_an_unparseable_score_still_returns(searx) -> None:
+def test_12c_a_row_with_an_unparseable_score_still_returns(searx, enable_web) -> None:
     behaviour, _ = searx
     behaviour["respond"] = {"results": [{"title": "A", "url": "https://a.example", "score": "high"}]}
     with remote_fetch_policy_scope(ALLOWED):
@@ -206,7 +206,7 @@ def test_12c_a_row_with_an_unparseable_score_still_returns(searx) -> None:
 # =============================================================== CONFIGURATION (13-15)
 
 
-def test_13_the_configured_base_url_is_honoured(searx) -> None:
+def test_13_the_configured_base_url_is_honoured(searx, enable_web) -> None:
     _, opened = searx
     with remote_fetch_policy_scope(ALLOWED):
         SearXNGClient(base_url="https://search.example.com", timeout_s=3).search("q")
@@ -214,7 +214,7 @@ def test_13_the_configured_base_url_is_honoured(searx) -> None:
     assert opened[0].startswith("https://search.example.com/search?")
 
 
-def test_14_a_trailing_slash_does_not_double(searx) -> None:
+def test_14_a_trailing_slash_does_not_double(searx, enable_web) -> None:
     _, opened = searx
     with remote_fetch_policy_scope(ALLOWED):
         SearXNGClient(base_url="https://search.example.com/", timeout_s=3).search("q")
@@ -222,7 +222,7 @@ def test_14_a_trailing_slash_does_not_double(searx) -> None:
     assert "//search?" not in opened[0]
 
 
-def test_15_the_environment_overrides_the_policy_default(searx, monkeypatch) -> None:
+def test_15_the_environment_overrides_the_policy_default(searx, monkeypatch, enable_web) -> None:
     _, opened = searx
     monkeypatch.setenv("SEARXNG_URL", "http://from-env.test:9999")
     with remote_fetch_policy_scope(ALLOWED):
@@ -269,7 +269,7 @@ def test_16_and_17_a_forbidden_turn_makes_zero_searxng_calls(searx, text: str) -
     assert opened == [], f"a request was issued for a turn that forbade it: {text!r}"
 
 
-def test_18_an_ordinary_live_request_is_allowed_and_recorded(searx) -> None:
+def test_18_an_ordinary_live_request_is_allowed_and_recorded(searx, enable_web) -> None:
     _, opened = searx
     with remote_fetch_policy_scope(ALLOWED):
         results = _call_the_production_tool("what is dns")
@@ -285,7 +285,7 @@ def test_18_an_ordinary_live_request_is_allowed_and_recorded(searx) -> None:
 # =============================================================== FALLBACK (19-20)
 
 
-def test_19_a_failing_instance_leaves_the_chain_free_to_continue(searx) -> None:
+def test_19_a_failing_instance_leaves_the_chain_free_to_continue(searx, enable_web) -> None:
     """The chain catches per provider and moves on, so the contract this lane owes is a clean,
     named failure rather than a silent empty result that would look like "no hits anywhere"."""
     behaviour, _ = searx
@@ -298,7 +298,7 @@ def test_19_a_failing_instance_leaves_the_chain_free_to_continue(searx) -> None:
     assert "502" in caught.value.detail
 
 
-def test_20_a_successful_search_opens_exactly_one_connection(searx) -> None:
+def test_20_a_successful_search_opens_exactly_one_connection(searx, enable_web) -> None:
     """No unnecessary retry or second provider hop while this one is answering."""
     _, opened = searx
     with remote_fetch_policy_scope(ALLOWED):
@@ -310,12 +310,12 @@ def test_20_a_successful_search_opens_exactly_one_connection(searx) -> None:
 # =============================================================== SABOTAGE
 
 
-def test_sabotage_a_private_socket_reopens_the_authority_bypass(searx, monkeypatch) -> None:
+def test_sabotage_a_private_socket_reopens_the_authority_bypass(searx, monkeypatch, enable_web) -> None:
     _, opened = searx
     import tools.web.searxng_client as client_module
 
     monkeypatch.setattr(client_module, "open_remote",
-                        lambda request, *, timeout: urllib.request.urlopen(request, timeout=timeout))
+                        lambda request, *, timeout, **_door_flags: urllib.request.urlopen(request, timeout=timeout))
     with remote_fetch_policy_scope(FORBIDDEN):
         _call_the_production_tool("Do not search the web. Explain what DNS is.")
 

@@ -253,11 +253,13 @@ def _currency_reply(
         text, chat_codes=extra["chat_codes"]
     )
     source = dict(source_context or {})
-    from core import policy_engine
-
     from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
 
-    web_runtime_enabled = policy_engine.allow_web_fallback()
+    from core.remote_fetch_policy import effective_web_available
+
+    # The switch AND Local Only: under a chat's Local Only the rate was fetched anyway, its name
+    # resolved over public DNS, and the person read a reply that never said Local Only.
+    web_runtime_enabled = effective_web_available(source)
     # ROUTE-PARITY GATE: the live FX retrieval is a public read-only network retrieval -- the same
     # action class the model route crosses `decide_tool_call` for when it fetches (web.fetch). The
     # lane now takes its permission decision from the ONE authority before opening a socket, so a

@@ -521,7 +521,11 @@ def refuse_lookup_before_dns(url: str) -> None:
 
     ledger = current_effect_ledger()
     if ledger is None:
-        raise RemoteFetchRefusedError(NO_ACTIVE_LEDGER_DENIAL)
+        held, _reason = _local_only_egress_forbidden(_SCOPE_CONTEXT.get() or {}, str(url or ""), lookup=True)
+        if held or not _web_lookups_switched_on():
+            raise RemoteFetchRefusedError(NO_ACTIVE_LEDGER_DENIAL)
+        # The door itself refuses a fetch no turn owns; the caller's target checks answer first.
+        return
     _refuse_local_only_or_lookup(ledger, str(url or ""), lookup=True)
 
 

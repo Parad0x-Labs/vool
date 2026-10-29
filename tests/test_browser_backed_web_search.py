@@ -419,7 +419,7 @@ class _FakeResponse:
         return self._body[:size]
 
 
-def test_the_plain_fetch_no_longer_announces_itself_as_a_bot(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_plain_fetch_no_longer_announces_itself_as_a_bot(monkeypatch: pytest.MonkeyPatch, enable_web) -> None:
     # A self-identifying bot User-Agent is not answered with a refusal -- it is answered with a
     # decoy index, which is indistinguishable from a bad ranking and so was never noticed.
     captured: list[urllib.request.Request] = []

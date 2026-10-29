@@ -22,7 +22,7 @@ def _pinned_engines(monkeypatch):
     wr._reset_engine_memory_for_tests()
 
 
-def test_a_failed_engine_is_skipped_for_the_rest_of_the_turn(monkeypatch) -> None:
+def test_a_failed_engine_is_skipped_for_the_rest_of_the_turn(monkeypatch, enable_web) -> None:
     calls: list[str] = []
 
     def _failing(query, *, max_hits):
@@ -38,7 +38,7 @@ def test_a_failed_engine_is_skipped_for_the_rest_of_the_turn(monkeypatch) -> Non
     assert any(note.startswith("google_html_skipped") for note in second.notes), second.notes
 
 
-def test_the_next_turn_tries_the_engine_again(monkeypatch) -> None:
+def test_the_next_turn_tries_the_engine_again(monkeypatch, enable_web) -> None:
     calls: list[str] = []
 
     def _failing(query, *, max_hits):
@@ -53,7 +53,7 @@ def test_the_next_turn_tries_the_engine_again(monkeypatch) -> None:
     assert len(calls) == 2, calls
 
 
-def test_a_working_engine_is_never_skipped(monkeypatch) -> None:
+def test_a_working_engine_is_never_skipped(monkeypatch, enable_web) -> None:
     calls: list[str] = []
 
     def _working(query, *, max_hits):
