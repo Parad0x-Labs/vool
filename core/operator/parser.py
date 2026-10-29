@@ -272,7 +272,13 @@ _QUOTED_PATH_RE = re.compile(r"""["']([^"']+)["']""")
 _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
 _SPACE_WORD_RE = re.compile(r"\bspace\b")
-_DELETE_TEMP_FILES_RE = re.compile(r"\bdelete\s+temp\s+files?\b", re.IGNORECASE)
+# "clear out my temp files" / "clean up the temporary files" (re-audit 2026-10-29, files:F57) say the
+# same thing as "delete temp files"; the substring hints above only knew "clean temp".
+_DELETE_TEMP_FILES_RE = re.compile(
+    r"\b(?:delete|clear|clean|empty|wipe)(?:\s+(?:out|up))?\s+(?:all\s+)?(?:(?:my|the)\s+)?"
+    r"(?:temp|temporary|tmp)\s+files?\b",
+    re.IGNORECASE,
+)
 
 
 def _head_words_re(*phrases: str) -> re.Pattern[str]:
