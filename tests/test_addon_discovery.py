@@ -56,6 +56,38 @@ def test_discovery_inspection_scan_install_and_runtime_offer(source,rig,monkeypa
     assert len(rig[2])==1
 
 
+def test_picture_assets_do_not_block_import(source,rig):
+    calls,tree,content=source
+    tree.append({'path':'skills/example/assets','mode':'040000','type':'tree'})
+    tree.append({'path':'skills/example/assets/icon.png','mode':'100644','type':'blob','size':20480})
+    tree.append({'path':'skills/example/assets/banner.webp','mode':'100644','type':'blob','size':300000})
+    tree.append({'path':'skills/example/assets/mark.svg','mode':'100644','type':'blob','size':900})
+    row=github.inspect('example/skills',REF,'skills/example/SKILL.md')['entry']
+    assert row['import_ready'], row['compatibility']
+    review=addon_store.prepare(row['id'],approved=True)
+    installed=addon_store.install_review(review['review_id'],accepted=True)
+    pack=rig[0]/'addons/plugins'/installed['plugin_id']
+    assert not (pack/'assets').exists(), 'pictures are not installed'
+    assert all(not str(call[2]).endswith(('.png','.webp','.svg')) for call in calls if isinstance(call,tuple))
+
+
+@pytest.mark.parametrize('item',[
+    {'path':'skills/example/assets/run.sh','mode':'100644','type':'blob','size':100},
+    {'path':'skills/example/assets/icon.png','mode':'100755','type':'blob','size':100},
+    {'path':'skills/example/assets/huge.png','mode':'100644','type':'blob','size':5*1024*1024},
+    {'path':'skills/example/assets/icon.png','mode':'100644','type':'blob'},
+    {'path':'skills/example/assets/deep/icon.png','mode':'100644','type':'blob','size':100},
+    {'path':'skills/example/pictures/icon.png','mode':'100644','type':'blob','size':100},
+    {'path':'skills/example/assets/icon.png','mode':'120000','type':'blob','size':100},
+])
+def test_anything_else_in_assets_still_blocks_import(source,rig,item):
+    calls,tree,content=source
+    tree.append(item)
+    row=github.inspect('example/skills',REF,'skills/example/SKILL.md')['entry']
+    assert not row['import_ready']
+    assert 'supporting files' in row['compatibility']
+
+
 @pytest.mark.parametrize('shape',['script','submodule','nested_license','apache_notice','symlink','long','licence','conflicting_licence','tool_mapping'])
 def test_incompatible_sources_never_reach_scanner(source,rig,shape):
     calls,tree,content=source

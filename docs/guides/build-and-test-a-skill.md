@@ -422,7 +422,9 @@ the one that cannot:
 * **Zip share** and **local install** (`skill.install`, `try`): accepted when every name is a
   real VOOL tool.
 * **Import from a GitHub repository** (Browse): not import-ready (*This skill declares a
-  host-specific tool list that needs a VOOL mapping.*). Share it as a zip instead.
+  host-specific tool list that needs a VOOL mapping.*). Share it as a zip instead. On this route
+  the skill folder may carry pictures in `assets/` (PNG, JPEG, WebP or SVG, at most 1 MB each);
+  they are not installed. Any other extra file makes the skill not import-ready.
 * **Upload to Skill Codex**: the automatic checks run the same validator as `lint`, so real tool
   names pass. What is refused is a package manifest (`.codex-plugin/plugin.json`) that asks for
   tools, permissions or credentials; `vool-community init` writes none.
