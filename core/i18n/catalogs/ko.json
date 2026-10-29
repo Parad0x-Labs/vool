@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "잔액 숨기기",
     "phone.mobile.identity_error": "컴퓨터의 신원을 확인할 수 없습니다. 다시 연결하기 전에 확인하세요.",
     "phone.mobile.lost_computer": "컴퓨터를 잃어버렸습니다",
-    "phone.mobile.lost_confirm": "컴퓨터에 연결할 수 있으면 결제를 동결하고 휴대폰의 접근 권한을 철회합니다. 그런 다음 이 휴대폰의 연결을 삭제합니다. 완료된 결제는 되돌릴 수 없습니다.",
+    "phone.mobile.lost_confirm": "컴퓨터에 연결할 수 있으면 결제를 동결하고 이 휴대폰을 끕니다. 그런 다음 이 휴대폰의 연결을 삭제합니다. 다른 휴대폰은 컴퓨터의 설정에서 끕니다. 완료된 결제는 되돌릴 수 없습니다.",
     "phone.mobile.new_count": "새 항목: {count}",
     "phone.mobile.no_undo": "완료된 결제는 되돌릴 수 없습니다.",
     "phone.mobile.pause_payments": "이 휴대폰의 결제 일시 중지",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "이 휴대폰에 저장했습니다.",
     "phone.ui.save_file_failed": "이 파일을 저장할 수 없습니다. 다시 시도하세요."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

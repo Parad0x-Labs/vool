@@ -50,8 +50,8 @@ def test_live_lookups_turned_off_on_the_computer_say_that_first(phone):
 
 # ------------------------------------------------------------ the real turn, on the phone and on the computer
 
-from tests.pa_beta_gate.test_served_notes_precedence_residuals import _MODEL_STAND_IN, served  # noqa: E402,F401
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env  # noqa: E402,F401
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env
+from tests.pa_beta_gate.test_served_notes_precedence_residuals import _MODEL_STAND_IN, served
 
 
 def _turn(text, workspace, *, phone_device=None):

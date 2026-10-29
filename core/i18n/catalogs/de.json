@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Guthaben ausblenden",
     "phone.mobile.identity_error": "Die Identität des Computers konnte nicht bestätigt werden. Prüfen Sie sie vor einer erneuten Kopplung.",
     "phone.mobile.lost_computer": "Mein Computer ist verloren",
-    "phone.mobile.lost_confirm": "Wenn Ihr Computer erreichbar ist, Zahlungen sperren und Telefonzugriffe widerrufen. Danach die Verbindung dieses Telefons löschen. Abgeschlossene Zahlungen lassen sich nicht rückgängig machen.",
+    "phone.mobile.lost_confirm": "Wenn Ihr Computer erreichbar ist, Zahlungen sperren und dieses Telefon ausschalten. Danach die Verbindung dieses Telefons löschen. Ihre anderen Telefone schalten Sie in den Einstellungen am Computer aus. Abgeschlossene Zahlungen lassen sich nicht rückgängig machen.",
     "phone.mobile.new_count": "Neu: {count}",
     "phone.mobile.no_undo": "Abgeschlossene Zahlungen lassen sich nicht rückgängig machen.",
     "phone.mobile.pause_payments": "Zahlungen von diesem Telefon pausieren",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Auf diesem Telefon gespeichert.",
     "phone.ui.save_file_failed": "Diese Datei konnte nicht gespeichert werden. Versuche es erneut."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

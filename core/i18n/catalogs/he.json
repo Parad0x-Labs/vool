@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "הסתרת יתרות",
     "phone.mobile.identity_error": "לא ניתן היה לאמת את זהות המחשב. בדקו אותה לפני קישור מחדש.",
     "phone.mobile.lost_computer": "המחשב שלי אבד",
-    "phone.mobile.lost_confirm": "אם אפשר להגיע למחשב, התשלומים יוקפאו והגישה של הטלפונים תבוטל. לאחר מכן יימחק החיבור של הטלפון הזה. לא ניתן לבטל תשלומים שהושלמו.",
+    "phone.mobile.lost_confirm": "אם אפשר להגיע למחשב, התשלומים יוקפאו והטלפון הזה ייכבה. לאחר מכן יימחק החיבור של הטלפון הזה. את הטלפונים האחרים שלך מכבים בהגדרות במחשב. לא ניתן לבטל תשלומים שהושלמו.",
     "phone.mobile.new_count": "חדשים: {count}",
     "phone.mobile.no_undo": "לא ניתן לבטל תשלומים שהושלמו.",
     "phone.mobile.pause_payments": "השהיית תשלומים מהטלפון הזה",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "נשמר בטלפון הזה.",
     "phone.ui.save_file_failed": "לא ניתן לשמור את הקובץ. נסה שוב."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

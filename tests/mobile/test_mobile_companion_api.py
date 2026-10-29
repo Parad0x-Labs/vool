@@ -690,27 +690,23 @@ class TestJourneyActions:
         claim = _body(_pair(runtime)[0])
         pending = _companion(claim, "approvals.pending", runtime=runtime)
         assert pending.status == 200
-        result = _body(pending)["result"]
-        assert result["needs_approval"] is True
-        row = next(a for a in result["approvals"] if a["approval_id"] == token)
-        assert row["intent"] == "workspace.write_file"
-
-        # The desktop raised it, so the phone sees it but answers only on the computer
-        # (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
-        assert row["phone_may_answer"] is False
+        # The desktop raised it, so the phone neither sees it (security review 2026-10-29: it names paths
+        # and carries a diff preview) nor answers it (sls 14:13Z Oct 27: a phone answers only what its own
+        # chats asked for).
+        assert not any(a["approval_id"] == token for a in _body(pending)["result"]["approvals"])
         for decision_text in ("allow", "deny"):
             refused = _companion(claim, "approvals.resolve", {
                 "approval_id": token, "decision": decision_text, "scope": "once",
             }, runtime=runtime)
             assert refused.status == 403
             assert _body(refused)["code"] == "approve_on_computer"
-        still_pending = _companion(claim, "approvals.pending", runtime=runtime)
-        assert any(a["approval_id"] == token for a in _body(still_pending)["result"]["approvals"])
+        import core.mode_permission_policy as mpp
+        assert mpp._APPROVALS[token]["status"] == "pending"
 
     def test_hide_name_on_screen_reaches_the_phone_and_never_the_stored_approval(self, runtime, tmp_path, monkeypatch):
         """The phone shows what the desktop shows: with "Hide my name on screen" on, a pending
         approval naming a file in the home folder reads ~/... on the phone, the approval itself
-        keeps the real path, and the desktop's approval is still answered only on the computer."""
+        keeps the real path, and the phone still cannot answer it without "Use tools on my computer"."""
         from core import screen_privacy
         from core.user_preferences import load_preferences, save_preferences
 
@@ -718,14 +714,18 @@ class TestJourneyActions:
         monkeypatch.setattr(screen_privacy, "_machine_identity", lambda: (str(home), ("rivermaple",), ()))
         session = "chat-mobile-mask"
         set_active_mode(session, "manual", project_id="", client_turn_id="turn-mask")
+        claim = _body(_pair(runtime)[0])
+        from core.request_trust import REMOTE_DEVICE_KEY
+
+        # The phone's own chat raised it: a phone sees only its own approvals (security review 2026-10-29).
         decision = decide_tool_call(
             intent="workspace.write_file",
             arguments={"path": "notes/rivermaple-plan.txt", "content": "x"},
             task_id="turn-mask",
-            source_context={"runtime_session_id": session, "operating_mode": "manual", "workspace_root": str(home)},
+            source_context={"runtime_session_id": session, "operating_mode": "manual", "workspace_root": str(home),
+                            REMOTE_DEVICE_KEY: claim["device_id"]},
         )
         token = decision.approval_request["approval_id"]
-        claim = _body(_pair(runtime)[0])
 
         def shown() -> str:
             rows = _body(_companion(claim, "approvals.pending", runtime=runtime))["result"]["approvals"]
@@ -739,7 +739,7 @@ class TestJourneyActions:
         assert "rivermaple" not in masked.lower() and "\\u2022\\u2022\\u2022" in masked
         import core.mode_permission_policy as mpp
         assert "rivermaple" in json.dumps(mpp._APPROVALS[token], default=str)   # stored bytes unchanged
-        # The desktop raised it (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
+        # No "Use tools on my computer" right on this phone: the answer stays on the computer.
         refused = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
         assert refused.status == 403 and _body(refused)["code"] == "approve_on_computer"
 

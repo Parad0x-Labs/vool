@@ -793,6 +793,13 @@ def _internal_authority_scope(source_context: dict[str, Any] | None) -> dict[str
     """
     token = str((source_context or {}).get("internal_authority_token") or "").strip()
     if not token:
+        from core.request_trust import REMOTE_DEVICE_KEY, turn_is_remote
+
+        # The standing scope is the owner's answer at the computer. A phone continuing that chat
+        # (or any other remote turn) asks again: security review 2026-10-29 traced injected text in
+        # such a turn editing files with no approval on either side.
+        if turn_is_remote(source_context) or (source_context or {}).get(REMOTE_DEVICE_KEY):
+            return None
         context_session = str(
             (source_context or {}).get("runtime_session_id")
             or (source_context or {}).get("session_id")

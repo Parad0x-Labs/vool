@@ -377,7 +377,9 @@ def test_lost_computer_from_zero_rights_phone(lan, desktop):
     status, resp = http(phone, "/api/mobile/companion", wire)
     print("SAME-PHONE-AFTER", status, st.opened(resp, shared, wire).get("code"))
     assert settings["frozen"] is True
-    assert all(d["status"] != "active" for d in settings["devices"])
+    # A phone with no rights switches off itself only, never the other phones (security review 2026-10-29).
+    status_of = {d["device_id"]: d["status"] for d in settings["devices"]}
+    assert status_of[a[3]["device_id"]] != "active" and status_of[b[3]["device_id"]] == "active", status_of
 
 
 @pytest.mark.parametrize("origin,ctype", [("http://127.0.0.1:9999", "text/plain"), ("http://localhost:3000", "text/plain"),

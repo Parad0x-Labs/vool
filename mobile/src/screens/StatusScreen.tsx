@@ -206,7 +206,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
           <Text style={styles.unpairButtonText}>{tr("Unpair this phone")}</Text>
         </Pressable>
         <Pressable style={styles.unpairButton} onPress={() => Alert.alert(tr("My computer is lost"),
-          tr("Freeze payments and revoke phones if your computer is reachable. Then forget this phone’s connection. Completed payments cannot be undone."), [
+          tr("Freeze payments and switch this phone off if your computer is reachable. Then forget this phone’s connection. Your other phones are switched off in Settings on the computer. Completed payments cannot be undone."), [
           {text: tr("Cancel"), style: "cancel"}, {text: tr("Freeze and disconnect"), style: "destructive", onPress: () => {void (async () => {
             let reached = false;
             let timer: ReturnType<typeof setTimeout> | undefined;

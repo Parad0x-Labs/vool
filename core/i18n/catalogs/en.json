@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Hide balances",
     "phone.mobile.identity_error": "The computer’s identity could not be verified. Check it before pairing again.",
     "phone.mobile.lost_computer": "My computer is lost",
-    "phone.mobile.lost_confirm": "Freeze payments and revoke phones if your computer is reachable. Then forget this phone’s connection. Completed payments cannot be undone.",
+    "phone.mobile.lost_confirm": "Freeze payments and switch this phone off if your computer is reachable. Then forget this phone’s connection. Your other phones are switched off in Settings on the computer. Completed payments cannot be undone.",
     "phone.mobile.new_count": "New: {count}",
     "phone.mobile.no_undo": "Completed payments cannot be undone.",
     "phone.mobile.pause_payments": "Pause payments from this phone",

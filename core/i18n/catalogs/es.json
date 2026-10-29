@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Ocultar saldos",
     "phone.mobile.identity_error": "No se pudo verificar la identidad del ordenador. Compruébala antes de volver a vincularlo.",
     "phone.mobile.lost_computer": "He perdido mi ordenador",
-    "phone.mobile.lost_confirm": "Si el ordenador es accesible, bloquear los pagos y revocar los teléfonos. Después, borrar la conexión de este teléfono. Los pagos completados no se pueden deshacer.",
+    "phone.mobile.lost_confirm": "Si el ordenador es accesible, bloquear los pagos y desactivar este teléfono. Después, borrar la conexión de este teléfono. Tus otros teléfonos se desactivan en Ajustes en el ordenador. Los pagos completados no se pueden deshacer.",
     "phone.mobile.new_count": "Nuevos: {count}",
     "phone.mobile.no_undo": "Los pagos completados no se pueden deshacer.",
     "phone.mobile.pause_payments": "Pausar los pagos desde este teléfono",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Guardado en este teléfono.",
     "phone.ui.save_file_failed": "No se pudo guardar este archivo. Inténtalo de nuevo."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

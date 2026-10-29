@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "إخفاء الأرصدة",
     "phone.mobile.identity_error": "تعذّر التحقق من هوية الكمبيوتر. تحقق منها قبل الاقتران مجدداً.",
     "phone.mobile.lost_computer": "فقدت الكمبيوتر",
-    "phone.mobile.lost_confirm": "إذا كان الكمبيوتر متاحاً، تُجمَّد المدفوعات وتُلغى صلاحيات الهواتف. ثم يُحذف اتصال هذا الهاتف. لا يمكن التراجع عن المدفوعات المكتملة.",
+    "phone.mobile.lost_confirm": "إذا كان الكمبيوتر متاحاً، تُجمَّد المدفوعات ويُوقَف هذا الهاتف. ثم يُحذف اتصال هذا الهاتف. تُوقَف هواتفك الأخرى من الإعدادات على الكمبيوتر. لا يمكن التراجع عن المدفوعات المكتملة.",
     "phone.mobile.new_count": "جديد: {count}",
     "phone.mobile.no_undo": "لا يمكن التراجع عن المدفوعات المكتملة.",
     "phone.mobile.pause_payments": "إيقاف المدفوعات من هذا الهاتف مؤقتاً",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "تم الحفظ على هذا الهاتف.",
     "phone.ui.save_file_failed": "تعذّر حفظ هذا الملف. حاول مرة أخرى."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

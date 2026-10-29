@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Ocultar saldos",
     "phone.mobile.identity_error": "Não foi possível verificar a identidade do computador. Verifique-a antes de emparelhar novamente.",
     "phone.mobile.lost_computer": "Perdi o meu computador",
-    "phone.mobile.lost_confirm": "Se o computador estiver acessível, bloquear pagamentos e revogar os telemóveis. Depois, apagar a ligação deste telemóvel. Os pagamentos concluídos não podem ser anulados.",
+    "phone.mobile.lost_confirm": "Se o computador estiver acessível, bloquear pagamentos e desligar este telemóvel. Depois, apagar a ligação deste telemóvel. Os outros telemóveis desligam-se nas Definições do computador. Os pagamentos concluídos não podem ser anulados.",
     "phone.mobile.new_count": "Novos: {count}",
     "phone.mobile.no_undo": "Os pagamentos concluídos não podem ser anulados.",
     "phone.mobile.pause_payments": "Pausar os pagamentos deste telemóvel",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Salvo neste telefone.",
     "phone.ui.save_file_failed": "Não foi possível salvar este arquivo. Tente novamente."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

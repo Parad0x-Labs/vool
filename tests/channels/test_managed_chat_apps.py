@@ -217,7 +217,8 @@ def test_bot_payment_is_once_capped_pc_approved_only_and_panic_revokes_bots(mone
         assert proposals.get_proposal(row.proposal_id).state==proposals.STATE_PENDING_APPROVAL
         assert call(*phone,'wallet.freeze')[0]==200
         assert call(*phone,'devices.lost_computer')[0]==200
-        wait_for(lambda:record(base,platform)['status']=='revoked')
+        # Only the phone that said so is switched off; the chat app stays (stopped from the computer).
+        assert record(base,platform)['status']!='revoked'
         assert rpc.send_count()==0
     finally:
         runtime.phone_bot_manager.close();host.close()

@@ -259,7 +259,7 @@ REMOTE_TURN_REFUSAL_TEXT = (
 
 #: Per-phone rights the owner switches on in Settings on the computer (core.mobile_companion.policy).
 #: ``computer_tools``: files, apps, commands, the browser and the owner's accounts on this computer.
-#: ``paid_services``: the owner's paid model keys and keyed search/data services.
+#: ``paid_services``: web and live lookups that need none of the owner's keys (turn_may_spend_owner_keys is owner-only).
 REMOTE_GRANT_COMPUTER = "computer_tools"
 REMOTE_GRANT_PAID = "paid_services"
 
@@ -285,14 +285,17 @@ _KNOWN_SIDE_EFFECTS = frozenset({
     "read_only", "workspace_write", "creative_state", "builder_state", "network_send", "network_publish",
     "media_generation", "sandbox_command", "validation_command", "task_orchestration",
 })
-# Tools that spend the owner's provider keys or paid services: keyed search, chain-data and X API
-# providers, and media generation.
+# Web lookups a phone's "paid services" opens. On a phone turn they run on free sources only: every
+# key-backed search provider stands down for a remote turn (tools.web.web_research remote_turn_active).
 _PAID_INTENTS = frozenset({"web.search", "web.research", "web.chain_lookup"})
-_PAID_INTENT_PREFIXES = ("token.", "market.", "watch.", "x.")
-_PAID_SURFACES = frozenset({"chain", "market", "x"})
-_PAID_SIDE_EFFECTS = frozenset({"media_generation"})
+# Tools that spend the owner's own keys with no such stand-down: chain-data and X API providers, and
+# media generation. MONEY RULE (security review 2026-10-29): no phone right opens them.
+_KEYED_INTENT_PREFIXES = ("token.", "market.", "watch.", "x.")
+_KEYED_SURFACES = frozenset({"chain", "market", "x"})
+_KEYED_SIDE_EFFECTS = frozenset({"media_generation"})
 _MONEY = "money"
 _OWNER = "owner"
+_KEYED = "keyed"
 
 REMOTE_MONEY_REFUSAL_TEXT = (
     "Payments from your phone go through the Wallet tab in the VOOL app, where your phone limit and "
@@ -301,14 +304,17 @@ REMOTE_MONEY_REFUSAL_TEXT = (
 REMOTE_OWNER_ONLY_TEXT = (
     "Changing VOOL's settings, skills or permissions only works in VOOL on the computer itself."
 )
+REMOTE_KEYED_TEXT = (
+    "That uses your paid keys, so it only works in VOOL on the computer itself."
+)
 REMOTE_GRANT_REFUSAL_TEXT = {
     REMOTE_GRANT_COMPUTER: (
         "This phone can't use tools on your computer yet. Turn on \"Use tools on my computer\" for "
         "this phone in VOOL Settings on your computer."
     ),
     REMOTE_GRANT_PAID: (
-        "This phone can't use your paid models or paid search yet. Turn on \"Use my paid services\" "
-        "for this phone in VOOL Settings on your computer."
+        "This phone can't look things up online yet. Turn on \"Use my paid services\" for this phone "
+        "in VOOL Settings on your computer. Your paid models and keys are only used from the computer itself."
     ),
 }
 
@@ -422,9 +428,14 @@ def remote_turn_folders(source_context: Any) -> tuple[str, ...] | None:
 
 
 def turn_may_spend_owner_keys(source_context: Any) -> bool:
-    """The owner's own session, or a paired phone the owner gave ``paid_services``."""
+    """Only the owner's own session spends the owner's model and search keys; never a phone.
 
-    return request_is_owner_local(source_context) or remote_turn_has_grant(source_context, REMOTE_GRANT_PAID)
+    MONEY RULE (security review 2026-10-29): ``paid_services`` let a phone spend the owner's keys up
+    to the computer's caps when the phone had no cap of its own. A phone's ``paid_services`` now
+    opens only the web and live lookups that need no key of the owner's.
+    """
+
+    return request_is_owner_local(source_context)
 
 
 def remote_turn_lacks(source_context: Any, grant: str) -> bool:
@@ -454,9 +465,10 @@ def _class_from_contract(name: str, contract: Any) -> str:
     if (name in _OWNER_INTENTS or name.startswith(_OWNER_INTENT_PREFIXES) or effect in _OWNER_SIDE_EFFECTS
             or permissions & _OWNER_PERMISSIONS or source != "builtin" or effect not in _KNOWN_SIDE_EFFECTS):
         return _OWNER
-    if (name in _PAID_INTENTS or name.startswith(_PAID_INTENT_PREFIXES) or surface in _PAID_SURFACES
-            or effect in _PAID_SIDE_EFFECTS):
+    if name in _PAID_INTENTS:
         return REMOTE_GRANT_PAID
+    if name.startswith(_KEYED_INTENT_PREFIXES) or surface in _KEYED_SURFACES or effect in _KEYED_SIDE_EFFECTS:
+        return _KEYED
     return REMOTE_GRANT_COMPUTER
 
 
@@ -491,6 +503,8 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
         return REMOTE_MONEY_REFUSAL_TEXT
     if grant == _OWNER:
         return REMOTE_OWNER_ONLY_TEXT
+    if grant == _KEYED:
+        return REMOTE_KEYED_TEXT
     if (grant == REMOTE_GRANT_COMPUTER and remote_turn_has_grant(sc, grant)
             and _outside_folder_tools(intent, sc)):
         return phone_folders_text(remote_turn_folders(sc) or ())

@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Ukryj salda",
     "phone.mobile.identity_error": "Nie można potwierdzić tożsamości komputera. Sprawdź ją przed ponownym parowaniem.",
     "phone.mobile.lost_computer": "Mój komputer zaginął",
-    "phone.mobile.lost_confirm": "Jeśli komputer jest dostępny, zablokuj płatności i cofnij dostęp telefonów. Następnie usuń połączenie tego telefonu. Zakończonych płatności nie można cofnąć.",
+    "phone.mobile.lost_confirm": "Jeśli komputer jest dostępny, zablokuj płatności i wyłącz ten telefon. Następnie usuń połączenie tego telefonu. Pozostałe telefony wyłączysz w Ustawieniach na komputerze. Zakończonych płatności nie można cofnąć.",
     "phone.mobile.new_count": "Nowe: {count}",
     "phone.mobile.no_undo": "Zakończonych płatności nie można cofnąć.",
     "phone.mobile.pause_payments": "Wstrzymaj płatności z tego telefonu",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Zapisano na tym telefonie.",
     "phone.ui.save_file_failed": "Nie udało się zapisać tego pliku. Spróbuj ponownie."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

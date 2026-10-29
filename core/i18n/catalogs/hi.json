@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "शेष राशि छिपाएँ",
     "phone.mobile.identity_error": "कंप्यूटर की पहचान सत्यापित नहीं हो सकी। फिर जोड़ने से पहले जाँचें।",
     "phone.mobile.lost_computer": "मेरा कंप्यूटर खो गया है",
-    "phone.mobile.lost_confirm": "यदि कंप्यूटर उपलब्ध है तो भुगतान रोकें और फ़ोन की पहुँच रद्द करें। फिर इस फ़ोन का कनेक्शन मिटाएँ। पूरे हो चुके भुगतान वापस नहीं लिए जा सकते।",
+    "phone.mobile.lost_confirm": "यदि कंप्यूटर उपलब्ध है तो भुगतान रोकें और यह फ़ोन बंद करें। फिर इस फ़ोन का कनेक्शन मिटाएँ। आपके दूसरे फ़ोन कंप्यूटर की सेटिंग में बंद किए जाते हैं। पूरे हो चुके भुगतान वापस नहीं लिए जा सकते।",
     "phone.mobile.new_count": "नए: {count}",
     "phone.mobile.no_undo": "पूरे हो चुके भुगतान वापस नहीं लिए जा सकते।",
     "phone.mobile.pause_payments": "इस फ़ोन से भुगतान रोकें",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "इस फ़ोन पर सहेजा गया।",
     "phone.ui.save_file_failed": "यह फ़ाइल सहेजी नहीं जा सकी। फिर से कोशिश करें।"
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

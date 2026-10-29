@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "残高を非表示",
     "phone.mobile.identity_error": "コンピューターの識別情報を確認できませんでした。再度ペアリングする前に確認してください。",
     "phone.mobile.lost_computer": "コンピューターを紛失しました",
-    "phone.mobile.lost_confirm": "コンピューターに接続できる場合は支払いを凍結し、スマートフォンのアクセスを取り消します。その後、このスマートフォンの接続を削除します。完了した支払いは取り消せません。",
+    "phone.mobile.lost_confirm": "コンピューターに接続できる場合は支払いを凍結し、このスマートフォンをオフにします。その後、このスマートフォンの接続を削除します。ほかのスマートフォンはコンピューターの設定でオフにします。完了した支払いは取り消せません。",
     "phone.mobile.new_count": "新着: {count}",
     "phone.mobile.no_undo": "完了した支払いは取り消せません。",
     "phone.mobile.pause_payments": "このスマートフォンからの支払いを一時停止",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "このスマートフォンに保存しました。",
     "phone.ui.save_file_failed": "このファイルを保存できませんでした。もう一度お試しください。"
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

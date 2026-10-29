@@ -210,23 +210,16 @@ async function main() {
     "journey needs pre-seeded approval ids (VOOL_JOURNEY_APPROVAL_IDS)");
   const approvalId = seededIds.allow;
   const refuseId = seededIds.deny;
+  // The desktop raised these: the phone neither lists them (security review 2026-10-29: they name paths and
+  // carry diff previews) nor answers them (sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
   const pending = await client.pendingApprovals();
-  const row = pending.find((a) => a.approval_id === approvalId);
-  assert.ok(row, "seeded approval must be pending");
-  assert.equal(row.intent, "workspace.write_file");
-  assert.ok(Array.isArray(row.planned_actions) || row.planned_action_count !== undefined || true);
-  log("needs-approval", `intent=${row.intent} reversible=${row.reversible}`);
-  // The desktop raised these, so the phone sees them but answers only on the computer
-  // (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
-  assert.equal(row.phone_may_answer, false);
+  assert.ok(!pending.some((a) => a.approval_id === approvalId || a.approval_id === refuseId),
+    "the computer's approvals are not listed on the phone");
   for (const [id, decision] of [[approvalId, "allow"], [refuseId, "deny"]]) {
     await assert.rejects(client.resolveApproval(id, decision, "once"),
       (exc) => exc instanceof CompanionError && exc.code === "approve_on_computer");
   }
-  const afterRefusal = await client.pendingApprovals();
-  assert.ok(afterRefusal.some((a) => a.approval_id === approvalId), "a desktop approval stays pending");
-  assert.ok(afterRefusal.some((a) => a.approval_id === refuseId), "a desktop approval stays pending");
-  log("approval", `desktop approvals stay on the computer (${row.intent})`);
+  log("approval", "desktop approvals stay on the computer");
 
   // -- 8. Completion/failure notification ---------------------------------------
   // Runtime events are per-session: the phone polls ITS chat session (turn

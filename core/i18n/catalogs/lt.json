@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Slėpti likučius",
     "phone.mobile.identity_error": "Nepavyko patikrinti kompiuterio tapatybės. Prieš susiedami iš naujo ją patikrinkite.",
     "phone.mobile.lost_computer": "Mano kompiuteris prarastas",
-    "phone.mobile.lost_confirm": "Jei kompiuteris pasiekiamas, įšaldyti mokėjimus ir atšaukti telefonų prieigą. Tada pašalinti šio telefono ryšį. Užbaigtų mokėjimų atšaukti negalima.",
+    "phone.mobile.lost_confirm": "Jei kompiuteris pasiekiamas, įšaldyti mokėjimus ir išjungti šį telefoną. Tada pašalinti šio telefono ryšį. Kitus telefonus išjungsite kompiuterio nustatymuose. Užbaigtų mokėjimų atšaukti negalima.",
     "phone.mobile.new_count": "Nauji: {count}",
     "phone.mobile.no_undo": "Užbaigtų mokėjimų atšaukti negalima.",
     "phone.mobile.pause_payments": "Pristabdyti mokėjimus iš šio telefono",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Išsaugota šiame telefone.",
     "phone.ui.save_file_failed": "Nepavyko išsaugoti šio failo. Bandykite dar kartą."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

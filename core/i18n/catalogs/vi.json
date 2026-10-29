@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Ẩn số dư",
     "phone.mobile.identity_error": "Không thể xác minh danh tính máy tính. Hãy kiểm tra trước khi ghép nối lại.",
     "phone.mobile.lost_computer": "Tôi bị mất máy tính",
-    "phone.mobile.lost_confirm": "Nếu kết nối được máy tính, hãy đóng băng thanh toán và thu hồi quyền của các điện thoại. Sau đó xóa kết nối của điện thoại này. Không thể hoàn tác thanh toán đã hoàn tất.",
+    "phone.mobile.lost_confirm": "Nếu kết nối được máy tính, hãy đóng băng thanh toán và tắt điện thoại này. Sau đó xóa kết nối của điện thoại này. Các điện thoại khác được tắt trong Cài đặt trên máy tính. Không thể hoàn tác thanh toán đã hoàn tất.",
     "phone.mobile.new_count": "Mới: {count}",
     "phone.mobile.no_undo": "Không thể hoàn tác các khoản thanh toán đã hoàn tất.",
     "phone.mobile.pause_payments": "Tạm dừng thanh toán từ điện thoại này",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Đã lưu trên điện thoại này.",
     "phone.ui.save_file_failed": "Không thể lưu tệp này. Hãy thử lại."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

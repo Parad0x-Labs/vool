@@ -123,7 +123,7 @@ def test_mainnet_proposal_is_once_capped_and_declined_by_its_phone(money):
     assert len(proposals.list_proposals()) == 1
 
 
-def test_freeze_persists_and_lost_computer_revokes_all_phones(money):
+def test_freeze_persists_and_lost_computer_switches_off_only_this_phone(money):
     from core.wallet import limits
     from core.web.api.mobile_companion_api import mobile_companion_service, reset_mobile_companion_service
 
@@ -134,8 +134,10 @@ def test_freeze_persists_and_lost_computer_revokes_all_phones(money):
     reset_mobile_companion_service()
     assert limits.is_frozen()
     assert call(*phone, "devices.lost_computer")[0] == 200
-    assert call(*other, "devices.me")[0] == 401
-    assert all(d["status"] == "revoked" for d in mobile_companion_service().store.devices().values())
+    assert limits.is_frozen()
+    # Revoking the other phones is the computer's (security review 2026-10-29).
+    assert call(*phone, "devices.me")[0] == 401
+    assert call(*other, "devices.me")[0] == 200
 
 
 def test_two_concurrent_requests_share_one_daily_allowance(money):

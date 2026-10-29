@@ -239,8 +239,13 @@ def update(service, body):
     )
     if not current.get("notification_state"):
         service.store.edit_notifications(device_id, lambda _state, _device: None)
+    logged = dict(extra)
+    if "file_scope" in logged:
+        # The receipt log keeps how many folders, never their paths (security review 2026-10-29).
+        scope = logged["file_scope"]
+        logged["file_scope"] = {"mode": scope["mode"], **({"folders": len(scope["folders"])} if scope["mode"] == "folders" else {})}
     service.store.append_receipt(
-        "device.rules_changed", device_id=device_id, detail={"rules": rules, "right_expiry": expiries, **extra}
+        "device.rules_changed", device_id=device_id, detail={"rules": rules, "right_expiry": expiries, **logged}
     )
     return {"rules": rules, "right_expiry": expiries, "payment_cap": cap, **extra}
 

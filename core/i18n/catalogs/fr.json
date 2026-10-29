@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Masquer les soldes",
     "phone.mobile.identity_error": "L’identité de l’ordinateur n’a pas pu être vérifiée. Vérifiez-la avant une nouvelle association.",
     "phone.mobile.lost_computer": "Mon ordinateur est perdu",
-    "phone.mobile.lost_confirm": "Si votre ordinateur est joignable, bloquer les paiements et révoquer les téléphones. Supprimer ensuite la connexion de ce téléphone. Les paiements terminés ne peuvent pas être annulés.",
+    "phone.mobile.lost_confirm": "Si votre ordinateur est joignable, bloquer les paiements et désactiver ce téléphone. Supprimer ensuite la connexion de ce téléphone. Vos autres téléphones se désactivent dans les Réglages sur l’ordinateur. Les paiements terminés ne peuvent pas être annulés.",
     "phone.mobile.new_count": "Nouveaux : {count}",
     "phone.mobile.no_undo": "Les paiements terminés ne peuvent pas être annulés.",
     "phone.mobile.pause_payments": "Suspendre les paiements depuis ce téléphone",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Enregistré sur ce téléphone.",
     "phone.ui.save_file_failed": "Impossible d’enregistrer ce fichier. Réessayez."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

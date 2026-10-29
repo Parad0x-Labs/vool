@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Bakiyeleri gizle",
     "phone.mobile.identity_error": "Bilgisayarın kimliği doğrulanamadı. Yeniden eşleştirmeden önce kontrol edin.",
     "phone.mobile.lost_computer": "Bilgisayarımı kaybettim",
-    "phone.mobile.lost_confirm": "Bilgisayarınıza ulaşılabiliyorsa ödemeleri dondurun ve telefonların erişimini kaldırın. Ardından bu telefonun bağlantısını silin. Tamamlanan ödemeler geri alınamaz.",
+    "phone.mobile.lost_confirm": "Bilgisayarınıza ulaşılabiliyorsa ödemeleri dondurun ve bu telefonu kapatın. Ardından bu telefonun bağlantısını silin. Diğer telefonlarınızı bilgisayardaki Ayarlar'dan kapatırsınız. Tamamlanan ödemeler geri alınamaz.",
     "phone.mobile.new_count": "Yeni: {count}",
     "phone.mobile.no_undo": "Tamamlanan ödemeler geri alınamaz.",
     "phone.mobile.pause_payments": "Bu telefondan ödemeleri duraklat",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Bu telefona kaydedildi.",
     "phone.ui.save_file_failed": "Bu dosya kaydedilemedi. Yeniden deneyin."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

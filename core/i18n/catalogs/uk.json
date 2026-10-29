@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "Приховати баланси",
     "phone.mobile.identity_error": "Не вдалося перевірити справжність комп’ютера. Перевірте її перед повторним сполученням.",
     "phone.mobile.lost_computer": "Мій комп’ютер втрачено",
-    "phone.mobile.lost_confirm": "Якщо комп’ютер доступний, заблокувати платежі та відкликати доступ телефонів. Потім видалити з’єднання цього телефона. Завершені платежі неможливо скасувати.",
+    "phone.mobile.lost_confirm": "Якщо комп’ютер доступний, заблокувати платежі та вимкнути цей телефон. Потім видалити з’єднання цього телефона. Інші телефони вимикаються в налаштуваннях на комп’ютері. Завершені платежі неможливо скасувати.",
     "phone.mobile.new_count": "Нові: {count}",
     "phone.mobile.no_undo": "Завершені платежі неможливо скасувати.",
     "phone.mobile.pause_payments": "Призупинити платежі з цього телефона",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "Збережено на цьому телефоні.",
     "phone.ui.save_file_failed": "Не вдалося зберегти цей файл. Спробуйте ще раз."
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

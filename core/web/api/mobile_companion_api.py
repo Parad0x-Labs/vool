@@ -1442,9 +1442,14 @@ def _action_approvals_pending(params: dict[str, Any], *, device: dict[str, Any] 
     mpp._ensure_approvals_restored()
     now = _now()
     rows: list[dict[str, Any]] = []
+    device_id = str((device or {}).get("device_id") or "")
     with mpp._LOCK:
         for token, approval in dict(mpp._APPROVALS).items():
             if str(approval.get("status") or "") != "pending":
+                continue
+            # A phone sees only what its own chats asked for (security review 2026-10-29): the
+            # computer's and other phones' approvals name paths and carry diff previews.
+            if not device_id or approval.get("remote_device") != device_id:
                 continue
             if float(approval.get("expires_at") or 0) <= now:
                 continue
@@ -1644,6 +1649,11 @@ def _action_freeze(params, *, service, device, **_kw):
 
 
 def _action_lost_computer(params, *, service, device, **_kw):
+    """"My computer is lost": freeze payments and switch THIS phone off.
+
+    Security review 2026-10-29: this needs no right, so it may reach only what any phone may do to
+    itself. Revoking the other phones and stopping the chat apps is done on the computer (Settings).
+    """
     frozen = None
     failed = []
     try:
@@ -1659,20 +1669,10 @@ def _action_lost_computer(params, *, service, device, **_kw):
             # A failed write plus an unreadable store is an unknown outcome.
             frozen = None
     finally:
-        # Every revocation and transport stop is attempted independently.
-        for record in service.store.devices().values():
-            if record.get("status") == "active":
-                try:
-                    revoke_device(service, record["device_id"], reason="computer reported lost")
-                except Exception:
-                    failed.append("device_revoke")
-        runtime = _kw.get("runtime")
-        manager = getattr(runtime, "phone_bot_manager", None)
-        if manager is not None:
-            try:
-                manager.close(wait=False)
-            except Exception:
-                failed.append("bot_transport_stop")
+        try:
+            revoke_device(service, device["device_id"], reason="computer reported lost")
+        except Exception:
+            failed.append("device_revoke")
     if failed:
         service.store.append_receipt("payments.freeze_failed", device_id=device["device_id"],
                                      detail={"via": "lost_computer", "failed": sorted(set(failed)),

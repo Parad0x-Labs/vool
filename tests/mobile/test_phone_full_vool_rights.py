@@ -118,12 +118,15 @@ def test_keyed_data_and_x_tools_need_paid_services(phone):
         assert rt.remote_turn_tool_refusal(paid, _turn()) == "owner_local_required", paid
 
 
-def test_paid_services_opens_paid_tools_and_keys_only(phone):
+def test_paid_services_opens_web_lookups_and_never_the_owners_keys(phone):
+    # MONEY RULE (security review 2026-10-29, decided by coordinator on sls's delegation): a phone never
+    # spends the owner's keys. Web lookups run on free sources for a phone; keyed data tools stay on the computer.
     phone["rules"] = {"computer_tools": False, "paid_services": True}
     phone["right_expiry"] = {"paid_services": time.time() + 3600}
     assert rt.remote_turn_tool_refusal("web.search", _turn()) == ""
-    assert rt.remote_turn_tool_refusal("token.research", _turn()) == ""
-    assert rt.turn_may_spend_owner_keys(_turn())
+    assert rt.remote_turn_tool_refusal("token.research", _turn()) == "owner_local_required"
+    assert "paid keys" in rt.remote_turn_refusal_text("token.research", _turn())
+    assert not rt.turn_may_spend_owner_keys(_turn())
     assert rt.remote_turn_tool_refusal("workspace.list_files", _turn()) == "owner_local_required"
     assert "Use tools on my computer" in rt.remote_turn_refusal_text("workspace.list_files", _turn())
     assert rt.remote_turn_tool_refusal("pay.x402", _turn()) == "owner_local_required"

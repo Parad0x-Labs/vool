@@ -2945,7 +2945,7 @@
     "phone.mobile.hide_balances": "隐藏余额",
     "phone.mobile.identity_error": "无法验证电脑身份。请先检查，再重新配对。",
     "phone.mobile.lost_computer": "我的电脑丢失了",
-    "phone.mobile.lost_confirm": "如果电脑可连接，将冻结付款并撤销手机访问权限，然后删除此手机的连接。已完成的付款无法撤销。",
+    "phone.mobile.lost_confirm": "如果电脑可连接，将冻结付款并关闭此手机，然后删除此手机的连接。其他手机请在电脑上的设置中关闭。已完成的付款无法撤销。",
     "phone.mobile.new_count": "新增：{count}",
     "phone.mobile.no_undo": "已完成的付款无法撤销。",
     "phone.mobile.pause_payments": "暂停此手机的付款",
@@ -3115,7 +3115,7 @@
     "phone.ui.saved_on_phone": "已保存到这部手机。",
     "phone.ui.save_file_failed": "无法保存此文件。请重试。"
   },
-  "source_catalog_sha256": "3743445998eb972ff9492bcbc4a295f61fc4aaa2a801a77f08ee2b936a3c3b54",
+  "source_catalog_sha256": "f3177026d0eb116f12a8d7f9c34dc477602fe612450373d5c1a88ae0c1f2dee2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

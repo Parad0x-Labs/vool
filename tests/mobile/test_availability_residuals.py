@@ -123,7 +123,7 @@ def test_stop_flushes_refusal_counts_without_a_receipt_read(desktop):
 
 
 @pytest.mark.parametrize('storage_failure', ['write', 'read'])
-def test_lost_computer_closes_bot_workers_and_receipts_canonical_freeze_failure(desktop, monkeypatch, storage_failure):
+def test_lost_computer_leaves_bot_workers_and_receipts_canonical_freeze_failure(desktop, monkeypatch, storage_failure):
     from core.wallet import limits
     from core.web.api.mobile_companion_api import mobile_companion_service
     from tests.channels.test_managed_chat_apps import FakeChatHost, wait_for
@@ -165,9 +165,11 @@ def test_lost_computer_closes_bot_workers_and_receipts_canonical_freeze_failure(
             import sqlite3
             with pytest.raises(sqlite3.DatabaseError):
                 limits.is_frozen()
-        assert worker.stop_event.is_set()
-        wait_for(lambda: not worker.thread.is_alive())
-        assert all(row['status'] == 'revoked' for row in mobile_companion_service().store.devices().values())
+        # A phone's "my computer is lost" switches off that phone only; chat apps stop from the computer.
+        assert not worker.stop_event.is_set()
+        devices = mobile_companion_service().store.devices()
+        assert devices[phone[3]['device_id']]['status'] == 'revoked'
+        assert any(row.get('kind') == 'bot' and row['status'] == 'active' for row in devices.values()), devices
         rows = http(base, '/api/mobile/receipts')[1]['receipts']
         failed = next(row for row in rows if row['kind'] == 'payments.freeze_failed')
         assert failed['detail']['frozen'] is (False if storage_failure == 'write' else None)

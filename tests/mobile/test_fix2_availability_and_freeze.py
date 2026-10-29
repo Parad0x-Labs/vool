@@ -131,19 +131,20 @@ def test_phone_freeze_holds_when_the_legacy_policy_is_unreadable(lan, desktop):
     assert frozen and frozen[-1]["detail"].get("legacy_mirror") == "not_updated"
 
 
-def test_lost_computer_revokes_every_phone_even_when_the_legacy_policy_is_unreadable(lan, desktop):
+def test_lost_computer_freezes_and_switches_off_this_phone_even_when_the_legacy_policy_is_unreadable(lan, desktop):
     from core.wallet import limits
 
     base, runtime, home, value = lan
     a = _pair(desktop, value, activate_chat=False)
-    _pair(desktop, value, activate_chat=False)
+    b = _pair(desktop, value, activate_chat=False)
     _corrupt_legacy_policy()
     wire = st.action(a[1], a[2], a[3], "devices.lost_computer")
     status, _response = http(a[0], "/api/mobile/companion", wire)
     assert status == 200
     settings = http(base, "/api/mobile/settings")[1]
     assert limits.is_frozen() is True
-    assert all(device["status"] != "active" for device in settings["devices"])
+    status_of = {device["device_id"]: device["status"] for device in settings["devices"]}
+    assert status_of[a[3]["device_id"]] != "active" and status_of[b[3]["device_id"]] == "active", status_of
 
 
 def test_settings_freeze_holds_when_the_legacy_policy_is_unreadable(desktop):

@@ -184,7 +184,9 @@ def test_an_old_ledger_gains_the_spender_column(ledger):
     assert ml.spender_month_total("phone:abc") == pytest.approx(1.0)
 
 
-def test_a_phone_turn_reserves_against_its_own_limit(phone, monkeypatch):
+def test_a_phone_turn_never_reaches_the_owners_paid_reservation(phone, monkeypatch):
+    # MONEY RULE (security review 2026-10-29, decided by coordinator on sls's delegation): a phone never
+    # spends the owner's keys, with or without its own monthly limit.
     from core import paid_call_reservation as pcr
 
     phone["rules"]["paid_services"] = True
@@ -198,11 +200,13 @@ def test_a_phone_turn_reserves_against_its_own_limit(phone, monkeypatch):
     monkeypatch.setattr(msp, "provider_cost_class", lambda _m: "paid_cloud")
     monkeypatch.setattr(msp, "is_verified_free_cloud_manifest", lambda _m: False)
     manifest = SimpleNamespace(provider_id="openrouter", model_name="paid/model")
-    pcr.reserve_owner_pick_paid_call(manifest=manifest, task=SimpleNamespace(task_id="t"), source_context=_turn())
-    assert seen["spender"] == "phone:phone:abc" and seen["spender_monthly_usd"] == 7.5
+    denial = {}
+    assert pcr.reserve_owner_pick_paid_call(manifest=manifest, task=SimpleNamespace(task_id="t"), source_context=_turn(),
+                                            denial=denial) is None
+    assert denial["reason"] == "not_owner_local" and seen == {}
     phone.pop("cloud_monthly_usd")
-    pcr.reserve_owner_pick_paid_call(manifest=manifest, task=SimpleNamespace(task_id="t"), source_context=_turn())
-    assert seen["spender"] == "phone:phone:abc" and seen["spender_monthly_usd"] is None
+    assert pcr.reserve_owner_pick_paid_call(manifest=manifest, task=SimpleNamespace(task_id="t"), source_context=_turn()) is None
+    assert seen == {}
     pcr.reserve_owner_pick_paid_call(manifest=manifest, task=SimpleNamespace(task_id="t"),
                                      source_context={rt.OWNER_LOCAL_KEY: True})
     assert seen["spender"] == "" and seen["spender_monthly_usd"] is None
