@@ -310,9 +310,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 // These words say "this computer" on every platform; off a Mac the catalog lookups also read
 // the "_pc" twins, which carry the same words.
 const PC = (key) => (ON_MAC ? key : key + '_pc');
-const PC_WORDS = ON_MAC
-  ? { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' }
-  : { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
+const PC_WORDS = { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
 const OFFLINE = () => T('setup.status.offline', 'VOOL isn’t running right now, so nothing was saved. Open VOOL again and try once more.');
 
 /* One visible message slot per step (#stepNote): a newer message replaces the older one instead of

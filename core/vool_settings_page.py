@@ -5888,7 +5888,8 @@ function installKeys() {
     if (open) { search.focus(); search.select(); } else $('#pane').focus();
   });
   if (scrim) scrim.addEventListener('click', closeSide);
-  window.matchMedia('(max-width: 720px)').addEventListener('change', (e) => { if (!e.matches) closeSide(); });  document.addEventListener('keydown', e => {
+  window.matchMedia('(max-width: 720px)').addEventListener('change', (e) => { if (!e.matches) closeSide(); });
+  document.addEventListener('keydown', e => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); search.focus(); search.select(); return; }
     if (e.key === '/' && !typing) { e.preventDefault(); search.focus(); return; }
