@@ -1,0 +1,191 @@
+{
+  "built_at_epoch": 1793138817,
+  "files": [
+    {
+      "path": "Downloads/IMG_4021.jpg",
+      "age_days": 0,
+      "bytes": 2070,
+      "sha256": "1506fcee4c8fd4daf7a2c473b1832d30dc57b4ee53f5b424c0e6d5ed07f7cb79"
+    },
+    {
+      "path": "Downloads/IMG_4022.jpg",
+      "age_days": 1,
+      "bytes": 2070,
+      "sha256": "7d0f9193036a02cdd26b7ba0da4b2bed8f9ab67b79404c0c0d55650c7b8b0123"
+    },
+    {
+      "path": "Downloads/screenshot 2026-10-26 at 09.14.png",
+      "age_days": 1,
+      "bytes": 100,
+      "sha256": "9b47f96f6616fcd1e07f008cbf1a27ae1e522381f40f3b19659eb2ab430878f2"
+    },
+    {
+      "path": "Downloads/dog_park.HEIC",
+      "age_days": 2,
+      "bytes": 2012,
+      "sha256": "97489d0e2a3b0313073b99cbbd65ef1e6398d765f5a0d39bed0dc11eb25da0df"
+    },
+    {
+      "path": "Downloads/old_meme.gif",
+      "age_days": 9,
+      "bytes": 906,
+      "sha256": "c35b9d6a0b7906fa67c3879aa9c06a3544f6e20a01259f6ab29eefe4b206650f"
+    },
+    {
+      "path": "Downloads/wallpaper_mountains.png",
+      "age_days": 30,
+      "bytes": 146,
+      "sha256": "d74c4de6de1f3cbe26ce29d9f1110ab54b157545528cebd74d3787d0f61c4f0f"
+    },
+    {
+      "path": "Downloads/invoice_4471.pdf",
+      "age_days": 3,
+      "bytes": 672,
+      "sha256": "d8b5127b8e20f342056c4b55c029a79ab48bb59e975ccc447c29c144536406a4"
+    },
+    {
+      "path": "Downloads/boarding-pass-VNO-LIS.pdf",
+      "age_days": 5,
+      "bytes": 670,
+      "sha256": "1f63030b137ad60240121eec9b3f07e9a082633ff9d3c076891664b254ff0c63"
+    },
+    {
+      "path": "Downloads/setup_helper.dmg",
+      "age_days": 12,
+      "bytes": 300000,
+      "sha256": "886715e4051e827f4fe215df3053af3f85ad0d352db2c829c7487af6d78efe30"
+    },
+    {
+      "path": "Downloads/bank_export_october.csv",
+      "age_days": 2,
+      "bytes": 138,
+      "sha256": "05b3559c9c2fe311199faa23f21af057de69d55b20526b69cf63cdb77e6024ed"
+    },
+    {
+      "path": "Downloads/movie_night_trailer.mp4",
+      "age_days": 4,
+      "bytes": 900012,
+      "sha256": "c878f04f209179454b0605d8ba3b6aa9ec94f656ae695913dabf5df3b94a41c8"
+    },
+    {
+      "path": "Desktop/todo.txt",
+      "age_days": 0,
+      "bytes": 79,
+      "sha256": "213d72b0707d558a37b7e3d5ec2c2d25815dbd7aa60f8ee0222061544331692f"
+    },
+    {
+      "path": "Desktop/Screenshot 2026-10-27 at 18.02.png",
+      "age_days": 0,
+      "bytes": 114,
+      "sha256": "1c64f33c3eed779d2bc97e1c2ac20e2229c343965c243169ba91b525c85b71f9"
+    },
+    {
+      "path": "Desktop/Screenshot 2026-10-20 at 11.40.png",
+      "age_days": 7,
+      "bytes": 114,
+      "sha256": "61c68b9d9c4a054a8ebcfaa1489b98b89010531215da605133beec2a34507569"
+    },
+    {
+      "path": "Desktop/flat viewing notes.md",
+      "age_days": 6,
+      "bytes": 123,
+      "sha256": "734e29051d7e2e1b8ba4b34b0fc45206dd44a2685d75470bf39f8b4f3c0cbbd0"
+    },
+    {
+      "path": "Documents/CV_2026.pdf",
+      "age_days": 40,
+      "bytes": 677,
+      "sha256": "8c0acf0ad910e8b23b617342ef02e688636d24d4f89f077e9b94409a059042e0"
+    },
+    {
+      "path": "Documents/Taxes/2025/tax_return_2025.pdf",
+      "age_days": 200,
+      "bytes": 618,
+      "sha256": "c95823e9305fda84ca9d269c187da137ec6ad0a3b14132675df69e0ab8f2b1a8"
+    },
+    {
+      "path": "Documents/Taxes/2025/receipts.txt",
+      "age_days": 210,
+      "bytes": 34,
+      "sha256": "01b928299228619baa87550a23f77f37268104aba63e3a1224136a9fed357de3"
+    },
+    {
+      "path": "Documents/Recipes/grandma pancakes.txt",
+      "age_days": 90,
+      "bytes": 77,
+      "sha256": "3f6cda456123d214c8c2a6c7229f8cc6d08683f1def5fd5ddc38c7aebb66c9af"
+    },
+    {
+      "path": "Documents/Work/Q3 report draft.txt",
+      "age_days": 15,
+      "bytes": 48,
+      "sha256": "5f537b2b5bdca796343f5aa35e55cf8b18724c0d759bb46ce7395207168103f0"
+    },
+    {
+      "path": "Documents/Work/meeting notes 2026-10-21.txt",
+      "age_days": 6,
+      "bytes": 63,
+      "sha256": "99374576c41d74c5e263aee27af2afdb322f7872634be67bc993c7f2e284506c"
+    },
+    {
+      "path": "Pictures/Holiday Lisbon 2026/lisbon_001.jpg",
+      "age_days": 60,
+      "bytes": 2070,
+      "sha256": "04b09c5de5d73cffb6304e6125123998c831ddf863cc3350069947900914f914"
+    },
+    {
+      "path": "Pictures/Holiday Lisbon 2026/lisbon_002.jpg",
+      "age_days": 60,
+      "bytes": 2070,
+      "sha256": "d1e52d52524d06cf65adf9811e1a24b46c165703d7d57a8a53fdd0ef35394e84"
+    },
+    {
+      "path": "Pictures/Holiday Lisbon 2026/lisbon_003.jpg",
+      "age_days": 59,
+      "bytes": 2070,
+      "sha256": "7133a5e81ef79628c200e7c7ac5cd996cf3fa48ff622663c00b0501962c12c39"
+    },
+    {
+      "path": "Pictures/Family/mia_birthday.jpg",
+      "age_days": 300,
+      "bytes": 2070,
+      "sha256": "5bb9cda6625da8c08f2953214e553700ccc001e8a0532e51a75c2b0e5882a64c"
+    },
+    {
+      "path": "Pictures/cat_on_sofa.png",
+      "age_days": 3,
+      "bytes": 96,
+      "sha256": "48368d8ec0e3c4315c518d1fab8c2d8cb02cb18b8dea4f92562104aa2814c6fb"
+    },
+    {
+      "path": "Music/playlist_road_trip.m3u",
+      "age_days": 100,
+      "bytes": 34,
+      "sha256": "f9301c86d0a68cbddaeb9e5a37b5bc48441d3b8a260d2c3e13476f15023c638f"
+    },
+    {
+      "path": "Movies/kids_school_play.mov",
+      "age_days": 20,
+      "bytes": 2500012,
+      "sha256": "030df774424c369c18ce4aabf4adc3781a4aaf13c3f9244e5c7f2574a5d18d70"
+    },
+    {
+      "path": "Projects/garden-planner/README.md",
+      "age_days": 25,
+      "bytes": 69,
+      "sha256": "0b673a4bd5fe9b9e1b31bf68219db319fa741c04c3435c626825076d3ceca6c2"
+    },
+    {
+      "path": "Projects/garden-planner/plan.py",
+      "age_days": 25,
+      "bytes": 131,
+      "sha256": "48815d5332f60514f9442247fdcb713f7ba7389cc35510515a8192c08f4d1c7d"
+    },
+    {
+      "path": "Documents/big_backup_archive.zip",
+      "age_days": 50,
+      "bytes": 6000004,
+      "sha256": "f8789bec37c5fccebed830b6d9240a200fa01e90b36755d6ac159e6993c65172"
+    }
+  ]
+}
