@@ -26,6 +26,29 @@ def _route_metadata(agent: Any, source_context: dict[str, object] | None, defaul
     return "live_info_fast_path", default_confidence
 
 
+#: What the person reads when a live lookup was not made. It names the switch and where it is,
+#: because "disabled on this runtime" left people with no idea how to turn lookups on.
+WEB_LOOKUPS_OFF_TEXT = (
+    "Web lookups are off, so I didn't go online {subject}. Live prices, weather and news "
+    "need them: turn on Web lookups in Settings > Privacy & Permissions, then ask again."
+)
+LOCAL_ONLY_LOOKUP_TEXT = (
+    "Local Only is on, so I didn't go online {subject}. Live prices, weather and news need "
+    "the internet: choose VOOL Auto instead of VOOL Auto Local Only, then ask again."
+)
+
+
+def web_lookups_off_text(subject: str = "to check this") -> str:
+    """The refusal for the switch that actually stopped the lookup: Web lookups, or Local Only."""
+    from core import policy_engine
+
+    try:
+        web_on = bool(policy_engine.allow_web_fallback())
+    except Exception:
+        web_on = False
+    return (LOCAL_ONLY_LOOKUP_TEXT if web_on else WEB_LOOKUPS_OFF_TEXT).format(subject=subject)
+
+
 def disabled_live_info_result(
     agent: Any,
     *,
@@ -33,10 +56,7 @@ def disabled_live_info_result(
     user_input: str,
     source_context: dict[str, object] | None,
 ) -> dict[str, Any]:
-    disabled_response = (
-        "Live web lookup is disabled on this runtime, so I can't verify current prices, "
-        "weather, or latest-news requests honestly."
-    )
+    disabled_response = web_lookups_off_text()
     _reason, confidence = _route_metadata(agent, source_context, 0.82)
     result = agent._fast_path_result(
         session_id=session_id,

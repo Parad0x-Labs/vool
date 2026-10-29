@@ -87,7 +87,7 @@ def fake_open(monkeypatch):
 # ---------------------------------------------------------------------------------------------
 
 
-def test_the_door_reports_the_attempt_when_the_turn_permits_it(fake_open) -> None:
+def test_the_door_reports_the_attempt_when_the_turn_permits_it(enable_web, fake_open) -> None:
     with remote_fetch_policy_scope({"allow_remote_fetch": True}):
         with wr._open_remote(urllib.request.Request("https://example.invalid/"), timeout=5):
             pass
@@ -153,7 +153,7 @@ def test_no_outbound_path_opens_a_socket_under_a_veto(name, call, never_opens) -
 # ---------------------------------------------------------------------------------------------
 
 
-def test_without_a_veto_the_door_opens_normally(fake_open) -> None:
+def test_without_a_veto_the_door_opens_normally(enable_web, fake_open) -> None:
     with remote_fetch_policy_scope({"allow_remote_fetch": True}):
         with wr._open_remote(urllib.request.Request("https://example.invalid/"), timeout=5):
             pass
@@ -161,7 +161,7 @@ def test_without_a_veto_the_door_opens_normally(fake_open) -> None:
     assert len(fake_open) == 1, "the guard must not block a permitted turn"
 
 
-def test_an_absent_policy_key_is_not_a_veto(fake_open) -> None:
+def test_an_absent_policy_key_is_not_a_veto(enable_web, fake_open) -> None:
     """Absence is the trusted-surface default; only an explicit false is a veto."""
 
     with remote_fetch_policy_scope({}):

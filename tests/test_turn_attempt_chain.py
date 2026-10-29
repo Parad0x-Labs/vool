@@ -147,7 +147,7 @@ def _roles(attempts: list[dict]) -> list[str]:
 # ------------------------------------------------------------------ 1. the user-visible defect
 
 
-def test_the_http_shaped_followup_reports_the_original_entities(harness):
+def test_the_http_shaped_followup_reports_the_original_entities(enable_web, harness):
     """THE user-visible failure R1b measured and could not fix from the seam.
 
     Two turns with a session override on both — exactly what `core/web/api/runtime.py`
@@ -167,7 +167,7 @@ def test_the_http_shaped_followup_reports_the_original_entities(harness):
 # ------------------------------------------------------------------ 2. one chain, one identity
 
 
-def test_every_attempt_of_one_turn_shares_the_session_turn_and_root(harness):
+def test_every_attempt_of_one_turn_shares_the_session_turn_and_root(enable_web, harness):
     """One turn == one chain. Every row it writes carries the request's session, the
     canonical turn id, and the SAME root — no unrelated second root."""
     _result, context = harness.turn(_INCIDENT, session_id=harness.session_id)
@@ -254,7 +254,7 @@ def test_the_persisted_dialogue_turn_is_the_requests_turn_id(harness):
 # ------------------------------------------------------------------ 4. structural selection
 
 
-def test_follow_up_selection_cannot_be_changed_by_reordering_updated_at(harness):
+def test_follow_up_selection_cannot_be_changed_by_reordering_updated_at(enable_web, harness):
     """Selection is STRUCTURAL. The turn door closes its row last today, which is the
     only reason it wins 'the latest attempt in this session'. Flip the order and the
     resolver must still bind to the same answer-bearing attempt."""
@@ -347,7 +347,7 @@ def test_planner_subturn_attempts_are_typed_children_of_the_turn_root(harness):
 # ------------------------------------------------------------------ 6. retry stays on the chain
 
 
-def test_a_retry_stays_on_the_turn_root_and_advances_the_generation(harness):
+def test_a_retry_stays_on_the_turn_root_and_advances_the_generation(enable_web, harness):
     """A retry is a new generation of the SAME chain — the turn's root, the turn's
     fence — not a fresh root beside it."""
     from core.attempt_retry import execute_attempt_retry

@@ -255,6 +255,8 @@ def _currency_reply(
     source = dict(source_context or {})
     from core import policy_engine
 
+    from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
     web_runtime_enabled = policy_engine.allow_web_fallback()
     # ROUTE-PARITY GATE: the live FX retrieval is a public read-only network retrieval -- the same
     # action class the model route crosses `decide_tool_call` for when it fetches (web.fetch). The
@@ -339,10 +341,9 @@ def _currency_reply(
     ):
         reply = {
             **reply,
-            "response": (
-                "A current exchange rate is a live observation, but external retrieval is "
-                "disabled by the runtime policy. I will not substitute a rate from training data."
-            ),
+            # Plain words and the switch's place, like every other lookup refusal; the rate
+            # itself is still never guessed from training data.
+            "response": web_lookups_off_text("for a current exchange rate"),
             "grounded": "retrieval_disabled_declined",
         }
     elif (

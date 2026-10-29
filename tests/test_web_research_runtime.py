@@ -249,7 +249,9 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertIn("live_weather_fallback:wttr_in", result.notes)
         self.assertEqual(result.pages[0].text, "London: Rain, 12 C.")
 
-    def test_weather_fallback_accepts_nested_data_payload(self) -> None:
+    # Web lookups on: this exercises the lookup itself, which the door refuses while they are off.
+    @mock.patch("core.policy_engine.allow_web_fallback", return_value=True)
+    def test_weather_fallback_accepts_nested_data_payload(self, _web_on) -> None:
         payload = {
             "data": {
                 "current_condition": [
@@ -389,7 +391,9 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(_demote_instant_answer(["ddg_instant", "duckduckgo_html"]), ["duckduckgo_html", "ddg_instant"])
         self.assertEqual(_demote_instant_answer(["ddg_instant"]), ["ddg_instant"])
 
-    def test_market_quote_query_uses_specialized_live_fallback_when_search_providers_fail(self) -> None:
+    # Web lookups on: this exercises the lookup itself, which the door refuses while they are off.
+    @mock.patch("core.policy_engine.allow_web_fallback", return_value=True)
+    def test_market_quote_query_uses_specialized_live_fallback_when_search_providers_fail(self, _web_on) -> None:
         yahoo_payload = {
             "chart": {
                 "result": [
@@ -485,7 +489,7 @@ def test_news_query_respects_word_boundary_and_names() -> None:
         assert _extract_news_topic(name) == name
 
 
-def test_news_rss_fallback_returns_none_on_empty_feed() -> None:
+def test_news_rss_fallback_returns_none_on_empty_feed(enable_web) -> None:
     from unittest import mock
 
     from tools.web import web_research

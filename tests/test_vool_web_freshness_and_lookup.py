@@ -263,8 +263,8 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
 
     response = result["response"].lower()
     assert "67,432.18" not in response and "coingecko" not in response, result["response"]
-    assert "didn't run any live lookup" in response, result["response"]
-    assert "not going to state them" in response, result["response"]
+    assert "web lookups are off" in response, result["response"]
+    assert "settings > privacy & permissions" in response, result["response"]
     for marker in FORBIDDEN_CHAT_WRAPPERS:
         assert marker not in response
 

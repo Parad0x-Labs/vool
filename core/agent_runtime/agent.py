@@ -3604,6 +3604,23 @@ class VoolAgent(
         except Exception:
             pass
 
+        # Every subtask of this lane is a live lookup, so it answers to the Web lookups switch
+        # before any plan is built. Measured on 1cbf433 with the switch off: "whats the weather in
+        # London today" and "what is the bitcoin price right now" were fetched live, because only
+        # the fast path behind this lane asked the switch. A refusal here keeps the honest answer
+        # on this lane; falling through would hand the model a live question with no data.
+        from core.remote_fetch_policy import effective_web_available
+
+        if not effective_web_available(dict(source_context or {})):
+            from core.agent_runtime.fast_live_info_runtime_results import disabled_live_info_result
+
+            return disabled_live_info_result(
+                self,
+                session_id=session_id,
+                user_input=raw_input,
+                source_context=source_context,
+            )
+
         # Checkpoint 6.5 fail-closed invariant, scoped to MULTIPART LIVE_DATA turns specifically.
         # Found live: "Market data only for Bitcoin and gold." (two assets) classified LIVE_DATA
         # here but `build_live_data_plan()` independently found nothing to build (a keyword-gated

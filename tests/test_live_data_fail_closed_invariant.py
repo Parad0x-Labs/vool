@@ -47,8 +47,11 @@ def agent() -> VoolAgent:
 # --- plan construction returns None despite LIVE_DATA classification ---
 
 
-def test_plan_is_none_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
+def test_plan_is_none_never_reaches_the_ordinary_turn(enable_web, agent: VoolAgent) -> None:
+    # Web lookups on (the lane only plans when they are); the cold ticker index stays offline so
+    # the count below is this lane's own fetches, which must be none.
     with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire), \
+         mock.patch("tools.web.coin_index._fetch_index", return_value={}), \
          mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
         result = agent.run_once(
             "Market data only for Bitcoin and gold.",
@@ -60,7 +63,7 @@ def test_plan_is_none_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
     assert result.get("route") == "deterministic:live_data_plan_unavailable"
 
 
-def test_plan_is_none_preserves_the_requested_entities_without_inventing_a_number(agent: VoolAgent) -> None:
+def test_plan_is_none_preserves_the_requested_entities_without_inventing_a_number(enable_web, agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
         result = agent.run_once(
             "Market data only for Bitcoin and gold.",
@@ -74,7 +77,7 @@ def test_plan_is_none_preserves_the_requested_entities_without_inventing_a_numbe
     assert not any(ch.isdigit() for ch in response)
 
 
-def test_plan_is_none_with_a_weather_request_names_the_cities(agent: VoolAgent) -> None:
+def test_plan_is_none_with_a_weather_request_names_the_cities(enable_web, agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", return_value=None):
         result = agent.run_once(
             "Weather only for Berlin and Copenhagen.",
@@ -88,7 +91,7 @@ def test_plan_is_none_with_a_weather_request_names_the_cities(agent: VoolAgent) 
 # --- an exception raised while building or executing the plan ---
 
 
-def test_an_exception_building_the_plan_never_reaches_the_ordinary_turn(agent: VoolAgent) -> None:
+def test_an_exception_building_the_plan_never_reaches_the_ordinary_turn(enable_web, agent: VoolAgent) -> None:
     with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire), \
          mock.patch("core.agent_runtime.live_data_plan.build_live_data_plan", side_effect=RuntimeError("boom")):
         result = agent.run_once(
@@ -103,7 +106,7 @@ def test_an_exception_building_the_plan_never_reaches_the_ordinary_turn(agent: V
 # --- every subtask fails: still a deterministic answer, never a fallthrough ---
 
 
-def test_every_subtask_failing_still_renders_a_deterministic_answer(agent: VoolAgent) -> None:
+def test_every_subtask_failing_still_renders_a_deterministic_answer(enable_web, agent: VoolAgent) -> None:
     def _all_fail(coin_ids, **_kwargs):
         raise RuntimeError("network down")
 
@@ -146,7 +149,7 @@ def test_a_non_live_data_turn_is_unaffected_and_still_reaches_the_ordinary_path(
 # --- sabotage: remove the fail-closed guard, prove the original fallthrough reproduces ---
 
 
-def test_sabotage_removing_the_guard_reproduces_the_original_fallthrough(agent: VoolAgent) -> None:
+def test_sabotage_removing_the_guard_reproduces_the_original_fallthrough(enable_web, agent: VoolAgent) -> None:
     """Proves the fix is load-bearing: with `_live_data_plan_unavailable_result` forced to behave
     like the old code (returning None instead of a deterministic result), the exact same LIVE_DATA
     turn that item 2 protects now DOES fall through to the ordinary ungrounded turn path --

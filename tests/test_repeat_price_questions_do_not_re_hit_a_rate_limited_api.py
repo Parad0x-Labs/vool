@@ -83,7 +83,7 @@ def counted_api(monkeypatch):
     web_research.reset_quote_cache_for_test()
 
 
-def test_asking_the_same_pair_again_costs_no_api_call(counted_api) -> None:
+def test_asking_the_same_pair_again_costs_no_api_call(enable_web, counted_api) -> None:
     first = web_research._crypto_price_fallback_multi(["arbitrum", "litecoin"], timeout_s=8)
     assert [quote.asset_key for quote in first] == ["arbitrum", "litecoin"]
     for _ in range(4):
@@ -92,7 +92,7 @@ def test_asking_the_same_pair_again_costs_no_api_call(counted_api) -> None:
     assert len(counted_api) == 1, f"the repeat questions re-hit the API {len(counted_api)} times"
 
 
-def test_an_overlapping_pair_only_requests_the_coin_it_is_missing(counted_api) -> None:
+def test_an_overlapping_pair_only_requests_the_coin_it_is_missing(enable_web, counted_api) -> None:
     """"ARB and LTC" then "LTC and SOL" must not re-fetch LTC -- that is the burst that 429s."""
     web_research._crypto_price_fallback_multi(["arbitrum", "litecoin"], timeout_s=8)
     second = web_research._crypto_price_fallback_multi(["litecoin", "solana"], timeout_s=8)
@@ -100,7 +100,7 @@ def test_an_overlapping_pair_only_requests_the_coin_it_is_missing(counted_api) -
     assert counted_api[1] == ["solana"], f"re-requested an already-cached coin: {counted_api[1]}"
 
 
-def test_the_singular_and_plural_paths_share_one_cache(counted_api) -> None:
+def test_the_singular_and_plural_paths_share_one_cache(enable_web, counted_api) -> None:
     """Both callers hit the same endpoint, so caching only one of them still trips the limit."""
     web_research._crypto_price_fallback_multi(["bitcoin"], timeout_s=8)
     result = web_research._crypto_price_fallback("btc price", "bitcoin", timeout_s=8)
@@ -108,7 +108,7 @@ def test_the_singular_and_plural_paths_share_one_cache(counted_api) -> None:
     assert len(counted_api) == 1, "the singular path re-fetched what the plural path already had"
 
 
-def test_a_stale_entry_is_refetched_rather_than_served_forever(counted_api, monkeypatch) -> None:
+def test_a_stale_entry_is_refetched_rather_than_served_forever(enable_web, counted_api, monkeypatch) -> None:
     """The control: a cache that never expires would answer with yesterday's price."""
     web_research._crypto_price_fallback_multi(["arbitrum"], timeout_s=8)
     assert len(counted_api) == 1
@@ -121,7 +121,7 @@ def test_a_stale_entry_is_refetched_rather_than_served_forever(counted_api, monk
     assert len(counted_api) == 2, "a stale quote was served instead of refetched"
 
 
-def test_a_failed_first_call_caches_nothing_and_fabricates_nothing(monkeypatch) -> None:
+def test_a_failed_first_call_caches_nothing_and_fabricates_nothing(enable_web, monkeypatch) -> None:
     """A 429 must surface as no data, never as a fabricated or empty-shaped quote."""
     web_research.reset_quote_cache_for_test()
 
@@ -141,7 +141,7 @@ def test_a_failed_first_call_caches_nothing_and_fabricates_nothing(monkeypatch) 
     web_research.reset_quote_cache_for_test()
 
 
-def test_concurrent_price_questions_do_not_stampede_the_endpoint(counted_api) -> None:
+def test_concurrent_price_questions_do_not_stampede_the_endpoint(enable_web, counted_api) -> None:
     """Eight simultaneous askers is a realistic multi-client daemon, and the limit is per-host."""
     errors: list[BaseException] = []
     results: list[int] = []

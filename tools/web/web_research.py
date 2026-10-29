@@ -26,6 +26,7 @@ from core.remote_fetch_policy import (
     open_remote as _open_remote_door,
 )
 from core.remote_fetch_policy import (
+    effective_web_available,
     remote_fetch_forbidden,
     remote_turn_active,
 )
@@ -134,8 +135,19 @@ def _open_remote(request: Any, *, timeout: float):
     """
     if remote_turn_active():
         raise RemoteFetchRefusedError("owner_local_required")
+    # Every site behind this door is a lookup the user asked for (weather, prices, rates, news,
+    # page text), and Settings promises "nothing goes online for lookups until you switch this
+    # on". Measured on 1cbf433 with Web lookups off: weather (wttr.in) and the bitcoin price
+    # (CoinGecko) were fetched live by the typed live-data lane, which never asked the switch.
+    # The door asks it, so a lane that forgets still cannot go online.
+    if not effective_web_available():
+        raise RemoteFetchRefusedError(WEB_LOOKUPS_OFF_REFUSAL)
 
     return _open_remote_door(request, timeout=timeout)
+
+
+#: Why the door refused: Web lookups (system.allow_web_fallback) is off, or Local Only binds the turn.
+WEB_LOOKUPS_OFF_REFUSAL = "web_lookups_off"
 
 
 def _provider_order() -> list[str]:
