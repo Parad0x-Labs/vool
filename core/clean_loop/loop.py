@@ -70,6 +70,9 @@ class LoopResult:
     #: Every tool and evidence text this turn showed the model, for answer gates that check the
     #: answer against what was actually seen (exact file names).
     seen: list[str] = field(default_factory=list)
+    #: What the owner and this chat already said (the ask, earlier turns): figures there are the
+    #: owner's own and never count as invented by this answer.
+    said: list[str] = field(default_factory=list)
 
     @property
     def tools_used(self) -> list[str]:
@@ -129,7 +132,7 @@ def run_loop(
     staged = _staged_evidence(ask, registry, ctx)
     user = ask if not staged else f"{ask}\n\n[Evidence gathered before you (read-only):]\n{staged}"
     messages.append({"role": "user", "content": user})
-    result = LoopResult(answer="")
+    result = LoopResult(answer="", said=[ask, *(str(m.get("content") or "") for m in history)])
     if staged:
         result.seen.append(staged)
     nudged = False

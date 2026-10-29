@@ -722,55 +722,103 @@ def exact_names(answer: str, result: Any) -> str:
     return out
 
 
-_SIZE_RE = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(bytes|byte|KB|MB|GB|TB)\b", re.IGNORECASE)
-_SIZE_UNITS = {"byte": 1, "bytes": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+_SIZE_RE = re.compile(
+    r"(?<![\w.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)\s*"
+    r"(bytes?|kib|kb|kilobytes?|mib|mb|megabytes?|megs?|gib|gb|gigabytes?|gigs?|tib|tb|terabytes?)(?![a-z])",
+    re.IGNORECASE,
+)
+_SIZE_UNITS = {"b": 1, "k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
 SIZE_NOTICE = "I couldn't measure that size from what I looked at, so I won't guess a number."
+_SIZE_PAIRS = 40
+
+
+def _unit_bytes(unit: str) -> int:
+    low = unit.lower()
+    return _SIZE_UNITS["b" if low.startswith("byte") else low[0]]
+
+
+def _size_figure(number: str, unit: str) -> tuple[float, float] | None:
+    """(bytes, half a step of the precision the figure was printed with): "about 3 MB" stands for
+    anything that rounds to 3 MB, "2.9 KB" for anything that rounds to 2.9 KB."""
+    grouped = "," in number and all(len(part) == 3 for part in number.split(",")[1:]) and "." not in number.split(",")[-1]
+    digits = number.replace(",", "") if grouped or ("," in number and "." in number) else number.replace(",", ".")
+    try:
+        value = float(digits)
+    except ValueError:
+        return None
+    decimals = len(digits.split(".", 1)[1]) if "." in digits else 0
+    scale = _unit_bytes(unit)
+    return value * scale, 0.5 * (10 ** -decimals) * scale
 
 
 def _sizes(text: str) -> list[float]:
-    out = []
-    for number, unit in _SIZE_RE.findall(str(text or "")):
-        try:
-            out.append(float(number.replace(",", ".")) * _SIZE_UNITS[unit.lower()])
-        except (KeyError, ValueError):
-            continue
-    return out
+    return [figure[0] for figure in (_size_figure(n, u) for n, u in _SIZE_RE.findall(str(text or ""))) if figure]
 
 
-def _size_seen(value: float, unit: str, known: list[float]) -> bool:
-    # One decimal of the answer's own unit is the rounding the tools print ("1.2 MB").
-    slack = max(value * 0.06, 0.06 * _SIZE_UNITS[unit.lower()])
-    return any(abs(value - size) <= slack for size in known)
+def _drive_report(text: str) -> bool:
+    low = text.lower()
+    return "drive space" in low or "free of" in low
+
+
+def _listing_total(text: str) -> float | None:
+    """The total of one flat file listing ("- name (2.9 KB, modified …)" lines). A drive report is
+    not a listing: its free and total figures never add up to anything."""
+    if _drive_report(text):
+        return None
+    sizes = [s for line in text.splitlines() if line.startswith("- ") for s in _sizes(line)[:1]]
+    return sum(sizes) if len(sizes) > 1 else None
+
+
+def _known_sizes(result: Any) -> list[float]:
+    measured: list[float] = []
+    items: list[float] = []  # file sizes, which may be added; a drive's free and total may not
+    for text in list(getattr(result, "seen", None) or []):
+        sizes = _sizes(text)
+        measured.extend(sizes)
+        if not _drive_report(str(text or "")):
+            items.extend(sizes)
+        total = _listing_total(str(text or ""))
+        if total is not None:
+            measured.append(total)
+    # Arithmetic the answer may fairly do on what it saw: used = total - free, two files together.
+    head = measured[:_SIZE_PAIRS]
+    derived = [abs(x - y) for i, x in enumerate(head) for y in head[i + 1:]]
+    pairs = items[:_SIZE_PAIRS]
+    derived += [x + y for i, x in enumerate(pairs) for y in pairs[i + 1:]]
+    said = [s for text in list(getattr(result, "said", None) or []) for s in _sizes(text)]
+    return measured + derived + said
 
 
 def grounded_sizes(answer: str, result: Any) -> str:
-    """A size the answer states must be one the tools showed (or the sum of one listing): a number
-    with nothing behind it is cut, and the answer says it could not measure instead (fresh-45 jury:
-    "12.3 GB" for a few KB of photos, with no size in any tool output)."""
-    if not answer or not _SIZE_RE.search(answer):
+    """A size the answer states must be one the tools showed, simple arithmetic on those, or a figure
+    the owner or this chat already said; a size with nothing behind it is cut and the answer says
+    it could not measure (fresh-45 jury: "12.3 GB" for a few KB of photos, with no size in any tool
+    output). A turn where no tool ran is general knowledge, not a measurement, and is left alone."""
+    if not answer or not list(getattr(result, "seen", None) or []) or not _SIZE_RE.search(answer):
         return answer
-    known: list[float] = []
-    for text in list(getattr(result, "seen", None) or []):
-        sizes = _sizes(text)
-        known.extend(sizes)
-        if len(sizes) > 1:
-            known.append(sum(sizes))
-    def ungrounded(sentence: str) -> bool:
-        for number, unit in _SIZE_RE.findall(sentence):
-            try:
-                value = float(number.replace(",", ".")) * _SIZE_UNITS[unit.lower()]
-            except (KeyError, ValueError):
-                continue
-            if not _size_seen(value, unit, known):
-                return True
-        return False
+    known = _known_sizes(result)
+
+    def invented(match: re.Match[str]) -> bool:
+        figure = _size_figure(match.group(1), match.group(2))
+        if figure is None:
+            return False
+        value, half_step = figure
+        slack = max(value * 0.02, half_step)
+        return not any(abs(value - size) <= slack for size in known)
+
     lines = []
     cut = False
     for line in answer.split("\n"):
-        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'*(-])", line)
-        kept = [part for part in parts if not ungrounded(part)]
-        cut = cut or len(kept) != len(parts)
-        if kept or not parts or not line.strip():
+        if not any(invented(m) for m in _SIZE_RE.finditer(line)):
+            lines.append(line)
+            continue
+        cut = True
+        if "|" in line:  # a table row keeps its shape; only the figure goes
+            lines.append(_SIZE_RE.sub(lambda m: "not measured" if invented(m) else m.group(0), line))
+            continue
+        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z\"'*(])", line)
+        kept = [part for part in parts if not any(invented(m) for m in _SIZE_RE.finditer(part))]
+        if kept:
             lines.append(" ".join(kept))
     if not cut:
         return answer
@@ -803,13 +851,20 @@ _LOOK_WRITE_RE = re.compile(
 )
 #: The disk stages only on the explicit how-much shape: a bare "full" or "filling" rides asks
 #: about folders too, and a disk word alone does not say the answer is a measurement.
-_LOOK_DISK_ASK_RE = re.compile(r"\bhow\s+full\b|\bhow\s+much\s+(?:space|room|storage)\b")
+_LOOK_DISK_ASK_RE = re.compile(
+    r"\bhow\s+full\b|\bhow\s+much\s+(?:space|room|storage)\b|\benough\s+(?:space|room|storage)\b"
+)
 #: "how much space do my holiday photos take" asks for the size of some files, not for the drive:
 #: staging the drive figure there invited a made-up folder size (fresh-45 jury, a confident
-#: "12.3 GB" for a few KB of photos, with nothing but the drive total in front of the model).
+#: "12.3 GB" for a few KB of photos, with nothing but the drive total in front of the model). The
+#: object decides, not the verb: "how much storage am i using" is still the drive.
 _LOOK_SIZE_OF_RE = re.compile(
-    r"\b(?:take|takes|taking|took|use|uses|using|used|eat|eats|eating|hog|hogs|hogging|occupy|occupies)\b"
+    r"\b(?:photos?|pictures?|pics|images?|videos?|movies?|films?|music|songs?|downloads|desktop|"
+    r"documents|docs|folders?|files?|apps?|applications|games?|emails?|mail|backups?|projects?)\b"
 )
+#: ...unless the ask is about room left for them ("enough space for a 20 GB game?").
+_LOOK_ROOM_FOR_RE = re.compile(r"\b(?:left|free|available|spare|enough|for)\b")
+_LOOK_ROOT_WORD_RE = re.compile(r"\b(downloads|desktop|documents|pictures|photos|movies|videos)\b")
 _LOOK_SPECS_RE = re.compile(r"\b(?:ram|specs|how\s+much\s+memory|what\s+chip|which\s+chip)\b")
 _LOOK_PROC_RE = re.compile(r"\b(?:running|slowing|sluggish|cpu)\b")
 _LOOK_BIG_RE = re.compile(r"\b(?:biggest|largest)\b")
@@ -877,8 +932,13 @@ def look_first_pre_step(ask: str, ctx: ToolContext) -> str | None:
             return None
         return outcome.text[:_LOOK_CHARS]
 
-    if _LOOK_DISK_ASK_RE.search(low) and not _LOOK_SIZE_OF_RE.search(low):
-        return settle(disk_usage({}, ctx))
+    if _LOOK_DISK_ASK_RE.search(low):
+        if not _LOOK_SIZE_OF_RE.search(low) or _LOOK_ROOM_FOR_RE.search(low):
+            return settle(disk_usage({}, ctx))
+        # The size of a named folder: its listing (every file with its size), never the drive.
+        word = _LOOK_ROOT_WORD_RE.search(low)
+        folder = _look_folder(low, ctx) or (_look_root(word.group(1), ctx) if word else "")
+        return settle(list_dir({"path": folder}, ctx)) if folder else None
     if _LOOK_SPECS_RE.search(low):
         return settle(system_info({}, ctx))
     if _LOOK_PROC_RE.search(low):
