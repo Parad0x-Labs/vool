@@ -1,10 +1,13 @@
-"""Job 6d: the operator expand keeps its calendar tool, and every tool keeps a legal path.
+"""Job 6d/6e: the operator expand keeps its calendar tool, and every tool keeps a legal path.
 
 The 6c overflow order put every wording-seated tool into the droppable tail, so inside that
 tail the stable sort dropped ``operator.propose_calendar_event`` (declared after the reminder
-mutates) and the E bar fell to 0/3. Rule now: inside the path-covered tail a tool this turn's
-own ask seats ranks first, the pre-lane family tools seat ahead of the reminder mutates Job 6
-added, and the two ``operator.command.*`` reads keep their seat (they have no other path).
+mutates) and the E bar fell to 0/3. That overflow only happens with the two
+``operator.command.*`` reads seated (the served rig projects them; a bare in-process world
+does not, and there nothing overflows at the cap), so this file seats them first, exactly as
+the command registry does on boot. Rule now: the pre-lane family tools seat ahead of the
+reminder mutates Job 6 added, the two reminder tools are exactly what steps down at today's
+cap, and one seat below the cap the calendar's entry mutate still holds (Job 6e).
 
 Also pins ``_WORDING_SEATED_INTENTS`` against the seat source it mirrors, so the hand-kept
 copy cannot drift from ``core.tool_demand_signals.owner_local_operator_intents``.
@@ -43,6 +46,9 @@ PRE_LANE_OPERATOR = {
 }
 #: The reminder mutates this lane added: the first to step down when the family overflows.
 LANE_ADDED = {"operator.schedule_reminder", "operator.cancel_reminder"}
+#: The model-offerable command reads the command registry projects on boot. They have no
+#: path but the expansion, so they always seat, and they are what makes the family overflow.
+COMMAND_READS = {"operator.command.status.show", "operator.command.capabilities.list"}
 
 #: The harness E cases (harness/sets/visible.json), owner-local expand turns.
 E_CASES = (
@@ -53,6 +59,13 @@ E_CASES = (
 
 
 def _reset_registry():
+    """A fresh graph with the operator.command.* reads projected, as the served daemon has."""
+    from core.command_registry.model_tools import project_model_tools
+    from core.command_registry.registry import registry
+
+    cg.reset()
+    registry()
+    project_model_tools()
     cg.reset()
     return cg.reset
 
@@ -77,23 +90,62 @@ def _offer_after_expand(text: str) -> set[str]:
 
 
 def test_e01_e03_expand_keeps_the_calendar_tool_and_the_pre_lane_family():
-    """After "expand operator" the offer keeps every pre-lane operator tool; only the
-    lane-added reminder mutates (and, on a served rig, whatever sits behind them) step
-    down for the cap."""
+    """After "expand operator" the offer keeps every pre-lane operator tool and both command
+    reads; the tools that step down for the cap are exactly the two reminder tools."""
     restore = _reset_registry()
     try:
         for case_id, text in E_CASES:
             intents = _offer_after_expand(text)
             seated_operator = {i for i in intents if i.startswith("operator.")}
+            assert seated_operator >= COMMAND_READS, (
+                f"{case_id}: the command reads are not seated, so the overflow this test pins "
+                f"is not reproduced: {sorted(seated_operator)}"
+            )
             missing = PRE_LANE_OPERATOR - seated_operator
             assert not missing, f"{case_id} lost pre-lane operator tools: {sorted(missing)}"
             assert "capability.expand_family" in intents
-            # The two reminder mutates are the sanctioned step-downs, never a pre-lane tool.
-            stepped = LANE_ADDED - seated_operator
-            if stepped:
-                assert stepped == LANE_ADDED or len(seated_operator & LANE_ADDED) < 2
+            assert len(intents) == cg._HARD_MAX_CANDIDATES, (case_id, len(intents))
+            stepped = (PRE_LANE_OPERATOR | LANE_ADDED) - seated_operator
+            assert stepped == LANE_ADDED, f"{case_id}: stepped down {sorted(stepped)}"
     finally:
         restore()
+
+
+def test_one_seat_below_the_cap_the_calendar_entry_tool_still_seats(monkeypatch):
+    """One more seat of overflow (the cap one below today's): the third tool to step down is
+    operator.save_note, never propose_calendar_event, and the calendar tools stay together."""
+    restore = _reset_registry()
+    monkeypatch.setattr(cg, "_HARD_MAX_CANDIDATES", cg._HARD_MAX_CANDIDATES - 1)
+    try:
+        for case_id, text in E_CASES:
+            intents = _offer_after_expand(text)
+            seated_operator = {i for i in intents if i.startswith("operator.")}
+            assert seated_operator >= COMMAND_READS, (case_id, sorted(seated_operator))
+            assert len(intents) == cg._HARD_MAX_CANDIDATES, (case_id, len(intents))
+            assert {
+                "operator.propose_calendar_event",
+                "operator.update_calendar_event",
+                "operator.schedule_calendar_event",
+            } <= seated_operator, f"{case_id}: {sorted(seated_operator)}"
+            stepped = (PRE_LANE_OPERATOR | LANE_ADDED) - seated_operator
+            assert stepped == LANE_ADDED | {"operator.save_note"}, f"{case_id}: stepped down {sorted(stepped)}"
+    finally:
+        restore()
+
+
+def test_the_hand_kept_step_down_sets_name_path_covered_operator_mutates():
+    """The two hand-kept rank sets may only name operator mutates a wording seat can seat
+    again; a read, a renamed tool or an expansion-only tool there would be a silent drift."""
+    from core.tool_registry import registry_map
+
+    cg.ensure_registry_bootstrap()
+    contracts = registry_map()
+    for intent in cg._LANE_ADDED_FAMILY_MUTATES | cg._CALENDAR_ENTRY_MUTATES:
+        assert intent.startswith("operator."), intent
+        assert intent in contracts, f"{intent} is no longer a registered tool"
+        assert str(getattr(contracts[intent], "side_effect_class", "")) != "read_only", intent
+        assert intent in cg._WORDING_SEATED_INTENTS, f"{intent} has no wording seat to re-seat it"
+    assert frozenset(LANE_ADDED) == cg._LANE_ADDED_FAMILY_MUTATES
 
 
 def test_e02_expand_ranks_the_turns_own_seats_first():

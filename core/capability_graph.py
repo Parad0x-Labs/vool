@@ -1351,6 +1351,17 @@ _LANE_ADDED_FAMILY_MUTATES = frozenset({
     "operator.cancel_reminder",
 })
 
+# Job 6e (Fix 5): the calendar's entry mutate. The expansion is the only path for the
+# calendar's edit mutates (update_calendar_event, schedule_calendar_event rank in the
+# expansion-only class), and they act on events this tool drafts; with it stepped down the
+# expand offered calendar edits without the tool that makes an event. Inside the path-covered
+# mutate tail it seats ahead of the other pre-lane mutates, so a third step-down falls on
+# operator.save_note (its note wording seat re-seats it) and propose_calendar_event only goes
+# at the fourth.
+_CALENDAR_ENTRY_MUTATES = frozenset({
+    "operator.propose_calendar_event",
+})
+
 
 def _demand_rule_intents() -> tuple[str, ...]:
     """The intents a tool_demand_signals rule can name (the explicit-demand path)."""
@@ -1481,7 +1492,6 @@ def model_visible_specs(
             source_is_owner_local = bool(request_is_owner_local(source_context))
         except Exception:
             source_is_owner_local = False
-    operator_seats: list[str] = []
     if user_text and source_is_owner_local:
         try:
             from core.tool_demand_signals import owner_local_operator_intents
@@ -1681,9 +1691,6 @@ def model_visible_specs(
         for candidate in queue[:hint_prefix]
     }
     demand_rule_intents = frozenset(_demand_rule_intents())
-    # Job 6d (Fix 1): the intents this turn's own wording seats fired on (owner-local);
-    # they are already in ``explicit`` (rank 0), this is the belt-and-braces tail view.
-    turn_seated = frozenset(operator_seats)
 
     def _has_path_besides_expansion(candidate: CapabilityCandidate) -> bool:
         intent = candidate.tool_intent
@@ -1699,16 +1706,19 @@ def model_visible_specs(
             return 0
         if not _has_path_besides_expansion(candidate):
             return 1 if not candidate.read_only else 2
-        # Job 6d (Fix 1): inside the path-covered tail a tool this turn's own ask seats
-        # (its wording seat fires on this text) ranks first, so the ask itself can always
-        # re-seat it; the rest keep the 6c read-before-mutate order, with this lane's
-        # added reminder mutates stepping down before every pre-lane tool (they keep the
-        # reminder wording seats and the chat-lane parser as their own surfaces).
-        if candidate.tool_intent in turn_seated:
+        # Inside the path-covered tail the 6c read-before-mutate order holds. A tool this
+        # turn's own wording seats is in ``explicit`` already (rank 0 above), so the tail
+        # holds only tools the ask did not name. Job 6d: this lane's added reminder mutates
+        # step down before every pre-lane tool (they keep the reminder wording seats and the
+        # chat-lane parser as their own surfaces). Job 6e: the calendar's entry mutate seats
+        # ahead of the other pre-lane mutates (see _CALENDAR_ENTRY_MUTATES).
+        if candidate.read_only:
             return 3
+        if candidate.tool_intent in _CALENDAR_ENTRY_MUTATES:
+            return 4
         if candidate.tool_intent in _LANE_ADDED_FAMILY_MUTATES:
             return 6
-        return 5 if not candidate.read_only else 4
+        return 5
 
     for queue in expanded_queues:
         queue.sort(key=_expanded_family_rank)
