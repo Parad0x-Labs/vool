@@ -32,7 +32,7 @@ On Windows the same pin is `-Ref v0.7.5-beta`.
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta
 ```
 
 Local Windows checkout with guided installer:
@@ -72,7 +72,7 @@ bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-max
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile local-max
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta -InstallProfile local-max
 ```
 
 Safe one-line profile shortcuts for macOS / Linux:
@@ -143,7 +143,7 @@ Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.5
 
 From 0.7.5 on, the tarball install updates inside VOOL. With "Go online on its own" on
 (Settings > Privacy & Permissions), VOOL checks for a new version when it starts and once a
-day, and shows a notice. Press Download and update. The new version is installed next to
+day, and shows a notice. Press Update. The new version is installed next to
 the running one in `~/.local/share/vool/versions/`, and `current` switches to it in one step.
 If the new version does not start properly, VOOL switches back to the previous one by
 itself. A manual Roll back button is not offered for the tarball install yet.
@@ -192,7 +192,7 @@ python -m apps.vool_api_server
 Optional local surfaces:
 
 ```bash
-python -m apps.vool_agent --interactive
+python -m apps.vool_agent --input "<message>"
 python -m apps.meet_and_greet_server
 python -m apps.brain_hive_watch_server
 ```
