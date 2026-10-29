@@ -11,7 +11,7 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 | 内存 | 8 GB | 16 GB 以上 |
 | 磁盘 | 应用本身 2 GB | 含本地模型 20 GB |
 | macOS | 14 Sonoma，Apple 芯片或 Intel | 14 Sonoma 或更新，Apple 芯片 |
-| Linux | x86_64，glibc 2.31 | Ubuntu 22.04 或 24.04 |
+| Linux | Ubuntu 22.04，x86_64 | Ubuntu 24.04 |
 | Windows | 实验性，仅从源码安装 | |
 
 ## 下载
@@ -38,7 +38,7 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 
 ## 本地模型
 
-使用本地模型前，请打开**设置 → Models & Providers → Local models**，为该模型点击一次 **Certify**（认证）。
+使用本地模型前，请打开**设置 → Models & Providers → Local models**，为该模型点击一次 **Certify**（认证）。该检查在你的电脑上运行；在没有显卡的电脑上，第一次可能需要几分钟。
 
 ## Linux
 
@@ -49,6 +49,8 @@ sha256sum -c vool-0.7.5-beta-linux-x86_64.tar.gz.sha256
 tar -xzf vool-0.7.5-beta-linux-x86_64.tar.gz
 bash vool-0.7.5-beta-linux-x86_64/install.sh
 ```
+
+从 0.7.5 起，Linux 下载版可以在 VOOL 内部更新。新版本会安装在旧版本旁边；如果新版本无法正常启动，VOOL 会自动切回旧版本。
 
 ## 校验下载
 

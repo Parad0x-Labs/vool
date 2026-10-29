@@ -25,7 +25,7 @@ VOOL 0.7.5-beta išleista Mac kompiuteriams su Apple silicon ir Intel bei Linux 
 
 ## Dvi būsenos
 
-Sąsaja visada rodo, kuri iš jų aktyvi:
+Pokalbio antraštė rodo, kuria kryptimi vyks kita užklausa. Pagal nutylėjimą ženklelis rodo `AUTO / VOOL Auto / Local first`; kai patys pasirenkate vietinį modelį, jis rodo `LOCAL`, o kai pasirenkate debesų modelį — `CLOUD`:
 
 1. **Vietinė** — darbas lieka šiame kompiuteryje.
 2. **Debesija** — pasirinktas kontekstas siunčiamas tiesiai jūsų pasirinktam tiekėjui.
