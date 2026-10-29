@@ -76,8 +76,8 @@ bash bootstrap_vool.sh --ref v0.7.5-beta
 ```
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.5-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
