@@ -761,6 +761,7 @@ def handle_turn_frontdoor(
         maybe_handle_cloud_usage_command,
         maybe_handle_connection_test_intent,
         maybe_handle_free_models_intent,
+        maybe_handle_generic_model_change_ask,
         maybe_handle_image_key_command,
         maybe_handle_model_lookup_intent,
         maybe_handle_openrouter_intent,
@@ -977,11 +978,17 @@ def handle_turn_frontdoor(
 
     _nl_actions = () if action_forbidden else (
         maybe_handle_cloud_switch_intent,
+        maybe_handle_generic_model_change_ask,
         maybe_handle_catalog_refresh_intent,
         maybe_handle_connection_test_intent,
     )
     for _nl_action in _nl_actions:
-        _action = _nl_action(_intent_input, owner_local=_owner_local)
+        # The unnamed-model answer reads the whole text itself: it claims a turn only when every other part
+        # is a remark ("youre kinda slow today, can you switch to a faster smaller model?"), see its docstring.
+        _action = _nl_action(
+            effective_input if _nl_action is maybe_handle_generic_model_change_ask else _intent_input,
+            owner_local=_owner_local,
+        )
         if _action is None:
             continue
         if _action.get("advice_only"):
