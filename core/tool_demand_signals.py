@@ -1782,6 +1782,13 @@ def resolve_demand_signals(text: str) -> DemandSignals:
         if storage_object_is_a_contact(cleaned):
             _note("contacts.save", "contacts")
             write_demand = True
+        # "nadias got a new number now, its ..." / "his number changed": an update to a saved person, read by the
+        # same owner module (audit N6 K08/K09: the model answered "I'll update my records" with no Contacts tool).
+        from core.contacts.requests import contact_detail_changed
+
+        if contact_detail_changed(cleaned):
+            _note("contacts.update", "contacts")
+            write_demand = True
     except Exception:
         pass
     for intent in mailbox_retrieval_intents(cleaned):

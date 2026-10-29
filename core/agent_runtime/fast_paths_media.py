@@ -39,6 +39,15 @@ def maybe_handle_image_generation(
     canonical `execute_authorized_runtime_tool` boundary with the held decision, so both routes
     decide identically and the generation runs exactly once.
     """
+    from core.execution.constants import PICTURE_EDIT_UNSUPPORTED_REPLY, picture_edit_request
+
+    if picture_edit_request(user_input):
+        # No VOOL tool edits or re-saves an existing picture, so the request is answered plainly
+        # instead of rendering a new image or "remembering" it (audit N5).
+        return agent._fast_path_result(
+            session_id=session_id, user_input=user_input, response=PICTURE_EDIT_UNSUPPORTED_REPLY,
+            confidence=0.9, source_context=source_context, reason="picture_edit_unsupported",
+        )
     prompt = image_generation_intent(user_input)
     if prompt is None:
         return None

@@ -1888,6 +1888,14 @@ def handle_turn_frontdoor(
     if machine_write_guard is not None:
         return {"result": machine_write_guard}
 
+    from core.agent_runtime.fast_paths_creative_set import maybe_handle_creative_set_save
+
+    creative_set = None if action_forbidden else maybe_handle_creative_set_save(
+        agent, effective_input, session_id=session_id, source_context=source_context,
+    )
+    if creative_set is not None:
+        return {"result": creative_set}
+
     from core.agent_runtime.fast_paths_media import maybe_handle_image_generation
 
     image_generation = None if action_forbidden else maybe_handle_image_generation(

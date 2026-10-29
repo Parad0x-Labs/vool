@@ -2294,9 +2294,49 @@ _IMAGE_REQUEST_VERB_RE = re.compile(
 )
 
 
+# Editing a picture that already exists is not generating one (audit N5: "make the cat picture half the size" and
+# "make it black and white" were sent to image generation, "save that as a jpg onto my desktop" to memory). The
+# object is definite -- "the cat picture", "my photo", "it" -- where a generation asks for "a picture" or "me a ...".
+_PICTURE_NOUN = r"(?:image|picture|pic|photo|photograph|screenshot|wallpaper|selfie|jpe?g|png)s?"
+_PICTURE_FORMAT = r"(?:jpe?g|png|gif|webp|heic|tiff?|bmp)"
+_DEFINITE_PICTURE = (
+    r"(?:(?:the|my|that|this|those|these|your|our)\s+(?:[\w'-]+\s+){0,3}?" + _PICTURE_NOUN + r"(?:\s+(?:of|from|in)\s+[^.?!,\n]{1,40}?)?)"
+)
+_PICTURE_EDIT_RESULT = (
+    r"(?:half|double|twice|smaller|bigger|larger|tiny|the\s+same\s+size|(?:a\s+)?(?:quarter|third)|black\s+and\s+white|b\s*&\s*w"
+    r"|gr[ae]yscale|monochrome|sepia|brighter|darker|sharper|square|landscape|portrait|smaller\s+file|lower\s+resolution"
+    r"|\d+\s*(?:px|pixels?|%|percent)|(?:an?\s+)?" + _PICTURE_FORMAT + r")\b"
+)
+_PICTURE_EDIT_RE = re.compile(
+    # make/turn/change/convert the picture <result>: "make the cat picture half the size", "turn it black and white"
+    r"\b(?:make|turn|change|convert|get)\s+(?:" + _DEFINITE_PICTURE + r"|it|that|them)\s+(?:into\s+|to\s+|in\s+)?(?:be\s+)?"
+    + _PICTURE_EDIT_RESULT
+    # a picture-editing verb on a definite picture: "resize my photo", "crop the cat picture into a square"
+    + r"|\b(?:resize|shrink|downsize|upscale|enlarge|scale(?:\s+down|\s+up)?|crop|rotate|flip|mirror|compress|desaturate)\s+"
+    + _DEFINITE_PICTURE
+    # save/export/convert it AS a picture format: "save that as a jpg onto my desktop"
+    + r"|\b(?:save|export|convert|turn|store)\s+(?:it|that|this|them|" + _DEFINITE_PICTURE + r")\s+(?:as|to|into|in)\s+(?:an?\s+)?"
+    + _PICTURE_FORMAT + r"\b",
+    re.IGNORECASE,
+)
+
+PICTURE_EDIT_UNSUPPORTED_REPLY = (
+    "I can't edit pictures yet: resizing, black and white, cropping, rotating and saving a picture in another format "
+    "aren't tools I have. Nothing was changed, generated or saved."
+)
+
+
+def picture_edit_request(text: str) -> bool:
+    """Whether the text asks to change or re-save a picture that already exists, which no VOOL tool does today."""
+    return bool(_PICTURE_EDIT_RE.search(" ".join(str(text or "").split())))
+
+
 def image_generation_intent(text: str) -> str | None:
     """Return a requested image prompt; mentions of creating images are information."""
     from core.instructional_request import requested_action_clauses
+
+    if picture_edit_request(text):
+        return None
 
     for clause in requested_action_clauses(text, _IMAGE_REQUEST_VERB_RE):
         raw = " ".join(clause.split())

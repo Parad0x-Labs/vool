@@ -136,7 +136,12 @@ _RENAME_EVENT_RE = re.compile(
 # 2026-10-19 on 153148eb). "write" alone composes; it saves only with a storing cue (write down, titled,
 # "with:", "note:", into my notes, note to self).
 _STORE_NOTE_RE = re.compile(
-    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b", re.IGNORECASE
+    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b"
+    # "keep a note for me: the code is 5523" keeps a note; "keep the note short" is about writing one.
+    r"|\bkeep\s+(?:a\s+)?(?:quick\s+|short\s+|little\s+)?note\b(?!-)"
+    # "save this: buy zucchini", "save this one: ..." -- the words after the colon are the note (audit N6).
+    r"|^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?(?:\s+for\s+me)?\s*:(?!\d)\s*\S",
+    re.IGNORECASE,
 )
 _RECORD_NOTE_RE = re.compile(
     r"\b(?P<verb>write|create|jot|take|make)\b(?P<between>[^\n!?.]*?)\bnote\b(?!-)(?P<after>[^\n!?.]*)", re.IGNORECASE
@@ -246,6 +251,12 @@ _RESTORE_NOTE_RE = re.compile(
     r"\b(?:restore|bring back|unarchive)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE,
 )
 _APPLE_NOTE_LIST_RE = re.compile(r"\b(?:list|show)\b[^\n!?.]*\bapple\s+notes\b", re.IGNORECASE)
+# One note, named, read from the Apple Notes app: "read my note about the flat viewing in apple notes".
+# Checked before the list form above, which "show my note about X in apple notes" would otherwise match.
+_APPLE_NOTE_READ_IN_APP_RE = re.compile(
+    r"\b(?:read|show|open|display)\b(?:\s+me)?\s+(?:my|the|that)\s+note\b[^\n!?.]*\b(?:in|from)\s+(?:my\s+)?apple\s+notes\b",
+    re.IGNORECASE,
+)
 _APPLE_NOTE_READ_RE = re.compile(r"\b(?:read|show|open|display)\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_APPEND_RE = re.compile(r"\bappend\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_RENAME_RE = re.compile(r"\brename\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
@@ -368,6 +379,8 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             destination_path=_calendar_name(text),
             raw_text=text,
         )
+    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
+        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     if _APPLE_NOTE_LIST_RE.search(words):
         return OperatorActionIntent(kind="apple_note_list", raw_text=text)
     if _APPLE_NOTE_READ_RE.search(words):
@@ -590,8 +603,8 @@ def _apple_note_title(text: str) -> str | None:
     values = quoted_note_values(text)
     if values:
         return values[0]
-    match = re.search(r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)", str(text or ""), re.IGNORECASE)
-    return (match.group(1).strip() or None) if match else None
+    match = re.search(r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)", str(text or ""), re.IGNORECASE)
+    return _spoken_note_title(match) if match else None
 
 
 def _apple_note_append_text(text: str) -> str | None:
@@ -673,7 +686,8 @@ def _note_query(text: str) -> str | None:
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip(" .?!") or None
+        terms = _TITLE_TRAILER_RE.sub("", match.group(1).strip())
+        return re.sub(r"^(?:the|my|a|an)\s+", "", terms, flags=re.IGNORECASE).strip() or None
     return None
 
 
@@ -683,9 +697,27 @@ def _note_title(text: str) -> str | None:
     if quoted:
         return quoted[0]
     match = re.search(
-        r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)",
+        r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)",
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip() or None
+        return _spoken_note_title(match)
     return None
+
+
+# What trails a spoken title without being part of it (audit N10: "read my note about the flat viewing in apple
+# notes?" looked for a note titled "the flat viewing in apple notes?"): the app or store it is in, a please, the
+# question mark. After "about" the words name a topic, so a leading article is not part of the title either.
+_TITLE_TRAILER_RE = re.compile(
+    r"(?:\s+(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)"
+    r"|\s+(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)"
+    r"|[\s?!.:;'\"]+)+$",
+    re.IGNORECASE,
+)
+
+
+def _spoken_note_title(match: re.Match[str]) -> str | None:
+    title = _TITLE_TRAILER_RE.sub("", match.group("title").strip())
+    if match.group("how").lower() == "about":
+        title = re.sub(r"^(?:the|my|a|an|that|this)\s+", "", title, flags=re.IGNORECASE)
+    return title.strip() or None
