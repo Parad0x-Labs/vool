@@ -295,3 +295,64 @@ def test_served_plain_advice_is_untouched() -> None:
     served, script = _served("whats a good way to remember the laundry", advice, "sess-claims-advice")
     assert script.manifests, "the drive never reached the provider seam"
     assert advice in served, served[:400]
+
+
+# ---- REVIEW2 musts --------------------------------------------------------------------------------
+
+
+def _gate_plain(text: str, request_id: str) -> tuple[str, dict]:
+    with bound_request_context(request_id):
+        context = _model_turn("help", request_id)
+        return gate_action_claims(text, turn_id=request_id, source_context=context, connected=lambda name: True)
+
+
+def test_a_claim_with_a_quoted_name_is_removed_not_left_above_its_correction() -> None:
+    text = 'Tip: keep lists short.\nI filed it as a note titled "Boiler service".'
+    published, record = _gate_plain(text, "req:r2:quote")
+    assert "Boiler service" not in published and "Tip: keep lists short." in published
+    assert "No note was saved." in published
+
+
+def test_a_trailing_check_mark_takes_the_sentence_it_confirms_with_it() -> None:
+    published, record = _gate_plain("Bins reminder: every Tuesday 7pm. ✅", "req:r2:mark")
+    assert "every Tuesday" not in published and "No reminder or timer was set" in published
+
+
+def test_a_read_claim_gets_a_not_checked_line_not_a_not_sent_line() -> None:
+    published, record = _gate_plain("I went through your inbox and the parcel notice is from DPD.", "req:r2:read")
+    assert "I haven't checked your email" in published and "sent" not in published
+
+
+def test_no_correction_is_added_when_nothing_could_be_removed(monkeypatch) -> None:
+    import core.action_claim_gate as gate_module
+
+    monkeypatch.setattr(gate_module, "_without_claims", lambda content, spans: str(content).strip())
+    text = "I've emailed the plumber."
+    published, record = _gate_plain(text, "req:r2:noremove")
+    assert published == text and record["publication"] == "stood_down:claim_not_removable"
+
+
+def test_an_unreadable_evidence_lookup_stands_the_gate_down(monkeypatch) -> None:
+    import core.final_answer_authorship as authorship
+
+    def broken(*_a, **_k):
+        raise RuntimeError("ledger unavailable")
+
+    monkeypatch.setattr(authorship, "_turn_executed_anything", broken)
+    text = "I've emailed the plumber."
+    published, record = _gate_plain(text, "req:r2:broken")
+    assert published == text and record["publication"] == "execution_evidence_present"
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "In the picture you uploaded, the reminder shows 8am and it is switched on.",
+        "Your parcel will be marked delivered once the courier scans it.",
+        "J'ai bien lu ton message : tu veux annuler le rendez-vous chez le coiffeur ?",
+        "Ho aggiunto un promemoria per domani alle 8.",
+    ),
+)
+def test_user_material_conditionals_restatements_and_unlined_languages_pass(text: str) -> None:
+    published, _record = _gate_plain(text, f"req:r2:pass:{abs(hash(text))}")
+    assert published == text

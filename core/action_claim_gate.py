@@ -38,7 +38,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "mail",
         re.compile(
-            r"\b(?:e-?mails?|emailed|inbox(?:es)?|mailbox|mail|unread|courriels?|bo[iî]te de r[ée]ception"
+            r"\b(?:e-?mails?|emailed|inbox(?:es)?|mailbox|mail|unread|newsletters?|replied to|courriels?|bo[iî]te de r[ée]ception"
             r"|correos?(?: electr[óo]nicos?)?|bandeja de entrada|posteingang|nachricht(?:en)?)\b",
             re.I,
         ),
@@ -62,7 +62,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "notes",
         re.compile(
-            r"\b(?:notes? app|apple notes|your notes|to (?:your )?notes|a note|the note|note added|note saved"
+            r"\b(?:notes? app|apple notes|your notes|your note|to (?:your )?notes|a note|the note|note added|note saved"
             r"|vos notes|une note|tus notas|una nota|notiz(?:en)?)\b",
             re.I,
         ),
@@ -70,7 +70,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "system",
         re.compile(
-            r"\b(?:system scan|your system|processes|threats?|(?:scan|check) of (?:your|this) (?:computer|machine|mac|pc|system)|running (?:on|in) (?:the background|your (?:machine|computer|mac|pc))"
+            r"\b(?:system scan|your system|process(?:es)?|services?|spooler|daemon|disk|storage|ram|cpu|battery|threats?|(?:scan|check) of (?:your|this) (?:computer|machine|mac|pc|system)|running (?:on|in) (?:the background|your (?:machine|computer|mac|pc))"
             r"|background (?:apps|tasks|processes)|malware|virus(?:es)?)\b",
             re.I,
         ),
@@ -102,7 +102,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "model",
         re.compile(
-            r"\b(?:(?:local|cloud|ai|language|chat|default) model|gpt-[\w.]+|qwen[\w.:]*|llama[\w.:]*|ollama"
+            r"\b(?:(?:local|cloud|ai|language|chat|default|smaller|larger|bigger|faster|slower|small|large|other) model|gpt-[\w.]+|qwen[\w.:]*|llama[\w.:]*|ollama"
             r"|mod[èe]le (?:local|cloud)|modelo (?:local|en la nube)|(?:lokale|cloud-)modell)\b",
             re.I,
         ),
@@ -110,10 +110,11 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "files",
         re.compile(
-            r"\b(?:videos?|photos?|pictures?|screenshots?|images?|pdfs?|files?|folders?|documents folder|downloads(?: folder)?|desktop)\b"
+            r"\b(?:videos?|photos?|pictures?|screenshots?|images?|pdfs?|files?|folders?|documents folder|downloads(?: folder)?|desktop|receipts|installers?|fichiers?|dossiers?|archivos?|carpetas?|dateien|datei|ordner|bureau|escritorio)\b"
             r"(?:[^.?!\n]{0,40}\b(?:on here|on (?:this|your) (?:computer|mac|pc|machine)|in your|from your|your desktop"
-            r"|your downloads))"
-            r"|\byour (?:downloads|desktop|documents|pictures) (?:folder)?",
+            r"|your downloads|into (?:a |the |your )?(?:new )?(?:\w+ )?folder|folder (?:called|named)|temporair\w*|temporal\w*|de tu escritorio"
+    r"|in den ordner))"
+            r"|\byour (?:downloads|desktop(?! (?:machine|computer|pc|mac))|documents|pictures) (?:folder)?",
             re.I,
         ),
     ),
@@ -125,15 +126,15 @@ _DONE_PARTICIPLES = (
     r"|created|moved|updated|changed|cancel+ed|deleted|removed|forwarded|archived|cleaned(?: up)?|started"
     r"|turned (?:on|off)|switched (?:on|off|to|back)|enabled|disabled|activated|deactivated|installed|logged"
     r"|blocked(?: out)?|pencil+ed(?: in)?|jotted(?: down)?|checked|scanned|searched|replied|passed(?: on| along)?"
-    r"|handed (?:off|over)"
+    r"|handed (?:off|over)|killed|stopped|restarted|rebooted|installed|uninstalled|verified|reviewed"
 )
 _ACT_STEMS = (
     r"add|put|set|schedul|book|creat|sav|jot|nudg|remind|ping|mov|adjust|chang|updat|reschedul"
     r"|cancel|delet|remov|pass|send|sent|forward|hand|check|scan|look|search|edit|replac|log|mark"
     r"|block|pencil|note|turn|switch|enabl|disabl|activat|deactivat|repli|start|email|text|post|tweet"
-    r"|clean|archiv|messag"
+    r"|clean|archiv|messag|kill|stop|restart|reboot|install|uninstall|verif|review|filed|file "
 )
-_ADVERBS = r"(?:(?:also|now|just|quickly|already|successfully|gone and|went ahead and|go ahead and|make sure to)\s+)*"
+_ADVERBS = r"(?:(?:also|now|just|quickly|already|successfully|gone ahead and|gone and|went ahead and|go ahead and|make sure to)\s+)*"
 _FIRST_PERSON_ACTION = re.compile(
     r"\b(?:i" + _A + r"ll|i will|i" + _A + r"ve|i have|i" + _A + r"m going to|i am going to|let me|i" + _A + r"m|i am|i)\s+"
     + _ADVERBS + r"(?:" + _ACT_STEMS + r")\w*",
@@ -159,11 +160,26 @@ _NOUN_DONE = re.compile(
 _SUBJECTLESS_DONE = re.compile(
     r"^(?:sent|emailed|texted|tweeted|posted|replied|added|scheduled|rescheduled|booked|cancel+ed|saved"
     r"|created|moved|updated|deleted|removed|forwarded|archived|cleaned|enabled|disabled|activated"
-    r"|deactivated|turned (?:on|off)|switched (?:on|off|to|back)|changed|started|now running|now using|composed|confirmed)\b"
+    r"|deactivated|turned (?:on|off)|switched|changed|started|now running|now using|composed|confirmed|killed|stopped"
+    r"|restarted|rebooted|installed|uninstalled|verified|went through)\b"
     r"|^(?:switching|changing|turning|sending|cancel+ing|adding|scheduling|moving|enabling|disabling"
     r"|reminding you|posting|forwarding)\b"
     r"(?![^.!?\n]*\b(?:is|are|can|takes|means|lets|needs|requires|works|fails|often|usually|should|will"
     r"|may|might|helps|could|would|tends)\b)",
+    re.I,
+)
+# Attribution to someone else's words exempts a sentence unless VOOL says it read them itself
+# ("I checked your email and the confirmation says ..." is a read claim).
+_ATTRIBUTION = re.compile(
+    r"\b(?:says|said|wrote|writes|according to|d" + _A + r"apr[èe]s|selon|seg[úu]n|dice|dit|laut|sagt|schreibt)\b",
+    re.I,
+)
+_FIRST_PERSON_READ = re.compile(
+    r"\b(?:i" + _A + r"ve|i have|i|let me|i" + _A + r"ll|i will|i just|i" + _A + r"m)\s+" + _ADVERBS
+    + r"(?:checked|check|checking|looked|look|looking|went through|go through|going through|scanned|scan|scanning|searched"
+    r"|search|reviewed|review|read through|verified|verify)\b"
+    r"|\b(?:j" + _A + r"ai (?:v[ée]rifi[ée]|consult[ée]|regard[ée]|parcouru)|he (?:revisado|comprobado|mirado|consultado)"
+    r"|ich habe [^.!?\n]{0,40}\b(?:gepr[üu]ft|nachgesehen|angesehen|durchgesehen))\b",
     re.I,
 )
 _DONE_MARK = re.compile(r"^[\s*_]*(?:done|all set|c" + _A + r"est fait|listo|hecho|erledigt|fertig)\b|[✅✔]", re.I)
@@ -212,7 +228,8 @@ _FOREIGN_DONE = re.compile(
     r"|añadid[oa]s?|agregad[oa]s?|programad[oa]s?|cambiad[oa]s?|guardad[oa]s?|borrad[oa]s?"
     r"|eingestellt|aktiviert|deaktiviert|gesendet|geschickt|verschickt|abgesagt|storniert|hinzugef[üu]gt"
     r"|gesetzt|ge[äa]ndert|gespeichert|umgestellt|eingetragen|gel[öo]scht|verschoben|verlegt|eingeplant|erstellt|angelegt"
-    r"|d[ée]placé(?:e|s|es)?|créé(?:e|s|es)?|movid[oa]s?|cread[oa]s?|eliminad[oa]s?"
+    r"|d[ée]placé(?:e|s|es)?|créé(?:e|s|es)?|movid[oa]s?|cread[oa]s?|eliminad[oa]s?|vérifié(?:e|s|es)?|consulté(?:e|s|es)?"
+    r"|revisad[oa]s?|comprobad[oa]s?|puest[oa]s?|gepr[üu]ft|nachgesehen|archiviert|neu gestartet"
     r"|j" + _A + r"enverrai|j" + _A + r"ajouterai|je (?:vous|te) rappellerai|recordar[ée]|enviar[ée]|añadir[ée]"
     r"|programar[ée]|ich erinnere|ich schicke|ich sende|ich trage|mis(?:e|es)? [àa] jour|actualizad[oa]s?|aktualisiert)\b",
     re.I,
@@ -237,7 +254,12 @@ _NOT_A_CLAIM = re.compile(
     # approval-pending and drafts
     r"|approv\w*|draft\w*|prepared|queued|pending|nothing (?:is|was|has been) sent|not sent|until you|review it"
     # the user's own text, and premises they gave
-    r"|says|said|wrote|writes|you pasted|you shared|you mentioned|you told me|you said|according to"
+    r"|you pasted|you shared|you mentioned|you told me|you said|you sent|you attached|you uploaded"
+    r"|in (?:your|the) (?:screenshot|photo|picture|image|file|attachment|document|pdf)"
+    r"|(?:has been|is|will be) \w+ (?:when|once|after)\b|^\s*(?:step \d+|tip)\b"
+    r"|j" + _A + r"ai (?:bien )?(?:compris|not[ée]|lu|entendu)|he (?:entendido|le[íi]do|comprendido)"
+    r"|ich habe (?:verstanden|gelesen)"
+    r"|(?:was|were|has been|have been) \w+ by (?:the|a|an|its|their|his|her)|that" + _A + r"s what"
     r"|in the (?:text|message|email|note|mail) (?:above|you)|the (?:text|message|email|note|mail) you"
     r"|since your|because your|as your|now that your|given (?:that )?your"
     # recaps of earlier turns
@@ -250,7 +272,7 @@ _NOT_A_CLAIM = re.compile(
     r"|in this code|this (?:function|script|code|method|loop)|the (?:function|script|code|loop|method|scheduler)"
     r"|vool (?:can|will|keeps|stores|schedules|switches|sends|checks|saves)"
     # fr / es / de: attribution, hedges, recaps, how-it-works
-    r"|d" + _A + r"apr[èe]s|selon|seg[úu]n|laut|dice|dit|sagt|schreibt|ne peux pas|n" + _A + r"ai pas|pas pu"
+    r"|ne peux pas|n" + _A + r"ai pas|pas pu"
     r"|vous pouvez|pouvez-vous|si vous|no puedo|no he|puedes|si quieres|kann nicht|konnte nicht"
     r"|nicht m[öo]glich|sie k[öo]nnen|wenn sie|wenn du|du kannst|kann|k[öo]nnen|wird|werden|peut|peuvent"
     r"|puede|pueden|se puede|automatiquement|localement|autom[aá]ticamente|automatisch|lokal"
@@ -273,7 +295,7 @@ _SIGN_OFF = re.compile(
 _QUOTED = re.compile(r"\"[^\"\n]{3,}\"|“[^”\n]{3,}”|«[^»\n]{3,}»|„[^“\n]{3,}“")
 _SENTENCE_SPLIT = re.compile(
     r"(?<!\bDr\.)(?<!\bMr\.)(?<!\bMs\.)(?<!\bSt\.)(?<!\bvs\.)(?<!\bMrs\.)(?<!\be\.g\.)(?<!\bi\.e\.)"
-    r"(?<=[.!?])\s+|(?<=;)\s+|\n+"
+    r"(?<=[.!?])\s+|\n+"
 )
 _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _INLINE_CODE = re.compile(r"`[^`\n]+`")
@@ -286,6 +308,7 @@ _CODE_REPLY_SOURCES = frozenset({"settings", "skills", "model", "files"})
 
 
 _ABBREVIATION = re.compile(r"\b(Dr|Mr|Mrs|Ms|St|vs)\.", re.I)
+_ONLY_MARK = re.compile(r"^[\s.!✅✔️]*[✅✔][\s.!✅✔️]*$")
 
 
 def _claim_form(sentence: str) -> str:
@@ -293,6 +316,11 @@ def _claim_form(sentence: str) -> str:
     body = _LEAD_FILLER.sub("", sentence).strip(" *_")
     if not sentence.strip() or sentence.rstrip().endswith("?") or _NOT_A_CLAIM.search(sentence):
         return ""
+    reads_itself = _FIRST_PERSON_READ.search(body)
+    if _ATTRIBUTION.search(sentence) and not reads_itself:
+        return ""
+    if reads_itself or _READ_REPORT.search(body):
+        return "read"
     if _DONE_MARK.search(sentence):
         return "action"
     if not body:
@@ -301,8 +329,6 @@ def _claim_form(sentence: str) -> str:
         return "action"
     if _SUBJECTLESS_DONE.search(body):
         return "action"
-    if _READ_REPORT.search(body):
-        return "read"
     if _NONE_FOUND.search(body) and _REPORT_MARKER.search(body):
         return "read"
     if _FREE_SLOT.search(body):
@@ -325,12 +351,18 @@ def _sources_of(sentence: str, form: str) -> list[str]:
     return found
 
 
-def _readable_lines(content: str) -> list[str]:
-    """The lines that speak for VOOL: drafts, quotations and code blocks left out."""
-    out: list[str] = []
+def _blank(match: re.Match[str]) -> str:
+    return " " * len(match.group(0))
+
+
+def _readable_lines(content: str) -> list[tuple[int, str]]:
+    """(line index, masked line) for the lines that speak for VOOL: drafts, quotations and code
+    blocks left out. Quoted text and inline code are blanked with spaces of the same length, so
+    every offset in the masked line is the same offset in the original line."""
+    out: list[tuple[int, str]] = []
     in_fence = False
     in_draft = False
-    for line in str(content or "").split("\n"):
+    for index, line in enumerate(str(content or "").split("\n")):
         if line.lstrip().startswith("```"):
             in_fence = not in_fence
             continue
@@ -346,56 +378,86 @@ def _readable_lines(content: str) -> list[str]:
         if _DRAFT_INTRO.search(line):
             in_draft = True
             continue
-        out.append(_INLINE_CODE.sub(" ", _QUOTED.sub(" ", line)))
+        out.append((index, _INLINE_CODE.sub(_blank, _QUOTED.sub(_blank, line))))
     return out
+
+
+def _sentence_spans(line: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for sep in _SENTENCE_SPLIT.finditer(line):
+        spans.append((start, sep.start()))
+        start = sep.end()
+    spans.append((start, len(line)))
+    return [(a, b) for a, b in spans if line[a:b].strip()]
+
+
+def _claim_spans(content: str) -> list[tuple[int, int, int, str, str, str]]:
+    """(line, start, end, original sentence, form, source) for every claim sentence."""
+    raw = str(content or "")
+    lines = raw.split("\n")
+    has_code = bool(_FENCE.search(raw))
+    claims: list[tuple[int, int, int, str, str, str]] = []
+    unnamed: list[tuple[int, int, int, str, str]] = []
+    for index, masked in _readable_lines(raw):
+        original = lines[index]
+        spans = _sentence_spans(masked)
+        for number, (a, b) in enumerate(spans):
+            sentence = masked[a:b].strip()
+            if _ONLY_MARK.match(sentence):
+                # A trailing check mark confirms the sentence before it: that sentence is the claim.
+                if number == 0:
+                    continue
+                a, b = spans[number - 1][0], b
+                sentence = masked[a:b].strip()
+                if _NOT_A_CLAIM.search(sentence) or sentence.rstrip(" ✅✔️.!").endswith("?"):
+                    continue
+                form = "action"
+                sources = _sources_of(sentence, form) or ["generic"]
+            else:
+                form = _claim_form(sentence)
+                if not form:
+                    continue
+                sources = _sources_of(sentence, form)
+            text = original[a:b].strip()
+            if not sources:
+                if _NOUN_DONE.search(sentence):
+                    # "Message sent to Jo." names what was done, not where: the request decides.
+                    claims.append((index, a, b, text, form, "generic"))
+                else:
+                    unnamed.append((index, a, b, text, form))
+                continue
+            for source in sources:
+                if has_code and source in _CODE_REPLY_SOURCES:
+                    continue
+                claims.append((index, a, b, text, form, source))
+    if claims and unnamed:
+        # "Forwarded the invoice to Priya. Sent it from your email." -- a done-sentence that names
+        # no source belongs to the claim the rest of the reply makes.
+        named = [c[5] for c in claims if c[5] != "generic"]
+        first = named[0] if named else claims[0][5]
+        claims = [(i, a, b, t, f, first) for i, a, b, t, f in unnamed] + claims
+    return claims
 
 
 def action_claims(content: str) -> list[tuple[str, str, str]]:
     """`(sentence, form, source)` for every sentence of ``content`` that says an action on, or a
     read of, a live source happened. ``form`` is "action" or "read"."""
-    raw = str(content or "")
-    has_code = bool(_FENCE.search(raw))
-    claims: list[tuple[str, str, str]] = []
-    unnamed: list[str] = []
-    for line in _readable_lines(raw):
-        for part in _SENTENCE_SPLIT.split(line):
-            sentence = part.strip()
-            if not sentence:
-                continue
-            form = _claim_form(sentence)
-            if not form:
-                continue
-            sources = _sources_of(sentence, form)
-            if not sources:
-                unnamed.append(sentence)
-                if _NOUN_DONE.search(sentence):
-                    # "Message sent to Jo." names what was done, not where: the request decides.
-                    claims.append((sentence, form, "generic"))
-                    unnamed.pop()
-            for source in sources:
-                if has_code and source in _CODE_REPLY_SOURCES:
-                    continue
-                claims.append((sentence, form, source))
-    if claims and unnamed:
-        # "Forwarded the invoice to Priya. Sent it from your email." -- a done-sentence that names
-        # no source belongs to the claim the rest of the reply makes.
-        first = next(c[2] for c in claims if c[2] != "generic") if any(c[2] != "generic" for c in claims) else claims[0][2]
-        claims = [(s, _claim_form(s), first) for s in unnamed] + claims
-    return claims
+    return [(c[3], c[4], c[5]) for c in _claim_spans(content)]
 
 
 # ---- the correction lines, in the reply's language ---------------------------------------------
 _LINES: dict[str, dict[str, str]] = {
     "en": {
         "mail_none_read": "No email account is connected yet, so I haven't checked any inbox. You can add one under Settings > Email accounts.",
-        "mail_none_send": "No email account is connected yet, so nothing was sent. You can add one under Settings > Email accounts.",
+        "mail_none_send": "No email account is connected yet, so nothing was sent or changed. You can add one under Settings > Email accounts.",
         "mail_read": "I haven't checked your email in this reply. Ask me to check your email and I'll read it.",
-        "mail_send": "No email was sent. Ask me to draft it and I'll show it to you before anything goes out.",
+        "mail_send": "No email was sent or changed. Ask me to draft it and I'll show it to you before anything goes out.",
         "calendar_none": "No calendar is configured or chosen in Settings yet, so I haven't read or changed your schedule. You can connect one under Settings > Calendars.",
         "calendar": "I haven't read or changed your calendar. Ask again with the day and time and I'll use the calendar.",
         "reminders": "No reminder or timer was set, changed or cancelled. Ask me again with the time and I'll do it.",
         "notes": "No note was saved. Ask me to add it as a note and I'll save it.",
-        "system": "I haven't scanned this computer or looked at what's running. Ask me to list the running processes and I'll check.",
+        "system": "I haven't checked or changed anything running on this computer. Ask me to list the running processes and I'll look.",
         "device": "Nothing was sent to another machine.",
         "social": "I haven't looked at or posted anything on X (Twitter). Ask me to look it up and I'll check.",
         "texts": "No text message was sent.",
@@ -403,18 +465,21 @@ _LINES: dict[str, dict[str, str]] = {
         "skills": "No skill was turned on or off. You can do that in the skills settings.",
         "model": "The model was not switched. You can choose the model in Settings → Models.",
         "files": "I haven't looked through or changed your files. Ask me to search your files and I'll look.",
+        "reminders_read": "I haven't checked your reminders. Ask me to list them and I'll look.",
+        "notes_read": "I haven't looked through your notes. Ask me to search your notes and I'll look.",
+        "device_read": "I haven't checked your other machine.",
         "generic": "Nothing was done yet: no tool ran for this request. Ask again and I'll do it with the right tool.",
     },
     "fr": {
         "mail_none_read": "Aucun compte e-mail n'est encore connecté, je n'ai donc consulté aucune boîte de réception. Vous pouvez en ajouter un dans Réglages > Comptes e-mail.",
-        "mail_none_send": "Aucun compte e-mail n'est encore connecté, donc rien n'a été envoyé. Vous pouvez en ajouter un dans Réglages > Comptes e-mail.",
+        "mail_none_send": "Aucun compte e-mail n'est encore connecté, donc rien n'a été envoyé ni modifié. Vous pouvez en ajouter un dans Réglages > Comptes e-mail.",
         "mail_read": "Je n'ai pas consulté vos e-mails dans cette réponse. Demandez-moi de vérifier vos e-mails et je les lirai.",
-        "mail_send": "Aucun e-mail n'a été envoyé. Demandez-moi un brouillon et je vous le montrerai avant tout envoi.",
+        "mail_send": "Aucun e-mail n'a été envoyé ni modifié. Demandez-moi un brouillon et je vous le montrerai avant tout envoi.",
         "calendar_none": "Aucun calendrier n'est encore configuré dans les Réglages, je n'ai donc ni lu ni modifié votre agenda. Vous pouvez en connecter un dans Réglages > Calendriers.",
         "calendar": "Je n'ai ni lu ni modifié votre calendrier. Redemandez avec le jour et l'heure et j'utiliserai le calendrier.",
         "reminders": "Aucun rappel ni minuteur n'a été créé, modifié ou annulé. Redemandez avec l'heure et je le ferai.",
         "notes": "Aucune note n'a été enregistrée. Demandez-moi de l'ajouter comme note et je l'enregistrerai.",
-        "system": "Je n'ai pas analysé cet ordinateur ni regardé ce qui tourne. Demandez-moi la liste des processus et je vérifierai.",
+        "system": "Je n'ai ni vérifié ni modifié ce qui tourne sur cet ordinateur. Demandez-moi la liste des processus et je vérifierai.",
         "device": "Rien n'a été envoyé à une autre machine.",
         "social": "Je n'ai rien consulté ni publié sur X (Twitter). Demandez-moi de chercher et je vérifierai.",
         "texts": "Aucun SMS n'a été envoyé.",
@@ -422,18 +487,21 @@ _LINES: dict[str, dict[str, str]] = {
         "skills": "Aucune compétence n'a été activée ou désactivée. Vous pouvez le faire dans les réglages des compétences.",
         "model": "Le modèle n'a pas été changé. Vous pouvez choisir le modèle dans Réglages → Modèles.",
         "files": "Je n'ai ni parcouru ni modifié vos fichiers. Demandez-moi de chercher dans vos fichiers et je regarderai.",
+        "reminders_read": "Je n'ai pas consulté vos rappels. Demandez-moi de les lister et je regarderai.",
+        "notes_read": "Je n'ai pas parcouru vos notes. Demandez-moi de chercher dans vos notes et je regarderai.",
+        "device_read": "Je n'ai pas vérifié votre autre machine.",
         "generic": "Rien n'a encore été fait : aucun outil n'a été utilisé pour cette demande. Redemandez et je le ferai avec le bon outil.",
     },
     "es": {
         "mail_none_read": "Todavía no hay ninguna cuenta de correo conectada, así que no he revisado ninguna bandeja de entrada. Puedes añadir una en Ajustes > Cuentas de correo.",
-        "mail_none_send": "Todavía no hay ninguna cuenta de correo conectada, así que no se ha enviado nada. Puedes añadir una en Ajustes > Cuentas de correo.",
+        "mail_none_send": "Todavía no hay ninguna cuenta de correo conectada, así que no se ha enviado ni cambiado nada. Puedes añadir una en Ajustes > Cuentas de correo.",
         "mail_read": "No he revisado tu correo en esta respuesta. Pídeme que revise tu correo y lo leeré.",
-        "mail_send": "No se ha enviado ningún correo. Pídeme un borrador y te lo mostraré antes de enviar nada.",
+        "mail_send": "No se ha enviado ni cambiado ningún correo. Pídeme un borrador y te lo mostraré antes de enviar nada.",
         "calendar_none": "Todavía no hay ningún calendario configurado en Ajustes, así que no he leído ni cambiado tu agenda. Puedes conectar uno en Ajustes > Calendarios.",
         "calendar": "No he leído ni cambiado tu calendario. Vuelve a pedirlo con el día y la hora y usaré el calendario.",
         "reminders": "No se ha creado, cambiado ni cancelado ningún recordatorio ni temporizador. Vuelve a pedirlo con la hora y lo haré.",
         "notes": "No se ha guardado ninguna nota. Pídeme que la añada como nota y la guardaré.",
-        "system": "No he analizado este ordenador ni mirado qué se está ejecutando. Pídeme la lista de procesos y lo comprobaré.",
+        "system": "No he revisado ni cambiado nada de lo que se ejecuta en este ordenador. Pídeme la lista de procesos y lo comprobaré.",
         "device": "No se ha enviado nada a otra máquina.",
         "social": "No he mirado ni publicado nada en X (Twitter). Pídeme que lo busque y lo comprobaré.",
         "texts": "No se ha enviado ningún mensaje de texto.",
@@ -441,18 +509,21 @@ _LINES: dict[str, dict[str, str]] = {
         "skills": "No se ha activado ni desactivado ninguna habilidad. Puedes hacerlo en los ajustes de habilidades.",
         "model": "No se ha cambiado el modelo. Puedes elegir el modelo en Ajustes → Modelos.",
         "files": "No he revisado ni cambiado tus archivos. Pídeme que busque en tus archivos y lo miraré.",
+        "reminders_read": "No he revisado tus recordatorios. Pídeme que los liste y lo miraré.",
+        "notes_read": "No he revisado tus notas. Pídeme que busque en tus notas y lo miraré.",
+        "device_read": "No he revisado tu otra máquina.",
         "generic": "Todavía no se ha hecho nada: no se usó ninguna herramienta para esta petición. Vuelve a pedirlo y lo haré con la herramienta adecuada.",
     },
     "de": {
         "mail_none_read": "Es ist noch kein E-Mail-Konto verbunden, daher habe ich keinen Posteingang geprüft. Du kannst eines unter Einstellungen > E-Mail-Konten hinzufügen.",
-        "mail_none_send": "Es ist noch kein E-Mail-Konto verbunden, daher wurde nichts gesendet. Du kannst eines unter Einstellungen > E-Mail-Konten hinzufügen.",
+        "mail_none_send": "Es ist noch kein E-Mail-Konto verbunden, daher wurde nichts gesendet oder geändert. Du kannst eines unter Einstellungen > E-Mail-Konten hinzufügen.",
         "mail_read": "Ich habe deine E-Mails in dieser Antwort nicht geprüft. Bitte mich, deine E-Mails zu prüfen, und ich lese sie.",
-        "mail_send": "Es wurde keine E-Mail gesendet. Bitte mich um einen Entwurf, und ich zeige ihn dir, bevor etwas rausgeht.",
+        "mail_send": "Es wurde keine E-Mail gesendet oder geändert. Bitte mich um einen Entwurf, und ich zeige ihn dir, bevor etwas rausgeht.",
         "calendar_none": "In den Einstellungen ist noch kein Kalender eingerichtet, daher habe ich deinen Kalender weder gelesen noch geändert. Du kannst einen unter Einstellungen > Kalender verbinden.",
         "calendar": "Ich habe deinen Kalender weder gelesen noch geändert. Frag noch einmal mit Tag und Uhrzeit, und ich nutze den Kalender.",
         "reminders": "Es wurde keine Erinnerung und kein Timer gesetzt, geändert oder gelöscht. Frag noch einmal mit der Uhrzeit, und ich mache es.",
         "notes": "Es wurde keine Notiz gespeichert. Bitte mich, sie als Notiz hinzuzufügen, und ich speichere sie.",
-        "system": "Ich habe diesen Computer nicht geprüft und nicht nachgesehen, was läuft. Bitte mich um die Liste der Prozesse, und ich sehe nach.",
+        "system": "Ich habe nichts geprüft oder geändert, was auf diesem Computer läuft. Bitte mich um die Liste der Prozesse, und ich sehe nach.",
         "device": "Es wurde nichts an ein anderes Gerät gesendet.",
         "social": "Ich habe auf X (Twitter) nichts angesehen oder gepostet. Bitte mich, es nachzuschlagen, und ich sehe nach.",
         "texts": "Es wurde keine SMS gesendet.",
@@ -460,13 +531,25 @@ _LINES: dict[str, dict[str, str]] = {
         "skills": "Es wurde keine Fähigkeit ein- oder ausgeschaltet. Das geht in den Fähigkeiten-Einstellungen.",
         "model": "Das Modell wurde nicht gewechselt. Du kannst das Modell unter Einstellungen → Modelle wählen.",
         "files": "Ich habe deine Dateien weder durchsucht noch geändert. Bitte mich, deine Dateien zu durchsuchen, und ich sehe nach.",
+        "reminders_read": "Ich habe deine Erinnerungen nicht geprüft. Bitte mich, sie aufzulisten, und ich sehe nach.",
+        "notes_read": "Ich habe deine Notizen nicht durchgesehen. Bitte mich, deine Notizen zu durchsuchen, und ich sehe nach.",
+        "device_read": "Ich habe dein anderes Gerät nicht geprüft.",
         "generic": "Es wurde noch nichts gemacht: Für diese Anfrage lief kein Werkzeug. Frag noch einmal, und ich mache es mit dem richtigen Werkzeug.",
     },
 }
 _LANG_WORDS = {
-    "fr": re.compile(r"\b(?:le|la|les|des|est|et|vous|votre|je|j" + _A + r"ai|pour|une|pas|dans|sur|à)\b", re.I),
+    "fr": re.compile(r"\b(?:le|la|les|des|est|et|vous|votre|je|j" + _A + r"ai|pour|une|pas|dans|sur|à|ton|ta|tes|mon|ma|mes|aucun|aucune)\b", re.I),
     "es": re.compile(r"\b(?:el|los|las|es|y|tu|te|he|para|una|por|del|en|que|con|ya)\b", re.I),
     "de": re.compile(r"\b(?:der|die|das|ist|und|ich|du|dich|dein|deine|habe|für|nicht|ein|eine|im|um|wurde)\b", re.I),
+}
+_LANG_WORDS["es"] = re.compile(
+    r"\b(?:el|los|las|es|y|tu|tus|te|he|para|una|por|del|en|que|con|ya|listo|puesto|est[aá]|ningún|ninguna)\b", re.I
+)
+# Languages with no correction lines yet: a reply in one of them is left untouched rather than
+# given an English line.
+_UNLINED_WORDS = {
+    "it": re.compile(r"\b(?:ho|hai|gli|della|delle|che|non|sono|è|ci|domani|grazie|il|un|una|ti|tuo|tua)\b", re.I),
+    "pt": re.compile(r"\b(?:você|não|seu|sua|eu|foi|obrigad[oa]|já|uma|um|do|da|dos|das|em|para|o|os|com)\b", re.I),
 }
 _EN_WORDS = re.compile(r"\b(?:the|is|and|you|your|i|to|for|a|an|it|in|on|of|was|have)\b", re.I)
 
@@ -478,6 +561,9 @@ def reply_language(text: str) -> str:
     counts = {lang: len(words.findall(body)) for lang, words in _LANG_WORDS.items()}
     english = len(_EN_WORDS.findall(body))
     lang, count = max(counts.items(), key=lambda kv: kv[1])
+    other, other_count = max(((k, len(w.findall(body))) for k, w in _UNLINED_WORDS.items()), key=lambda kv: kv[1])
+    if other_count >= 2 and other_count > count and other_count > english:
+        return other
     if count >= 2 and count > english:
         return lang
     if english:
@@ -535,6 +621,8 @@ def _line_key(source: str, forms: frozenset[str], connected: Callable[[str], boo
         return "mail_send" if sent else "mail_read"
     if source == "calendar":
         return "calendar_none" if connected("calendar") is False else "calendar"
+    if "action" not in forms and f"{source}_read" in _LINES["en"]:
+        return f"{source}_read"
     return source if source in _LINES["en"] else "generic"
 
 
@@ -565,7 +653,7 @@ def _any_execution(turn_id: str, source_context: Any) -> bool:
         if _turn_executed_anything(turn_id, source_context):
             return True
     except Exception:
-        pass
+        return True  # the evidence could not be read: stand down rather than correct a real run
     if isinstance(source_context, dict):
         if source_context.get("runtime_tool_observations") or source_context.get("fresh_data_retrieval_receipts"):
             return True
@@ -586,30 +674,27 @@ _FLUFF = re.compile(
 )
 
 
-def _without_claims(content: str, claimed: set[str]) -> str:
-    """``content`` with the claimed sentences taken out; '' when only filler would be left."""
+def _without_claims(content: str, spans: set[tuple[int, int, int]]) -> str:
+    """``content`` with the claimed sentence spans cut out; '' when only filler would be left."""
+    by_line: dict[int, list[tuple[int, int]]] = {}
+    for index, a, b in spans:
+        by_line.setdefault(index, []).append((a, b))
     kept_lines: list[str] = []
-    for line in str(content or "").split("\n"):
-        if not line.strip():
-            kept_lines.append("")
-            continue
-        parts = re.split(r"(?<=[.!?;])\s+", line)
-        kept = [p for p in parts if p.strip() and p.strip() not in claimed
-                and _LEAD_FILLER.sub("", p).strip(" *_-") not in {s.strip() for s in claimed}]
-        if not kept:
-            continue
-        if len(kept) == len(parts):
+    for index, line in enumerate(str(content or "").split("\n")):
+        cuts = sorted(by_line.get(index, []), reverse=True)
+        if not cuts:
             kept_lines.append(line)
-        else:
-            text = " ".join(kept).strip()
-            bullet = re.match(r"^(\s*(?:[-*•]|\d+[.)])\s+)", line)
-            if bullet and not text.startswith(bullet.group(1).strip()):
-                text = bullet.group(1) + text
-            kept_lines.append(text)
+            continue
+        for a, b in cuts:
+            line = line[:a] + line[b:]
+        text = re.sub(r"[ \t]{2,}", " ", line).rstrip()
+        if not _LEAD_FILLER.sub("", text).strip(" -*_.!,:;—–✅✔️"):
+            continue
+        kept_lines.append(text)
     body = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
     meaningful = [
         s for s in _SENTENCE_SPLIT.split(body)
-        if _LEAD_FILLER.sub("", s).strip(" -*_.!,") and not _FLUFF.match(_LEAD_FILLER.sub("", s).strip())
+        if _LEAD_FILLER.sub("", s).strip(" -*_.!,✅✔️") and not _FLUFF.match(_LEAD_FILLER.sub("", s).strip())
     ]
     return body if meaningful else ""
 
@@ -634,10 +719,14 @@ def gate_action_claims(
     authored, recorded_request = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not authored:
         return text, {"publication": "stood_down:not_model_authored"}
-    claims = action_claims(text)
-    if not claims:
+    spans = _claim_spans(text)
+    if not spans:
         return text, {"publication": "stood_down:no_action_claims"}
+    claims = [(c[3], c[4], c[5]) for c in spans]
     sources = list(dict.fromkeys(c[2] for c in claims))
+    language = reply_language(text)
+    if language not in _LINES:
+        return text, {"action_claims": sources, "publication": "stood_down:language_without_lines", "language": language}
     request = str(request_text or "") or recorded_request
     try:
         from core.stipulated_frame import has_stipulated_frame
@@ -654,12 +743,18 @@ def gate_action_claims(
         if from_request:
             claims = [(c[0], c[1], from_request[0] if c[2] == "generic" else c[2]) for c in claims]
             sources = list(dict.fromkeys(c[2] for c in claims))
+    if any(source != "generic" for source in sources):
+        # "Done! I set a timer." -- the named source carries the line; no extra generic one.
+        claims = [(c[0], c[1], next(s for s in sources if s != "generic") if c[2] == "generic" else c[2]) for c in claims]
+        sources = list(dict.fromkeys(c[2] for c in claims))
     forms: dict[str, set[str]] = {}
     for _sentence, form, source in claims:
         forms.setdefault(source, set()).add(form)
-    language = reply_language(text)
+    remainder = _without_claims(text, {(c[0], c[1], c[2]) for c in spans})
+    if remainder == text.strip():
+        # Nothing could be cut: never add a correction under a claim that stays.
+        return text, {"action_claims": sources, "publication": "stood_down:claim_not_removable"}
     correction = no_action_reply(sources, connected=connected, forms=forms, language=language)
-    remainder = _without_claims(text, {c[0] for c in claims})
     published = f"{remainder}\n\n{correction}" if remainder else correction
     return published, {
         "action_claims": sources,
