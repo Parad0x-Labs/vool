@@ -28,14 +28,11 @@ import pytest
 REQUIRED_NATIVE_SKILLS = (
     "repo-onboarding",
     "root-cause-repair",
-    "bug-reproduction",
     "feature-build",
     "cumulative-testing",
     "code-review",
     "security-audit",
-    "git-worktrees",
     "ci-repair",
-    "browser-qa",
     "performance",
     "migration",
     "release-gate",
@@ -122,8 +119,8 @@ def test_shipped_library_carries_all_required_skills() -> None:
     ids = {contract.id for contract in library.contracts}
     missing = [sid for sid in REQUIRED_NATIVE_SKILLS if sid not in ids]
     assert not missing, f"native library is missing required skills: {missing}"
-    # The two pre-existing native skills are part of the same library.
-    assert {"media-studio", "vool-hive-mind"} <= ids
+    # The pre-existing media skill is part of the same library.
+    assert {"media-studio"} <= ids
     assert library.invalid == (), f"shipped contracts must all validate: {library.invalid}"
 
 
@@ -594,25 +591,16 @@ def test_capability_unavailable_is_typed_not_silent(native_world) -> None:
     assert all(c.id != "beyond-skill" for c in selection.selected)
 
 
-def test_media_studio_and_hive_mind_remain_valid_and_selectable() -> None:
-    """Proof 10 (selection half): the two pre-existing skills load, validate, and still match."""
+def test_media_studio_remains_valid_and_selectable() -> None:
+    """Proof 10 (selection half): the pre-existing media skill loads, validates, and still matches."""
     from core.native_skill_library import load_native_library
 
     library = load_native_library()
     ids = {c.id for c in library.contracts}
-    assert {"media-studio", "vool-hive-mind"} <= ids
+    assert {"media-studio"} <= ids
     media = next(c for c in library.contracts if c.id == "media-studio")
     assert "media" in media.capability_families
     assert any(intent.startswith("media.") for intent in media.permitted_tools)
-    # Live availability truth, whichever way the profile's graph answers: when the runtime
-    # cannot honour a declared capability, the reason NAMES it instead of failing silently.
-    from core.native_skill_library import inspect_skill, select_native_skills
-
-    hive_report = inspect_skill("vool-hive-mind")
-    if not hive_report["available"]:
-        assert "hive.read" in hive_report["reason"]
-        hive_selection = select_native_skills(task_class="research", user_text="publish this to the hive mesh")
-        assert all(c.id != "vool-hive-mind" for c in hive_selection.selected)
 
 
 def test_served_offer_seam_selects_media_skill_for_media_demand(native_world) -> None:

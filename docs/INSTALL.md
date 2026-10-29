@@ -316,6 +316,21 @@ In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how
 - The strongest default install lane is still accurate auto selection from current hardware and configured providers.
 - Safe machine reads are intentionally narrow: Desktop, Downloads, and Documents are supported; arbitrary filesystem reads outside the active workspace are not.
 
+## Local Model By Hardware
+
+With Ollama, VOOL picks the largest local Qwen model the machine can run (`core/hardware_tier.py`):
+
+| Model | GPU memory | or system memory | Apple Silicon memory |
+|---|---|---|---|
+| `qwen2.5:72b` | 48 GB | 80 GB | 96 GB |
+| `qwen2.5:32b` | 20 GB | 48 GB | 64 GB |
+| `qwen2.5:14b` | 10 GB | 24 GB | 36 GB |
+| `qwen2.5:7b` | 4 GB | 12 GB | 12 GB |
+| `qwen2.5:3b` | 2 GB | 6 GB | 6 GB |
+| `qwen2.5:0.5b` | less | less | less |
+
+To use a different Ollama model, set `VOOL_OLLAMA_MODEL` (for example `VOOL_OLLAMA_MODEL=mistral:7b`) before starting VOOL.
+
 ## Troubleshooting
 
 - If install succeeded but the local API is missing, verify `http://127.0.0.1:11435/healthz`.

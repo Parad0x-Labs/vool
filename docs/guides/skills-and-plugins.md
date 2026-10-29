@@ -31,7 +31,7 @@ Two rules hold for both sources:
 
 ## Finding skills
 
-Skills & Plugins lists VOOL's own skills first. **Browse** comes with 53 ready VOOL
+Skills & Plugins lists VOOL's own skills first. **Browse** comes with 51 ready VOOL
 skills. They are text-only: each one is a set of instructions, bundled with the app, so
 Browse lists them without a lookup online. VOOL skills that use VOOL tools are listed in
 the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you

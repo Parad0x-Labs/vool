@@ -44,8 +44,9 @@ MAX_DOCTRINE_SKILLS = 2
 #: Character budgets per lane. These are DERIVED FROM THE COMPOSED LIBRARY'S REAL
 #: BODIES, not guessed. The task lane's worst real composition is the served
 #: archaeology turn -- a debugging request that also asks for file history --
-#: which needs root-cause-repair (1760) + bug-reproduction (1690) +
-#: project-archaeology (3735) = 7185, and the doctrine lane's is
+#: which needed root-cause-repair (1760) + bug-reproduction (1690) +
+#: project-archaeology (3735) = 7185 (bug-reproduction has since merged into
+#: root-cause-repair: 2761 + 3735 = 6496 today), and the doctrine lane's is
 #: answer-presentation (1481) + the widest lens (1082) = 2563; each block adds one
 #: ~150-char header.
 #:
