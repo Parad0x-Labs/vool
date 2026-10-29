@@ -1,0 +1,217 @@
+{
+  "web0.open_builder_draft": {
+    "use_when": "The person wants a small web page or app mocked up from a title and some code, and wants it opened as a local draft they can view and edit.",
+    "examples": [
+      "make me a simple landing page for my bakery and open it as a draft",
+      "open this html as a draft called Pet Tracker",
+      "can you put together a one-page portfolio site and show it to me",
+      "build a tiny countdown timer page and open it",
+      "spin up a draft of a todo app with a dark theme pls",
+      "turn this code into a page i can preview: <h1>Hello</h1>",
+      "create a draft site titled Birthday Invite with confetti animation",
+      "pls make a quick pricing table page n open it",
+      "start a new page draft for my band, domain should be noisyfrogs.null",
+      "mock up a login screen and open it in a draft",
+      "Hazme una página sencilla para mi tienda de velas y ábrela como borrador",
+      "Crée un brouillon de page web pour mon club de lecture et ouvre-le",
+      "Erstelle mir eine einfache Webseite für mein Café und öffne sie als Entwurf",
+      "Sukurk man paprastą portfolio puslapį ir atidaryk jį kaip juodraštį"
+    ],
+    "not_for": [
+      "how do I learn to write HTML and CSS?",
+      "what's the difference between a domain and a hosting plan?",
+      "write a short bio paragraph for my website",
+      "explain what a landing page is and why it matters",
+      "my website feels slow, any tips to make it faster?",
+      "I love building websites as a hobby, it's so relaxing"
+    ]
+  },
+  "web0.create_project": {
+    "use_when": "The person wants to start a new local website project for a .null domain they name, built from a chosen template, optionally with a project name.",
+    "examples": [
+      "Start a new site for mydog.null using the portfolio template",
+      "make me a project for bakery.null with the blog template",
+      "can you please set up a new builder project for jane.null, call it Jane's Portfolio",
+      "new project domain: coolstuff.null template landing-page",
+      "i wanna build a website on shop42.null, use the store template",
+      "create a project for my band's .null domain, template is musician",
+      "spin up a fresh site from the resume template for alex.null",
+      "start projct for travelnotes.null w/ blog template name it Travel Notes",
+      "Could you kindly begin a new local project on garden.null from the minimal template?",
+      "set up a site for mycafe.null from template simple-menu",
+      "Crea un proyecto nuevo para tienda.null con la plantilla de portafolio",
+      "Lance un nouveau projet de site pour boulangerie.null avec le modèle blog",
+      "Erstelle bitte ein neues Projekt für meinedomain.null mit der Landing-Page-Vorlage",
+      "Sukurk naują svetainės projektą domenui knygos.null su tinklaraščio šablonu"
+    ],
+    "not_for": [
+      "How do I pick a good template for a personal website?",
+      "What is a .null domain and how does it work?",
+      "Write an About Me paragraph for my new site",
+      "Explain how websites get hosted",
+      "I'm thinking about building a website someday, lol"
+    ]
+  },
+  "web0.fill_slots": {
+    "use_when": "The person wants to put actual content, such as a title, tagline or section text, into a website project they are building on their own computer.",
+    "examples": [
+      "Set the title of my site project to \"Sunny Paws Dog Walking\"",
+      "put 'Fresh bread, every morning' as the tagline on my bakery page project",
+      "fill in the sections on my portfolio site: About, Work, Contact",
+      "can you add the headline and tagline to project 12 pls",
+      "update my landing page title to Spring Sale 2025",
+      "fill the about section of my builder project with 'We repair bikes since 1998'",
+      "change tagline on the cafe site to 'Coffee, but better'",
+      "pls fill out all the blank sections in my website projct",
+      "Set title = Ana's Photography, tagline = Moments that last",
+      "Could you kindly put the intro text into the services section of my site?",
+      "Pon el título «Panadería Luna» y el eslogan «Pan fresco cada día» en mi proyecto web",
+      "Mets le titre « Atelier Soleil » et le slogan dans mon projet de site",
+      "Trag bitte den Titel und den Slogan in mein Website-Projekt ein",
+      "Įrašyk savo svetainės projekto pavadinimą ir šūkį: „Kavinė Rytas“"
+    ],
+    "not_for": [
+      "how do I pick a good tagline for a bakery website",
+      "write me five tagline ideas for my dog walking business",
+      "what's the difference between a title and a heading in web design",
+      "I love building websites, it's so relaxing",
+      "explain how sections should be laid out on a landing page"
+    ]
+  },
+  "web0.add_block": {
+    "use_when": "The person is building a page in their website builder project and wants a new heading, text paragraph, quote, callout, image, or divider added to it.",
+    "examples": [
+      "add a heading that says Our Story to the about page",
+      "put a divider under the intro section",
+      "Can you please add a quote block to my homepage?",
+      "insert an image block at the top of the pricing page",
+      "add a callout saying free shipping over $50",
+      "new text block on the contact page: we reply within 24h",
+      "add paragraph to services page pls",
+      "throw a divider between the hero and the features",
+      "Could you add a heading 'Meet the Team' as the second block on the about page?",
+      "add a qoute block at the bottom of the testimonials page",
+      "Añade un encabezado que diga Contacto en la página de inicio",
+      "Ajoute un bloc de citation en bas de la page À propos",
+      "Füge der Startseite einen Trenner unter dem Titel hinzu",
+      "Pridėk antraštę „Apie mus“ į pagrindinį puslapį",
+      "add a callout box to the faq page"
+    ],
+    "not_for": [
+      "how do I make my headings look better on a website?",
+      "write me a paragraph about our company history",
+      "what is a callout block and when should I use one?",
+      "give me some famous quotes about success",
+      "what's the best image size for a website banner?",
+      "I love how clean dividers look on modern sites"
+    ]
+  },
+  "web0.add_gated_section": {
+    "use_when": "The person is building a page or project and wants to lock a piece of content so only a chosen list of crypto wallet addresses can read it.",
+    "examples": [
+      "lock this section so only these wallet addresses can see it",
+      "add a members-only block to my page for the wallets on my list",
+      "hide the pricing part behind a whitelist",
+      "can you make a private section on my landing page just for token holders",
+      "encrypt this paragraph for the wallets in my allowlist pls",
+      "put the download links in a gated block, only my collaborators' wallets should get in",
+      "add a gated section labeled VIP perks to the homepage",
+      "make this text visible only to whitelisted wallets",
+      "gate the secret roadmap section whitelist these addresses",
+      "i need a locked block on my about page for my dao members",
+      "Agrega una sección privada que solo puedan ver estas carteras de mi lista blanca",
+      "Ajoute une section cachée réservée aux portefeuilles de ma liste d'accès",
+      "Füge einen verschlüsselten Abschnitt hinzu, den nur diese Wallets sehen dürfen",
+      "Pridėk uždarą skyrių, kurį matytų tik mano sąraše esančios piniginės"
+    ],
+    "not_for": [
+      "how does AES-GCM encryption work?",
+      "write a teaser paragraph for my members-only section",
+      "what's a good way to decide who goes on a whitelist?",
+      "what is a crypto wallet?",
+      "remove the gated block from my page",
+      "I love how exclusive NFT communities feel"
+    ]
+  },
+  "web0.encrypt_whole_site": {
+    "use_when": "The person wants all the text on every page of their site locked so that only a chosen list of wallets can read it.",
+    "examples": [
+      "lock down my whole site so only these wallets can read it",
+      "encrypt all the text on every page, only me and my partner's wallets should see it",
+      "make every page private to my whitelist of wallets",
+      "Can you please encrypt the entire site for the wallets on my allowed list?",
+      "encrpyt everything on my site, only ciphertext should be left",
+      "hide all the content across all pages behind my wallet whitelist",
+      "gate the whole website, text on every page encrypted for these 3 wallets",
+      "I want the full site locked so just my DAO members' wallets can read the text",
+      "encrypt all pages now pls",
+      "Please encrypt every text block on all pages of my landing site and label it members only",
+      "Cifra todo el texto de todas las páginas de mi sitio para que solo lo lean estas carteras",
+      "Chiffre tout le contenu de mon site pour que seuls les portefeuilles de ma liste puissent le lire",
+      "Verschlüssle bitte den gesamten Text auf allen Seiten meiner Website nur für meine Wallet-Liste",
+      "Užšifruok visą mano svetainės tekstą visuose puslapiuose, kad jį matytų tik šios piniginės"
+    ],
+    "not_for": [
+      "how does wallet whitelist encryption work?",
+      "write a paragraph about why website privacy matters",
+      "encrypt just the text in the hero block on my home page",
+      "what's the best way to keep my site content private?",
+      "explain the difference between encryption and hashing",
+      "my friend says encryption is overrated lol"
+    ]
+  },
+  "web0.compile_preview": {
+    "use_when": "The person wants to see how their website or builder project currently looks as a preview, without publishing it or making it live.",
+    "examples": [
+      "show me a preview of my site before I publish it",
+      "can I see what my website looks like right now",
+      "preview the project pls",
+      "generate a preview of my landing page, don't publish it",
+      "i wanna check my site build before it goes live",
+      "Could you please make a preview of my project so I can look it over?",
+      "render my page so i can see it",
+      "build me a quick preview",
+      "lemme see the current version of my site as a single html page",
+      "preveiw my project real quick",
+      "Muéstrame una vista previa de mi proyecto sin publicarlo",
+      "Peux-tu générer un aperçu de mon site sans le publier ?",
+      "Erstelle mir bitte eine Vorschau meiner Seite, ohne sie zu veröffentlichen",
+      "Padaryk mano svetainės peržiūrą, bet dar nepaskelk"
+    ],
+    "not_for": [
+      "how do I publish my website once it's finished?",
+      "what is the difference between HTML and CSS?",
+      "write me an about-us text for my homepage",
+      "what are good colors for a landing page?",
+      "how long does it take to learn web design?",
+      "I love building websites, it's so much fun"
+    ]
+  },
+  "web0.publish": {
+    "use_when": "The person has a finished builder project and explicitly asks to publish it live and permanently to Arweave, the permaweb.",
+    "examples": [
+      "publish my site to Arweave",
+      "put my project live on the permaweb",
+      "ok ready, push the landing page project to arweave permanently",
+      "Could you please publish my builder project now? I approve it.",
+      "publsih my porject to arweave pls",
+      "deploy this project permanently, I'm fine paying for it",
+      "go ahead and publish project 42",
+      "make my site permanent on arweave",
+      "yes publish it to the permaweb",
+      "upload the finished project to arweave, no more edits",
+      "Publica mi proyecto en Arweave, tienes mi permiso",
+      "Peux-tu publier mon projet sur Arweave maintenant ?",
+      "Veröffentliche mein Projekt bitte dauerhaft auf Arweave",
+      "Paskelbk mano projektą Arweave tinkle"
+    ],
+    "not_for": [
+      "how does Arweave permanent storage work?",
+      "write an announcement post for my website launch",
+      "how much does it usually cost to publish on Arweave?",
+      "should I publish my project now or keep editing?",
+      "explain how to set up a wallet for the permaweb",
+      "export my project as a zip file on my computer"
+    ]
+  }
+}

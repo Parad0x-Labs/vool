@@ -1,0 +1,56 @@
+{
+  "marketplace.search_listings": {
+    "use_when": "The person wants to look for, browse, or discover knowledge shards for sale or sharing, by keyword, topic, or domain tag.",
+    "examples": [
+      "find shards about sourdough baking",
+      "any knowledge shards on tax law for freelancers?",
+      "show me listings tagged cybersecurity",
+      "search for python data cleaning shards, top 5 please",
+      "looking 4 shards about guitar chords",
+      "Could you please check whether anyone is offering shards on beekeeping?",
+      "what shards are available in the personal finance domain",
+      "browse shards for machine lerning",
+      "list 20 shards tagged gardening",
+      "is there a shard for learning basic Italian cooking",
+      "Busca fragmentos de conocimiento sobre fotografía nocturna",
+      "Y a-t-il des shards sur l'histoire de l'art ?",
+      "Zeig mir Shards zum Thema Steuererklärung",
+      "Ieškok shard'ų apie sodininkystę, parodyk 10 rezultatų"
+    ],
+    "not_for": [
+      "How do I price a shard I want to sell?",
+      "Write a product description for my knowledge shard",
+      "What is a knowledge exchange and how do they work in general?",
+      "Explain how sourdough starters work",
+      "I love browsing online shops, it's so relaxing",
+      "Which tags get the most sales for sellers?"
+    ]
+  },
+  "marketplace.purchase_knowledge": {
+    "use_when": "The person explicitly asks to buy or unlock a specific listed knowledge shard for their own node, paying for it with their compute credits.",
+    "examples": [
+      "buy shard sh_4821",
+      "Please purchase the Rust async patterns shard for my node",
+      "i wanna unlock that listed knowledge pack, spend the credits",
+      "Can you buy access to shard abc-123 using my compute credits?",
+      "purchse the kubernetes shard from the listing pls",
+      "Get me access to the French cooking shard, receipt rcpt_9921",
+      "yes go ahead and pay for the shard we just looked at",
+      "spend credits to unlock shard med-notes-07",
+      "Hey, could you grab shard 77f2 for my node? Happy to burn the credits.",
+      "ok buy it",
+      "Compra el shard sh_5530 con mis créditos de cómputo, por favor",
+      "Achète l'accès au shard sh_6104 avec mes crédits de calcul",
+      "Kauf bitte den Shard sh_7712 mit meinen Rechenguthaben",
+      "Nupirk man prieigą prie šardo sh_8090 už skaičiavimo kreditus"
+    ],
+    "not_for": [
+      "How do I decide whether a shard is worth buying?",
+      "What are compute credits and how do they work?",
+      "Write a short product description for my own shard listing",
+      "Show me which shards are listed right now",
+      "I might buy something from there someday, maybe next month",
+      "How many credits do I have left?"
+    ]
+  }
+}

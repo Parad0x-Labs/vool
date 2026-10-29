@@ -1,0 +1,137 @@
+{
+  "market.collect": {
+    "use_when": "The person wants to gather a token's recent price, volume, trade and transfer data into a saved dataset, usually before analyzing the token or checking a thesis about it.",
+    "examples": [
+      "pull the last 24h of trades for this token: 0x9f2c...a1b7 on base",
+      "Collect 7d of data for this solana mint: EPjF...Dt1v",
+      "grab market data for this token, 30d window",
+      "can u gather price and volume candles for 0xdead...beef on ethereum",
+      "download the last 1h of trades for this bnb token pls",
+      "i want to analyze this coin, first get its data: 0x51aa...90ce",
+      "fetch the transfer history and recent trades for this contract",
+      "get me a dataset for this token over 3 days",
+      "collect data on this token on robinhood chain, default window",
+      "pul the trades and candles for this mint before i check my thesis",
+      "Reúne los datos de las últimas 24 horas de este token en Solana, por favor.",
+      "Récupère les données de ce token sur Base pour les 7 derniers jours.",
+      "Sammle bitte die Handelsdaten der letzten 24 Stunden für diesen Token auf Ethereum.",
+      "Surink šio žetono prekybos duomenis per paskutines 7 dienas."
+    ],
+    "not_for": [
+      "how do I read a candlestick chart?",
+      "what is a liquidity pool on a DEX?",
+      "write a tweet hyping this token",
+      "run the analysis on the dataset I already saved",
+      "send 0.5 SOL to my friend's wallet",
+      "lol my token is down again, crypto is brutal"
+    ]
+  },
+  "market.datasets": {
+    "use_when": "The person wants to see which market data collections they already have, such as tokens, chains, time windows, row counts per source, partial coverage, or the id of a collection to analyze.",
+    "examples": [
+      "what market data have I collected so far?",
+      "list my collected data",
+      "which tokens do I have data for",
+      "do i have any data on SOL yet",
+      "is the coverage partial on any of my collections?",
+      "Could you please tell me what market data is stored here and when it was collected?",
+      "what chains have i got data for",
+      "how many rows did my last collection pull from each source",
+      "need the id of my latest ETH collection so I can run an analysis",
+      "show me everything I've gathered recently",
+      "¿Qué datos de mercado tengo recopilados?",
+      "Montre-moi les données de marché que j'ai déjà collectées",
+      "Welche Marktdaten habe ich bereits gesammelt?",
+      "Kokius rinkos duomenis jau esu surinkęs?"
+    ],
+    "not_for": [
+      "how do I collect market data for a new token?",
+      "what does partial coverage mean when analyzing data?",
+      "write a short blog post about why on-chain data matters for traders",
+      "analyze my latest ETH collection and tell me if it looks bullish",
+      "what's the price of bitcoin right now",
+      "I love collecting data, it's so satisfying lol"
+    ]
+  },
+  "market.dataset_delete": {
+    "use_when": "The person wants to permanently remove a market dataset they previously collected, along with its rows, from VOOL's local storage to clean up or free space.",
+    "examples": [
+      "delete the dataset I collected yesterday",
+      "remove dataset 42 from my saved market data",
+      "pls get rid of that old stock prices dataset",
+      "can you delete the bitcoin data I pulled last week",
+      "wipe the oil price dataset, I don't need it anymore",
+      "trash dataset 7",
+      "Could you please remove the market dataset called tech_stocks_march?",
+      "delete that dataset i just collected it has wrong tickers",
+      "clear out the crypto dataset from my local storage",
+      "i want the forex rows gone, delete the whole dataset",
+      "Elimina el conjunto de datos de mercado que recopilé ayer",
+      "Supprime le jeu de données boursières que j'ai collecté la semaine dernière",
+      "Lösche bitte den Marktdatensatz mit den Aktienkursen",
+      "Ištrink rinkos duomenų rinkinį, kurį surinkau vakar"
+    ],
+    "not_for": [
+      "how do I decide which market datasets are worth keeping?",
+      "show me all the market datasets I have collected",
+      "what is a dataset and how are they used in finance?",
+      "write a short note explaining why I deleted my old data",
+      "export my dataset to a CSV file in my project folder",
+      "delete the CSV file in my project folder"
+    ]
+  },
+  "market.analyze": {
+    "use_when": "The person wants numbers and patterns from trade data they already saved, such as returns, volatility, volume spikes, buy/sell flows, top wallets, early buyers or wallet concentration.",
+    "examples": [
+      "analyze the dataset I just collected",
+      "did the first 50 buyers of that token still hold?",
+      "show me volume spikes in the data we saved",
+      "whats the volatility and daily return over the window",
+      "which wallets had the biggest net flow in this dataset",
+      "pls check if a few wallets control most of the traded volume",
+      "any wallets buying right before the big price jumps?",
+      "run the numbers on dataset 12 focus on flows",
+      "buy vs sell per hour for the saved data, whats the buy share",
+      "look for pumpp patterns in the trades i collected",
+      "Analiza los datos que guardé y dime si hubo picos de volumen",
+      "Analyse les données sauvegardées : quels portefeuilles ont le plus de flux net ?",
+      "Wie hoch war die Volatilität in den gespeicherten Daten und gab es Volumenspitzen?",
+      "Išanalizuok surinktus duomenis ir parodyk, kurios piniginės turi didžiausius srautus"
+    ],
+    "not_for": [
+      "how do I read a volatility number?",
+      "what is a z-score",
+      "write a tweet about this token pumping",
+      "should I buy this coin now?",
+      "collect fresh trades for this token",
+      "explain what wallet concentration means for a token"
+    ]
+  },
+  "market.thesis_check": {
+    "use_when": "The person has a belief or hunch about a dataset they already collected, such as price moves, buyers versus sellers, or wallet behavior, and wants it tested against the stored data.",
+    "examples": [
+      "I think the price rose more than 20% over the window in my dataset, can you check that?",
+      "check if buyers outnumber sellers in the data I collected",
+      "my thesis: top 10 wallets hold over 60% of volume. true or not?",
+      "does the data back up that most early buyers are still holding",
+      "test this claim: volatility under 5% and no volume spikes in the last 24h",
+      "was net flow for wallet 0xabc negative? i think they were dumping",
+      "Could you please verify that buy share was at least 55% over the last 24h?",
+      "i bet the biggest hourly rise was above 15 percent, am i rite",
+      "verify my theory: more sells than buys and sell usd total higher than buy usd total",
+      "pls check if the daily return on 2024-05-03 was negative",
+      "Creo que los compradores dominaron las últimas 24h, ¿lo confirman los datos que recopilé?",
+      "Peux-tu vérifier si ma thèse tient : les 10 plus gros portefeuilles font plus de 50 % du volume ?",
+      "Stimmt meine These, dass mehr verkauft als gekauft wurde? Prüf das bitte an den Daten.",
+      "Patikrink, ar mano teorija teisinga: per paskutines 24 val. pirkėjų buvo daugiau nei pardavėjų."
+    ],
+    "not_for": [
+      "How do I come up with a good thesis for a token?",
+      "Write a short post explaining my bullish thesis for this token",
+      "What does volatility mean in trading?",
+      "Collect fresh trade data for this token",
+      "Is it a good idea to buy now?",
+      "Show me the general stats and summary of my dataset"
+    ]
+  }
+}

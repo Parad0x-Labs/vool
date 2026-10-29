@@ -1,0 +1,29 @@
+{
+  "x402.propose": {
+    "use_when": "A website or service answered with a 402 Payment Required challenge and the person wants to know what it would cost, or wants a payment proposal prepared for their approval.",
+    "examples": [
+      "this site returned 402 payment required, can you see what it would cost me?",
+      "got a 402 from that endpoint, make a payment proposal",
+      "what would it cost to unlock https://example.com/report.json? it wants payment",
+      "turn this payment challenge into something i can approve",
+      "check if this paywall response is under my auto limit",
+      "pls look at the 402 response i pasted and tell me whether its payable",
+      "fetch https://data.example.org/premium and propose a payment if it asks for one",
+      "the server says payment required, here are the headers, whats the ask",
+      "is this accepts list ok with my networks and assets? 402 body below",
+      "got paywalled by a bot endpoint, draft the payment for me to ok",
+      "El servidor respondió 402 pago requerido, prepara una propuesta de pago para mí",
+      "Ce lien renvoie une erreur 402, peux-tu me préparer une proposition de paiement ?",
+      "Die Seite verlangt eine Zahlung (402), mach mir bitte einen Zahlungsvorschlag",
+      "Svetainė grąžino 402 apmokėjimo reikalavimą, paruošk man mokėjimo pasiūlymą"
+    ],
+    "not_for": [
+      "how does the 402 Payment Required status code work?",
+      "write a blog post about paying for websites with stablecoins",
+      "approve and send the payment to that server right now",
+      "what is the difference between v1 and v2 of the payment protocol?",
+      "how do I make my own website return a 402 response?",
+      "what's a good way to budget my monthly crypto spending?"
+    ]
+  }
+}

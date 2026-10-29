@@ -1,0 +1,29 @@
+{
+  "respond.direct": {
+    "use_when": "The person asks a question, wants an explanation, ideas, wording help, or just chats, and VOOL can answer from its own knowledge without touching files, apps, the web, or the computer.",
+    "examples": [
+      "hi, how are you?",
+      "explain what a mortgage is in simple terms",
+      "what's the difference between affect and effect",
+      "can u give me ideas for my sisters birthday",
+      "Could you please help me word a polite reply to my landlord?",
+      "thanks!",
+      "how many ounces in a cup",
+      "tell me a joke",
+      "whats a good way to stay focused when studying",
+      "Summarize the plot of Romeo and Juliet in three sentences.",
+      "¿Puedes explicarme qué es la inflación?",
+      "Donne-moi une idée de dîner rapide pour ce soir",
+      "Was ist der Unterschied zwischen 'das' und 'dass'?",
+      "Pasiūlyk, ką galėčiau veikti savaitgalį"
+    ],
+    "not_for": [
+      "open my calendar and tell me what meetings I have tomorrow",
+      "search the internet for today's weather in Vilnius",
+      "delete everything in my Downloads folder",
+      "send an email to my boss saying I'm sick",
+      "set a reminder for 5pm to call mom",
+      "read the notes file on my desktop and summarize it"
+    ]
+  }
+}

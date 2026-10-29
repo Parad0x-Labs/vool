@@ -1,0 +1,164 @@
+{
+  "skill.validate": {
+    "use_when": "The person has written or edited a skill file and wants to know whether it will load and work, or why it isn't getting picked up.",
+    "examples": [
+      "check my skill at ~/skills/budget.md",
+      "is this skill file ok? skills/email-triage/SKILL.md",
+      "why is my new skill never getting picked up",
+      "can you test whether skills/gym-log.md loads properly",
+      "validate the skill in my Documents/skills/recipes folder",
+      "something is wrong with my skill, can you look at skills/travel.md",
+      "pls check if my skill file has any problems",
+      "does ~/skills/invoice.md parse without errors?",
+      "my skill wont trigger, check its file for me",
+      "Could you please run a check on the skill I just saved at skills/notes.md?",
+      "Revisa mi skill en ~/skills/gastos.md, a ver si tiene algún error",
+      "Peux-tu vérifier que mon skill dans skills/agenda.md se charge bien ?",
+      "Prüf bitte meine Skill-Datei skills/wetter.md, ob sie funktioniert",
+      "Patikrink, ar mano įgūdžio failas skills/pirkiniai.md veikia"
+    ],
+    "not_for": [
+      "how do I write a good skill description?",
+      "write me a skill that summarizes my emails",
+      "what is a skill and how does VOOL use them?",
+      "explain how skills get ranked",
+      "create a new skill file called budget.md",
+      "I love building skills, it's such a fun hobby"
+    ]
+  },
+  "skill.rollback": {
+    "use_when": "The person wants an installed skill put back to an earlier recorded version, usually because a newer version broke it or behaves worse.",
+    "examples": [
+      "roll back my calendar skill to version 3",
+      "The latest update to the email-summarizer skill broke it, please go back to v2",
+      "restore the weather skill to the previous version",
+      "revert pdf-helper to version 4 pls",
+      "can you put my note-taking skill back to how it was in version 1?",
+      "undo the last update of the budget skill, go back to 5",
+      "rollbak the translator skill to v2",
+      "go back to an older version of my recipe skill, version 6 worked fine",
+      "Please restore the git-helper skill to version 3 exactly as it was",
+      "downgrade news-digest to v7 it was better",
+      "Restaura mi skill de calendario a la versión 2, la nueva falla.",
+      "Peux-tu revenir à la version 3 de ma compétence de résumé d'e-mails ?",
+      "Setze den Wetter-Skill bitte auf Version 4 zurück.",
+      "Grąžink kalendoriaus skill į 2 versiją, nes naujoji neveikia."
+    ],
+    "not_for": [
+      "How do I roll back a skill if an update goes wrong?",
+      "Install the new weather skill for me",
+      "Write a changelog for version 3 of my skill",
+      "What is a rollback in software?",
+      "Show me the version history of my calendar skill",
+      "ugh I wish I could rollback my life to last year lol"
+    ]
+  },
+  "skill.export": {
+    "use_when": "The person has built their own skill or plugin and wants to package it into one zip file to share, back up, or let someone else import into their own VOOL.",
+    "examples": [
+      "export my meeting-notes skill as a zip",
+      "Can you package the invoice helper skill so I can send it to my brother?",
+      "zip up my plugin called weather-widget so others can import it",
+      "pls bundle the skill i made yesterday into a file i can share",
+      "I want to share my recipe-scaler skill with a coworker, make a zip",
+      "export the project-level copy of my standup skill",
+      "package my plugin 'tidy-downloads' for sharing",
+      "make a shareable zip of the global skill named daily-brief",
+      "exprot my skill so my friend can import it into hers",
+      "Could you please pack up the plugin I built so someone else can install it?",
+      "Exporta mi skill de resumen de correos en un zip para compartirla",
+      "Peux-tu empaqueter le plugin que j'ai créé pour que je l'envoie à une amie ?",
+      "Exportiere meine selbst gemachte Skill als ZIP, damit ein Kollege sie importieren kann",
+      "Supakuok mano sukurtą įskiepį į zip failą, kad galėčiau pasidalinti su draugu"
+    ],
+    "not_for": [
+      "how do I make my own skill from scratch?",
+      "write a README describing what my skill does",
+      "what is a zip file?",
+      "import this skill zip a friend sent me",
+      "what's the difference between a plugin and a skill?",
+      "zip my vacation photos folder"
+    ]
+  },
+  "skill.import": {
+    "use_when": "The person has a skill or plugin zip, either attached to the chat or saved on their computer, and wants it brought into VOOL for this chat, this project or everywhere.",
+    "examples": [
+      "import this skill zip for me",
+      "can you add the attached plugin to this chat only",
+      "load the zip at C:\\Users\\me\\Downloads\\writing-helper.zip",
+      "pls install this skill for my project",
+      "Could you please import the attached zip so I can use it across everything?",
+      "add this plugin zip globally",
+      "i downloaded a skill, its in ~/Downloads/meeting-notes.zip, bring it in",
+      "take the zip I just attached and stage it for this project",
+      "check this zip and import it, only for this conversation",
+      "got a plugin file here, can u set it up for all of VOOL",
+      "Importa este zip de habilidad solo para este chat, por favor",
+      "Peux-tu importer le zip joint pour tout mon projet ?",
+      "Bitte importiere die angehängte Plugin-Zip-Datei für alle Chats",
+      "Įkelk šitą pridėtą zip failą su įskiepiu tik šiam projektui"
+    ],
+    "not_for": [
+      "how do I make my own skill from scratch?",
+      "what's the difference between a skill and a plugin?",
+      "write a README for my plugin",
+      "turn on the skill I imported yesterday",
+      "how do I zip up a folder on Windows?",
+      "plugins are so handy, I love them haha"
+    ]
+  },
+  "skill.pack": {
+    "use_when": "The person has made several custom skills and wants them grouped into one named plugin pack with a description, so it can be reviewed, activated or shared later.",
+    "examples": [
+      "bundle my three email skills into a pack called Inbox Helpers",
+      "put the skills I just made together into one plugin",
+      "can you group my meeting-notes and agenda skills into a pack named Meetings?",
+      "make a plugin pack out of my skills: tidy-downloads, rename-photos",
+      "package up the skills you made for me so I can share them later",
+      "combine those custom skills into a single bundle called Weekly Routine",
+      "pls bundel my new skills into a pack",
+      "i want all the skills we made today in one named pack, description: helpers for my freelance billing",
+      "turn my 4 skills into a plugin",
+      "Could you please wrap the skills you created into a pack called Study Buddy?",
+      "Agrupa las habilidades que creaste en un paquete llamado Casa Inteligente",
+      "Regroupe les compétences que tu as créées dans un pack nommé Voyages",
+      "Fasse meine selbst erstellten Skills zu einem Paket namens Büro-Helfer zusammen",
+      "Sujunk mano sukurtus įgūdžius į vieną paketą pavadinimu Darbo pagalbininkai"
+    ],
+    "not_for": [
+      "how do I write a good skill for sorting my receipts?",
+      "what is a plugin pack and why would I use one?",
+      "write a description for my pack to post on my blog",
+      "install the plugin pack I got from my friend",
+      "export my pack and send it to Sam",
+      "create a new skill that renames my photos"
+    ]
+  },
+  "skill.inspect": {
+    "use_when": "The person wants to see the full details of one specific built-in skill, such as its version, risk level, what it covers, its limits, or whether it is currently on and available.",
+    "examples": [
+      "show me the details of the root-cause-repair skill",
+      "is root-cause-repair enabled right now?",
+      "what's the risk class of root-cause-repair",
+      "why is the root-cause-repair skill unavailable",
+      "pls pull up the contract for root-cause-repair",
+      "what stopping conditions does root-cause-repair have",
+      "which task families does the root-cause-repair skill cover?",
+      "inspect skill root-cause-repair",
+      "whats the version of root-cause-repair and is it available",
+      "can you check what verification root-cause-repair requires, thx",
+      "Muéstrame el contrato y el estado de la habilidad root-cause-repair",
+      "Est-ce que la compétence root-cause-repair est activée en ce moment ?",
+      "Zeig mir die Details und die Risikoklasse der Fähigkeit root-cause-repair",
+      "Parodyk, kodėl įgūdis root-cause-repair šiuo metu neprieinamas"
+    ],
+    "not_for": [
+      "how do I write my own skill for VOOL?",
+      "explain what root cause analysis means",
+      "write a short blog post about automated repair skills",
+      "thanks, that repair skill is really handy lol",
+      "how do I turn on a skill that is switched off?",
+      "what's a good way to classify risk levels in software projects?"
+    ]
+  }
+}

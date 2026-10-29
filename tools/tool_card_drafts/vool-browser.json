@@ -1,0 +1,570 @@
+{
+  "vool-browser.session.open": {
+    "use_when": "The person wants to browse a website in a clean, throwaway browser that is cut off from their real profile, logins and permissions, optionally with limits on actions or downloads.",
+    "examples": [
+      "open a clean throwaway browser and go to example.com",
+      "I need a private sandboxed browser to check this sketchy link",
+      "can you fire up a fresh browser with no cookies or saved logins and load news.ycombinator.com",
+      "open a disposable browser window for me pls",
+      "start a headless browser at my local dev site localhost:3000",
+      "spin up a locked down browser, max 50 actions and 20MB of downloads, start on openstreetmap.org",
+      "i wanna test a signup page without using my real profile",
+      "open browser in sandbox mode, no camera or location permissions",
+      "Could you please open an isolated browser so I can look at a suspicious site safely?",
+      "frsh browser at wikipedia.org headless thx",
+      "Abre un navegador aislado y desechable en wikipedia.org",
+      "Ouvre un navigateur isolé et jetable sur lemonde.fr s'il te plaît",
+      "Öffne bitte einen frischen, isolierten Browser und geh auf spiegel.de",
+      "Atidaryk izoliuotą naršyklę be mano slaptažodžių ir eik į lrt.lt"
+    ],
+    "not_for": [
+      "how do I clear cookies in Chrome?",
+      "write a paragraph about why private browsing matters",
+      "what is a sandbox in computer security?",
+      "which browser is the fastest right now?",
+      "explain how to download files safely",
+      "I love my new browser, it's so fast lol"
+    ]
+  },
+  "vool-browser.session.close": {
+    "use_when": "The person has finished with a browsing session VOOL opened for them and wants it shut down and its temporary data cleaned up.",
+    "examples": [
+      "close the browser session",
+      "ok we're done browsing, shut it down",
+      "please end that browser session and clean up",
+      "kill the session i just opened",
+      "close it and wipe the temp profile",
+      "im finished with the browser, can you close it out",
+      "done with the web stuff, close the session pls",
+      "shut down the browsing session but keep the logs",
+      "end session",
+      "Could you please close the browser session you started earlier and delete its temporary profile?",
+      "close sesion and clear everything it made",
+      "all done here, close the browser you opened for me",
+      "Cierra la sesión del navegador y borra el perfil temporal",
+      "Ferme la session du navigateur, j'ai terminé",
+      "Bitte schließe die Browsersitzung und lösche das temporäre Profil",
+      "Uždaryk naršyklės sesiją, jau baigiau"
+    ],
+    "not_for": [
+      "how do I close all the tabs in Chrome?",
+      "why does my browser keep using so much memory",
+      "write a short paragraph about browser privacy and temporary profiles",
+      "open a new browser session and go to the news site",
+      "what is a browser profile and what does it store",
+      "my browser is so slow lol, I hate it"
+    ]
+  },
+  "vool-browser.session.status": {
+    "use_when": "The person wants to know whether an existing browser session is still live, went stale after a restart, or was cancelled, without using up any of its budget.",
+    "examples": [
+      "is my browser session still live?",
+      "check whether session abc123 is still alive",
+      "did my browser session survive the restart",
+      "status of the browser session pls",
+      "Could you tell me if the browser session I started earlier was cancelled?",
+      "is session s-42 stale or live",
+      "browser sesion still running? dont wanna burn budget checking",
+      "what state is my web browsing session in right now",
+      "Hey, after rebooting my laptop, can you see if my browser session is still good?",
+      "has session 7f3a been cancelled",
+      "¿Sigue activa mi sesión del navegador o se canceló?",
+      "Ma session de navigateur est-elle toujours active après le redémarrage ?",
+      "Ist meine Browser-Sitzung noch aktiv oder nach dem Neustart veraltet?",
+      "Ar mano naršyklės sesija vis dar aktyvi, ar ją atšaukė?"
+    ],
+    "not_for": [
+      "how do I keep a browser session alive longer",
+      "explain what a stale session means in web browsers",
+      "write a short email saying my browser session expired",
+      "open a new browser session and go to my bank site",
+      "cancel my browser session",
+      "my cat sat on the keyboard and closed the browser lol"
+    ]
+  },
+  "vool-browser.navigate": {
+    "use_when": "The person wants the browser to open or go to a specific web page address (http or https), optionally with a time limit or a rule about redirects to other sites.",
+    "examples": [
+      "go to https://example.com/pricing",
+      "Open the page at https://news.example.org/today please",
+      "pls load example.com/login in the browser",
+      "can you take the browser to https://docs.example.net/guide",
+      "open https://shop.example.com/cart and wait up to 20 seconds",
+      "visit http://example.org/status, but don't follow it if it redirects to another site",
+      "browse to https://example.com/blog/latest",
+      "navgate to https://example.com/help",
+      "Load this link in my browser: https://maps.example.com/route?from=a&to=b",
+      "open https://example.edu/schedule and give up if it takes longer than 10 secs",
+      "Abre https://example.com/precios en el navegador, por favor",
+      "Va sur https://example.fr/contact dans le navigateur",
+      "Öffne bitte https://example.de/angebote im Browser",
+      "Atidaryk https://example.lt/naujienos naršyklėje"
+    ],
+    "not_for": [
+      "how do redirects work and why do browsers block some of them?",
+      "write a short explanation of what a URL is",
+      "what's the best browser for privacy?",
+      "explain how to change the page load timeout in Chrome",
+      "I was so bored last night I spent hours just surfing the internet lol",
+      "draft an email telling my team to visit our website"
+    ]
+  },
+  "vool-browser.inspect": {
+    "use_when": "The person wants VOOL to look at what is currently shown on a page in their open browser session, such as reading its text, a specific element, or the page structure.",
+    "examples": [
+      "what does the page I have open say right now",
+      "read the text on this page for me",
+      "can you check what's on the browser tab currently",
+      "show me the outline of this page",
+      "what does the heading on this page say?",
+      "look at the page and tell me what the error message says",
+      "read the price element on the current page pls",
+      "whats written in the login box on screen",
+      "Could you please take a look at the page that's open and summarize what's visible there?",
+      "see whats on my browser rn",
+      "¿Qué dice la página que tengo abierta en el navegador?",
+      "Peux-tu lire le texte de la page actuellement ouverte ?",
+      "Lies bitte, was auf der aktuellen Browserseite steht.",
+      "Perskaityk, kas dabar parašyta atidarytame puslapyje.",
+      "get the text from the #checkout-total part of the page"
+    ],
+    "not_for": [
+      "how do I open developer tools to inspect a page in Chrome?",
+      "write me a paragraph about how web browsers render pages",
+      "what is the difference between HTML and CSS?",
+      "open google.com and click the first result",
+      "my browser is so slow today, ugh",
+      "give me tips for writing better CSS selectors"
+    ]
+  },
+  "vool-browser.click": {
+    "use_when": "The person wants something pressed or selected on the web page that is currently open in the browser, such as a button, link, checkbox, or menu.",
+    "examples": [
+      "click the Sign in button on the page",
+      "can you press the Accept cookies button for me",
+      "hit the submit button",
+      "pls click on the 3rd link in the results list",
+      "click the big green download button",
+      "open the dropdown menu at the top of the page",
+      "tap the Next button and wait up to 10 seconds for it to show up",
+      "click on the checkbox that says I agree",
+      "clik the search icon real quick",
+      "Could you please click the Add to cart button on the page I have open?",
+      "Haz clic en el botón de Enviar de la página abierta.",
+      "Clique sur le bouton Se connecter s'il te plaît.",
+      "Klick bitte auf den Button Weiter auf der Seite.",
+      "Paspausk mygtuką Prisijungti šiame puslapyje."
+    ],
+    "not_for": [
+      "how do I click a button using CSS selectors in my own code",
+      "write a short poem about clicking a mouse",
+      "what is the history of the computer mouse",
+      "why does my mouse keep double clicking by itself",
+      "my keyboard clicks are so loud lol",
+      "explain what a CSS selector is"
+    ]
+  },
+  "vool-browser.type": {
+    "use_when": "The person wants VOOL to type or fill text into a field on a web page that is open in the browser, such as a search box, login field, comment box or form input, optionally submitting it.",
+    "examples": [
+      "type 'wireless headphones' into the search box and hit enter",
+      "fill in the name field with Anna Test",
+      "enter my password in the login box but keep it hidden",
+      "can you type 'blue running shoes' in the search bar pls",
+      "write 'weekly notes' in the title field on this page",
+      "type hello in the comment box, no need to submit",
+      "pls enter the promo code SAVE10 in the coupon field",
+      "enter the username demo_user in the login field and press enter",
+      "tpye my city name into the serch field",
+      "put my email address in the newsletter signup box and send it",
+      "Escribe mi nombre en el campo de usuario de la página",
+      "Tape 'météo Paris' dans la barre de recherche et valide",
+      "Gib bitte 'Hallo zusammen' ins Kommentarfeld ein",
+      "Įrašyk 'dviračių dalys' į paieškos laukelį ir paspausk enter"
+    ],
+    "not_for": [
+      "How do I make a strong password for my accounts?",
+      "Enter my credit card number and CVV into the payment form",
+      "Write me a cover letter I can use for a job application",
+      "Which browser is best for filling in forms quickly?",
+      "Why do websites ask me to type a captcha?",
+      "I hate typing long forms, so annoying lol"
+    ]
+  },
+  "vool-browser.assert": {
+    "use_when": "The person wants to check or confirm something about the web page they have open, such as its address, title, visible text, whether an element exists, or how many of an element there are.",
+    "examples": [
+      "check that the page title contains 'Checkout'",
+      "make sure the current url has /login in it",
+      "is the Submit button on the page right now?",
+      "verify there are exactly 5 rows in the results table",
+      "does the page say 'Order confirmed' anywhere",
+      "pls confirm the cart page shows the text Total and the url includes cart",
+      "check the tab i have open still has a search box and a logo",
+      "count how many product cards are on this page, should be 12",
+      "verify the title is Dashboard and no error banner is showing",
+      "did the signup go through? look for the welcome message on screen",
+      "Comprueba que la página abierta tenga el título 'Inicio' y el botón de entrar",
+      "Vérifie que l'URL de la page contient bien /paiement",
+      "Prüf bitte, ob auf der Seite der Text 'Danke für Ihre Bestellung' steht",
+      "Patikrink, ar atidarytame puslapyje yra mygtukas „Prisijungti“"
+    ],
+    "not_for": [
+      "how do I write a good test for a login page?",
+      "what is the difference between a url and a title tag",
+      "write a short text a 404 page could show",
+      "open google.com and click the first result",
+      "explain how CSS selectors work",
+      "ugh my pages never load fast, so annoying"
+    ]
+  },
+  "vool-browser.screenshot": {
+    "use_when": "The person wants a picture of the web page currently open in their browser session saved as an image file, either the visible part or the whole page.",
+    "examples": [
+      "take a screenshot of the page",
+      "Can you grab a screenshot of the whole page, not just what's visible?",
+      "screenshot this pls",
+      "save an image of the page I'm on right now",
+      "capture the full page and keep the file under 2 MB",
+      "snap the current page so I can show my boss later",
+      "screen grab of the browser tab, thx",
+      "Could you please take a picture of this web page and save it?",
+      "scrnshot of the checkout page before i submit",
+      "capture what the page looks like now, small file size please",
+      "Haz una captura de pantalla de la página que tengo abierta",
+      "Prends une capture d'écran de la page entière, stp",
+      "Mach bitte einen Screenshot von der aktuellen Seite",
+      "Padaryk šio puslapio ekrano nuotrauką ir išsaugok ją"
+    ],
+    "not_for": [
+      "How do I take a screenshot on my Mac?",
+      "What's the difference between PNG and JPEG for screenshots?",
+      "Write a caption for my screenshot of the dashboard",
+      "Why do my screenshots look blurry on a big monitor?",
+      "lol I take way too many screenshots of memes",
+      "Explain what a full-page screenshot is"
+    ]
+  },
+  "vool-browser.download": {
+    "use_when": "The person gives a link to a file on a website they have allowed and wants that file saved into the current session folder, optionally with a size or time limit.",
+    "examples": [
+      "download this pdf for me https://example.com/reports/q3-summary.pdf",
+      "Can you grab the file at https://example.org/files/menu.zip and save it?",
+      "save https://example.com/photo.jpg to my session folder",
+      "pls download the csv from https://data.example.net/export.csv but nothing bigger than 5 MB",
+      "Could you please fetch the installer at https://example.com/setup.exe? Give up after 60 seconds.",
+      "get me that spreadsheet https://example.com/budget.xlsx",
+      "dl https://example.com/podcast/ep12.mp3",
+      "Would you mind downloading the manual from https://docs.example.com/manual.pdf",
+      "downlaod the zip form https://example.com/assets.zip thx",
+      "Pull down the logo file https://example.com/logo.png and keep it in this session",
+      "Descarga este archivo por favor: https://example.com/guia.pdf",
+      "Télécharge-moi le fichier https://example.com/facture.pdf s'il te plaît",
+      "Lade bitte die Datei von https://example.com/bericht.docx herunter",
+      "Atsisiųsk šį failą man: https://example.com/knyga.epub"
+    ],
+    "not_for": [
+      "How do I download files faster on slow wifi?",
+      "Write a short paragraph about the history of file sharing",
+      "What's the difference between a PDF and a DOCX?",
+      "Is it safe to download files from unknown websites?",
+      "I downloaded something yesterday and it took forever, so annoying",
+      "Upload my resume to this job site"
+    ]
+  },
+  "vool-browser.upload.stage": {
+    "use_when": "The person wants to send content they have given or pasted as a file through an upload field on a web page open in their browser, and it needs to be prepared under a simple file name first.",
+    "examples": [
+      "attach this text as notes.txt to the form I have open in the browser",
+      "upload the csv I just pasted to the site",
+      "can you put this content in a file called resume.txt and upload it on this page",
+      "pls upload this json as config.json to the web form",
+      "Please attach the report text as report.md to the upload box on the page.",
+      "uplod this as data.csv in the browser form",
+      "I need to send this snippet as a file through the upload button on the site",
+      "make a file named todo.txt from this and upload it to the page",
+      "get this base64 data uploaded as photo.png on the website",
+      "Could you submit this text as a file in the file picker on the page I'm on?",
+      "Sube este texto como notas.txt al formulario que tengo abierto en el navegador",
+      "Peux-tu téléverser ce contenu sous le nom budget.csv sur la page ouverte ?",
+      "Lade diesen Text als bericht.txt in das Upload-Feld auf der Webseite hoch",
+      "Įkelk šį tekstą kaip pastabos.txt į svetainės formą naršyklėje"
+    ],
+    "not_for": [
+      "how do I upload a file to Google Drive",
+      "write me a cover letter that I can upload later",
+      "what is the maximum file size for uploads on most websites",
+      "explain what base64 encoding is",
+      "I hate it when upload progress bars get stuck lol",
+      "download the PDF from this page and save it to my desktop"
+    ]
+  },
+  "vool-browser.upload": {
+    "use_when": "The person wants files they have already prepared attached to a file input or upload box on a web page that is open in the browser, such as a form, application or listing.",
+    "examples": [
+      "attach the staged files to the file input on the page",
+      "upload my resume to the form I have open in the browser",
+      "can you please put those staged pdfs into the #attachments input",
+      "drop the screenshot into the upload box on this page",
+      "pls attach invoice.pdf n the receipt to the claim form",
+      "upload the three photos I just staged to the listing page",
+      "use input[type=file] to attach my staged cv",
+      "Could you add the staged documents to the file field on the application form?",
+      "attach the files to the browser session, the picker is at #file-upload",
+      "upload staged files to the form no need to ask again",
+      "Sube los archivos que preparé al campo de archivo de esta página.",
+      "Joins les fichiers préparés au champ de téléversement de la page, s'il te plaît.",
+      "Lade die vorbereiteten Dateien in das Dateifeld auf der Seite hoch.",
+      "Įkelk paruoštus failus į failo laukelį šiame puslapyje."
+    ],
+    "not_for": [
+      "how do I upload a file to Google Drive?",
+      "write a cover letter I can attach to my application",
+      "what file types do most websites accept for uploads?",
+      "why is my internet so slow when uploading stuff",
+      "email these files to my boss"
+    ]
+  },
+  "vool-browser.permission.grant": {
+    "use_when": "The person wants a specific website to be allowed to navigate, download files, upload files, or open new tabs during the current browsing session.",
+    "examples": [
+      "Let example.com open new tabs for this session",
+      "allow downloads from files.example.org in this session please",
+      "Can you let mybank.example upload files? Just for the current session.",
+      "give docs.example.net navigation access for this session",
+      "let shop.example.com download pdfs this session",
+      "pls allow uploads on photos.example.com this sesion",
+      "enable new tabs for news.example.com",
+      "I trust travel.example.org, let it open links in new tabs for now",
+      "allow downloads from cdn.example.net",
+      "Could you kindly allow uploads on portal.example.edu for my current browsing session?",
+      "Permite que ejemplo.com abra pestañas nuevas en esta sesión",
+      "Autorise les téléchargements depuis example.fr pour cette session",
+      "Erlaube example.de, Dateien hochzuladen, nur für diese Sitzung",
+      "Leisk svetainei example.lt atsisiųsti failus šiai sesijai"
+    ],
+    "not_for": [
+      "How do browser download settings work?",
+      "Write a short guide on why websites shouldn't open new tabs",
+      "What's the difference between uploading and downloading?",
+      "Should I let sites open pop-ups? What do you recommend?",
+      "Download the report from example.com for me",
+      "Block example.com from downloading anything"
+    ]
+  },
+  "vool-browser.permission.list": {
+    "use_when": "The person wants to see which websites in a browser session have been given permissions such as camera, location or notifications, or to confirm that nothing has been allowed.",
+    "examples": [
+      "which sites have I given permissions to in the browser",
+      "show me what permissions the browser has granted per site",
+      "list site permissions for my current browsing session",
+      "has any website been allowed to use my camera or location?",
+      "whats allowed for each site right now",
+      "Could you please check whether any site has been granted access in this browser session?",
+      "show grants",
+      "did anything get permission in the browser? i want to make sure everything is still blocked",
+      "list the allowed sites for mic, notifications etc",
+      "pls show me all the per-site persmissions that are currently active",
+      "¿Qué sitios web tienen permisos concedidos en el navegador ahora mismo?",
+      "Montre-moi les autorisations accordées à chaque site dans le navigateur.",
+      "Welche Webseiten haben im Browser aktuell Berechtigungen erhalten?",
+      "Parodyk, kokioms svetainėms naršyklėje suteikti leidimai."
+    ],
+    "not_for": [
+      "how do I change site permissions in Chrome",
+      "what is a browser permission and why do sites ask for them",
+      "write a short blog post about website privacy settings",
+      "allow camera access for this website",
+      "ugh, every site asks for my location, so annoying",
+      "explain what deny-by-default means"
+    ]
+  },
+  "vool-browser.cancel": {
+    "use_when": "The person wants to stop a browser session that is running, stuck, or no longer needed, ending its in-progress work and discarding its temporary browsing profile.",
+    "examples": [
+      "stop the browser, I don't need it anymore",
+      "cancel the browsing session",
+      "kill that browser task it's stuck",
+      "please shut down the web session and wipe its temp profile",
+      "cancel whatever the browser is doing right now",
+      "the page is hanging, abort the browser run",
+      "pls stop the browsing thing and clear everything it saved",
+      "end the browser session",
+      "Could you please cancel the web automation I started a minute ago?",
+      "abort the browser job asap, wrong site",
+      "Cancela la sesión del navegador, por favor",
+      "Arrête la session du navigateur et supprime le profil temporaire",
+      "Bitte brich die Browser-Sitzung ab",
+      "Nutrauk naršyklės sesiją ir ištrink laikiną profilį"
+    ],
+    "not_for": [
+      "how do I clear cookies in Chrome?",
+      "write a short essay about browser privacy",
+      "what is a browser profile and why do browsers use them?",
+      "open a new browser and go to wikipedia",
+      "I'm so tired I could cancel the whole day",
+      "cancel my gym membership"
+    ]
+  },
+  "vool-browser.offer.extract": {
+    "use_when": "The person has a product or deal page open in the browser and wants its exact price, seller, item number, shipping and return terms captured as a record they can compare with other offers.",
+    "examples": [
+      "grab the price, shipping and return policy from this page",
+      "Can you pull the product details off the page I have open so I can compare it with the other one?",
+      "extract the offer on this page",
+      "whats the SKU, seller and total price on this listing? need it for my comparison",
+      "save this deal as a record: merchant, price, shipping, returns",
+      "pls capture this offer so I can line it up against the other tabs",
+      "get me the exact price and delivery cost from the page im on",
+      "Could you read the seller, item number and return window from this product page?",
+      "log this listing's price + shipping + returns to compare later",
+      "turn this page into a comparable offer",
+      "Saca el precio, el envío y las devoluciones de esta página para compararlos",
+      "Peux-tu relever le prix, la livraison et les retours de l'offre sur cette page ?",
+      "Lies bitte Preis, Versand und Rückgabe von dieser Produktseite aus",
+      "Ištrauk šio pasiūlymo kainą, pristatymą ir grąžinimo sąlygas iš atidaryto puslapio"
+    ],
+    "not_for": [
+      "How do I compare prices between different online shops?",
+      "Write a product description for my listing of a used bike",
+      "What does SKU stand for?",
+      "Is it better to buy electronics from a big retailer or a local shop?",
+      "Explain how return policies usually work in the EU",
+      "Ugh, online shopping is so stressful, shipping fees get me every time"
+    ]
+  },
+  "vool-browser.offer.compare": {
+    "use_when": "The person has several offers or listings already extracted from web pages and wants to know which is cheapest in exact total cost (price plus shipping), with return terms deciding ties.",
+    "examples": [
+      "Which of these three listings is cheapest once shipping is included?",
+      "compare these offers and tell me the best total price",
+      "can you check which one costs less overall, price plus delivery",
+      "Pls compare the 4 offers I just pulled up, and use return policy if they tie",
+      "whos cheaper after shipping, the first or second seller",
+      "Rank these five deals by what I'd actually pay in total",
+      "Compare the two laptop offers on the page, including shipping costs.",
+      "which deal is better? one has free returns the other doesnt, prices look about the same",
+      "Work out the exact total for each of these offers and pick the winner",
+      "side by side these 3 offers, final cost w/ shipping",
+      "¿Cuál de estas ofertas sale más barata con el envío incluido?",
+      "Compare ces offres et dis-moi laquelle est la moins chère, livraison comprise.",
+      "Welches dieser Angebote ist inklusive Versand am günstigsten?",
+      "Palygink šiuos pasiūlymus ir pasakyk, kuris pigiausias su pristatymu."
+    ],
+    "not_for": [
+      "How do I figure out whether a deal is actually worth it?",
+      "Write a product comparison blog post about laptops",
+      "What is the average shipping cost for international parcels?",
+      "Give me tips for negotiating a lower price with a seller",
+      "I love online shopping, what's the best way to find coupon codes?",
+      "Explain how return policies usually work in the EU"
+    ]
+  },
+  "vool-browser.profile.confirm": {
+    "use_when": "The person confirms their name, contact details and shipping or billing address and wants them saved as a named profile for filling in online checkouts.",
+    "examples": [
+      "save my shipping details for checkout, they're correct",
+      "Yes, those details are right, store them as my home profile",
+      "please remember this address and phone for online orders",
+      "use this as my default checkout info: Jane Doe, 12 Example St, phone 555-0100",
+      "confirmed, save the work profile with my office address",
+      "can you store my delivery address and email so you can fill forms when I buy stuff",
+      "save profile called gifts w/ mums address, its all correct",
+      "ok thats my right adress and number, keep it for shopping",
+      "Update my saved checkout profile with my new apartment address, confirmed.",
+      "yep looks good, lock in that contact info for purchases",
+      "Guarda estos datos de envío como mi perfil de compras, están confirmados.",
+      "Enregistre mon adresse de livraison et mon numéro comme profil pour mes commandes, c'est confirmé.",
+      "Speichere meine Lieferadresse und Kontaktdaten als Profil für Bestellungen, die Angaben stimmen.",
+      "Išsaugok mano pristatymo adresą ir telefono numerį pirkimo profiliui, duomenys teisingi."
+    ],
+    "not_for": [
+      "How do I fill out a checkout form faster?",
+      "Save my credit card number and CVV for next time",
+      "Write a letter to my landlord that includes my address",
+      "Is it safe to let a browser autofill my address?",
+      "What's the difference between a billing and a shipping address?",
+      "Thanks for helping me shop yesterday, you're great"
+    ]
+  },
+  "vool-browser.checkout.begin": {
+    "use_when": "The person is ready to buy something online and wants their saved contact and shipping details filled into a store's checkout page, while they enter the card details themselves.",
+    "examples": [
+      "start checkout on this page using my home profile",
+      "can you begin the checkout and fill in my shipping address",
+      "ready to buy, fill in my details at checkout pls",
+      "begin checkout with my work profile",
+      "fill my address and contact info on the cart page, I'll enter the card myself",
+      "start checkout at https://shop.example.com/cart with my default profile",
+      "pls start the checkout n put in my delivery info",
+      "Could you please begin the checkout process using my saved Home details?",
+      "time to check out - use my gift profile for the address",
+      "checkout now, autofill my shipping stuff",
+      "Empieza el pago de mi carrito con mi perfil de casa y rellena la dirección",
+      "Commence la commande avec mon profil perso et remplis mon adresse de livraison",
+      "Starte bitte den Checkout und trage meine Lieferadresse aus dem Profil Zuhause ein",
+      "Pradėk apmokėjimą krepšelyje ir užpildyk mano pristatymo adresą iš namų profilio"
+    ],
+    "not_for": [
+      "how does online checkout autofill work?",
+      "write a message to a shop asking where my order is",
+      "what's the safest way to pay online?",
+      "I hate checkout pages, so many steps lol",
+      "explain what a shipping profile is"
+    ]
+  },
+  "vool-browser.checkout.handoff": {
+    "use_when": "The person has finished choosing items on a shopping site and is ready to pay, so they need the payment step brought up for them to approve with Apple Pay or Google Pay.",
+    "examples": [
+      "ok the cart looks right, let me pay for it",
+      "I'm ready to pay for this order, can you get Apple Pay up?",
+      "time to pay, bring up Google Pay so I can confirm",
+      "finish the purchase on this page, I'll authenticate myself",
+      "can you take me to the payment step so i can pay with my phone",
+      "everything's in the cart, hand it over to me to pay",
+      "pay for these shoes pls i'll approve it with face id",
+      "ready to buy. show me the pay screen",
+      "Could you please get the payment ready so I can complete my purchase with Google Pay?",
+      "cart done, now i just need to pay wiht apple pay",
+      "Ya está el carrito, déjame pagar con Apple Pay",
+      "Le panier est prêt, je veux payer maintenant avec Google Pay",
+      "Der Warenkorb passt, ich möchte jetzt bezahlen",
+      "Krepšelis paruoštas, noriu dabar sumokėti per Apple Pay"
+    ],
+    "not_for": [
+      "How does Apple Pay work with online stores?",
+      "Write a complaint email to a shop about a late order",
+      "Is Google Pay safer than a credit card?",
+      "Add this jacket to my cart",
+      "I love shopping online, it's so dangerous for my wallet lol",
+      "What's the best way to set up Apple Pay on my iPhone?"
+    ]
+  },
+  "vool-browser.order.reconcile": {
+    "use_when": "The person has placed an order with an online merchant and wants it confirmed against the merchant's own order status, with the total matching exactly, before treating it as settled.",
+    "examples": [
+      "Check with the shop that order #A-48213 went through and the total of $129.99 matches",
+      "did the merchant confirm my order 77120? I was charged 54.20",
+      "Confirm my purchase with the store, order ZX9-3391, total should be exactly 249.00 EUR",
+      "can you reconcile order 55102 against the merchant, expected total $18.45",
+      "pls verify w/ the seller that my order 90821 is paid, amount 312.50",
+      "I just checked out on the site, make sure the store actually registered order BK-2207 for 89.99",
+      "Verify order 1002345 with the merchant status page https://shop.example.com/status/1002345, total 41.10",
+      "order confirmation still pending? match it with the merchant, 23.99 total, order 8841",
+      "Could you please double-check with the retailer that order 66-A12 was charged exactly 150.00?",
+      "reconcil my order 4471 with the store, total 75.00 usd",
+      "Confirma con la tienda que mi pedido 30918 se registró y que el total es de 64,90 €",
+      "Vérifie auprès du marchand que ma commande 20457 est bien confirmée pour 89,00 €",
+      "Bitte gleiche meine Bestellung 88123 mit dem Händler ab, der Betrag müsste 47,50 € sein",
+      "Patikrink su pardavėju, ar mano užsakymas 51274 patvirtintas ir suma lygiai 35,80 €"
+    ],
+    "not_for": [
+      "How can I tell if an online store is legit before I order?",
+      "Write an email to the shop asking where my package is",
+      "What does it mean when an order is pending?",
+      "Explain how payment reconciliation works in accounting",
+      "ugh online shopping is so slow, I hate waiting for my orders lol",
+      "Which store has the best return policy?"
+    ]
+  }
+}

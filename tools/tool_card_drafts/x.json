@@ -1,0 +1,382 @@
+{
+  "x.trending": {
+    "use_when": "The person wants to see what topics are currently trending on X (Twitter) right now, either worldwide or for a specific country or city.",
+    "examples": [
+      "what's trending on X right now",
+      "show me trending topics on twitter",
+      "whats trending in the UK today",
+      "can you pull up the top 10 trending hashtags on X for New York?",
+      "any trending stuff on twitter rn",
+      "Could you please check what people are talking about on X in Canada?",
+      "trending topics worldwide",
+      "what is hot on x today pls",
+      "give me the top 5 trends on twitter for Tokyo",
+      "whats trnding on X in australia",
+      "¿Qué temas son tendencia en X ahora mismo en España?",
+      "Quels sont les sujets tendance sur X en France aujourd'hui ?",
+      "Was sind gerade die Trendthemen auf X in Deutschland?",
+      "Kas dabar tendencijose X platformoje Lietuvoje?"
+    ],
+    "not_for": [
+      "How do I get my tweet to trend on X?",
+      "Explain how the X trending algorithm works",
+      "Write a tweet about today's trending topics",
+      "Why do people say Twitter is dying?",
+      "What's the history of hashtags on Twitter?",
+      "I spent all day scrolling X and I'm exhausted lol"
+    ]
+  },
+  "x.search": {
+    "use_when": "The person wants to see what people are posting on X (Twitter) about a coin, contract address, cashtag, topic or account, or how often something was mentioned over time.",
+    "examples": [
+      "what are people saying about $PEPE on X right now",
+      "any tweets about this coin 0x1234...abcd",
+      "show me posts from @examplefounder this week",
+      "how many tweets mentioned bonk each day this week",
+      "pls find tweets about solana outages last 3 days no retweets",
+      "is $WIF being shilled rn? check twitter",
+      "find the most liked posts about the ethereum etf from today",
+      "search x for \"rug pull\" lang:en",
+      "hourly count of posts about the new token launch since yesterdy",
+      "look up replies to this tweet https://x.com/user/status/123",
+      "¿Qué dicen en X sobre $SOL hoy?",
+      "Cherche les tweets récents qui parlent de bitcoin",
+      "Wie oft wurde gestern über $DOGE auf X gepostet?",
+      "Pasižiūrėk, ką žmonės X platformoje rašo apie $ETH"
+    ],
+    "not_for": [
+      "how do I write a good X search query for finding crypto posts",
+      "explain what a cashtag is",
+      "write a tweet announcing my token launch",
+      "what is the history of Twitter and why was it renamed X",
+      "should I buy $PEPE",
+      "lol twitter is so toxic today"
+    ]
+  },
+  "x.token_callers": {
+    "use_when": "The person wants to know who on X first promoted or called a coin, how big and credible those accounts are, or whether their past calls made money.",
+    "examples": [
+      "who called $WIF first on X",
+      "show me the earliest accounts that posted this contract address 0x1234abcd",
+      "who shilled $PEPE early and how many followers do they have",
+      "find the first callers of this coin, only accounts with 10k+ followers",
+      "were the people who called $BONK actually any good? check how their calls did",
+      "who was pushing this coin before it pumped",
+      "list callers for $POPCAT and what else they've called lately",
+      "who posted this address first on twitter",
+      "whos been calling $MOODENG, show their other calls and how those did",
+      "check the top 10 callers of this coin from the last 3 days and price their calls",
+      "¿quién fue el primero en publicar $WIF en X y cuántos seguidores tiene?",
+      "Qui a appelé $PEPE en premier sur X ? Montre-moi aussi leurs autres calls.",
+      "Wer hat $BONK zuerst auf X gepostet? Zeig mir auch, wie ihre Calls gelaufen sind.",
+      "Kas pirmas paminėjo $WIF platformoje X ir kiek jis turi sekėjų?"
+    ],
+    "not_for": [
+      "how do I tell if a crypto influencer is trustworthy",
+      "what is a memecoin and why do people call them early",
+      "write a tweet announcing my new coin launch",
+      "should I buy $PEPE right now",
+      "what's the current price of $BONK",
+      "lol everyone on crypto twitter keeps shilling stuff"
+    ]
+  },
+  "x.user": {
+    "use_when": "The person wants facts about one or more X (Twitter) accounts, such as bio, followers, post count, account age or verified status, for a username, @handle, profile link or their own account, or wants to find accounts by name or profile words.",
+    "examples": [
+      "who is @nasa on x",
+      "how many followers does @spotify have",
+      "check my own profile stats please",
+      "pull up https://x.com/openai and tell me their bio",
+      "when was the account @bbcworld created?",
+      "is @somebrand verified or a fake",
+      "find accounts about vegan baking",
+      "compare followers for @nike and @adidas",
+      "whats my follower count rn",
+      "wat is the bio of @natgeo",
+      "Dime cuántos seguidores tiene @nasa y cuándo se creó la cuenta",
+      "Peux-tu me montrer la bio du compte @lemonde ?",
+      "Wie viele Follower hat @tagesschau auf X?",
+      "Parodyk, kiek sekėjų turi @nasa paskyra"
+    ],
+    "not_for": [
+      "how do I get more followers on X",
+      "write a bio for my profile",
+      "what's the history of Twitter and why was it renamed X",
+      "explain how verification works on X",
+      "draft a post announcing my new shop",
+      "I'm so tired of social media lol"
+    ]
+  },
+  "x.user_posts": {
+    "use_when": "The person wants to see what a social media account has posted, who mentioned it, what it liked, or their own home timeline, including which tokens an account has called before.",
+    "examples": [
+      "what has @cryptofox88 been posting lately",
+      "show me my home timeline",
+      "any mentions of me today?",
+      "pull the last 50 posts from @marta_trades without replies",
+      "what tokens has @moonwhale called since January",
+      "check if this guy's calls ever panned out, @alpha_dan",
+      "what did i like on twitter last week",
+      "show posts by @devjess between march 1 and march 15",
+      "whos been tagging @brewhouse_co",
+      "latest tweets from me, no retweets pls",
+      "Muéstrame los últimos posts de @cryptofox88 y qué tokens mencionó",
+      "Montre-moi les mentions de mon compte depuis hier",
+      "Was hat @marta_trades diese Woche gepostet?",
+      "Parodyk, kokius įrašus neseniai paskelbė @devjess"
+    ],
+    "not_for": [
+      "how do i get more followers on my account",
+      "write a tweet announcing our new product launch",
+      "what is a cashtag and how does it work",
+      "explain how the home feed algorithm ranks posts",
+      "is bitcoin a good investment right now",
+      "i love scrolling social media at night lol"
+    ]
+  },
+  "x.post": {
+    "use_when": "The person shares an X post link or id and wants to see the post itself, or see who liked, reposted, quoted or replied to it.",
+    "examples": [
+      "what does this tweet say https://x.com/i/status/1850000000000000001",
+      "show me who liked this post 1850000000000000002",
+      "who reposted this? https://x.com/i/status/1850000000000000003",
+      "can you pull up the replies to this tweet please https://x.com/i/status/1850000000000000004",
+      "list quotes of post 1850000000000000005",
+      "read this for me https://x.com/i/status/1850000000000000006",
+      "whos replying to this one 1850000000000000007",
+      "Could you check which accounts retweeted this post? https://x.com/i/status/1850000000000000008",
+      "get the first 50 likers of 1850000000000000009",
+      "next page of replies pls",
+      "Muéstrame quién ha respondido a este post https://x.com/i/status/1850000000000000010",
+      "Peux-tu me dire qui a aimé ce post ? https://x.com/i/status/1850000000000000011",
+      "Zeig mir bitte, wer diesen Beitrag zitiert hat: https://x.com/i/status/1850000000000000012",
+      "Parodyk, kas pamėgo šį įrašą: https://x.com/i/status/1850000000000000013"
+    ],
+    "not_for": [
+      "how do I get more likes on my posts",
+      "write a funny tweet about Monday mornings",
+      "why did Twitter change its name to X",
+      "how do I delete one of my own posts",
+      "i love scrolling X when i'm bored lol",
+      "post this tweet for me: good morning everyone"
+    ]
+  },
+  "x.follows": {
+    "use_when": "The person wants to see who follows their X/Twitter account or another account, or which accounts a given account follows.",
+    "examples": [
+      "who follows me on twitter",
+      "show me the accounts I'm following",
+      "Can you list my followers please?",
+      "who does @nasa follow",
+      "list 50 people that follow elonmusk",
+      "whos following me on X rn",
+      "I want to see everyone I follow on Twitter, could you pull up the list?",
+      "get the next page of followers",
+      "show followrs of my account",
+      "pls list who @bbcnews is following, only the first 20",
+      "¿Quién me sigue en Twitter? Muéstrame mis seguidores",
+      "Montre-moi la liste des comptes que je suis sur X",
+      "Zeig mir bitte, wer mir auf Twitter folgt",
+      "Parodyk, kas mane seka Twitter'yje"
+    ],
+    "not_for": [
+      "How do I get more followers on Twitter?",
+      "Write a tweet announcing my new podcast",
+      "What is the difference between followers and following?",
+      "Why did Twitter change its name to X?",
+      "Follow @nasa for me",
+      "I wish I had more followers lol"
+    ]
+  },
+  "x.lists": {
+    "use_when": "The person wants to see X (Twitter) lists: which lists an account owns, belongs to or follows, or the details, recent posts, members or followers of one specific list.",
+    "examples": [
+      "what X lists do I have",
+      "show me the posts in this list https://x.com/i/lists/1234567890",
+      "who's on my \"AI news\" list on X?",
+      "which lists am i a member of",
+      "pull up the lists I follow on twitter",
+      "can you please show the members of list 1234567890",
+      "how many followers does list 987654321 have",
+      "latest tweets from my devs list",
+      "show details for list 55501234",
+      "what lists does @handle123 own",
+      "whats in my twitter lists pls",
+      "¿Qué listas de X he creado yo?",
+      "Montre-moi les derniers posts de la liste 1234567890",
+      "Zeig mir bitte die Mitglieder meiner X-Liste",
+      "Parodyk, kokius X sąrašus aš sekiu"
+    ],
+    "not_for": [
+      "How do I make a private list on X?",
+      "Write a tweet announcing my new list",
+      "What is the history of Twitter lists?",
+      "Is it better to use lists or just follow people directly?",
+      "Create a new list called Friends and add some accounts",
+      "I love making lists for groceries, so handy"
+    ]
+  },
+  "x.spaces": {
+    "use_when": "The person wants to find, check on, or look up X Spaces (live audio rooms), whether live now or scheduled, by topic, by link or id, or by which accounts host them.",
+    "examples": [
+      "any live Spaces about crypto right now?",
+      "find upcoming X Spaces on AI startups",
+      "what spaces is @nasa hosting",
+      "is this space live yet https://x.com/i/spaces/1abcDXyzMock",
+      "show me scheduled spaces on football this weekend",
+      "how many people are listening to that space",
+      "look up space 1YqGoBxPlaceholder",
+      "pls find live audio rooms on x about gaming",
+      "spaces by @bbcnews and @cnn, live or scheduled",
+      "whats live in spces about nba tonite",
+      "anything happening in spaces rn about the election",
+      "¿Hay algún Space en vivo sobre música ahora mismo?",
+      "Trouve-moi des Spaces programmés sur la cuisine cette semaine",
+      "Gibt es gerade einen Live-Space zum Thema Bundesliga?",
+      "Ar yra dabar gyvų Spaces apie krepšinį?"
+    ],
+    "not_for": [
+      "how do I host my own Space on X?",
+      "explain what X Spaces are and when they launched",
+      "write a tweet announcing my Space tomorrow",
+      "tips for getting more listeners in my audio room",
+      "I love listening to Spaces while cooking lol",
+      "is it better to use Spaces or a podcast for my brand?"
+    ]
+  },
+  "x.dms": {
+    "use_when": "The person wants to read or check their own recent direct messages on X (Twitter), or see the conversation they have with one particular account.",
+    "examples": [
+      "check my X DMs",
+      "do I have any new direct messages on twitter?",
+      "show me my last 10 DMs on X",
+      "what did @jenna_codes say to me in our DMs",
+      "read my twitter messages pls",
+      "any dms from anyone today",
+      "pull up my conversation with @brightmoose on X",
+      "can you look at my recent X inbox and tell me who wrote me",
+      "show next page of my dms",
+      "did mike_t message me on twitter",
+      "¿Tengo mensajes directos nuevos en X?",
+      "Peux-tu me montrer mes derniers messages privés sur X ?",
+      "Zeig mir bitte meine letzten DMs auf X",
+      "Ar turiu naujų privačių žinučių X platformoje?"
+    ],
+    "not_for": [
+      "how do I turn off DMs from strangers on X",
+      "write a polite reply I can send to a brand that DMed me",
+      "what is the history of Twitter direct messages",
+      "show me the latest public tweets from @nasa",
+      "I hate getting spam DMs lol",
+      "post a tweet saying I'm on vacation"
+    ]
+  },
+  "x.account": {
+    "use_when": "The person wants to see which accounts their connected X account has muted or blocked, what is trending for that account on X, or how many post reads this app has used against its X cap.",
+    "examples": [
+      "who have I muted on X",
+      "show me my blocked list on twitter",
+      "what's trending on X for me right now",
+      "how many post reads have I used on X this month",
+      "list the accounts i blocked",
+      "am I close to my X read limit?",
+      "pls show muted accounts",
+      "whats trending on my x account",
+      "check my x usage cap",
+      "did I block anyone on X? show me who",
+      "¿a quién tengo silenciado en X?",
+      "Montre-moi les comptes que j'ai bloqués sur X",
+      "Zeig mir, was auf X für mich gerade im Trend ist",
+      "Parodyk, kiek įrašų peržiūrų jau panaudojau X limite",
+      "show next page of my blocked accounts"
+    ],
+    "not_for": [
+      "how do I mute someone on X?",
+      "write a tweet about today's trending topics",
+      "why did Twitter change its name to X?",
+      "explain how X decides what trends",
+      "I'm so tired of twitter, everyone should get blocked lol",
+      "what are the best strategies to grow followers on X"
+    ]
+  },
+  "x.usage": {
+    "use_when": "The person wants to see how much of their monthly X (Twitter) API allowance they have used so far, such as requests made, posts and accounts read, and actions sent, compared with the limits they set.",
+    "examples": [
+      "how much of my X API quota have I used this month",
+      "am I close to my monthly X limit?",
+      "show my twitter api usage",
+      "how many requests have I burned on X so far this month",
+      "check x usage pls",
+      "have I hit my cap for reading posts on X yet",
+      "how many posts and accounts has my X key read this month?",
+      "whats left of my monthly X budget",
+      "how many tweets did my bot send out this month vs the limit i set",
+      "Could you please tell me how close I am to my X API limits for this month?",
+      "¿Cuánto he gastado de mi límite mensual de la API de X?",
+      "Combien de requêtes ai-je utilisées sur mon quota X ce mois-ci ?",
+      "Wie viel von meinem monatlichen X-API-Limit habe ich schon verbraucht?",
+      "Kiek šį mėnesį jau išnaudojau savo X API limito?"
+    ],
+    "not_for": [
+      "how do I get an X API key",
+      "what is the difference between the free and paid X API tiers?",
+      "write a tweet announcing my new product",
+      "explain how API rate limits work",
+      "post this on X for me: good morning everyone",
+      "I spend way too much time on Twitter lately, lol"
+    ]
+  },
+  "x.action.propose": {
+    "use_when": "The person wants to post, reply, quote, like, repost, follow, mute, DM, delete their own post, or manage their own lists on X; nothing is sent until they approve it in the app.",
+    "examples": [
+      "post on X: just landed in Denver, tacos first",
+      "reply to this with congrats! https://x.com/i/status/123456",
+      "folow @lenabakes",
+      "can you unfollow @dailydealsbot pls",
+      "delete my post https://x.com/i/status/987654",
+      "dm @mara_k that I'm running 10 min late",
+      "make a private list called Recipes and add @spicylab to it",
+      "repost this one https://x.com/i/status/789012",
+      "quote this and say 'this is so true' https://x.com/i/status/345678",
+      "hide that reply from @troll_acct on my post https://x.com/i/status/246810",
+      "Silencia a @ruidoso_88 en X, por favor",
+      "Mets un like sur ce post https://x.com/i/status/321654",
+      "Schick @tomsbikes eine DM: Danke für die Hilfe!",
+      "Paskelbk X: šiandien puiki diena pabėgioti"
+    ],
+    "not_for": [
+      "how do I get more followers on X",
+      "write me a funny tweet about Mondays",
+      "what's the character limit for a post on X",
+      "what does muting someone actually do on X",
+      "I spend way too much time scrolling X lately"
+    ]
+  },
+  "x.action.status": {
+    "use_when": "The person wants to know what happened to a post or other X action they asked VOOL to prepare: still waiting for approval, declined, sent (with the link), or failed.",
+    "examples": [
+      "did my tweet go out yet?",
+      "is my X post still waiting for my approval",
+      "Has the post I proposed been sent? Can you give me the link?",
+      "check status of that X post draft",
+      "did the thing i wanted to post on twitter fail or what",
+      "whats happening with my pending post",
+      "Was my last X post declined?",
+      "Could you please tell me whether my proposed tweet was approved and posted?",
+      "status of action 4821",
+      "did my twet get posted? need the link",
+      "¿Ya se publicó mi post en X o sigue esperando aprobación?",
+      "Est-ce que mon tweet a bien été envoyé ou il attend encore ma validation ?",
+      "Wurde mein geplanter X-Beitrag schon gepostet oder wartet er noch auf Freigabe?",
+      "Ar mano įrašas X platformoje jau paskelbtas, ar vis dar laukia patvirtinimo?"
+    ],
+    "not_for": [
+      "Write a tweet announcing our product launch",
+      "How do I get more followers on X?",
+      "Who owns X these days?",
+      "Post this to X: hello world",
+      "What's the best time of day to post on Twitter?",
+      "I'm so tired of twitter lol"
+    ]
+  }
+}
