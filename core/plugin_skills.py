@@ -439,7 +439,10 @@ _QUESTION_OPENERS = frozenset(
     }
 )
 _POINTERS = frozenset({"this", "these", "here", "heres", "below", "attached", "pasted", "following", "those", "them"})
-_REQUEST_RE = re.compile(r"^(?:can|could|would|will) (?:you|u|we)\b")
+_REQUEST_RE = re.compile(r"^(?:(?:can|could|would|will) (?:you|u|we)|(?:can|could) (?:i|we) (?:get|have))\b")
+# A question that opens on its verb ("should I ...", "can I ...", "do I ...", "is it ...") asks
+# for a yes or a no: a verdict on the person's own case, which the model gives without a skill.
+_VERDICT_OPENERS = frozenset({"should", "can", "could", "do", "does", "did", "is", "are", "am", "will", "would", "was", "were", "has", "have"})
 _GENERAL_BAR = 3.0
 
 
@@ -454,6 +457,9 @@ def _outside_subject(user_text: str) -> str:
     return _SUBJECT_RE.sub(" ", str(user_text or "").lower())
 
 
+_SENTENCE_RE = re.compile(r"[.?!;]+\s+|\s+-+\s+|[.?!]+$")
+
+
 def _general_question(user_text: str) -> bool:
     tokens = _raw_tokens(user_text)
     if not tokens or tokens[0] not in _QUESTION_OPENERS:
@@ -462,7 +468,17 @@ def _general_question(user_text: str) -> bool:
         return False
     if any(token in _POINTERS for token in tokens):
         return False
-    # "which chart should I use", "what should we pack": advice on the person's own case.
+    # "should I go to the gym more? make me a plan": a second sentence after the question is
+    # the person asking for something, so the ask is no longer a question alone.
+    sentences = [part for part in _SENTENCE_RE.split(str(user_text or "")) if _raw_tokens(part)]
+    if len(sentences) > 1:
+        return False
+    # "should I put my hobbies on my cv", "can I claim my internet on my taxes": a yes-or-no
+    # question asks for a verdict, even when "I" and "my" make it the person's own case.
+    if tokens[0] in _VERDICT_OPENERS:
+        return True
+    # "which chart should I use", "what should we pack": a wh-question about the person's own
+    # case asks for something to be worked out for them.
     return not re.search(r"\b(?:should|can|could|do) (?:i|we)\b", " ".join(tokens))
 
 
@@ -487,6 +503,7 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
     spoken = " " + " ".join(_raw_tokens(user_text)) + " "
 
     asking_in_general = _general_question(user_text)
+    asking_verdict = asking_in_general and _raw_tokens(user_text)[0] in _VERDICT_OPENERS
     fields = [_fields_of(skill) for skill in skills]
     # How many candidate skills carry each stem anywhere: a word many skills carry says little
     # about which one this ask means, so rarity decides how much a shared word is worth.
@@ -588,7 +605,10 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
             len(_raw_tokens(trigger)) >= 3 and f" {' '.join(_raw_tokens(trigger))} " in spoken
             for trigger, _stems in found.phrases
         )
-        if asking_in_general and score < _GENERAL_BAR and not named and not verbatim:
+        # In a yes-or-no question the name's words spread through it ("do I need to reply to
+        # every email") are not the person naming the skill; only the name verbatim is.
+        general_score = score - (3.5 if name_covered and asking_verdict else 0.0)
+        if asking_in_general and general_score < _GENERAL_BAR and not named and not verbatim:
             continue
         matches.append(_Match(score=score, index=index, skill=skill, reasons=tuple(reasons)))
     matches.sort(key=lambda match: (-match.score, match.index))
@@ -615,7 +635,11 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
       carry no weight; one may only stand behind a specific topic word the skill's card uses.
 
     A general question that points at no material of the person's own ("is it legal to ...",
-    "why do cats sleep so much") needs a much higher score, and the subject after "about"
+    "why do cats sleep so much") needs a much higher score. So does a one-sentence yes-or-no
+    question about the person's own case ("should I ... my cv", "can my landlord ...", "do I need
+    to ..."): it asks for a verdict, not a skill's output. A wh-question ("what should I pack"), a
+    question asking for something ("can you ...", "can I get ..."), or a question followed by a
+    request in a second sentence still counts as a request. The subject after "about"
     ("a haiku about databases") never seats a skill alone. Naming the skill wins; `limit` caps
     the result.
     """

@@ -465,3 +465,56 @@ def test_a_kind_backed_pick_names_its_backing_word() -> None:
     assert plugin_skills.match_reasons((skill,), "help me with my shopping list") == {
         "aisle-sorter": ['shared word "shopping" backed by "list"']}
     assert plugin_skills.match_reasons((skill,), "shopping") == {}
+
+
+# --------------------------------------------------------------------------- yes-or-no advice
+#
+# A question that opens on its verb ("should I", "can I", "do I", "can my", "is it") asks for a
+# verdict on the person's own case. "I" and "my" make it personal, not a request for a skill's
+# output, so it is weighed as a general question. A wh-question ("what should I pack") or a
+# yes-or-no question followed by a request still reaches the skill.
+
+_VERDICT_ROWS = (
+    "should I mention my volunteering on my cv",
+    "can I write off my new laptop against my taxes",
+    "do I need to answer every message in my inbox the same day",
+    "can my landlord raise the rent twice in one year",
+    "is it normal that my invoices take sixty days to get paid",
+    "should we split the bills by income or evenly",
+    "can I freeze the cooked rice in my fridge",
+)
+
+_STILL_ASKING_ROWS = (
+    ("can you turn my chemistry notes into flashcards", "study-flashcards"),
+    ("could I get a packing list for four days of camping in the rain", "trip-packing-list"),
+    ("should I eat better? plan some dinners from my fridge: chickpeas, peppers, yoghurt", "meal-plan-from-pantry"),
+    ("what should I pack for a long weekend in Oslo in winter", "trip-packing-list"),
+    ("can you write an invoice for two days of tutoring at 60 a day", "invoice-writer"),
+)
+
+
+@pytest.mark.parametrize("ask", _VERDICT_ROWS)
+def test_a_yes_or_no_question_about_my_own_case_picks_nothing(ask: str) -> None:
+    assert plugin_skills._general_question(ask), ask
+    assert plugin_skills.rank_skills(SKILLS, ask, limit=2) == (), ask
+    # match_reasons reads the same qualification, so it offers no reason either.
+    assert plugin_skills.match_reasons(SKILLS, ask) == {}, ask
+
+
+@pytest.mark.parametrize(("ask", "want"), _STILL_ASKING_ROWS)
+def test_a_question_that_asks_for_the_skills_output_still_picks_it(ask: str, want: str) -> None:
+    assert not plugin_skills._general_question(ask), ask
+    got = plugin_skills.rank_skills(SKILLS, ask, limit=2)
+    assert got and got[0].name == want, (ask, [skill.name for skill in got])
+    assert want in plugin_skills.match_reasons(SKILLS, ask)
+
+
+def test_only_the_names_own_words_in_order_lift_a_verdict_question() -> None:
+    """Scattered words of a skill's name inside a yes-or-no question do not name the skill; the
+    name written out still does."""
+
+    scattered = "do I have to reply to an email from a recruiter"
+    assert plugin_skills.rank_skills(SKILLS, scattered, limit=2) == ()
+    named = "should I use email reply for the recruiter who wrote to me"
+    got = plugin_skills.rank_skills(SKILLS, named, limit=2)
+    assert got and got[0].name == "email-reply"
