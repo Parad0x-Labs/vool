@@ -1,6 +1,7 @@
 ---
 name: meeting-agenda
 description: Builds a timed meeting agenda from a goal, attendees and topics the user supplies. Use when the user is preparing a meeting and needs a plan that fits the time they have.
+triggers: [meeting agenda, agenda items, what to cover in the meeting, set the agenda, structure our team call, prepare the board meeting, how to run the meeting, agenda, standup, kickoff, running order, committee meeting, team meeting plan, timed agenda, chair a meeting, chair the meeting, meeting plan, plan a meeting, plan the meeting, board meeting, meeting topics, order of business]
 license: MIT
 ---
 

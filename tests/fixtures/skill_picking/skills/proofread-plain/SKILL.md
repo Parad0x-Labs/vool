@@ -1,6 +1,7 @@
 ---
 name: proofread-plain
 description: Fixes spelling, grammar and unclear sentences in text the user pastes, then lists every change it made. Use when the user wants their own writing corrected without changing what it says.
+triggers: [proofread this, check my grammar, fix my typos, correct my english, spelling mistakes, punctuation errors, polish my writing, proofread, proofreading, typos, grammar, spelling, punctuation, check my writing, spell check, correct this text, check for errors, check my essay, tidy my wording]
 license: MIT
 ---
 

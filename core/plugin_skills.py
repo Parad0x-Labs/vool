@@ -21,6 +21,7 @@ turn where that skill matched*, which is a budget lever, not a permission decisi
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,6 +156,9 @@ _STOPWORDS = frozenset(
         "also", "just", "only", "some", "them", "they", "their", "there", "here", "about", "after",
         "before", "over", "under", "each", "per", "via", "get", "got", "make", "made", "does", "did",
         "should", "would", "could", "may", "might", "please", "want", "wants", "need", "needs",
+        "these", "those", "much", "many", "very", "really", "actually", "anyway", "just", "such",
+        "even", "ever", "still", "yet", "now", "something", "anything", "everything", "nothing",
+        "someone", "anyone", "everyone", "thing", "things",
     }
 )
 
@@ -171,53 +175,125 @@ _KIND_WORDS = frozenset(
     }
 )
 
-# Light suffix rules, applied until none fits. Word forms must meet: politely/polite,
-# receipts/receipt, organise/organize, translate/translation, planner/planning. This is a
-# morphology rule, never a vocabulary list — nothing here knows any individual request.
+# Light suffix rules. Word forms must meet: politely/polite, receipts/receipt, organise/organize,
+# translate/translation, planner/planning, price/prices/pricing, note/notes/noted. Word forms that
+# are different words must not: letter/letting, prize/price, apply/app, reply/rep, file/fill,
+# plane/plan, notes/not, version/verse, offer/off, order/ord (measured 2026-10-29 over the 70
+# Browse skills: the earlier loop folded 125 word groups onto stems under four letters). This is a
+# morphology rule, never a vocabulary list: nothing here knows any individual request.
+#
+# Each suffix carries the shortest remainder it may leave. A remainder must hold a vowel, so
+# "string" never loses "ing". "-er" needs five letters left (planner, printer, builder, but never
+# letter, order, paper, offer or winner); "-ion" five (translation, but never session, option).
 _SUFFIXES = (
-    "ions", "ion", "ising", "izing", "ised", "ized", "ings", "ing", "edly", "ed",
-    "ly", "ise", "ize", "er", "es", "s",
+    ("ising", 5), ("izing", 5), ("ised", 5), ("ized", 5), ("edly", 4), ("ing", 3), ("ion", 5),
+    ("ise", 5), ("ize", 5), ("ment", 5), ("ed", 3), ("ly", 4), ("er", 5),
 )
+# Inflections whose base may have lost a silent 'e' (noted/note, pricing/price) or doubled its
+# last consonant (planning/plan, letting/let).
+_INFLECTIONS = frozenset({"ing", "ed", "er"})
+_VOWELS = frozenset("aeiou")
+_PAIR_REACH = 3
+
+
+def _shape(word: str) -> str:
+    """'c'/'v' per letter; 'y' after a consonant counts as a vowel."""
+
+    marks: list[str] = []
+    for i, ch in enumerate(word):
+        if ch in _VOWELS or (ch == "y" and i > 0 and marks[-1] == "c"):
+            marks.append("v")
+        else:
+            marks.append("c")
+    return "".join(marks)
+
+
+def _measure(word: str) -> int:
+    """How many vowel-then-consonant runs a word holds (Porter's m): plan 1, translat 2."""
+
+    return re.sub(r"(.)\1+", r"\1", _shape(word)).count("vc")
+
+
+def _short(word: str) -> bool:
+    """One syllable ending consonant-vowel-consonant, the last not w, x or y: dat, pric, not."""
+
+    shape = _shape(word)
+    return (
+        _measure(word) == 1 and len(word) >= 3 and shape.endswith("cvc") and word[-1] not in "wxy"
+    )
 
 
 def _stem(token: str) -> str:
-    """Fold one word form onto its stem: strip a light suffix, drop a trailing 'e' (only when
-    what remains is 5+ letters, so "plane" does not fold onto "plan"), halve a doubled final
-    consonant ("planning" and "planner" both reach "plan")."""
+    """Fold one word form onto its stem: a plural, then at most one suffix, then the silent-e and
+    doubled-consonant fixes that let noted/notes/note and planning/plan meet."""
 
     word = token
-    changed = True
-    while changed:
-        changed = False
-        for suffix in _SUFFIXES:
-            if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-                word = word[: -len(suffix)]
-                changed = True
-                break
-    if word.endswith("e") and len(word) - 1 >= 5:
+    if word.endswith("ies") and len(word) > 4:
+        word = word[:-3] + "y"
+    elif word.endswith(("sses", "xes", "zes", "ches", "shes")):
+        word = word[:-2]
+    elif word.endswith("s") and not word.endswith(("ss", "us", "is")) and len(word) >= 4:
         word = word[:-1]
-    if len(word) >= 4 and word[-1] == word[-2] and word[-1] not in "aeiouy":
-        word = word[:-1]
+    for suffix, keep in _SUFFIXES:
+        rest = word[: -len(suffix)]
+        if suffix == "ly" and rest.endswith("p"):
+            continue  # apply, reply, supply: the "ly" is the word's own
+        if word.endswith(suffix) and len(rest) >= keep and any(ch in _VOWELS or ch == "y" for ch in rest):
+            word = rest
+            if suffix in _INFLECTIONS:
+                if len(word) >= 4 and word[-1] == word[-2] and word[-1] not in _VOWELS | set("lszy"):
+                    word = word[:-1]
+                elif _short(word):
+                    word += "e"
+            break
+    if word.endswith("e") and len(word) > 3:
+        base = word[:-1]
+        if _measure(base) > 1 or (_measure(base) == 1 and not _short(base)):
+            word = base
     return word
 
 
 _KIND_STEMS = frozenset(_stem(word) for word in _KIND_WORDS)
-_RARE = 1  # a stem no other candidate skill carries
-_SCARCE = 3  # carried by at most a handful of candidates
 
 
 def _raw_tokens(text: str) -> list[str]:
     return [t for t in re.split(r"[^a-z0-9]+", str(text or "").lower()) if t]
 
 
-def _content_stems(text: str) -> list[str]:
-    """The ordered, stemmed content words — function words removed, word forms folded."""
+# Two-letter words are function words, except the handful of everyday abbreviations a person
+# types for a topic ("cv", "ad", "ai", "pc"). These are the function words; any other two-letter
+# word is kept.
+_TWO_LETTER_FUNCTION_WORDS = frozenset(
+    {
+        "am", "an", "as", "at", "be", "by", "do", "go", "he", "hi", "if", "in", "is", "it", "me",
+        "my", "no", "of", "oh", "ok", "on", "or", "so", "to", "up", "us", "we", "ah", "eh", "ha",
+        "um", "uh", "ya", "ye", "yo", "re", "vs", "eg", "ie", "mr", "ms", "st", "nd", "rd", "th",
+        "ll", "ve", "im", "id", "pm", "km", "kg", "cm", "mm", "lb", "oz", "hr", "pa", "ma", "da",
+        "un", "na", "ta", "aw", "ow", "er", "hm", "mo", "wk", "yr", "ur", "u2", "sd",
+    }
+)
 
-    return [
-        _stem(t)
-        for t in _raw_tokens(text)
-        if len(t) > 2 and t not in _STOPWORDS and not t.isdigit()
-    ]
+
+# Particles carry no topic on their own ("back up your claim", "out of the office") but are part
+# of what a trigger means: "money back" is not "money". They count inside triggers only.
+_PARTICLES = frozenset({"back", "out", "off", "away", "down", "around"})
+
+
+def _is_content(token: str, *, particles: bool = False) -> bool:
+    if token.isdigit() or token in _STOPWORDS:
+        return False
+    if token in _PARTICLES:
+        return particles
+    if len(token) == 2:
+        return token.isalpha() and token not in _TWO_LETTER_FUNCTION_WORDS
+    return len(token) > 2
+
+
+def _content_stems(text: str, *, particles: bool = False) -> list[str]:
+    """The ordered, stemmed content words — function words removed, word forms folded. With
+    particles, "back", "out" and their kind stay in place, as a trigger phrase needs them."""
+
+    return [_stem(t) for t in _raw_tokens(text) if _is_content(t, particles=particles)]
 
 
 def _tokens(text: str) -> set[str]:
@@ -225,8 +301,9 @@ def _tokens(text: str) -> set[str]:
 
 
 def _contains_phrase(ask_stems: list[str], phrase_stems: list[str]) -> bool:
-    """A whole trigger, in the ask: its content stems appear in order and adjacent, or every
-    one of them is present however the ask arranges them ("compress and archive my workspace
+    """A whole trigger, in the ask. Two content words must stand close together, in either order,
+    with at most two words between them ("polite reply", "reply, polite and short"). Three or
+    more must all be present however the ask arranges them ("compress and archive my workspace
     into a vault" matches the trigger "compress archive vault workspace"). One word out of a
     multi-word trigger is never a match on its own."""
 
@@ -235,14 +312,18 @@ def _contains_phrase(ask_stems: list[str], phrase_stems: list[str]) -> bool:
     span = len(phrase_stems)
     if span == 1:
         return phrase_stems[0] in ask_stems
-    if set(phrase_stems) <= set(ask_stems):
+    if not set(phrase_stems) <= set(ask_stems):
+        return False
+    if span >= 3:
         return True
-    return any(ask_stems[start : start + span] == phrase_stems for start in range(len(ask_stems) - span + 1))
+    first, second = phrase_stems
+    places = {stem: [i for i, s in enumerate(ask_stems) if s == stem] for stem in (first, second)}
+    return any(abs(i - j) <= _PAIR_REACH for i in places[first] for j in places[second])
 
 
 @dataclass(frozen=True)
 class _Match:
-    score: int
+    score: float
     index: int
     skill: Skill
     reasons: tuple[str, ...]
@@ -253,13 +334,133 @@ def _ask_words(user_text: str) -> dict[str, str]:
 
     words: dict[str, str] = {}
     for token in _raw_tokens(user_text):
-        if len(token) > 2 and token not in _STOPWORDS and not token.isdigit():
+        if _is_content(token):
             words.setdefault(_stem(token), token)
     return words
 
 
 def _in_ask_order(stems: set[str], ask_stems: list[str]) -> list[str]:
     return [stem for stem in dict.fromkeys(ask_stems) if stem in stems]
+
+
+# How much one shared word is worth, by where the skill carries it. A trigger the author wrote as
+# a single word and a word of the skill's own name are statements of what the skill is for; a
+# description word is a fair hint; a word that only appears inside a longer trigger counts as part
+# of that phrase and weakly alone; a word of the instructions themselves is the weakest hint.
+_W_NAME = 1.0
+_W_TRIGGER = 1.0
+_W_PHRASE_WORD = 0.7
+_W_DESCRIPTION = 0.6
+_W_BODY = 0.3
+# A skill qualifies on words alone when their worth reaches this bar. One rare trigger word or name
+# word reaches it; one description word never does (at most 0.6), so one ordinary shared word is
+# never enough.
+_BAR = 1.0
+_STRONG_BAR = 0.7
+_KIND_PAIR_BAR = 0.55
+# The rarity scale treats a small candidate set as if it were a library of this many skills, so a
+# lane of one or two of the person's own skills does not make every word look common.
+_LIBRARY_FLOOR = 30
+
+
+@dataclass(frozen=True)
+class _Fields:
+    name: frozenset[str]
+    triggers: frozenset[str]
+    phrase_words: frozenset[str]
+    description: frozenset[str]
+    body: frozenset[str]
+    phrases: tuple[tuple[str, tuple[str, ...]], ...]
+
+    @property
+    def card(self) -> frozenset[str]:
+        return self.name | self.triggers | self.phrase_words | self.description
+
+    @property
+    def every(self) -> frozenset[str]:
+        return self.card | self.body
+
+    def weight(self, stem: str) -> float:
+        return max(
+            _W_NAME if stem in self.name else 0.0,
+            _W_TRIGGER if stem in self.triggers else 0.0,
+            _W_DESCRIPTION if stem in self.description else 0.0,
+            _W_PHRASE_WORD if stem in self.phrase_words else 0.0,
+            _W_BODY if stem in self.body else 0.0,
+        )
+
+
+def _fields(skill: Skill) -> _Fields:
+    phrases: list[tuple[str, tuple[str, ...]]] = []
+    singles: set[str] = set()
+    inside: set[str] = set()
+    for trigger in skill.triggers:
+        stems = tuple(dict.fromkeys(_content_stems(trigger, particles=True)))
+        if not stems:
+            continue
+        if len(stems) == 1 and stems[0] in _KIND_STEMS:
+            continue  # a trigger that is only a kind-of-help word ("write") says nothing
+        if len(stems) == 1 and stems[0] in _PARTICLES:
+            continue
+        phrases.append((trigger, stems))
+        (singles if len(stems) == 1 else inside).update(stem for stem in stems if stem not in _PARTICLES)
+    return _Fields(
+        name=frozenset(_content_stems(skill.name)),
+        triggers=frozenset(singles),
+        phrase_words=frozenset(inside),
+        description=frozenset(_content_stems(skill.description)),
+        body=frozenset(_content_stems(skill.body)),
+        phrases=tuple(phrases),
+    )
+
+
+_FIELDS_CACHE: dict[Skill, _Fields] = {}
+
+
+def _fields_of(skill: Skill) -> _Fields:
+    found = _FIELDS_CACHE.get(skill)
+    if found is None:
+        if len(_FIELDS_CACHE) > 512:
+            _FIELDS_CACHE.clear()
+        found = _FIELDS_CACHE[skill] = _fields(skill)
+    return found
+
+
+# A question about the world that points at no material of the person's own ("why do cats sleep so
+# much", "is it legal to ...") asks for an answer, not for a skill: every Browse skill works on
+# what the person supplies. Such a question needs much stronger evidence before a skill is added.
+_QUESTION_OPENERS = frozenset(
+    {
+        "why", "is", "are", "does", "do", "did", "will", "should", "which", "what", "whats", "how",
+        "when", "where", "who", "can", "could", "would", "am", "was", "were", "has", "have",
+    }
+)
+_POINTERS = frozenset({"this", "these", "here", "heres", "below", "attached", "pasted", "following", "those", "them"})
+_REQUEST_RE = re.compile(r"^(?:can|could|would|will) (?:you|u|we)\b")
+_GENERAL_BAR = 3.5
+
+
+_SUBJECT_RE = re.compile(r"\babout\b([^.,;:!?]*)")
+
+
+def _subject_stems(user_text: str) -> set[str]:
+    return {stem for part in _SUBJECT_RE.findall(str(user_text or "").lower()) for stem in _content_stems(part)}
+
+
+def _outside_subject(user_text: str) -> str:
+    return _SUBJECT_RE.sub(" ", str(user_text or "").lower())
+
+
+def _general_question(user_text: str) -> bool:
+    tokens = _raw_tokens(user_text)
+    if not tokens or tokens[0] not in _QUESTION_OPENERS:
+        return False
+    if _REQUEST_RE.match(" ".join(tokens)):
+        return False
+    if any(token in _POINTERS for token in tokens):
+        return False
+    # "which chart should I use", "what should we pack": advice on the person's own case.
+    return not re.search(r"\b(?:should|can|could|do) (?:i|we)\b", " ".join(tokens))
 
 
 def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
@@ -269,49 +470,46 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
     reason shown to a person is always the reason the ranker used.
     """
 
-
     ask_stems = _content_stems(user_text)
     if not ask_stems:
         return []
+    phrase_ask = _content_stems(user_text, particles=True)
+    # "write a haiku about databases": what follows "about" is the subject of the piece, not the
+    # job, so on its own it never seats a skill (it still counts beside other evidence).
+    subject_only = _subject_stems(user_text) - set(_content_stems(_outside_subject(user_text)))
     asked = _ask_words(user_text)
     ask_stem_set = set(ask_stems)
     # "use the release-notes skill" names the skill outright. That is the strongest statement of
     # intent there is, and it must not lose to a skill whose description merely shares more words.
     spoken = " " + " ".join(_raw_tokens(user_text)) + " "
 
-    # How many candidate skills carry each stem: a word many skills carry says little about
-    # which one this ask means, so rarity decides how much a shared word is worth.
-    stem_owners: dict[str, set[int]] = {}
-    per_skill: list[tuple[set[str], set[str], list[list[str]]]] = []
-    triggers_of: list[list[str]] = []
-    for index, skill in enumerate(skills):
-        name_stems = set(_content_stems(skill.name))
-        desc_stems = set(_content_stems(skill.description))
-        # A word that only ever appears INSIDE a multi-word trigger is evidence as part of that
-        # phrase and never on its own ("index" counts through "add an index"; "the index at the
-        # back of my cookbook" must not seat the database skill — measured 2026-10-28).
-        trigger_stems: set[str] = set()
-        phrase_stems: list[list[str]] = []
-        written: list[str] = []
-        for trigger in skill.triggers:
-            stems = _content_stems(trigger)
-            if not stems:
-                continue
-            phrase_stems.append(stems)
-            written.append(trigger)
-            if len(stems) == 1:
-                trigger_stems.update(stems)
-        per_skill.append((name_stems, desc_stems | trigger_stems, phrase_stems))
-        triggers_of.append(written)
-        for stem in name_stems | desc_stems | trigger_stems:
-            stem_owners.setdefault(stem, set()).add(index)
+    asking_in_general = _general_question(user_text)
+    fields = [_fields_of(skill) for skill in skills]
+    # How many candidate skills carry each stem anywhere: a word many skills carry says little
+    # about which one this ask means, so rarity decides how much a shared word is worth.
+    # A word on a skill's card (name, triggers, description) is weighed by how many cards carry
+    # it; a word only in a skill's instructions by how many skills mention it anywhere, since
+    # every set of instructions says "paste", "list" and "steps".
+    owners: dict[str, int] = {}
+    card_owners: dict[str, int] = {}
+    for found in fields:
+        for stem in found.every & ask_stem_set:
+            owners[stem] = owners.get(stem, 0) + 1
+        for stem in found.card & ask_stem_set:
+            card_owners[stem] = card_owners.get(stem, 0) + 1
+    library = max(len(skills), _LIBRARY_FLOOR)
 
-    def _owners(stem: str) -> int:
-        return len(stem_owners.get(stem, ()))
+    def _scale(count: int) -> float:
+        return math.log(library / count) / math.log(library) if count else 0.0
+
+    def _rarity(stem: str, found: _Fields) -> float:
+        if stem in found.card:
+            return _scale(card_owners.get(stem, 0))
+        return _scale(owners.get(stem, 0))
 
     matches: list[_Match] = []
     for index, skill in enumerate(skills):
-        name_stems, corpus_stems, phrase_stems = per_skill[index]
+        found = fields[index]
         # Naming the skill: the words of its name, verbatim and adjacent...
         name_words = " ".join(_raw_tokens(skill.name)).strip()
         named = bool(name_words) and len(name_words) > 2 and f" {name_words} " in spoken
@@ -319,54 +517,68 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         # enough to be naming ("explain what this sql query does" names the sql-explainer;
         # "explain this in plain words" only borrows two generic words of plain-explainer).
         name_covered = (
-            len(name_stems) >= 2
-            and name_stems <= ask_stem_set
-            and any(stem not in _KIND_STEMS and _owners(stem) <= _SCARCE for stem in name_stems)
+            len(found.name) >= 2
+            and found.name <= ask_stem_set
+            and any(stem not in _KIND_STEMS and card_owners.get(stem, 0) <= 3 for stem in found.name)
         )
-        hits = [stems for stems in phrase_stems if _contains_phrase(ask_stems, stems)]
-        shared = ask_stem_set & (name_stems | corpus_stems)
-        topic = shared - _KIND_STEMS
-        # A kind word may only complete a pair whose topic word is itself specific.
-        carried_by_topic = any(_owners(stem) <= 2 for stem in topic)
+        # A whole multi-word trigger in the ask. A single-word trigger is weighed as a word below.
+        hits = [
+            (trigger, stems)
+            for trigger, stems in found.phrases
+            if len(stems) > 1 and _contains_phrase(phrase_ask, list(stems))
+        ]
+        # Kind-of-help words never carry weight of their own: every authoring skill writes.
+        worth = {
+            stem: found.weight(stem) * _rarity(stem, found)
+            for stem in ask_stem_set - _KIND_STEMS
+            if found.weight(stem)
+        }
+        words = sum(worth.values())
+        # One word of the skill's name, or one single-word trigger, that few other skills carry
+        # says which skill this is ("invoice", "flashcards"); prose words need company.
+        strong = max(
+            (worth[stem] for stem in worth if (stem in found.name or stem in found.triggers) and stem not in subject_only),
+            default=0.0,
+        )
+        # A kind-of-help word the skill's card also uses may stand behind one specific topic
+        # word: "fix the spelling" reaches the proofreading skill, "explain how it works" must
+        # not reach whichever skill happens to say "worked example".
+        kind_backed = bool(ask_stem_set & _KIND_STEMS & found.card) and max(worth.values(), default=0.0) >= _KIND_PAIR_BAR
         qualified = (
-            named
-            or name_covered
-            or bool(hits)
-            or len(topic) >= 2
-            or (topic and len(shared) >= 2 and carried_by_topic)
-            or any(
-                stem in name_stems and _owners(stem) == _RARE for stem in topic
-            )
+            named or name_covered or bool(hits) or bool((ask_stem_set - subject_only) & found.triggers)
+            or strong >= _STRONG_BAR
+            or (words >= _BAR and len(worth) >= 2) or kind_backed
         )
         if not qualified:
             continue
-        # An explicit trigger is a stronger statement of intent than a word in prose, so a
-        # whole trigger outweighs description overlap; without that, a long description
-        # outranks a precise trigger list on volume alone. Rarer shared words count more:
-        # "contract" pins one skill, "short" appears in eleven descriptions.
-        distinctive_name = any(stem in name_stems and _owners(stem) == _RARE for stem in topic)
+        # An explicit trigger is a stronger statement of intent than a word in prose, so a whole
+        # trigger outweighs description overlap; without that, a long description outranks a
+        # precise trigger list on volume alone.
         score = (
-            (100 if named else 0)
-            + (70 if name_covered else 0)
-            + sum(20 + 10 * len(stems) for stems in hits)
-            + (25 if distinctive_name else 0)
-            + sum((12 if _owners(stem) == _RARE else 6 if _owners(stem) <= _SCARCE else 3) for stem in topic)
-            + 2 * len(shared - topic)
-            + 3 * len(ask_stem_set & corpus_stems)
+            (5.0 if named else 0.0)
+            + (3.5 if name_covered else 0.0)
+            + sum(1.0 + 0.3 * len(stems) for _trigger, stems in hits)
+            + words
         )
         reasons: list[str] = []
         if named or name_covered:
             reasons.append("names the skill")
-        for trigger, stems in zip(triggers_of[index], phrase_stems):
-            if stems in hits:
-                reasons.append(f'trigger "{trigger}"')
-        reasons.extend(
-            f"word from the skill's name \"{asked.get(stem, stem)}\""
-            for stem in sorted(topic)
-            if stem in name_stems and _owners(stem) == _RARE
+        reasons.extend(f'trigger "{trigger}"' for trigger, _stems in hits)
+        ordered = _in_ask_order(set(worth), ask_stems)
+        written = {stems[0]: trigger for trigger, stems in found.phrases if len(stems) == 1}
+        reasons.extend(f'trigger "{written[stem]}"' for stem in ordered if stem in written and stem not in found.name)
+        reasons.extend(f"word from the skill's name \"{asked.get(stem, stem)}\"" for stem in ordered if stem in found.name)
+        rest = [stem for stem in ordered if stem not in found.name and stem not in found.triggers]
+        if rest:
+            reasons.append("shared words " + ", ".join(f'"{asked.get(stem, stem)}"' for stem in rest))
+        # The person's own question carrying a trigger word for word ("how many rows are in
+        # the orders table" holds "how many rows") is the author's own wording, general or not.
+        verbatim = any(
+            len(_raw_tokens(trigger)) >= 3 and f" {' '.join(_raw_tokens(trigger))} " in spoken
+            for trigger, _stems in found.phrases
         )
-        if shared:
-            reasons.append("shared words " + ", ".join(f'"{asked.get(stem, stem)}"' for stem in _in_ask_order(shared, ask_stems)))
+        if asking_in_general and score < _GENERAL_BAR and not named and not verbatim:
+            continue
         matches.append(_Match(score=score, index=index, skill=skill, reasons=tuple(reasons)))
     matches.sort(key=lambda match: (-match.score, match.index))
     return matches

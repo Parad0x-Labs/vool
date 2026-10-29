@@ -1,6 +1,7 @@
 ---
 name: redact-before-sharing
 description: Remove names, numbers, addresses and other personal details from text before you share it. Use when the user wants personal details replaced with labelled placeholders before sharing text.
+triggers: [anonymise this document, make this anonymous, redact personal details, strip out names, hide personal info, blank out the details, remove identifying details, redact, redaction, anonymize, anonymise, pii, remove personal details, hide names, take out personal info, scrub the names, remove the addresses, remove phone numbers, blur names, sensitive details, private details]
 license: MIT
 ---
 

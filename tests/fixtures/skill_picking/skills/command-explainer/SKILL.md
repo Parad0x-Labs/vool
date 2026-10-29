@@ -1,6 +1,7 @@
 ---
 name: command-explainer
 description: Explains what a terminal command you paste would do, part by part, and warns about risky pieces such as deleting, overwriting or permission changes. Use when the user pastes a shell command and wants to know what it would do before running it.
+triggers: [explain this shell command, explain this bash command, explain this command line, is this command safe to run, before i run this command, will this command delete my files, walk me through this command line, sudo, chmod, chown, powershell, zsh, command prompt, curl command, terminal command, run in the terminal, install script, rm rf, safe to run]
 license: MIT
 ---
 

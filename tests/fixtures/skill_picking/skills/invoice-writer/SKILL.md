@@ -1,6 +1,7 @@
 ---
 name: invoice-writer
 description: Write a clear invoice from your work details, with totals checked line by line. Use when the user needs an invoice drafted from their own work and price details.
+triggers: [bill my client, create an invoice, raise an invoice, invoice for freelance work, how do I charge my client, bill for hours worked, what to put on an invoice, invoice, invoices, invoicing, billable, billable hours, hourly rate, day rate, payment terms, charge for my time, bill a client, bill for my work, amount due, freelance invoice, invoice number]
 license: MIT
 ---
 

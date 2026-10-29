@@ -1,6 +1,7 @@
 ---
 name: contract-summary
 description: Summarizes a contract or agreement the user pastes in plain words and flags points to ask about. Use when the user faces an agreement and wants to understand it before signing.
+triggers: [summarise this contract, explain this lease, before i sign this lease, rental agreement explained, terms and conditions in plain english, go through this contract, what does this clause mean, read this contract before signing, contract, contracts, tenancy, nda, clauses, freelance agreement, employment contract, service agreement, notice period, break clause, sign this agreement, terms of this agreement, rental contract, obligations in this contract, cancellation terms]
 license: MIT
 ---
 
