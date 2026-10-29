@@ -1,6 +1,7 @@
 ---
 name: receipt-organizer
 description: Turn receipts you paste into a tidy, dated list with totals by category. Use when the user pastes one or more receipts and wants them listed, categorised and totalled.
+triggers: [sort my receipts, add up receipts, organise my receipts, total my receipts, receipt log, tidy receipt list, expenses from receipts, receipts, till slips, expense claim, expense report, reimbursement, total by category, paper slips, pile of receipts, receipt list, shared costs, split costs, work expenses]
 license: MIT
 ---
 

@@ -18,9 +18,13 @@ ranker sees are the ones a person actually reads):
 4. The operator lane: a skill the person made for their own chat still wins when the ask uses the
    skill's own words, and is not crowded out by first-party selections.
 
-The known-miss list holds the four visible asks a lexical ranker cannot reach (two with zero stem
-overlap with the wanted skill's corpus, two whose only overlap is one everyday desc-only stem);
-each entry carries its reason and every other row asserts strictly.
+5. Fresh rows (source "fresh", 20 picks and 10 none) written for the second picking job, in
+   everyday wording; all of them hold strictly.
+6. match_reasons tells, in plain words, why each skill qualified, from the same path as
+   rank_skills, and over-folded word forms (letter/letting, price/prize) no longer meet.
+
+The known-miss list holds the one visible ask a lexical ranker cannot reach; it carries its
+reason and every other row asserts strictly.
 """
 from __future__ import annotations
 
@@ -34,8 +38,8 @@ from core.plugin_skills import Skill
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "skill_picking"
 
-# The fixture folder holds verbatim copies of 29 real Browse SKILL.md files plus the tree's own
-# database skill. One word of the database copy differs from its source: a repo-banned word in its
+# The fixture folder holds verbatim copies of 29 real Browse SKILL.md files (as they stand after
+# the second picking job, triggers lines included) plus the tree's own database skill. One word of the database copy differs from its source: a repo-banned word in its
 # description was replaced with a plain synonym at copy time; no ask stem touches either word, so
 # ranking is unchanged. Everything else is byte-for-byte the author's file.
 
@@ -177,30 +181,51 @@ _OWN_NONE_ROWS: tuple[tuple[str, None, str], ...] = (
     ("thanks, that really helped", None, "own"),
 )
 
-_ROWS: tuple[tuple[str, str | None, str], ...] = _VISIBLE_ROWS + _OWN_PICK_ROWS + _OWN_NONE_ROWS
+# Written fresh for the second picking job: everyday asks that clearly want one fixture skill, and
+# everyday questions or requests that want none.
+_FRESH_ROWS: tuple[tuple[str, str | None, str], ...] = (
+    ("our water company charged us twice in march, walk me through the statement", "bill-explainer", "fresh"),
+    ("the ci pipeline went red after my last push, here's the output", "build-log-reader", "fresh"),
+    ("I'm choosing between two electric bikes for commuting, help me weigh them up", "buying-checklist", "fresh"),
+    ("I have monthly visitor numbers for two museums, how should I chart them", "chart-picker", "fresh"),
+    ("three teenagers and one bathroom, set up a fair cleaning rota for us", "chore-rota", "fresh"),
+    ("before I paste this into my terminal, what does sudo apt purge do", "command-explainer", "fresh"),
+    ("my new tenancy agreement has a clause about redecorating, summarise it for me before I sign", "contract-summary", "fresh"),
+    ("draft a cover letter for a library assistant post using my cv below", "cover-letter-writer", "fresh"),
+    ("rework my resume so it fits this warehouse supervisor advert", "cv-tailor", "fresh"),
+    ("a customer emailed asking why their parcel is late, help me answer kindly", "email-reply", "fresh"),
+    ("I need a written request to the school asking for my son's records", "formal-request-letter", "fresh"),
+    ("I need an excel formula that averages column C only for rows marked late", "formula-helper", "fresh"),
+    ("my email was hacked overnight and it is sending spam to everyone", "hacked-account-steps", "fresh"),
+    ("put together an invoice for three days of photography at 250 a day", "invoice-writer", "fresh"),
+    ("there's half a pumpkin, lentils and some feta in the fridge, plan a few dinners", "meal-plan-from-pantry", "fresh"),
+    ("plan the agenda for our committee meeting, forty five minutes, four topics", "meeting-agenda", "fresh"),
+    ("here are my notes from the planning call, list the action items and owners", "notes-to-actions", "fresh"),
+    ("proofread my wedding speech and fix any typos", "proofread-plain", "fresh"),
+    ("anonymise this case study, take out the client names and the address", "redact-before-sharing", "fresh"),
+    ("the blender arrived with a cracked jug, help me ask for a replacement", "return-refund-helper", "fresh"),
+    ("what year did the berlin wall come down", None, "fresh"),
+    ("suggest a name for my new goldfish", None, "fresh"),
+    ("how many calories are in a banana", None, "fresh"),
+    ("tell me a fun fact about octopuses", None, "fresh"),
+    ("what's the best way to learn to juggle", None, "fresh"),
+    ("why is the sky blue", None, "fresh"),
+    ("recommend a podcast about history", None, "fresh"),
+    ("how do you say good morning in japanese", None, "fresh"),
+    ("is coffee bad for you", None, "fresh"),
+    ("write a limerick about my cat", None, "fresh"),
+)
 
-# Visible asks a lexical ranker cannot reach. Two share zero stems with the wanted skill's
-# corpus; two share exactly one everyday desc-only stem ("cook", "between") that no rule can
-# accept without also seating the database skill for "restore my old photo..." ("restor") and
-# the packing skill for "what's the weather like tomorrow" ("weath") — single rare desc stems of
-# their own (measured over the 54-skill corpus; evidence in the repair job's decisions log).
-# Every entry carries its reason; the list stays small and visible-only.
+_ROWS: tuple[tuple[str, str | None, str], ...] = (
+    _VISIBLE_ROWS + _OWN_PICK_ROWS + _OWN_NONE_ROWS + _FRESH_ROWS
+)
+
+# Visible asks a lexical ranker cannot reach. The ask never says account, password or hacked,
+# and "instagram" is a word for posting as much as for a break-in. The list stays visible-only.
 _KNOWN_MISS: dict[str, str] = {
-    "split the housework between me and my two flatmates": (
-        "no stem of the ask (housework, flatmates) appears anywhere in chore-rota's corpus"
-        " (household chores, rota) — zero overlap clears no lexical bar"
-    ),
     "someone got into my instagram, what do I do": (
-        "the ask never says account, password or hacked, so hacked-account-steps has zero"
-        " stem overlap with it"
-    ),
-    "I only have rice, eggs and spinach, what can I cook this week": (
-        "the only shared stem is 'cook', rare but desc-only; a rule accepting one rare desc"
-        " stem also seats skills on 'restor' and 'weath' none-row asks (measured)"
-    ),
-    "help me pick between these three laptops": (
-        "the only shared stem is 'between' (desc-only); the ask's 'pick' seats chart-picker"
-        " instead, and no lexical rule prefers buying-checklist without false seats"
+        "the ask never says account, password or hacked, and the only topic word, instagram, is"
+        " also a posting word, so hacked-account-steps has no evidence of its own"
     ),
 }
 
@@ -231,10 +256,17 @@ def test_the_fitting_skill_comes_first_or_nothing_comes(ask: str, want: str | No
     assert first == want or listed, (source, ask, want, names)
 
 
-def test_the_known_miss_list_stays_small_reasoned_and_visible_only() -> None:
-    """No row may silently move into the list: <= 4 entries, each a visible pick row with a reason."""
+def test_the_fresh_rows_are_twenty_picks_and_ten_nones() -> None:
+    picks = [row for row in _FRESH_ROWS if row[1] is not None]
+    nones = [row for row in _FRESH_ROWS if row[1] is None]
+    assert len(picks) == 20 and len(nones) == 10
+    assert len({row[0] for row in _ROWS}) == len(_ROWS)
 
-    assert len(_KNOWN_MISS) <= 4
+
+def test_the_known_miss_list_stays_small_reasoned_and_visible_only() -> None:
+    """No row may silently move into the list: <= 1 entry, each a visible pick row with a reason."""
+
+    assert len(_KNOWN_MISS) <= 1
     assert all(reason.strip() for reason in _KNOWN_MISS.values())
     for ask in _KNOWN_MISS:
         assert any(row[0] == ask and row[2] == "visible" and row[1] is not None for row in _ROWS), ask
@@ -365,3 +397,60 @@ def test_a_skill_the_person_made_still_wins_on_its_own_words(_private_plugins_tr
     assert len(rows) <= MAX_SKILLS
     # Not one word of it reaches a chat it was not made for.
     assert "gate closing time" not in elsewhere.text
+
+
+# --------------------------------------------------------------------------- word forms that differ
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("letter", "letting"), ("price", "prize"), ("apply", "app"), ("notes", "not"), ("file", "fill"),
+     ("plane", "plan"), ("version", "verse"), ("offer", "off"), ("order", "ord"), ("reply", "rep")],
+)
+def test_different_words_do_not_fold_together(first: str, second: str) -> None:
+    assert plugin_skills._stem(first) != plugin_skills._stem(second)
+
+
+@pytest.mark.parametrize(
+    "forms",
+    [("price", "prices", "pricing"), ("note", "notes", "noted"), ("plan", "planning", "planner"),
+     ("date", "dates", "dated"), ("file", "files"), ("translate", "translation"),
+     ("organise", "organize", "organised"), ("polite", "politely"), ("announce", "announcement")],
+)
+def test_forms_of_one_word_still_meet(forms: tuple[str, ...]) -> None:
+    assert len({plugin_skills._stem(form) for form in forms}) == 1, [plugin_skills._stem(f) for f in forms]
+
+
+def test_a_short_topic_word_counts() -> None:
+    """"cv" and "ad" are what people type; two-letter function words still do not count."""
+
+    assert plugin_skills._content_stems("is my cv ok for this ad") == ["cv", "ad"]
+
+
+# --------------------------------------------------------------------------- why it matched
+
+
+def test_match_reasons_follow_the_ranking_and_speak_plainly() -> None:
+    ask = "make flashcards from my biology notes"
+    reasons = plugin_skills.match_reasons(SKILLS, ask)
+    ranked = [skill.name for skill in plugin_skills.rank_skills(SKILLS, ask, limit=len(SKILLS))]
+    assert list(reasons) == ranked
+    first = reasons["study-flashcards"]
+    assert 'trigger "flashcards from my notes"' in first
+    assert "word from the skill's name \"flashcards\"" in first
+    # Only words the skill carries are listed: "biology" is the person's topic, not a match.
+    assert 'shared words "notes"' in first and not any("biology" in reason for reason in first)
+
+
+def test_match_reasons_name_the_skill_and_use_the_persons_own_words() -> None:
+    reasons = plugin_skills.match_reasons(SKILLS, "use the chart-picker skill on these figures")
+    assert reasons["chart-picker"][0] == "names the skill"
+    shared = plugin_skills.match_reasons(SKILLS, "sort my receipts by month and total them")
+    lines = shared["receipt-organizer"]
+    # The person wrote "receipts"; the reason quotes that, never the stem.
+    assert any('"receipts"' in line for line in lines)
+    assert not any('"receipt"' in line for line in lines)
+
+
+def test_match_reasons_is_empty_when_nothing_fits() -> None:
+    assert plugin_skills.match_reasons(SKILLS, "what is the capital of france") == {}
+    assert plugin_skills.match_reasons(SKILLS, "") == {}

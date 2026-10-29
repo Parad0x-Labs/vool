@@ -1,6 +1,7 @@
 ---
 name: song-lyrics-starter
 description: Helps you write original song lyrics from your theme, mood and structure, with a syllable count hint after each line. Use when the user wants help starting or finishing original lyrics and gives a theme or a mood.
+triggers: [write lyrics, song ideas, verse and chorus, finish my lyrics, rhymes for my song, original song, chorus ideas, lyrics, songwriting, songs, rap verse, rhymes, ballad, write a song, chorus, bridge for my song, verse, tune about, folk song]
 license: MIT
 ---
 

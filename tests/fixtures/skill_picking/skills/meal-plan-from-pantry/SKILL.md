@@ -1,6 +1,7 @@
 ---
 name: meal-plan-from-pantry
 description: Plans simple meals from the food you already have, marks what each meal still needs to buy, and gives a short shopping list. Use when the user lists what food is in the house and asks what they could cook.
+triggers: [what to cook tonight, cook dinner with what I have, meals from my fridge, use up my leftovers, cook from my cupboard, recipe ideas from my pantry, cook with these ingredients, plan meals around what I have, what could I cook, pantry, fridge, leftovers, ingredients, cupboard, meal plan, dinner ideas, meals for the week, cook tonight, meal ideas, dinners this week, meals from what i have, what to cook, kitchen cupboard, cook with what i have, spare veg]
 license: MIT
 ---
 

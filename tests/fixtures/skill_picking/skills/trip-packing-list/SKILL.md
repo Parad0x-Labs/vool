@@ -1,6 +1,7 @@
 ---
 name: trip-packing-list
 description: Makes a grouped packing list with quantities based on the trip details you give, covering where, how long, weather and plans. Use when the user says where they are going, for how long and in what weather, and wants a packing list.
+triggers: [packing list, what to pack, what to bring on the trip, holiday packing, suitcase list, travel checklist, packing for a week abroad, pack for cold weather, suitcase, luggage, hand luggage, backpack, camping trip, festival packing, holiday checklist, packing, travel list, going away, vacation, holiday, abroad, toiletries, travelling, traveling, ski trip, beach holiday, road trip, hiking trip, trip abroad, clothes, what clothes to bring]
 license: MIT
 ---
 

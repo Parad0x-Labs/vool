@@ -1,6 +1,7 @@
 ---
 name: notes-to-actions
 description: Turns messy notes into a short summary and a clear list of next steps. Use when the user pastes rough meeting or project notes and wants them put in order.
+triggers: [action items, action items from the notes, sort out my notes, tidy up my notes, summarise my notes, turn scribbles into tasks, pull the decisions out of my notes, next steps, todo, takeaways, actions from the meeting, messy notes, brain dump, scribbles, meeting notes, project notes, action list, jotted down, notes into tasks, tasks from my notes, whiteboard, jotted, actionable, sort my notes, pull out the tasks, decisions and tasks, separate the tasks, tasks from these notes, what needs doing, notes from the meeting, make sense of my notes]
 license: MIT
 ---
 

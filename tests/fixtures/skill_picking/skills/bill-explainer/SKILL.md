@@ -1,6 +1,7 @@
 ---
 name: bill-explainer
 description: Explain a bill or statement you paste, line by line, and flag charges worth asking about. Use when a bill is unclear, higher than expected, or has a charge the user does not recognise.
+triggers: [explain my bill, understand my energy bill, my bill is higher, go through my bill, explain this charge, unknown charge on my bill, break down this bill, tariff, overcharged, surcharge, phone bill, mobile bill, water bill, broadband bill, gas bill, electricity bill, utility bill, internet bill, higher than usual, standing charge, extra fees on my bill, charges on my statement, charged twice, billing error, estimated bill, meter reading, direct debit went up, service charge, itemised bill]
 license: MIT
 ---
 

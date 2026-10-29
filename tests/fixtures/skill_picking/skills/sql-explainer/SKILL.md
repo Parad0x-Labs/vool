@@ -1,6 +1,7 @@
 ---
 name: sql-explainer
 description: Explains what a SQL query does clause by clause and points out likely mistakes. Use when the user pastes a query and wants to understand it before trusting its results.
+triggers: [explain this query, explain this sql, break down this query, select statement, sql statement, left join, is this query correct, joins, subquery, select query, update statement, sql query, query explained, query logic, insert, inner join, outer join, delete statement, query returns, query is slow, query results, join returns]
 license: MIT
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: build-log-reader
 description: "Read a build or deploy log you paste and explain where and why it failed. Use when a build, test run or deploy failed and the user wants the first real error found and explained."
+triggers: [why did my build fail, what broke the build, build keeps failing, read this error log, why did the deploy fail, find the error in this log, why did my tests fail, pipeline, compile, compiler, traceback, stack trace, failed build, ci failed, ci run, github actions, build error, deployment failed, red build, build log, deploy log, deployment, failed deploy, npm error, docker build, exit code, test run failed]
 license: MIT
 ---
 

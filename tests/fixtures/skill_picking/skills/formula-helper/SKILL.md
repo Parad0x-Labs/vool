@@ -1,6 +1,7 @@
 ---
 name: formula-helper
 description: Writes or explains a spreadsheet formula for a task you describe, in generic syntax that works in common spreadsheet apps, and checks it with a small worked example. Use when the user describes a calculation they want in their spreadsheet app, or pastes a formula they want explained.
+triggers: [excel formula, google sheets formula, write me a formula, explain this formula, spreadsheet calculation help, conditional sum formula, vlookup, excel, formulas, sumif, sumifs, countif, countifs, xlookup, index match, cell reference, google sheets, spreadsheet formula, lookup formula, spreadsheet function, column total, cell formula, sheet formula]
 license: MIT
 ---
 

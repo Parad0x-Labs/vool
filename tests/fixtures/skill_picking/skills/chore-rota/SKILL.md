@@ -1,6 +1,7 @@
 ---
 name: chore-rota
 description: Shares household chores fairly across the people and days you list, respects stated limits, flags imbalance, and suggests a swap rule. Use when the user lists people and chores and wants a fair weekly rota.
+triggers: [housework rota, chore rota, assign the chores, split chores fairly, cleaning rota for flatmates, take turns with the cleaning, divide the housework, fair share of the cleaning, split the housework with flatmates, chores, housework, household jobs, cleaning schedule, cleaning rota, laundry, hoovering, bin duty, flatmates, housemates, roommates, jobs around the house, share the jobs, kids chores, family chores]
 license: MIT
 ---
 

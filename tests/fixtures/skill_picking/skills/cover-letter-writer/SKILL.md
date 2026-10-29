@@ -1,6 +1,7 @@
 ---
 name: cover-letter-writer
 description: Write a short cover letter from your CV and the job post, in your own voice. Use when the user needs a cover letter for a specific job application.
+triggers: [covering letter, application letter, job application letter, write a covering letter, covering letter for this role, covering note for my application, motivation letter, why i am a good fit, letter to the hiring manager, hiring manager, cover note, supporting statement, personal statement, intro letter for a job]
 license: MIT
 ---
 
