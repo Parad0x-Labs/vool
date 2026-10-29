@@ -1976,7 +1976,12 @@ def owner_live_sources(text: str) -> tuple[str, ...]:
             and _LIVE_CALENDAR_WRITE_RE.search(part) and not _LIVE_FILES_RE.search(part)
         ):
             found.append("calendar")
-        if _LIVE_PROCESS_RE.search(part) and (owner or re.search(r"\b(?:background|right\s+now)\b", part, re.I)):
+        if (
+            _LIVE_PROCESS_RE.search(part)
+            and (owner or re.search(r"\b(?:background|right\s+now)\b", part, re.I))
+            # "are you running on my mac or in the cloud" asks about VOOL itself, not a process list.
+            and not re.search(r"\b(?:are|is)\s+(?:you|vool)\b|\byou\s+(?:running|run)\b", part, re.I)
+        ):
             found.append("processes")
         if owner and _LIVE_DISK_RE.search(part):
             found.append("disk")

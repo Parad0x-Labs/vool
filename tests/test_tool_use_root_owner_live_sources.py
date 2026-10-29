@@ -154,6 +154,8 @@ def test_the_audit_r4_wordings_are_read_as_live_sources() -> None:
     assert owner_live_sources("is there anything running in the background i should be worried about?") == ("processes",)
     assert owner_live_sources("what videos do i have on here?") == ("files",)
     assert "operator.inspect_processes" in owner_live_source_intents("whats hogging my memory right now?")
+    # About VOOL itself, not the owner's processes.
+    assert owner_live_sources("are you running on my mac or up in some cloud somewhere?") == ()
 
 
 def test_a_retry_round_offers_only_the_needed_tools() -> None:
