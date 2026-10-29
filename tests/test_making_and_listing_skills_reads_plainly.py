@@ -593,3 +593,436 @@ def test_the_version_record_advances_with_the_updated_reply() -> None:
     ]
     assert installed, "the skill is installed"
     assert skill_tools.installed_skill_version_for_path(installed[0]["path"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Job C: the no-model draft reads plainly, a colon after the place or the word
+# "skill" reads like "that", and the sharing replies carry no engineering.
+# ---------------------------------------------------------------------------
+
+SHOPPING_REQUEST = (
+    "Make me a skill for all of VOOL: whenever I give you a shopping list or a "
+    "grocery list, sort it by supermarket aisle."
+)
+
+
+def _lane(session: str, text: str, context: dict | None = None, agent: SimpleNamespace | None = None):
+    from core.agent_runtime.fast_paths_skill import maybe_handle_skill_request
+
+    return maybe_handle_skill_request(
+        agent or _no_model_agent(),
+        text,
+        session_id=session,
+        source_context=context or {"operating_mode": "auto", "session_id": session},
+    )
+
+
+def _trigger_words(reply: str) -> list[str]:
+    match = re.search(r"\*\*Trigger words:\*\* (?P<line>[^\n]+)", reply)
+    return [part.strip() for part in (match.group("line") if match else "").split(",") if part.strip()]
+
+
+class TestTheNoModelDraftReadsPlainly:
+    def test_when_it_applies_is_a_when_you_sentence(self) -> None:
+        ask = _lane("jobc-words", SHOPPING_REQUEST)
+        assert ASK_FOR_NAME in ask["response"]
+        made = _lane("jobc-words", "Shopping list by aisle")
+        assert '**When it applies:** When you give a shopping list or a grocery list.' in made["response"]
+
+    def test_the_author_note_is_plain(self) -> None:
+        _lane("jobc-note", SHOPPING_REQUEST)
+        made = _lane("jobc-note", "Shopping list by aisle")
+        assert "(written from your words, no AI model was connected)" in made["response"]
+        assert "no model router" not in made["response"]
+
+    def test_the_request_is_quoted_whole(self) -> None:
+        _lane("jobc-quote", SHOPPING_REQUEST)
+        made = _lane("jobc-quote", "Shopping list by aisle")
+        assert f"> {SHOPPING_REQUEST}" in made["response"]
+        assert "for :" not in made["response"], "scope words must not be cut out of the quote"
+
+    def test_triggers_are_the_content_noun_phrases(self) -> None:
+        _lane("jobc-triggers", SHOPPING_REQUEST)
+        made = _lane("jobc-triggers", "Shopping list by aisle")
+        assert set(_trigger_words(made["response"])) == {"shopping list", "grocery list", "supermarket aisle"}
+        assert all("whenever" not in t and "give" not in t and "you" not in t for t in _trigger_words(made["response"]))
+
+    def test_no_trigger_is_cut_across_a_comma_or_or(self) -> None:
+        request = "make me a skill: when I paste a rehearsal schedule or a set list, build a run sheet"
+        _lane("jobc-chunks", request)
+        made = _lane("jobc-chunks", "Run sheet builder")
+        words = _trigger_words(made["response"])
+        assert words, "a draftable request still carries triggers"
+        assert all(" or " not in t and "," not in t for t in words)
+        assert all("when" not in t and "paste" not in t for t in words)
+
+    def test_an_if_lead_also_reads_as_when_you(self) -> None:
+        request = "make me a skill: if I send a rehearsal schedule, build a run sheet"
+        _lane("jobc-if", request)
+        made = _lane("jobc-if", "Run sheet builder")
+        assert "**When it applies:** When you send a rehearsal schedule." in made["response"]
+
+    def test_your_keeps_the_possessive(self) -> None:
+        request = "make me a skill: whenever my sister sends her birthday list, total the gifts"
+        _lane("jobc-your", request)
+        made = _lane("jobc-your", "Birthday totals")
+        assert "**When it applies:** When your sister sends her birthday list." in made["response"]
+
+    def test_a_purpose_without_a_lead_keeps_the_use_when_shape(self) -> None:
+        _lane("jobc-nolead", "make me a skill that reminds me to water my plants")
+        made = _lane("jobc-nolead", "Plant care")
+        assert re.search(r"\*\*When it applies:\*\* Use when the user asks to ", made["response"])
+
+    def test_a_lone_content_chunk_contributes_no_trigger(self) -> None:
+        request = "make me a skill: whenever I paste a phone number, format it"
+        _lane("jobc-lone", request)
+        made = _lane("jobc-lone", "Phone formatter")
+        assert _trigger_words(made["response"]) == ["phone number"]
+
+
+class TestAColonAfterThePlaceOrTheSkillWord:
+    def test_a_colon_after_this_project_reads_like_that(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+        from core.context_namespace import ensure_chat_namespace
+
+        ensure_chat_namespace("chat-jobc-project", project_id="project-jobc")
+        request = skill_request("Make me a skill for this project: whenever I push a fix, update the changelog")
+        assert request == {"action": "create", "name": "", "scope": "project"}
+
+    def test_a_colon_after_the_skill_word_reads_like_that(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+
+        request = skill_request("Make me a skill: whenever I give you a shopping list, sort it by aisle")
+        assert request == {"action": "create", "name": ""}
+
+    def test_a_colon_after_this_chat_reads_like_that(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+        from core.context_namespace import ensure_chat_namespace
+
+        ensure_chat_namespace("chat-jobc-chat")
+        request = skill_request("make me a skill for this chat: whenever I paste a link, save it for later")
+        assert request == {"action": "create", "name": "", "scope": "chat"}
+
+    def test_this_project_colon_without_a_project_keeps_the_refusal(self) -> None:
+        from core.context_namespace import ensure_chat_namespace
+
+        ensure_chat_namespace("chat-jobc-noproject")  # a chat with no project bound
+        first = _lane("chat-jobc-noproject", "Make me a skill for this project: whenever I push a fix, update the changelog")
+        second = _lane("chat-jobc-noproject", "Changelog keeper")
+        combined = (first or {}).get("response", "") + "\n" + (second or {}).get("response", "")
+        assert "I can't keep a skill for this project" in combined
+
+    def test_a_dash_after_the_skill_word_reads_like_that(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+
+        request = skill_request("make me a skill - whenever I send an invoice, log the total")
+        assert request == {"action": "create", "name": ""}
+
+    def test_an_em_dash_after_a_place_reads_like_that(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+
+        request = skill_request("make me a skill for all of VOOL — whenever I send an invoice, log the total")
+        assert request == {"action": "create", "name": "", "scope": "global"}
+
+    def test_a_colon_elsewhere_is_not_a_purpose_split(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+
+        request = skill_request("hey, quick one: make me a skill that sorts my lists")
+        assert (request or {}).get("action") == "create"
+
+    def test_a_thin_tail_after_the_colon_still_needs_the_name_and_purpose(self) -> None:
+        from core.agent_runtime.fast_paths_skill import skill_request
+
+        assert skill_request("make me a skill: something") == {"action": "needs_name", "name": ""}
+
+
+def _two_versions_installed(slug: str = "shopping-list-by-aisle") -> None:
+    _draft(slug, "Use when you give a shopping list or a grocery list.", "Sort the items by supermarket aisle.")
+    _install_reply({"path": slug})
+    _draft(slug, "Use when you give a shopping list or a grocery list.", "Sort the items by aisle; frozen goods last.")
+    _install_reply({"path": slug, "overwrite": True})
+
+
+class TestTheSharingRepliesReadPlainly:
+    def test_the_rollback_reply(self) -> None:
+        from core.runtime_execution_tools import _skill_rollback
+
+        _two_versions_installed()
+        result = _skill_rollback({"skill": "shopping-list-by-aisle", "version": 1})
+        assert result.status == "ok", result.response_text
+        assert result.response_text == (
+            'Restored version 1 of the skill "Shopping list by aisle". It is used from your next message.'
+        )
+
+    def test_the_version_list_reply(self) -> None:
+        _two_versions_installed()
+        reply = _lane("jobc-versions", "roll back the shopping-list-by-aisle skill")
+        assert reply["response"] == 'The skill "Shopping list by aisle" has versions 1, 2. Which one should I restore?'
+
+    def test_the_export_reply(self) -> None:
+        from core.runtime_execution_tools import _skill_share_tool
+
+        _two_versions_installed()
+        result = _skill_share_tool("skill.export", {"name": "shopping-list-by-aisle"}, {"session_id": "jobc-export"})
+        assert result.status == "ok", result.response_text
+        path = Path(str(result.details.get("path") or ""))
+        assert result.response_text == (
+            f'Saved the skill "Shopping list by aisle" as the file {path.name}, '
+            f"in this folder: {path.parent}. Send that file to share it."
+        )
+
+    def test_the_import_reply(self) -> None:
+        from core.runtime_execution_tools import _skill_share_tool
+
+        _two_versions_installed()
+        zipped = _skill_share_tool("skill.export", {"name": "shopping-list-by-aisle"}, {"session_id": "jobc-import"})
+        assert zipped.status == "ok", zipped.response_text
+        imported = _skill_share_tool(
+            "skill.import", {"path": str(zipped.details.get("path"))}, {"session_id": "jobc-import"}
+        )
+        assert imported.status == "ok", imported.response_text
+        assert imported.response_text == (
+            'This file holds the skill "Shopping list by aisle", ready for all of VOOL. '
+            "It is not on yet: say turn it on."
+        )
+
+    def test_turn_it_on_after_an_import_still_installs(self, tmp_path) -> None:
+        from core.mode_permission_policy import PermissionAction, grant_internal_authority
+        from core.runtime_execution_tools import _skill_share_tool
+
+        _two_versions_installed()
+        zipped = _skill_share_tool("skill.export", {"name": "shopping-list-by-aisle"}, {"session_id": "jobc-follow"})
+        zip_path = str(zipped.details.get("path"))
+        imported = _lane("jobc-follow", f"import this skill {zip_path} for all of VOOL")
+        assert imported is not None and 'holds the skill "Shopping list by aisle"' in imported["response"]
+        assert "turn it on" in imported["response"].lower()
+        token = grant_internal_authority(
+            label="jobc-follow",
+            actions=[
+                PermissionAction.CREATE_FILES,
+                PermissionAction.MODIFY_FILES,
+                PermissionAction.OVERWRITE_EXISTING_FILES,
+                PermissionAction.CHANGE_SETTINGS,
+            ],
+            intents=["skill.install"],
+            session_id="jobc-follow",
+            duration_seconds=300,
+        )
+        on = _lane(
+            "jobc-follow", "turn it on",
+            {"operating_mode": "manual", "session_id": "jobc-follow", "internal_authority_token": token},
+        )
+        # The zip carried version history, so turning it on over the v1+v2 install says Updated.
+        assert on is not None and 'Updated the skill "Shopping list by aisle"' in on["response"]
+
+    def test_turn_it_on_after_a_restart_reads_the_new_offer_from_history(self) -> None:
+        from core.agent_runtime import fast_paths_skill
+        from core.runtime_execution_tools import _skill_share_tool
+
+        _two_versions_installed()
+        zipped = _skill_share_tool("skill.export", {"name": "shopping-list-by-aisle"}, {"session_id": "jobc-restart"})
+        zip_path = str(zipped.details.get("path"))
+        imported = _lane("jobc-restart", f"import this skill {zip_path} for all of VOOL")
+        assert imported is not None and 'ready for all of VOOL' in imported["response"]
+        fast_paths_skill._PENDING.clear()  # a restart: only the words on screen remain
+        from core.mode_permission_policy import PermissionAction, grant_internal_authority
+
+        token = grant_internal_authority(
+            label="jobc-restart",
+            actions=[
+                PermissionAction.CREATE_FILES,
+                PermissionAction.MODIFY_FILES,
+                PermissionAction.OVERWRITE_EXISTING_FILES,
+                PermissionAction.CHANGE_SETTINGS,
+            ],
+            intents=["skill.install"],
+            session_id="jobc-restart",
+            duration_seconds=300,
+        )
+        context = {
+            "operating_mode": "manual",
+            "session_id": "jobc-restart",
+            "internal_authority_token": token,
+            "conversation_history": [{"role": "assistant", "content": imported["response"]}],
+        }
+        on = _lane("jobc-restart", "turn it on", context)
+        assert on is not None and 'Updated the skill "Shopping list by aisle"' in on["response"]
+
+    def test_turning_off_a_built_in_says_it_comes_with_vool(self) -> None:
+        with mock.patch(
+            "core.authorized_tool_execution.execute_authorized_runtime_tool",
+            lambda *a, **k: pytest.fail("a built-in turn-off must not dispatch skill.remove"),
+        ):
+            reply = _lane("jobc-builtin", "turn off the answer-presentation skill")
+        assert reply is not None
+        assert reply["response"] == "Answer presentation comes with VOOL and cannot be turned off here."
+
+    def test_turning_off_a_skill_you_made_still_turns_it_off(self) -> None:
+        from core.mode_permission_policy import PermissionAction, grant_internal_authority
+
+        _draft("decline-politely", "Use when the user wants to say no to an invitation.", "Decline kindly.")
+        _install_reply({"path": "decline-politely"})
+        # Auto mode itself gates skill.remove behind an approval; one grant stands in for it, the
+        # same way the repo's own lane tests drive the remove lane.
+        token = grant_internal_authority(
+            label="jobc-remove",
+            actions=[PermissionAction.MODIFY_FILES, PermissionAction.CHANGE_SETTINGS, PermissionAction.DELETE_FILES],
+            intents=["skill.remove"],
+            session_id="jobc-remove",
+            duration_seconds=300,
+        )
+        reply = _lane(
+            "jobc-remove",
+            "turn off the decline-politely skill",
+            {"operating_mode": "manual", "session_id": "jobc-remove", "internal_authority_token": token},
+        )
+        assert reply is not None and "Turned off" in reply["response"]
+
+    def test_the_rollback_reply_holds_no_slug_or_engineering(self) -> None:
+        from core.runtime_execution_tools import _skill_rollback
+
+        _two_versions_installed()
+        result = _skill_rollback({"skill": "shopping-list-by-aisle", "version": 1})
+        assert "`" not in result.response_text
+        assert "byte for byte" not in result.response_text and "loader" not in result.response_text.lower()
+
+    def test_an_import_for_this_chat_says_its_scope(self) -> None:
+        from core.context_namespace import ensure_chat_namespace
+        from core.runtime_execution_tools import _skill_share_tool
+
+        _two_versions_installed()
+        ensure_chat_namespace("chat-jobc-scope")
+        zipped = _skill_share_tool("skill.export", {"name": "shopping-list-by-aisle"}, {"session_id": "chat-jobc-scope"})
+        imported = _skill_share_tool(
+            "skill.import",
+            {"path": str(zipped.details.get("path")), "scope": "chat"},
+            {"session_id": "chat-jobc-scope"},
+        )
+        assert imported.status == "ok", imported.response_text
+        assert imported.response_text == (
+            'This file holds the skill "Shopping list by aisle", ready for this chat. '
+            "It is not on yet: say turn it on."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Job C: the whole guide, walked in its own order, in-process, no model
+# ---------------------------------------------------------------------------
+
+
+def test_the_guide_walk_from_making_to_sharing(tmp_path, monkeypatch) -> None:
+    """make, name, allow, turn on, try, list, change, turn on, roll back, share, turn off,
+    import the zip in a second profile, turn on — one conversation, the real tools, Manual mode."""
+    from core import skill_tools
+    from core.agent_runtime import fast_paths_skill
+    from core.mode_permission_policy import PermissionAction, grant_internal_authority, resolve_approval
+    from core.plugin_catalog import invalidate_storage_listing
+    from core.tool_offer_assembly import skill_guidance_for
+
+    chat = "guide-walk"
+    agent = _no_model_agent()
+
+    def turn(text: str, context: dict) -> dict:
+        outcome = fast_paths_skill.maybe_handle_skill_request(agent, text, session_id=chat, source_context=context)
+        assert outcome is not None, text
+        return outcome
+
+    # 1-2. make + name: the ask, then the answer raises the approval the guide's "allow" resolves.
+    manual = {"session_id": chat, "operating_mode": "manual"}
+    ask = turn(SHOPPING_REQUEST, manual)
+    assert ASK_FOR_NAME in ask["response"]
+    pending = turn("Shopping list by aisle", manual)
+    approval = dict(pending.get("approval_request") or {})
+    assert approval.get("approval_id"), pending["response"]
+
+    # 3. allow: the operator resolves it and the same answer replays with the token.
+    assert resolve_approval(str(approval["approval_id"]), decision="allow") is not None
+    replay = dict(manual, mode_approval_token=str(approval["approval_id"]))
+    drafted = turn("Shopping list by aisle", replay)
+    assert "(written from your words, no AI model was connected)" in drafted["response"]
+
+    # One grant covers the remaining mutations the walk performs, like the guide's "keep going".
+    token = grant_internal_authority(
+        label="guide-walk",
+        actions=[
+            PermissionAction.READ_FILES,
+            PermissionAction.CREATE_FILES,
+            PermissionAction.MODIFY_FILES,
+            PermissionAction.OVERWRITE_EXISTING_FILES,
+            PermissionAction.CHANGE_SETTINGS,
+            PermissionAction.DELETE_FILES,
+        ],
+        intents=["skill.create", "skill.install", "skill.rollback", "skill.export", "skill.import", "skill.remove"],
+        session_id=chat,
+        duration_seconds=600,
+    )
+    manual = {"session_id": chat, "operating_mode": "manual", "internal_authority_token": token}
+
+    # 4. turn on.
+    on = turn("turn it on", manual)
+    assert on["response"].startswith('Added the skill "Shopping list by aisle"'), on["response"]
+
+    # 5. try: the live prompt seam carries the skill's instruction.
+    served = skill_guidance_for("here is my shopping list: milk, bread, peas", source_context={"session_id": chat})
+    assert "supermarket aisle" in served.text
+
+    # 6. list.
+    listing = turn("which skills do I have?", manual)
+    assert listing["response"].count("Shopping list by aisle") == 1
+    assert "- Shopping list by aisle — on —" in listing["response"]
+
+    # 7-8. change, turn on again.
+    turn("change the shopping-list-by-aisle skill: also flag anything frozen", manual)
+    on_again = turn("turn it on", manual)
+    assert on_again["response"].startswith('Updated the skill "Shopping list by aisle"'), on_again["response"]
+
+    # 9. roll back to version 1.
+    restored = turn("roll back the shopping-list-by-aisle skill to version 1", manual)
+    assert restored["response"] == (
+        'Restored version 1 of the skill "Shopping list by aisle". It is used from your next message.'
+    )
+
+    # 10. share.
+    shared = turn("export the shopping-list-by-aisle skill", manual)
+    assert shared["response"].startswith('Saved the skill "Shopping list by aisle" as the file ')
+    zip_path = Path(str((shared.get("details") or {}).get("path") or ""))
+    assert zip_path.is_file()
+
+    # 11. turn off.
+    off = turn("turn off the shopping-list-by-aisle skill", manual)
+    assert "Turned off" in off["response"]
+    # Off reads through the live seam; the staged revision the change step left is kept by design.
+    gone = skill_guidance_for("here is my shopping list: milk, bread, peas", source_context={"session_id": chat})
+    assert "supermarket aisle" not in gone.text
+
+    # 12. import the zip in a second temp profile.
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "profile2-plugins"))
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "profile2-voolhome"))
+    invalidate_storage_listing()
+    imported = fast_paths_skill.maybe_handle_skill_request(
+        agent, f"import this skill {zip_path} for all of VOOL", session_id="profile2-chat",
+        source_context={"operating_mode": "auto", "session_id": "profile2-chat"},
+    )
+    assert imported is not None, "the import lane must claim the zipped skill"
+    assert 'This file holds the skill "Shopping list by aisle", ready for all of VOOL.' in imported["response"]
+
+    # 13. turn on, in the second profile.
+    token2 = grant_internal_authority(
+        label="guide-walk-profile2",
+        actions=[
+            PermissionAction.CREATE_FILES,
+            PermissionAction.MODIFY_FILES,
+            PermissionAction.OVERWRITE_EXISTING_FILES,
+            PermissionAction.CHANGE_SETTINGS,
+        ],
+        intents=["skill.install"],
+        session_id="profile2-chat",
+        duration_seconds=300,
+    )
+    on2 = fast_paths_skill.maybe_handle_skill_request(
+        agent, "turn it on", session_id="profile2-chat",
+        source_context={
+            "operating_mode": "manual", "session_id": "profile2-chat", "internal_authority_token": token2,
+        },
+    )
+    assert on2 is not None and on2["response"].startswith('Added the skill "Shopping list by aisle"'), on2["response"]

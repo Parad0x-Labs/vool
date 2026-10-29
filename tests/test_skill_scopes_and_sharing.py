@@ -485,7 +485,7 @@ def test_without_a_model_it_asks_for_a_name_then_drafts_the_operators_own_words(
         _agent(), "Meeting actions", session_id=chat, source_context=context,
     )
     assert reply["reason"] == "skill_create", reply
-    assert "(written from your own words: " in reply["response"]
+    assert "(written from your words, no AI model was connected)" in reply["response"]
     assert "written by from" not in reply["response"]  # the fallback author reads as a sentence
     staged = list(staged_dir.glob("*/SKILL.md"))
     assert len(staged) == 1, staged
