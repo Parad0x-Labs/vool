@@ -922,6 +922,15 @@ def assemble_tool_offer(
     # `code.task.*` -> "code"), not just the task-class hint. A family seated by the user's
     # words (demand signals) or by an open control-plane session (task/repo seats) is exactly
     # as real as one derived from a task class, and a contextual follow-up must inherit it.
+    # A tool-use retry round (core.tool_use_retry) offers only the tools the words need.
+    from core.tool_use_retry import retry_offer_intents
+
+    retry_only = retry_offer_intents(source_context)
+    if retry_only:
+        narrowed = [spec for spec in specs if str(spec.get("intent") or "") in retry_only]
+        if any(str(spec.get("intent") or "") != "respond.direct" for spec in narrowed):
+            specs = narrowed
+
     from core.capability_graph import _CANONICAL_FAMILIES
 
     seated_families = tuple(

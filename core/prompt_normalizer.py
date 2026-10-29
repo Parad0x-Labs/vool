@@ -1043,6 +1043,12 @@ def _build_conversational_request(
             "ownership, and project facts. Use it instead of model priors, and do not invent a "
             "conflicting owner, product expansion, or project description."
         )
+    from core.tool_use_retry import retry_directive
+
+    _tool_use_retry = retry_directive(source_context)
+    if _tool_use_retry:
+        system_segments.append(("tool_use_retry_directive", _PAYLOAD_ANSWER_BINDER, _tool_use_retry))
+        turn_directives.append(_tool_use_retry)
     tool_observation_message = _runtime_tool_observation_message(source_context)
     followup_message = _followup_context_message(source_context)
     user = InternalMessage(
