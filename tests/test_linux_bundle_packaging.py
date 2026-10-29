@@ -214,8 +214,11 @@ def test_the_installed_launcher_keeps_vool_out_of_its_own_install_folder(tmp_pat
     launch = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(launch)
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "vool-home"))
-    monkeypatch.delenv("VOOL_PROJECT_ROOT", raising=False)
-    monkeypatch.delenv("VOOL_WORKSPACE_ROOT", raising=False)
+    # The launcher writes os.environ directly. delenv of an unset name records nothing to undo, so set
+    # each name first: teardown then removes what main() wrote instead of leaking it to later tests.
+    for name in ("VOOL_PROJECT_ROOT", "VOOL_WORKSPACE_ROOT", "PYTHONDONTWRITEBYTECODE"):
+        monkeypatch.setenv(name, "")
+        monkeypatch.delenv(name)
     monkeypatch.setattr(launch.os, "chdir", lambda path: None)
     monkeypatch.setattr(sys, "argv", ["launch.py", "--headless"])
 
