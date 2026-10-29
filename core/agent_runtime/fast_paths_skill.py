@@ -112,6 +112,11 @@ _INVENTORY_RE = re.compile(
     re.IGNORECASE,
 )
 
+_HOW_TO_MANAGE_TAIL_RE = re.compile(
+    r"[?.,!]*\s*(?:and\s+|&\s+)?how\s+(?:do|can|would)\s+i\s+"
+    r"(?:add|get|install|find|turn|switch|remove|enable|disable)\b[^?.!]{0,40}[?.!]*\s*$",
+    re.IGNORECASE,
+)
 _PLUGIN_WORD = r"(?:plugins?|plug-ins?)"
 # Sharing. The noun is required on both sides, so "export the csv" and "import pandas" stay away.
 _EXPORT_RE = re.compile(
@@ -436,6 +441,11 @@ def _skill_request_raw(text: str) -> dict[str, Any] | None:
     # reads "what skills do i have" as discussion -- correctly, for a gate whose job is to stop
     # WRITES -- and letting it veto here answered a direct question with nothing.
     if _INVENTORY_RE.fullmatch(body.strip(" .?!")) and not _CREATE_RE.search(body):
+        return {"action": "list", "name": "", "scope": scope}
+    # "what skills do you have? and how do i add or turn one off" -- the list's own last lines
+    # answer the add and turn-off half, so the whole message is still the inventory ask.
+    asked = _HOW_TO_MANAGE_TAIL_RE.sub("", body.strip(" .?!")).strip(" .?!,")
+    if asked != body.strip(" .?!") and _INVENTORY_RE.fullmatch(asked) and not _CREATE_RE.search(asked):
         return {"action": "list", "name": "", "scope": scope}
 
     # Everything below this line mutates, so discussion stops here. "how would i create a skill?"
@@ -1375,7 +1385,8 @@ def maybe_handle_skill_request(
             "Happy to. Tell me in your own words what the skill should do and when I should use "
             "it, the way you would explain it to a friend. For example: make me a skill that "
             "sorts my shopping list by supermarket aisle whenever I give you one.\n\n"
-            "Add \"for this chat\" if it should only work here. I will show you a draft first, "
+            "You can give it a name too (make me a skill called Shopping list that ...), and add "
+            "\"for this chat\" if it should only work here. I will show you a draft first, "
             "and nothing is switched on until you say turn it on.",
             reason="skill_needs_name",
         )

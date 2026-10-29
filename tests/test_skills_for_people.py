@@ -275,3 +275,23 @@ def test_the_skills_panel_has_an_on_off_button_that_uses_the_skill_store() -> No
     assert "p-toggle" in render
     toggle = page.split("async function toggleSkill(id, enable) {", 1)[1].split("\n}\n", 1)[0]
     assert "'/api/skills/enable'" in toggle
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "what skills do you have? and how do i add or turn one off",
+        "which skills are installed? how can i get more",
+    ],
+)
+def test_the_list_answers_a_question_that_also_asks_how_to_add_or_turn_off(text: str) -> None:
+    from core.agent_runtime.fast_paths_skill import skill_request
+
+    assert (skill_request(text) or {}).get("action") == "list"
+
+
+@pytest.mark.parametrize("text", ["how do i add a skill", "what skills do you have and how do i make a cake"])
+def test_other_how_questions_are_not_taken_for_the_list(text: str) -> None:
+    from core.agent_runtime.fast_paths_skill import skill_request
+
+    assert (skill_request(text) or {}).get("action") != "list"
