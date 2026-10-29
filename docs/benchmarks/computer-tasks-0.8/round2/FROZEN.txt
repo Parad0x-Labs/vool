@@ -1,0 +1,7 @@
+round2-asks.json sha256 050247ecc895fac3aca32b1015f71ae458d96db12a60874c9258c7ce82d90639
+frozen 2026-10-29T09:07:33Z
+author: claude-opus-5-5 via <keychain-item>, fresh context, one call; inputs SYSTEM.txt + BRIEF.md only (no VOOL code, replies, scores, round-1 set or old fixture)
+ledger row: 2026-10-29T09:07:03.881350+00:00,claude-opus-5-5,1461,22614,0,0,0.000000,0.000000,0.458124,end_turn,req_011CgWG1MiPbvxSmLhEJmHZt
+home: fakehome2 built by build_home.py from AUTHOR-REPLY.json at 2026-10-29T09:07:22Z; manifest hash (sha256 of sorted 'path:sha256' lines) da4f47ab3cd9b3878c8f24a12d1bf0232c4f2fd9d4364403c3527f8484001f3c; 39 files, 1.4 GB (zero-filled media)
+validation: VALIDATION.txt
+VOOL code: VOOL code freeze for round 2: fix14 repo HEAD 39fc952763219514077c59a971c10bbde4c81e18, clean tree, checked 2026-10-29T09:03:53Z (same commit as round 1)

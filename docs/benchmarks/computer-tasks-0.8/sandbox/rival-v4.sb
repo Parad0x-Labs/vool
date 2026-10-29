@@ -1,0 +1,56 @@
+(version 1)
+; rival.sb v4 (2026-10-29): deny by default for running programs and for reading files.
+; A rival may run only: its own runtime (node / its venv python), a POSIX shell and basic file tools. It may read only:
+; system libraries and frameworks, its own install and state dirs, the test copy, and temp. Writes: test copy, state, temp.
+; Network: localhost only. Keychain, location, contacts, photos, clipboard and Apple-event services are denied.
+(allow default)
+
+; ---- network
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*"))
+(allow network-outbound (remote unix-socket))
+
+; ---- writes
+(deny file-write*)
+(allow file-write* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "/private/tmp") (subpath "/private/var/folders")
+  (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (literal "/dev/dtracehelper") (regex #"^/dev/fd/"))
+
+; ---- reads: deny all data reads, then allow the minimum; metadata (stat) stays allowed so paths resolve
+(deny file-read-data)
+(allow file-read-data
+  (literal "/") (subpath "/System") (subpath "/usr/lib") (subpath "/usr/share") (subpath "/usr/libexec/rosetta")
+  (subpath "/bin") (subpath "/sbin") (subpath "/usr/bin") (subpath "/usr/sbin")
+  (subpath "/Library/Apple/System") (subpath "/private/var/db/dyld") (subpath "/private/var/db/timezone") (subpath "/private/var/folders") (subpath "/private/tmp")
+  (literal "/private/etc/hosts") (literal "/private/etc/resolv.conf") (literal "/private/etc/localtime") (subpath "/private/var/db/icu")
+  (literal "/dev/null") (literal "/dev/urandom") (literal "/dev/random") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/autofs_nowait") (regex #"^/dev/fd/") (literal "/dev/dtracehelper")
+  (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR"))
+  (subpath "<work>/cache/memory-h2h-20261005")
+  (subpath "<home>/.local/share/uv/python"))
+
+; ---- processes: deny every exec, then allow the rival runtimes, a shell and basic file tools
+(deny process-exec)
+(allow process-exec
+  (subpath "<work>/cache/memory-h2h-20261005")
+  (subpath "<home>/.local/share/uv/python")
+  (literal "/bin/sh") (literal "/bin/bash") (literal "/bin/zsh") (literal "/usr/bin/env")
+  ; Hermes runs `launchctl print <its gateway label>` at start (absent = exit 113); without it Hermes cannot start. Disclosed.
+  (literal "/bin/launchctl")
+  (literal "/bin/ls") (literal "/bin/cat") (literal "/bin/cp") (literal "/bin/mv") (literal "/bin/mkdir") (literal "/bin/rm") (literal "/bin/pwd")
+  (literal "/bin/echo") (literal "/bin/test") (literal "/bin/date") (literal "/bin/expr") (literal "/bin/sleep")
+  (literal "/usr/bin/find") (literal "/usr/bin/grep") (literal "/usr/bin/egrep") (literal "/usr/bin/head") (literal "/usr/bin/tail")
+  (literal "/usr/bin/wc") (literal "/usr/bin/stat") (literal "/usr/bin/file") (literal "/usr/bin/du") (literal "/usr/bin/sort")
+  (literal "/usr/bin/uniq") (literal "/usr/bin/cut") (literal "/usr/bin/tr") (literal "/usr/bin/awk") (literal "/usr/bin/sed")
+  (literal "/usr/bin/xargs") (literal "/usr/bin/basename") (literal "/usr/bin/dirname") (literal "/usr/bin/touch")
+  (literal "/usr/bin/strings") (literal "/usr/bin/textutil") (literal "/usr/bin/tee") (literal "/usr/bin/which")
+  (literal "/usr/bin/true") (literal "/usr/bin/false") (literal "/usr/bin/printf") (literal "/usr/bin/tar") (literal "/usr/bin/unzip") (literal "/usr/bin/zip"))
+
+; ---- private services
+(deny mach-lookup
+  (global-name "com.apple.securityd") (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc")
+  (global-name "com.apple.security.agent") (global-name "com.apple.authd") (global-name "com.apple.security.syspolicy")
+  (global-name "com.apple.locationd.registration") (global-name "com.apple.locationd.synchronous") (global-name "com.apple.locationd.desktop.registration")
+  (global-name "com.apple.contactsd") (global-name "com.apple.AddressBook.ContactsAccountsService") (global-name "com.apple.contactsd.persistence")
+  (global-name "com.apple.photoanalysisd") (global-name "com.apple.photos.service") (global-name "com.apple.assetsd")
+  (global-name "com.apple.pasteboard.1") (global-name "com.apple.coreservices.appleevents") (global-name "com.apple.coreservices.launchservicesd")
+  (global-name "com.apple.metadata.mds") (global-name "com.apple.airportd") (global-name "com.apple.wifi.manager") (global-name "com.apple.wifip2pd"))
+(deny file-read* (subpath "/Library/Keychains") (subpath "/private/var/db/SystemKey"))

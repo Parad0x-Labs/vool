@@ -1,0 +1,232 @@
+persona: Hannah Becker, 36, dental receptionist in Leeds, UK. She is a single mum to Ella (7), rents a flat, has a dog called Biscuit and keeps an allotment.
+
+== Desktop/todo.txt  (256 bytes, 1 days old)
+TO DO
+- book Biscuit's booster jab at Westgate Vets
+- pay Ella's trip money (£18.50) on ParentPay by Friday 24 May
+- renew car insurance before 2 June!!
+- return wellies to amazon - wrong size
+- ring Gran Sunday about Edinburgh
+- parents evening Tues 21st
+== Desktop/wifi password.txt  (152 bytes, 200 days old)
+Home wifi: BeckerHouse_5G
+password: Marmalade!2219
+Router: Virgin Media Hub 4 (in the hallway cupboard)
+Guest network: BeckerGuest / password biscuit123
+== Desktop/Screenshot 2024-05-14 at 09.12.33.png  (5386 bytes, 6 days old)
+== Desktop/Screenshot 2024-05-02 at 18.40.07.png  (5386 bytes, 18 days old)
+== Documents/Car/insurance notes.txt  (348 bytes, 12 days old)
+Car: Ford Fiesta 2017, reg YK17 HBN
+Current insurer: Admiral, renews 2 June 2024
+Current premium: £612.40 a year
+
+Quotes for renewal:
+- Admiral renewal: £689.00
+- Direct Line: £574.25
+- Aviva: £598.10
+- Churchill: £640.00
+
+Excess on Direct Line £250, Aviva £150.
+Leaning towards Aviva because of the lower excess. Need to ring before 2 June.
+== Documents/Car/MOT certificate 2024.pdf  (884 bytes, 40 days old)
+MOT Test Certificate
+Vehicle: Ford Fiesta   Registration: YK17 HBN
+Test date: 08/04/2024
+Result: PASS
+Odometer reading: 48,213 miles
+Expiry date: 07/04/2025
+Advisories: Nearside front tyre worn close to legal limit
+Test station: Kirkstall Autocare, Leeds
+Fee paid: £54.85
+== Documents/Car/garage invoice March.pdf  (853 bytes, 60 days old)
+Kirkstall Autocare Ltd - Invoice 3381
+Date: 14 March 2024
+Customer: Hannah Becker
+Vehicle: YK17 HBN
+Front brake pads and discs: £186.00
+Labour 1.5 hrs: £82.50
+Subtotal: £268.50
+VAT 20%: £53.70
+Total due: £322.20
+Paid by card - thank you
+== Documents/Money/bank_april_2024.csv  (671 bytes, 15 days old)
+Date,Description,Amount,Balance
+2024-04-01,Salary - Smile Dental Care,2150.00,3390.00
+2024-04-01,Rent - Parkside Lettings,-875.00,2515.00
+2024-04-03,Tesco Headingley,-62.47,2452.53
+2024-04-05,Council tax - Leeds CC,-168.00,2284.53
+2024-04-06,Netflix,-10.99,2273.54
+2024-04-08,Kirkstall Autocare MOT,-54.85,2218.69
+2024-04-10,Octopus Energy,-96.00,2122.69
+2024-04-12,Tesco Headingley,-48.20,2074.49
+2024-04-15,PureGym,-24.99,2049.50
+2024-04-17,Westgate Vets,-42.00,2007.50
+2024-04-19,Aldi Kirkstall,-37.65,1969.85
+2024-04-22,Transfer to savings,-300.00,1669.85
+2024-04-24,Tesco Headingley,-55.10,1614.75
+2024-04-27,Spotify,-11.99,1602.76
+2024-04-29,Vodafone,-18.00,1584.76
+== Documents/Money/council tax 2024-25.pdf  (865 bytes, 50 days old)
+Leeds City Council - Council Tax Bill 2024/25
+Account ref: 60118834
+Property: Flat 2, 14 Ash Grove, Leeds LS6 1AX
+Band: B
+Annual charge: £1,680.00
+Payable in 10 monthly instalments of £168.00
+Instalments due on the 5th of each month, April 2024 to January 2025
+== Documents/Money/budget.md  (283 bytes, 30 days old)
+# Monthly budget (from May)
+Income: £2,150 take-home
+- Rent £875
+- Council tax £168
+- Energy £96
+- Food £280
+- Petrol £90
+- Phone £18
+- Gym £24.99
+- Subscriptions £22.98 (Netflix + Spotify)
+- Savings £300
+
+Target: keep Tesco under £200/month
+Left over for fun: about £275
+== Documents/House/tenancy agreement.pdf  (1026 bytes, 380 days old)
+Assured Shorthold Tenancy Agreement
+Landlord: Mr Daniel Okafor, managed by Parkside Lettings
+Tenant: Hannah Becker
+Property: Flat 2, 14 Ash Grove, Leeds LS6 1AX
+Start date: 1 May 2023
+Term: 12 months, then rolling monthly
+Rent: £875 per calendar month, due on the 1st
+Deposit: £1,010 held with the Deposit Protection Service
+Notice period for tenant: 1 month
+Pets: one small dog permitted with written consent
+== Documents/House/washing machine repair.pdf  (881 bytes, 95 days old)
+FixIt Appliance Repairs Leeds
+Receipt no. FA-20931
+Date: 15 February 2024
+Appliance: Bosch Serie 4 washing machine
+Fault: drain pump blocked, pump replaced
+Engineer: Craig Ellis
+Parts: £39.00
+Call-out and labour: £55.00
+Total paid: £94.00
+Repair guarantee: 90 days
+== Documents/House/notes.txt  (176 bytes, 70 days old)
+Things to tell landlord:
+- bathroom extractor fan making a rattling noise
+- back door lock sticking
+- damp patch above the bedroom window
+Parkside Lettings phone: 0113 496 0782
+== Documents/House/notes (1).txt  (297 bytes, 68 days old)
+Things to tell landlord:
+- bathroom extractor fan making a rattling noise
+- back door lock sticking
+- damp patch above the bedroom window
+- hallway smoke alarm chirping, needs new battery
+Parkside Lettings phone: 0113 496 0782
+Emailed Parkside on 12 March, they said someone will come on 20 March.
+== Documents/School/class trip letter.txt  (381 bytes, 22 days old)
+Dear parents and carers,
+
+Year 2 (Mrs Patel's class) are visiting the Thackray Museum of Medicine on Thursday 6 June 2024.
+The coach leaves school at 9:15 and returns by 3:00.
+Cost: £18.50 per child, to be paid on ParentPay by Friday 24 May.
+Please send a packed lunch and a waterproof coat.
+We need 4 parent helpers - reply to the office if you can come.
+
+Thank you,
+Mrs R. Patel
+== Documents/School/parents evening schedule.csv  (241 bytes, 9 days old)
+Child,Teacher,Subject,Date,Time,Room
+Ella,Mrs Patel,Class teacher,2024-05-21,16:10,Room 4
+Ella,Mr Hughes,Reading support,2024-05-21,16:30,Library
+Ella,Ms Adeyemi,PE,2024-05-23,17:00,Sports hall
+Ella,Mrs Khan,Music,2024-05-23,17:20,Music room
+== Documents/lasagne recipe.txt  (277 bytes, 150 days old)
+Gran's lasagne (serves 6)
+500g beef mince
+1 onion, 2 garlic cloves
+2 tins chopped tomatoes
+12 lasagne sheets
+For the white sauce: 50g butter, 50g plain flour, 600ml milk
+150g grated cheddar
+Oven 190C (fan 170C), bake 45 minutes
+Tip from Gran: rest it 10 minutes before cutting.
+== Documents/letter to gran.txt  (360 bytes, 45 days old)
+Dear Gran,
+
+Thank you so much for the birthday card and the £50 - I'm putting it towards new walking boots.
+Ella loved her part as the Grumpy Troll in the school play, I've got it on video and will show you when we visit.
+We're coming up to Edinburgh on 7 June on the train, arriving about 1pm. Biscuit is staying with Laura next door.
+
+Lots of love,
+Hannah x
+== Downloads/ticket_LDS_EDB_0607.pdf  (921 bytes, 5 days old)
+LNER e-ticket
+Booking reference: QX7P2RM
+Passenger: Hannah Becker + 1 child
+Outbound: Leeds to Edinburgh, Friday 7 June 2024
+Depart Leeds 09:45, arrive Edinburgh Waverley 12:52
+Coach C, seats 41 and 42
+Return: Edinburgh to Leeds, Sunday 9 June 2024, depart 15:30
+Railcard: Family & Friends
+Total paid: £96.40
+== Downloads/amazon_order_204-7781.pdf  (895 bytes, 10 days old)
+Amazon.co.uk order confirmation
+Order number 204-7781395-1120344
+Order date: 9 May 2024
+Russell Hobbs Inspire kettle (grey) - £34.99
+Kids wellington boots, size 13 - £14.00
+Delivery: FREE
+Order total: £48.99
+Delivered to: Flat 2, 14 Ash Grove, Leeds LS6 1AX
+Return by: 8 June 2024
+== Downloads/gym membership contract.pdf  (871 bytes, 120 days old)
+PureGym membership agreement
+Member: Hannah Becker
+Gym: PureGym Leeds Kirkstall
+Membership: Core, £24.99 per month
+Joining fee: £10.00
+Start date: 22 January 2024
+Minimum term: none, cancel any time with 1 month notice via the app
+Payment day: 15th of each month
+== Downloads/eticket_kaiser_chiefs.pdf  (799 bytes, 3 days old)
+Ticketmaster e-ticket
+Kaiser Chiefs - Millennium Square, Leeds
+Date: Saturday 13 July 2024, doors 18:00
+Tickets: 2 x Standing
+Price: 2 x £52.50 + fees £7.80
+Total: £112.80
+Order no. 31-55820/LDS
+== Downloads/Zoom_installer.dmg  (48300000 bytes, 300 days old)
+== Downloads/holiday photos.zip  (156000000 bytes, 33 days old)
+== Pictures/IMG_4501.jpg  (2070 bytes, 33 days old)
+== Pictures/IMG_4502.jpg  (2070 bytes, 33 days old)
+== Pictures/IMG_4517.jpg  (2070 bytes, 31 days old)
+== Pictures/Cornwall 2023/beach day.jpg  (2070 bytes, 290 days old)
+== Pictures/Cornwall 2023/st ives harbour.jpg  (2070 bytes, 290 days old)
+== Pictures/Cornwall 2023/IMG_3120.HEIC  (3400000 bytes, 291 days old)
+== Pictures/Biscuit/biscuit sleeping.jpg  (2070 bytes, 80 days old)
+== Pictures/Biscuit/biscuit at the park.jpg  (2070 bytes, 25 days old)
+== Pictures/Biscuit/biscuit zoomies.gif  (5800000 bytes, 25 days old)
+== Music/laura wedding first dance.m4a  (8900000 bytes, 210 days old)
+== Music/voice memo choir practice.m4a  (12400000 bytes, 40 days old)
+== Movies/Ella school play.mov  (912000000 bytes, 55 days old)
+== Movies/Cornwall drone clip.mp4  (340500000 bytes, 288 days old)
+== Projects/Allotment/planting plan.md  (320 bytes, 20 days old)
+# Allotment plot 17B - planting plan 2024
+Bed 1: potatoes (Charlotte) - plant mid April
+Bed 2: runner beans + sweet peas - plant out late May
+Bed 3: courgettes x3, squash x2
+Bed 4: onions, garlic, beetroot
+
+Plot rent: £38 a year, paid to Meanwood Allotment Society
+Water butt by the shed - ask Derek about the spare one
+== Projects/Allotment/seed shopping list.csv  (207 bytes, 19 days old)
+Item,Shop,Qty,Price
+Charlotte seed potatoes 2kg,Wilko,1,6.50
+Runner bean seeds,Wilko,2,1.75
+Sweet pea seeds,Dobbies,1,2.99
+Courgette plants,Dobbies,3,1.50
+Compost 50L,Dobbies,2,5.00
+Garden twine,Wilko,1,2.25

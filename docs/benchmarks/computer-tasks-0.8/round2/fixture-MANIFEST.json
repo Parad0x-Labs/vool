@@ -1,0 +1,239 @@
+{
+ "built_at_epoch": 1793264842,
+ "files": [
+  {
+   "path": "Desktop/todo.txt",
+   "age_days": 1,
+   "bytes": 256,
+   "sha256": "e06a7bcd7ac5310c5d29b055c73fc30b3ddf712f668d86d58762606e4a10171e"
+  },
+  {
+   "path": "Desktop/wifi password.txt",
+   "age_days": 200,
+   "bytes": 152,
+   "sha256": "9e145ad4262b2a396e583dfb6792320cd8dbf7f59cb5f48c0c999dcf8d005330"
+  },
+  {
+   "path": "Desktop/Screenshot 2024-05-14 at 09.12.33.png",
+   "age_days": 6,
+   "bytes": 5386,
+   "sha256": "14e4c4dc04bc50c8cf478f0a32d5280bcf7172d193339ae3904b0b28df4b6b3f"
+  },
+  {
+   "path": "Desktop/Screenshot 2024-05-02 at 18.40.07.png",
+   "age_days": 18,
+   "bytes": 5386,
+   "sha256": "14e4c4dc04bc50c8cf478f0a32d5280bcf7172d193339ae3904b0b28df4b6b3f"
+  },
+  {
+   "path": "Documents/Car/insurance notes.txt",
+   "age_days": 12,
+   "bytes": 348,
+   "sha256": "4757f79fcb2512689a2e5d79bbf8f2f03491c7fbf3573e43da3b4c93029ccd2d"
+  },
+  {
+   "path": "Documents/Car/MOT certificate 2024.pdf",
+   "age_days": 40,
+   "bytes": 884,
+   "sha256": "d29e731ef3ae1831e5af1228b3fc347814e97f9ce57204255b305c5969ffc120"
+  },
+  {
+   "path": "Documents/Car/garage invoice March.pdf",
+   "age_days": 60,
+   "bytes": 853,
+   "sha256": "bcb7bea68b5ffbcd0b5a0e0b594e07107ec558ac5d919bd1c83ba0a9b853875f"
+  },
+  {
+   "path": "Documents/Money/bank_april_2024.csv",
+   "age_days": 15,
+   "bytes": 671,
+   "sha256": "bb282c4b2f245d4417d565c90df7b0766624db98e49c26ccbc2d3343c4691b2f"
+  },
+  {
+   "path": "Documents/Money/council tax 2024-25.pdf",
+   "age_days": 50,
+   "bytes": 865,
+   "sha256": "d3f4ac7e257aaa19bb886d1438982f3310116aa44beb0c40e4642a675dd53c1a"
+  },
+  {
+   "path": "Documents/Money/budget.md",
+   "age_days": 30,
+   "bytes": 283,
+   "sha256": "08e16e8641bac4bbbd3d5f94a464fcaae57e9e1773c683828e507ccc5109db03"
+  },
+  {
+   "path": "Documents/House/tenancy agreement.pdf",
+   "age_days": 380,
+   "bytes": 1026,
+   "sha256": "87e550a8957f4d8bb6df9b701dd9bf3c90ac4bb269154a1b5efc9fc1958c710e"
+  },
+  {
+   "path": "Documents/House/washing machine repair.pdf",
+   "age_days": 95,
+   "bytes": 881,
+   "sha256": "a41af297bb6f3d7e202e97dd0b7ee2f3a69672773ca1854e461337ed66a0fcc2"
+  },
+  {
+   "path": "Documents/House/notes.txt",
+   "age_days": 70,
+   "bytes": 176,
+   "sha256": "cd67a4ca7f5d9356e13039115f0e5b324e922bd25d87bfd1ac36688e2095fb4b"
+  },
+  {
+   "path": "Documents/House/notes (1).txt",
+   "age_days": 68,
+   "bytes": 297,
+   "sha256": "0a978de48aa8092d113ef2d6617db083e2c01568ac7d79f27ee4064eb448ce54"
+  },
+  {
+   "path": "Documents/School/class trip letter.txt",
+   "age_days": 22,
+   "bytes": 381,
+   "sha256": "1b7214d21ae633d4fe5b6661c07ce9e09cdb7382549bcfe2227e72815e7f2ff4"
+  },
+  {
+   "path": "Documents/School/parents evening schedule.csv",
+   "age_days": 9,
+   "bytes": 241,
+   "sha256": "6775c10901106afb29071ab31ebc6b39bfa1d2add0f7d757afa4f28f857a48bc"
+  },
+  {
+   "path": "Documents/lasagne recipe.txt",
+   "age_days": 150,
+   "bytes": 277,
+   "sha256": "88f62a1b2fe4b73569c3225d2a3fdc523619abd3a3227258f2a5b3140b77fffb"
+  },
+  {
+   "path": "Documents/letter to gran.txt",
+   "age_days": 45,
+   "bytes": 360,
+   "sha256": "787a93d2832e814b49e5ea9784a33a6f7d8a90107e8bd5ef561c9c3fffb4beb5"
+  },
+  {
+   "path": "Downloads/ticket_LDS_EDB_0607.pdf",
+   "age_days": 5,
+   "bytes": 921,
+   "sha256": "72195c5b5b29f96168441c28e282995224a236fff66f21e131a6f9156115f52b"
+  },
+  {
+   "path": "Downloads/amazon_order_204-7781.pdf",
+   "age_days": 10,
+   "bytes": 895,
+   "sha256": "33bf3972176dd3a1c18c13948b8cab3533b33841cfaecf3c4a35758f45540ba9"
+  },
+  {
+   "path": "Downloads/gym membership contract.pdf",
+   "age_days": 120,
+   "bytes": 871,
+   "sha256": "36c464890a691698744424d1c0c3f4ee8c64212ba13a7a0f12c2e427f46a9a2c"
+  },
+  {
+   "path": "Downloads/eticket_kaiser_chiefs.pdf",
+   "age_days": 3,
+   "bytes": 799,
+   "sha256": "e51115677fef12ead35776a9201e37f004a87e96a620ec686d47f417bd348f24"
+  },
+  {
+   "path": "Downloads/Zoom_installer.dmg",
+   "age_days": 300,
+   "bytes": 48300000,
+   "sha256": "8f418298b3ce1c4d260cf47ff0eb822e502f44b882433f7ef44e4049ce7abcb1"
+  },
+  {
+   "path": "Downloads/holiday photos.zip",
+   "age_days": 33,
+   "bytes": 156000000,
+   "sha256": "5ab335f3f86048ee19910ce558fb22c514c49b9a78eb6fbcebee3ad86e790d62"
+  },
+  {
+   "path": "Pictures/IMG_4501.jpg",
+   "age_days": 33,
+   "bytes": 2070,
+   "sha256": "ee7dbde828a381ed557f83531e29e6dd78f6b175c1ce2661ae2a74a3b344b2d4"
+  },
+  {
+   "path": "Pictures/IMG_4502.jpg",
+   "age_days": 33,
+   "bytes": 2070,
+   "sha256": "02e553e36edea5f835fe8fc9b2f11862ebb6dd06251f29cd2e622d5236403ec5"
+  },
+  {
+   "path": "Pictures/IMG_4517.jpg",
+   "age_days": 31,
+   "bytes": 2070,
+   "sha256": "b2a76ca1e960a046bb3946e562d3f6098c8e07f68df79a84040bde377c1cfaca"
+  },
+  {
+   "path": "Pictures/Cornwall 2023/beach day.jpg",
+   "age_days": 290,
+   "bytes": 2070,
+   "sha256": "95ce072cb4f6332ce2f2371ab82149478eeebf4c44e7f1dff3189b35330a5e5e"
+  },
+  {
+   "path": "Pictures/Cornwall 2023/st ives harbour.jpg",
+   "age_days": 290,
+   "bytes": 2070,
+   "sha256": "c7559b2fa82d3454b5ca1285f5ce577d0709905df9658c4eb776e8fe95b5283c"
+  },
+  {
+   "path": "Pictures/Cornwall 2023/IMG_3120.HEIC",
+   "age_days": 291,
+   "bytes": 3400000,
+   "sha256": "1267e6f2cf01241b5d34730adf899d80f2f32b20e36403b19b93943abc009f5b"
+  },
+  {
+   "path": "Pictures/Biscuit/biscuit sleeping.jpg",
+   "age_days": 80,
+   "bytes": 2070,
+   "sha256": "11d4c9e524ebb5ac2f7919266827567ed5a1d84bec00590691c56cde8b7fcf3c"
+  },
+  {
+   "path": "Pictures/Biscuit/biscuit at the park.jpg",
+   "age_days": 25,
+   "bytes": 2070,
+   "sha256": "f9985f4f5307653b341631eebe5f1156743373d885ff5995619c3563086481ce"
+  },
+  {
+   "path": "Pictures/Biscuit/biscuit zoomies.gif",
+   "age_days": 25,
+   "bytes": 5800000,
+   "sha256": "7bd5eafaac9cff7bec3ca0bdab9ffc2491027f5d837cba4c94f6612c0dd9717c"
+  },
+  {
+   "path": "Music/laura wedding first dance.m4a",
+   "age_days": 210,
+   "bytes": 8900000,
+   "sha256": "2522fffee70e53c6ed6880eb1add697fbab9df2a80bc45451f56172dff7a05e4"
+  },
+  {
+   "path": "Music/voice memo choir practice.m4a",
+   "age_days": 40,
+   "bytes": 12400000,
+   "sha256": "4ddb3a9663722930b3343866d389d7ffc4cbbea08bfae0596074af3e2ba1e614"
+  },
+  {
+   "path": "Movies/Ella school play.mov",
+   "age_days": 55,
+   "bytes": 912000000,
+   "sha256": "bb00d614bfe5801b1750a4104bc6ba99fd80f87ed5a5c73542dda365db17d2c6"
+  },
+  {
+   "path": "Movies/Cornwall drone clip.mp4",
+   "age_days": 288,
+   "bytes": 340500000,
+   "sha256": "2dc8fd55bf821c438eb7e735839bbc06025cdb2d45370f1599a0779d362927d5"
+  },
+  {
+   "path": "Projects/Allotment/planting plan.md",
+   "age_days": 20,
+   "bytes": 320,
+   "sha256": "21e7c822db7c6dfe0b8a97892de3b28b43546daa0cd9ddcbed69384f6d0ae5d5"
+  },
+  {
+   "path": "Projects/Allotment/seed shopping list.csv",
+   "age_days": 19,
+   "bytes": 207,
+   "sha256": "ef7dbd10fedccd3faff8d5533b198e7c599fc4c5cb37982a70d40d58bfa3e13f"
+  }
+ ]
+}

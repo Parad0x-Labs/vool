@@ -1,0 +1,1 @@
+VOOL code freeze for round 2: fix14 repo HEAD 39fc952763219514077c59a971c10bbde4c81e18, clean tree, checked 2026-10-29T09:03:53Z (same commit as round 1)
