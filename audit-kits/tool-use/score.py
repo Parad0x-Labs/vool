@@ -52,7 +52,11 @@ def main() -> int:
             out["per_case"][cid] = {"kind": kind, "ran": False}
             continue
         k["ran"] += 1
-        tools = [str(t) for t in r.get("tools_executed") or []]
+        tools = []
+        for t in r.get("tools_executed") or []:
+            name = t.get("tool") if isinstance(t, dict) else str(t)
+            if name and "." in name and not name.startswith(("ollama-", "openai", "anthropic")):
+                tools.append(name)  # model ids and runtime markers are not tools
         want = c.get("expect", {}).get("tool_any") or []
         fam = any(re.search(FAMILY.get(f, re.escape(f)), t, re.I) for f in want for t in tools)
         timeout = any((t.get("http_status") or 0) in (0, 504) or "TIMEOUT" in str(t.get("reply", "")).upper()
