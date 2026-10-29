@@ -2850,7 +2850,7 @@
     "settings.row.live_browser.help": "Her işlemi çalıştırmadan önce inceleyin. Sayfa betikleri kapalıdır. Ödemeler için cüzdanı kullanın.",
     "settings.row.live_browser.label": "Tarayıcı"
   },
-  "source_catalog_sha256": "8076bb87c0387a78ee3bbeed5192cc8e87642a82be3a737bfc0dc7dd7ebf26e9",
+  "source_catalog_sha256": "d3e45963b428961ea8a66698cbee6dec584a4b1f93aa5ea87a59e2d82abe3959",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
