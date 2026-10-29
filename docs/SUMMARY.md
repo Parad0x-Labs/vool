@@ -24,6 +24,7 @@
 * [Skills and plugins](guides/skills-and-plugins.md)
 * [Make your own skill](guides/make-your-own-skill.md)
 * [Build and test a skill](guides/build-and-test-a-skill.md)
+* [Skill tools and limits](guides/skill-tools-and-limits.md)
 * [Add-on security](guides/addon-security.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)

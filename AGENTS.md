@@ -106,7 +106,12 @@ SDK, zip import, `skill.install path=<folder>`, and how picking works), follow
 [docs/guides/build-and-test-a-skill.md](docs/guides/build-and-test-a-skill.md). Test a skill
 locally, with phrasings that must pick it and one that must not, before any publishing step.
 Start with `python -m tools.community_skills new <folder> --name <skill-name>` and check picking with
-`python -m tools.community_skills try <folder> --pick "..." --not-pick "..."`.
+`python -m tools.community_skills try <folder> --pick "..." --not-pick "..."`; `zip <folder>` writes
+the importable zip. The tool names a skill may put in `allowed-tools`, what Manual and Auto mode
+ask for, and every refusal a skill can hit are in
+[docs/guides/skill-tools-and-limits.md](docs/guides/skill-tools-and-limits.md). Try one tool call
+through the permission check with `python -m tools.community_skills call <tool> --args '{...}'`
+(never `execute_runtime_tool`, which returns None for most tools).
 
 ## Fast local checks
 

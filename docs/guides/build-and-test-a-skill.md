@@ -12,6 +12,9 @@ Do not publish a skill you have not installed and tested on your own VOOL first.
 
 ## Quick start: two commands
 
+Before you start: the tool names a skill may use, what Manual and Auto mode ask for, and every
+refusal a skill can run into are listed in [Skill tools and limits](skill-tools-and-limits.md).
+
 From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
 
 ```sh
@@ -67,7 +70,7 @@ Frontmatter keys VOOL reads:
 | `name` | yes | The skill's identity. Use lowercase words joined by hyphens, the same as the folder name. Lists show it as plain words ("Aisle sorter"). If missing, the folder name is used. |
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
-| `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails. Leaving it out narrows nothing. It never grants a permission. |
+| `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails: the names are listed in [Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name). Leaving it out narrows nothing. It never grants a permission. |
 | `license` | for publishing | Read by the publishing tools. Keep the full licence text in a `LICENSE` file beside `SKILL.md` (for MIT: the standard MIT text with your name and the year). |
 
 The instructions (everything after the frontmatter) must be under 8,000 characters; a longer
