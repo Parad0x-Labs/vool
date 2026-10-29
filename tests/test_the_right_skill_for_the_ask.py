@@ -518,3 +518,57 @@ def test_only_the_names_own_words_in_order_lift_a_verdict_question() -> None:
     named = "should I use email reply for the recruiter who wrote to me"
     got = plugin_skills.rank_skills(SKILLS, named, limit=2)
     assert got and got[0].name == "email-reply"
+
+
+# "this", "these", "that", "those" and "them" in a plain question point at nothing pasted: "these
+# days", "that song", "leave them out". Such a question stays a general question.
+_POINTER_BUT_NOTHING_PASTED_ROWS = (
+    "should I list my volunteering on my cv or leave it and those weekend shifts out",
+    "what's the best budgeting app for students these days?",
+    "who sang the backing vocals on that song from the car advert",
+    "is it worth turning my lecture slides into flashcards or just reading over them",
+    "are those cheap travel adapters safe to use abroad",
+    "should I keep my old bank letters or bin them after a year",
+)
+
+# The same pointer words on a message that carries its material, or as what a job is done to,
+# still point at the person's material, so the skill is still picked.
+_POINTER_WITH_MATERIAL_ROWS = (
+    ("could I cook something from these: lentils, a tin of tomatoes, spinach, two onions", "meal-plan-from-pantry"),
+    ("can I make study cards from these?\n- osmosis moves water\n- diffusion moves solutes\n- active transport uses energy", "study-flashcards"),
+    ('is the grammar ok in these notes "me and him was going to the shop tomorow but it got cancel"', "proofread-plain"),
+    ("should I translate this into french for my host family", "translate-keep-tone"),
+    ("is this command safe to run in my terminal", "command-explainer"),
+)
+
+
+@pytest.mark.parametrize("ask", _POINTER_BUT_NOTHING_PASTED_ROWS)
+def test_a_pointer_word_with_nothing_pasted_leaves_a_question_general(ask: str) -> None:
+    assert plugin_skills.rank_skills(SKILLS, ask, limit=2) == (), ask
+    assert plugin_skills.match_reasons(SKILLS, ask) == {}, ask
+
+
+@pytest.mark.parametrize(("ask", "want"), _POINTER_WITH_MATERIAL_ROWS)
+def test_a_pointer_word_over_real_material_still_picks(ask: str, want: str) -> None:
+    got = plugin_skills.rank_skills(SKILLS, ask, limit=2)
+    assert got and got[0].name == want, (ask, [skill.name for skill in got])
+    assert want in plugin_skills.match_reasons(SKILLS, ask)
+
+
+def test_material_is_read_from_the_shape_of_the_message() -> None:
+    carries = plugin_skills._carries_material
+    assert carries("what are these: flour, sugar, two eggs")
+    assert carries("are these right\nline one\nline two")
+    assert carries('is this ok "see you at the station at nine"')
+    assert carries("are these fine eggs, milk, flour, butter, sugar")
+    assert not carries("what's the best app for this kind of thing these days?")
+    assert not carries("who were the backup singers in that song")
+    assert not carries("it's my mum's birthday, what's a nice thing to do")
+
+
+def test_a_pointer_after_a_job_verb_counts_and_a_pointer_after_any_other_word_does_not() -> None:
+    jobs = frozenset({"translat", "scale"} | {plugin_skills._stem("translate"), plugin_skills._stem("scale")})
+    assert not plugin_skills._general_question("should I translate this for my gran", jobs)
+    assert not plugin_skills._general_question("is it worth trying to scale these up", jobs)
+    assert plugin_skills._general_question("should I keep my receipts or throw them away", jobs)
+    assert plugin_skills._general_question("why are flights so dear these days", jobs)

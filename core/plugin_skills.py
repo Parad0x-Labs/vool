@@ -438,7 +438,20 @@ _QUESTION_OPENERS = frozenset(
         "when", "where", "who", "can", "could", "would", "am", "was", "were", "has", "have",
     }
 )
-_POINTERS = frozenset({"this", "these", "here", "heres", "below", "attached", "pasted", "following", "those", "them"})
+# Words that say material comes with the message ("here", "below", "attached") count on their own.
+_MATERIAL_WORDS = frozenset({"here", "heres", "below", "attached", "pasted", "following"})
+# "this", "these", "that", "those", "them" point at something only when the message carries it, or
+# when they are what a job is done to ("should I translate this"): "these days", "that song" and
+# "leave them off" point at nothing the person pasted.
+_DEICTICS = frozenset({"this", "these", "that", "those", "them"})
+_SUBJECTS = frozenset({"i", "we", "you", "u", "to"})
+_CARRIED_RE = re.compile(
+    r":\s*\S+(?:\s+\S+){2,}"  # a colon followed by content: "make dinner from these: rice, eggs, ..."
+    r"|\n\s*\S"  # a second line
+    r"|(?:[^,\n]+,){3}[^,\n]*\S"  # a run of four or more comma-separated items
+    r"|[\"\u201c\u201d]\s*\S+(?:\s+\S+){2,}?\s*[\"\u201c\u201d]"  # a quoted span of three or more words
+    r"|(?:^|\s)'\S+(?:\s+\S+){2,}?'(?:\s|$|[.,?!])"
+)
 _REQUEST_RE = re.compile(r"^(?:(?:can|could|would|will) (?:you|u|we)|(?:can|could) (?:i|we) (?:get|have))\b")
 # A question that opens on its verb ("should I ...", "can I ...", "do I ...", "is it ...") asks
 # for a yes or a no: a verdict on the person's own case, which the model gives without a skill.
@@ -460,13 +473,48 @@ def _outside_subject(user_text: str) -> str:
 _SENTENCE_RE = re.compile(r"[.?!;]+\s+|\s+-+\s+|[.?!]+$")
 
 
-def _general_question(user_text: str) -> bool:
+def _carries_material(user_text: str) -> bool:
+    """The message holds material of its own: content after a colon, a second line, a quoted
+    passage, or a long pasted block."""
+
+    text = str(user_text or "")
+    return bool(_CARRIED_RE.search(text)) or len(_raw_tokens(text)) > 60
+
+
+def _points_at_material(user_text: str, tokens: list[str], job_stems: frozenset[str] | None) -> bool:
+    if any(token in _MATERIAL_WORDS for token in tokens):
+        return True
+    if not any(token in _DEICTICS for token in tokens):
+        return False
+    if _carries_material(user_text):
+        return True
+    # "should I translate this", "is it worth trying to scale these": the pointer is what a job
+    # the skills do is done to (a word right after "I"/"we"/"to" that some skill's name or
+    # triggers carry), so the person means material they hold.
+    for index in range(len(tokens)):
+        # "is this command dangerous", "does my cv fit this role": "this" naming the kind of
+        # thing a skill works on is the thing in front of the person. "this heatwave" is not.
+        if tokens[index] == "this" and index + 1 < len(tokens):
+            noun = tokens[index + 1]
+            if _is_content(noun) and (job_stems is None or _stem(noun) in job_stems):
+                return True
+        if index < 2 or tokens[index] not in _DEICTICS or tokens[index - 2] not in _SUBJECTS:
+            continue
+        verb = tokens[index - 1]
+        if verb in _DEICTICS or not _is_content(verb, particles=False):
+            continue
+        if job_stems is None or _stem(verb) in job_stems:
+            return True
+    return False
+
+
+def _general_question(user_text: str, job_stems: frozenset[str] | None = None) -> bool:
     tokens = _raw_tokens(user_text)
     if not tokens or tokens[0] not in _QUESTION_OPENERS:
         return False
     if _REQUEST_RE.match(" ".join(tokens)):
         return False
-    if any(token in _POINTERS for token in tokens):
+    if _points_at_material(user_text, tokens, job_stems):
         return False
     # "should I go to the gym more? make me a plan": a second sentence after the question is
     # the person asking for something, so the ask is no longer a question alone.
@@ -502,9 +550,10 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
     # intent there is, and it must not lose to a skill whose description merely shares more words.
     spoken = " " + " ".join(_raw_tokens(user_text)) + " "
 
-    asking_in_general = _general_question(user_text)
-    asking_verdict = asking_in_general and _raw_tokens(user_text)[0] in _VERDICT_OPENERS
     fields = [_fields_of(skill) for skill in skills]
+    job_stems = frozenset().union(*(found.card for found in fields))
+    asking_in_general = _general_question(user_text, job_stems)
+    asking_verdict = asking_in_general and _raw_tokens(user_text)[0] in _VERDICT_OPENERS
     # How many candidate skills carry each stem anywhere: a word many skills carry says little
     # about which one this ask means, so rarity decides how much a shared word is worth.
     # A word on a skill's card (name, triggers, description) is weighed by how many cards carry
