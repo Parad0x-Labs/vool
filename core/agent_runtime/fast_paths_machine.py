@@ -1782,7 +1782,11 @@ def _word_in_name(path: str, word: str) -> bool:
 
 def _home_relative_file_label(path: str) -> str:
     home = os.path.expanduser("~").rstrip("/\\")
-    return "~" + path[len(home):] if home and path.startswith(home + os.sep) else path
+    for prefix in {home, os.path.realpath(home)}:
+        prefix = prefix.rstrip("/\\")
+        if prefix and (path == prefix or path.startswith(prefix + os.sep)):
+            return "~" + path[len(prefix):]
+    return path
 
 
 def _stat_safe(path: str) -> os.stat_result | None:
@@ -1978,7 +1982,7 @@ def compare_named_files(ask: Any, *, session_id: str, source_context: dict | Non
                                                     "status": "no_results", "query": [list(w) for w in names]}},
         )
     lines = []
-    winner_path, winner_size = max(((path, size) for _n, path, size in found), key=lambda t: t[1])
+    winner_path = max((path for _n, path, _s in found), key=lambda path: dict((p, s) for _n, p, s in found)[path])
     if len(found) > 1:
         top_two = sorted((size for _n, _p, size in found), reverse=True)
         head = (f"The bigger one is {os.path.basename(winner_path)}:" if top_two[0] != top_two[1]
@@ -2045,6 +2049,7 @@ def answer_file_date_question(question: Any, *, session_id: str, source_context:
     keeps its normal lanes instead of a guess.
     """
     from datetime import datetime, timedelta
+
     from core.runtime_execution_tools import RuntimeExecutionResult
 
     recalled = _recall_file_answer(session_id) or {}

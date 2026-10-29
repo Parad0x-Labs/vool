@@ -1286,6 +1286,248 @@ def _named_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
     return (kind, tuple(dict.fromkeys(names)), _named_place(raw))
 
 
+# "Pull up the plumber invoice", "open the bank csv": a file asked for by the WORDS in its name,
+# behind cue verbs the lookup families do not read. Measured 2026-10-29 (audit F42, PC and
+# phone): "pull up the plumber invoice for me please" was answered "I can't access files" while
+# the invoice sat in Downloads -- no lane claimed the shape, so the model lane said what it could
+# not do. The object words are what the file's name holds; a kind word ("the bank csv") names the
+# type and is not a search word.
+_PRESENT_FILE_CUE_RE = re.compile(
+    r"\b(?P<cue>pull\s+up|bring\s+up|show\s+me|look\s+at|open|find)\b"
+    r"(?:\s+(?:the|my|that|a|an))?"
+    r"(?P<obj>(?:\s+[\w.'-]+){1,5})",
+    re.IGNORECASE,
+)
+# Words that never name a file: determiners, request scaffolding, question words. A selector
+# ("the biggest file") ranks files instead of naming one, so it ends the object -- "show me the
+# newest photo" then stays with the newest-of-a-kind lane that answers it.
+_PRESENT_OBJECT_STOP = frozenset({
+    "a", "an", "the", "my", "that", "this", "these", "those", "of", "for", "to", "please", "pls",
+    "me", "you", "i", "want", "look", "at", "it", "in", "on", "from", "with", "into", "and", "or",
+    "but", "by", "about", "as", "what", "which", "who", "where", "when", "how", "why", "whose",
+    "biggest", "largest", "smallest", "newest", "latest", "oldest", "first", "last",
+})
+# A kind word in the object names the TYPE, not the file: "the bank csv" is a csv named bank.
+# Values are the kind keys the resolver filters file extensions by.
+_PRESENT_KIND_WORDS = {
+    "pdf": "pdf", "pdfs": "pdf", "csv": "csv", "doc": "doc", "docs": "doc", "document": "doc",
+    "documents": "doc", "txt": "txt", "text": "txt", "md": "md", "video": "video", "videos": "video",
+    "photo": "image", "photos": "image", "picture": "image", "pictures": "image", "image": "image",
+    "images": "image", "recording": "audio", "recordings": "audio", "song": "audio", "songs": "audio",
+    "file": "", "files": "",
+}
+# An app, a site or a window opens in its own lane; it is not a file read off this disk.
+# "open chrome" answered with a disk search for "chrome" would answer a question nobody asked.
+_PRESENT_APP_WORDS = frozenset({
+    "chrome", "safari", "firefox", "edge", "brave", "opera", "spotify", "netflix", "calendar",
+    "contacts", "maps", "settings", "bluetooth", "wifi", "terminal", "calculator", "finder",
+    "preview", "notes.app", "app", "apps", "application", "website", "site", "page", "link",
+    "url", "tab", "window",
+})
+# A folder noun makes the object a folder search ("open the invoices folder"), which the
+# named-folder lanes own.
+_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir"})
+
+
+class PresentFileAsk(NamedTuple):
+    """A file asked for by the words of its name: "pull up the plumber invoice"."""
+
+    kind: str  # "", image, video, pdf, audio, csv, doc, txt or md -- a kind word from the ask
+    words: tuple[str, ...]  # 1-4 lowercase words the file's name must contain
+    place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+
+
+def machine_present_file_intent(text: str) -> PresentFileAsk | None:
+    """``(kind, words, place)`` for "pull up / open / show me / bring up / find <words>", else ``None``.
+
+    The object is 1-4 words the file's name holds, with an optional kind word ("the bank csv")
+    and an optional trailing place ("in my downloads"). Another action on the file in the rest of
+    the sentence (send, read, delete...), a mutating verb, an app or site instead of a file, or a
+    folder noun all stand down -- those keep their own lanes.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    match = _PRESENT_FILE_CUE_RE.search(raw)
+    if match is None:
+        return None
+    kept: list[str] = []
+    offset = match.start("obj")
+    for token in match.group("obj").split():
+        word = token.strip(" .'\"-").lower()
+        if not word or word in _PRESENT_OBJECT_STOP:
+            break
+        kept.append(word)
+        offset = raw.find(token, offset) + len(token)
+    if not kept:
+        return None  # "show me what you found" names nothing to search for
+    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS for word in kept):
+        return None
+    rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
+    if _FILE_OTHER_ACTION_RE.search(rest):
+        return None  # "open the invoice and send it" is a send, not a lookup
+    kind = ""
+    words: list[str] = []
+    for word in kept:
+        if word in _PRESENT_KIND_WORDS:
+            kind = kind or _PRESENT_KIND_WORDS[word]
+            continue
+        words.extend(part for part in re.findall(r"[0-9a-z]+", word) if len(part) >= 3)
+    if not words:
+        return None  # "show me the biggest file" ranks files; it does not name one
+    return PresentFileAsk(kind, tuple(dict.fromkeys(words))[:4], _named_place(raw[offset:]))
+
+
+# "Which of my videos is the biggest, the trailer or the school play?": a size COMPARE of files
+# named by their words, or the biggest of a whole kind. Measured 2026-10-29 (audit F27): the ask
+# was answered "Could you tell me where your videos are stored?" -- nothing read the
+# alternatives, and the largest-files scan cannot filter by words or kind. A ranking word outside
+# the size family ("the scariest") is not a compare, and a place-scoped "biggest file in my
+# downloads" keeps the largest-files lane that already answers it.
+_COMPARE_KIND_WORDS = {
+    "video": "video", "videos": "video", "photo": "image", "photos": "image", "picture": "image",
+    "pictures": "image", "image": "image", "images": "image", "pdf": "pdf", "pdfs": "pdf",
+    "song": "audio", "songs": "audio", "recording": "audio", "recordings": "audio",
+    "file": "", "files": "", "document": "doc", "documents": "doc", "doc": "doc", "docs": "doc",
+}
+_COMPARE_KIND_ALT = "|".join(sorted(_COMPARE_KIND_WORDS, key=len, reverse=True))
+_COMPARE_WHICH_RE = re.compile(
+    r"\bwhich\s+(?:of\s+(?:my|the)\s+(?P<knoun>" + _COMPARE_KIND_ALT + r")\s+)?is\s+(?:the\s+)?"
+    r"(?:biggest|largest|bigger|larger)\s*,?\s*(?P<alts>[^?!.]+)",
+    re.IGNORECASE,
+)
+_COMPARE_OF_MINE_RE = re.compile(
+    r"\b(?:the\s+)?(?:biggest|largest)(?:\s+one)?\s+(?:of|among|out\s+of)\s+(?:my|the)\s+"
+    r"(?P<knoun>" + _COMPARE_KIND_ALT + r")\b",
+    re.IGNORECASE,
+)
+_COMPARE_MY_RE = re.compile(
+    r"\bmy\s+(?:biggest|largest)\s+(?P<knoun>" + _COMPARE_KIND_ALT + r")\b",
+    re.IGNORECASE,
+)
+_COMPARE_ALT_SPLIT_RE = re.compile(r"\s+(?:or|and|vs\.?|versus)\s+", re.IGNORECASE)
+_COMPARE_ALT_STOP = frozenset({"the", "a", "an", "my", "one", "ones", "please", "pls"})
+
+
+class CompareAsk(NamedTuple):
+    """A size compare: named alternatives, or the biggest of a kind (``names`` empty)."""
+
+    kind: str  # "", video, image, pdf, audio or doc -- the kind noun from the ask
+    names: tuple[tuple[str, ...], ...]  # 2+ alternatives of 1-3 words; () for "biggest of my <kind>s"
+    place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+
+
+def machine_named_compare_intent(text: str) -> CompareAsk | None:
+    """``(kind, names, place)`` for a biggest/largest compare, else ``None``.
+
+    "which of my videos is the biggest, the trailer or the school play" carries its alternatives;
+    "whats the biggest of my videos" and "my biggest video" ask for the largest of a kind. A
+    place-scoped ask with neither alternatives nor "of my <kind>" ("whats the biggest file in my
+    downloads?") is the largest-files scan's, so it returns None here.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    which = _COMPARE_WHICH_RE.search(raw)
+    if which is not None:
+        names = []
+        for part in _COMPARE_ALT_SPLIT_RE.split(which.group("alts")):
+            words = [
+                word for word in re.findall(r"[0-9a-z]+", part.lower().replace("'", ""))
+                if word not in _COMPARE_ALT_STOP and len(word) >= 3
+            ]
+            if words:
+                names.append(tuple(dict.fromkeys(words[:3])))
+        if len(names) < 2:
+            return None  # "which of my videos is the biggest" is a ranking, not a compare
+        # The kind noun is not a place ("of my documents" is a kind, not the Documents folder),
+        # so the place is read from the rest of the sentence.
+        place = _named_place(raw[: which.start("knoun")] + " " + raw[which.end("knoun"):]) \
+            if which.group("knoun") else _named_place(raw)
+        return CompareAsk(
+            _COMPARE_KIND_WORDS.get(str(which.group("knoun") or "").lower(), ""),
+            tuple(names),
+            place,
+        )
+    whole = _COMPARE_OF_MINE_RE.search(raw)
+    if whole is not None:
+        place = _named_place(raw[: whole.start("knoun")] + " " + raw[whole.end("knoun"):])
+        return CompareAsk(
+            _COMPARE_KIND_WORDS.get(str(whole.group("knoun") or "").lower(), ""), (), place
+        )
+    mine = _COMPARE_MY_RE.search(raw)
+    if mine is not None:
+        # "what's my biggest video?" names no place; the resolver reads every allowed root.
+        return CompareAsk(_COMPARE_KIND_WORDS.get(str(mine.group("knoun") or "").lower(), ""), (), "")
+    return None
+
+
+# "Is that invoice from this month?" right after a file was named: a question about the FILE's
+# date. Measured 2026-10-29 (audit F46): the follow-up was refused as needing current
+# information while the changed date sat on the file. The words re-name the file the reply just
+# showed; () means the file itself (that / it / the one). Future words (tomorrow, next month)
+# are not file dates, and neither is an ask about somewhere that is not this disk.
+_FILE_DATE_PERIOD = r"(?P<period>this\s+month|this\s+week|this\s+year|today|yesterday)"
+_FILE_DATE_FROM_RE = re.compile(
+    r"\bis\s+(?P<det>that|this|the|those|these|my|it)\s*(?P<name>[\w'\- ]*?)\s*from\s+" + _FILE_DATE_PERIOD + r"\b",
+    re.IGNORECASE,
+)
+_FILE_DATE_WHEN_RE = re.compile(
+    r"\bwhen\s+did\s+i\s+(?:get|save|download|receive|grab|put\s+down)\s+"
+    r"(?:(?:the|that|my|this)\s+)?(?P<name>[\w'\-]+(?:\s+[\w'\-]+){0,3}?)"
+    r"(?:\s+one)?\s*(?:please|pls|again)?\s*[?.!]*$",
+    re.IGNORECASE,
+)
+_FILE_DATE_BARE_RE = re.compile(
+    r"\b(?:what\s+date|which\s+day|when)\s+(?:was|is|did)\s+(?:that|it)\b"
+    r"|\bhow\s+old\s+is\s+(?:that|it|this\s+file)\b",
+    re.IGNORECASE,
+)
+_FILE_DATE_FUTURE_RE = re.compile(r"\b(?:tomorrow|next\s+(?:week|month|year))\b", re.IGNORECASE)
+_FILE_DATE_STOP = frozenset({
+    "a", "an", "the", "my", "that", "this", "these", "those", "it", "its", "one", "ones", "please",
+    "pls", "of", "from", "in", "on", "at", "for", "to", "i", "me", "you",
+})
+
+
+class FileDateQuestion(NamedTuple):
+    """A date question about a file the conversation just named."""
+
+    words: tuple[str, ...]  # content words naming the file; () when the ask says only that/it/one
+    period: str  # "this month"/"this week"/"this year"/"today"/"yesterday", or "" for a bare when-did ask
+
+
+def _file_date_name_words(name: str) -> tuple[str, ...]:
+    """The content words of a file's name; determiners, kind words and scaffolding are not name words."""
+    words = [
+        word for word in re.findall(r"[0-9a-z]+", str(name or "").lower().replace("'", ""))
+        if word not in _FILE_DATE_STOP and word not in _PRESENT_KIND_WORDS and len(word) >= 3
+    ]
+    return tuple(dict.fromkeys(words))[:4]
+
+
+def machine_file_date_question(text: str) -> FileDateQuestion | None:
+    """``(words, period)`` for a file-date ask, else ``None``.
+
+    "is that invoice from this month?", "when did i get the invoice one?", "what date was that?"
+    and "how old is that". The answer comes from the file the previous reply named (its changed
+    date, or a date written inside it); this reader only says WHICH file and WHICH period.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _FILE_NOT_THIS_DISK_RE.search(raw) or _FILE_DATE_FUTURE_RE.search(raw):
+        return None
+    from_ask = _FILE_DATE_FROM_RE.search(raw)
+    if from_ask is not None:
+        return FileDateQuestion(_file_date_name_words(from_ask.group("name")),
+                                " ".join(from_ask.group("period").lower().split()))
+    when = _FILE_DATE_WHEN_RE.search(raw)
+    if when is not None:
+        return FileDateQuestion(_file_date_name_words(when.group("name")), "")
+    if _FILE_DATE_BARE_RE.search(raw):
+        return FileDateQuestion((), "")
+    return None
+
+
 # "all the pictures in the Downloads folder, up to two days old": a KIND of file in a folder (or in
 # all three of Desktop, Downloads and Documents), optionally by age, size and order. Measured on a
 # phone 2026-10-27: nothing owned this shape, so find_folder walked the whole disk for a folder
