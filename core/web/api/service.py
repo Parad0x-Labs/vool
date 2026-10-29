@@ -945,16 +945,6 @@ def dispatch_get(
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
-    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
-            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
-        from core.plugin_providers import require_legacy_x402
-        from core.plugin_services import ServiceRefused
-
-        try:
-            require_legacy_x402()
-        except ServiceRefused as exc:
-            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
-
     def resolve_page_locale(page_query: dict[str, list[str]], page_headers: dict[str, str] | None) -> str:
         """The UI locale for one page render: ?ui_locale= > the vool_ui_locale cookie > en.
 
@@ -969,6 +959,17 @@ def dispatch_get(
     owner_refusal = _owner_local_door_refusal(normalized_path, "GET", client_host)
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
+
+    # The owner gate answers first; only the owner learns whether the payment lane is open.
+    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
+            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
+        from core.plugin_providers import require_legacy_x402
+        from core.plugin_services import ServiceRefused
+
+        try:
+            require_legacy_x402()
+        except ServiceRefused as exc:
+            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
     if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
         from core.vool_browser.live import BrowserFault
@@ -3221,16 +3222,6 @@ def dispatch_post(
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
-    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
-            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
-        from core.plugin_providers import require_legacy_x402
-        from core.plugin_services import ServiceRefused
-
-        try:
-            require_legacy_x402()
-        except ServiceRefused as exc:
-            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
-
     if normalized_path.startswith("/api/browser/"):
         from core.web.api import browser_api
 
@@ -3246,6 +3237,17 @@ def dispatch_post(
     owner_refusal = _owner_local_door_refusal(normalized_path, "POST", client_host)
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
+
+    # The owner gate answers first; only the owner learns whether the payment lane is open.
+    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
+            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
+        from core.plugin_providers import require_legacy_x402
+        from core.plugin_services import ServiceRefused
+
+        try:
+            require_legacy_x402()
+        except ServiceRefused as exc:
+            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
     if normalized_path == "/api/addons":
         from core.web.api.addon_api import handle_addon_post

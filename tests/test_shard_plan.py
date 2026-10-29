@@ -31,7 +31,7 @@ from ops.shard_plan import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-_MACOS_ROUTED_COUNT = 13
+_MACOS_ROUTED_COUNT = 14
 
 
 def _synthetic_repo(tmp_path: Path, *, file_sizes: dict[str, int]) -> Path:
