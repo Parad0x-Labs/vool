@@ -1245,7 +1245,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">This computer only</b><small data-i18n="header.run_computer_only_hint">cloud blocked</small></button>
       </div>
       <div class="run-hint" data-i18n="header.run_explainer">Auto never picks a paid model. Choosing a model below pins it.</div>
-      <div class="run-hint" id="runLocalDisclosure" hidden data-i18n="header.model_local_only_explainer">Local Only routes among the models and tools on this machine and never reaches a cloud provider — not paid, not free, not for planning.</div>
+      <div class="run-hint" id="runLocalDisclosure" hidden data-i18n="header.model_local_only_explainer">Local Only uses only the models and tools on this machine and never touches a cloud service — not paid, not free, not even for planning.</div>
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
       <div class="pop-prov" id="modelProv" hidden></div>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_auto_option">VOOL Auto</span> <span class="pi-hint" data-i18n="header.model_auto_hint">local-first &middot; free</span></span></button>
@@ -1565,7 +1565,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <section class="set-sec">
         <h3>Limits <span class="set-sub">power-user caps</span></h3>
         <div class="set-field"><label for="setReserve">Keep free for me <span id="setReserveVal" class="set-num">20%</span> <span class="set-sub2">RAM heavy tasks won&rsquo;t touch</span></label><input type="range" id="setReserve" min="10" max="80" step="5" class="set-range"></div>
-        <div class="set-field row"><label for="setTokenBudget">Daily cloud token budget <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
+        <div class="set-field row"><label for="setTokenBudget">Daily cloud spending cap <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
         <p class="set-help">The RAM reserve is enforced live by the resource governor (a bigger reserve means VOOL leaves more for you). The token budget is a guide today &mdash; nothing enforces it yet and the Usage panel below does not chart against it. A hard daily cut-off is coming next.</p>
       </section>
       <div class="set-row" style="margin-bottom:14px">
@@ -1612,7 +1612,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <div id="wsList" class="keys-list" aria-live="polite"></div>
       </section>
       <section class="set-sec">
-        <h3>Token usage <span class="set-sub">local free vs cloud paid</span></h3>
+        <h3>Word usage <span class="set-sub">local free vs cloud paid</span></h3>
         <p class="set-help">How many tokens ran free on your local model vs a paid cloud lane, per model. Counts served responses on this machine.</p>
         <div class="usage-tabs" id="usageTabs" role="tablist">
           <button type="button" class="usage-tab" data-range="today" role="tab">Today</button>
@@ -5514,7 +5514,7 @@ function reflectComposer() {
   if (sendEl) {
     sendEl.disabled = locked;
     sendEl.textContent = locked ? pageT('composer.council', 'Council')
-      : (isChatBusy(displayedChat) ? pageT('composer.queue', 'Queue') : pageT('composer.send', 'Send'));
+      : (isChatBusy(displayedChat) ? pageT('composer.queue', 'Wait and send') : pageT('composer.send', 'Send'));
   }
   const lockEl = document.getElementById('councilLock');
   if (lockEl) {
@@ -6333,9 +6333,12 @@ function visibleTabs() {
   };
   return PANEL_TABS.filter((t) => has[t]);
 }
-// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log).
+// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log):
+// visibility, counts, copy and the catalog lookup all keep using the key, while a person reads the
+// plain word below it. A key with no entry here shows its own name, as before.
+const PANEL_TAB_PLAIN_WORDS = { 'Event log': 'History', 'Receipts': 'Records' };
 function panelTabLabel(name) {
-  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), name);
+  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), PANEL_TAB_PLAIN_WORDS[name] || name);
 }
 function buildTabs() {
   xpTabsEl.innerHTML = '';
@@ -8889,7 +8892,7 @@ function renderQueue(items) {
     const less = document.createElement('button');
     less.type = 'button'; less.className = 'qchip qchip-more'; less.id = 'queueMore';
     less.textContent = pageT('queue.show_less', 'Show less');
-    less.title = pageT('queue.collapse_title', 'Collapse the queue'); less.setAttribute('aria-expanded', 'true');
+    less.title = pageT('queue.collapse_title', 'Fold up the waiting messages'); less.setAttribute('aria-expanded', 'true');
     less.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, false);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -9206,7 +9209,7 @@ async function runTurn(text, queueItemId, opts) {
             run.text = pageT('run.queue_returned', 'Queued \u2014 waiting for this chat\u2019s current turn to finish.');
             if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
             if (run.textEl) run.textEl.textContent = run.text;
-            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Returned to the queue behind the chat\u2019s active turn'));
+            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Put back to wait behind the reply VOOL is writing'));
             releaseComposer(run);
             refreshQueue(chatId);
             return;
@@ -10932,7 +10935,7 @@ function renderConnections(conns) {
     const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.cloud_local', 'Local'); cloudPillEl.appendChild(t);
     cloudPillEl.title = route.kind === 'local-only'
       ? pageT('header.run_blocked_title', 'This chat runs on this computer; cloud blocked. Click to choose a model.')
-      : pageTF('header.run_local_title', 'This chat is pinned to the local model {model} — no cloud provider is used. Click to choose a model.', {model:route.model});
+      : pageTF('header.run_local_title', 'This chat always uses the local model {model} — no cloud service is used. Click to choose a model.', {model:route.model});
     syncModelConnectionTitle(); return;
   }
   if (!conns || !conns.length) {
@@ -11231,7 +11234,7 @@ function renderSelectionProvenance(sel) {
   const rows = ['<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span>' + esc(pin ? (provider ? provider + ' · ' + pin : pin) : pageT('header.run_prov_none', 'none — VOOL Auto routing')) + '</span></span>',
     '<span class="pp-row"><b>' + esc(pageT('header.run_prov_cost', 'Spend class')) + '</b><span class="' + costCls + '">' + esc(costWord) + '</span></span>'];
   if (sel.free_cloud_enabled && sel.auto_free_model && sel.auto_free_model !== 'auto') {
-    rows.push('<span class="pp-row"><b>' + esc(pageT('header.run_prov_fallback', 'Auto free fallback')) + '</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
+    rows.push('<span class="pp-row"><b>' + esc(pageT('header.run_prov_fallback', 'Auto free backup')) + '</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
   }
   el.hidden = false;
   el.innerHTML = rows.join('');
@@ -11542,7 +11545,7 @@ function buildCloudToolbar(onPricesChange) {
 
 function buildAutoFallbackControl(freeModels) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar auto-fallback';
-  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto fallback');
+  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto backup');
   const sel = document.createElement('select');
   const best = document.createElement('option'); best.value = 'auto'; best.textContent = pageT('model.auto_best_free', 'Best verified free'); sel.appendChild(best);
   freeModels.forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name || m.id; sel.appendChild(o); });
@@ -12608,8 +12611,8 @@ function _explainCloudError(state, http, detail) {
   };
   if (map[code]) return map[code];
   if (code >= 500) return pageTF('cloud.err_5xx', 'Provider error ({code}): likely temporary — retry shortly. ', { code: code }) + (detail || '');
-  if (code >= 400) return pageTF('cloud.err_4xx', 'Request rejected ({code}). ', { code: code }) + (detail || pageT('cloud.check_key', 'Check the key and provider.'));
-  if (state === 'failed') return pageT('cloud.failed', 'Could not reach the provider — check your internet connection, the key, or the custom base URL. ') + (detail || '');
+  if (code >= 400) return pageTF('cloud.err_4xx', 'Request rejected ({code}). ', { code: code }) + (detail || pageT('cloud.check_key', 'Check the key and the company it belongs to.'));
+  if (state === 'failed') return pageT('cloud.failed', 'Could not reach that company — check your internet, the key, or the custom address if you set one. ') + (detail || '');
   return detail || pageT('cloud.unknown', 'Unknown issue — try Test again.');
 }
 async function renderKeys() {
@@ -13249,12 +13252,12 @@ async function renderUsage(range) {
   const paidUsd = Number(paid.usd || 0);
   const paidVal = fmtInt(paid.total_tokens) + (paid.total_tokens ? ('  ' + (paid.all_actual ? '$' : '~$') + paidUsd.toFixed(4)) : '');
   head.appendChild(usageCard('paid', 'Cloud (paid) tokens', paidVal));
-  head.appendChild(usageCard('', 'Total tokens', fmtInt(data && data.total_tokens)));
+  head.appendChild(usageCard('', 'Total words', fmtInt(data && data.total_tokens)));
   usageBodyEl.appendChild(head);
   if (!rows.length) { const e = document.createElement('div'); e.className = 'usage-empty'; e.textContent = 'No usage recorded in this window yet.'; usageBodyEl.appendChild(e); return; }
   const table = document.createElement('table'); table.className = 'usage-table';
   const thead = document.createElement('thead'); const htr = document.createElement('tr');
-  ['Model', 'Tokens', 'Responses', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
+  ['Model', 'Words', 'Answers', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
   thead.appendChild(htr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
   rows.slice(0, 30).forEach((row) => {

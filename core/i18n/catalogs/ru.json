@@ -2850,7 +2850,7 @@
     "settings.row.live_browser.help": "Проверяйте каждое действие перед выполнением. Сценарии страниц отключены. Для оплаты используйте кошелёк.",
     "settings.row.live_browser.label": "Браузер"
   },
-  "source_catalog_sha256": "d3e45963b428961ea8a66698cbee6dec584a4b1f93aa5ea87a59e2d82abe3959",
+  "source_catalog_sha256": "e88e101ded5ca4dc7db4a4ab7f00670f015bd0384e42dec4b2b518db0224aee4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

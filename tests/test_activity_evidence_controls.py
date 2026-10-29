@@ -227,7 +227,7 @@ def test_the_event_log_offers_copy_all_and_copies_every_row_it_shows() -> None:
     )
     for line in ("[scope_resolved] /tmp/ws", "[tool_selected] Running workspace.write_file.", "[workspace_mutation_completed] wrote src/alpha.py"):
         assert line in result["copied"], f"Copy all dropped a row: {line!r}"
-    assert result["copied"].startswith("VOOL Event log — this chat")
+    assert result["copied"].startswith("VOOL History — this chat")
 
 
 # --------------------------------------------------------------------------------------------
