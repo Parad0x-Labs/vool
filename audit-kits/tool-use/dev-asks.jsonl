@@ -1,0 +1,40 @@
+{"id": "D01", "ask": "ping me at half five to call the garage", "kind": "needs_tool", "family": "operator"}
+{"id": "D02", "ask": "set a reminder for thursday morning to renew my passport", "kind": "needs_tool", "family": "operator"}
+{"id": "D03", "ask": "which reminders have i got coming up?", "kind": "needs_tool", "family": "operator"}
+{"id": "D04", "ask": "cancel the reminder about the garage", "kind": "needs_tool", "family": "operator"}
+{"id": "D05", "ask": "jot down that the spare key is under the blue pot", "kind": "needs_tool", "family": "operator"}
+{"id": "D06", "ask": "pop a note in my notes that the plumber charges 60 an hour", "kind": "needs_tool", "family": "operator"}
+{"id": "D07", "ask": "do i have any notes about the car insurance?", "kind": "needs_tool", "family": "operator"}
+{"id": "D08", "ask": "pull up my note about the holiday packing list", "kind": "needs_tool", "family": "operator"}
+{"id": "D09", "ask": "whats happening on my calendar this friday?", "kind": "needs_tool", "family": "operator"}
+{"id": "D10", "ask": "have i got anything on saturday evening?", "kind": "needs_tool", "family": "operator"}
+{"id": "D11", "ask": "pencil in lunch with priya on the 14th at 1", "kind": "needs_tool", "family": "operator"}
+{"id": "D12", "ask": "move my haircut on friday to 5pm", "kind": "needs_tool", "family": "operator"}
+{"id": "D13", "ask": "is wednesday morning clear for a call?", "kind": "needs_tool", "family": "operator"}
+{"id": "D14", "ask": "whats hogging my memory right now?", "kind": "needs_tool", "family": "machine"}
+{"id": "D15", "ask": "list the programs running on this laptop", "kind": "needs_tool", "family": "machine"}
+{"id": "D16", "ask": "how much free space is left on my drive?", "kind": "needs_tool", "family": "machine"}
+{"id": "D17", "ask": "what pdfs are sitting in my downloads?", "kind": "needs_tool", "family": "machine"}
+{"id": "D18", "ask": "find the spreadsheet called budget on my computer", "kind": "needs_tool", "family": "machine"}
+{"id": "D19", "ask": "how many photos are in my pictures folder?", "kind": "needs_tool", "family": "machine"}
+{"id": "D20", "ask": "whats in the readme file on my desktop?", "kind": "needs_tool", "family": "machine"}
+{"id": "D21", "ask": "what music files have i got on this computer?", "kind": "needs_tool", "family": "machine"}
+{"id": "D22", "ask": "whats the latest news about the mars rover?", "kind": "needs_tool", "family": "web"}
+{"id": "D23", "ask": "what are people saying online about the new iphone today?", "kind": "needs_tool", "family": "web"}
+{"id": "D24", "ask": "look up the opening hours for the science museum in london", "kind": "needs_tool", "family": "web"}
+{"id": "D25", "ask": "who won the f1 race last weekend?", "kind": "needs_tool", "family": "web"}
+{"id": "D26", "ask": "any unread mail from my landlord?", "kind": "missing_connection", "family": "email"}
+{"id": "D27", "ask": "did the bank email me this week?", "kind": "missing_connection", "family": "email"}
+{"id": "D28", "ask": "whats dani's phone number in my contacts?", "kind": "needs_tool", "family": "contacts"}
+{"id": "D29", "ask": "how long should I boil an egg for a runny yolk?", "kind": "no_tool", "family": ""}
+{"id": "D30", "ask": "write a short poem about autumn leaves", "kind": "no_tool", "family": ""}
+{"id": "D31", "ask": "what's the difference between a reminder and an alarm, in general?", "kind": "no_tool", "family": ""}
+{"id": "D32", "ask": "explain how compound interest works", "kind": "no_tool", "family": ""}
+{"id": "D33", "ask": "give me three dinner ideas with chickpeas", "kind": "no_tool", "family": ""}
+{"id": "D34", "ask": "translate good morning into spanish", "kind": "no_tool", "family": ""}
+{"id": "D35", "ask": "what is 17 times 23?", "kind": "no_tool", "family": ""}
+{"id": "D36", "ask": "how do I make a note in the iPhone notes app?", "kind": "no_tool", "family": ""}
+{"id": "D37", "ask": "any tips for keeping a calendar organised?", "kind": "no_tool", "family": ""}
+{"id": "D38", "ask": "why do computers slow down over time?", "kind": "no_tool", "family": ""}
+{"id": "D39", "ask": "hey, how are you today?", "kind": "no_tool", "family": ""}
+{"id": "D40", "ask": "write a polite email to my landlord asking about the deposit", "kind": "no_tool", "family": ""}
