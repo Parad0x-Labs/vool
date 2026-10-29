@@ -3004,6 +3004,10 @@ def plan_tool_workflow(
             largest_scope = machine_disk_scope(text)
             if largest_scope:
                 largest_arguments["drive"] = largest_scope
+            # The delete-safety notes are printed only for asks about freeing space or deleting;
+            # a plain size question does not want a delete warning on every row.
+            if re.search(r"\b(?:free|freeing|space|storage|delete|clean|clear|junk|clutter|tidy|remove|eaten|eating)\b", text, re.IGNORECASE):
+                largest_arguments["cleanup_context"] = True
             return WorkflowPlannerDecision(
                 handled=True,
                 reason="planned_machine_find_largest",
