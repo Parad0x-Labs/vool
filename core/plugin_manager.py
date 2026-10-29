@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 from core import plugin_lifecycle as lifecycle
+from core.plugin_migration import reserved_refusal
 from core.plugin_package import PackageError, capture_package
 from core.plugin_tools import PluginManifestError, confined_plugin_id, load_manifest, parse_manifest
 
@@ -128,6 +129,8 @@ def prepare_local(folder: str, *, update=False, source="local") -> dict:
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if not plugin.vool:
             raise lifecycle.LifecycleError("Choose a plugin with the current manifest and access declarations.")
+        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
+            raise lifecycle.LifecycleError(refusal)
         value = {"review_id": review_id, "digest": captured.digest, "plugin_id": plugin.plugin_id,
                  "created_at": time.time(), "update": update is True, "source": source}
         _write(_state() / "reviews" / (review_id + ".json"), value)
@@ -196,6 +199,8 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
         if captured.digest != digest or saved["digest"] != digest or time.time() - saved["created_at"] > 86400:
             raise lifecycle.LifecycleError("The reviewed package changed or its review expired. Review it again.")
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
+        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
+            raise lifecycle.LifecycleError(refusal)
         target = _destination(plugin.plugin_id)
         previous = lifecycle.record_for(plugin.plugin_id)
         active = previous and previous.stage != lifecycle.STAGE_UNINSTALLED

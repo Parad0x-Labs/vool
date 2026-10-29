@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import shutil
 from pathlib import Path
 
 import pytest
@@ -17,8 +18,9 @@ from tests.test_plugin_services_v1 import https_service
 
 
 def reference(package, service):
-    path = Path(__file__).resolve().parents[1] / 'examples/plugins' / ('vool-plugin-' + service) / '.codex-plugin/plugin.json'
-    (package / '.codex-plugin/plugin.json').write_bytes(path.read_bytes())
+    """The exact first-party package VOOL ships for this service."""
+    shutil.rmtree(package)
+    shutil.copytree(Path(__file__).resolve().parents[1] / 'examples/plugins' / ('vool-plugin-' + service), package)
 
 
 def upgrade_profile(key):
@@ -116,19 +118,34 @@ def test_wallet_funded_usepod_key_is_never_copied_into_the_plugin(package, https
     assert not https_service['log'].exists()
 
 
-def test_changed_destination_cannot_rebind_retired_service_key(package, https_service):
-    store_credential('llm.cloud.usepod', https_service['access'])
-    reference(package, 'usepod')
+@pytest.mark.parametrize('service,slot', [('usepod', 'llm.cloud.usepod'), ('eyebrow', 'security.eyebrow')])
+def test_a_package_that_only_claims_a_first_party_name_is_refused(package, https_service, service, slot):
+    store_credential(slot, https_service['access'])
+    reference(package, service)
     path = package / '.codex-plugin/plugin.json'
     raw = json.loads(path.read_text())
     raw['vool']['network'] = ['api.example.org']
-    raw['vool']['model_provider'].update(base_url='https://api.example.org', pricing_source='models')
+    block = raw['vool']['model_provider' if service == 'usepod' else 'scanner']
+    block['base_url'] = 'https://api.example.org'
+    if 'pricing_source' in block:
+        block['pricing_source'] = 'https://api.example.org/v1/marketplace/models'
     path.write_text(json.dumps(raw))
-    info = installed(package)
-    manager.enable(info['id'], accepted=True, approval_digest=info['approval_digest'])
-    assert not get_credential('plugin.vool-plugin-usepod.access')
-    assert get_credential('llm.cloud.usepod') == https_service['access']
+    # The name unlocks the retained payment lane and the saved scanner key, so only VOOL's
+    # own package bytes may use it.
+    with pytest.raises(lifecycle.LifecycleError, match='belongs to a plugin made by VOOL'):
+        manager.prepare_local(str(package))
+    assert not lifecycle.record_for('vool-plugin-' + service)
+    assert not get_credential(f'plugin.vool-plugin-{service}.access')
+    assert get_credential(slot) == https_service['access']
     assert not https_service['log'].exists()
+
+
+def test_first_party_package_digests_match_the_shipped_examples():
+    from core.plugin_package import capture_package
+
+    for service in migration.SERVICES:
+        folder = Path(__file__).resolve().parents[1] / 'examples/plugins' / service['id']
+        assert capture_package(folder).digest in service['digests'], service['id']
 
 
 def path_token_provider(package):
@@ -136,6 +153,7 @@ def path_token_provider(package):
     reference(package, 'usepod')
     path = package / '.codex-plugin/plugin.json'
     raw = json.loads(path.read_text())
+    raw['name'] = raw['vool']['id'] = 'sample-path-provider'
     raw['vool']['network'] = ['api.example.org']
     raw['vool']['model_provider'].update(base_url='https://api.example.org',
                                          pricing_source='https://api.example.org/v1/marketplace/models')
@@ -180,13 +198,13 @@ def test_path_token_provider_lists_and_streams_through_existing_pin_path(package
     monkeypatch.setattr(plugin_services, 'native_request', routed)
     monkeypatch.setattr(plugin_providers, 'native_request', routed)
     plugin_providers.refresh_models(info['id'])
-    ok, _message, _chosen = set_cloud_model('fixture-model', provider='plugin-vool-plugin-usepod', owner_local=True, confirm_paid=True)
+    ok, _message, _chosen = set_cloud_model('fixture-model', provider='plugin-sample-path-provider', owner_local=True, confirm_paid=True)
     assert ok, _message
-    assert policy.load_policy().provider == 'plugin-vool-plugin-usepod'
-    response = dispatch_get(path='/api/cloud/models',query={'provider':['plugin-vool-plugin-usepod']},runtime=RuntimeServices(display_name='Plugin fixture'),model_name='fixture',client_host='127.0.0.1')
+    assert policy.load_policy().provider == 'plugin-sample-path-provider'
+    response = dispatch_get(path='/api/cloud/models',query={'provider':['plugin-sample-path-provider']},runtime=RuntimeServices(display_name='Plugin fixture'),model_name='fixture',client_host='127.0.0.1')
     assert response.status == 200 and json.loads(response.body)['models'][0]['id'] == 'fixture-model'
     registry = ModelRegistry()
-    model = registry.get_manifest('plugin-vool-plugin-usepod', 'fixture-model')
+    model = registry.get_manifest('plugin-sample-path-provider', 'fixture-model')
     prompt = secrets.token_hex(12)
     chunks = list(registry.build_adapter(model).stream_text_task(ModelRequest(task_kind='chat',prompt=prompt,messages=[{'role':'user','content':prompt}])))
     assert ''.join(c.delta_text for c in chunks) == prompt[::-1]

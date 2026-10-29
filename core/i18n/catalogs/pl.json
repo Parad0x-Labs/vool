@@ -3095,9 +3095,10 @@
     "addons.plugin_message_17a835e333a0": "Serwer tej wtyczki otrzymuje klucz usługi w sposób, którego ten Mac nie może ukryć przed innymi programami, dlatego tutaj pozostaje wyłączona. Wtyczki niewymagające klucza oraz wtyczki dostawców i skanerów nadal działają.",
     "addons.plugin_message_96b8e83efb56": "Ten Mac nie może uruchamiać kodu wtyczek w piaskownicy macOS, dlatego wtyczki uruchamiające własny kod pozostają wyłączone. Wtyczki dostawców i skanerów nadal działają.",
     "addons.plugin_message_1461237e0e9b": "Ten klucz przeniesiono z wcześniejszego ustawienia VOOL i jest używany tylko w żądaniach samego VOOL. Połącz klucz dla tej wtyczki w sekcji Dodatki.",
-    "update.checks_off": "Sprawdzanie aktualizacji wyłączone"
+    "update.checks_off": "Sprawdzanie aktualizacji wyłączone",
+    "addons.plugin_message_fc4f8c7be062": "Ta nazwa wtyczki należy do wtyczki stworzonej przez VOOL. Nadaj swojej wtyczce własny identyfikator, aby ją zainstalować."
   },
-  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
+  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

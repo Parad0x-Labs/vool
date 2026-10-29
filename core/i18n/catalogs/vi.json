@@ -3095,9 +3095,10 @@
     "addons.plugin_message_17a835e333a0": "Máy chủ của plugin này nhận khóa dịch vụ theo cách mà máy Mac này không thể giữ kín với các chương trình khác, nên tại đây nó vẫn tắt. Các plugin không cần khóa, cùng plugin nhà cung cấp và plugin quét, vẫn hoạt động.",
     "addons.plugin_message_96b8e83efb56": "Máy Mac này không thể chạy mã plugin trong hộp cát của macOS, nên các plugin chạy mã riêng vẫn tắt. Plugin nhà cung cấp và plugin quét vẫn hoạt động.",
     "addons.plugin_message_1461237e0e9b": "Khóa này được chuyển từ một thiết lập VOOL trước đây và chỉ dùng cho các yêu cầu của chính VOOL. Hãy kết nối một khóa cho plugin này trong Tiện ích bổ sung.",
-    "update.checks_off": "Đã tắt kiểm tra cập nhật"
+    "update.checks_off": "Đã tắt kiểm tra cập nhật",
+    "addons.plugin_message_fc4f8c7be062": "Tên plugin này thuộc về một plugin do VOOL tạo. Hãy đặt cho plugin của bạn một id riêng để cài đặt."
   },
-  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
+  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

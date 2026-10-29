@@ -200,10 +200,13 @@ def usable_provider(provider: str, model: str = "") -> bool:
 
 def require_legacy_x402():
     """Gate the retained monetary lane; a declaration grants no caps, approval or signing."""
+    from core.plugin_migration import is_first_party
     from core.usepod.legacy_config import CONFIG
     from core.usepod.legacy_config import origin as legacy_origin
 
     record, plugin = declaration("vool-plugin-usepod", "model_provider")
+    if not is_first_party(record):
+        raise ServiceRefused("Enable the matching provider plugin with x402 support before using this payment lane.")
     spec = plugin.vool["model_provider"]
     saved_origin = legacy_origin().rstrip("/")
     if (spec.get("x402") is not True

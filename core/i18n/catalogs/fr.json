@@ -3095,9 +3095,10 @@
     "addons.plugin_message_17a835e333a0": "Le serveur de ce plugin reçoit sa clé de service d'une manière que ce Mac ne peut pas garder privée vis-à-vis des autres programmes ; il reste donc désactivé ici. Les plugins sans clé, ainsi que les plugins de fournisseur et d'analyse, fonctionnent toujours.",
     "addons.plugin_message_96b8e83efb56": "Ce Mac ne peut pas exécuter le code des plugins dans le bac à sable de macOS ; les plugins qui exécutent leur propre code restent donc désactivés. Les plugins de fournisseur et d'analyse fonctionnent toujours.",
     "addons.plugin_message_1461237e0e9b": "Cette clé provient d'un ancien réglage de VOOL et n'est utilisée que par les requêtes de VOOL lui-même. Connectez une clé pour ce plugin dans Modules complémentaires.",
-    "update.checks_off": "Recherche de mises à jour désactivée"
+    "update.checks_off": "Recherche de mises à jour désactivée",
+    "addons.plugin_message_fc4f8c7be062": "Ce nom de plugin appartient à un plugin créé par VOOL. Donnez à votre plugin son propre identifiant pour l’installer."
   },
-  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
+  "source_catalog_sha256": "fb0c49f05dede84a6cd266250a861a4a28c5fd68fab911e7bcf4056fad7a9907",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

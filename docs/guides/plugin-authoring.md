@@ -33,6 +33,12 @@ scanners receive requested public add-on content through the shared service tran
 
 ## Access
 
+Plugin tools are offered to the model only while VOOL's plugin-tools switch is on
+(`VOOL_PLUGIN_RUNTIME_TOOLS=1`), and then only for plugins the owner enabled. Model provider
+and scanner plugins do not need the switch. The ids `vool-plugin-usepod` and
+`vool-plugin-eyebrow` belong to VOOL's own packages, recognised by their exact bytes; a
+package that only claims one of them is refused.
+
 Install through the Plugins section, review the entire distribution, then install disabled.
 Connect your own key in its card and accept the separate access sheet to enable it. Saving
 a key makes no request. Keys live under `plugin.<id>.<slot>` and are resolved only for that
@@ -56,7 +62,10 @@ server that needs no key runs in the macOS sandbox like any handler.
 
 On macOS a tool that declares network runs in the sandbox with exactly one allowed
 destination: a private proxy VOOL starts for that call, which connects only to the hosts in
-`network`. Every other address, including the plugin's own direct sockets, is refused. On
+`network`. Every other address, including the plugin's own direct sockets, is refused. The
+proxy reads the TLS greeting and refuses a connection whose server name is not the declared
+host, so a plugin cannot reach another site that shares that host's address. One connection
+carries at most 64 MB. On
 Linux and in the isolated runtime a process cannot reach that proxy, so the tool runs with no
 network, as the access sheet says. Native provider and scanner requests are made by VOOL
 itself, to declared hosts only, on every platform.

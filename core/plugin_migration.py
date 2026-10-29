@@ -6,10 +6,28 @@ from urllib.parse import urlsplit
 SERVICES = (
     {"id": "vool-plugin-usepod", "name": "UsePod", "slot": "llm.cloud.usepod",
      "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider",
-     "rebind": False},
+     "rebind": False,
+     "digests": frozenset({"fe7fedb6881f6ba74df98b36ae25f818feab79a34c373ccf6acba87e9c820b54"})},
     {"id": "vool-plugin-eyebrow", "name": "Eyebrow", "slot": "security.eyebrow",
-     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner", "rebind": True},
+     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner", "rebind": True,
+     "digests": frozenset({"2e03c9975c55d7ccc2e41cef92385b65770343f981b0acc8279b7d20791e0540"})},
 )
+
+RESERVED_NAME = ("This plugin name belongs to a plugin made by VOOL. Give your plugin its own id to install it.")
+
+
+def reserved_refusal(plugin_id: str, digest: str) -> str:
+    """VOOL's own service plugins are known by their exact package bytes, never by a claimed name.
+
+    Their ids unlock the retained payment lane and the saved scanner key, so a package that only
+    calls itself by one of those names is refused.
+    """
+    service = next((service for service in SERVICES if service["id"] == plugin_id), None)
+    return RESERVED_NAME if service and digest not in service["digests"] else ""
+
+
+def is_first_party(record) -> bool:
+    return bool(record) and not reserved_refusal(record.plugin_id, str(record.verified_digest or ""))
 
 
 def retired_slots() -> tuple[str, ...]:
@@ -52,7 +70,9 @@ def bind_on_enable(plugin_id: str) -> bool:
         # A UsePod token pays from a balance funded through VOOL's wallet. It stays in its
         # own slot, spent only on the retained lane with spend grants, caps and receipts.
         return False
-    _record, plugin = declaration(plugin_id, service["kind"])
+    record, plugin = declaration(plugin_id, service["kind"])
+    if not is_first_party(record):
+        return False
     spec = plugin.vool[service["kind"]]
     own = f"plugin.{plugin_id}.{spec['credential_slot']}"
     if credential_is_indexed(own):

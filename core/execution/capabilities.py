@@ -628,8 +628,8 @@ def _plugin_tool_specs() -> list[dict[str, Any]]:
     tool is indistinguishable from a built-in — same native schema, same permission derivation,
     same execution record, same answer binding. Nothing downstream branches on where it came from.
 
-    Legacy packages retain their feature flag. A v1 package uses its explicit verified
-    lifecycle consent as the opt-in; a broken plugin never costs the user built-in tools.
+    Every package needs the plugin-tools feature switch. A v1 package also needs its explicit
+    verified lifecycle consent; a broken plugin never costs the user built-in tools.
     """
 
     try:

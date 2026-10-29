@@ -1,6 +1,7 @@
 """Real confined handlers, stdio servers, cancellation and local proxy refusal."""
 from __future__ import annotations
 
+import contextlib
 import json
 import secrets
 import socket
@@ -285,3 +286,113 @@ print(json.dumps({"text":os.environ.get("SAMPLE_ACCESS","")}))
     assert not result.ok
     assert "wallet approvals" in result.error
     assert value not in json.dumps(result.__dict__)
+
+
+def client_hello(server_name: str) -> bytes:
+    import ssl
+
+    incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
+    tls = ssl.create_default_context().wrap_bio(incoming, outgoing, server_hostname=server_name)
+    with pytest.raises(ssl.SSLWantReadError):
+        tls.do_handshake()
+    return outgoing.read()
+
+
+def test_tls_greeting_names_the_server_the_plugin_asks_for():
+    from core.plugin_network import read_client_hello
+
+    for name in ("api.example.org", "other.example.net"):
+        hello = client_hello(name)
+        left, right = socket.socketpair()
+        with left, right:
+            left.sendall(hello)
+            assert read_client_hello(right) == (hello, name)
+    left, right = socket.socketpair()
+    with left, right:
+        left.sendall(b"GET / HTTP/1.1\r\nHost: api.example.org\r\n\r\n")
+        with pytest.raises(NetworkRefused):
+            read_client_hello(right)
+
+
+def proxy_with_local_upstream(monkeypatch, hosts):
+    from core import plugin_network
+
+    reached, received = [], bytearray()
+    upstream = socket.socket()
+    upstream.bind(("127.0.0.1", 0))
+    upstream.listen(1)
+
+    def serve():
+        with contextlib.suppress(OSError):
+            connection, _ = upstream.accept()
+            with connection:
+                while block := connection.recv(65536):
+                    received.extend(block)
+                    connection.sendall(block)
+
+    threading.Thread(target=serve, daemon=True).start()
+
+    def connect(host, *, call=None):
+        reached.append(host)
+        return socket.create_connection(upstream.getsockname(), timeout=2)
+
+    monkeypatch.setattr(plugin_network, "network_available", lambda **_: True)
+    monkeypatch.setattr(plugin_network, "connect_public", connect)
+    return reached, received
+
+
+def tunnel(proxy, host):
+    connection = socket.create_connection(("127.0.0.1", proxy.port), timeout=3)
+    connection.sendall(f"CONNECT {host}:443 HTTP/1.1\r\nProxy-Authorization: {proxy.authorization}\r\n\r\n".encode())
+    assert connection.recv(1024).startswith(b"HTTP/1.1 200")
+    return connection
+
+
+def test_proxy_refuses_a_tls_name_other_than_the_declared_host(package, monkeypatch):
+    reached, _received = proxy_with_local_upstream(monkeypatch, ["api.example.org"])
+    with invocation("sample-provider", lambda: True) as call, EgressProxy(["api.example.org"], call) as proxy:
+        with tunnel(proxy, "api.example.org") as connection:
+            # Same declared address, but asking it for a different site behind it.
+            connection.sendall(client_hello("fronted.example.net"))
+            assert connection.recv(1024) == b""
+    assert reached == [], "a mismatched name is refused before the declared host's address is contacted"
+
+
+def test_proxy_carries_the_declared_name_and_caps_each_connection(package, monkeypatch):
+    from core import plugin_network
+
+    reached, received = proxy_with_local_upstream(monkeypatch, ["api.example.org"])
+    monkeypatch.setattr(plugin_network, "CONNECTION_BYTE_CAP", 64 * 1024)
+    hello = client_hello("api.example.org")
+    with invocation("sample-provider", lambda: True) as call, EgressProxy(["api.example.org"], call) as proxy:
+        with tunnel(proxy, "api.example.org") as connection:
+            connection.sendall(hello)
+            echoed = bytearray()
+            while len(echoed) < len(hello):
+                echoed.extend(connection.recv(65536))
+            assert bytes(echoed) == hello and reached == ["api.example.org"]
+            closed = False
+            try:
+                for _ in range(64):
+                    connection.sendall(b"x" * 16384)
+                    if connection.recv(65536) == b"":
+                        closed = True
+                        break
+            except OSError:
+                closed = True
+            assert closed, "the proxy ends a connection that passes its byte cap"
+    assert len(received) <= 64 * 1024 + 65536, "a connection never carries far past its byte cap"
+
+
+def test_consented_plugin_tools_stay_off_until_the_plugin_tools_switch_is_on(package):
+    from core.execution.capabilities import _plugin_tool_specs
+    from core.plugin_tools import runtime_lane_open
+    from core.runtime_flags import override
+
+    tool_package(package, "import json,sys\njson.load(sys.stdin)\nprint(json.dumps({'text':'ok'}))\n")
+    admit(package)
+    with override("plugin_runtime_tools", False):
+        assert not runtime_lane_open("sample-provider")
+        assert not any(spec["intent"] == "sample-provider.echo" for spec in _plugin_tool_specs())
+    with override("plugin_runtime_tools", True):
+        assert runtime_lane_open("sample-provider")

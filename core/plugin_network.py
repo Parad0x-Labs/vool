@@ -19,6 +19,69 @@ class NetworkRefused(RuntimeError):
     pass
 
 
+# One proxied connection may carry at most this many bytes in both directions together.
+CONNECTION_BYTE_CAP = 64 * 1024 * 1024
+_HELLO_LIMIT = 64 * 1024
+
+
+def _read_exact(sock, size: int) -> bytes:
+    data = bytearray()
+    while len(data) < size:
+        block = sock.recv(size - len(data))
+        if not block:
+            raise NetworkRefused("The plugin connection ended before its TLS greeting.")
+        data.extend(block)
+    return bytes(data)
+
+
+def read_client_hello(sock) -> tuple[bytes, str]:
+    """Read a complete TLS ClientHello and return its raw records and the requested server name.
+
+    The name is the one the plugin asks the far side for. Checking it against the declared host
+    stops a plugin from reaching another site that shares the declared host's address.
+    """
+    raw, handshake = bytearray(), bytearray()
+    while len(handshake) < 4 or len(handshake) < 4 + int.from_bytes(handshake[1:4], "big"):
+        header = _read_exact(sock, 5)
+        if header[0] != 0x16 or header[1] != 0x03:
+            raise NetworkRefused("The plugin connection did not start with a TLS greeting.")
+        body = _read_exact(sock, int.from_bytes(header[3:5], "big"))
+        raw.extend(header + body)
+        handshake.extend(body)
+        if len(raw) > _HELLO_LIMIT:
+            raise NetworkRefused("The plugin's TLS greeting is too large.")
+    if handshake[0] != 0x01:
+        raise NetworkRefused("The plugin connection did not start with a TLS greeting.")
+    return bytes(raw), _server_name(bytes(handshake[4:4 + int.from_bytes(handshake[1:4], "big")]))
+
+
+def _server_name(hello: bytes) -> str:
+    try:
+        at = 2 + 32
+        at += 1 + hello[at]
+        at += 2 + int.from_bytes(hello[at:at + 2], "big")
+        at += 1 + hello[at]
+        end = at + 2 + int.from_bytes(hello[at:at + 2], "big")
+        at += 2
+        names = []
+        while at + 4 <= end:
+            kind, size = int.from_bytes(hello[at:at + 2], "big"), int.from_bytes(hello[at + 2:at + 4], "big")
+            value = hello[at + 4:at + 4 + size]
+            if kind == 0x0000:
+                inner = 2
+                while inner + 3 <= len(value):
+                    length = int.from_bytes(value[inner + 1:inner + 3], "big")
+                    if value[inner] == 0:
+                        names.append(value[inner + 3:inner + 3 + length].decode("ascii"))
+                    inner += 3 + length
+            at += 4 + size
+    except (IndexError, UnicodeDecodeError):
+        raise NetworkRefused("The plugin's TLS greeting could not be read.") from None
+    if len(names) != 1:
+        raise NetworkRefused("The plugin's TLS greeting must name exactly one server.")
+    return names[0].rstrip(".").lower()
+
+
 def destination(url: str, hosts: list[str] | tuple[str, ...]) -> tuple[str, str]:
     try:
         parsed = https_url(url, hosts)
@@ -162,17 +225,26 @@ class EgressProxy:
                             or target != host + ":443" or host not in owner.hosts or not host_name(host)
                             or not hmac.compare_digest(authorization, owner.authorization)):
                         raise NetworkRefused("The plugin connection is outside its declared access.")
+                    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    hello, server_name = read_client_hello(client)
+                    if server_name != host:
+                        # Refused before any connection to the declared host's address is made.
+                        return
                     upstream = connect_public(host, call=owner.call)
                     owner.call.check()
                     with owner.lock:
                         owner.sockets.add(upstream)
-                    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    upstream.sendall(hello)
+                    carried = len(hello)
                     while True:
                         owner.call.check()
                         ready, _, _ = select.select((client, upstream), (), (), 0.1)
                         for source in ready:
                             block = source.recv(65536)
                             if not block:
+                                return
+                            carried += len(block)
+                            if carried > CONNECTION_BYTE_CAP:
                                 return
                             (upstream if source is client else client).sendall(block)
                 except Exception:
@@ -199,16 +271,19 @@ class EgressProxy:
 
         try:
             self.server = Server(("127.0.0.1", 0), Handler)
-            self.server6 = Server6(("::1", self.server.server_address[1]), Handler)
         except OSError:
-            if hasattr(self, "server"):
-                self.server.server_close()
             raise NetworkRefused("The plugin's private network connection could not start. Network access remains off.") from None
+        # The IPv6 loopback listener only serves clients that resolve localhost to ::1; a
+        # machine without IPv6 loopback still has the IPv4 proxy the environment points at.
+        self.server6, self.thread6 = None, None
+        with contextlib.suppress(OSError):
+            self.server6 = Server6(("::1", self.server.server_address[1]), Handler)
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
         self.thread.start()
-        self.thread6 = threading.Thread(target=self.server6.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
-        self.thread6.start()
+        if self.server6 is not None:
+            self.thread6 = threading.Thread(target=self.server6.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True)
+            self.thread6.start()
         call.own(self.close)
 
     @property
@@ -218,10 +293,10 @@ class EgressProxy:
                 "all_proxy": address, "NO_PROXY": "", "no_proxy": ""}
 
     def close(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.server6.shutdown()
-        self.server6.server_close()
+        for server in (self.server, self.server6):
+            if server is not None:
+                server.shutdown()
+                server.server_close()
         with self.lock:
             connections, self.sockets = list(self.sockets), set()
         for connection in connections:
@@ -230,7 +305,7 @@ class EgressProxy:
             connection.close()
         if threading.current_thread() is not self.thread:
             self.thread.join(2)
-        if threading.current_thread() is not self.thread6:
+        if self.thread6 is not None and threading.current_thread() is not self.thread6:
             self.thread6.join(2)
 
     def __enter__(self):

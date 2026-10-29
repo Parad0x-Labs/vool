@@ -27,10 +27,15 @@ Skill guidance is inserted whole or explicitly omitted when it cannot fit the pr
 
 ## Optional scanners
 
+A remote scanner is optional. With no scanner plugin enabled, VOOL's own check on this device
+decides whether a skill can be installed; earlier versions required a remote scan instead.
+
 Install `examples/plugins/vool-plugin-eyebrow` through the Plugins section, save your own key,
 review access and enable it. Its declaration uses `/v1/version` for an explicit connection test
 and `/v1/scan` for requested scanning. The shared native plugin transport owns those requests;
 there is no built-in Eyebrow client or central Eyebrow key setting. Older saved keys are kept.
+Only VOOL's own Eyebrow and UsePod packages, recognised by their exact bytes, may use those
+plugin ids; a package that merely claims one is refused before review.
 
 VOOL's own check on this device always runs. A scanner plugin's report is added beside it:
 either one finding an issue blocks installation, and a plugin report must name the exact

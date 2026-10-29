@@ -49,7 +49,7 @@ class PluginDaemon:
                    VOOL_CREDENTIAL_STORE="vault", VOOL_KEY_STORAGE_MODE="file", VOOL_KEY_PASSPHRASE=secrets.token_urlsafe(24),
                    VOOL_INSTALL_PROFILE="full-orchestrated", VOOL_LOCAL_MODELS_ENABLED="0", VOOL_DISABLE_MESH_DAEMON="1",
                    VOOL_DISABLE_STUN="1", VOOL_DISABLE_COMPUTE_MODE="1", VOOL_SKIP_PROVIDER_PREWARM="1",
-                   VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0")
+                   VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0", VOOL_PLUGIN_RUNTIME_TOOLS="1")
         with self.log.open("w") as output:
             self.child = subprocess.Popen([sys.executable, "-B", "-m", "tests.plugin_served_fixture", "--port", str(self.port),
                                            "--bind", "127.0.0.1"], cwd=ROOT, env=env, stdin=subprocess.PIPE,
@@ -143,6 +143,7 @@ def path_token_provider(folder):
     shutil.copytree(ROOT / "examples/plugins/vool-plugin-usepod", folder)
     path = folder / ".codex-plugin/plugin.json"
     raw = json.loads(path.read_text())
+    raw["name"] = raw["vool"]["id"] = "sample-path-provider"
     raw["vool"]["network"] = ["api.example.org"]
     raw["vool"]["model_provider"].update(base_url="https://api.example.org",
                                          pricing_source="https://api.example.org/v1/marketplace/models")
@@ -153,8 +154,8 @@ def path_token_provider(folder):
 
 def select_provider(page):
     page.locator("#modelBtn").click()
-    page.get_by_label("Model provider", exact=True).select_option("plugin-vool-plugin-usepod")
-    page.locator('.cloud-dyn[data-model="plugin-vool-plugin-usepod:fixture-model"]').click()
+    page.get_by_label("Model provider", exact=True).select_option("plugin-sample-path-provider")
+    page.locator('.cloud-dyn[data-model="plugin-sample-path-provider:fixture-model"]').click()
     page.get_by_role("button", name="Accept price and select", exact=True).click()
     page.locator("#modelLbl").filter(has_text="Fixture model").wait_for(timeout=10000)
 
@@ -176,7 +177,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         (tmp_path / "fresh-checkpoint.json").write_text(json.dumps({"plugins": [], "native_requests": 0, "service_requests": 0}))
         page.screenshot(path=str(tmp_path / "fresh-plugins.png"), full_page=True)
 
-        card = install_folder(page, path_token_provider(tmp_path / "provider"), "vool-plugin-usepod")
+        card = install_folder(page, path_token_provider(tmp_path / "provider"), "sample-path-provider")
         card.get_by_label("Your UsePod service token", exact=True).fill(https_service["access"])
         card.get_by_role("button", name="Save key", exact=True).click()
         assert not daemon.routes.exists()
