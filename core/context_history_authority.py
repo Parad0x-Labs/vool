@@ -154,7 +154,8 @@ def assistant_text_is_runtime_failure_notice(text: Any) -> bool:
     return bool(_RUNTIME_FAILURE_NOTICE_RE.search(str(text or "").strip()))
 
 _SAME_CHAT_HISTORY_RECALL_RE = re.compile(
-    r"^\s*(?:can|could|would\s+you\s+)?(?:"
+    r"^\s*(?:(?:great|perfect|nice|cool|awesome|thanks|thank\s+you)[,!\s]+|"
+    r"can|could|would\s+you\s+)?(?:"
     r"what|which|list|show|repeat|recall|remind|summarize|tell\s+me"
     r")\b[^\n]{0,240}\b(?:"
     r"earlier|before|above|history|this\s+(?:chat|conversation)|"
@@ -175,7 +176,7 @@ _BARE_PREVIOUS_REFERENCE_RE = re.compile(
     re.IGNORECASE,
 )
 _DIRECT_TRANSCRIPT_RECALL_HEAD_RE = re.compile(
-    r"^(?:(?:and|also|ok|okay|so|then)\s+)*(?:"
+    r"^(?:(?:and|also|ok|okay|so|then|great|perfect|nice|cool|awesome|thanks|thank\s+you)[,!\s]+)*(?:"
     r"what|which|show|list|repeat|recall|remind|tell\s+me|part\s+[a-z0-9]+|"
     r"(?:list\s+)?item\s+\d+"
     r")\b",

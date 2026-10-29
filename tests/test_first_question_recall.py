@@ -75,6 +75,8 @@ FIRST_ASKS = (
     "what's my first question in this chat",
     "what was the first thing I asked you",
     "remind me what I asked first",
+    # the operator's real session shape: a lead-in word before the recall verb
+    "great, remind me pls what was the first question i asked u in this chat?",
 )
 
 
@@ -331,7 +333,7 @@ def test_unreadable_store_declines_rather_than_claiming_an_empty_chat(
 ) -> None:
     from core.agent_runtime import same_chat_recall
 
-    def _broken_read(_session_id, limit=6, include_artifacts=False):  # noqa: ANN001
+    def _broken_read(_session_id, limit=6, include_artifacts=False):
         raise OSError("store unreadable")
 
     monkeypatch.setattr(
