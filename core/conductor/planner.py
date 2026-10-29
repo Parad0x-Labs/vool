@@ -317,6 +317,68 @@ def _verify_no_invented_content(clauses: Sequence[ProposedClause], original: str
     return verify_plan(tasks, original)
 
 
+_REMARK_ON_WHAT_YOU_KNOW_RE = re.compile(
+    r"(?:come\s+on,?\s+)?(?:surely\s+)?you\s+(?:know|remember|should\s+know)\s+(?:this|that|it)(?:\s+one)?"
+    r"(?:\s+(?:already|by\s+now))?",
+    re.IGNORECASE,
+)
+
+
+def _without_clauses_that_ask_nothing(
+    clauses: Sequence[ProposedClause], original: str
+) -> list[ProposedClause]:
+    """The proposed clauses minus those lying wholly inside what the message says but does not ask.
+
+    The model proposes, the runtime disposes: the ONE interpretation of the message
+    (`answer_coverage.interpret_request`) already reads "my mate says her life is like one big locked
+    file" as the context of "whats she on about?", and "you know this one" as a remark on "whats my
+    sisters name?". Planned as their own requests they became unresolved nodes, and the reply ended
+    in "Could not be answered: - my mate says her life is like one big locked file" (measured
+    2026-10-28 on qwen3:8b, the PC and a phone alike). Only a clause no request unit overlaps is
+    dropped, and the dependency indexes are renumbered; when anything cannot be read the proposal
+    stands as it was.
+    """
+    try:
+        from core.agent_runtime.answer_coverage import interpret_request
+
+        units = tuple(interpret_request(original).units)
+    except Exception:
+        return list(clauses)
+    # A constraint can be a deliverable the planner is right to plan ("and show the working", "say
+    # exactly what cannot be determined"), so of the constraints only a remark on what the assistant
+    # knows asks nothing; every context statement does.
+    def _asks_nothing(unit: Any) -> bool:
+        if unit.kind == "context":
+            return True
+        return unit.kind == "constraint" and bool(_REMARK_ON_WHAT_YOU_KNOW_RE.fullmatch(
+            " ".join(str(unit.text or "").split()).strip(" .,!?")))
+
+    asks_nothing = [(u.start, u.end) for u in units if _asks_nothing(u)]
+    asks = [(u.start, u.end) for u in units if not _asks_nothing(u)]
+    if not asks_nothing or not asks:
+        return list(clauses)
+    kept: list[ProposedClause] = []
+    renumbered: dict[int, int] = {}
+    for clause in clauses:
+        start, end = _clause_span(original, clause.request)
+        inside = start >= 0 and any(lo <= start and end <= hi for lo, hi in asks_nothing)
+        overlaps_ask = any(start < hi and lo < end for lo, hi in asks)
+        if inside and not overlaps_ask:
+            continue
+        renumbered[clause.index] = len(kept)
+        kept.append(clause)
+    if len(kept) == len(clauses):
+        return list(clauses)
+    out: list[ProposedClause] = []
+    for clause in kept:
+        if any(dep not in renumbered for dep in clause.depends_on):
+            # A kept request built on a dropped remark: the proposal is not ours to rewire.
+            return list(clauses)
+        out.append(replace(clause, index=renumbered[clause.index],
+                           depends_on=tuple(renumbered[dep] for dep in clause.depends_on)))
+    return out
+
+
 def _clause_span(original: str, clause_text: str) -> tuple[int, int]:
     """Where `clause_text` sits in the canonical user text, or `(-1, -1)`.
 
@@ -2625,6 +2687,9 @@ def plan_conductor_turn(
         # One request, or nothing usable. The ordinary single-turn path is correct.
         return None
     if not _verify_no_invented_content(clauses, original):
+        return None
+    clauses = _without_clauses_that_ask_nothing(clauses, original)
+    if len(clauses) < 2 and not single_computation:
         return None
 
     try:
