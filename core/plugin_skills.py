@@ -547,12 +547,12 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         # word: "fix the spelling" reaches the proofreading skill, "explain how it works" must
         # not reach whichever skill happens to say "worked example".
         kind_backed = bool(ask_stem_set & _KIND_STEMS & found.card) and max(worth.values(), default=0.0) >= _KIND_PAIR_BAR
-        qualified = (
+        qualified_without_backing = (
             named or name_covered or bool(hits) or bool((ask_stem_set - subject_only) & found.triggers)
             or strong >= _STRONG_BAR
-            or (words >= _BAR and len(worth) >= 2) or kind_backed
+            or (words >= _BAR and len(worth) >= 2)
         )
-        if not qualified:
+        if not (qualified_without_backing or kind_backed):
             continue
         # A whole trigger adds a little on top of its words, which already count at trigger
         # weight; a larger bonus let incidental two-word phrases outrank the skill an ask
@@ -573,7 +573,15 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         reasons.extend(f"word from the skill's name \"{asked.get(stem, stem)}\"" for stem in ordered if stem in found.name)
         rest = [stem for stem in ordered if stem not in found.name and stem not in found.triggers]
         if rest:
-            reasons.append("shared words " + ", ".join(f'"{asked.get(stem, stem)}"' for stem in rest))
+            shared = ", ".join(f'"{asked.get(stem, stem)}"' for stem in rest)
+            if qualified_without_backing:
+                reasons.append("shared words " + shared)
+            else:
+                # Picked only because a kind-of-help word on the card stands behind the topic word.
+                backing = [stem for stem in dict.fromkeys(ask_stems) if stem in _KIND_STEMS and stem in found.card]
+                label = "shared word " if len(rest) == 1 else "shared words "
+                reasons.append(label + shared + " backed by "
+                               + ", ".join(f'"{asked.get(stem, stem)}"' for stem in backing))
         # The person's own question carrying a trigger word for word ("how many rows are in
         # the orders table" holds "how many rows") is the author's own wording, general or not.
         verbatim = any(

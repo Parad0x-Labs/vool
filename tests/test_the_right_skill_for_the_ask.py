@@ -454,3 +454,14 @@ def test_match_reasons_name_the_skill_and_use_the_persons_own_words() -> None:
 def test_match_reasons_is_empty_when_nothing_fits() -> None:
     assert plugin_skills.match_reasons(SKILLS, "what is the capital of france") == {}
     assert plugin_skills.match_reasons(SKILLS, "") == {}
+
+
+def test_a_kind_backed_pick_names_its_backing_word() -> None:
+    """One rare card word picks a skill when a kind-of-help word the card also uses ("list")
+    stands behind it; the reason says which word did the backing."""
+    skill = plugin_skills.parse_skill_content(
+        "---\nname: aisle-sorter\ndescription: Sorts a shopping list by store aisle.\n---\nSteps.\n",
+        path=Path("/skills/aisle-sorter/SKILL.md"))
+    assert plugin_skills.match_reasons((skill,), "help me with my shopping list") == {
+        "aisle-sorter": ['shared word "shopping" backed by "list"']}
+    assert plugin_skills.match_reasons((skill,), "shopping") == {}
