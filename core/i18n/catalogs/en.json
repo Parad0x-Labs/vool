@@ -2858,10 +2858,10 @@
     "emailadd.servers_filled": "Filled in for {provider}. Change them only if your provider tells you to.",
     "emailadd.other_help": "Your email provider's help pages list these settings: search for its name with “IMAP settings”.",
     "emailadd.steps.gmail": "Gmail needs an app password, not your usual password. Turn on 2-Step Verification in your Google Account, then open App passwords, create one named VOOL, and paste it below.",
-    "emailadd.steps.outlook": "Microsoft has turned off password sign-in for other apps on most Outlook and Hotmail accounts, so this may be refused. If your Microsoft account offers app passwords (under Security, with two-step verification on), create one and paste it below.",
     "emailadd.steps.icloud": "iCloud Mail needs an app-specific password. Sign in to your Apple Account, open Sign-In and Security, choose App-Specific Passwords, create one named VOOL, and paste it below.",
     "emailadd.steps.yahoo": "Yahoo Mail needs an app password. Open Account Security in your Yahoo account, choose Generate app password, name it VOOL, and paste it below.",
-    "emailadd.steps_link": "Open the app password page"
+    "emailadd.steps_link": "Open the app password page",
+    "emailadd.microsoft_not_yet": "Outlook, Hotmail and Live addresses can't be added here yet. Microsoft only lets other apps in through its own sign-in, which VOOL does not have yet."
   },
   "html_keys": [
     "bypass.modal_limits",

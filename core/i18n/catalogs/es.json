@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Rellenados para {provider}. Cámbialos solo si tu proveedor te lo indica.",
     "emailadd.other_help": "Las páginas de ayuda de tu proveedor de correo indican estos ajustes: busca su nombre junto con «ajustes IMAP».",
     "emailadd.steps.gmail": "Gmail necesita una contraseña de aplicación, no tu contraseña habitual. Activa la verificación en dos pasos en tu cuenta de Google, abre Contraseñas de aplicaciones, crea una llamada VOOL y pégala abajo.",
-    "emailadd.steps.outlook": "Microsoft ha desactivado el inicio de sesión con contraseña para otras aplicaciones en la mayoría de las cuentas de Outlook y Hotmail, así que puede rechazarse. Si tu cuenta Microsoft ofrece contraseñas de aplicación (en Seguridad, con la verificación en dos pasos activada), crea una y pégala abajo.",
     "emailadd.steps.icloud": "iCloud Mail necesita una contraseña específica de app. Inicia sesión en tu cuenta de Apple, abre Inicio de sesión y seguridad, elige Contraseñas específicas de apps, crea una llamada VOOL y pégala abajo.",
     "emailadd.steps.yahoo": "Yahoo Mail necesita una contraseña de aplicación. Abre Seguridad de la cuenta en tu cuenta de Yahoo, elige Generar contraseña de aplicación, llámala VOOL y pégala abajo.",
-    "emailadd.steps_link": "Abrir la página de contraseñas de aplicación"
+    "emailadd.steps_link": "Abrir la página de contraseñas de aplicación",
+    "emailadd.microsoft_not_yet": "Todavía no se pueden añadir aquí direcciones de Outlook, Hotmail ni Live. Microsoft solo deja entrar a otras apps con su propio inicio de sesión, que VOOL aún no tiene."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

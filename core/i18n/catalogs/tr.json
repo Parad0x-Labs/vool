@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "{provider} için dolduruldu. Yalnızca sağlayıcınız söylerse değiştirin.",
     "emailadd.other_help": "E-posta sağlayıcınızın yardım sayfaları bu ayarları listeler: sağlayıcının adını “IMAP ayarları” ile birlikte arayın.",
     "emailadd.steps.gmail": "Gmail, normal şifrenizi değil bir uygulama şifresi ister. Google Hesabınızda 2 Adımlı Doğrulama'yı açın, ardından Uygulama şifreleri'ni açın, VOOL adında bir şifre oluşturun ve aşağıya yapıştırın.",
-    "emailadd.steps.outlook": "Microsoft, Outlook ve Hotmail hesaplarının çoğunda diğer uygulamalar için şifreyle girişi kapattı, bu yüzden bu reddedilebilir. Microsoft hesabınız uygulama şifreleri sunuyorsa (Güvenlik altında, iki adımlı doğrulama açıkken), bir tane oluşturup aşağıya yapıştırın.",
     "emailadd.steps.icloud": "iCloud Mail uygulamaya özel bir şifre ister. Apple Hesabınıza giriş yapın, Giriş ve Güvenlik'i açın, Uygulamaya Özel Şifreler'i seçin, VOOL adında bir şifre oluşturun ve aşağıya yapıştırın.",
     "emailadd.steps.yahoo": "Yahoo Mail bir uygulama şifresi ister. Yahoo hesabınızda Hesap Güvenliği'ni açın, Uygulama şifresi oluştur'u seçin, adını VOOL koyun ve aşağıya yapıştırın.",
-    "emailadd.steps_link": "Uygulama şifresi sayfasını aç"
+    "emailadd.steps_link": "Uygulama şifresi sayfasını aç",
+    "emailadd.microsoft_not_yet": "Outlook, Hotmail ve Live adresleri henüz buradan eklenemiyor. Microsoft diğer uygulamalara yalnızca kendi oturum açma yöntemiyle izin veriyor ve VOOL'da bu henüz yok."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

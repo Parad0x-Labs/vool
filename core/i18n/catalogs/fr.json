@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Remplis pour {provider}. Ne les modifiez que si votre fournisseur vous le demande.",
     "emailadd.other_help": "Les pages d'aide de votre fournisseur de messagerie indiquent ces paramètres : cherchez son nom avec « paramètres IMAP ».",
     "emailadd.steps.gmail": "Gmail demande un mot de passe d'application, pas votre mot de passe habituel. Activez la validation en deux étapes dans votre compte Google, ouvrez Mots de passe des applications, créez-en un nommé VOOL et collez-le ci-dessous.",
-    "emailadd.steps.outlook": "Microsoft a désactivé la connexion par mot de passe pour les autres applications sur la plupart des comptes Outlook et Hotmail, cela peut donc être refusé. Si votre compte Microsoft propose des mots de passe d'application (dans Sécurité, avec la vérification en deux étapes activée), créez-en un et collez-le ci-dessous.",
     "emailadd.steps.icloud": "iCloud Mail demande un mot de passe pour app. Connectez-vous à votre compte Apple, ouvrez Connexion et sécurité, choisissez Mots de passe pour app, créez-en un nommé VOOL et collez-le ci-dessous.",
     "emailadd.steps.yahoo": "Yahoo Mail demande un mot de passe d'application. Ouvrez Sécurité du compte dans votre compte Yahoo, choisissez Générer un mot de passe d'application, nommez-le VOOL et collez-le ci-dessous.",
-    "emailadd.steps_link": "Ouvrir la page des mots de passe d'application"
+    "emailadd.steps_link": "Ouvrir la page des mots de passe d'application",
+    "emailadd.microsoft_not_yet": "Les adresses Outlook, Hotmail et Live ne peuvent pas encore être ajoutées ici. Microsoft n'autorise les autres applications qu'avec sa propre connexion, que VOOL ne propose pas encore."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

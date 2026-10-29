@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Preenchidas para {provider}. Altere-as apenas se o seu fornecedor o indicar.",
     "emailadd.other_help": "As páginas de ajuda do seu fornecedor de email indicam estas definições: pesquise o nome dele com «definições IMAP».",
     "emailadd.steps.gmail": "O Gmail precisa de uma senha de app, não da sua senha habitual. Ative a verificação em duas etapas na sua Conta Google, abra Senhas de app, crie uma chamada VOOL e cole-a abaixo.",
-    "emailadd.steps.outlook": "A Microsoft desativou o início de sessão com senha para outras apps na maioria das contas Outlook e Hotmail, por isso isto pode ser recusado. Se a sua conta Microsoft oferecer senhas de app (em Segurança, com a verificação em dois passos ativa), crie uma e cole-a abaixo.",
     "emailadd.steps.icloud": "O iCloud Mail precisa de uma senha específica de app. Inicie sessão na sua Conta Apple, abra Início de sessão e segurança, escolha Senhas específicas de apps, crie uma chamada VOOL e cole-a abaixo.",
     "emailadd.steps.yahoo": "O Yahoo Mail precisa de uma senha de app. Abra a Segurança da conta na sua conta Yahoo, escolha Gerar senha de app, chame-lhe VOOL e cole-a abaixo.",
-    "emailadd.steps_link": "Abrir a página de senhas de app"
+    "emailadd.steps_link": "Abrir a página de senhas de app",
+    "emailadd.microsoft_not_yet": "Ainda não é possível adicionar aqui endereços do Outlook, Hotmail ou Live. A Microsoft só deixa outras apps entrar com o seu próprio início de sessão, que o VOOL ainda não tem."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

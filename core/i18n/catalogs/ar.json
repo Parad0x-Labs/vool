@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "تمّ ملؤها لـ {provider}. لا تغيّرها إلا إذا طلب منك مزوّد البريد ذلك.",
     "emailadd.other_help": "تذكر صفحات المساعدة لدى مزوّد بريدك هذه الإعدادات: ابحث عن اسمه مع «إعدادات IMAP».",
     "emailadd.steps.gmail": "يحتاج Gmail إلى كلمة مرور للتطبيق، لا إلى كلمة مرورك المعتادة. فعّل التحقق بخطوتين في حساب Google، ثم افتح كلمات مرور التطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
-    "emailadd.steps.outlook": "أوقفت Microsoft تسجيل الدخول بكلمة المرور للتطبيقات الأخرى في معظم حسابات Outlook وHotmail، لذا قد يُرفض هذا. إذا كان حساب Microsoft لديك يتيح كلمات مرور للتطبيقات (ضمن الأمان، مع تفعيل التحقق بخطوتين)، فأنشئ واحدة والصقها أدناه.",
     "emailadd.steps.icloud": "يحتاج iCloud Mail إلى كلمة سر خاصة بالتطبيق. سجّل الدخول إلى حساب Apple، وافتح تسجيل الدخول والأمان، واختر كلمات السر الخاصة بالتطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
     "emailadd.steps.yahoo": "يحتاج Yahoo Mail إلى كلمة مرور للتطبيق. افتح أمان الحساب في حساب Yahoo، واختر إنشاء كلمة مرور للتطبيق، وسمّها VOOL والصقها أدناه.",
-    "emailadd.steps_link": "افتح صفحة كلمات مرور التطبيقات"
+    "emailadd.steps_link": "افتح صفحة كلمات مرور التطبيقات",
+    "emailadd.microsoft_not_yet": "لا يمكن إضافة عناوين Outlook وHotmail وLive هنا بعد. لا تسمح Microsoft للتطبيقات الأخرى بالدخول إلا عبر تسجيل الدخول الخاص بها، وهو غير متوفر في VOOL بعد."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

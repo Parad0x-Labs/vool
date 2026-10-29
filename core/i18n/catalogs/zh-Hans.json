@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "已按 {provider} 填好。只有邮箱服务商要求时才需要修改。",
     "emailadd.other_help": "邮箱服务商的帮助页面会列出这些设置：用服务商名称加“IMAP 设置”搜索即可。",
     "emailadd.steps.gmail": "Gmail 需要应用专用密码，而不是你平时的密码。在 Google 账号中开启两步验证，然后打开“应用专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
-    "emailadd.steps.outlook": "Microsoft 已在大多数 Outlook 和 Hotmail 账号上关闭了其他应用的密码登录，因此可能会被拒绝。如果你的 Microsoft 账号提供应用密码（在“安全”中，需开启两步验证），请创建一个并粘贴到下方。",
     "emailadd.steps.icloud": "iCloud 邮件需要 App 专用密码。登录你的 Apple 账户，打开“登录与安全”，选择“App 专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
     "emailadd.steps.yahoo": "Yahoo 邮箱需要应用密码。在 Yahoo 账号中打开“账号安全”，选择“生成应用密码”，命名为 VOOL，再粘贴到下方。",
-    "emailadd.steps_link": "打开应用密码页面"
+    "emailadd.steps_link": "打开应用密码页面",
+    "emailadd.microsoft_not_yet": "目前还无法在这里添加 Outlook、Hotmail 和 Live 地址。Microsoft 只允许其他应用通过它自己的登录方式接入，而 VOOL 还不支持。"
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

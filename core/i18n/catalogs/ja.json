@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "{provider} 用に入力済みです。プロバイダから指示があったときだけ変更してください。",
     "emailadd.other_help": "メールプロバイダのヘルプページにこれらの設定が載っています。プロバイダ名と「IMAP 設定」で検索してください。",
     "emailadd.steps.gmail": "Gmail では、いつものパスワードではなくアプリ パスワードが必要です。Google アカウントで 2 段階認証プロセスを有効にし、アプリ パスワードを開いて VOOL という名前で作成し、下に貼り付けてください。",
-    "emailadd.steps.outlook": "Microsoft はほとんどの Outlook と Hotmail のアカウントで、他のアプリからのパスワード サインインを無効にしているため、拒否される場合があります。Microsoft アカウントでアプリ パスワードが使える場合（セキュリティ内、2 段階認証が有効なとき）、作成して下に貼り付けてください。",
     "emailadd.steps.icloud": "iCloud メールにはApp用パスワードが必要です。Apple アカウントにサインインし、「サインインとセキュリティ」を開いて「App用パスワード」を選び、VOOL という名前で作成して下に貼り付けてください。",
     "emailadd.steps.yahoo": "Yahoo メールにはアプリパスワードが必要です。Yahoo アカウントの「アカウントセキュリティ」を開き、「アプリパスワードを生成」を選んで VOOL と名付け、下に貼り付けてください。",
-    "emailadd.steps_link": "アプリ パスワードのページを開く"
+    "emailadd.steps_link": "アプリ パスワードのページを開く",
+    "emailadd.microsoft_not_yet": "Outlook、Hotmail、Live のアドレスはまだここで追加できません。Microsoft は他のアプリに独自のサインインでしか接続を許可しておらず、VOOL はまだそれに対応していません。"
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

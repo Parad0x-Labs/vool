@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Užpildyta pagal {provider}. Keiskite tik tada, jei to prašo jūsų paslaugų teikėjas.",
     "emailadd.other_help": "Šiuos nustatymus rasite el. pašto teikėjo pagalbos puslapiuose: ieškokite jo pavadinimo kartu su „IMAP nustatymai“.",
     "emailadd.steps.gmail": "Gmail reikia programos slaptažodžio, o ne įprasto slaptažodžio. Savo Google paskyroje įjunkite patvirtinimą dviem veiksmais, atidarykite Programų slaptažodžius, sukurkite slaptažodį pavadinimu VOOL ir įklijuokite jį žemiau.",
-    "emailadd.steps.outlook": "Microsoft daugumoje Outlook ir Hotmail paskyrų išjungė prisijungimą slaptažodžiu kitoms programoms, todėl tai gali būti atmesta. Jei jūsų Microsoft paskyra siūlo programų slaptažodžius (skiltyje Sauga, kai įjungtas patvirtinimas dviem veiksmais), sukurkite jį ir įklijuokite žemiau.",
     "emailadd.steps.icloud": "iCloud Mail reikia programai skirto slaptažodžio. Prisijunkite prie Apple paskyros, atidarykite Prisijungimas ir sauga, pasirinkite Programoms skirti slaptažodžiai, sukurkite slaptažodį pavadinimu VOOL ir įklijuokite jį žemiau.",
     "emailadd.steps.yahoo": "Yahoo Mail reikia programos slaptažodžio. Savo Yahoo paskyroje atidarykite Paskyros saugą, pasirinkite Generuoti programos slaptažodį, pavadinkite jį VOOL ir įklijuokite žemiau.",
-    "emailadd.steps_link": "Atidaryti programų slaptažodžių puslapį"
+    "emailadd.steps_link": "Atidaryti programų slaptažodžių puslapį",
+    "emailadd.microsoft_not_yet": "Outlook, Hotmail ir Live adresų čia dar negalima pridėti. Microsoft kitas programas įleidžia tik per savo prisijungimą, o VOOL jo dar neturi."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

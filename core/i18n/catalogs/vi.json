@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Đã điền sẵn cho {provider}. Chỉ thay đổi khi nhà cung cấp của bạn yêu cầu.",
     "emailadd.other_help": "Trang trợ giúp của nhà cung cấp email có ghi các cài đặt này: hãy tìm tên nhà cung cấp cùng với “cài đặt IMAP”.",
     "emailadd.steps.gmail": "Gmail cần mật khẩu ứng dụng, không phải mật khẩu thường của bạn. Bật Xác minh 2 bước trong Tài khoản Google, mở Mật khẩu ứng dụng, tạo một mật khẩu tên VOOL rồi dán vào bên dưới.",
-    "emailadd.steps.outlook": "Microsoft đã tắt đăng nhập bằng mật khẩu cho ứng dụng khác trên hầu hết tài khoản Outlook và Hotmail, nên việc này có thể bị từ chối. Nếu tài khoản Microsoft của bạn có mật khẩu ứng dụng (trong mục Bảo mật, khi đã bật xác minh hai bước), hãy tạo một mật khẩu rồi dán vào bên dưới.",
     "emailadd.steps.icloud": "iCloud Mail cần mật khẩu dành riêng cho ứng dụng. Đăng nhập Tài khoản Apple, mở Đăng nhập và bảo mật, chọn Mật khẩu dành riêng cho ứng dụng, tạo một mật khẩu tên VOOL rồi dán vào bên dưới.",
     "emailadd.steps.yahoo": "Yahoo Mail cần mật khẩu ứng dụng. Mở Bảo mật tài khoản trong tài khoản Yahoo, chọn Tạo mật khẩu ứng dụng, đặt tên là VOOL rồi dán vào bên dưới.",
-    "emailadd.steps_link": "Mở trang mật khẩu ứng dụng"
+    "emailadd.steps_link": "Mở trang mật khẩu ứng dụng",
+    "emailadd.microsoft_not_yet": "Hiện chưa thể thêm địa chỉ Outlook, Hotmail và Live tại đây. Microsoft chỉ cho ứng dụng khác truy cập qua cách đăng nhập riêng của họ, mà VOOL chưa có."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

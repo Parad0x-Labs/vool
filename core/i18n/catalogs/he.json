@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "מולא עבור {provider}. שנו רק אם ספק הדואר מבקש זאת.",
     "emailadd.other_help": "דפי העזרה של ספק הדואר שלכם מפרטים את ההגדרות האלה: חפשו את שמו יחד עם „הגדרות IMAP”.",
     "emailadd.steps.gmail": "Gmail דורש סיסמה לאפליקציה, לא את הסיסמה הרגילה שלכם. הפעילו אימות דו-שלבי בחשבון Google, פתחו את סיסמאות לאפליקציות, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
-    "emailadd.steps.outlook": "Microsoft כיבתה התחברות בסיסמה לאפליקציות אחרות ברוב חשבונות Outlook ו-Hotmail, ולכן ייתכן שהבקשה תידחה. אם חשבון Microsoft שלכם מציע סיסמאות לאפליקציות (תחת אבטחה, כשאימות דו-שלבי פעיל), צרו אחת והדביקו אותה למטה.",
     "emailadd.steps.icloud": "iCloud Mail דורש סיסמה ייעודית ליישום. התחברו לחשבון Apple, פתחו את התחברות ואבטחה, בחרו סיסמאות ייעודיות ליישומים, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
     "emailadd.steps.yahoo": "Yahoo Mail דורש סיסמה לאפליקציה. פתחו את אבטחת החשבון בחשבון Yahoo, בחרו ביצירת סיסמה לאפליקציה, קראו לה VOOL והדביקו אותה למטה.",
-    "emailadd.steps_link": "פתיחת דף הסיסמאות לאפליקציות"
+    "emailadd.steps_link": "פתיחת דף הסיסמאות לאפליקציות",
+    "emailadd.microsoft_not_yet": "עדיין אי אפשר להוסיף כאן כתובות Outlook,‏ Hotmail ו-Live. ‏Microsoft מאפשרת לאפליקציות אחרות להתחבר רק דרך הכניסה שלה, ול-VOOL עדיין אין אותה."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

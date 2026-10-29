@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "{provider}에 맞게 채웠습니다. 메일 서비스에서 안내할 때만 바꾸세요.",
     "emailadd.other_help": "이메일 서비스의 도움말 페이지에 이 설정이 나와 있습니다. 서비스 이름과 “IMAP 설정”으로 검색하세요.",
     "emailadd.steps.gmail": "Gmail은 평소 비밀번호가 아니라 앱 비밀번호가 필요합니다. Google 계정에서 2단계 인증을 켠 다음 앱 비밀번호를 열고 VOOL이라는 이름으로 만들어 아래에 붙여 넣으세요.",
-    "emailadd.steps.outlook": "Microsoft는 대부분의 Outlook 및 Hotmail 계정에서 다른 앱의 비밀번호 로그인을 꺼 두었기 때문에 거부될 수 있습니다. Microsoft 계정에서 앱 비밀번호를 제공한다면(보안 메뉴, 2단계 인증 사용 시) 하나를 만들어 아래에 붙여 넣으세요.",
     "emailadd.steps.icloud": "iCloud Mail은 앱 암호가 필요합니다. Apple 계정에 로그인하여 로그인 및 보안을 열고 앱 암호를 선택한 다음 VOOL이라는 이름으로 만들어 아래에 붙여 넣으세요.",
     "emailadd.steps.yahoo": "Yahoo Mail은 앱 비밀번호가 필요합니다. Yahoo 계정에서 계정 보안을 열고 앱 비밀번호 생성을 선택해 이름을 VOOL로 정한 뒤 아래에 붙여 넣으세요.",
-    "emailadd.steps_link": "앱 비밀번호 페이지 열기"
+    "emailadd.steps_link": "앱 비밀번호 페이지 열기",
+    "emailadd.microsoft_not_yet": "Outlook, Hotmail, Live 주소는 아직 여기에서 추가할 수 없습니다. Microsoft는 자체 로그인을 통해서만 다른 앱의 접속을 허용하며, VOOL은 아직 이를 지원하지 않습니다."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

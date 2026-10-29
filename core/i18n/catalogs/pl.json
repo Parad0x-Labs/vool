@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Wypełnione dla {provider}. Zmieniaj je tylko wtedy, gdy każe tak dostawca.",
     "emailadd.other_help": "Strony pomocy Twojego dostawcy poczty podają te ustawienia: wyszukaj jego nazwę razem z „ustawienia IMAP”.",
     "emailadd.steps.gmail": "Gmail wymaga hasła do aplikacji, a nie zwykłego hasła. Włącz weryfikację dwuetapową na koncie Google, otwórz Hasła do aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
-    "emailadd.steps.outlook": "Microsoft wyłączył logowanie hasłem dla innych aplikacji na większości kont Outlook i Hotmail, więc może to zostać odrzucone. Jeśli Twoje konto Microsoft oferuje hasła aplikacji (w sekcji Zabezpieczenia, przy włączonej weryfikacji dwuetapowej), utwórz je i wklej poniżej.",
     "emailadd.steps.icloud": "iCloud Mail wymaga hasła dla aplikacji. Zaloguj się na konto Apple, otwórz Logowanie i bezpieczeństwo, wybierz Hasła dla aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
     "emailadd.steps.yahoo": "Yahoo Mail wymaga hasła do aplikacji. Otwórz Zabezpieczenia konta w swoim koncie Yahoo, wybierz Wygeneruj hasło do aplikacji, nazwij je VOOL i wklej poniżej.",
-    "emailadd.steps_link": "Otwórz stronę haseł do aplikacji"
+    "emailadd.steps_link": "Otwórz stronę haseł do aplikacji",
+    "emailadd.microsoft_not_yet": "Adresów Outlook, Hotmail i Live nie można jeszcze tutaj dodać. Microsoft wpuszcza inne aplikacje tylko przez własne logowanie, którego VOOL jeszcze nie ma."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2858,12 +2858,12 @@
     "emailadd.servers_filled": "Für {provider} ausgefüllt. Ändern Sie sie nur, wenn Ihr Anbieter es verlangt.",
     "emailadd.other_help": "Die Hilfeseiten Ihres E-Mail-Anbieters nennen diese Einstellungen: Suchen Sie nach seinem Namen und „IMAP-Einstellungen“.",
     "emailadd.steps.gmail": "Gmail braucht ein App-Passwort, nicht Ihr übliches Passwort. Aktivieren Sie die Bestätigung in zwei Schritten in Ihrem Google-Konto, öffnen Sie dann App-Passwörter, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
-    "emailadd.steps.outlook": "Microsoft hat die Passwort-Anmeldung für andere Apps bei den meisten Outlook- und Hotmail-Konten abgeschaltet, daher kann dies abgelehnt werden. Wenn Ihr Microsoft-Konto App-Passwörter anbietet (unter Sicherheit, bei aktivierter Bestätigung in zwei Schritten), erstellen Sie eines und fügen Sie es unten ein.",
     "emailadd.steps.icloud": "iCloud Mail braucht ein app-spezifisches Passwort. Melden Sie sich bei Ihrem Apple Account an, öffnen Sie „Anmeldung und Sicherheit“, wählen Sie „App-spezifische Passwörter“, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
     "emailadd.steps.yahoo": "Yahoo Mail braucht ein App-Passwort. Öffnen Sie die Kontosicherheit in Ihrem Yahoo-Konto, wählen Sie „App-Passwort generieren“, nennen Sie es VOOL und fügen Sie es unten ein.",
-    "emailadd.steps_link": "App-Passwort-Seite öffnen"
+    "emailadd.steps_link": "App-Passwort-Seite öffnen",
+    "emailadd.microsoft_not_yet": "Outlook-, Hotmail- und Live-Adressen lassen sich hier noch nicht hinzufügen. Microsoft lässt andere Apps nur über die eigene Anmeldung zu, und die hat VOOL noch nicht."
   },
-  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
+  "source_catalog_sha256": "35aecd82b7b49f58ca0c12bcc41cd9e03bf5baa81a9e1f2a7b2961f2cc2a4f06",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

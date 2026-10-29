@@ -5,6 +5,9 @@ password, IMAP server, port, security, SMTP server, port, security -- with `imap
 placeholders. Typing a Gmail, Outlook or iCloud address filled nothing, and the only help was "Some
 providers need an app password". A non-technical person could not finish it.
 
+Outlook, Hotmail and Live are not offered: Microsoft lets other apps in only through its own sign-in,
+which VOOL does not have yet, so those addresses get a plain note instead of steps that cannot work.
+
 Driven in a real browser: the provider is recognised from the address (or picked with one tap), its
 servers are filled, its own app-password steps and page are shown, and the server fields stay
 reachable for anyone who needs them. Nothing is sent to any server here.
@@ -92,8 +95,6 @@ def test_a_gmail_address_fills_the_servers_and_shows_the_app_password_steps(dial
     "address,provider,imap,smtp,smtp_port,smtp_security,link",
     [
         ("pat@icloud.com", "icloud", "imap.mail.me.com", "smtp.mail.me.com", "587", "starttls", "https://account.apple.com"),
-        ("pat@hotmail.co.uk", "outlook", "outlook.office365.com", "smtp-mail.outlook.com", "587", "starttls",
-         "https://account.microsoft.com/security"),
         ("pat@yahoo.com", "yahoo", "imap.mail.yahoo.com", "smtp.mail.yahoo.com", "465", "ssl",
          "https://login.yahoo.com/account/security"),
     ],
@@ -109,10 +110,26 @@ def test_each_provider_gets_its_own_servers_and_steps(dialog, address, provider,
     assert dialog.locator(".email-provider-help a").get_attribute("href") == link
 
 
-def test_outlook_says_plainly_that_it_may_be_refused(dialog) -> None:
-    dialog.get_by_label("Email address", exact=True).fill("pat@outlook.com")
+@pytest.mark.parametrize("address", ["pat@outlook.com", "pat@hotmail.co.uk", "pat@live.com"])
+def test_an_outlook_address_is_told_plainly_it_cannot_be_added_yet(dialog, address) -> None:
+    """Outlook.com refuses password and app-password sign-in from other apps (Microsoft: "Outlook and
+    other apps are unable to connect to Outlook.com when using Basic authentication"). A preset with
+    app-password steps could only fail at the check."""
+    dialog.get_by_label("Email address", exact=True).fill(address)
 
-    assert "may be refused" in dialog.locator(".email-provider-help").inner_text()
+    assert dialog.locator('[data-provider="outlook"]').count() == 0
+    assert dialog.locator('[data-provider="other"]').get_attribute("aria-pressed") == "true"
+    help_text = dialog.locator(".email-provider-help").inner_text()
+    assert "can't be added here yet" in help_text and "Microsoft" in help_text
+    assert dialog.locator(".email-provider-help a").count() == 0
+    assert _value(dialog, "Incoming mail server (IMAP)") == ""
+
+
+def test_the_outlook_note_goes_when_the_address_changes(dialog) -> None:
+    dialog.get_by_label("Email address", exact=True).fill("pat@outlook.com")
+    dialog.get_by_label("Email address", exact=True).fill("pat@mail.example.test")
+
+    assert "can't be added here yet" not in dialog.locator(".email-provider-help").inner_text()
 
 
 def test_an_unknown_provider_shows_the_server_fields_to_fill(dialog) -> None:

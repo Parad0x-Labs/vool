@@ -5320,10 +5320,6 @@ const EMAIL_PROVIDERS = [
     imap: ['imap.gmail.com', 993, 'ssl'], smtp: ['smtp.gmail.com', 465, 'ssl'],
     steps: () => T('emailadd.steps.gmail', 'Gmail needs an app password, not your usual password. Turn on 2-Step Verification in your Google Account, then open App passwords, create one named VOOL, and paste it below.'),
     link: 'https://myaccount.google.com/apppasswords' },
-  { id: 'outlook', name: 'Outlook / Hotmail', domains: /^(outlook|hotmail|live|msn)\.[a-z.]+$/i,
-    imap: ['outlook.office365.com', 993, 'ssl'], smtp: ['smtp-mail.outlook.com', 587, 'starttls'],
-    steps: () => T('emailadd.steps.outlook', 'Microsoft has turned off password sign-in for other apps on most Outlook and Hotmail accounts, so this may be refused. If your Microsoft account offers app passwords (under Security, with two-step verification on), create one and paste it below.'),
-    link: 'https://account.microsoft.com/security' },
   { id: 'icloud', name: 'iCloud Mail', domains: /^(icloud|me|mac)\.com$/i,
     imap: ['imap.mail.me.com', 993, 'ssl'], smtp: ['smtp.mail.me.com', 587, 'starttls'],
     steps: () => T('emailadd.steps.icloud', 'iCloud Mail needs an app-specific password. Sign in to your Apple Account, open Sign-In and Security, choose App-Specific Passwords, create one named VOOL, and paste it below.'),
@@ -5333,8 +5329,16 @@ const EMAIL_PROVIDERS = [
     steps: () => T('emailadd.steps.yahoo', 'Yahoo Mail needs an app password. Open Account Security in your Yahoo account, choose Generate app password, name it VOOL, and paste it below.'),
     link: 'https://login.yahoo.com/account/security' },
 ];
+/* Outlook, Hotmail and Live mailboxes refuse password and app-password sign-in from other apps:
+   Microsoft requires its own sign-in, which VOOL does not have yet ("Outlook and other apps are
+   unable to connect to Outlook.com when using Basic authentication"). A preset would only fail at
+   the check, so these addresses get a plain note instead. */
+const EMAIL_MICROSOFT_DOMAINS = /^(outlook|hotmail|live|msn)\.[a-z.]+$/i;
+function emailDomain(address) {
+  return String(address || '').trim().split('@')[1] || '';
+}
 function emailProviderForAddress(address) {
-  const domain = String(address || '').trim().split('@')[1] || '';
+  const domain = emailDomain(address);
   return EMAIL_PROVIDERS.find(p => p.domains.test(domain)) || null;
 }
 function openEmailAddDialog(onSaved) {
@@ -5420,6 +5424,10 @@ function openEmailAddDialog(onSaved) {
       help.appendChild(link);
       serversNote.textContent = tfmt('emailadd.servers_filled', 'Filled in for {provider}. Change them only if your provider tells you to.', { provider: next.name });
       servers.open = false;
+    } else if (EMAIL_MICROSOFT_DOMAINS.test(emailDomain(address.value))) {
+      help.appendChild(el('p', null, T('emailadd.microsoft_not_yet', "Outlook, Hotmail and Live addresses can't be added here yet. Microsoft only lets other apps in through its own sign-in, which VOOL does not have yet.")));
+      serversNote.textContent = T('emailadd.other_help', "Your email provider's help pages list these settings: search for its name with “IMAP settings”.");
+      servers.open = true;
     } else {
       help.appendChild(el('p', null, T('emailadd.app_password_hint', "Some providers need an app password, and some do not allow password sign-in for other apps at all. Your provider's security settings say which.")));
       serversNote.textContent = T('emailadd.other_help', "Your email provider's help pages list these settings: search for its name with “IMAP settings”.");
@@ -5435,7 +5443,8 @@ function openEmailAddDialog(onSaved) {
   address.addEventListener('input', () => {
     if (pickedByHand) return;
     const found = emailProviderForAddress(address.value);
-    if (found !== provider) choose(found);
+    /* Other's note depends on the address too: a Microsoft address cannot be added yet. */
+    if (found !== provider || !found) choose(found);
   });
   choose(null);
   const replaceWrap = el('label', 'inline');
