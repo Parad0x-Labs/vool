@@ -1,0 +1,267 @@
+{
+ "cases": 30,
+ "rows": 30,
+ "by_kind": {
+  "needs_tool": {
+   "n": 18,
+   "ran": 18,
+   "family_tool": 5,
+   "any_tool": 5,
+   "timeout": 0
+  },
+  "missing_connection": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 1,
+   "any_tool": 1,
+   "timeout": 0
+  },
+  "no_tool": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 0,
+   "any_tool": 0,
+   "timeout": 0
+  }
+ },
+ "per_case": {
+  "tu:A02": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A06": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A10": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A14": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.find_file",
+    "machine.find_file",
+    "{'receipt_key': 'exec-bc01cc854bffcf7aae022e15b2406a1dc3338123dd88334887dfe920ffc08cb7', 'status': 'executed', 'tool': 'machine.find_file'}",
+    "machine.find_file"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A18": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A22": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A26": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A30": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A34": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A38": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.save_note",
+    "operator.save_note",
+    "{'receipt_key': 'exec-e2ee294c8b62a062a94265dbd125d9a06eeeabffc7ad0b69b4859fad72230123', 'status': 'executed', 'tool': 'operator.save_note'}",
+    "operator.save_note"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A42": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.find_notes",
+    "operator.find_notes",
+    "{'receipt_key': 'exec-e25e64300329834d8242b238275bfc22aa1b5e47c5af7b647a9f53a4c13228ec', 'status': 'reported', 'tool': 'operator.find_notes'}",
+    "{'receipt_key': 'exec-ead2b6bb29b06a5032a0adbd40c1afafd7ac1924675a99a6425845e962a8dee2', 'status': 'reported', 'tool': 'operator.find_notes'}",
+    "operator.find_notes",
+    "operator.find_notes"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A46": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.schedule_reminder"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A50": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A54": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.inspect_processes",
+    "operator.inspect_processes",
+    "{'receipt_key': 'exec-e80afc7b42a10af16f7f3dca702cba37c1c2a6daeb1b3da3a89b12ad76e2b7bd', 'status': 'reported', 'tool': 'operator.inspect_processes'}",
+    "{'receipt_key': 'exec-088b9e62126f6bb25388e6ed5d7b9e3ff88645edf247cd38888abd9b7cfb646c', 'status': 'reported', 'tool': 'operator.inspect_processes'}",
+    "operator.inspect_processes",
+    "operator.inspect_processes"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A58": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A62": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A66": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A70": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M04": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.check_availability"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:M08": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M12": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M16": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M20": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M24": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N03": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N07": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N11": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N15": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N19": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N23": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  }
+ }
+}
