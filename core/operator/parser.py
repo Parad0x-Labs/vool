@@ -324,18 +324,33 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     return conversation_recall_remainder(words) is not None and not time_expression_spans(words, word_dates=False)
 
 
+# A clause that is only discourse around the pointer ("never mind", "no wait", "yes"): it
+# carries no request of its own, so it does not stop the pointer clause from owning the turn.
+_POINTER_DISCOURSE_CLAUSE = re.compile(
+    r"^(?:(?:yes|yeah|yep|no|nope|ok|okay|please|thanks|thank\s+you|sorry|hey|wait|hmm|so|and|but|"
+    r"never\s*mind|nevermind|forget\s+it|on\s+second\s+thought|i\s+changed\s+my\s+mind|actually|just)"
+    r"(?:\s+(?:yes|no|wait|ok|okay|please|actually|sorry|hmm|hey|so))*?)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
 def _bare_cancel_referent(words: str) -> bool:
     """Whether the request is a whole clause that only cancels the last thing it points at.
 
-    Every clause of the request is tested on its own ("never mind, cancel that one"), and a match
-    requires the clause to be NOTHING BUT the cancel and its pointer, so a request that also names
-    a thing ("cancel that meeting draft", "cancel the passport reminder") keeps its noun lane.
+    The pointer clause must be the request's ONLY content clause: a request that also carries
+    words of its own ('yes, delete my apple note "Tax receipts 2025", cancel that') keeps its
+    own lane, where the trailing pointer withholds the approval instead of eating the request.
+    Discourse clauses ("never mind", "no wait") are not content. The pointer clause itself is
+    matched anchored, so a cancel that names a thing ("cancel that meeting draft") keeps its
+    noun lane.
     """
+    content: list[str] = []
     for clause in re.split(r"[,;.!?\n]+", str(words or "")):
         cleaned = clause.strip()
-        if cleaned and _BARE_CANCEL_REFERENT_RE.match(cleaned):
-            return True
-    return False
+        if not cleaned or _POINTER_DISCOURSE_CLAUSE.match(cleaned):
+            continue
+        content.append(cleaned)
+    return len(content) == 1 and bool(_BARE_CANCEL_REFERENT_RE.match(content[0]))
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:

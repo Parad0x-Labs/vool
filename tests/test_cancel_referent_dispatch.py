@@ -160,3 +160,12 @@ def test_parser_pointer_shapes_and_non_shapes():
     for text in ("cancel that flight", "cancel my dentist appointment"):
         intent = parse_operator_action_intent(text)
         assert intent is None or intent.referent is None, text
+
+
+def test_pointer_does_not_eat_a_request_with_words_of_its_own():
+    """A trailing "cancel that" on a request that names its own action WITHHOLDS that action's
+    approval; the pointer lane must not claim the turn (measured regression: the note delete
+    'yes, delete my apple note "Tax receipts 2025", cancel that' stopped withholding)."""
+    intent = parse_operator_action_intent('yes, delete my apple note "Tax receipts 2025", cancel that')
+    assert intent is not None and intent.kind == "apple_note_delete" and not intent.referent
+    assert intent.approval_requested is False, "the trailing pointer withholds the approval"
