@@ -14,7 +14,7 @@
     "test:tooling": "node --test tests/tooling-security.test.mjs tests/native-locale-config.test.mjs",
     "test:jest": "jest",
     "test:security": "node --test tests/native-security.test.mjs",
-    "test:i18n": "node --test tests/i18n.test.mjs"
+    "test:i18n": "node --test tests/i18n.test.mjs tests/message-time.test.mjs"
   },
   "dependencies": {
     "expo": "~52.0.0",
