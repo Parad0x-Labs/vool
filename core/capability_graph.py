@@ -1502,6 +1502,22 @@ def model_visible_specs(
                 _add_family("operator")
         except Exception:
             pass
+        try:
+            # The owner's live sources (notes, calendar, processes, disk, files, mail): the same
+            # recognizer that releases the lane (core.execution_requirements) seats the tools, so
+            # a turn released for a live source is never handed an offer without it.
+            from core.tool_demand_signals import (
+                OWNER_LIVE_SOURCE_SEATS,
+                OWNER_LIVE_SOURCE_TOOLSET,
+                owner_live_sources,
+            )
+
+            for source in owner_live_sources(user_text):
+                seats = [i for i in OWNER_LIVE_SOURCE_SEATS.get(source, ()) if i not in explicit]
+                explicit.extend(seats)
+                _add_family(_TOOLSET_HINT_TO_FAMILY.get(OWNER_LIVE_SOURCE_TOOLSET.get(source, ""), ""))
+        except Exception:
+            pass
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())

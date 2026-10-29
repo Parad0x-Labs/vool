@@ -1161,6 +1161,23 @@ class ResearchToolLoopFacadeMixin:
 
         if _model_own_tools_turn(source_context):
             return None
+        # The owner asks about their mailbox and no email account is connected: that fact is the
+        # whole answer, given before any model can answer the question from its weights.
+        from core.execution_requirements import email_not_connected_reply
+
+        mail_reply = email_not_connected_reply(effective_input, source_context)
+        if mail_reply:
+            return {
+                "response": mail_reply,
+                "confidence": 1.0,
+                "success": False,
+                "status": "source_not_connected",
+                "mode": "tool_failed",
+                "task_outcome": "blocked",
+                "details": {"source": "mail", "connected": False, "executed": False},
+                "learned_plan": None,
+                "workflow_summary": "- mailbox ask with no email account connected; answered from that fact, no model call",
+            }
         # A bound workspace audit has already executed the authoritative read-only tool sequence
         # and attached its results as model evidence.  Running the generic tool-intent planner here
         # would ask the model to choose tools a second time, prepend the entire tool catalog, and

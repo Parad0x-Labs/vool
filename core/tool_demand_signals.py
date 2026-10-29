@@ -1821,3 +1821,180 @@ __all__ = [
     "mailbox_retrieval_intents",
     "resolve_demand_signals",
 ]
+
+
+# -- owner live sources (tool-use root cause, 2026-10-29) ----------------------------------------
+#
+# The owner asks about something only THIS machine can answer: what is in their notes, on their
+# calendar, in their folders, running on their computer, in their mailbox. Measured on the
+# 2026-10-29 cloud re-audit (qwen3:8b, 8 boxes): 286 of ~470 turns ended on the tool-less
+# `ordinary_plain_text_chat` route, and every R4 fake action ("your accountant thing is scheduled
+# for the 3rd at 11", "Nothing suspicious is running ... based on the current system scan", "You
+# don't have any videos on here yet") was one of them: the AI-first chat lane kept the turn because
+# `requirements_for` saw no tool demand, so the model was never handed a tool and answered from its
+# weights. The operator recognizer above is deliberately narrow (it owns the typed-turn UX of the
+# chat parser); this one is the lane's question instead -- "does answering this need a live source
+# on this machine?" -- and only ever SEATS a family. The model still decides, every write still
+# goes through its approval gate, and nothing here executes.
+#
+# Precision comes from three conjoined reads, each cheap and none sufficient alone:
+#   1. ask shape -- a question or an order, not a statement or a story;
+#   2. the owner's own object -- a possessive or first-person inventory over a live-source noun
+#      ("my notes", "have i got", "on this laptop", "in my downloads");
+#   3. no advice / how-to / composition frame ("how do I make a note in the notes app", "tips for
+#      keeping a calendar", "write a polite email to my landlord").
+_LIVE_ASK_HEAD_RE = re.compile(
+    r"^\s*(?:(?:hey|hi|so|ok|okay|alright|and|but|also|quick\s+one|please)[\s,!-]+)*"
+    r"(?:(?:can|could|would|will)\s+(?:you|u)\s+(?:please\s+)?|please\s+|pls\s+)?"
+    r"(?:what|whats|what's|where|when|which|who|how|is|are|am|was|were|do|does|did|have|has|any|"
+    r"anything|show|list|find|pull|open|read|check|look|tell|give|search|put|pencil|book|schedule|"
+    r"add|move|shift|push|reschedule|change|cancel|delete|remove|jot|pop|stick|save|note|keep|"
+    r"write|make|set|count|scan|see)\b",
+    re.IGNORECASE,
+)
+_LIVE_ADVICE_VETO_RE = re.compile(
+    r"\bhow\s+(?:do|can|should|would)\s+(?:i|you|we|one)\b|\bhow\s+to\b|\btips?\b|\bideas?\b"
+    r"|\bin\s+general\b|\bexplain\b|\bwhy\s+(?:do|does|is|are)\b|\bwhat\s+is\s+the\s+best\b"
+    r"|\bbest\s+(?:way|app|apps)\b|\b(?:write|draft|compose)\s+(?:me\s+)?(?:a|an|the)\s+"
+    r"(?:\w+\s+){0,3}(?:email|e-mail|mail|message|letter|note|poem|story)\b",
+    re.IGNORECASE,
+)
+_LIVE_OWNER_RE = re.compile(
+    r"\b(?:my|our|mine)\b|\b(?:i|we)\s+(?:have|got|own|saved|put|wrote|set|kept)\b"
+    r"|\b(?:have|did|do|am|was)\s+(?:i|we)\b|\b(?:i|we)'?ve\s+got\b|\bon\s+here\b"
+    r"|\b(?:this|the)\s+(?:computer|laptop|pc|mac|machine)\b|\bme\b",
+    re.IGNORECASE,
+)
+_LIVE_NOTES_READ_RE = re.compile(
+    r"\b(?:find|pull\s+up|open|show|read|look\s+(?:up|for|at)|search|any|have|got|where)\b"
+    r"[^.!?]{0,40}?\bnotes?\b(?:[^.!?]{0,30}?\b(?:about|on|for|called|titled|named|re)\b)?",
+    re.IGNORECASE,
+)
+_LIVE_NOTES_SAVE_RE = re.compile(
+    r"\b(?:pop|put|add|stick|write|save|jot|keep|make|drop|leave)\b[^.!?]{0,30}?\b(?:a\s+)?note\b"
+    r"|\b(?:in|to|into)\s+my\s+notes?\b(?:\s+app)?",
+    re.IGNORECASE,
+)
+_LIVE_TIME_ANCHOR = (
+    r"(?:\bon\s+the\s+\d{1,2}(?:st|nd|rd|th)?\b|\bat\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b"
+    r"|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b"
+    r"|\btomorrow\b|\btonight\b|\bnext\s+week\b|\bthis\s+(?:week|weekend|morning|afternoon|evening)\b"
+    r"|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}\b)"
+)
+_LIVE_CALENDAR_READ_RE = re.compile(
+    r"\b(?:my|our)\s+(?:calendar|diary|schedule|agenda)\b"
+    r"|\b(?:have|got)\s+(?:i|we)\s+(?:got\s+)?anything\b|\b(?:i|we)\s+(?:have|got)\s+anything\s+on\b"
+    r"|\bis\s+(?:" + _LIVE_TIME_ANCHOR[3:-1] + r")(?:\s+(?:morning|afternoon|evening))?\s+"
+    r"(?:clear|free|open|busy|available)\b"
+    r"|\bam\s+i\s+(?:free|busy|around|available)\b",
+    re.IGNORECASE,
+)
+_LIVE_CALENDAR_WRITE_RE = re.compile(
+    r"\b(?:put|pencil(?:\s+in)?|book|schedule|add|move|shift|push|reschedule|change)\b"
+    r"[^.!?]{0,50}?" + _LIVE_TIME_ANCHOR,
+    re.IGNORECASE,
+)
+_LIVE_PROCESS_RE = re.compile(
+    r"\b(?:programs?|apps?|processes|process|tasks?|stuff|anything)\b[^.!?]{0,40}?\b(?:running|open)\b"
+    r"|\brunning\b[^.!?]{0,30}?\b(?:on\s+(?:this|my)|in\s+the\s+background|right\s+now)\b"
+    r"|\b(?:hogging|eating|using|chewing|maxing)\b[^.!?]{0,20}?\b(?:memory|ram|cpu|processor)\b",
+    re.IGNORECASE,
+)
+_LIVE_DISK_RE = re.compile(
+    r"\b(?:free\s+)?(?:space|storage|room)\b[^.!?]{0,30}?\b(?:drive|disk|computer|laptop|mac|pc|ssd)\b"
+    r"|\b(?:drive|disk|ssd)\b[^.!?]{0,20}?\b(?:full|space|left)\b|\bspecs?\b[^.!?]{0,30}?\b(?:computer|laptop|machine|mac|pc)\b",
+    re.IGNORECASE,
+)
+_LIVE_FILES_RE = re.compile(
+    r"\b(?:downloads|desktop|documents|pictures|photos|videos?|movies|music|songs|pdfs?|files?|"
+    r"folders?|spreadsheets?|screenshots?|readme|recordings?)\b",
+    re.IGNORECASE,
+)
+_LIVE_FILES_OWNER_RE = re.compile(
+    r"\b(?:my|our)\s+(?:\w+\s+){0,2}(?:downloads|desktop|documents|pictures|photos|videos?|music|files?|"
+    r"folders?|computer|laptop|drive|mac|pc)\b"
+    r"|\bon\s+(?:here|this\s+(?:computer|laptop|pc|mac|machine)|my\s+(?:computer|laptop|pc|mac|desktop))\b"
+    r"|\b(?:have|got)\s+(?:i|we)\b|\b(?:i|we)\s+(?:have|got)\b|\bdo\s+(?:i|we)\s+have\b",
+    re.IGNORECASE,
+)
+_LIVE_MAIL_RE = re.compile(
+    r"\b(?:inbox|mailbox|e-?mails?|mail)\b|\bemail(?:ed)?\s+me\b|\bmessaged\s+me\b",
+    re.IGNORECASE,
+)
+
+#: The read-first seats per live source. The offer is still bounded by the seating cap; a write
+#: intent here is only SEATED, its execution keeps every approval gate it already has.
+OWNER_LIVE_SOURCE_SEATS: dict[str, tuple[str, ...]] = {
+    "notes": ("operator.find_notes", "operator.show_note", "operator.save_note"),
+    "calendar": ("operator.show_agenda", "operator.check_availability",
+                 "operator.propose_calendar_event", "operator.update_calendar_event"),
+    "processes": ("operator.inspect_processes", "machine.list_processes"),
+    "disk": ("machine.disk_usage", "machine.inspect_specs", "operator.inspect_disk_usage"),
+    "files": ("machine.find_file", "machine.list_directory", "machine.read_file", "machine.find_largest"),
+    "mail": ("email.read",),
+}
+#: Each live source's toolset name (core.capability_graph._TOOLSET_HINT_TO_FAMILY).
+OWNER_LIVE_SOURCE_TOOLSET: dict[str, str] = {
+    "notes": "operator", "calendar": "operator", "processes": "operator",
+    "disk": "filesystem", "files": "filesystem", "mail": "email",
+}
+
+
+def owner_live_sources(text: str) -> tuple[str, ...]:
+    """Which of the owner's live sources ("notes", "calendar", "processes", "disk", "files",
+    "mail") the words ask about, or () when answering needs none of them.
+
+    Pure function of the text. Callers own the owner-local check: these sources are this
+    machine's, and a remote session's words never seat them.
+    """
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned:
+        return ()
+    try:
+        from core.instructional_request import asks_for_instructions_not_execution
+        from core.retrieval_constraints import analyze_retrieval_constraints
+        from core.turn_prohibitions import _strip_quoted_spans
+    except Exception:
+        return ()
+    constraints = analyze_retrieval_constraints(_strip_quoted_spans(cleaned))
+    if constraints.forbids_all_tools:
+        return ()
+    eligible = " ".join(constraints.eligible_text.split())
+    if not eligible or asks_for_instructions_not_execution(eligible):
+        return ()
+    sources: list[str] = []
+    for segment in re.split(r"(?<=[.!?;])\s+|\n+", eligible):
+        part = segment.strip()
+        if not part or not _LIVE_ASK_HEAD_RE.match(part) or _LIVE_ADVICE_VETO_RE.search(part):
+            continue
+        owner = _LIVE_OWNER_RE.search(part) is not None
+        found: list[str] = []
+        if owner and (_LIVE_NOTES_SAVE_RE.search(part) or _LIVE_NOTES_READ_RE.search(part)):
+            found.append("notes")
+        if _LIVE_CALENDAR_READ_RE.search(part) or (
+            (owner or re.match(r"\s*(?:pencil|reschedule)\b", part, re.IGNORECASE))
+            and _LIVE_CALENDAR_WRITE_RE.search(part) and not _LIVE_FILES_RE.search(part)
+        ):
+            found.append("calendar")
+        if _LIVE_PROCESS_RE.search(part) and (owner or re.search(r"\b(?:background|right\s+now)\b", part, re.I)):
+            found.append("processes")
+        if owner and _LIVE_DISK_RE.search(part):
+            found.append("disk")
+        if _LIVE_FILES_RE.search(part) and _LIVE_FILES_OWNER_RE.search(part) and "notes" not in found:
+            found.append("files")
+        if owner and _LIVE_MAIL_RE.search(part):
+            found.append("mail")
+        for source in found:
+            if source not in sources:
+                sources.append(source)
+    return tuple(sources)
+
+
+def owner_live_source_intents(text: str) -> tuple[str, ...]:
+    """The tool seats for `owner_live_sources(text)`, in source order, deduplicated."""
+    seats: list[str] = []
+    for source in owner_live_sources(text):
+        for intent in OWNER_LIVE_SOURCE_SEATS.get(source, ()):
+            if intent not in seats:
+                seats.append(intent)
+    return tuple(seats)

@@ -327,6 +327,47 @@ def _operator_action_demand(text: str, source_context: dict[str, Any] | None = N
         return False
 
 
+def _owner_live_source_toolsets(text: str, source_context: dict[str, Any] | None = None) -> tuple[str, ...]:
+    """The toolsets of the owner's live sources the words ask about (core.tool_demand_signals.owner_live_sources).
+
+    Same two gates as `_operator_action_demand`: owner-local turns only (a missing context is
+    remote), and the recognizer is the one the offer seats from, so the lane release and the
+    offer cannot disagree. The mailbox joins only while an email lane is on; with none on, the
+    turn is answered from that fact before any model (`email_not_connected_reply`).
+    """
+    if not isinstance(source_context, dict) or not source_context:
+        return ()
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return ()
+        from core.tool_demand_signals import OWNER_LIVE_SOURCE_TOOLSET, owner_live_sources
+
+        sources = owner_live_sources(str(text or ""))
+    except Exception:
+        return ()
+    toolsets: list[str] = []
+    for source in sources:
+        if source == "mail" and not _email_lane_enabled():
+            continue
+        toolset = OWNER_LIVE_SOURCE_TOOLSET.get(source)
+        if toolset and toolset not in toolsets:
+            toolsets.append(toolset)
+    return tuple(toolsets)
+
+
+def _email_lane_enabled() -> bool:
+    try:
+        from core import policy_engine
+
+        return bool(policy_engine.get("email.read_enabled", False)) or bool(
+            policy_engine.get("email.send_enabled", False)
+        )
+    except Exception:
+        return False
+
+
 def _retrieval_prohibited_requirements(
     *,
     supplied: bool,
@@ -1036,9 +1077,10 @@ def _compute_requirements(
     # (core.request_trust), and the recognizer narrower than the chat parser wherever the
     # parser's width is a typed-turn UX choice, so ordinary prose that merely mentions notes or
     # calendars releases nothing. The model still decides whether any operator tool is called.
+    live_toolsets = () if _operator_arm_silent else _owner_live_source_toolsets(candidate_text, source_context)
     if (
         not _operator_arm_silent
-        and _operator_action_demand(candidate_text, source_context)
+        and (_operator_action_demand(candidate_text, source_context) or live_toolsets)
         and not constraints.forbids_all_tools
         # The explicit prohibited set, not `forbids("operator")`: that helper also blocks on any
         # external-retrieval prohibition, and "do not search the web, just show my agenda" must
@@ -1064,9 +1106,17 @@ def _compute_requirements(
             current_information_required=base.current_information_required,
             user_material_supplied=base.user_material_supplied,
             tools_required=True,
-            allowed_toolsets=tuple(dict.fromkeys((*base.allowed_toolsets, "operator"))),
+            allowed_toolsets=tuple(dict.fromkeys((
+                *base.allowed_toolsets,
+                *(("operator",) if _operator_action_demand(candidate_text, source_context) else ()),
+                *live_toolsets,
+            ))),
             inference_allowed=base.inference_allowed,
-            reason_codes=tuple(dict.fromkeys((*base.reason_codes, "operator_action_request"))),
+            reason_codes=tuple(dict.fromkeys((
+                *base.reason_codes,
+                "operator_action_request" if _operator_action_demand(candidate_text, source_context)
+                else "owner_live_source_request",
+            ))),
             multipart=getattr(base, "multipart", None),
             parallel_preferred=getattr(base, "parallel_preferred", None),
         )
@@ -1513,3 +1563,37 @@ def assert_envelope_carries_tools(
             f"REQUIRED_TOOLS_NOT_OFFERED: lane={lane_name or 'unknown'} offered={offered_tool_count} -- "
             "the built envelope carries neither native tools nor a structured-output fallback"
         )
+
+
+def email_not_connected_reply(text: str, source_context: dict[str, Any] | None = None) -> str | None:
+    """The plain answer for an owner's mailbox question when no email account is connected, else None.
+
+    Asked before any model: with no account there is no inbox to read, and a model handed the
+    question anyway answers it from its weights ("No new emails received today. - Checked email
+    inbox", re-audit 2026-10-29 mailweb:E05). The fact is the answer. Owner-local turns only; an
+    unknown account state (the reader failed) is not "none" and leaves the turn alone.
+    """
+    if not isinstance(source_context, dict) or not source_context:
+        return None
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return None
+        from core.tool_demand_signals import mailbox_retrieval_intents, owner_live_sources
+
+        asks_mail = "mail" in owner_live_sources(str(text or "")) or bool(mailbox_retrieval_intents(str(text or "")))
+        if not asks_mail:
+            return None
+        from core.action_claim_gate import _mail_connected, no_action_reply, reply_language
+
+        if _mail_connected() is not False:
+            return None
+        return no_action_reply(
+            ["mail"],
+            connected=lambda name: False if name == "mail" else None,
+            forms={"mail": {"read"}},
+            language=reply_language(str(text or "")),
+        )
+    except Exception:
+        return None
