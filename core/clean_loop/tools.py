@@ -722,84 +722,6 @@ def exact_names(answer: str, result: Any) -> str:
     return out
 
 
-_SIZE_RE = re.compile(
-    r"(?<![\w.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)\s*"
-    r"(bytes?|kib|kb|kilobytes?|mib|mb|megabytes?|megs?|gib|gb|gigabytes?|gigs?|tib|tb|terabytes?|"
-    r"pib|pb|petabytes?)(?:s)?(?![a-z])",
-    re.IGNORECASE,
-)
-_SIZE_UNITS = {"b": 1, "k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4, "p": 1024**5}
-SIZE_NOTICE = "I couldn't measure that size from what I looked at, so I won't guess a number."
-
-
-def _unit_bytes(unit: str) -> int:
-    low = unit.lower()
-    return _SIZE_UNITS["b" if low.startswith("byte") else low[0]]
-
-
-def _size_figure(number: str, unit: str) -> tuple[float, float] | None:
-    """(bytes, half a step of the precision the figure was printed with, at most 5% of it)."""
-    grouped = "," in number and all(len(part) == 3 for part in number.split(",")[1:]) and "." not in number.split(",")[-1]
-    digits = number.replace(",", "") if grouped or ("," in number and "." in number) else number.replace(",", ".")
-    try:
-        value = float(digits)
-    except ValueError:
-        return None
-    decimals = len(digits.split(".", 1)[1]) if "." in digits else 0
-    scale = _unit_bytes(unit)
-    return value * scale, min(0.5 * (10 ** -decimals) * scale, 0.05 * value * scale)
-
-
-def _sizes(text: str) -> list[float]:
-    return [figure[0] for figure in (_size_figure(n, u) for n, u in _SIZE_RE.findall(str(text or ""))) if figure]
-
-
-def _drive_report(text: str) -> bool:
-    low = text.lower()
-    return "drive space" in low or "free of" in low
-
-
-def grounded_sizes(answer: str, result: Any) -> str:
-    """A size-of-these-files answer built on nothing but the drive's own figures is a guess: when the
-    only sizes the tools showed this turn were the drive report, a size in the answer that is not one
-    of those figures (or the owner's own) is cut, and the answer says it could not measure (fresh-45
-    jury: "12.3 GB" for a few KB of photos, with only the drive total in front of the model). When a
-    real listing or file size was read the answer is the model's to sum and is left alone; a turn
-    where nothing was read is general knowledge and is left alone too."""
-    seen = [str(text or "") for text in list(getattr(result, "seen", None) or [])]
-    if not answer or not _SIZE_RE.search(answer):
-        return answer
-    drive = [text for text in seen if _drive_report(text)]
-    if not drive or any(_sizes(text) for text in seen if not _drive_report(text)):
-        return answer
-    known = [s for text in drive for s in _sizes(text)]
-    if len(known) >= 2:
-        known.append(abs(known[1] - known[0]))  # used = total - free
-    known += [s for text in list(getattr(result, "said", None) or []) for s in _sizes(text)]
-
-    def invented(match: re.Match[str]) -> bool:
-        figure = _size_figure(match.group(1), match.group(2))
-        if figure is None:
-            return False
-        value, half_step = figure
-        slack = max(value * 0.02, half_step)
-        return not any(abs(value - size) <= slack for size in known)
-
-    if not any(invented(m) for m in _SIZE_RE.finditer(answer)):
-        return answer
-    lines = []
-    for line in answer.split("\n"):
-        if "|" in line or line.lstrip().startswith(("-", "*")):  # rows and bullets keep their shape
-            lines.append(_SIZE_RE.sub(lambda m: "not measured" if invented(m) else m.group(0), line))
-            continue
-        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'*(])", line)
-        kept = [part for part in parts if not any(invented(m) for m in _SIZE_RE.finditer(part))]
-        if kept or not line.strip():
-            lines.append(" ".join(kept))
-    rest = "\n".join(lines).strip()
-    return f"{rest}\n\n{SIZE_NOTICE}".strip() if rest else SIZE_NOTICE
-
-
 def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
     """A question about what left this computer is answered from the local meter before the model
     is asked anything, so it never has to guess or look online (Mac demo 2026-10-28)."""
@@ -906,7 +828,7 @@ def look_first_pre_step(ask: str, ctx: ToolContext) -> str | None:
         return outcome.text[:_LOOK_CHARS]
 
     if _LOOK_DISK_ASK_RE.search(low):
-        if not _LOOK_SIZE_OF_RE.search(low) or _LOOK_ROOM_FOR_RE.search(low):
+        if "how full" in low or not _LOOK_SIZE_OF_RE.search(low) or _LOOK_ROOM_FOR_RE.search(low):
             return settle(disk_usage({}, ctx))
         # The size of some files is measured by the model's own reads, never by the drive figure.
         return None
@@ -932,19 +854,16 @@ def install_builtin_tools(registry: Registry) -> None:
     registry.register_pre_step("privacy", privacy_pre_step)
     registry.register_pre_step("look_first", look_first_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
-    registry.register_answer_gate("grounded_sizes", grounded_sizes)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
 
 
 __all__ = [
     "BUILTIN_TOOLS",
     "CARD_NOTICE",
-    "SIZE_NOTICE",
     "PENDING_NOTICE",
     "OutsideHome",
     "home_dir",
     "install_builtin_tools",
-    "grounded_sizes",
     "pending_proposal_notice",
     "scope_path",
 ]
