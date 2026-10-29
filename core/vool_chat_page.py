@@ -13056,7 +13056,7 @@ function renderPlugins(d, query) {
       : pageT('plugins.status.unknown', 'Status unknown');
     const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
     st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
-    const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
+    const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
     tg.addEventListener('click', () => togglePlugin(pl.id, off));
     act.appendChild(st); act.appendChild(tg); card.appendChild(act);
     body.appendChild(card);
@@ -13116,8 +13116,9 @@ function renderSkills(d, query) {
       const off = s.enabled === false;
       const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
       st.textContent = off ? pageT('plugins.status.off', 'Off') : pageT('plugins.status.on', 'On');
-      const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
-      tg.addEventListener('click', () => toggleSkill(s.name, off));
+      const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
+      tg.setAttribute('aria-label', tg.textContent + ' ' + s.name);
+      tg.addEventListener('click', () => toggleSkill(s.name, off, tg, st));
       act.appendChild(st); act.appendChild(tg); card.appendChild(act);
     }
     // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
@@ -13142,20 +13143,29 @@ async function togglePlugin(id, enable) {
   } catch (e) { /* fail-soft: leave the card as-is */ }
 }
 
-async function toggleSkill(id, enable) {
-  if (!id) return;
+async function toggleSkill(id, enable, btn, status) {
+  if (!id || (btn && btn.disabled)) return;
+  // The catalog re-read can take a few seconds: say so on the card, and say it kindly when it fails.
+  const was = status ? status.textContent : '';
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = pageT('plugins.loading_js', 'Loading…');
+  let d = null;
   try {
     const r = await fetch('/api/skills/enable', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: id, enabled: !!enable }),
     });
-    const d = await r.json();
+    d = await r.json();
     if (d && d.ok) {
       _pluginCatalog = await (await fetch('/api/plugins')).json();
       const s = document.getElementById('pluginsSearch');
       renderPluginPanel(_pluginCatalog, s ? s.value : '');
+      return;
     }
-  } catch (e) { /* fail-soft: leave the card as-is */ }
+  } catch (e) { /* shown below */ }
+  if (btn) btn.disabled = false;
+  if (status) { status.textContent = was; status.setAttribute('role', 'status'); }
+  if (typeof toast === 'function') toast(pageT('addons.request_failed', 'The request could not finish.'));
 }
 
 // ---- Files panel: everything VOOL generated, across all chats ----
