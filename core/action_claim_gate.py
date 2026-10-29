@@ -70,7 +70,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "system",
         re.compile(
-            r"\b(?:system scan|your system|processes|running (?:on|in) (?:the background|your (?:machine|computer|mac|pc))"
+            r"\b(?:system scan|your system|processes|threats?|(?:scan|check) of (?:your|this) (?:computer|machine|mac|pc|system)|running (?:on|in) (?:the background|your (?:machine|computer|mac|pc))"
             r"|background (?:apps|tasks|processes)|malware|virus(?:es)?)\b",
             re.I,
         ),
@@ -85,7 +85,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "texts",
-        re.compile(r"\b(?:texted|text message|sms|whatsapp|imessage)\b", re.I),
+        re.compile(r"\b(?:texted|text message|sms|whatsapp|imessage|(?:i" + _A + r"ll|i will|let me) text)\b", re.I),
     ),
     (
         "settings",
@@ -110,7 +110,7 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "files",
         re.compile(
-            r"\b(?:videos?|photos?|pictures?|files?|folders?|documents folder|downloads(?: folder)?|desktop)\b"
+            r"\b(?:videos?|photos?|pictures?|screenshots?|images?|pdfs?|files?|folders?|documents folder|downloads(?: folder)?|desktop)\b"
             r"(?:[^.?!\n]{0,40}\b(?:on here|on (?:this|your) (?:computer|mac|pc|machine)|in your|from your|your desktop"
             r"|your downloads))"
             r"|\byour (?:downloads|desktop|documents|pictures) (?:folder)?",
@@ -144,7 +144,7 @@ _PASSIVE_DONE = re.compile(
     r"(?:now\s+|all\s+|successfully\s+)?(?:" + _DONE_PARTICIPLES + r")\b"
     r"|\b(?:went out|is (?:now )?(?:in|on) your (?:calendar|schedule|agenda)|is now (?:on|off|set|active|running)"
     r"|(?:is|are) (?:on|off) now"
-    r"|(?:timer|reminder|alarm) is (?:running|on|active|ticking))\b",
+    r"|(?:timer|reminder|alarm) is (?:running|on|active|ticking)|is (?:now )?live)\b",
     re.I,
 )
 _NOUN_DONE = re.compile(
@@ -167,7 +167,8 @@ _SUBJECTLESS_DONE = re.compile(
 )
 _DONE_MARK = re.compile(r"^[\s*_]*(?:done|all set|c" + _A + r"est fait|listo|hecho|erledigt|fertig)\b|[✅✔]", re.I)
 _READ_REPORT = re.compile(
-    r"(?:^|\bi(?:" + _A + r"ve| have)?\s+)(?:just\s+)?(?:checked|scanned|looked (?:through|at|in|over)|searched"
+    r"\bi (?:ran|did|performed|completed) (?:a |an )?(?:quick |full |deep )?(?:scan|check|search)\b"
+    r"|(?:^|\bi(?:" + _A + r"ve| have)?\s+)(?:just\s+)?(?:checked|scanned|looked (?:through|at|in|over)|searched"
     r"|went through|reviewed)\b"
     r"|\bbased on (?:the|a|my|your) (?:current |latest |recent |quick |live )?(?:system |inbox |calendar )?"
     r"(?:scan|check|search|inbox|calendar|feed)\b"
@@ -207,7 +208,8 @@ _FOREIGN_DONE = re.compile(
     r"|configurad[oa]s?|establecid[oa]s?|activad[oa]s?|desactivad[oa]s?|enviad[oa]s?|cancelad[oa]s?"
     r"|añadid[oa]s?|agregad[oa]s?|programad[oa]s?|cambiad[oa]s?|guardad[oa]s?|borrad[oa]s?"
     r"|eingestellt|aktiviert|deaktiviert|gesendet|geschickt|verschickt|abgesagt|storniert|hinzugef[üu]gt"
-    r"|gesetzt|ge[äa]ndert|gespeichert|umgestellt|eingetragen|gel[öo]scht"
+    r"|gesetzt|ge[äa]ndert|gespeichert|umgestellt|eingetragen|gel[öo]scht|verschoben|verlegt|eingeplant|erstellt|angelegt"
+    r"|d[ée]plac[ée](?:e|s|es)?|cr[ée][ée](?:e|s|es)?|movid[oa]s?|cread[oa]s?|eliminad[oa]s?"
     r"|j" + _A + r"enverrai|j" + _A + r"ajouterai|je (?:vous|te) rappellerai|recordar[ée]|enviar[ée]|añadir[ée]"
     r"|programar[ée]|ich erinnere|ich schicke|ich sende|ich trage|mis(?:e|es)? [àa] jour|actualizad[oa]s?|aktualisiert)\b",
     re.I,
@@ -266,7 +268,10 @@ _SIGN_OFF = re.compile(
     re.I,
 )
 _QUOTED = re.compile(r"\"[^\"\n]{3,}\"|“[^”\n]{3,}”|«[^»\n]{3,}»|„[^“\n]{3,}“")
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|(?<=;)\s+|\n+")
+_SENTENCE_SPLIT = re.compile(
+    r"(?<!\bDr\.)(?<!\bMr\.)(?<!\bMs\.)(?<!\bSt\.)(?<!\bvs\.)(?<!\bMrs\.)(?<!\be\.g\.)(?<!\bi\.e\.)"
+    r"(?<=[.!?])\s+|(?<=;)\s+|\n+"
+)
 _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _INLINE_CODE = re.compile(r"`[^`\n]+`")
 _LEAD_FILLER = re.compile(
@@ -277,7 +282,11 @@ _LEAD_FILLER = re.compile(
 _CODE_REPLY_SOURCES = frozenset({"settings", "skills", "model", "files"})
 
 
+_ABBREVIATION = re.compile(r"\b(Dr|Mr|Mrs|Ms|St|vs)\.", re.I)
+
+
 def _claim_form(sentence: str) -> str:
+    sentence = _ABBREVIATION.sub(r"\1", sentence)
     body = _LEAD_FILLER.sub("", sentence).strip(" *_")
     if not sentence.strip() or sentence.rstrip().endswith("?") or _NOT_A_CLAIM.search(sentence):
         return ""
@@ -352,6 +361,10 @@ def action_claims(content: str) -> list[tuple[str, str, str]]:
             sources = _sources_of(sentence, form)
             if not sources and form == "action":
                 unnamed.append(sentence)
+                if _NOUN_DONE.search(sentence):
+                    # "Message sent to Jo." names what was done, not where: the request decides.
+                    claims.append((sentence, form, "generic"))
+                    unnamed.pop()
             for source in sources:
                 if has_code and source in _CODE_REPLY_SOURCES:
                     continue
