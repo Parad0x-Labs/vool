@@ -336,7 +336,7 @@ def test_try_reasons_name_folded_words_name_words_and_misses(tmp_path, capsys, p
     folder.mkdir()
     (folder / "SKILL.md").write_text(PHOTO_SKILL, encoding="utf-8")
     argv = ["try", str(folder), "--pick", "rename my exported files", "--pick", "plan a birthday party",
-            "--not-pick", "where is the photo from last week", "--not-pick", "tidy files and folders"]
+            "--not-pick", "the photo is blurry", "--not-pick", "tidy files and folders"]
     assert main(argv) == 1
     out = capsys.readouterr().out.splitlines()
     warns = [line for line in out if line.startswith("warn ")]
@@ -345,7 +345,7 @@ def test_try_reasons_name_folded_words_name_words_and_misses(tmp_path, capsys, p
     assert any('name words "photo", "tidy"' in line for line in warns)
     miss = next(line for line in out if line.startswith("FAIL pick"))
     assert "not picked: no trigger matched; shares no words with the skill" in miss
-    photo = next(line for line in out if "photo from last week" in line)
+    photo = next(line for line in out if "photo is blurry" in line)
     assert "word from the skill's name \"photo\"" in photo and "shared words" not in photo
     files = next(line for line in out if "tidy files and folders" in line)
     assert 'shared words "files", "folders"' in files
