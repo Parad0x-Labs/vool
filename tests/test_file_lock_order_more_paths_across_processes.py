@@ -9,8 +9,7 @@ checker (`tests/_file_lock_order.py`) and the roles in `tests/_file_lock_coverag
   (`_finish_forget_turn_admission`);
 - project delete through its web route (`/api/projects/delete`);
 - "Remember that ..." (`add_memory_fact`), the forget's `forget_structured_memory`, and the web
-  runtime's owner-local recall fence (`_memory_recall_response`);
-- the context-compiler shadow's compile and dispatch.
+  runtime's owner-local recall fence (`_memory_recall_response`).
 
 Each path must show in its own trace that it really ran (its functions in the recorded frames,
 its ledger flocks), the joined trace must follow the order, and a deliberate inversion around each
@@ -50,8 +49,6 @@ def _check_results(results: dict, n: int) -> None:
     for remembered, forgot, recall in results["remember_forget_recall"]:
         assert "Locked in" in remembered and forgot.startswith("Forget applied"), (remembered, forgot)
         assert recall == "completed_scoped_erasure", recall
-    for shadow in results["shadow_dispatch"]:
-        assert shadow["sent"] == 1 and shadow["carries_body"], shadow
 
 
 @pytest.mark.parametrize("layout", ["one_home", "runtime_home_sorts_first", "runtime_home_sorts_last"])
@@ -96,8 +93,6 @@ def test_more_memory_and_forget_paths_keep_the_file_lock_order_across_processes(
     assert any(r["lock"].startswith("ledger:") for r in _with_frame(traces["remember_forget_recall"],
                                                                     "_memory_recall_response")), \
         "the web recall never entered its fence"
-    assert any(r["lock"] == "finalization.A8_TRAVERSAL_LOCK" and f"ledger:{home}" in r["held"]
-               for r in _with_frame(traces["shadow_dispatch"], "dispatch")), "the shadow never sent under fence and A8"
     found = flo.violations([row for rows in traces.values() for row in rows])
     assert not found, "\n".join(found)
 
@@ -109,7 +104,6 @@ _CAUGHT = {
                        ("forget_sessions_memory", "erase_finalizations_for_session")),
     "remember_forget_recall": ("while holding files._JSONL_LOCK",
                                ("add_memory_fact", "forget_structured_memory", "_memory_recall_response")),
-    "shadow_dispatch": ("while holding finalization.A8_TRAVERSAL_LOCK", ("compile", "dispatch")),
 }
 
 

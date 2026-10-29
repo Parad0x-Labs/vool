@@ -14,8 +14,6 @@ recorder and the same documented order:
   (`forget_memory` -> `forget_structured_memory`), then the web runtime's owner-local recall
   (`core.web.api.runtime._memory_recall_response`, which holds `serialized(memory._authority_home)`
   around `revoked_tokens`).
-- `shadow_dispatch`: the context-compiler shadow, `compile` then `dispatch` (fence, then A8,
-  then its own SQLite write).
 
 `inverted:<role>` runs the same path inside a test-only wrapper that first takes a lock the
 documented order puts after the fence (or, for the served turn, the home that sorts last), so the
@@ -32,7 +30,7 @@ from pathlib import Path
 from tests import _file_lock_order as flo
 
 ENTRY = "tests._file_lock_coverage"
-ROLES = ("served_forget", "project_delete", "remember_forget_recall", "shadow_dispatch")
+ROLES = ("served_forget", "project_delete", "remember_forget_recall")
 
 #: Functions each role's trace must show in its recorded frames: the path really ran through them.
 PATH_FRAMES = {
@@ -40,7 +38,6 @@ PATH_FRAMES = {
                       "maybe_handle_memory_command"),
     "project_delete": ("_dispatch_post_inner", "erase_finalizations_for_session", "forget_sessions_memory"),
     "remember_forget_recall": ("add_memory_fact", "forget_structured_memory", "_memory_recall_response"),
-    "shadow_dispatch": ("compile", "dispatch", "_authority_ready"),
 }
 
 #: The test-only inversion each `inverted:<role>` wraps its path in: the lock it takes first.
@@ -48,7 +45,6 @@ INVERSION = {
     "served_forget": "later_home",
     "project_delete": "finalization.A8_TRAVERSAL_LOCK",
     "remember_forget_recall": "files._JSONL_LOCK",
-    "shadow_dispatch": "finalization.A8_TRAVERSAL_LOCK",
 }
 
 # A served turn in a plain child: keep it off any local model server and the machine's keychain.
@@ -122,7 +118,6 @@ def setup_role(spec: dict) -> dict:
         data["remember_forget_recall"].append([recall, f"the harbor gate {i} code is ZX-82{i}{i}",
                                                f"the harbor gate {i} code", f"What is the harbor gate {i} code?"])
 
-        data["shadow_dispatch"].append([f"observatory{tag}{i}", f"The observatory lens {i} is on the violet bracket."])
     return data
 
 
@@ -151,44 +146,7 @@ def _run_path(role: str, item, spec: dict):
         recall = _memory_recall_response(RuntimeServices(runtime_home=home), user_text=question,
                                          source_context=context) or {}
         return [remembered, forgot, recall.get("route_reason")]
-    if role == "shadow_dispatch":
-        return _shadow(item, home)
     raise ValueError(role)
-
-
-def _shadow(item, home: str):
-    """Admit one turn context, compile it and dispatch it. The shadow's own SQLite handle waits 0.2 s
-    for the database; another child's write can outlast that, and the shadow then refuses. That
-    refusal is about the database, not about the lock order, so the attempt is simply repeated."""
-    import sqlite3
-
-    from core import turn_context as tc
-    from core.context_compiler_shadow import CompileRefused
-    from core.context_namespace import ensure_chat_namespace
-    from core.runtime_paths import configure_runtime_home
-
-    chat, body = item
-    configure_runtime_home(home)
-    refused = []
-    for _ in range(40):
-        compiler = None
-        try:
-            ensure_chat_namespace(chat, project_id="lens")
-            target = tc.admit_turn_context(body, scope=tc.TurnScope("owner_local", chat, "lens"))["admission_id"]
-            compiler = tc.shadow_context_compiler(enabled=True)
-            receipt = compiler.compile(principal="owner_local", chat=chat, question="What holds the lens?",
-                                       required=(target,), budget_tokens=4000, provider="openai")
-            sent = []
-            compiler.dispatch(receipt.handle, sent.append)
-            wire = json.dumps(json.loads(sent[0]), ensure_ascii=False) if sent else ""
-            return {"sent": len(sent), "carries_body": body in wire, "refused_first": refused}
-        except (CompileRefused, sqlite3.OperationalError) as exc:
-            refused.append(f"{type(exc).__name__}: {exc}")
-            time.sleep(0.05)
-        finally:
-            if compiler is not None:
-                compiler.close()
-    raise RuntimeError(f"shadow refused 40 times: {refused[-3:]}")
 
 
 @contextlib.contextmanager

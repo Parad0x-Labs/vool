@@ -59,6 +59,10 @@ def test_every_memory_and_forget_path_keeps_the_file_lock_order_across_processes
 
     traces = {role: flo.read_traces([tmp_path / f"{role}.trace"]) for role in ROLES}
     for role, rows in traces.items():
+        if role == "upload":
+            # Main stages a paste without the forget fence (a forgotten word is refused when the document is
+            # carried into a later turn, not when it is stored), so the upload takes no ledger flock to order.
+            continue
         # Each path really waited for the shared file lock, or the order below says nothing about it.
         assert any(r["lock"].startswith("ledger:") and r["blocking"] for r in rows), f"{role} never took a ledger flock"
     assert any(r["lock"].startswith("lease:") for r in traces["forget"]), "the forget never armed its lease"
