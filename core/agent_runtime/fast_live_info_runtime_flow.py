@@ -89,6 +89,41 @@ def record_live_info_observation(
     return True
 
 
+def _phone_without_paid_services_answer(
+    agent: Any,
+    user_input: str,
+    *,
+    session_id: str,
+    source_context: dict[str, object] | None,
+    interpretation: Any,
+) -> dict[str, Any] | None:
+    """A paired phone without "Use my paid services" asked for the weather, news or a price.
+
+    The lane used to stand down without a word and the model, offered no live tools, answered from memory. Say
+    what the phone may not do and where the owner turns it on, as the file asks of a phone without the computer
+    right are answered. Any other turn that lacks the right (an unpaired caller) still just stands down.
+    """
+    from core.request_trust import REMOTE_GRANT_REFUSAL_TEXT, remote_turn_device
+
+    if remote_turn_device(source_context) is None:
+        return None
+    live_mode, _query, preflight_result = prepare_live_info_request(
+        agent, user_input, session_id=session_id, source_context=source_context, interpretation=interpretation,
+    )
+    if not live_mode:
+        return None
+    if preflight_result is not None:
+        return preflight_result  # live lookups are off on this computer: that answer comes first
+    return agent._fast_path_result(
+        session_id=session_id,
+        user_input=user_input,
+        response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_PAID],
+        confidence=0.95,
+        source_context=source_context,
+        reason="phone_without_paid_services",
+    )
+
+
 def maybe_handle_live_info_fast_path(
     agent: Any,
     user_input: str,
@@ -99,7 +134,9 @@ def maybe_handle_live_info_fast_path(
     response_class: Any,
 ) -> dict[str, Any] | None:
     if remote_turn_lacks(source_context, REMOTE_GRANT_PAID):
-        return None
+        return _phone_without_paid_services_answer(
+            agent, user_input, session_id=session_id, source_context=source_context, interpretation=interpretation,
+        )
     live_mode, query, preflight_result = prepare_live_info_request(
         agent,
         user_input,
