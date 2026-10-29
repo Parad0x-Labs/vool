@@ -21,10 +21,13 @@ From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder 
 PYTHONPATH="$VOOL_SRC" python -m tools.community_skills new meeting-actions --name meeting-actions --author "Your Name"
 ```
 
-This writes `meeting-actions/SKILL.md` (a starter with the right frontmatter), `LICENSE` (the
-MIT text with your name and the year) and `metadata.json` (for packaging later). Edit
-`SKILL.md`: replace the description, the two trigger phrases and the steps (every line that says
-REPLACE). Then check that VOOL picks it for the asks you mean, and leaves it alone otherwise:
+This writes `meeting-actions/SKILL.md` (a starter with the right frontmatter) and
+`meeting-actions/LICENSE` (the MIT text with your name and the year), plus
+`meeting-actions.metadata.json` **beside** the folder (for packaging later; it stays out of the
+folder so the folder can be zipped and imported as it is). Edit `SKILL.md`: replace the
+description, the two trigger phrases and the steps (every line that says REPLACE). `try`, `zip`
+and `lint` refuse a skill that still holds REPLACE text. Then check that VOOL picks it for the
+asks you mean, and leaves it alone otherwise:
 
 ```sh
 PYTHONPATH="$VOOL_SRC" python -m tools.community_skills try meeting-actions \
@@ -34,9 +37,27 @@ PYTHONPATH="$VOOL_SRC" python -m tools.community_skills try meeting-actions \
 ```
 
 `try` validates the skill, installs it into a throwaway profile it makes and removes itself
-(never your real VOOL), and prints `ok` or `FAIL` for each ask, then a summary line. It exits 0
-only when every ask behaved. Fix the description or triggers and run it again until it passes.
-The sections below explain each part, and how to install the skill in your own VOOL.
+(never your real VOOL), and prints `ok` or `FAIL` for each ask, then a summary line. A `FAIL`
+says why: `picked by trigger "..."`, `picked by word from the skill's name "meeting"`,
+`picked by shared words "notes", "action"`, or `not picked: no trigger matched; shares only "notes"`.
+`warn` lines (never failures) name a trigger that comes down to one word or to none once
+function words are dropped ("what do they want from me" has none left), and name words that pick
+the skill on their own. It exits 0 only when every ask behaved. Fix the description or triggers
+and run it again until it passes.
+
+Then write the zip to share or import:
+
+```sh
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills zip meeting-actions
+```
+
+It writes `meeting-actions.zip` beside the folder with `SKILL.md` and, when present, `LICENSE`,
+`README.md` or `README.txt`, names any other file it left out, and checks the zip with the same
+reader `import this skill` uses. The sections below explain each part, and how to install the
+skill in your own VOOL.
+
+Python: CI pins Python 3.12.13 and `pyproject.toml` accepts 3.11 or newer. The authoring
+commands on this page (`new`, `try`, `zip`, `call`, `init`, `lint`) also run on Python 3.13.
 
 ## 1. The SKILL.md format
 
@@ -71,7 +92,18 @@ Frontmatter keys VOOL reads:
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
 | `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails: the names are listed in [Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name). Leaving it out narrows nothing. It never grants a permission. |
+| `permissions` | no | A list of permission ids (such as `create_files`, `external_messages`). It grants nothing; see [the permissions key](#the-permissions-key). |
 | `license` | for publishing | Read by the publishing tools. Keep the full licence text in a `LICENSE` file beside `SKILL.md` (for MIT: the standard MIT text with your name and the year). |
+
+### The permissions key
+
+`permissions` is a statement, not a request: VOOL never grants anything because of it. When a
+skill declares it, the validator checks that it covers every permission id the tools in
+`allowed-tools` declare (the **Permission ids** column in
+[Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name)), and fails with,
+for example, `declared permissions ['read_files'] do not cover what
+operator.schedule_calendar_event requires: external_messages`. Leave it out and nothing is
+checked. Either way the person's mode decides what each call may do.
 
 The instructions (everything after the frontmatter) must be under 8,000 characters; a longer
 body fails validation. The frontmatter must be a YAML object. A skill adds instructions only;
@@ -114,6 +146,28 @@ cp my-skills/aisle-sorter/SKILL.md package-draft/skills/aisle-sorter/SKILL.md
 vool-community lint package-draft --scratch sdk-scratch
 ```
 
+If you started with `new`, use the `meeting-actions.metadata.json` it wrote beside the folder in
+place of writing `metadata.json` by hand.
+
+`needs` (optional) says what the skill needs from the person's VOOL, so the library can show it.
+It is a list of ids from this fixed list (`core/registry/requirements.py`); any other id is
+refused:
+
+| Id | Means |
+| --- | --- |
+| `search_web` | Web search (a search provider key in VOOL) |
+| `llm_cloud` | A cloud AI model (a cloud provider key) |
+| `chain_data` | Chain data (a chain data provider key) |
+| `solana_rpc` | A Solana connection |
+| `wallet` | The VOOL wallet |
+| `browser` | The browser |
+| `files` | The person's files |
+
+Add it to `metadata.json` before `init` (it becomes `registry.json` in the package), for example
+`"needs": ["search_web"]`. When SKILL.md seems to use one you left out, `lint` adds a notice (not
+a block): `SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to the "needs" list in
+metadata.json (registry.json in the package folder), like "needs": ["wallet"].`
+
 `category` and `subcategory` must come from the fixed list in `core/registry/categories.py`
 (for example `productivity` / `meetings`); any other value is refused. The `source` above is the
 shape for an upload. A package imported from GitHub uses a GitHub `source` instead; the author
@@ -133,11 +187,16 @@ Pick one of the two routes. Both need the person's consent in VOOL's normal perm
 ### Route A: zip import, in chat
 
 Zip the skill folder (not `package-draft`). The zip may hold `SKILL.md` and, optionally,
-`LICENSE`, `README.md` or `README.txt`; VOOL refuses any other file, including scripts.
+`LICENSE`, `README.md` or `README.txt`; VOOL refuses any other file, including scripts and a
+`metadata.json` (the refusal reads `VOOL imports instruction-only skills; this zip also carries:
+metadata.json`). `vool-community zip` writes only the files VOOL takes:
 
 ```sh
-(cd my-skills && zip -r ../aisle-sorter.zip aisle-sorter)
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills zip my-skills/aisle-sorter
 ```
+
+(`(cd my-skills && zip -r ../aisle-sorter.zip aisle-sorter)` works too, when the folder holds
+only those files.)
 
 In a VOOL chat, give the full path (it must start with `/` or `~` and end in `.zip`), or attach
 the zip to the message and say only `import this skill`:
@@ -167,8 +226,12 @@ skill.install path=/full/path/to/my-skills/aisle-sorter
 Without `overwrite`, a second install of the same name stops with `exists`.
 
 The chat steps have matching tools for an agent: `skill.import` (zip), `skill.list`,
-`skill.validate`, `skill.remove` and `skill.rollback` (with `skill` and `version`). Their replies
-are worded for a tool result, not word for word the chat replies quoted on this page.
+`skill.validate` (with `path`: a folder, a `SKILL.md` file or a skill name, the same as
+`skill.install`), `skill.remove` and `skill.rollback` (with `skill` and `version`). Their replies
+are worded for a tool result, not word for word the chat replies quoted on this page. When
+`skill.install` refuses a skill, its reply lists what the validator found, for example
+`the skill was not installed because it does not pass the skill check: allowed-tools names tools
+this runtime does not have: workspace.writefile`.
 
 For automated tests from a source checkout, call the same tool against a **throwaway profile**
 (the variables from section 2).
@@ -186,6 +249,52 @@ PY
 
 It prints `ok Added the skill "Aisle sorter". It is on from your next message.` A
 "Keychain unavailable" line on a fresh profile is expected.
+
+`execute_runtime_tool` is the inner door for the skill tools and a few others. For a tool another
+part of VOOL owns (`web.search`, every `operator.*` tool) it returns `None`, so `result.status`
+raises `AttributeError: 'NoneType' object has no attribute 'status'`. To call any other tool, use
+the next section.
+
+### Exercise a skill's tool calls
+
+To see what a tool in your `allowed-tools` answers, and what the person would be asked to
+approve, call it the way a real turn does: `core.tool_intent_executor.execute_tool_intent`, which
+runs the Manual/Auto permission check first. `vool-community call` does this in a throwaway
+profile and a throwaway project folder, and prints one JSON line:
+
+```sh
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills call operator.schedule_calendar_event \
+  --args '{"title": "Dentist", "start_iso": "2026-11-03T10:00:00", "duration_minutes": 60}'
+```
+
+```text
+{"approval_needed":true,...,"reply":"Manual mode requires approval for this exact action. ...","status":"pending_approval",...}
+```
+
+`--mode auto` checks Auto mode instead, and `--approve` clicks **Allow once** for you and calls
+again, so you see the result after approval. The same call from your own Python, in a throwaway
+profile (the variables from section 2):
+
+```sh
+HOME="$SKILL_TEST_HOME" VOOL_HOME="$SKILL_TEST_HOME/vool" PYTHONPATH="$VOOL_SRC" python - <<'PY'
+from storage.migrations import run_migrations
+from core.hive_activity_tracker import HiveActivityTracker, HiveActivityTrackerConfig
+from core.tool_intent_executor import execute_tool_intent
+run_migrations()  # a fresh profile has no database yet
+tracker = HiveActivityTracker(config=HiveActivityTrackerConfig(enabled=False, watcher_api_url=None))
+result = execute_tool_intent(
+    {"intent": "web.search", "arguments": {"query": "aisle order in supermarkets"}},
+    task_id="skill-test", session_id="skill-test", hive_activity_tracker=tracker,
+    source_context={"runtime_session_id": "skill-test", "operating_mode": "manual"})
+print(result.status, result.response_text)  # always a result, never None
+PY
+```
+
+On a fresh profile this prints `disabled No. Web lookups are off. ...`: web lookups are off until
+the person turns them on. Never call the functions behind this check (such as
+`core.execution.operator_tools.execute_operator_tool`) to test a skill: they run the action with
+no approval at all, which no real turn does. What each refusal means is in
+[Skill tools and limits](skill-tools-and-limits.md#refusals-and-what-they-mean).
 
 ## 4. Turn it on
 
@@ -306,6 +415,19 @@ Built-in and Browse skills cannot be removed this way.
 
 Adding a skill to the shared library (Skill Codex) is not open to every author yet. Until it is,
 share a skill as its zip file: anyone can import it with *import this skill* (section 3, Route A).
+
+**A skill with `allowed-tools`** works on every route that can check the names, and is refused on
+the one that cannot:
+
+* **Zip share** and **local install** (`skill.install`, `try`): accepted when every name is a
+  real VOOL tool.
+* **Import from a GitHub repository** (Browse): not import-ready (*This skill declares a
+  host-specific tool list that needs a VOOL mapping.*). Share it as a zip instead.
+* **Upload to Skill Codex**: the automatic checks run the same validator as `lint`, so real tool
+  names pass. What is refused is a package manifest (`.codex-plugin/plugin.json`) that asks for
+  tools, permissions or credentials; `vool-community init` writes none.
+
+The full table is in [Skill tools and limits](skill-tools-and-limits.md#can-a-skill-with-allowed-tools-be-shared-or-published).
 
 Publishing to Skill Codex is a separate, reviewed process with its own metadata, licence and
 consent rules. Continue from the `package-draft` you linted in section 2 and follow the
