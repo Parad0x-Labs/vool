@@ -144,3 +144,21 @@ def test_the_door_answers_empty_for_a_chat_with_nothing_waiting() -> None:
     status, payload = _get("chat-none", "127.0.0.1")
     assert status == 200
     assert payload["approvals"] == []
+
+
+def test_the_asking_message_is_kept_masked_like_the_transcript() -> None:
+    """The page finds the asking message in the masked transcript, and the prompt is mirrored to
+    disk: a card number typed into the request is never stored in the clear."""
+    from core.secret_redaction import redact_secrets
+
+    typed = "make a folder in Documents called Taxes, my card is 4111 1111 1111 1111"
+    _ask(text=typed)
+
+    row = pending_approvals_for_session("chat-a")[0]
+    assert row["request_text"] == redact_secrets(typed)
+    assert "4111 1111 1111 1111" not in row["request_text"]
+    import os
+    from pathlib import Path
+
+    for path in Path(os.environ["VOOL_HOME"]).rglob("pending_approvals.json"):
+        assert "4111 1111 1111 1111" not in path.read_text()

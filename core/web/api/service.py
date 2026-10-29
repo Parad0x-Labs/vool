@@ -8043,9 +8043,14 @@ def _dispatch_post_inner(
         # with no turn id an Auto write recorded itself under the runtime's own turn id, the final
         # check read the turn by request id, found no write, and the person got a bare HTTP 500 after
         # the file was written; a Manual prompt stored with no task could never be allowed.
-        inbound_source_context["cancel_turn_id"] = (
-            str(body.get("turn_id") or "").strip() or str(request_id or "").strip()
-        )[:80]
+        _client_turn = str(body.get("turn_id") or "").strip()[:80]
+        _request_turn = str(request_id or "").strip()
+        if not _client_turn and len(_request_turn) > 80:
+            # A request id may be longer than a turn id holds. Cut short, two ids sharing their
+            # first 80 characters would become ONE task: one's grants, cancel and follow-ups
+            # landing on the other. A digest keeps every distinct id distinct.
+            _request_turn = "rq-" + hashlib.sha256(_request_turn.encode("utf-8")).hexdigest()[:40]
+        inbound_source_context["cancel_turn_id"] = _client_turn or _request_turn
         # A question asked while a task runs in this chat is answered beside it, not after it. The
         # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
         # request for one is honoured only while this chat really has a live task (owner-local).

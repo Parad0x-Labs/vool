@@ -786,7 +786,12 @@ def _asking_request_text(source_context: dict[str, Any] | None) -> str:
     text = str(getattr(request, "user_text", "") or "")
     if not text and isinstance(request, dict):
         text = str(request.get("user_text") or "")
-    return text[:4000]
+    # Masked exactly as the chat transcript masks it: the page finds the asking message in that
+    # transcript, and this text is mirrored to disk with the prompt, where a typed card number or
+    # password must never land in the clear.
+    from core.secret_redaction import redact_secrets
+
+    return redact_secrets(text)[:4000]
 
 
 def session_has_pending_workspace_approval(session_id: str) -> bool:
@@ -3749,7 +3754,7 @@ def _new_approval_request(
             "fingerprint": fingerprint,
             "session_id": session_id,
             # The message that asked, so a page that reloads (or never sent the turn) can find the
-            # turn to resume once the operator allows it. Kept on the record, not the prompt.
+            # turn to resume once the operator allows it. Served to the owner's page with the prompt.
             "request_text": _asking_request_text(source_context),
             "mode": mode.value,
             "mode_revision": mode_revision,

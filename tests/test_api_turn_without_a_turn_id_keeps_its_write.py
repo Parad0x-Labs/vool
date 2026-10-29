@@ -94,3 +94,28 @@ def test_a_manual_api_turn_asks_under_a_turn_it_can_be_answered_for(home) -> Non
     assert asked, "the prompt must be stored"
     # A prompt with no task can never be answered: Allow re-sends the asking turn by this id.
     assert all(str(row.get("task_id") or "").strip() for row in asked), asked
+
+
+def test_two_long_request_ids_are_two_turns(home) -> None:
+    """A request id may be longer than a turn id holds; two that share their first 80 characters
+    must still be two tasks, or one's grants, cancel and follow-ups would land on the other."""
+    from core.mode_permission_policy import _APPROVALS
+    from tests.gauntlet import harness
+    from core.web.api.service import dispatch_post
+
+    for tail in ("A", "B"):
+        res = dispatch_post(
+            path="/api/chat",
+            body={"stream": False, "session_id": "long-ids",
+                  "messages": [{"role": "user", "content": _ASK + tail.lower()}]},
+            headers={},
+            request_id="x" * 80 + tail,
+            runtime=harness.runtime(),
+            model_name="gauntlet",
+            workspace_root_provider=lambda: str(harness.PROJECT_ROOT),
+            client_host="127.0.0.1",
+        )
+        assert res.status == 200
+    tasks = {str(row.get("task_id") or "") for row in _APPROVALS.values()
+             if row.get("request_text") in {_ASK + "a", _ASK + "b"}}
+    assert len(tasks) == 2 and all(t.startswith("rq-") for t in tasks), tasks

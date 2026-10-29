@@ -4337,8 +4337,8 @@ async function openSession(id) {
   if (!isDisplayed(id)) return;
   reflectComposer();
   reflectPermBar();
-  await restorePendingApproval(id);
-  if (!isDisplayed(id)) return;
+  // Not awaited: opening a chat never waits on this read. It paints only if the chat is still shown.
+  restorePendingApproval(id);
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue(id);
@@ -8248,8 +8248,12 @@ function paintRecoveryNote(st) {
   // A chat waiting for an OK was not interrupted: VOOL did not stop, it is asking, and the
   // permission bar (restorePendingApproval) is where it is answered. No note competes with it.
   if (waiting && st.pendingApproval) { if (old) old.remove(); return; }
-  if (old) return;
+  // The note says what is true NOW: a restore that learns the prompt was asked elsewhere repaints it.
+  const state = !waiting ? 'interrupted' : (st.approvalAskedElsewhere ? 'elsewhere' : 'expired');
+  if (old && old.dataset.state === state) return;
+  if (old) old.remove();
   const note = document.createElement('div');
+  note.dataset.state = state;
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
   const quoted = asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '';
