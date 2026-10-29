@@ -375,9 +375,9 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
         if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
             return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
-    if _LIST_CALENDARS_RE.search(words):
+    if not calendar_names_code and _LIST_CALENDARS_RE.search(words):
         return OperatorActionIntent(kind="list_calendars", raw_text=text)
-    if _INSPECT_EVENT_RE.search(words):
+    if not calendar_names_code and _INSPECT_EVENT_RE.search(words):
         return OperatorActionIntent(
             kind="inspect_calendar_event",
             target_label=_event_label(text),
