@@ -303,7 +303,35 @@ def parse_clauses(raw: str) -> list[ProposedClause]:
                 index=index, request=request, operation=operation, depends_on=tuple(depends)
             )
         )
-    return clauses
+    # N3 / files:F02 (2026-10-29): a proposed clause that is ONLY filler ("quick one",
+    # "btw", a "like for ..." qualifier) is dropped HERE, before it can become a request.
+    # Measured as "quick one, how tall is the eiffel tower?": the planner proposed the
+    # lead-in as a clause, `_verify_no_invented_content` rightly admitted it (every word is
+    # the user's own), and the unservable node composed "- quick one -- the available
+    # answer path does not safely match this request" beside a fully answered height
+    # question. Filler is the ONE shared vocabulary (core.agent_runtime.filler_words); a
+    # clause with one word of its own still plans exactly as before, so a real second
+    # request keeps splitting. A depends_on edge into a dropped clause goes with it (a real
+    # request never depends on filler), and the survivors are re-indexed dense from 0 so
+    # the DAG checks downstream see the same shape they see today.
+    from core.agent_runtime.filler_words import is_filler_fragment
+
+    kept = [clause for clause in clauses if not is_filler_fragment(clause.request)]
+    if len(kept) == len(clauses):
+        return clauses
+    remap = {clause.index: new_index for new_index, clause in enumerate(kept)}
+    return [
+        replace(
+            clause,
+            index=new_index,
+            depends_on=tuple(
+                remap[dep]
+                for dep in clause.depends_on
+                if dep in remap and remap[dep] < new_index
+            ),
+        )
+        for new_index, clause in enumerate(kept)
+    ]
 
 
 def _verify_no_invented_content(clauses: Sequence[ProposedClause], original: str) -> bool:
