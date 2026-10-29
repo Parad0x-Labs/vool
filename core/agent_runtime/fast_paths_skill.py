@@ -46,6 +46,7 @@ import json
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from core.agent_runtime import build_request_intent
@@ -111,6 +112,11 @@ _INVENTORY_RE = re.compile(
     re.IGNORECASE,
 )
 
+_HOW_TO_MANAGE_TAIL_RE = re.compile(
+    r"[?.,!]*\s*(?:and\s+|&\s+)?how\s+(?:do|can|would)\s+i\s+"
+    r"(?:add|get|install|find|turn|switch|remove|enable|disable)\b[^?.!]{0,40}[?.!]*\s*$",
+    re.IGNORECASE,
+)
 _PLUGIN_WORD = r"(?:plugins?|plug-ins?)"
 # Sharing. The noun is required on both sides, so "export the csv" and "import pandas" stay away.
 _EXPORT_RE = re.compile(
@@ -435,6 +441,11 @@ def _skill_request_raw(text: str) -> dict[str, Any] | None:
     # reads "what skills do i have" as discussion -- correctly, for a gate whose job is to stop
     # WRITES -- and letting it veto here answered a direct question with nothing.
     if _INVENTORY_RE.fullmatch(body.strip(" .?!")) and not _CREATE_RE.search(body):
+        return {"action": "list", "name": "", "scope": scope}
+    # "what skills do you have? and how do i add or turn one off" -- the list's own last lines
+    # answer the add and turn-off half, so the whole message is still the inventory ask.
+    asked = _HOW_TO_MANAGE_TAIL_RE.sub("", body.strip(" .?!")).strip(" .?!,")
+    if asked != body.strip(" .?!") and _INVENTORY_RE.fullmatch(asked) and not _CREATE_RE.search(asked):
         return {"action": "list", "name": "", "scope": scope}
 
     # Everything below this line mutates, so discussion stops here. "how would i create a skill?"
@@ -1101,6 +1112,114 @@ def _answer_pending_skill_name(
     return _drafted_reply(draft, scope, author, chat, session_id, source_context, result, plain)
 
 
+# "use the teleport-to-mars skill", "turn off the cover letter writer skill": a skill asked for BY
+# NAME. The whole message opens with the verb, so "use the skills you have to plan a trip" and
+# "which skill should I use" stay with the model.
+_NAMED_SKILL_RE = re.compile(
+    r"^\W*(?:(?:ok(?:ay)?|hey|so|please|pls)[,\s]+)*(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?"
+    r"(?P<verb>use|run|try|apply|start|turn\s+off|switch\s+off|turn\s+on|switch\s+on|enable|disable|stop\s+using)\s+"
+    r"(?:(?:the|my|your|this|that|a)\s+)?[`\"']?(?P<name>[a-z0-9][\w'-]*(?:\s+[\w'-]+){0,4}?)[`\"']?\s+"
+    + _SKILL_WORD + r"\b",
+    re.IGNORECASE,
+)
+_NOT_SKILL_NAMES = {
+    "same", "right", "best", "new", "other", "any", "every", "first", "last", "next", "previous",
+    "your", "my", "a", "an", "the", "this", "that", "one", "old", "default", "whole", "correct",
+}
+
+
+def _plain_key(name: str) -> str:
+    key = re.sub(r"[-_\s]+", " ", str(name or "").strip().lower().replace("`", "")).strip()
+    return key[len("vool "):] if key.startswith("vool ") else key
+
+
+def _skills_known_here(source_context: dict[str, Any] | None, session_id: str) -> tuple[list[str], set[str], set[str]]:
+    """(names the person has, in list order; their plain keys; plain keys of Browse skills)."""
+    from core.native_skill_library import lane_for, load_skill_contracts, shown_to_people
+    from core.skill_tools import list_skills
+
+    have: list[str] = []
+    keys: set[str] = set()
+
+    def _add(name: str, *, named: bool = True) -> None:
+        key = _plain_key(name)
+        if key and key not in keys:
+            keys.add(key)
+            if named:
+                have.append(_display_name(key))
+
+    try:
+        listed = list_skills("", keys=_turn_keys(source_context, session_id))
+    except Exception:
+        listed = {}
+    for section in ("chat_skills", "project_skills", "installed_skills", "staged_skills"):
+        for row in listed.get(section) or []:
+            _add(str(row.get("name") or ""))
+    try:
+        for contract in load_skill_contracts().contracts:
+            # Answer-style rules (the doctrine lane) are known, but not offered as skills to use.
+            if contract.source == "native" and shown_to_people(contract.id):
+                _add(contract.id, named=lane_for(contract) != "doctrine")
+    except Exception:
+        pass
+    browse: set[str] = set()
+    try:
+        directory = json.loads((Path(__file__).resolve().parents[1] / "addon_directory.json").read_text(encoding="utf-8"))
+        browse = {_plain_key(str(entry.get("name") or "")) for entry in directory.get("entries") or []}
+    except Exception:
+        browse = set()
+    return have, keys, browse - {""}
+
+
+def _answer_named_skill(
+    user_input: str, *, session_id: str, source_context: dict[str, Any] | None, plain: Any,
+) -> dict[str, Any] | None:
+    """A skill asked for by a name VOOL does not have gets a plain answer, never a brush-off.
+
+    Measured on 0.7.5: "use the teleport-to-mars skill please" got "I can't assist with that", and
+    "turn off the cover letter writer skill" got "the skill is now turned off" for a skill that was
+    never added. A name the person has goes on to the model (or the remove lane) as before.
+    """
+    match = _NAMED_SKILL_RE.match(" ".join(str(user_input or "").split()))
+    if not match:
+        return None
+    name = _clean_name(match.group("name"))
+    key = _plain_key(name)
+    if not key or key in _NOT_SKILL_NAMES:
+        return None
+    verb = " ".join(match.group("verb").lower().split())
+    have, known, browse = _skills_known_here(source_context, session_id)
+    if key in known:
+        if verb in ("use", "run", "try", "apply", "start"):
+            return None
+        return plain(
+            f"You can turn {_display_name(key)} on or off in Skills & Plugins, under My add-ons, Skills.",
+            reason="skill_named_toggle_where",
+        )
+    shown = _display_name(key)
+    if key in browse:
+        if verb in ("turn off", "switch off", "disable", "stop using"):
+            return plain(
+                f"{shown} isn't added, so it is already off. Nothing changed.",
+                reason="skill_named_not_added_off",
+            )
+        return plain(
+            f"{shown} isn't added yet, so I can't use it here. You can add it in Skills & Plugins, "
+            "under Browse. I can still help without it: just tell me what you need.",
+            reason="skill_named_not_added",
+        )
+    if have:
+        listed = ", ".join(have[:8]) + (", and more" if len(have) > 8 else "")
+        ones = f" Here are the ones you have: {listed}."
+    else:
+        ones = " You don't have any skills yet."
+    return plain(
+        f"I don't have a skill called {shown}.{ones} You can find more in Skills & Plugins, under "
+        "Browse, or ask me: make me a skill that ...",
+        reason="skill_named_unknown",
+    )
+
+
 def _create_arguments(draft: dict[str, Any], scope: str) -> dict[str, Any]:
     """The `skill.create` arguments for a draft, the same shape the create lane dispatches."""
     arguments: dict[str, Any] = {
@@ -1224,7 +1343,7 @@ def maybe_handle_skill_request(
         if answered is not None:
             return answered
         _clear_pending(chat)
-        return None
+        return _answer_named_skill(user_input, session_id=session_id, source_context=source_context, plain=plain)
 
     action = str(request.get("action") or "")
     name = str(request.get("name") or "")
@@ -1260,11 +1379,15 @@ def maybe_handle_skill_request(
                 )
 
     if action == "needs_name":
+        # The walk-through docs/guides/make-your-own-skill.md describes, in the words a person
+        # types: say what it does and when, then read the draft, then turn it on.
         return plain(
-            "I can make that skill, but I need to know what it should do -- and, if you like, a name "
-            "for it, which is how you turn it on, export or change it afterwards. For example: "
-            "`create a skill for this chat that turns pasted meeting notes into action items`, or "
-            "`create a skill called release-notes that summarises CHANGELOG.md by version`.",
+            "Happy to. Tell me in your own words what the skill should do and when I should use "
+            "it, the way you would explain it to a friend. For example: make me a skill that "
+            "sorts my shopping list by supermarket aisle whenever I give you one.\n\n"
+            "You can give it a name too (make me a skill called Shopping list that ...), and add "
+            "\"for this chat\" if it should only work here. I will show you a draft first, "
+            "and nothing is switched on until you say turn it on.",
             reason="skill_needs_name",
         )
 

@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [release, gate, ship, shippable, cut a release, release check]
 allowed-tools: [workspace.run_tests, workspace.run_lint, workspace.git_status, workspace.git_diff, sandbox.run_command]
 capabilities: [workspace.read, workspace.validate, workspace.git, sandbox.command]

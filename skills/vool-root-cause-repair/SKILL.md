@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [root cause, diagnose this failure, failing test, test fails, why does this test fail, why is this broken, regression, reproduce this bug, reproduce the bug, bug repro, write a failing test, confirm the bug]
 allowed-tools: [workspace.search_text, workspace.read_file, workspace.git_diff, workspace.symbol_search, workspace.run_tests]
 capabilities: [workspace.read, workspace.git, workspace.validate]

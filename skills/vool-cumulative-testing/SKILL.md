@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [run the tests, run my tests, test pack, test suite, cumulative, verification pack, did the tests pass, is it really fixed, does it pass now, which failures did my change cause, check it passes]
 allowed-tools: [workspace.run_tests, workspace.run_lint, workspace.run_formatter, workspace.read_file]
 capabilities: [workspace.read, workspace.validate]

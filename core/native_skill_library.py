@@ -120,6 +120,9 @@ class SkillContract:
     source: str = "native"
     path: str = ""
     body: str = ""
+    #: Who the skill is for. "developer" marks the skills the VOOL team builds VOOL with (code
+    #: review, test runs, release gates ...): left out of a person's list and everyday turns.
+    audience: str = ""
 
     @property
     def task_family_set(self) -> frozenset[str]:
@@ -259,6 +262,7 @@ def contract_from_frontmatter(
         priority=int(front.get("priority") or 100),
         capabilities=_as_list(front, "capabilities"),
         kind=_normalized_kind(front.get("type")),
+        audience=str(front.get("audience") or "").strip().lower(),
         source=str(source or "native"),
         path=str(path),
         body=str(body or ""),
@@ -369,6 +373,38 @@ def native_skills_root() -> Path:
     if override:
         return Path(override).expanduser()
     return Path(__file__).resolve().parent.parent / "skills"
+
+
+def developer_skills_on() -> bool:
+    """The developer setting: ``VOOL_DEVELOPER_SKILLS=1`` shows and seats the developer skills."""
+    return str(os.environ.get("VOOL_DEVELOPER_SKILLS") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_developer_skill(skill_id: str) -> bool:
+    """Whether this id is one of VOOL's own developer skills (``audience: developer``).
+
+    The skills the VOOL team builds VOOL with ship in the repo's library, but a person using
+    VOOL for everyday things must never see them listed or have them steer a reply ("write a
+    complaint to my landlord, the heating is broken" was classed as debugging and seated
+    root-cause-repair, measured 2026-10-29). They stay loadable for the selection law; the
+    person-facing list and the per-turn guidance decide with this mark.
+    """
+    cleaned = str(skill_id or "").strip().lower()
+    if not cleaned:
+        return False
+    try:
+        contracts = load_skill_contracts().contracts
+    except Exception:
+        return False
+    return any(
+        contract.audience == "developer" and cleaned in {contract.id.lower(), contract.name.lower()}
+        for contract in contracts
+    )
+
+
+def shown_to_people(skill_id: str) -> bool:
+    """Whether a person-facing list or a turn may carry this skill."""
+    return developer_skills_on() or not is_developer_skill(skill_id)
 
 
 def load_native_library(root: Path | None = None) -> LibraryLoad:
@@ -1174,9 +1210,11 @@ __all__ = [
     "contract_from_frontmatter",
     "contract_to_dict",
     "contract_violations",
+    "developer_skills_on",
     "disabled_skill_ids",
     "guidance_for_selection",
     "inspect_skill",
+    "is_developer_skill",
     "load_mcp_skill_contracts",
     "load_native_library",
     "load_plugin_typed_contracts",
@@ -1186,5 +1224,6 @@ __all__ = [
     "reset_contract_caches",
     "select_native_skills",
     "set_skill_enabled",
+    "shown_to_people",
     "skill_inventory",
 ]

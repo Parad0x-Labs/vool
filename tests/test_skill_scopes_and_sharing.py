@@ -150,13 +150,17 @@ def test_a_chat_skill_shadows_a_global_skill_of_the_same_name(_private_plugins_t
     assert "GLOBAL-VERSION" in elsewhere
 
 
-def test_the_operators_skill_is_not_crowded_out_by_first_party_selections() -> None:
+def test_the_operators_skill_is_not_crowded_out_by_first_party_selections(monkeypatch) -> None:
     """Measured live 2026-10-05: four first-party skills chosen on the task class filled every slot
     and the chat skill that matched the request never reached the prompt. A task class that selects
     a full budget of native skills ("debugging" picks three) must still leave the operator's
     matching skill its slot, with natives filling only what is left."""
     from core.tool_offer_assembly import MAX_SKILLS
 
+    # The natives that fill a "debugging" turn are VOOL's developer skills, which an everyday ask
+    # (these meeting notes) no longer carries unless the developer setting is on. The crowding
+    # this pins is measured with them in play.
+    monkeypatch.setenv("VOOL_DEVELOPER_SKILLS", "1")
     keys = _bind("chat-not-crowded")
     _install_scoped(keys, "chat")
     here = skill_guidance_for(ASK, task_class="debugging", source_context={"session_id": "chat-not-crowded"})

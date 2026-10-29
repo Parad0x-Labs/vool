@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [security, audit, vulnerability, secrets scan, security pass]
 allowed-tools: [workspace.search_text, workspace.read_file, workspace.git_diff, workspace.symbol_search]
 capabilities: [workspace.read, workspace.git]
