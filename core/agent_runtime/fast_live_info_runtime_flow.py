@@ -55,7 +55,15 @@ def record_live_info_observation(
 
     if not isinstance(source_context, dict):
         return False
-    clean = [note for note in list(notes or []) if isinstance(note, dict)]
+    # A `_weather_no_result` placeholder is the lane SAYING a place came back empty, not a row it
+    # retrieved: counting one as a result made a turn whose every note was a placeholder record
+    # ok=True and mint observation support from a dict with no source, no summary, no url. The
+    # docstring's own contract (a failed lookup records ok=False and mints nothing) starts here.
+    clean = [
+        note
+        for note in list(notes or [])
+        if isinstance(note, dict) and not note.get("_weather_no_result")
+    ]
     observation = {
         "schema": "tool_observation_v1",
         "intent": "live_info.lookup",

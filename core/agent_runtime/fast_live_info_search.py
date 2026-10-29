@@ -11,18 +11,32 @@ def _weather_search_one(location: str) -> list[dict[str, Any]]:
     A query built from the extracted place name ("weather in kaunas"), never the raw message --
     the raw message is what let a whole sentence become the "location" text before this existed.
     A search that raises or comes back empty still yields one tagged placeholder rather than
-    nothing, so the caller can tell "asked, found nothing" apart from "never asked".
+    nothing, so the caller can tell "asked, found nothing" apart from "never asked". A lookup
+    that FAILED is a different fact from a provider that answered with nothing, so only the
+    failed lookup's placeholder carries `_weather_lookup_failed` -- `WebAdapter.search_query`
+    alone cannot say which of the two an empty list means (a transport failure is swallowed
+    into [] inside `web_research` before this sees it), which is why this reads
+    `search_query_with_status`: the weather lane downstream defers a turn whose lookups
+    failed instead of publishing the failure as a reading of the place.
     """
+    lookup_failed = False
     try:
-        found = WebAdapter.search_query(
+        found, status = WebAdapter.search_query_with_status(
             f"weather in {location}",
             limit=3,
             source_label="duckduckgo.com",
         )
+        lookup_failed = status == "failed"
     except Exception:
         found = []
+        lookup_failed = True
     tagged = [dict(note, _weather_location=location) for note in (found or []) if isinstance(note, dict)]
-    return tagged or [{"_weather_location": location, "_weather_no_result": True}]
+    if tagged:
+        return tagged
+    placeholder: dict[str, Any] = {"_weather_location": location, "_weather_no_result": True}
+    if lookup_failed:
+        placeholder["_weather_lookup_failed"] = True
+    return [placeholder]
 
 
 def _weather_search_notes(query: str) -> list[dict[str, Any]]:
