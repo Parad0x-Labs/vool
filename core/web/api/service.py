@@ -8094,6 +8094,21 @@ def _dispatch_post_inner(
             if bound_project_id and not requested_workspace
             else ""
         )
+        if not requested_workspace and not bound_project_id and owner_local:
+            # A chat bound to no project that NAMES one ("plan.py in the garden planner project")
+            # is bound to it here, so this turn and every follow-up work in that folder. Measured
+            # on 1cbf433: the turn ran in the default workspace and answered "There is no file at
+            # plan.py". A bound chat is never moved: project folders isolate chats from each other.
+            from core.named_project_binding import bind_chat_to_named_project
+
+            try:
+                named = bind_chat_to_named_project(session_id, user_text)
+            except Exception:
+                logging.getLogger("vool.api").exception("named project binding failed (session=%s)", session_id)
+                named = None
+            if named:
+                bound_project_id = str(named["project_id"])
+                project_workspace = str(named["root"])
         effective_workspace = requested_workspace or project_workspace or default_workspace
         workspace_binding = (
             "explicit"
