@@ -198,6 +198,8 @@ export interface NotificationEvent {
   turn_key?: string;
   session_id?: string;
   mobile_kind: "completion" | "failure" | "info";
+  /** When the computer wrote the event (ISO, UTC); a step's time on the phone. */
+  created_at?: string;
   [key: string]: unknown;
 }
 

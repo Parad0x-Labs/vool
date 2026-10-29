@@ -1,4 +1,5 @@
 import {errorText, tr} from "../i18n/index.ts";
+import {chatUpdatedText, messageTimeText, stepTimeText} from "../i18n/time.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import PhoneAbilities from "./PhoneAbilities.tsx";
@@ -27,6 +28,9 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
   const [progress, setProgress] = useState("");
+  const [progressAt, setProgressAt] = useState("");
+  // The message whose time is showing (tap or hold it); a second tap or four seconds hides it.
+  const [timeShown, setTimeShown] = useState<number | null>(null);
   const [proof, setProof] = useState("");
   const [filesKey, setFilesKey] = useState(0);
   const hadHistory = useRef(false);
@@ -69,7 +73,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   useEffect(() => outbox.subscribe(setQueued,
     (result, turn) => {
       if (activeRef.current === result.chat_id) {
-        setMessages(previous => [...previous, {role: "user", content: turn.text}, {role: "assistant", content: result.reply}]);
+        setMessages(previous => [...previous, {role: "user", content: turn.text}, {role: "assistant", content: result.reply, ts: new Date().toISOString()}]);
         void client.chatHistory(result.chat_id).then(setMessages).catch(() => {});
         if (result.commit?.request_id) void client.turnProof(result.chat_id, result.commit.request_id)
           .then(value => setProof(value.state)).catch(() => setProof(""));
@@ -87,14 +91,14 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   }, [outbox]);
 
   useEffect(() => {
-    if (!busy) {setProgress(""); return;}
+    if (!busy) {setProgress(""); setProgressAt(""); return;}
     let after = 0;
     const timer = setInterval(() => {
       if (!outbox.activeKey) return;
       void client.turnProgress(outbox.activeKey, after).then(value => {
         after = value.next_after;
         const last = value.events[value.events.length - 1];
-        if (last?.message) setProgress(last.message);
+        if (last?.message) {setProgress(last.message); setProgressAt(typeof last.created_at === "string" ? last.created_at : "");}
       }).catch(() => {});
     }, 1500);
     return () => clearInterval(timer);
@@ -104,10 +108,16 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
     void refreshChats();
   }, [refreshChats]);
 
+  useEffect(() => {
+    if (timeShown === null) return;
+    const timer = setTimeout(() => setTimeShown(null), 4000);
+    return () => clearTimeout(timer);
+  }, [timeShown]);
+
   const openChat = useCallback(
     async (chatId: string) => {
       setActiveChat(chatId); activeRef.current=chatId;
-      setMessages([]); setProof("");
+      setMessages([]); setProof(""); setTimeShown(null);
       try {
         const history=await client.chatHistory(chatId);
         if (activeRef.current === chatId) setMessages(history);
@@ -166,7 +176,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
               {chat.title || chat.chat_id}
             </Text>
             <Text style={styles.chatMeta}>
-              {tr("Turns: {count}", {count: chat.turn_count ?? 0})} · {chat.updated_at || ""}
+              {tr("Turns: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
             </Text>
           </Pressable>
         ))}
@@ -183,7 +193,9 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
       <FromComputer client={client} refreshKey={filesKey} />
       <ScrollView style={styles.messages}>
         {messages.map((m, i) => (
-          <View key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}>
+          <Pressable key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}
+            onPress={() => setTimeShown(shown => shown === i ? null : i)}
+            onLongPress={() => setTimeShown(i)}>
             <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
             {m.attachments?.map((a) => (
               <Text key={a.id} style={styles.attachmentTag}>
@@ -191,7 +203,8 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
               </Text>
             ))}
             {m.answer_state ? <Text style={styles.answerState}>{m.answer_state}</Text> : null}
-          </View>
+            {timeShown === i && messageTimeText(m.ts) ? <Text style={styles.messageTime}>{messageTimeText(m.ts)}</Text> : null}
+          </Pressable>
         ))}
       </ScrollView>
       {queued.filter(turn => turn.chatId === activeChat).map(turn => (
@@ -205,7 +218,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
           </View> : null}
         </View>
       ))}
-      {progress ? <Text style={styles.pendingAttachments}>{progress}</Text> : null}
+      {progress ? <Text style={styles.pendingAttachments}>{stepTimeText(progressAt) ? stepTimeText(progressAt) + " · " : ""}{progress}</Text> : null}
       {proof ? <Text style={styles.pendingAttachments}>{proof === "VERIFIED" ? tr("Activity verified") : tr("Activity recorded")}</Text> : null}
       {busy ? <Pressable onPress={() => {
         if (outbox.activeKey) void client.cancelTurn(outbox.activeKey).then(value =>
@@ -250,6 +263,7 @@ const styles = StyleSheet.create({
   userText: { color: "#f4f6f9" },
   agentText: { color: "#d3d9e0" },
   attachmentTag: { color: "#aeb9c4", fontSize: 12, marginTop: 6 },
+  messageTime: { color: "#aeb9c4", fontSize: 11, marginTop: 6 },
   answerState: { color: "#8fa0b2", fontSize: 10, marginTop: 6, textTransform: "uppercase" },
   pendingAttachments: { color: "#8fa0b2", fontSize: 12, paddingVertical: 6 },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
