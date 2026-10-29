@@ -1281,6 +1281,9 @@ class KindListing(NamedTuple):
     order: str = "newest"
     limit: int | None = None
     min_bytes: int | None = None
+    #: A word the file name must hold: "the newest screenshot" is a screenshot, not the newest picture of any
+    #: kind (measured 2026-10-28: a cat photo would have answered for it).
+    name_contains: str = ""
 
 
 def _listing_match(text: str) -> re.Match[str] | None:
@@ -1356,8 +1359,10 @@ def machine_kind_listing_intent(text: str) -> KindListing | None:
     min_bytes = None
     if (size := _SIZE_FILTER_RE.search(raw)) is not None:
         min_bytes = int(float(size.group("size")) * {"kb": 1024, "mb": 1024**2, "gb": 1024**3}[size.group("unit").lower()])
-    listing = KindListing(kind, place, _age_days(raw), order, limit, min_bytes)
-    if not kind and listing[2:] == (None, "newest", None, None) and not groups.get("by"):
+    word = str(groups.get("word") or "").lower()
+    listing = KindListing(kind, place, _age_days(raw), order, limit, min_bytes,
+                          "screenshot" if word.startswith("screenshot") else "")
+    if not kind and listing[2:6] == (None, "newest", None, None) and not groups.get("by"):
         # Plain "files" with nothing to filter by: "what are the folders and files on my desktop"
         # is the folder listing's, and "can you see my files?" asks what VOOL can do.
         return None
@@ -1431,6 +1436,63 @@ _TO_PHONE_RE = re.compile(
 )
 _SEND_TAIL_RE = re.compile(r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now|asap)?[\s,.!?]*$", re.I)
 _SEND_PATH_RE = re.compile(r"^(?:~|/)[^\s]*$")
+
+
+_OPEN_NEWEST_RE = re.compile(
+    r"^\s*(?:(?:please|pls|hey|ok|okay|can\s+you|could\s+you|would\s+you|vool)[\s,]+)*"
+    r"(?:open|view|display|pull\s+up|bring\s+up|show(?:\s+me)?)\s+(?:up\s+)?(?:the\s+|my\s+)?"
+    r"(?P<rank>newest|latest|most\s+recent|last|recent)\s+"
+    r"(?P<word>screenshot|screen\s+shot|photo|picture|pic|image|pdf|video|document|doc|file|recording)"
+    r"(?P<rest>(?:\s+(?:i\s+(?:took|saved|made|downloaded|got)))?(?:\s+(?:in|on|from|inside)\s+(?:the\s+|my\s+)?\w+)?(?:\s+folder)?)"
+    r"[\s,.!?]*(?:please|pls|thanks|thank\s+you|now)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+
+
+def machine_open_newest_intent(text: str) -> KindListing | None:
+    """The newest file of one kind for "open the newest screenshot", "show me the latest photo on my desktop".
+
+    ``place`` ``""`` when no folder is named. Measured 2026-10-28 on qwen3:8b: after listing the Desktop,
+    "open the newest screenshot" went to the model, which said "I'll open the newest screenshot for you"
+    and ran nothing.
+    """
+    raw = " ".join(str(text or "").split())
+    match = _OPEN_NEWEST_RE.match(raw)
+    if match is None:
+        return None
+    word = re.sub(r"\s+", "", match.group("word").lower())
+    rest = str(match.group("rest") or "")
+    named = machine_kind_listing_intent(f"show me the newest {word}{rest}") if rest.strip() else None
+    if named is not None:
+        return named._replace(limit=1, order="newest", max_age_days=None)
+    if re.search(r"\b(?:in|on|from|inside)\b", rest, re.IGNORECASE):
+        return None  # a place this reader does not know is not guessed
+    kind = _KIND_WORDS.get(word, "") if word not in ("file", "screenshot") else ("image" if word == "screenshot" else "")
+    return KindListing(kind, "", None, "newest", 1, None, "screenshot" if word == "screenshot" else "")
+
+
+_OPEN_NEWEST_ONE_RE = re.compile(
+    r"^\s*(?:(?:please|pls|ok|okay|and|now|can\s+you|could\s+you)[\s,]+)*"
+    r"(?:open|view|display|pull\s+up|show(?:\s+me)?|send(?:\s+me)?)\s+(?:up\s+)?(?:the\s+)?"
+    r"(?:newest|latest|most\s+recent|last)\s+one[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
+    re.IGNORECASE,
+)
+_LISTED_PLACE_RE = re.compile(r"(?:under|in)\s+`?~/(?P<place>Desktop|Downloads|Documents|Pictures)`?", re.IGNORECASE)
+
+
+def machine_open_newest_one_followup(text: str, previous_reply: str) -> KindListing | None:
+    """"open the latest one" right after VOOL listed a folder: the newest file in that folder.
+
+    Measured 2026-10-28: after "show me whats on my desktop", "open the latest one" was read as a request for the
+    latest news and answered that web lookups are off. Only the folder the previous reply listed is used; with
+    none, nothing is guessed.
+    """
+    if not _OPEN_NEWEST_ONE_RE.match(" ".join(str(text or "").split())):
+        return None
+    listed = _LISTED_PLACE_RE.search(str(previous_reply or "").split("\n", 1)[0])
+    if listed is None:
+        return None
+    return KindListing("", listed.group("place").capitalize(), None, "newest", 1, None, "")
 
 
 def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> SendToPhone | None:

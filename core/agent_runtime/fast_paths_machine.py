@@ -26,6 +26,7 @@ from core.execution.constants import (
     machine_file_search_intent,
     machine_folder_size_intent,
     machine_kind_listing_intent,
+    machine_open_newest_intent,
     machine_send_to_phone_intent,
     machine_place_file_read_path,
     machine_folder_audit_intent,
@@ -1800,6 +1801,50 @@ def _places_text(places: list[str]) -> str:
     return ", ".join(places[:-1]) + " and " + places[-1] if len(places) > 1 else (places[0] if places else "")
 
 
+def _open_newest_one_followup(user_input: str, *, session_id: str, source_context: dict | None) -> Any:
+    """The folder VOOL listed last in this chat, for "open the latest one"; ``None`` otherwise."""
+    from core.execution.constants import machine_open_newest_one_followup
+
+    if not re.search(r"\bone\b", str(user_input or ""), re.IGNORECASE):
+        return None
+    try:
+        transcript, _source = canonical_runtime_transcript(
+            session_id=session_id, source_context=source_context, current_user_text=user_input,
+            max_messages=4, max_chars=4000,
+        )
+    except Exception:
+        return None
+    replies = [str(row.get("content") or "") for row in transcript or [] if str(row.get("role") or "") == "assistant"]
+    return machine_open_newest_one_followup(user_input, replies[-1]) if replies else None
+
+
+#: Said on the computer after the newest file is found: VOOL has no tool that opens a file in another app.
+OPEN_ON_COMPUTER_NOTE = "I can't open files in other apps from the chat, so it is still in that folder."
+
+
+def open_newest_file(listing: Any, *, phone_turn: bool, source_context: dict | None) -> Any:
+    """Find the newest file of a kind; send it to the phone on a phone turn, else say where it is.
+
+    Never claims it was opened: measured 2026-10-28 on qwen3:8b, "open the newest screenshot" was answered
+    "I'll open the newest screenshot for you" with no tool run. ``None`` when no tool ran.
+    """
+    from core.execution.constants import SendToPhone
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    if phone_turn:
+        return send_file_to_phone(SendToPhone(listing=listing), source_context=source_context)
+    listed = list_files_of_kind(listing._replace(limit=1), source_context=source_context)
+    if listed is None or not getattr(listed, "ok", False):
+        return listed
+    if not list((getattr(listed, "details", None) or {}).get("entries") or []):
+        return listed  # "No screenshots in ~/Desktop." is the answer
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status=str(getattr(listed, "status", "") or "executed"),
+        response_text=f"{listed.response_text}\n\n{OPEN_ON_COMPUTER_NOTE}",
+        details=dict(getattr(listed, "details", None) or {}),
+    )
+
+
 def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
     """List one KIND of file in a folder (or Desktop, Downloads and Documents), newest first.
 
@@ -1850,6 +1895,10 @@ def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
             label = str(entry.get("path") or "")
             if suffixes and not label.lower().endswith(suffixes):
                 continue
+            if listing.name_contains and listing.name_contains not in re.sub(
+                r"[\s_\-]+", "", os.path.basename(label).lower()
+            ):
+                continue
             try:
                 info = os.stat(os.path.expanduser(label))
             except OSError:
@@ -1864,6 +1913,8 @@ def list_files_of_kind(listing: Any, *, source_context: dict | None) -> Any:
     else:
         found.sort(key=lambda row: row[0], reverse=listing.order != "oldest")
     singular, plural = _kind_nouns(kind)
+    if listing.name_contains == "screenshot":
+        singular, plural = "screenshot", "screenshots"
     noun = singular if len(found) == 1 else plural
     where = f"~/{listing.place}" if listing.place else _places_text(places)
     when = "" if listing.max_age_days is None else (
@@ -2235,6 +2286,22 @@ def maybe_handle_direct_machine_read_request(
                 source_context=source_context,
                 intent="machine.send_to_phone",
                 execution=sent,
+                reason="machine_read_fast_path",
+            )
+    # "open the newest screenshot": VOOL finds it; a phone gets the file, the computer is told where it is.
+    open_newest = machine_open_newest_intent(user_input) or _open_newest_one_followup(
+        user_input, session_id=session_id, source_context=source_context
+    )
+    if open_newest is not None:
+        opened = open_newest_file(open_newest, phone_turn=_phone_turn(source_context), source_context=source_context)
+        if opened is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.send_to_phone" if _phone_turn(source_context) else "machine.list_directory",
+                execution=opened,
                 reason="machine_read_fast_path",
             )
     # "the pictures in my Downloads from the last two days" is one KIND of file in one folder.
