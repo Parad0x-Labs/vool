@@ -219,6 +219,12 @@ def model_in_use(boot_model: str) -> str:
         from core.model_registry import ModelRegistry
 
         manifests = [m for m in ModelRegistry().list_manifests(enabled_only=True) if manifest_is_local(m)]
+        if not any(author_certification(m).certified for m in manifests):
+            # Nothing is ready yet. While boot (or the button) is making a model ready, that is the
+            # model VOOL is about to use, not the boot guess the check will replace.
+            from core.final_answer_authorship import _local_model_being_checked
+
+            return _local_model_being_checked() or tag
         if tag.lower() not in unready_local_model_names(manifests):
             return tag
         for manifest in manifests:

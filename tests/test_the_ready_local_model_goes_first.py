@@ -225,7 +225,11 @@ def test_what_vool_says_it_runs_is_the_ready_model(monkeypatch) -> None:
     assert model_in_use("qwen2.5:7b") == "qwen3:8b"
     assert model_in_use("qwen3:8b") == "qwen3:8b"
     monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    monkeypatch.setattr(authorship, "_local_model_being_checked", lambda: "")
     assert model_in_use("qwen2.5:7b") == "qwen2.5:7b"
+    # While boot is making qwen3:8b ready, that is the model named, not the boot guess.
+    monkeypatch.setattr(authorship, "_local_model_being_checked", lambda: "qwen3:8b")
+    assert model_in_use("qwen2.5:7b") == "qwen3:8b"
 
 
 def test_the_builder_generates_with_an_installed_ready_model(monkeypatch) -> None:
