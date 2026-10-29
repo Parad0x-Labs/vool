@@ -144,7 +144,8 @@ _PASSIVE_DONE = re.compile(
     r"(?:now\s+|all\s+|successfully\s+)?(?:" + _DONE_PARTICIPLES + r")\b"
     r"|\b(?:went out|is (?:now )?(?:in|on) your (?:calendar|schedule|agenda)|is now (?:on|off|set|active|running)"
     r"|(?:is|are) (?:on|off) now"
-    r"|(?:timer|reminder|alarm) is (?:running|on|active|ticking)|is (?:now )?live)\b",
+    r"|(?:timer|reminder|alarm) is (?:running|on|active|ticking)|is (?:now )?live"
+    r"|you" + _A + r"ll (?:get|receive) (?:a |an )?(?:\w+ )?(?:reminder|notification|ping|nudge|alert))\b",
     re.I,
 )
 _NOUN_DONE = re.compile(
@@ -158,7 +159,7 @@ _NOUN_DONE = re.compile(
 _SUBJECTLESS_DONE = re.compile(
     r"^(?:sent|emailed|texted|tweeted|posted|replied|added|scheduled|rescheduled|booked|cancel+ed|saved"
     r"|created|moved|updated|deleted|removed|forwarded|archived|cleaned|enabled|disabled|activated"
-    r"|deactivated|turned (?:on|off)|switched (?:on|off|to|back)|changed|started|now running|now using)\b"
+    r"|deactivated|turned (?:on|off)|switched (?:on|off|to|back)|changed|started|now running|now using|composed|confirmed)\b"
     r"|^(?:switching|changing|turning|sending|cancel+ing|adding|scheduling|moving|enabling|disabling"
     r"|reminding you|posting|forwarding)\b"
     r"(?![^.!?\n]*\b(?:is|are|can|takes|means|lets|needs|requires|works|fails|often|usually|should|will"
@@ -176,6 +177,8 @@ _READ_REPORT = re.compile(
     r"|a couple of)\s+(?:new\s+|unread\s+)?(?:e-?mails?|messages?|meetings?|events?|appointments?|reminders?"
     r"|notes?|videos?|photos?|files?)\b"
     r"|\binbox:\s*\d+"
+    r"|\b(?:no|nothing) (?:\w+ ){0,2}(?:processes|apps|threats|malware)\b[^.!?\n]{0,20}\b(?:active|running|found)\b"
+    r"|\b(?:workspace|system|computer|machine|mac|pc) is (?:secure|safe|clean)\b"
     r"|(?:^|\byour )(?:inbox|mailbox|calendar|schedule|agenda|system|machine|computer) (?:is|looks) (?:completely |totally |pretty )?"
     r"(?:empty|clear|free|clean)\b",
     re.I,
@@ -202,14 +205,14 @@ _FREE_SLOT = re.compile(
 # The other answer languages VOOL ships most (fr, es, de): a done participle or a first-person
 # future, said by VOOL (first person), about the user's things (possessive), or as a done-mark.
 _FOREIGN_DONE = re.compile(
-    r"\b(?:d[ée]fini(?:e|s|es)?|activ[ée](?:e|s|es)?|d[ée]sactiv[ée](?:e|s|es)?|r[ée]gl[ée](?:e|s|es)?"
-    r"|chang[ée](?:e|s|es)?|modifi[ée](?:e|s|es)?|envoy[ée](?:e|s|es)?|annul[ée](?:e|s|es)?"
-    r"|ajout[ée](?:e|s|es)?|programm[ée](?:e|s|es)?|enregistr[ée](?:e|s|es)?|supprim[ée](?:e|s|es)?"
+    r"\b(?:d[ée]fini(?:e|s|es)?|activé(?:e|s|es)?|d[ée]sactivé(?:e|s|es)?|r[ée]glé(?:e|s|es)?"
+    r"|changé(?:e|s|es)?|modifié(?:e|s|es)?|envoyé(?:e|s|es)?|annulé(?:e|s|es)?"
+    r"|ajouté(?:e|s|es)?|programmé(?:e|s|es)?|enregistré(?:e|s|es)?|supprimé(?:e|s|es)?"
     r"|configurad[oa]s?|establecid[oa]s?|activad[oa]s?|desactivad[oa]s?|enviad[oa]s?|cancelad[oa]s?"
     r"|añadid[oa]s?|agregad[oa]s?|programad[oa]s?|cambiad[oa]s?|guardad[oa]s?|borrad[oa]s?"
     r"|eingestellt|aktiviert|deaktiviert|gesendet|geschickt|verschickt|abgesagt|storniert|hinzugef[üu]gt"
     r"|gesetzt|ge[äa]ndert|gespeichert|umgestellt|eingetragen|gel[öo]scht|verschoben|verlegt|eingeplant|erstellt|angelegt"
-    r"|d[ée]plac[ée](?:e|s|es)?|cr[ée][ée](?:e|s|es)?|movid[oa]s?|cread[oa]s?|eliminad[oa]s?"
+    r"|d[ée]placé(?:e|s|es)?|créé(?:e|s|es)?|movid[oa]s?|cread[oa]s?|eliminad[oa]s?"
     r"|j" + _A + r"enverrai|j" + _A + r"ajouterai|je (?:vous|te) rappellerai|recordar[ée]|enviar[ée]|añadir[ée]"
     r"|programar[ée]|ich erinnere|ich schicke|ich sende|ich trage|mis(?:e|es)? [àa] jour|actualizad[oa]s?|aktualisiert)\b",
     re.I,
@@ -304,7 +307,11 @@ def _claim_form(sentence: str) -> str:
         return "read"
     if _FREE_SLOT.search(body):
         return "read"
-    if (_FOREIGN_DONE.search(body) and _FOREIGN_SPEAKER.search(body)) or _FOREIGN_STATE.search(body):
+    foreign = _FOREIGN_DONE.search(body)
+    if foreign and (_FOREIGN_SPEAKER.search(body) or len(body[: foreign.start()].split()) <= 2):
+        # "Langue définie à français." -- the done participle right after its noun is a report.
+        return "action"
+    if _FOREIGN_STATE.search(body):
         return "action"
     return ""
 
@@ -359,7 +366,7 @@ def action_claims(content: str) -> list[tuple[str, str, str]]:
             if not form:
                 continue
             sources = _sources_of(sentence, form)
-            if not sources and form == "action":
+            if not sources:
                 unnamed.append(sentence)
                 if _NOUN_DONE.search(sentence):
                     # "Message sent to Jo." names what was done, not where: the request decides.
@@ -373,7 +380,7 @@ def action_claims(content: str) -> list[tuple[str, str, str]]:
         # "Forwarded the invoice to Priya. Sent it from your email." -- a done-sentence that names
         # no source belongs to the claim the rest of the reply makes.
         first = next(c[2] for c in claims if c[2] != "generic") if any(c[2] != "generic" for c in claims) else claims[0][2]
-        claims = [(s, "action", first) for s in unnamed] + claims
+        claims = [(s, _claim_form(s), first) for s in unnamed] + claims
     return claims
 
 
