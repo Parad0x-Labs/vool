@@ -1565,7 +1565,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <section class="set-sec">
         <h3>Limits <span class="set-sub">power-user caps</span></h3>
         <div class="set-field"><label for="setReserve">Keep free for me <span id="setReserveVal" class="set-num">20%</span> <span class="set-sub2">RAM heavy tasks won&rsquo;t touch</span></label><input type="range" id="setReserve" min="10" max="80" step="5" class="set-range"></div>
-        <div class="set-field row"><label for="setTokenBudget">Daily cloud spending cap <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
+        <div class="set-field row"><label for="setTokenBudget">Daily cloud use guide <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
         <p class="set-help">The RAM reserve is enforced live by the resource governor (a bigger reserve means VOOL leaves more for you). The token budget is a guide today &mdash; nothing enforces it yet and the Usage panel below does not chart against it. A hard daily cut-off is coming next.</p>
       </section>
       <div class="set-row" style="margin-bottom:14px">
@@ -1612,7 +1612,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <div id="wsList" class="keys-list" aria-live="polite"></div>
       </section>
       <section class="set-sec">
-        <h3>Word usage <span class="set-sub">local free vs cloud paid</span></h3>
+        <h3>Usage <span class="set-sub">local free vs cloud paid</span></h3>
         <p class="set-help">How many tokens ran free on your local model vs a paid cloud lane, per model. Counts served responses on this machine.</p>
         <div class="usage-tabs" id="usageTabs" role="tablist">
           <button type="button" class="usage-tab" data-range="today" role="tab">Today</button>
@@ -13252,12 +13252,12 @@ async function renderUsage(range) {
   const paidUsd = Number(paid.usd || 0);
   const paidVal = fmtInt(paid.total_tokens) + (paid.total_tokens ? ('  ' + (paid.all_actual ? '$' : '~$') + paidUsd.toFixed(4)) : '');
   head.appendChild(usageCard('paid', 'Cloud (paid) tokens', paidVal));
-  head.appendChild(usageCard('', 'Total words', fmtInt(data && data.total_tokens)));
+  head.appendChild(usageCard('', 'Total word pieces', fmtInt(data && data.total_tokens)));
   usageBodyEl.appendChild(head);
   if (!rows.length) { const e = document.createElement('div'); e.className = 'usage-empty'; e.textContent = 'No usage recorded in this window yet.'; usageBodyEl.appendChild(e); return; }
   const table = document.createElement('table'); table.className = 'usage-table';
   const thead = document.createElement('thead'); const htr = document.createElement('tr');
-  ['Model', 'Words', 'Answers', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
+  ['Model', 'Word pieces', 'Answers', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
   thead.appendChild(htr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
   rows.slice(0, 30).forEach((row) => {

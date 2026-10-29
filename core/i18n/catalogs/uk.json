@@ -2850,7 +2850,7 @@
     "settings.row.live_browser.help": "Переглядайте кожну дію перед виконанням. Сценарії сторінок вимкнено. Для оплати використовуйте гаманець.",
     "settings.row.live_browser.label": "Браузер"
   },
-  "source_catalog_sha256": "e88e101ded5ca4dc7db4a4ab7f00670f015bd0384e42dec4b2b518db0224aee4",
+  "source_catalog_sha256": "4d5b4ee37098f92ba49993a7b3a7d42ce383f13676b7326a203972c804bff422",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
