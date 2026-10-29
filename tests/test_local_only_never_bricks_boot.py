@@ -41,7 +41,7 @@ def test_local_only_with_no_backend_still_boots(monkeypatch):
     selection = resolve_backend_selection(manager=_NoBackend(), allow_remote_only=False)
     assert selection.backend_name == "local_only_no_backend"
     # The reason must tell the operator how to get out, not just that something is missing.
-    assert "Local Only" in selection.reason
+    assert "Local-only" in selection.reason
     assert "Settings" in selection.reason or "local model" in selection.reason
 
 
