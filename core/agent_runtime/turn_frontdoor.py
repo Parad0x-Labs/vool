@@ -835,6 +835,7 @@ def handle_turn_frontdoor(
     free_memory_reply = None if action_forbidden else maybe_handle_free_memory_command(
         _intent_input,
         owner_local=_owner_local,
+        source_context=source_context,
     )
     if free_memory_reply is not None:
         return {
@@ -847,7 +848,9 @@ def handle_turn_frontdoor(
                 reason="governor_free_memory",
             )
         }
-    hog_reply = maybe_handle_resource_hog_question(_intent_input, owner_local=_owner_local)
+    hog_reply = maybe_handle_resource_hog_question(
+        _intent_input, owner_local=_owner_local, source_context=source_context
+    )
     if hog_reply is not None:
         return {
             "result": agent._fast_path_result(

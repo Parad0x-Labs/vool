@@ -664,6 +664,19 @@ def _machine_tool_fast_path_result(
         summary=step_summary,
         observation=observation,
     )
+    # The read this lane just ran is this turn's observation. Recorded on the shared same-turn
+    # channel (as the live-info and currency lanes do), or the final-output backstop reads a turn
+    # that measured the process table as a turn that measured nothing and swaps the real answer for
+    # "I didn't run any live lookup on this turn" (re-audit 2026-10-29, files:F31). A failed run is
+    # recorded as ok=False, which counts for nothing.
+    if isinstance(source_context, dict) and observation:
+        recorded = [
+            dict(item)
+            for item in list(source_context.get("runtime_tool_observations") or [])
+            if isinstance(item, dict)
+        ]
+        recorded.append({**observation, "intent": observation.get("intent") or intent, "ok": ok})
+        source_context["runtime_tool_observations"] = recorded[-12:]
     approval_request = dict(details.get("approval_request") or {})
     if approval_request:
         # The event model maps task_pending_approval to permission.required and renders the
