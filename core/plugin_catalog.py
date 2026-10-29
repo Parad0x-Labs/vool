@@ -172,6 +172,10 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
             if not md.is_file():
                 continue
             front = _skill_frontmatter(md)
+            # A shipped pack's copy of a developer skill (audience: developer) stays off a
+            # person's list, like the native library's; an external pack cannot hide by it.
+            if first_party and front.get("audience", "").strip().lower() == "developer" and not _developer_skills_on():
+                continue
             skills.append({
                 "name": front.get("name") or skill_dir.name,
                 # The one disable store (core.native_skill_library) turns a skill off by its name;
@@ -195,6 +199,12 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
         "permissions": [str(p) for p in (manifest.get("permissions") or []) if str(p).strip()],
         "skills": skills,
     }
+
+
+def _developer_skills_on() -> bool:
+    from core.native_skill_library import developer_skills_on
+
+    return developer_skills_on()
 
 
 def _disabled_skill_names() -> set[str]:

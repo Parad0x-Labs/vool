@@ -293,10 +293,30 @@ def test_an_installed_skill_carries_its_on_off_state(tmp_path) -> None:
 def test_the_skills_panel_has_an_on_off_button_that_uses_the_skill_store() -> None:
     page = (REPO / "core" / "vool_chat_page.py").read_text(encoding="utf-8")
     render = page.split("function renderSkills(d, query) {", 1)[1].split("\nfunction ", 1)[0]
-    assert "toggleSkill(s.name, off)" in render
+    assert "toggleSkill(s.name, off, tg, st)" in render
     assert "p-toggle" in render
-    toggle = page.split("async function toggleSkill(id, enable) {", 1)[1].split("\n}\n", 1)[0]
+    # The button speaks the person's language and names its skill for a screen reader.
+    assert "pageT('plugins.enable', 'Enable')" in render and "pageT('plugins.disable', 'Disable')" in render
+    assert "aria-label" in render
+    toggle = page.split("async function toggleSkill(id, enable, btn, status) {", 1)[1].split("\n}\n", 1)[0]
     assert "'/api/skills/enable'" in toggle
+    # While it works the button is held and the card says so; a failure is said, never silent.
+    assert "btn.disabled = true" in toggle and "toast(pageT('addons.request_failed'" in toggle
+
+
+def test_the_shipped_database_pack_does_not_list_its_developer_skill(monkeypatch) -> None:
+    from core.plugin_catalog import _plugin_entry
+
+    pack = REPO / "plugins" / "vool-database"
+    entry = _plugin_entry(pack, bundled=True)
+    assert entry is not None and entry["skills"] == [], entry["skills"]
+    monkeypatch.setenv("VOOL_DEVELOPER_SKILLS", "1")
+    entry = _plugin_entry(pack, bundled=True)
+    assert entry is not None and [s["name"] for s in entry["skills"]] == ["vool-database"]
+    # An external pack cannot hide a skill from the person with the developer mark.
+    monkeypatch.delenv("VOOL_DEVELOPER_SKILLS")
+    entry = _plugin_entry(pack, bundled=False)
+    assert entry is not None and [s["name"] for s in entry["skills"]] == ["vool-database"]
 
 
 @pytest.mark.parametrize(
