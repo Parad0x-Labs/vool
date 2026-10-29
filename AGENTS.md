@@ -105,6 +105,8 @@ To write, lint, install and test a VOOL skill (SKILL.md format, `triggers`, the 
 SDK, zip import, `skill.install path=<folder>`, and how picking works), follow
 [docs/guides/build-and-test-a-skill.md](docs/guides/build-and-test-a-skill.md). Test a skill
 locally, with phrasings that must pick it and one that must not, before any publishing step.
+Start with `python -m tools.community_skills new <folder> --name <skill-name>` and check picking with
+`python -m tools.community_skills try <folder> --pick "..." --not-pick "..."`.
 
 ## Fast local checks
 

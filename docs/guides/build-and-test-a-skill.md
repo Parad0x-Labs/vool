@@ -10,6 +10,31 @@ skill can simply ask in chat: see [Make your own skill](make-your-own-skill.md).
 The order is: **write -> lint -> install locally -> turn on -> test -> update -> publish**.
 Do not publish a skill you have not installed and tested on your own VOOL first.
 
+## Quick start: two commands
+
+From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
+
+```sh
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills new meeting-actions --name meeting-actions --author "Your Name"
+```
+
+This writes `meeting-actions/SKILL.md` (a starter with the right frontmatter), `LICENSE` (the
+MIT text with your name and the year) and `metadata.json` (for packaging later). Edit
+`SKILL.md`: replace the description, the two trigger phrases and the steps (every line that says
+REPLACE). Then check that VOOL picks it for the asks you mean, and leaves it alone otherwise:
+
+```sh
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills try meeting-actions \
+  --pick "here are my meeting notes, what are the action items?" \
+  --pick "turn these meeting notes into a to-do list" \
+  --not-pick "write a poem about autumn"
+```
+
+`try` validates the skill, installs it into a throwaway profile it makes and removes itself
+(never your real VOOL), and prints `ok` or `FAIL` for each ask, then a summary line. It exits 0
+only when every ask behaved. Fix the description or triggers and run it again until it passes.
+The sections below explain each part, and how to install the skill in your own VOOL.
+
 ## 1. The SKILL.md format
 
 A skill is one folder holding a `SKILL.md`: a YAML frontmatter block, then the instructions.
