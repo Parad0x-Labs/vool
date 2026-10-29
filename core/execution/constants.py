@@ -1345,6 +1345,11 @@ _PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directorie
 _PRESENT_DEVICE_WORDS = frozenset({
     "phone", "phones", "laptop", "laptops", "computer", "computers", "pc", "mac", "tv", "tablet", "tablets",
 })
+# "find disk bloat in <folder>" asks the storage scan what takes the space; the object names the
+# disk or the clutter, never words a file's name carries, so the cleanup lane keeps it.
+_PRESENT_STORAGE_WORDS = frozenset({
+    "disk", "disks", "drive", "drives", "ssd", "storage", "space", "bloat", "junk", "clutter", "temp", "cache",
+})
 
 
 class PresentFileAsk(NamedTuple):
@@ -1379,7 +1384,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         offset = raw.find(token, offset) + len(token)
     if not kept:
         return None  # "show me what you found" names nothing to search for
-    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS for word in kept):
+    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
+           or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
     rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
     if _FILE_OTHER_ACTION_RE.search(rest):

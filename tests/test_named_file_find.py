@@ -381,6 +381,8 @@ def test_a_present_file_ask_parses(text, expected):
 
 @pytest.mark.parametrize("text", [
     "read me my to do list", "find my phone", "copy notes.txt to desktop",
+    # The storage scan's asks (test_operator_actions: 'find disk bloat in "<dir>"').
+    'find disk bloat in "/tmp/somewhere"', "find the junk on my drive", "show me what's using space",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent
