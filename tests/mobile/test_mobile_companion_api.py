@@ -710,7 +710,7 @@ class TestJourneyActions:
     def test_hide_name_on_screen_reaches_the_phone_and_never_the_stored_approval(self, runtime, tmp_path, monkeypatch):
         """The phone shows what the desktop shows: with "Hide my name on screen" on, a pending
         approval naming a file in the home folder reads ~/... on the phone, the approval itself
-        keeps the real path, and the phone can still resolve it by id."""
+        keeps the real path, and the desktop's approval is still answered only on the computer."""
         from core import screen_privacy
         from core.user_preferences import load_preferences, save_preferences
 
@@ -739,8 +739,9 @@ class TestJourneyActions:
         assert "rivermaple" not in masked.lower() and "\\u2022\\u2022\\u2022" in masked
         import core.mode_permission_policy as mpp
         assert "rivermaple" in json.dumps(mpp._APPROVALS[token], default=str)   # stored bytes unchanged
-        resolved = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
-        assert resolved.status == 200 and _body(resolved)["result"]["approval"]["status"] == "denied"
+        # The desktop raised it (approved by sls 14:13Z Oct 27: a phone answers only what its own chats asked for).
+        refused = _companion(claim, "approvals.resolve", {"approval_id": token, "decision": "deny"}, runtime=runtime)
+        assert refused.status == 403 and _body(refused)["code"] == "approve_on_computer"
 
     def test_notifications_poll_classifies_completion_and_failure(self, runtime):
         from core.runtime_task_events import emit_runtime_event

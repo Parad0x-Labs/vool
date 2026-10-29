@@ -2,14 +2,17 @@
 
 "my laptop has been proper sluggish today, whats slowing it down?" got a clarifying question; "i took some
 screenshots last week i think, where are they?" got "I couldn't get a usable model response"; "what background
-services are running?" waited for an ambiguity check that timed out. Each is now answered by the tool that
-measures it.
+services are running?" waited for an ambiguity check that timed out; "how full is my computers storage rn?" got
+"that tool didn't run"; "in my Pictures folder, anything from the last few days only?" tried to read a file named
+Pictures. Each is now answered by the tool that measures it.
 """
 from __future__ import annotations
 
 import pytest
 
 from core.execution.constants import (
+    machine_diagnostics_intent,
+    machine_file_search_intent,
     machine_kind_listing_covers_turn,
     machine_kind_listing_intent,
     machine_live_load_intent,
@@ -48,6 +51,8 @@ def test_background_services_are_listed():
     ("i took some screenshots last week i think, where are they?", "image", "", 7.0, "screenshot"),
     ("I downloaded a few pdfs yesterday, where did they go?", "pdf", "Downloads", 2.0, ""),
     ("so i took some photos, can you find them", "image", "", None, ""),
+    ("in my Pictures folder, anything from the last few days only?", "", "Pictures", 3.0, ""),
+    ("anything new in my downloads from today?", "", "Downloads", 1.0, ""),
 ])
 def test_things_i_made_and_lost_are_listed(said, kind, place, days, name):
     listing = machine_kind_listing_intent(said)
@@ -58,6 +63,8 @@ def test_things_i_made_and_lost_are_listed(said, kind, place, days, name):
 
 @pytest.mark.parametrize("said", [
     "i took some photos, what should i call the album",
+    "in my downloads folder, anything i should delete?",
+    "find my pictures folder",
     "i took some screenshots last week i think",
 ])
 def test_saying_i_made_something_is_not_a_listing(said):
@@ -67,3 +74,29 @@ def test_saying_i_made_something_is_not_a_listing(said):
 def test_a_second_ask_keeps_the_turn_on_the_planner():
     said = "i took some screenshots, where are they? and email them to bob"
     assert not machine_kind_listing_covers_turn(said)
+
+
+@pytest.mark.parametrize("said", [
+    "how full is my computers storage rn?", "is my disk gonna fill up soon or am i fine?", "how full is my laptop's drive",
+])
+def test_a_full_disk_question_reads_the_disk(said):
+    assert machine_diagnostics_intent(said) == "machine.disk_usage"
+
+
+@pytest.mark.parametrize("said", [
+    "how full is the venue storage room", "is my storage unit gonna fill up", "will my calendar fill up",
+])
+def test_other_storage_is_not_this_disk(said):
+    assert machine_diagnostics_intent(said) is None
+
+
+@pytest.mark.parametrize(("said", "expected"), [
+    # Merged 0.7.6 kind nouns made "resume" and "cv" kinds; they are still what the file is called.
+    ("find my resume pdf", ("pdf", ("resume",), "")),
+    ("where did i put my cv? the 2026 one", ("", ("cv",), "")),
+    # An app to get, and the newest of a kind (the listing's), are not a file searched by name.
+    ("find the cheapest pdf editor", None),
+    ("find the newest screenshot from my downloads", None),
+])
+def test_file_lookups_after_the_merge(said, expected):
+    assert machine_file_search_intent(said) == expected

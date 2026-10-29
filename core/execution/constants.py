@@ -619,8 +619,12 @@ _STORAGE_CAPACITY_ASK_RE = re.compile(
     rf"(?:\S+\s+){{0,2}}?{_STORAGE_SUBJECT}\b"
     # FULLNESS -- "how full is my disk", "is my drive nearly full", "how much of my disk is used",
     # "percentage of disk used". The device noun is required: "how full is the venue" is not this.
+    # "how full is my computers storage rn?", "is my disk gonna fill up soon" (phone audit 2026-10-29).
     rf"|\bhow\s+full\s+(?:is|are)\s+(?:my|the|this)?\s*{_STORAGE_DEVICE}\b"
     rf"|\b(?:my|the|this)\s+{_STORAGE_DEVICE}\b(?:\s+\S+){{0,3}}?\s+(?:full|filling\s+up)\b"
+    # "how full is my computers storage rn?", "is my disk gonna fill up soon" (phone audit 2026-10-29).
+    rf"|\bhow\s+full\s+(?:is|are)\s+(?:my|this)\s+(?:computer|mac|laptop|pc|machine)(?:'?s)?\s+{_STORAGE_DEVICE}\b"
+    rf"|\b(?:my|this)\s+{_STORAGE_DEVICE}\b(?!\s+(?:units?|rooms?|lockers?|boxe?s?|sheds?|facilit))(?:\s+\S+){{0,3}}?\s+fill\s+up\b"
     rf"|\bhow\s+much\s+of\s+(?:my|the|this)\s+{_STORAGE_DEVICE}\b(?:\s+\S+){{0,3}}?\s+used\b"
     rf"|\b(?:percentage|percent|%)\s+of\s+(?:my\s+|the\s+|this\s+)?{_STORAGE_DEVICE}\b(?:\s+\S+){{0,2}}?\s*used\b"
     # FIT -- "do i have room for a 50gb download", "have i got enough disk for a 20gb video". A
@@ -1025,10 +1029,13 @@ _FILE_DESCRIBED_ON_DISK_RE = re.compile(
 )
 _ON_THIS_COMPUTER_RE = re.compile(r"\bon\s+(?:my|this)\s+(?:mac|computer|laptop|pc|machine|imac|macbook)\b", re.IGNORECASE)
 _FILE_DESCRIBED_STOPWORDS = frozenset(
-    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
+    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "newest", "oldest", "most", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
 )
 _FILE_DESCRIBED_REJECT_RE = re.compile(
-    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b",
+    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b"
+    # "the cheapest pdf editor" is an app to get, not a file to find.
+    r"|\b(?:pdf|photo|picture|image|video|music|audio|mp3|mp4)\s+(?:editors?|readers?|viewers?|converters?|apps?|tools?|"
+    r"software|programs?|makers?|players?|compressors?)\b",
     re.IGNORECASE,
 )
 # "find day4.png" / "where is invoice.pdf": a search verb and a name with a known extension.
@@ -1104,6 +1111,11 @@ _LOOSE_NAME_STOPWORDS = frozenset({
 })
 
 
+# "find my resume pdf": a kind noun the person also calls the file by (the merged 0.7.6 kind words made
+# these nouns, so the loose lookup refused them as a bare kind).
+_FILE_NOUNS_THAT_NAME_IT = frozenset({"resume", "cv"})
+
+
 def _loose_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
     """The same lookup said without "named": "find my taxes pdf", "where did I save the invoice"."""
     for shape in _LOOSE_FILE_SEARCHES:
@@ -1113,7 +1125,8 @@ def _loose_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
         name = match.group("name").strip(" .'\"-")
         words = name.lower().split()
         if (
-            not words or words[0] in _LOOSE_NAME_STOPWORDS or name.lower() in _FILE_KIND_WORDS
+            not words or words[0] in _LOOSE_NAME_STOPWORDS
+            or (name.lower() in _FILE_KIND_WORDS and name.lower() not in _FILE_NOUNS_THAT_NAME_IT)
             or name.lower() in _FILE_NAME_FILLERS or any(word in ("folder", "folders", "directory") for word in words)
         ):
             return None
@@ -1332,6 +1345,15 @@ _LISTING_SHAPES = (
     re.compile(r"\bwhat\s+(?:have\s+i|did\s+i|i(?:'ve)?)\s+(?:just\s+|recently\s+)?(?P<verb>download)(?:ed)?\b", re.IGNORECASE),
     # "sort my downloads by size"
     re.compile(r"\b(?:sort|order)\s+" + _PLACE_PATTERN + r"(?:\s+folder)?\s+by\s+(?P<by>size|date|age|time)\b", re.IGNORECASE),
+    # "in my Pictures folder, anything from the last few days only?" (phone audit 2026-10-29)
+    re.compile(
+        r"\b(?:in|inside|on)\s+" + _PLACE_PATTERN + r"(?:\s+folder)?[\s,]+(?:is\s+there\s+|got\s+)?(?:anything|any\s+files)\b",
+        re.IGNORECASE,
+    ),
+    # "anything new in my downloads from today?"
+    re.compile(
+        r"\b(?:anything|any\s+files)\s+(?:new\s+|recent\s+)?(?:in|inside|on)\s+" + _PLACE_PATTERN, re.IGNORECASE,
+    ),
     # "i took some screenshots last week i think, where are they?" (phone audit 2026-10-29): a listing only
     # when "where are they" follows, see _WHERE_ARE_THEY_RE.
     re.compile(
@@ -1340,6 +1362,8 @@ _LISTING_SHAPES = (
         re.IGNORECASE,
     ),
 )
+# Shapes that are a listing ask by themselves, with no "find"/"show" cue before them.
+_SELF_CUED_LISTING_SHAPES = _LISTING_SHAPES[-3:]
 # "...where are they", "...can you find them": what turns "i took some screenshots" into a listing.
 _WHERE_ARE_THEY_RE = re.compile(
     r"\bwhere\s+(?:are|did|have|do)\s+(?:they|those|these|it|i\s+(?:put|save|keep)\s+(?:them|those|it))\b"
@@ -1388,7 +1412,9 @@ class KindListing(NamedTuple):
 
 
 def _listing_match(text: str) -> re.Match[str] | None:
-    return next((match for shape in _LISTING_SHAPES if (match := shape.search(text)) is not None), None)
+    # "in my Pictures folder, anything ..." first: "my Pictures folder" alone reads as a folder.
+    shapes = (*_LISTING_SHAPES[-3:-1], *_LISTING_SHAPES)
+    return next((match for shape in shapes if (match := shape.search(text)) is not None), None)
 
 
 def _kind_of(match: re.Match[str]) -> str:
@@ -1435,7 +1461,7 @@ def machine_kind_listing_intent(text: str) -> KindListing | None:
     if match.re is _LISTING_SHAPES[-1]:
         if not _WHERE_ARE_THEY_RE.search(raw[match.end():]):
             return None  # "i took some photos, what should i call the album" is not a listing
-    elif not _KIND_LISTING_CUE_RE.search(raw[: match.start()] or raw):
+    elif match.re not in _SELF_CUED_LISTING_SHAPES and not _KIND_LISTING_CUE_RE.search(raw[: match.start()] or raw):
         return None
     # The verb that makes it a listing ("files I EDITED today") is not an action on the files.
     checked = (raw[: match.start("verb")] + raw[match.end("verb"):]) if match.groupdict().get("verb") else raw
@@ -1506,11 +1532,15 @@ def machine_kind_listing_covers_turn(text: str) -> bool:
     if machine_kind_listing_intent(raw) is None:
         return False
     listing_seen = False
+    whole = _listing_match(raw)
+    if whole is not None and "," in whole.group(0):
+        # "in my Pictures folder, anything from ..." is one listing across its comma.
+        raw = raw[: whole.start()] + " _listing_ " + raw[whole.end():]
     for clause in _LISTING_CLAUSE_SPLIT_RE.split(raw):
         clause = clause.strip(" ,")
         if not clause:
             continue
-        if _listing_match(clause) and not listing_seen:
+        if ("_listing_" in clause or _listing_match(clause)) and not listing_seen:
             listing_seen = True
             continue
         if _RESULTS_CLAUSE_RE.match(clause) or _PICK_LATER_CLAUSE_RE.match(clause) or _WHERE_ARE_THEY_CLAUSE_RE.match(clause):
