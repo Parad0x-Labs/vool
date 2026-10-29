@@ -117,9 +117,9 @@ def test_no_mail_account_answers_from_that_fact() -> None:
             CLAIMS["mail_bullets"][0], turn_id=request_id, source_context=context, connected=_no_connections
         )
     assert "Checked your inbox" not in published
-    assert published.startswith("No email account is connected yet")
+    assert "No email account is connected yet" in published
     assert "Settings > Email accounts" in published
-    assert record["publication"] == "action_claims_replaced" and record["action_claims"] == ["mail"]
+    assert record["publication"] == "action_claims_corrected" and record["action_claims"] == ["mail"]
 
 
 def test_no_mail_account_reads_the_real_credential_store() -> None:
@@ -144,7 +144,7 @@ def test_several_claimed_sources_each_get_one_line() -> None:
         published, record = gate_action_claims(text, turn_id=request_id, source_context=context, connected=_no_connections)
     assert record["action_claims"] == ["calendar", "reminders"]
     assert "booked for Friday" not in published
-    assert "No calendar is configured" in published and "no reminder or timer was set" in published
+    assert "No calendar is configured" in published and "No reminder or timer was set" in published
 
 
 def test_a_send_claim_with_no_mail_account_says_nothing_was_sent() -> None:
@@ -166,7 +166,8 @@ def test_a_non_english_settings_claim_is_replaced() -> None:
             CLAIMS["setting_fr"][0], turn_id=request_id, source_context=context, connected=_no_connections
         )
     assert record["action_claims"] == ["settings"]
-    assert "réglée" not in published and "Nothing in Settings was changed." in published
+    # the correction is written in the reply's language
+    assert "réglée" not in published and "Rien n'a été modifié dans les Réglages." in published
 
 
 def test_skill_and_model_claims_each_say_nothing_changed() -> None:
@@ -190,22 +191,39 @@ def test_a_matching_tool_run_this_turn_leaves_the_reply_alone() -> None:
         text = CLAIMS["reminder"][0]
         published, record = gate_action_claims(text, turn_id=request_id, source_context=context)
     assert published == text
-    assert record["publication"] == "tool_result_present"
+    assert record["publication"] == "execution_evidence_present"
 
 
-def test_a_tool_of_another_source_does_not_back_the_claim() -> None:
+def test_any_tool_run_this_turn_stands_the_check_down() -> None:
+    # Same rule as gate_execution_claims: a mail read that relays a meeting is not second-guessed
+    # because the meeting is a calendar word.
     from core.turn_model_call_ledger import begin_turn, record_tool_execution
 
     request_id = "req:claims:other-tool"
+    text = "I checked your inbox: the visit is scheduled for Wednesday at 8, and I've put it in your calendar."
     with bound_request_context(request_id):
-        context = _model_turn("did the landlord email me", request_id)
+        context = _model_turn("did the plumber email me", request_id)
         begin_turn(context)
-        record_tool_execution(context, "memory.recall")
-        published, record = gate_action_claims(
-            CLAIMS["mail_checked"][0], turn_id=request_id, source_context=context, connected=_no_connections
-        )
-    assert record["publication"] == "action_claims_replaced"
-    assert "no new emails since this morning" not in published
+        record_tool_execution(context, "email.read")
+        published, record = gate_action_claims(text, turn_id=request_id, source_context=context, connected=_no_connections)
+    assert published == text and record["publication"] == "execution_evidence_present"
+
+
+def test_only_the_claim_sentence_goes_and_the_rest_of_the_reply_stays() -> None:
+    request_id = "req:claims:partial"
+    text = (
+        "Three ways to stop forgetting the bins:\n"
+        "- Put the bin bag by the door the night before.\n"
+        "- Ask a neighbour to text you.\n"
+        "- I've set a reminder for every Tuesday at 7pm."
+    )
+    with bound_request_context(request_id):
+        context = _model_turn("how do i stop forgetting the bins", request_id)
+        published, record = gate_action_claims(text, turn_id=request_id, source_context=context, connected=_no_connections)
+    assert "Put the bin bag by the door" in published and "Ask a neighbour" in published
+    assert "I've set a reminder" not in published
+    assert published.rstrip().endswith("Ask me again with the time and I'll do it.")
+    assert record["kept_rest_of_reply"] is True
 
 
 def test_runtime_composed_bytes_are_not_gated() -> None:
@@ -269,7 +287,7 @@ def test_served_turn_that_promises_a_reminder_it_never_set_says_so() -> None:
     served, script = _served("give me a nudge in half an hour about the laundry", fake, "sess-claims-nudge")
     assert script.manifests, "the drive never reached the provider seam"
     assert "I'll nudge you" not in served, served[:400]
-    assert "no reminder or timer was set" in served, served[:400]
+    assert "No reminder or timer was set" in served, served[:400]
 
 
 def test_served_plain_advice_is_untouched() -> None:

@@ -907,7 +907,7 @@ def finalize_answer(
     except Exception:  # pragma: no cover - the check must not end a working turn
         _log.exception("action-claim gate failed; publishing ungated")
         _action_record = {}
-    if _action_record.get("publication") == "action_claims_replaced":
+    if _action_record.get("publication") == "action_claims_corrected":
         _authorship_record = {**dict(_authorship_record or {}), "action_claims": _action_record}
     # F45 ENFORCEMENT — unresolved entity ambiguity withholds introduced precise numerics.
     # THE CONSUMER: this seam. The probe's replied-without-verdict state was previously only
