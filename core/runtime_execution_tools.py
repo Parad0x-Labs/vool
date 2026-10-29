@@ -1924,17 +1924,24 @@ def _machine_find_largest(
                 "observation": _tool_observation(intent="machine.find_largest", tool_surface="machine", ok=False, status="no_results", root=root, hidden_other_project_results=hidden_count),
             },
         )
+    # The delete-safety notes answer "what can I safely get rid of?"; a plain size question
+    # ("what's the biggest file in my downloads?") is not that ask, and a delete warning on every
+    # row answered a question nobody asked. The caller marks a cleanup ask (freeing space,
+    # deleting, clearing up); the classes stay in the details either way.
+    cleanup_context = bool(str((arguments or {}).get("cleanup_context") or "").lower() not in ("", "false", "0", "no"))
     lines = [f"Largest {noun} on {root} (measured, largest first):"]
     for entry in entries:
         partial = "" if entry.get("complete") else " (partial — scan hit its time limit)"
+        safety = f" · {entry['delete_safety']}" if cleanup_context else ""
         lines.append(
-            f"- {entry['name']} — {_largest_size_text(entry)} [{entry['kind']}]{partial} · {entry['delete_safety']}"
+            f"- {entry['name']} — {_largest_size_text(entry)} [{entry['kind']}]{partial}{safety}"
         )
     if not result.get("complete"):
         lines.append("Some folders were not fully measured within the time budget; sizes marked (partial) are a lower bound.")
     if hidden_note:
         lines.append(hidden_note.strip(" ()"))
-    lines.append("I won't delete anything without your explicit go-ahead on a specific path.")
+    if cleanup_context:
+        lines.append("I won't delete anything without your explicit go-ahead on a specific path.")
     return RuntimeExecutionResult(
         handled=True, ok=True, status="executed",
         response_text="\n".join(lines),

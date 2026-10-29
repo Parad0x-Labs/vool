@@ -51,6 +51,13 @@ from core.persistent_memory import recent_conversation_events
 _LAST_MACHINE_READ: OrderedDict[str, dict[str, str]] = OrderedDict()
 _LAST_MACHINE_READ_CAP = 256
 
+# The files a session was last shown by name ("pull up the plumber invoice" -> the match list), so
+# the very next turn can answer about one of them ("is that invoice from this month?") from the file
+# itself instead of refusing the question as needing current information. Same shape and lifetime
+# rules as _LAST_MACHINE_READ: in-process, per-session, never persisted, cleared with the rest.
+_LAST_FILE_ANSWER: OrderedDict[str, dict[str, Any]] = OrderedDict()
+_LAST_FILE_ANSWER_CAP = 256
+
 # The statuses machine.list_directory returns once it has actually LOOKED at the path the user
 # typed. Every one of them is a grounded verdict about that path -- it listed, it found nothing
 # visible, the path is outside the readable lane, or the path is not there -- so every one of them
@@ -103,6 +110,25 @@ def _recall_machine_read(session_id: str) -> dict[str, str] | None:
 def reset_machine_followup_state() -> None:
     """Test hook: clear the per-session last-machine-read memory."""
     _LAST_MACHINE_READ.clear()
+    _LAST_FILE_ANSWER.clear()
+
+
+def _remember_file_answer(session_id: str, paths: list[str], *, turn_id: str = "") -> None:
+    """The files this session was just shown, for the next turn's ``"is that ... from this month?"``."""
+    key = str(session_id or "").strip()
+    if not key or not paths:
+        return
+    _LAST_FILE_ANSWER[key] = {"paths": [str(p) for p in paths[:20]], "turn_id": str(turn_id or "")}
+    _LAST_FILE_ANSWER.move_to_end(key)
+    while len(_LAST_FILE_ANSWER) > _LAST_FILE_ANSWER_CAP:
+        _LAST_FILE_ANSWER.popitem(last=False)
+
+
+def _recall_file_answer(session_id: str) -> dict[str, Any] | None:
+    key = str(session_id or "").strip()
+    if not key:
+        return None
+    return _LAST_FILE_ANSWER.get(key)
 
 
 def _turn_id(source_context: dict[str, object] | None) -> str:
@@ -1557,6 +1583,8 @@ _FILE_KIND_SUFFIXES = {
     # A type the user said by name ("any jpg named day4") keeps only that type.
     "jpg": (".jpg", ".jpeg"), "png": (".png",), "heic": (".heic", ".heif"), "gif": (".gif",),
     "mp4": (".mp4",), "mov": (".mov",), "mp3": (".mp3",),
+    # Kind words a plain file ask uses ("the bank csv", "the contract doc"): word -> extensions.
+    "csv": (".csv",), "doc": (".doc", ".docx"), "txt": (".txt",), "md": (".md", ".markdown"),
 }
 
 
@@ -1720,6 +1748,363 @@ def find_described_files(request: Any, *, source_context: dict | None) -> Any:
                  "observation": {**(details.get("observation") or {}), "intent": "machine.find_file",
                                  "match_count": len(matches), "query": list(request.words), "kind": request.kind,
                                  "place": request.place}},
+    )
+
+
+# ---- Plain file asks resolved by the words in their names (audit F42/F27/F46, 2026-10-29) ----
+# "pull up the plumber invoice", "which of my videos is the biggest, the trailer or the school
+# play?", "is that invoice from this month?" name FILES by words. The words are resolved against
+# real file names in the readable folders, the files are measured (size, changed date, first lines)
+# and the answer is built from what was measured — never from a model's memory of invoices.
+
+_READABLE_HOME_PLACES = ("Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music")
+_STORAGE_CLEANUP_RE = re.compile(
+    r"\b(?:free|freeing|space|storage|delete|clean|clear|junk|clutter|tidy|remove|eaten|eating)\b",
+    re.IGNORECASE,
+)
+_TEXT_PREVIEW_SUFFIXES = (".txt", ".md", ".markdown", ".csv", ".log", ".json")
+
+
+def _squeezed_file_name(path: str) -> str:
+    """Letters and digits only: ``Plumber_Invoice.pdf`` and ``plumber invoice.pdf`` compare equal."""
+    return re.sub(r"[^0-9a-z]", "", os.path.basename(path).lower())
+
+
+def _word_in_name(path: str, word: str) -> bool:
+    """The word appears in the file name, with ``_ - .`` and spaces ignored ("plumber invoice" is
+    plumber_invoice.pdf); a plural ask word also matches the singular in the name."""
+    squeezed = _squeezed_file_name(path)
+    if word in squeezed:
+        return True
+    stem = word[:-1] if len(word) > 3 and word.endswith("s") else ""
+    return bool(stem) and stem in squeezed
+
+
+def _home_relative_file_label(path: str) -> str:
+    home = os.path.expanduser("~").rstrip("/\\")
+    return "~" + path[len(home):] if home and path.startswith(home + os.sep) else path
+
+
+def _stat_safe(path: str) -> os.stat_result | None:
+    try:
+        return os.stat(path)
+    except OSError:
+        return None
+
+
+def _file_date_text(moment: Any) -> str:
+    return f"{moment.day} {moment:%B} {moment.year}"
+
+
+def _file_row(path: str) -> str:
+    info = _stat_safe(path)
+    size = _size_text(getattr(info, "st_size", 0) or 0)
+    changed = _file_date_text(_dt_from_ts(getattr(info, "st_mtime", 0) or 0))
+    return f"- {_home_relative_file_label(path)} — {size}, changed {changed}"
+
+
+def _dt_from_ts(ts: float) -> Any:
+    from datetime import datetime
+
+    return datetime.fromtimestamp(ts)
+
+
+def _resolve_word_matches(
+    words: tuple[str, ...], kind: str, place: str, *, source_context: dict | None
+) -> tuple[list[str], Any]:
+    """Files in the readable folders whose names contain every word (separators ignored).
+
+    Walks with the existing ``machine.find_file`` lane (same roots, budgets and phone fences as any
+    file lookup), then keeps the matches that carry all the words and the kind the owner named,
+    newest first. Returns ``(matches, refusal)``; ``refusal`` is only set when the search itself
+    could not run, and its text is the answer.
+    """
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+
+    lead = max(words, key=len)
+    execution = execute_authorized_runtime_tool("machine.find_file", {"name": lead}, source_context=dict(source_context or {}))
+    if execution is None or not getattr(execution, "ok", False):
+        return [], execution
+    found = [str(path) for path in (getattr(execution, "details", None) or {}).get("matches") or []]
+    matches = [path for path in dict.fromkeys(found) if all(_word_in_name(path, word) for word in words)]
+    suffixes = _FILE_KIND_SUFFIXES.get(kind)
+    if suffixes:
+        matches = [path for path in matches if path.lower().endswith(suffixes)]
+    if place:
+        wanted = f"/{place.lower()}/"
+        matches = [path for path in matches if wanted in path.lower().replace("\\", "/")]
+    ranked = sorted(((getattr(_stat_safe(path), "st_mtime", 0.0) or 0.0, path) for path in matches), reverse=True)
+    return [path for _stamp, path in ranked], None
+
+
+def _kind_noun_of(kind: str) -> str:
+    noun, _plural = _kind_nouns(kind)
+    return noun
+
+
+def _file_preview(path: str, *, source_context: dict | None) -> str:
+    """The first lines of a text file, or the first text of a PDF, so "pull it up" shows something."""
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+
+    context = dict(source_context or {})
+    lowered = path.lower()
+    if lowered.endswith(".pdf"):
+        execution = execute_authorized_runtime_tool("pdf.extract_text", {"path": path, "max_pages": 1}, source_context=context)
+        if execution is None or not getattr(execution, "ok", False):
+            return ""
+        rows = [line.strip()[:300] for line in str(getattr(execution, "response_text", "") or "").splitlines() if line.strip()][:3]
+        return "First of its text:\n" + "\n".join(rows) if rows else ""
+    if not lowered.endswith(_TEXT_PREVIEW_SUFFIXES):
+        return ""
+    execution = execute_authorized_runtime_tool(
+        "machine.read_file", {"path": path, "start_line": 1, "max_lines": 6, "verbatim": True}, source_context=context
+    )
+    if execution is None or not getattr(execution, "ok", False):
+        return ""
+    details = getattr(execution, "details", None) or {}
+    rows = [str(row.get("text") or "") for row in details.get("lines") or []][:6]
+    if not rows:
+        return ""
+    more = ""
+    if int(details.get("total_lines") or 0) > len(rows):
+        more = f"\n({int(details['total_lines'])} lines in total)"
+    return "First lines:\n" + "\n".join(rows) + more
+
+
+def present_named_file(ask: Any, *, session_id: str, source_context: dict | None) -> Any:
+    """``"pull up / open / show me <words>"``: resolve the words to real files and present them.
+
+    One match is named with its folder, size and changed date, and a text or PDF file shows its
+    first lines; several matches are listed (at most 5) for the owner to pick; none is a plain
+    miss. The reply is the same on the phone surface: the paired phone with computer rights reads
+    the same folders, so it gets the same answer rather than a promise.
+    """
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    words = tuple(str(word) for word in ask.words)
+    matches, refusal = _resolve_word_matches(words, str(ask.kind or ""), str(ask.place or ""), source_context=source_context)
+    if not matches and refusal is not None:
+        return refusal
+    asked = " ".join(words)
+    noun = _kind_noun_of(str(ask.kind or ""))
+    where = f" in your {ask.place} folder" if ask.place else " in your Desktop, Documents, Downloads, Pictures, Movies and Music folders"
+    observation = {
+        "intent": "machine.find_file", "ok": True, "status": "executed",
+        "query": list(words), "kind": ask.kind, "place": ask.place, "match_count": len(matches),
+    }
+    if not matches:
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=f"I couldn't find a {noun} matching '{asked}'{where}.",
+            details={"matches": [], "observation": observation},
+        )
+    if len(matches) == 1:
+        path = matches[0]
+        lines = [f"Here is the {noun} I found:", _file_row(path)]
+        preview = _file_preview(path, source_context=source_context)
+        if preview:
+            lines.append(preview)
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed", response_text="\n".join(lines),
+            details={"matches": matches, "observation": observation},
+        )
+    lines = [f"I found {len(matches)} {noun}s matching '{asked}':"]
+    lines.extend(_file_row(path) for path in matches[:5])
+    if len(matches) > 5:
+        lines.append(f"...and {len(matches) - 5} more.")
+    lines.append("Say which one you mean and I'll show it.")
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text="\n".join(lines),
+        details={"matches": matches, "observation": observation},
+    )
+
+
+def compare_named_files(ask: Any, *, session_id: str, source_context: dict | None) -> Any:
+    """``"which of my videos is the biggest, A or B"``: measure the named files and answer with sizes.
+
+    Each alternative is resolved by its words (a kind word keeps only that kind); when several
+    files carry one alternative's words the largest of them is used and named. A missing
+    alternative is said plainly. With no alternatives (``"biggest of my videos"``) the largest file
+    of that kind in the readable folders is the answer.
+    """
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    kind = str(ask.kind or "")
+    noun = _kind_noun_of(kind) if kind else "file"
+    names = [tuple(str(word) for word in alternative) for alternative in ask.names if alternative]
+    found: list[tuple[str, str, int]] = []
+    missing: list[str] = []
+    if not names:
+        suffixes = _FILE_KIND_SUFFIXES.get(kind) or ()
+        best_path, best_size, refusal = "", -1, None
+        for place in _READABLE_HOME_PLACES:
+            execution = execute_authorized_runtime_tool(
+                "machine.find_largest", {"drive": f"~/{place}", "kind": "files", "top": 25},
+                source_context=dict(source_context or {}),
+            )
+            if execution is None or not getattr(execution, "ok", False):
+                if execution is not None and refusal is None:
+                    refusal = execution
+                continue
+            for entry in (getattr(execution, "details", None) or {}).get("entries") or []:
+                path = str(entry.get("path") or "")
+                size = int(entry.get("size_bytes") or 0)
+                if path and size > best_size and (not suffixes or path.lower().endswith(suffixes)):
+                    best_path, best_size = path, size
+        if not best_path:
+            return refusal
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=f"Your biggest {noun} is {_home_relative_file_label(best_path)} — {_size_text(best_size)}.",
+            details={"matches": [best_path], "sizes": {best_path: best_size},
+                     "observation": {"intent": "machine.find_largest", "ok": True, "status": "executed",
+                                     "kind": kind, "match_count": 1}},
+        )
+    for words in names:
+        matches, refusal = _resolve_word_matches(words, kind, str(ask.place or ""), source_context=source_context)
+        if not matches:
+            missing.append(" ".join(words))
+            continue
+        sized = [(int(getattr(_stat_safe(path), "st_size", 0) or 0), path) for path in matches]
+        size, path = max(sized)
+        found.append((" ".join(words), path, size))
+    if not found:
+        asked = " or ".join(f"'{name}'" for name in missing)
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="no_results",
+            response_text=f"I couldn't find a {noun} called {asked} in your files, so I can't compare them.",
+            details={"matches": [], "observation": {"intent": "machine.find_file", "ok": True,
+                                                    "status": "no_results", "query": [list(w) for w in names]}},
+        )
+    lines = []
+    winner_path, winner_size = max(((path, size) for _n, path, size in found), key=lambda t: t[1])
+    if len(found) > 1:
+        top_two = sorted((size for _n, _p, size in found), reverse=True)
+        head = (f"The bigger one is {os.path.basename(winner_path)}:" if top_two[0] != top_two[1]
+                else "They are the same size:")
+    else:
+        head = f"The only one I found is {os.path.basename(winner_path)}:"
+    lines.append(head)
+    for _name, path, size in sorted(found, key=lambda t: -t[2]):
+        lines.append(f"- {_home_relative_file_label(path)} — {_size_text(size)}")
+    if missing:
+        asked_missing = " or ".join(f"'{name}'" for name in missing)
+        lines.append(f"I couldn't find a {noun} called {asked_missing}, so the comparison leaves it out.")
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text="\n".join(lines),
+        details={"matches": [path for _n, path, _s in found], "sizes": {path: size for _n, path, size in found},
+                 "observation": {"intent": "machine.find_file", "ok": True, "status": "executed",
+                                 "kind": kind, "query": [list(w) for w in names], "match_count": len(found)}},
+    )
+
+
+_DATE_IN_TEXT_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b"),
+    re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b"),
+    re.compile(r"\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", re.IGNORECASE),
+    re.compile(r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b", re.IGNORECASE),
+)
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
+
+def _date_in_file_text(path: str, *, source_context: dict | None) -> Any:
+    """The first date written in a text file (an invoice's own date), if it has one up front."""
+    from datetime import datetime
+
+    if not path.lower().endswith(_TEXT_PREVIEW_SUFFIXES):
+        return None
+    preview = _file_preview(path, source_context=source_context)
+    body = preview.split("First lines:\n", 1)[-1] if preview else ""
+    for pattern in _DATE_IN_TEXT_RES:
+        match = pattern.search(body)
+        if match is None:
+            continue
+        parts = [part for part in match.groups()]
+        if pattern is _DATE_IN_TEXT_RES[0]:
+            year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        elif pattern is _DATE_IN_TEXT_RES[1]:
+            day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+        elif pattern is _DATE_IN_TEXT_RES[2]:
+            day, month, year = int(parts[0]), _MONTHS.index(parts[1].capitalize()) + 1, int(parts[2])
+        else:
+            month, day, year = _MONTHS.index(parts[0].capitalize()) + 1, int(parts[1]), int(parts[2])
+        try:
+            return datetime(year, month, day)
+        except ValueError:
+            continue
+    return None
+
+
+def answer_file_date_question(question: Any, *, session_id: str, source_context: dict | None) -> Any:
+    """``"is that invoice from this month?"`` answered from the file that was just named.
+
+    A question about a file's date is a file question: the changed date is on the file, a date
+    written inside a text file is the file's own date, and the reply says which of the two it
+    used. ``None`` when nothing was named this session or the words match none of it, so the turn
+    keeps its normal lanes instead of a guess.
+    """
+    from datetime import datetime, timedelta
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    recalled = _recall_file_answer(session_id) or {}
+    paths = [str(path) for path in recalled.get("paths") or []]
+    if not paths:
+        return None
+    words = tuple(str(word) for word in question.words)
+    chosen = [path for path in paths if all(_word_in_name(path, word) for word in words)] if words else list(paths)
+    if not chosen:
+        return None
+    if len(chosen) > 1:
+        listed = "\n".join(f"- {_home_relative_file_label(path)}" for path in chosen[:5])
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=f"More than one file was just named, so I won't guess which one you mean:\n{listed}",
+            details={"paths": chosen, "observation": {"intent": "machine.read_file", "ok": True,
+                                                      "status": "ambiguous", "match_count": len(chosen)}},
+        )
+    path = chosen[0]
+    info = _stat_safe(path)
+    if info is None:
+        return None
+    label = _home_relative_file_label(path)
+    written = _date_in_file_text(path, source_context=source_context)
+    if written is not None:
+        moment, source_note = written, "I used the date written in the file"
+    else:
+        moment, source_note = datetime.fromtimestamp(info.st_mtime), "I used the file's changed date"
+    period = str(question.period or "")
+    now = datetime.now()
+    if not period:
+        birth = getattr(info, "st_birthtime", None)
+        if birth:
+            return RuntimeExecutionResult(
+                handled=True, ok=True, status="executed",
+                response_text=f"{label} was saved on {_file_date_text(datetime.fromtimestamp(birth))} ({source_note}).",
+                details={"path": path, "observation": {"intent": "machine.read_file", "ok": True, "status": "executed", "path": path}},
+            )
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=f"{label} was last changed on {_file_date_text(moment)} ({source_note}).",
+            details={"path": path, "observation": {"intent": "machine.read_file", "ok": True, "status": "executed", "path": path}},
+        )
+    if period == "this month":
+        within = (moment.year, moment.month) == (now.year, now.month)
+    elif period == "this year":
+        within = moment.year == now.year
+    elif period == "today":
+        within = moment.date() == now.date()
+    elif period == "yesterday":
+        within = moment.date() == now.date() - timedelta(days=1)
+    else:  # this week
+        within = moment.isocalendar()[:2] == now.isocalendar()[:2]
+    verdict = "Yes" if within else "No"
+    tail = f", not {period}" if not within else ""
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed",
+        response_text=f"{verdict} — {label} is from {_file_date_text(moment)}{tail} ({source_note}).",
+        details={"path": path, "observation": {"intent": "machine.read_file", "ok": True, "status": "executed",
+                                               "path": path, "period": period, "within": within}},
     )
 
 
@@ -2214,6 +2599,25 @@ def maybe_handle_direct_machine_read_request(
         user_input, source_context=source_context, whole_turn=True
     ):
         return None
+    # A date question about a file that was just named ("is that invoice from this month?") is a
+    # FILE question, not a live-information question: the changed date is on the file and a text
+    # file carries its own date. Answered from the file before any lane can call it current
+    # information (audit F46: the answer sat on the disk while the turn refused to state one).
+    from core.execution.constants import machine_file_date_question
+
+    date_question = machine_file_date_question(user_input)
+    if date_question is not None:
+        answered = answer_file_date_question(date_question, session_id=session_id, source_context=source_context)
+        if answered is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.read_file",
+                execution=answered,
+                reason="machine_read_fast_path",
+            )
     # Read-only diagnostics (per-drive disk space, Windows event-log errors) execute the machine.*
     # tool directly. This runs before the planner/gate below because the deterministic tools already
     # return real data — "how many drives does my PC have" must inspect the host, not answer as prose.
@@ -2267,6 +2671,27 @@ def maybe_handle_direct_machine_read_request(
                         execution=execution,
                         reason="machine_read_fast_path",
                     )
+    # "which of my videos is the biggest, the trailer or the school play?" names its candidates:
+    # resolve each by its words, measure them, answer with both sizes. This runs before the plain
+    # largest scan below because that scan has no way to filter by the words or the file kind
+    # (audit F27 answered by asking where the videos are stored, on a disk it may read).
+    from core.execution.constants import machine_named_compare_intent
+
+    compare_ask = machine_named_compare_intent(user_input)
+    if compare_ask is not None:
+        compared = compare_named_files(compare_ask, session_id=session_id, source_context=source_context)
+        if compared is not None:
+            shown = list((getattr(compared, "details", None) or {}).get("matches") or [])
+            _remember_file_answer(session_id, shown, turn_id=_turn_id(source_context))
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_file",
+                execution=compared,
+                reason="machine_read_fast_path",
+            )
     # "biggest/largest files or folders on C:" runs a real, bounded, measured scan (never a
     # fabricated list). The read query lives here; the operator lane owns the cleanup flow.
     if machine_largest_intent(user_input) is not None:
@@ -2285,6 +2710,12 @@ def maybe_handle_direct_machine_read_request(
         kind = largest_kind(user_input)
         if kind != "both":
             largest_args["kind"] = kind
+        # The delete-safety notes belong to the asks that say why size matters (freeing space,
+        # deleting, cleaning up). A plain "what's the biggest file in my downloads" is a
+        # measurement; telling the owner to "review before deleting" every row answered a
+        # question nobody asked (audit F26).
+        if _STORAGE_CLEANUP_RE.search(user_input):
+            largest_args["cleanup_context"] = True
         execution = execute_authorized_runtime_tool("machine.find_largest", largest_args, source_context=dict(source_context or {}))
         if execution is not None:
             _remember_machine_read(session_id, kind="largest", drive=largest_scope, turn_id=_turn_id(source_context))
@@ -2516,6 +2947,8 @@ def maybe_handle_direct_machine_read_request(
             described = machine_described_file_intent(user_input)
             found = (find_described_files(described, source_context=source_context) if described else None) or found
         if found is not None:
+            shown = [str(path) for path in (getattr(found, "details", None) or {}).get("matches") or []]
+            _remember_file_answer(session_id, shown, turn_id=_turn_id(source_context))
             return _machine_tool_fast_path_result(
                 agent,
                 user_input=user_input,
@@ -2525,11 +2958,34 @@ def maybe_handle_direct_machine_read_request(
                 execution=found,
                 reason="machine_read_fast_path",
             )
+    # "pull up / open / show me <words>": the ask names a file by its words, so resolve them and
+    # present what is on the disk (folder, size, changed date, first lines) — the words lane above
+    # needs a lookup cue these verbs do not carry, and without this the turn fell to a model with
+    # no file tools that answered "I can't access files" (audit F42, PC and phone).
+    from core.execution.constants import machine_present_file_intent
+
+    present_ask = machine_present_file_intent(user_input)
+    if present_ask is not None:
+        presented = present_named_file(present_ask, session_id=session_id, source_context=source_context)
+        if presented is not None:
+            shown = [str(path) for path in (getattr(presented, "details", None) or {}).get("matches") or []]
+            _remember_file_answer(session_id, shown, turn_id=_turn_id(source_context))
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_file",
+                execution=presented,
+                reason="machine_read_fast_path",
+            )
     # A file DESCRIBED in words ("cant find my boarding pass", "the photos from my lisbon trip").
     described = None if email_owns_folder_reference or file_search is not None else machine_described_file_intent(user_input)
     if described is not None:
         found = find_described_files(described, source_context=source_context)
         if found is not None:
+            shown = [str(path) for path in (getattr(found, "details", None) or {}).get("matches") or []]
+            _remember_file_answer(session_id, shown, turn_id=_turn_id(source_context))
             return _machine_tool_fast_path_result(
                 agent,
                 user_input=user_input,
