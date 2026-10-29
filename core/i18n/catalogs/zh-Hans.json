@@ -2851,15 +2851,21 @@
     "settings.row.live_browser.label": "浏览器",
     "settings.row.hide_name_on_screen.label": "在屏幕上隐藏我的名字",
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
-    "settings.row.hide_name_on_screen.effect": "立即生效。"
+    "settings.row.hide_name_on_screen.effect": "立即生效。",
+    "notif.review_approval": "查看",
+    "recovery.resume_or_cancel": "你可以继续或取消它。",
+    "recovery.send_again": "在这里重新发送即可允许，或者取消它。",
+    "recovery.waiting_elsewhere": "此请求正在等待你的同意，但它是从别处发送的，因此无法在这里允许。",
+    "recovery.waiting_expired": "此请求曾在等待你的同意，该询问已不再有效。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

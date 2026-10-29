@@ -739,6 +739,56 @@ def pending_approval_record(session_id: str, approval_id: str, *, include_approv
         return dict(entry)
 
 
+#: The fields of a pending approval a chat page may show: the same prompt the turn stream carries
+#: when it asks, never the fingerprint, mode or grant bookkeeping behind it.
+_PROMPT_FIELDS = (
+    "approval_id", "task_id", "intent", "action", "command", "affected_resources",
+    "expected_side_effects", "reversible", "scope_options", "one_time", "edit_batch",
+    "diff_preview", "expires_at", "planned_actions", "planned_action_count", "excluded_actions",
+    "planned_action_label", "request_text",
+)
+
+
+def pending_approvals_for_session(session_id: str) -> list[dict[str, Any]]:
+    """This chat's open approval prompts, oldest first, as the turn stream showed them.
+
+    The prompt used to exist on the page only for as long as the turn's stream was open: a reload,
+    a restart, or a turn sent from another window left "needs your approval" in the transcript and
+    no Allow anywhere (fresh-user test on 1cbf433, 2026-10-29). The store already keeps the prompt
+    durably; this is its read. Resolved, consumed, expired and other chats' approvals are absent.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return []
+    _ensure_approvals_restored()
+    now = time.time()
+    rows: list[dict[str, Any]] = []
+    with _LOCK:
+        for entry in _APPROVALS.values():
+            if str(entry.get("session_id") or "") != clean_session:
+                continue
+            if entry.get("status") != "pending" or float(entry.get("expires_at") or 0) <= now:
+                continue
+            rows.append(
+                {
+                    key: (list(entry[key]) if isinstance(entry[key], tuple) else entry[key])
+                    for key in _PROMPT_FIELDS
+                    if key in entry
+                }
+            )
+    rows.sort(key=lambda row: float(row.get("expires_at") or 0))
+    return rows
+
+
+def _asking_request_text(source_context: dict[str, Any] | None) -> str:
+    """The user's own message for the turn that raised a prompt (a sub-turn's parent message)."""
+    request = dict(source_context or {}).get("turn_request")
+    text = str(getattr(request, "user_text", "") or "")
+    if not text and isinstance(request, dict):
+        text = str(request.get("user_text") or "")
+    return text[:4000]
+
+
 def session_has_pending_workspace_approval(session_id: str) -> bool:
     """Whether THIS chat currently shows a pending permission ask inside the chat-workspace class.
 
@@ -3698,6 +3748,9 @@ def _new_approval_request(
             **request,
             "fingerprint": fingerprint,
             "session_id": session_id,
+            # The message that asked, so a page that reloads (or never sent the turn) can find the
+            # turn to resume once the operator allows it. Kept on the record, not the prompt.
+            "request_text": _asking_request_text(source_context),
             "mode": mode.value,
             "mode_revision": mode_revision,
             "actions": tuple(action.value for action in actions),

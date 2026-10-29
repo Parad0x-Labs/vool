@@ -2851,15 +2851,21 @@
     "settings.row.live_browser.label": "Tarayıcı",
     "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
-    "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
+    "settings.row.hide_name_on_screen.effect": "Hemen geçerli.",
+    "notif.review_approval": "İncele",
+    "recovery.resume_or_cancel": "Devam ettirebilir ya da iptal edebilirsiniz.",
+    "recovery.send_again": "İzin vermek için burada yeniden gönderin ya da iptal edin.",
+    "recovery.waiting_elsewhere": "Bu istek onayınızı bekliyor, ancak başka bir yerden gönderildiği için burada izin verilemez.",
+    "recovery.waiting_expired": "Bu istek onayınızı bekliyordu ve bu soru artık açık değil."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

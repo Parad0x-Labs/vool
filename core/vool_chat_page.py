@@ -4231,6 +4231,49 @@ function renderChat(chatId) {
 // Restore the single permission bar for the chat now on screen: show ITS pending request, or hide
 // the bar entirely. A grant raised in a background chat is held in that chat's bucket and painted
 // only when the user is actually looking at it.
+// A pending approval is the server's (core.mode_permission_policy keeps it, mirrored to disk), not
+// this page's: the stream that carried it ends with the turn. Rebuilt from the store when a chat
+// reaches the screen, so a reload, a restart or a turn sent from another window still offers
+// Allow / Deny. Measured on 1cbf433: after a reload the chat said "needs your approval" and no
+// button existed anywhere, the bell offered only Dismiss.
+async function restorePendingApproval(chatId) {
+  const owner = chatState(chatId);
+  if (owner.pendingApproval || (owner.run && !owner.run.ended)) return;
+  let rows = [];
+  try {
+    const data = await fetchJsonWithin('/api/chat/approvals?session=' + encodeURIComponent(chatId), null, 8000);
+    rows = Array.isArray(data && data.approvals) ? data.approvals : [];
+  } catch (e) { return; }
+  // The chat may have started a turn, or answered the prompt, while the read was out.
+  if (owner.pendingApproval || (owner.run && !owner.run.ended)) return;
+  owner.approvalAskedElsewhere = false;
+  for (let r = rows.length - 1; r >= 0; r--) {
+    const a = rows[r];
+    const asked = String(a.request_text || '').trim();
+    // A grant is bound to the turn that asked (its task id). A turn sent without one (another
+    // client) cannot be resumed from here under the same identity: Allow would only ask again.
+    if (!asked || !String(a.task_id || '')) { owner.approvalAskedElsewhere = true; continue; }
+    // Allow re-sends the message that asked, so it must be found exactly; a prompt whose message
+    // is not in this transcript is not offered (there would be nothing to resume).
+    let index = -1;
+    for (let i = owner.history.length - 1; i >= 0; i--) {
+      const h = owner.history[i];
+      if (h.role === 'user' && String(h.content || '').trim() === asked) { index = i; break; }
+    }
+    if (index < 0) { owner.approvalAskedElsewhere = true; continue; }
+    const reply = index + 1;
+    owner.pendingApprovalRun = {
+      promptEntry: owner.history[index],
+      turnId: String(a.task_id),
+      historyIndex: (reply < owner.history.length && owner.history[reply].role === 'assistant') ? reply : -1,
+    };
+    owner.approvalAskedElsewhere = false;
+    showPermBar(chatId, { approval: a });
+    if (isDisplayed(chatId)) paintRecoveryNote(owner);
+    return;
+  }
+  if (owner.approvalAskedElsewhere && isDisplayed(chatId)) paintRecoveryNote(owner);
+}
 function reflectPermBar() {
   const pending = view.pendingApproval;
   const run = view.run;
@@ -4294,6 +4337,8 @@ async function openSession(id) {
   if (!isDisplayed(id)) return;
   reflectComposer();
   reflectPermBar();
+  await restorePendingApproval(id);
+  if (!isDisplayed(id)) return;
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue(id);
@@ -4462,6 +4507,7 @@ async function restoreCurrent() {
       for (const m of msgs) target.history.push(historyEntryFromServer(m));
       // One render path for every way a chat reaches the screen, so boot and re-open cannot drift.
       if (isDisplayed(chatId)) renderChat(chatId);
+      restorePendingApproval(chatId);
     } else if (isDisplayed(chatId)) {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
       privateReloadNote(target);
@@ -8196,13 +8242,22 @@ function paintRecoveryNote(st) {
   if (!logEl) return;
   const old = logEl.querySelector('.recovery-note');
   if (!st || !st.recoveredTask) { if (old) old.remove(); return; }
-  if (old) return;
   const h = st.recoveredTask.execution_history || {};
   const asked = String(h.request_preview || st.recoveredTask.request_preview || '').trim();
+  const waiting = String(st.recoveredTask.status || h.status || '') === 'pending_approval';
+  // A chat waiting for an OK was not interrupted: VOOL did not stop, it is asking, and the
+  // permission bar (restorePendingApproval) is where it is answered. No note competes with it.
+  if (waiting && st.pendingApproval) { if (old) old.remove(); return; }
+  if (old) return;
   const note = document.createElement('div');
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
-  text.textContent = 'This chat was interrupted when VOOL stopped.' + (asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '') + ' You can resume it or cancel it.';
+  const quoted = asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '';
+  text.textContent = !waiting
+    ? 'This chat was interrupted when VOOL stopped.' + quoted + ' You can resume it or cancel it.'
+    : (st.approvalAskedElsewhere
+      ? pageT('recovery.waiting_elsewhere', 'This request is waiting for your OK, but it was sent from somewhere else, so it cannot be allowed here.') + quoted + ' ' + pageT('recovery.send_again', 'Send it again here to allow it, or cancel it.')
+      : pageT('recovery.waiting_expired', 'This request was waiting for your OK, and that question is no longer open.') + quoted + ' ' + pageT('recovery.resume_or_cancel', 'You can resume it or cancel it.'));
   const btn = document.createElement('button');
   btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
   btn.addEventListener('click', () => openPanel());

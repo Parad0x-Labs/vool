@@ -2851,15 +2851,21 @@
     "settings.row.live_browser.label": "ブラウザー",
     "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
-    "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
+    "settings.row.hide_name_on_screen.effect": "即時に適用されます。",
+    "notif.review_approval": "確認する",
+    "recovery.resume_or_cancel": "再開するか、キャンセルできます。",
+    "recovery.send_again": "許可するにはここからもう一度送信するか、キャンセルしてください。",
+    "recovery.waiting_elsewhere": "このリクエストはあなたの許可を待っていますが、別の場所から送信されたため、ここでは許可できません。",
+    "recovery.waiting_expired": "このリクエストはあなたの許可を待っていましたが、その確認はもう受け付けていません。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

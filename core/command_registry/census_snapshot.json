@@ -813,6 +813,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/chat/approvals": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/approvals",
+      "note": "chat read feed (open approval prompts)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/chat/attachments": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/chat/attachments",
@@ -3224,7 +3231,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 313,
+    "EXTERNAL_TRANSPORT_ONLY": 314,
     "GENERATED_ADAPTER": 138,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

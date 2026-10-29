@@ -2851,15 +2851,21 @@
     "settings.row.live_browser.label": "Navegador",
     "settings.row.hide_name_on_screen.label": "Ocultar mi nombre en pantalla",
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
-    "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
+    "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato.",
+    "notif.review_approval": "Revisar",
+    "recovery.resume_or_cancel": "Puedes reanudarla o cancelarla.",
+    "recovery.send_again": "Envíala de nuevo aquí para permitirla, o cancélala.",
+    "recovery.waiting_elsewhere": "Esta solicitud espera tu aprobación, pero se envió desde otro lugar, así que no se puede permitir aquí.",
+    "recovery.waiting_expired": "Esta solicitud esperaba tu aprobación, y esa pregunta ya no está abierta."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

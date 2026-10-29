@@ -2851,15 +2851,21 @@
     "settings.row.live_browser.label": "브라우저",
     "settings.row.hide_name_on_screen.label": "화면에서 내 이름 숨기기",
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
-    "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
+    "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다.",
+    "notif.review_approval": "검토",
+    "recovery.resume_or_cancel": "다시 시작하거나 취소할 수 있습니다.",
+    "recovery.send_again": "허용하려면 여기에서 다시 보내거나, 취소하세요.",
+    "recovery.waiting_elsewhere": "이 요청은 승인을 기다리고 있지만 다른 곳에서 보낸 것이라 여기서는 허용할 수 없습니다.",
+    "recovery.waiting_expired": "이 요청은 승인을 기다리고 있었지만 그 질문은 더 이상 열려 있지 않습니다."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "pending_approval_restore_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

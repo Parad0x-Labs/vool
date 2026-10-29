@@ -296,6 +296,11 @@ function centreRow(item, index){
   var acts = '';
   if (snoozable(item)) acts += '<button type="button" data-vc-act="snooze" data-vc="' + index + '">' + NTF('notif.snooze_10', 'Snooze 10 min') + '</button>';
   if (join) acts += '<a href="' + esc(join) + '" target="_blank" rel="noopener noreferrer" data-vc-join="' + index + '">' + NTF('notif.join', 'Join') + '</a>';
+  // A chat waiting for an OK is answered in that chat, where the exact action is shown with Allow
+  // and Deny; the inbox row only takes the person there (it used to offer Dismiss alone).
+  if (p.event_type === 'task_pending_approval' && item.session_id && !item.dismissed_at && typeof window.openSession === 'function') {
+    acts = '<button type="button" data-vc-review="' + index + '">' + NTF('notif.review_approval', 'Review') + '</button>' + acts;
+  }
   acts += '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   var cls = 'vf-item vf-centre' + (item.source_kind === 'calendar_catch_up' ? ' vf-warn' : '') + (item.read_at ? '' : ' vf-unread');
   return '<div class="' + cls + '">' +
@@ -513,6 +518,8 @@ pop.addEventListener('click', function(ev){
   if (ev.target.closest('[data-vf-discover]')) { pop.hidden = true; if (window.VoolModelRadar) window.VoolModelRadar.open(); return; }
   var join = ev.target.closest('[data-vc-join]');
   if (join) { var joined = centre[Number(join.getAttribute('data-vc-join'))]; if (joined) centreAction(joined, 'open'); return; }
+  var review = ev.target.closest('[data-vc-review]');
+  if (review) { var asking = centre[Number(review.getAttribute('data-vc-review'))]; if (asking) { pop.hidden = true; window.openSession(asking.session_id); } return; }
   var act = ev.target.closest('[data-vc-act]');
   if (act) { ev.stopPropagation(); var item = centre[Number(act.getAttribute('data-vc'))]; if (item) centreAction(item, act.getAttribute('data-vc-act'), 10); return; }
   var row = ev.target.closest('[data-vc-open]');
