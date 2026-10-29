@@ -601,6 +601,24 @@ def _build_conversational_request(
                 _PAYLOAD_SYSTEM_BOOTSTRAP,
                 build_polished_writing_prompt(persona_name=persona_name),
             ))
+        # A TOOL turn that the creative profile took keeps its native tool definitions but used
+        # to lose the text catalog entirely -- the director prompt replaced it, and a local model
+        # reading only prose had no way to know its tools (measured: a creative-series skill turn
+        # carried set.save/set.use as native definitions and an empty catalog). The catalog rides
+        # along on the director profile exactly as on the plain profile, from the SAME offer.
+        if output_mode == "tool_intent":
+            from core.capability_graph import family_hint_from_task_class
+
+            _director_catalog = _tool_intent_catalog_text(
+                family_hint=family_hint_from_task_class(task_class),
+                user_text=str(user_text or ""),
+                task_class=str(task_class or ""),
+                source_context=source_context if isinstance(source_context, dict) else None,
+                offer=tool_offer,
+            )
+            if _director_catalog:
+                tool_catalog_guidance = _director_catalog
+                system_segments.append(("tool_catalog", _PAYLOAD_TOOL_CATALOG, _director_catalog))
     elif prompt_profile == "chat_exact":
         system_segments.extend([
             ("persona", _PAYLOAD_SYSTEM_BOOTSTRAP, f"You are {persona_name}."),

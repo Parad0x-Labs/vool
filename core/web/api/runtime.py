@@ -1369,6 +1369,21 @@ def _publish_canonical_turn_request(
         destination[TURN_REQUEST_KEY] = request
 
 
+def _k08_verify_immutable(*, unchanged: bool, message: str, arrived_unsealed: bool) -> None:
+    """Post-admission bytes are immutable (K-08) -- with ONE legal completion.
+
+    A result that arrived UNSEALED (a deterministic lane that answered before any model
+    round, so nothing was admitted) is COMPLETED here, not mutated: the backstop's first
+    application is the legal one and stands instead of raising. A sealed result keeps the
+    strict verify: re-applying any semantic transform to it must be a byte-level no-op, and
+    any divergence is refused loudly -- never applied. Shared by the honesty and grounding
+    verifies in ``_run_agent_locked`` (round 2, R14: one seam, pinned by test).
+    """
+    if unchanged or arrived_unsealed:
+        return
+    raise RuntimeError(message)
+
+
 def run_agent(
     runtime: RuntimeServices,
     user_text: str,
@@ -1978,7 +1993,8 @@ def _run_agent_locked(
         # commit): the sanitizer + capsule override are completed HERE, before any transport
         # commit. A result that already carries its response.commit was sealed inside the
         # agent and is untouchable -- the K-08 verifies below are exactly that law.
-        if not isinstance((result or {}).get("vool_response_commit"), dict):
+        _arrived_unsealed = not isinstance((result or {}).get("vool_response_commit"), dict)
+        if _arrived_unsealed:
             _capsule = capsule_exact_response(
                 user_text,
                 get_last_retrieval_telemetry(),
@@ -2045,7 +2061,13 @@ def _run_agent_locked(
             result.pop("_model_answer_pre_capsule", None)
         # A-12/R-5: honesty + URL grounding ran INSIDE the sealing context
         # (pre-admit); these boundary re-applications are verify-only — any
-        # divergence means post-admission mutation was about to happen.
+        # divergence means post-admission mutation was about to happen. An
+        # UNSEALED result (a deterministic lane that answered before any model
+        # round, never admitted) is completed HERE exactly like the capsule
+        # above: the application is the legal one, not a post-admission
+        # mutation, so it stands instead of raising (measured: a web-fetch
+        # fast-path answer that quoted the request's URL was rewritten by the
+        # grounding backstop here and the turn died as HTTP 500).
         _pre_honesty = str(result.get("response") or "")
         result = enforce_final_action_honesty(
             dict(result or {}),
@@ -2055,16 +2077,20 @@ def _run_agent_locked(
             source_context=base_context,
         )
         if str(result.get("response") or "") != _pre_honesty:
-            raise RuntimeError(
-                "K-08 violation: final-action-honesty would mutate post-admission bytes"
+            _k08_verify_immutable(
+                unchanged=False,
+                message="K-08 violation: final-action-honesty would mutate post-admission bytes",
+                arrived_unsealed=_arrived_unsealed,
             )
         # Honesty backstop (verify-only here; the legal application is inside
         # the sealing context): invented URL summaries must already be replaced.
         _pre_grounding = str(result.get("response") or "")
         result = enforce_url_grounding(result, user_input=user_text, fetch_attempts=remote_fetch_attempt_count())
         if str(result.get("response") or "") != _pre_grounding:
-            raise RuntimeError(
-                "K-08 violation: url-grounding would mutate post-admission bytes"
+            _k08_verify_immutable(
+                unchanged=False,
+                message="K-08 violation: url-grounding would mutate post-admission bytes",
+                arrived_unsealed=_arrived_unsealed,
             )
         # A turn the person stopped feeds neither memory nor later prompts: its response is the
         # cancel notice (or an answer nobody saw), never an exchange to learn from. The turn's

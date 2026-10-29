@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
+import datetime as _dt
+import enum
 import hashlib
 import json
 import os
@@ -8,6 +11,8 @@ import sqlite3
 import threading
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 from storage.db import active_default_db_path, execute_query, get_connection
 from storage.event_log import append_event
@@ -190,6 +195,80 @@ def _redact_details(details: dict | None) -> dict:
     return redacted
 
 
+#: Keys whose presence marks a mapping as a TURN CONTEXT (or a context nested inside details):
+#: the request's own words, its frozen decision records, or the context another seam handed on.
+#: R10 (round 2): such a payload is stored as a BOUNDED SUMMARY — key names and value TYPES
+#: only. The durable log never carries the request text, tool observations (note or email
+#: bodies ride inside contexts) or tokens, whatever a caller pours into ``details``.
+_CONTEXT_MARKER_KEYS = frozenset(
+    {"request_text", "retrieved_context", "_current_information_requirement"}
+)
+#: Keys whose VALUE is a turn context even when the mapping itself is ordinary details.
+_CONTEXT_VALUE_KEYS = frozenset({"source_context", "turn_context"})
+#: Bound the summary itself: a context can hold hundreds of keys; the first slice is plenty
+#: for an audit reader and keeps the row small whatever the caller attached.
+_CONTEXT_SUMMARY_MAX_KEYS = 64
+
+
+def _type_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "bool"
+    return type(value).__name__
+
+
+def _bounded_context_summary(value: Any) -> dict[str, str | dict]:
+    """Key names and value types only — never a value — for a turn-context payload."""
+    if isinstance(value, dict):
+        rows = list(value.items())[:_CONTEXT_SUMMARY_MAX_KEYS]
+        return {str(key): _bounded_context_summary(item) for key, item in rows}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return f"{type(value).__name__}[{_type_label(next(iter(value), None))}]"
+    return _type_label(value)
+
+
+def _json_safe(value: Any) -> Any:
+    """Render any value into something json.dumps accepts, losing no string the row needs.
+
+    The audit seam receives whole turn contexts (`dict(source_context)`, tool_intent_executor's
+    unsupported-path audit among them), and a turn context carries frozen decision records —
+    dataclasses like `CurrentRequirementRecord` — plus datetimes, enums, sets and paths. An
+    unserializable value used to raise TypeError out of ``log()`` and take the whole turn down
+    with HTTP 500 before its own answer returned. Known shapes keep their structure (dataclass
+    → dict, datetime → ISO string, enum → its value); anything unknown degrades to ``str()``
+    rather than crashing the turn the row was meant to record.
+
+    A mapping marked as a TURN CONTEXT keeps only its SHAPE (R10, round 2): key names and
+    value types, no values — the request text and any tool observation a context carries are
+    never durable. Bounded summaries still serialize, so the B7 law (no TypeError, the row is
+    written, the turn's own answer returns) holds for contexts too.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(dataclasses.asdict(value))
+    if isinstance(value, _dt.datetime | _dt.date | _dt.time):
+        return value.isoformat()
+    if isinstance(value, enum.Enum):
+        return _json_safe(value.value)
+    if isinstance(value, dict):
+        keys = {str(key) for key in value}
+        if keys & _CONTEXT_MARKER_KEYS:
+            return _bounded_context_summary(value)
+        return {
+            str(key): (
+                _bounded_context_summary(item)
+                if key in _CONTEXT_VALUE_KEYS and isinstance(item, dict)
+                else _json_safe(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    return str(value)
+
+
 def log(
     event_type: str,
     target_id: str | None = None,
@@ -208,7 +287,7 @@ def log(
     """
     event_id = str(uuid.uuid4())
     safe_target_id = _redact_target_id(target_id)
-    payload = _redact_details(details)
+    payload = _json_safe(_redact_details(details))
     if conn is None:
         _ensure_audit_log_table()
     else:

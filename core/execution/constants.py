@@ -729,6 +729,35 @@ def largest_kind(text: str) -> str:
     return "both"
 
 
+#: An analysis-shaped disk ask: it wants the breakdown (largest folders/files, what grew),
+#: which a capacity read cannot serve. Read-only shapes only -- "free up"/"clean" are already
+#: write-suppressed below and stay on their own lane.
+#:
+#: R12 (round 2): no phrase lifted from a visible case sits here as a trigger. The
+#: "where did the space go" shape is read as a SUBJECT-GATED interrogative instead
+#: (``_DISK_WHERE_WENT_RE`` + a disk subject in the same ask), so everyday wordings of the
+#: same disk question keep standing down while "where did the space go in my sentence"
+#: (no disk subject) never did.
+_DISK_ANALYSIS_ASK_RE = re.compile(
+    r"\bwhat(?:'s| is|s)\s+(?:taking|using|eating|occupying|filling)\s+up\b"
+    r"|\bwhat(?:'s| is)?\s+(?:the\s+)?(?:biggest|largest|heaviest)\s+"
+    r"(?:files?|folders?|directories|dirs?|things|items?|space|hogs|culprits?)\b"
+    r"|\b(?:biggest|largest|heaviest)\s+(?:files?|folders?)\s+(?:on|in)\b"
+    r"|\bfind\s+(?:the\s+)?(?:large|biggest|largest|heaviest)\s+(?:files?|folders?|items?)\b"
+    r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
+    r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
+    re.IGNORECASE,
+)
+_DISK_WHERE_WENT_RE = re.compile(
+    r"\bwhere\s+did\s+(?:the\s+|all\s+(?:the\s+)?)?[\w\s]{0,12}\s?go\b", re.IGNORECASE
+)
+_DISK_SUBJECT_RE = re.compile(
+    r"\b(?:disk|disks|drive|drives|storage|startup\s+disk|hard\s+drive|ssd|mac|computer|laptop|machine)\b"
+    r"|\b(?:nearly\s+|almost\s+|completely\s+)?full\b",
+    re.IGNORECASE,
+)
+
+
 def machine_diagnostics_intent(text: str) -> str | None:
     """Map a read-only disk/drive question to the ``machine.disk_usage`` tool intent, else ``None``.
 
@@ -742,6 +771,16 @@ def machine_diagnostics_intent(text: str) -> str | None:
     """
     lowered = " ".join(str(text or "").strip().lower().split())
     if not lowered:
+        return None
+    # An ANALYSIS ask ("where did the space go?", "what's taking up my storage?", "biggest
+    # files") is not a capacity read: this lane answers only totals, and answering totals
+    # pre-empted the deeper tools (find the largest folders/files) the ask actually wanted --
+    # the disk-space-advisor skill never ran at all (measured on the served rig). Those asks
+    # stand down here for the lane that can reason about them (the model, with the
+    # operator/machine tools the demand rules seat).
+    if _DISK_ANALYSIS_ASK_RE.search(lowered):
+        return None
+    if _DISK_WHERE_WENT_RE.search(lowered) and _DISK_SUBJECT_RE.search(lowered):
         return None
     if _MACHINE_DIAG_WRITE_RE.search(lowered):
         return None
@@ -2370,8 +2409,11 @@ _MUTATING_OPERATOR_INTENTS = {
     "operator.move_path",
     "operator.schedule_calendar_event",
     # A note write mutates workspace content; provider proposals/updates stage an
-    # outward-facing effect that always waits for the explicit approval turn.
+    # outward-facing effect that always waits for the explicit approval turn. A reminder
+    # changes this runtime's own store, the same write the chat lane makes.
     "operator.save_note",
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
     "operator.propose_calendar_event",
     "operator.update_calendar_event",
 }

@@ -834,21 +834,41 @@ def _passed_due_time_result(when: Any, *, kind: str) -> OperatorActionResult:
 _REMIND_ME_RE = re.compile(r"\bremind\s+me\b", re.IGNORECASE)
 
 
-def _reminder_when(text: str, parse_when_fn: Any) -> Any:
-    """The due time comes from the "remind me ..." words when they name one.
+def _remind_me_clause(text: str) -> str:
+    """The first "remind me ..." phrase of a request that does not start with it, else the request.
 
     A note such as "invoice ACME due 2026-11-10. remind me on 2026-11-08 at 09:00" holds two
     dates; the one after "remind me" is the reminder's. Only the first "remind me" phrase is
-    read: one request makes one reminder. When those words name no time ("tomorrow at 9,
-    remind me to call mom"), the whole request is read as before.
+    read: one request makes one reminder, so the phrase ends where a second "remind me" starts.
     """
     raw = str(text or "")
     match = _REMIND_ME_RE.search(raw)
-    if match and match.start() > 0:
-        clause = parse_when_fn(raw[match.start():])
-        if clause.ok:
-            return clause
-    return parse_when_fn(raw)
+    if not match or match.start() == 0:
+        return raw
+    following = _REMIND_ME_RE.search(raw, match.end())
+    return raw[match.start(): following.start() if following else len(raw)]
+
+
+def _reminder_when(text: str, parse_when_fn: Any) -> tuple[Any, str]:
+    """The due time and, when the words leave the day open, the question to ask instead.
+
+    The "remind me ..." words set the due time when they name one (see _remind_me_clause);
+    when they name no time ("tomorrow at 9, remind me to call mom"), the whole request is
+    read as before. Either reading goes through the subject cut (_reminder_when_text), so the
+    due time is the when-expression the stored subject leaves out.
+    """
+    raw = str(text or "")
+    clause = _remind_me_clause(raw)
+    if clause != raw:
+        when_text, day_problem = _reminder_when_text(clause, _reminder_note_from_text(clause))
+        if not day_problem:
+            when = parse_when_fn(when_text)
+            if when.ok:
+                return when, ""
+    when_text, day_problem = _reminder_when_text(raw, _reminder_note_from_text(raw))
+    if day_problem:
+        return None, day_problem
+    return parse_when_fn(when_text), ""
 
 
 def handle_schedule_reminder(
@@ -860,7 +880,15 @@ def handle_schedule_reminder(
     schedule_reminder_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    when = _reminder_when(intent.raw_text, parse_when_fn)
+    note = _reminder_note_from_text(intent.raw_text)
+    when, day_problem = _reminder_when(intent.raw_text, parse_when_fn)
+    if day_problem:
+        return OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=day_problem,
+            details={"kind": "schedule_reminder", "problem": day_problem, "reason": "two_days_named"},
+        )
     if not when.ok:
         return OperatorActionResult(
             ok=False,
@@ -870,7 +898,6 @@ def handle_schedule_reminder(
         )
     if has_passed(when):
         return _passed_due_time_result(when, kind="schedule_reminder")
-    note = _reminder_note_from_text(intent.raw_text)
     repeat_every = _reminder_repeat_from_text(intent.raw_text)
     record = schedule_reminder_fn(
         session_id=session_id,
@@ -1088,16 +1115,53 @@ _MONTH_WORDS = (
     r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
     r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?"
 )
-_WHEN_TAIL_RE = re.compile(
+#: Job 6d (Fix 2): the head of a when-tail -- a preposition followed by a when-word. The DUE time is the LAST when-expression of
+#: the ask, so the subject cut lands on the RIGHT-MOST head and everything from it to the end
+#: leaves; an earlier when-expression inside the subject ("the Friday at 10 workshop") is a
+#: thing the note names and stays. The old first-match cut landed on the first clock and ate
+#: the subject after it ("book the Friday at 10 workshop tomorrow at 9" stored "book the
+#: Friday").
+_WHEN_TAIL_HEAD_RE = re.compile(
     r"\s+(?:at|on|in|by)\s+("
     r"(?:20\d{2}-\d{2}-\d{2})(?:[ T]\d{1,2}:\d{2})?"
-    r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*"
-    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b.*"
-    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b.*"
-    r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b.*"
-    r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b.*"
-    r")$",
+    r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b"
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b"
+    r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?(?:half|quarter))?"
+    r"|\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?\b"
+    r"|(?:at\s+)?(?:noon|midday|midnight)\b"
+    r")",
     re.IGNORECASE | re.DOTALL,
+)
+
+#: Job 6d (Fix 2): a day phrase left at the END of the subject by the when-tail cut directly
+#: BEFORE the clock that just left ("... workshop tomorrow" after "tomorrow at 9" was cut).
+#: A weekday or an ordinal is schedule-marked (the _DAY_CLOCK_TAIL_RE law cuts weekday+clock
+#: wholly; "on the 3rd" carries its own preposition), so it always goes. A today-word keeps
+#: Job 6b's reading -- alone it may name the thing ("the show tickets tomorrow") -- unless an
+#: earlier when-expression stays inside the subject, which marks the pair as the due time.
+_CARRIED_DAY_TAIL_RE = re.compile(
+    r"[\s,]+(?:on\s+)?(?:"
+    r"yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
+    r")"
+    r"(?:[\s,]+(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday"
+    r"|saturday|sunday|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
+    r"))*"
+    r"[\s,]*$",
+    re.IGNORECASE,
+)
+_EARLIER_WHEN_HINT_RE = re.compile(
+    r"\b(?:today|tomorrow|tonight|yesterday|monday|tuesday|wednesday|thursday|friday|saturday"
+    r"|sunday|noon|midday|midnight|morning|afternoon|evening)\b"
+    r"|\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)\b"
+    r"|\b(?:at|on|in|by)\s+\d{1,2}\b",
+    re.IGNORECASE,
 )
 
 
@@ -1105,12 +1169,13 @@ _LEADING_WHEN_RE = re.compile(
     r"^(?:"
     r"(?:on|at|in|by|every|next|this)\s+"
     r"|(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-    r"|morning|afternoon|evening|daily|weekly|day|week)\b[\s,]*"
+    r"|morning|afternoon|evening|noon|midday|midnight|daily|weekly|day|week)\b[\s,]*"
     r"|20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?[\s,]*"
     r"|" + _MONTH_WORDS + r"[\s,]*"
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b(?:\s+of\b)?[\s,]*"
     r"|20\d{2}\b[\s,]*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?(?:half|quarter))?[\s,]*"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
     r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"
     r"|(?:utc|gmt)(?:[+-]\d{1,2}(?::?\d{2})?)?\b[\s,]*"
@@ -1120,19 +1185,133 @@ _LEADING_WHEN_RE = re.compile(
 )
 
 
+#: Job 6b (Fix 1): the leads the reminder seat accepts, at the START of the request, leave the
+#: subject together with their joiner (to, for, about, that, a colon or dash). Without this the
+#: stored note kept the ask's own frame ("i need a reminder to pay the rent" was the subject,
+#: and the person read those words back when it fired). The polite frame and each lead are
+#: optional in combination ("could you set me a reminder for 6pm, gym"); "remind me ..." stays
+#: with _REMINDER_NOTE_RE below, which also reads it mid-sentence ("tomorrow at 9 remind me to
+#: call mom"), so this anchored lead never touches that path.
+_REMINDER_LEAD_RE = re.compile(
+    r"^(?:please[,\s]+|pls[,\s]+)?(?:can\s+you\s+|could\s+you\s+|would\s+you\s+|will\s+you\s+)?"
+    r"(?:"
+    r"(?:(?:i|we)\s+)?(?:need|want)\s+(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+)?"
+    r"|(?:set|add|create|schedule)\s+(?:me\s+)?(?:a|an|the)?\s*reminders?\s*(?:to\s+|for\s+|about\s+|that\s+|[:\-\u2013]\s*)?"
+    r"|(?:nudge|ping)\s+me\s*(?:to\s+|about\s+|on\s+|for\s+)?"
+    r"|don'?t\s+let\s+me\s+forget\s+(?:to\s+)?"
+    r"|make\s+sure\s+i\s+(?:don'?t\s+)?(?:remember|forget)\s+(?:to\s+)?"
+    r")",
+    re.IGNORECASE,
+)
+
+#: Job 6c (Fix 2): the part-of-day clock words the when-reader reads as absolute times
+#: ("at noon" is 12:00, "at midnight" 00:00). A LEAD pair of these words leaves the subject
+#: without its joiner: "could you ping me at noon about lunch with Kai" stores "about lunch
+#: with Kai" -- only the time words go, "about ..." is the thing to be reminded about. A
+#: following "to" goes with them ("remind me at noon to stretch" stores "stretch"), because
+#: that "to" only ever joins the when-lead to the thing to do.
+_PART_CLOCK_LEAD_RE = re.compile(
+    r"(?:at\s+)?(?:noon|midday|midnight)\b[\s,]*(?:to\s+)?",
+    re.IGNORECASE,
+)
+
+#: Job 6c (Fix 2): a weekday that carries the due time's clock leaves the subject TOGETHER
+#: with that clock, wherever the pair sits at the end of the ask: a bare "friday at 10" tail
+#: or a ", tuesday 9am" tail after a comma. The pair is the shape the when-reader reads as
+#: day-plus-time, so the strip is by shape, not by sentence. A bare weekday, with or without
+#: a part-of-day word, stays ("bins out thursday night" keeps its day), and the today-words
+#: keep Job 6b's reading ("the show tickets tomorrow at 10" stores "the show tickets
+#: tomorrow"); a "friday" that did not pair with a clock is a title word, not the schedule.
+#: The clock half needs its own time mark (am/pm, a colon, a decimal, o'clock, "at", or a
+#: part-clock word): a bare number after a weekday is not a clock the reader reads.
+_DAY_CLOCK_TAIL_RE = re.compile(
+    r"[\s,]+(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b\.?\s*,?\s*"
+    r"(?:"
+    r"\d{1,2}:\d{2}\s*(?:am|pm|a\.m\.|p\.m\.)?"
+    r"|\d{1,2}\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)"
+    r"|\d{1,2}\.\d{2}\s*(?:am|pm)?"
+    r"|at\s+\d{1,2}(?::\d{2})?(?:\s*(?:am|pm|o'?clock))?"
+    r"|(?:at\s+)?(?:noon|midday|midnight)"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+
 def _reminder_note_from_text(text: str) -> str:
-    """The reminder's SUBJECT: the words after 'remind me to/about', with the when-clause
-    stripped whether it trails the subject ('to call mom at 5pm') or leads it ('tomorrow at
-    9am to call mom'), so the note reads as the thing to do, not the schedule."""
+    """The reminder's SUBJECT: the thing to do, with every lead the seat accepts and the
+    when-clause stripped -- whether the when trails the subject ('to call mom at 5pm'),
+    leads it ('tomorrow at 9am to call mom'), rides a weekday at the end ('send the
+    invoice friday at 10' stores 'send the invoice') or is said in words ('in an hour to
+    stand up' stores 'stand up') -- so the note never reads as the schedule or as the
+    ask's own frame ('i need a reminder to pay the rent' stores 'pay the rent')."""
     raw = str(text or "").strip()
-    match = _REMINDER_NOTE_RE.search(raw)
-    note = (match.group("note") if match else raw).strip()
+    lead = _REMINDER_LEAD_RE.match(raw)
+    if lead:
+        note = raw[lead.end():].strip()
+    else:
+        match = _REMINDER_NOTE_RE.search(raw)
+        note = (match.group("note") if match else raw).strip()
+    decimal_clock = re.match(r"(?:at\s+)?\d{1,2}\.\d{2}\s*(?:am|pm)?[\s,]*", note, re.IGNORECASE)
+    if decimal_clock:
+        # A decimal clock that leads the note ("9.30 tomorrow to leave") is the when-clause's
+        # own form, so it leaves with the rest of the when-words below.
+        note = note[decimal_clock.end():].strip()
+    leading_clock = re.match(
+        r"(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)\s*[,:]\s*"
+        r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*,\s*",
+        note, re.IGNORECASE,
+    )
+    if leading_clock:
+        # A clock time that leads the subject ("6pm, gym" after "set me a reminder for 6pm,
+        # gym") is the when-clause the reader already read; what follows it is the thing to
+        # do. The am/pm or comma is required: "10 press ups every morning" is the subject.
+        rest = note[leading_clock.end():].strip()
+        if rest:
+            note = rest
+    part_clock = _PART_CLOCK_LEAD_RE.match(note)
+    if part_clock:
+        # A part-of-day clock that leads the subject ("at noon about lunch with Kai") is a
+        # time the reader already read; it leaves WITHOUT its joiner, so "about ..." stays.
+        rest = note[part_clock.end():].strip()
+        if rest:
+            note = rest
     leading = _LEADING_WHEN_RE.match(note)
     if leading:
         note = leading.group("note").strip()
-    tail = _WHEN_TAIL_RE.search(note)
-    if tail:
-        note = note[: tail.start()].strip()
+    day_clock = _DAY_CLOCK_TAIL_RE.search(note)
+    day_clock_cut = False
+    if day_clock:
+        # A weekday that carries the due time's clock ("send the invoice friday at 10",
+        # "renew parking permit, tuesday 9am") leaves WITH that clock, before the plain
+        # when-tail below could strand the day word in the subject.
+        stripped = note[: day_clock.start()].strip()
+        if stripped:
+            note = stripped
+            day_clock_cut = True
+    # Job 6d (Fix 2): the due time is the LAST when-expression of the ask. The cut lands on
+    # the right-most when-head (everything from it to the end leaves -- the old first-match
+    # cut landed on the FIRST clock and ate the subject after it), and a day phrase the cut
+    # clock was riding leaves with it under the _CARRIED_DAY_TAIL_RE rule.
+    # Job 6e (Fix 1): when that weekday+clock cut already took the LAST when-expression
+    # ("... workshop on monday at 9"), the due time has left the subject, and what remains
+    # is the thing to do; a second cut would land on a when-expression INSIDE the subject
+    # ("book the Friday at 10 workshop" lost "Friday at 10 workshop").
+    heads = [] if day_clock_cut else list(_WHEN_TAIL_HEAD_RE.finditer(note))
+    if heads:
+        cut = note[: heads[-1].start()].strip()
+        if cut:
+            note = cut
+            carried = _CARRIED_DAY_TAIL_RE.search(note)
+            if carried:
+                rest = note[: carried.start()].strip()
+                carried_day = carried.group(0).strip().lower()
+                today_word = re.search(r"\b(?:today|tomorrow|tonight|yesterday)\b", carried_day)
+                if rest and (not today_word or _EARLIER_WHEN_HINT_RE.search(rest)):
+                    # "send the invoice friday"/"pay the rent on the 3rd" drop the schedule-marked
+                    # day; a today-word only when an earlier when-expression stays inside the
+                    # subject ("book the Friday at 10 workshop tomorrow" -> "... workshop"),
+                    # else it keeps Job 6b's reading ("the show tickets tomorrow").
+                    note = rest
     note = note.rstrip(".,;:")
     return (note or raw)[:400]
 
@@ -1151,6 +1330,83 @@ _WHEN_ONLY_WORDS = frozenset(
     "january february march april may june july august september october november december "
     "jan feb mar apr jun jul aug sep sept oct nov dec st nd rd th of the".split()
 )
+
+
+#: Job 6e (Fix 2): a clock time inside a subject, also one that labels a noun ("the Monday at
+#: 3 caller", "the 9am standup"), which the due-time reader's own clock pattern skips.
+_SUBJECT_CLOCK_RE = re.compile(
+    r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)(?!\w)|\bat\s+\d{1,2}(?::\d{2})?\b",
+    re.IGNORECASE,
+)
+_TODAY_WORDS = frozenset({"yesterday", "today", "tonight", "tomorrow"})
+
+
+def _reminder_when_text(text: str, note: str) -> tuple[str, str]:
+    """Job 6e (Fix 2): the words the due-time reader reads, so the due time agrees with the
+    stored subject. Returns ``(when_text, problem)``.
+
+    The subject keeps a when-expression that names the thing to do ("the Friday at 10
+    workshop", "the 9am standup") and the cut takes the LAST when-expression of the ask as
+    the due time. The reader reads the first clock and the first day word it meets, so on
+    those asks it read the subject's own time ("call the Monday at 3 caller back tomorrow
+    at 10" was due Monday). When the stored subject holds a clock time, the reader now
+    reads the ask WITHOUT the subject: exactly the when-words the cut removed. A subject
+    with no clock of its own changes nothing ("the show tickets tomorrow at 10" keeps the
+    whole-ask reading, its "tomorrow" is the due day too).
+
+    When the subject names a day and the words left over give a clock with no day of their
+    own ("call the Monday at 3 caller back at 10"), the two readings disagree on the day and
+    neither can be settled from the words, so the ask is answered with a question instead
+    of a guess.
+    """
+    from .when import (
+        _DAY_OF_MONTH_RE,
+        _DAY_RE,
+        _IN_RELATIVE_RE,
+        _IN_WORDY_RELATIVE_RE,
+        _ISO_DATETIME_RE,
+        _PART_OF_DAY_RE,
+        _TIME_RE,
+        _WORD_DATE_RE,
+    )
+
+    raw = str(text or "")
+    subject = str(note or "")
+    # What in the subject the whole-ask reader could take for the due time: a clock (also a
+    # clock that labels a noun, "the Friday at 10 workshop", which the reader skips there but
+    # whose day word it still reads) or a schedule-marked day (a weekday, a date). A
+    # today-word alone keeps the whole-ask reading (Job 6b: "the show tickets tomorrow").
+    subject_clock = _TIME_RE.search(subject) is not None or _SUBJECT_CLOCK_RE.search(subject) is not None
+    subject_days = [m.group(1).lower() for m in _DAY_RE.finditer(subject)]
+    subject_marked_day = any(day not in _TODAY_WORDS for day in subject_days) or any(
+        pattern.search(subject) is not None for pattern in (_WORD_DATE_RE, _DAY_OF_MONTH_RE, _ISO_DATETIME_RE)
+    )
+    if not subject or not (subject_clock or subject_marked_day):
+        return raw, ""
+    # A "subject" made of when-words only ("remind me on 2026-11-08 at 09:00" leaves "2026-11-08")
+    # names no thing to do: it is the due time itself, so the whole ask is read.
+    if not any(word not in _WHEN_ONLY_WORDS for word in re.findall(r"[^\W\d_]+", subject.lower())):
+        return raw, ""
+    at = raw.find(subject)
+    if at < 0:
+        return raw, ""
+    rest = f"{raw[:at]} {raw[at + len(subject):]}".strip()
+    has_clock = _TIME_RE.search(rest) is not None or _PART_OF_DAY_RE.search(rest) is not None
+    has_delay = _IN_RELATIVE_RE.search(rest) is not None or _IN_WORDY_RELATIVE_RE.search(rest) is not None
+    has_day = any(
+        pattern.search(rest) is not None
+        for pattern in (_DAY_RE, _WORD_DATE_RE, _DAY_OF_MONTH_RE, _ISO_DATETIME_RE)
+    )
+    if not (has_clock or has_delay or has_day):
+        return raw, ""
+    if subject_days and has_clock and not has_day and not has_delay:
+        day_word = subject_days[0]
+        return rest, (
+            f"Which day should I remind you: {day_word}, or another day? \"{subject}\" names "
+            f"{day_word}, and the time you gave has no day of its own. Say the day with the time, "
+            "for example 'tomorrow at 10' or 'on monday at 9'."
+        )
+    return rest, ""
 
 
 def _reminder_repeat_from_text(text: str) -> str:

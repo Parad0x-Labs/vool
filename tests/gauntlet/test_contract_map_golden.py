@@ -93,6 +93,11 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'media.undo': ('workspace_write', 'runtime_policy'),
     'operator.apple_note_list': ('read_only', 'none'),
     'operator.apple_note_read': ('read_only', 'none'),
+    # 204 -> 206 (tool-seating Job 6): the operator reminder vertical. schedule/cancel write a
+    # row of this runtime's own reminder store — in-app local state (creative_state, the same
+    # class as contacts.save), gated by runtime policy (request provenance, past-time refusal),
+    # never an external send.
+    'operator.cancel_reminder': ('creative_state', 'runtime_policy'),
     'operator.check_availability': ('read_only', 'none'),
     'operator.cleanup_temp_files': ('workspace_write', 'explicit_user_opt_in'),
     'operator.find_notes': ('read_only', 'none'),
@@ -107,6 +112,7 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'operator.propose_calendar_event': ('network_publish', 'explicit_user_opt_in'),
     'operator.save_note': ('workspace_write', 'explicit_user_opt_in'),
     'operator.schedule_calendar_event': ('workspace_write', 'explicit_user_opt_in'),
+    'operator.schedule_reminder': ('creative_state', 'runtime_policy'),
     'operator.search_calendar_event': ('read_only', 'none'),
     'operator.show_agenda': ('read_only', 'none'),
     'operator.show_note': ('read_only', 'none'),
@@ -389,7 +395,7 @@ def test_contract_map_and_list_agree():
     # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 204
+    assert len(contract_map) == len(GOLDEN_TIERS) == 206
 
 
 def test_only_expected_tools_hold_explicit_opt_in():
