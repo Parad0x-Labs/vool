@@ -183,7 +183,9 @@ _S_LOC = re.compile(rf"\b(?:where|which|wich|whcih|whihc|what|in\s+which|in\s+wh
 #: workspace identity answer owns. A location ask is a search only about what was said or done.
 _S_HERE_NOW = re.compile(
     r"\b(?:am\s+i|are\s+(?:we|you|u))\s+(?:currently\s+|now\s+|still\s+)?"
-    r"(?:in|on|at|inside|working|using|bound|scoped|set)\b"
+    # "which project are you looking at right now?" (re-audit 2026-10-29, coding:W02) is where VOOL
+    # is pointed now, not a search of old chats.
+    r"(?:in|on|at|inside|working|using|bound|scoped|set|looking\s+(?:at|in|into)|pointed|focused|viewing)\b"
     r"|\bis\s+(?:this|that)\s*[?.!]*$"
 )
 _S_WHERE = re.compile(
@@ -228,6 +230,9 @@ _S_ALL = re.compile(
     rf"(?:{_CHAT_N}s|history|chat\s+history|past\s+{_CHAT_N}s|old\s+{_CHAT_N}s)\b"
 )
 _CHAT_NOUN = re.compile(rf"\b{_CHAT_N}s?\b")
+#: "look up how long to boil eggs" asks for knowledge. A past-chat cue elsewhere in the sentence ("i
+#: saved a recipe link somewhere, anyway can you look up how ...") is not what the lookup is about.
+_S_KNOWLEDGE_LOOKUP = re.compile(r"\blook\s+(?:\w+\s+)?up\s+(?:how|what|when|why|whether|who|which)\b")
 #: With no chat noun, a "find ... we discussed" sentence about these is a file/web/code ask.
 _NOT_CHATS = re.compile(
     r"\b(?:file|files|folder|folders|directory|repo|repository|codebase|code|function|class|"
@@ -384,6 +389,11 @@ def looks_like_search(clause: str) -> bool:
         return False
     if _S_LOC.search(f) or _S_WHERE.search(f) or _S_FORGOT.search(f) or _S_ALL.search(f):
         return True
+    lookup = _S_KNOWLEDGE_LOOKUP.search(f)
+    if lookup and not _CHAT_NOUN.search(f) and not _S_PAST.search(f[lookup.start():]):
+        # Measured 2026-10-29 (re-audit mailweb:W11): "somewhere" in the aside sent the egg
+        # question to the chat search. Only a past cue INSIDE the lookup keeps it ours.
+        return False
     if _S_FIND.search(f) and _S_PAST.search(f):
         # "find the file we discussed" is a file ask; with a chat named it is ours again.
         return bool(_CHAT_NOUN.search(f)) or not _NOT_CHATS.search(f)
