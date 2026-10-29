@@ -722,6 +722,62 @@ def exact_names(answer: str, result: Any) -> str:
     return out
 
 
+_SIZE_RE = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(bytes|byte|KB|MB|GB|TB)\b", re.IGNORECASE)
+_SIZE_UNITS = {"byte": 1, "bytes": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+SIZE_NOTICE = "I couldn't measure that size from what I looked at, so I won't guess a number."
+
+
+def _sizes(text: str) -> list[float]:
+    out = []
+    for number, unit in _SIZE_RE.findall(str(text or "")):
+        try:
+            out.append(float(number.replace(",", ".")) * _SIZE_UNITS[unit.lower()])
+        except (KeyError, ValueError):
+            continue
+    return out
+
+
+def _size_seen(value: float, unit: str, known: list[float]) -> bool:
+    # One decimal of the answer's own unit is the rounding the tools print ("1.2 MB").
+    slack = max(value * 0.06, 0.06 * _SIZE_UNITS[unit.lower()])
+    return any(abs(value - size) <= slack for size in known)
+
+
+def grounded_sizes(answer: str, result: Any) -> str:
+    """A size the answer states must be one the tools showed (or the sum of one listing): a number
+    with nothing behind it is cut, and the answer says it could not measure instead (fresh-45 jury:
+    "12.3 GB" for a few KB of photos, with no size in any tool output)."""
+    if not answer or not _SIZE_RE.search(answer):
+        return answer
+    known: list[float] = []
+    for text in list(getattr(result, "seen", None) or []):
+        sizes = _sizes(text)
+        known.extend(sizes)
+        if len(sizes) > 1:
+            known.append(sum(sizes))
+    def ungrounded(sentence: str) -> bool:
+        for number, unit in _SIZE_RE.findall(sentence):
+            try:
+                value = float(number.replace(",", ".")) * _SIZE_UNITS[unit.lower()]
+            except (KeyError, ValueError):
+                continue
+            if not _size_seen(value, unit, known):
+                return True
+        return False
+    lines = []
+    cut = False
+    for line in answer.split("\n"):
+        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'*(-])", line)
+        kept = [part for part in parts if not ungrounded(part)]
+        cut = cut or len(kept) != len(parts)
+        if kept or not parts or not line.strip():
+            lines.append(" ".join(kept))
+    if not cut:
+        return answer
+    rest = "\n".join(lines).strip()
+    return f"{rest}\n\n{SIZE_NOTICE}".strip() if rest else SIZE_NOTICE
+
+
 def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
     """A question about what left this computer is answered from the local meter before the model
     is asked anything, so it never has to guess or look online (Mac demo 2026-10-28)."""
@@ -748,6 +804,12 @@ _LOOK_WRITE_RE = re.compile(
 #: The disk stages only on the explicit how-much shape: a bare "full" or "filling" rides asks
 #: about folders too, and a disk word alone does not say the answer is a measurement.
 _LOOK_DISK_ASK_RE = re.compile(r"\bhow\s+full\b|\bhow\s+much\s+(?:space|room|storage)\b")
+#: "how much space do my holiday photos take" asks for the size of some files, not for the drive:
+#: staging the drive figure there invited a made-up folder size (fresh-45 jury, a confident
+#: "12.3 GB" for a few KB of photos, with nothing but the drive total in front of the model).
+_LOOK_SIZE_OF_RE = re.compile(
+    r"\b(?:take|takes|taking|took|use|uses|using|used|eat|eats|eating|hog|hogs|hogging|occupy|occupies)\b"
+)
 _LOOK_SPECS_RE = re.compile(r"\b(?:ram|specs|how\s+much\s+memory|what\s+chip|which\s+chip)\b")
 _LOOK_PROC_RE = re.compile(r"\b(?:running|slowing|sluggish|cpu)\b")
 _LOOK_BIG_RE = re.compile(r"\b(?:biggest|largest)\b")
@@ -815,7 +877,7 @@ def look_first_pre_step(ask: str, ctx: ToolContext) -> str | None:
             return None
         return outcome.text[:_LOOK_CHARS]
 
-    if _LOOK_DISK_ASK_RE.search(low):
+    if _LOOK_DISK_ASK_RE.search(low) and not _LOOK_SIZE_OF_RE.search(low):
         return settle(disk_usage({}, ctx))
     if _LOOK_SPECS_RE.search(low):
         return settle(system_info({}, ctx))
@@ -839,16 +901,19 @@ def install_builtin_tools(registry: Registry) -> None:
     registry.register_pre_step("privacy", privacy_pre_step)
     registry.register_pre_step("look_first", look_first_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
+    registry.register_answer_gate("grounded_sizes", grounded_sizes)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
 
 
 __all__ = [
     "BUILTIN_TOOLS",
     "CARD_NOTICE",
+    "SIZE_NOTICE",
     "PENDING_NOTICE",
     "OutsideHome",
     "home_dir",
     "install_builtin_tools",
+    "grounded_sizes",
     "pending_proposal_notice",
     "scope_path",
 ]
