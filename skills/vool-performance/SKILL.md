@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [performance, profile, slow, speed up, optimize, hot path, faster]
 allowed-tools: [workspace.search_text, workspace.read_file, workspace.run_tests, sandbox.run_command]
 capabilities: [workspace.read, workspace.validate, sandbox.command]

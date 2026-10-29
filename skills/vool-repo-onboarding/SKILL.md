@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [onboard me, onboarding, get oriented, codebase tour, map this codebase, explain this codebase, explain this project, what does this project do, how is this project structured, where does the code for, where is the code for, where in the code]
 allowed-tools: [workspace.identity, workspace.list_tree, workspace.read_file, workspace.search_text, workspace.symbol_search, workspace.git_summary]
 capabilities: [workspace.read, workspace.git]

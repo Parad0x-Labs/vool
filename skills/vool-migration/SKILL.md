@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [migrate, migration, port, schema change, upgrade the format, move to the new]
 allowed-tools: [workspace.search_text, workspace.read_file, workspace.replace_in_file, workspace.write_file, workspace.apply_unified_diff, workspace.run_tests]
 capabilities: [workspace.read, workspace.write, workspace.validate]

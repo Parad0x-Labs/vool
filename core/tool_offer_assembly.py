@@ -367,17 +367,33 @@ def _render_lexical(
     return remaining
 
 
+#: Words that put a turn in a developer's own work: code, tests, repositories, releases. Any one of
+#: them lets VOOL's developer skills guide the turn; an everyday ask carries none.
+_DEVELOPER_WORDS_RE = re.compile(
+    r"\b(?:code|codebase|source\s+code|repo|repository|git|commits?|branch|pull\s+request|diff"
+    r"|unit\s+tests?|tests?|test\s+suite|pytest|ci|pipeline|builds?|deploy\w*|release\s+gate"
+    r"|functions?|modules?|stack\s*trace|traceback|exceptions?|compile\w*|lint\w*|refactor\w*"
+    r"|migrat\w*|schema|database|sql|queries|query|api|endpoints?|benchmark\w*|profil\w*"
+    r"|hot\s+path|vulnerab\w*|secrets?|injection|security\s+(?:audit|issues?|review)"
+    r"|audit|feature|implement\w*|bugs?|debug\w*|archaeology|regression)\b",
+    re.IGNORECASE,
+)
+
+
 def _people_safe(selected: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
-    """The selected native skills minus VOOL's own developer skills, unless the developer setting
-    is on or the words themselves ask for what the skill does (its tool intents or families).
+    """The selected native skills minus VOOL's own developer skills (``audience: developer``),
+    unless the developer setting is on or the turn is about a developer's own work: its words
+    name code, tests, a repository or the like, or ask for what the skill does (its tool
+    intents or families).
 
     The task class alone is too weak for these: "write a polite complaint to my landlord, the
     heating has been broken for 3 weeks" is classed as debugging, and seated root-cause-repair,
     project-archaeology and cumulative-testing into an everyday letter (measured 2026-10-29).
     """
-    from core.native_skill_library import developer_skills_on, is_developer_skill
+    from core.native_skill_library import developer_skills_on
 
-    if developer_skills_on() or not any(is_developer_skill(c.id) for c in selected):
+    developer = [c for c in selected if getattr(c, "audience", "") == "developer"]
+    if not developer or developer_skills_on() or _DEVELOPER_WORDS_RE.search(user_text or ""):
         return tuple(selected)
     from core.tool_demand_signals import resolve_demand_signals
 
@@ -386,7 +402,7 @@ def _people_safe(selected: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
     families = frozenset(demands.required_families)
     return tuple(
         contract for contract in selected
-        if not is_developer_skill(contract.id)
+        if getattr(contract, "audience", "") != "developer"
         or intents & frozenset(contract.tool_intents)
         or families & frozenset(contract.capability_families)
     )

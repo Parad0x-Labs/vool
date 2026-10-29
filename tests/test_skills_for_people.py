@@ -149,13 +149,35 @@ def test_words_that_ask_for_test_runs_still_reach_a_developer_skill() -> None:
     assert [name for name in picked if is_developer_skill(name)], picked
 
 
-def test_the_developer_set_names_real_built_ins_only() -> None:
-    from core.native_skill_library import DEVELOPER_SKILL_IDS, load_native_library
+DEVELOPER_IDS = {
+    "ci-repair", "code-review", "cumulative-testing", "database", "feature-build", "migration",
+    "performance", "project-archaeology", "release-gate", "repo-onboarding", "root-cause-repair",
+    "security-audit",
+}
 
-    ids = {contract.id for contract in load_native_library().contracts}
-    assert DEVELOPER_SKILL_IDS <= ids, sorted(DEVELOPER_SKILL_IDS - ids)
-    assert "x-editorial-studio" not in DEVELOPER_SKILL_IDS
-    assert "media-studio" not in DEVELOPER_SKILL_IDS
+
+def test_the_skills_vool_is_built_with_are_marked_for_developers_in_their_own_files() -> None:
+    from core.native_skill_library import is_developer_skill, load_native_library
+
+    contracts = {contract.id: contract for contract in load_native_library().contracts}
+    marked = {skill_id for skill_id, contract in contracts.items() if contract.audience == "developer"}
+    assert marked == DEVELOPER_IDS, sorted(marked ^ DEVELOPER_IDS)
+    assert all(is_developer_skill(skill_id) for skill_id in DEVELOPER_IDS)
+    assert not is_developer_skill("x-editorial-studio")
+    assert not is_developer_skill("media-studio")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "A unit test in my project fails after my change. Diagnose the root cause.",
+        "audit this module for security issues",
+    ],
+)
+def test_a_developers_own_words_still_reach_the_developer_skills(text: str) -> None:
+    from core.native_skill_library import is_developer_skill
+
+    assert [name for name in _picked(text, "debugging") if is_developer_skill(name)]
 
 
 # --------------------------------------------------------------------------- 3. by name
