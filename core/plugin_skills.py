@@ -240,33 +240,40 @@ def _contains_phrase(ask_stems: list[str], phrase_stems: list[str]) -> bool:
     return any(ask_stems[start : start + span] == phrase_stems for start in range(len(ask_stems) - span + 1))
 
 
-def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) -> tuple[Skill, ...]:
-    """The skills this request is actually about, best first.
+@dataclass(frozen=True)
+class _Match:
+    score: int
+    index: int
+    skill: Skill
+    reasons: tuple[str, ...]
 
-    Overlap only — nothing here decides whether a tool is available. A request that matches no
-    skill still reaches the model with the full catalog; it just gets no extra instructions.
 
-    Measured 2026-10-28 against 53 real Browse skills: one shared ordinary word was enough to
-    inject a skill ("what rows of seats are best on a plane" seated the database skill), so a
-    match now needs one of:
+def _ask_words(user_text: str) -> dict[str, str]:
+    """Each content stem of the ask, mapped back to the first word the person actually typed."""
 
-    * the ask names the skill — its name verbatim, or every stem of a multi-word name;
-    * the ask contains a whole declared trigger (a multi-word trigger must appear as a phrase,
-      in order — one word out of it is not a match);
-    * the ask shares at least two distinct content stems with the skill's name, description and
-      triggers, at least one of which is a topic word. Kind-of-help words (explain, write,
-      make, help, plan, check, list, table, summarise, draft, fix) never carry a match alone,
-      and may only stand behind a topic word no other candidate skill carries or that only a
-      few do: "fix the spelling" reaches the proofreading skill, "explain how it works" must
-      not reach whichever skill happens to say "worked example";
-    * the ask uses one word that is BOTH distinctive (no other candidate skill contains it) and
-      part of this skill's own name — "which chart should I use" is about the chart skill even
-      though "chart" is its only overlap.
+    words: dict[str, str] = {}
+    for token in _raw_tokens(user_text):
+        if len(token) > 2 and token not in _STOPWORDS and not token.isdigit():
+            words.setdefault(_stem(token), token)
+    return words
+
+
+def _in_ask_order(stems: set[str], ask_stems: list[str]) -> list[str]:
+    return [stem for stem in dict.fromkeys(ask_stems) if stem in stems]
+
+
+def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
+    """Every skill this request qualifies for, best first, with the plain reasons it qualified.
+
+    The one qualification and scoring path: rank_skills and match_reasons both read it, so a
+    reason shown to a person is always the reason the ranker used.
     """
+
 
     ask_stems = _content_stems(user_text)
     if not ask_stems:
-        return ()
+        return []
+    asked = _ask_words(user_text)
     ask_stem_set = set(ask_stems)
     # "use the release-notes skill" names the skill outright. That is the strongest statement of
     # intent there is, and it must not lose to a skill whose description merely shares more words.
@@ -276,6 +283,7 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
     # which one this ask means, so rarity decides how much a shared word is worth.
     stem_owners: dict[str, set[int]] = {}
     per_skill: list[tuple[set[str], set[str], list[list[str]]]] = []
+    triggers_of: list[list[str]] = []
     for index, skill in enumerate(skills):
         name_stems = set(_content_stems(skill.name))
         desc_stems = set(_content_stems(skill.description))
@@ -284,21 +292,24 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
         # back of my cookbook" must not seat the database skill — measured 2026-10-28).
         trigger_stems: set[str] = set()
         phrase_stems: list[list[str]] = []
+        written: list[str] = []
         for trigger in skill.triggers:
             stems = _content_stems(trigger)
             if not stems:
                 continue
             phrase_stems.append(stems)
+            written.append(trigger)
             if len(stems) == 1:
                 trigger_stems.update(stems)
         per_skill.append((name_stems, desc_stems | trigger_stems, phrase_stems))
+        triggers_of.append(written)
         for stem in name_stems | desc_stems | trigger_stems:
             stem_owners.setdefault(stem, set()).add(index)
 
     def _owners(stem: str) -> int:
         return len(stem_owners.get(stem, ()))
 
-    scored: list[tuple[int, int, Skill]] = []
+    matches: list[_Match] = []
     for index, skill in enumerate(skills):
         name_stems, corpus_stems, phrase_stems = per_skill[index]
         # Naming the skill: the words of its name, verbatim and adjacent...
@@ -343,9 +354,63 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
             + 2 * len(shared - topic)
             + 3 * len(ask_stem_set & corpus_stems)
         )
-        scored.append((-score, index, skill))
-    scored.sort()
-    return tuple(item[2] for item in scored[:limit])
+        reasons: list[str] = []
+        if named or name_covered:
+            reasons.append("names the skill")
+        for trigger, stems in zip(triggers_of[index], phrase_stems):
+            if stems in hits:
+                reasons.append(f'trigger "{trigger}"')
+        reasons.extend(
+            f"word from the skill's name \"{asked.get(stem, stem)}\""
+            for stem in sorted(topic)
+            if stem in name_stems and _owners(stem) == _RARE
+        )
+        if shared:
+            reasons.append("shared words " + ", ".join(f'"{asked.get(stem, stem)}"' for stem in _in_ask_order(shared, ask_stems)))
+        matches.append(_Match(score=score, index=index, skill=skill, reasons=tuple(reasons)))
+    matches.sort(key=lambda match: (-match.score, match.index))
+    return matches
+
+
+def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) -> tuple[Skill, ...]:
+    """The skills this request is actually about, best first.
+
+    Overlap only — nothing here decides whether a tool is available. A request that matches no
+    skill still reaches the model with the full catalog; it just gets no extra instructions.
+
+    Measured 2026-10-28 against 53 real Browse skills: one shared ordinary word was enough to
+    inject a skill ("what rows of seats are best on a plane" seated the database skill), so a
+    match now needs one of:
+
+    * the ask names the skill — its name verbatim, or every stem of a multi-word name;
+    * the ask contains a whole declared trigger (a multi-word trigger must appear as a phrase,
+      in order — one word out of it is not a match);
+    * the ask shares at least two distinct content stems with the skill's name, description and
+      triggers, at least one of which is a topic word. Kind-of-help words (explain, write,
+      make, help, plan, check, list, table, summarise, draft, fix) never carry a match alone,
+      and may only stand behind a topic word no other candidate skill carries or that only a
+      few do: "fix the spelling" reaches the proofreading skill, "explain how it works" must
+      not reach whichever skill happens to say "worked example";
+    * the ask uses one word that is BOTH distinctive (no other candidate skill contains it) and
+      part of this skill's own name — "which chart should I use" is about the chart skill even
+      though "chart" is its only overlap.
+    """
+
+    return tuple(match.skill for match in _qualify(skills, user_text)[:limit])
+
+
+def match_reasons(skills: tuple[Skill, ...], user_text: str) -> dict[str, list[str]]:
+    """Why each qualifying skill matched this request, in plain words, best match first.
+
+    skill name -> reasons such as 'names the skill', 'trigger "<phrase>"', 'word from the
+    skill's name "<word>"' and 'shared words "<a>", "<b>"' (the person's own words). Computed by
+    the same path as rank_skills; a skill that is absent did not qualify.
+    """
+
+    reasons: dict[str, list[str]] = {}
+    for match in _qualify(skills, user_text):
+        reasons.setdefault(match.skill.name, list(match.reasons))
+    return reasons
 
 
 def instructions_for(skills: tuple[Skill, ...]) -> str:
@@ -380,6 +445,7 @@ __all__ = [
     "Skill",
     "instructions_for",
     "load_skills",
+    "match_reasons",
     "narrowed_tools",
     "parse_skill",
     "rank_skills",
