@@ -14,7 +14,7 @@ automatic for the common ones.
 ## Cloud providers
 
 Cloud models are reached with your key, from your machine. Selecting one puts the app in
-`CLOUD` mode — see [Local and cloud](../concepts/local-and-cloud.md).
+cloud mode (the indicator shows the provider's name) — see [Local and cloud](../concepts/local-and-cloud.md).
 
 [OpenRouter](../guides/openrouter.md) is the broadest single connection: one key, many
 providers.

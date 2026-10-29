@@ -1,5 +1,8 @@
 # Corrections that stick: VOOL's self-learning memory
 
+> **Design document, mostly not built.** Only what the README and [release status](trust/release-status.md) list is released in 0.7.5. Everything else here is planned for 0.8 or later, not released yet.
+
+
 Design, 2026-08-15. Grounded in live research (forge §0.8), not recalled knowledge.
 
 ## 1. GOAL

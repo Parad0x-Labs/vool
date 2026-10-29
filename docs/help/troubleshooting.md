@@ -31,7 +31,7 @@ If that returns nothing, the runtime is not up.
 
 The callback page hands control to VOOL through a `vool://` link. If the browser does
 nothing, VOOL is not installed or not running. Start VOOL and connect again from
-**Settings → Models**.
+**Settings → Models & Providers**.
 
 ## Responses are slow
 
