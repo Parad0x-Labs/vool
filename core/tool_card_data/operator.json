@@ -1,0 +1,183 @@
+{
+  "_about": "Cards for the owner's notes, calendar and VOOL reminders. Owner-local turns only (core.tool_card_router).",
+  "operator.find_notes": {
+    "use_when": "The person wants to find something in the notes they saved.",
+    "examples": [
+      "find my note about the flat viewing",
+      "do I have any notes on the garden",
+      "what did I write down about the dentist",
+      "search my notes for the wifi password",
+      "have I got a note with the gift ideas",
+      "busca en mis notas lo del piso",
+      "cherche dans mes notes la liste de courses",
+      "such in meinen Notizen nach dem Rezept",
+      "ar turiu užrašą apie butą"
+    ],
+    "not_for": [
+      "how do I take better notes",
+      "what is the best note taking app",
+      "write a note to my landlord"
+    ]
+  },
+  "operator.show_note": {
+    "use_when": "The person wants to see one saved note by its title.",
+    "examples": [
+      "show me my note called shopping list",
+      "open the note titled packing",
+      "read me my holiday note",
+      "muéstrame la nota de la compra",
+      "affiche ma note voyage"
+    ],
+    "not_for": [
+      "what does a musical note look like"
+    ]
+  },
+  "operator.save_note": {
+    "use_when": "The person wants something kept as a note so they can find it later.",
+    "examples": [
+      "make a note that the plumber comes on friday",
+      "jot down the wifi password is sunflower42",
+      "save a note: call grandma about the pancakes recipe",
+      "add to my notes that the car needs an oil change",
+      "note this down for me",
+      "apunta que tengo que llamar al banco",
+      "prends note que la réunion est déplacée",
+      "notier dir, dass ich Milch kaufen muss",
+      "užsirašyk, kad rytoj skambinti gydytojui"
+    ],
+    "not_for": [
+      "how do I make a note in the notes app",
+      "write a thank you note for my teacher",
+      "notes on the history of rome"
+    ]
+  },
+  "operator.apple_note_list": {
+    "use_when": "The person wants a list of the notes in their Apple Notes app or one of its folders.",
+    "examples": [
+      "what notes do I have in apple notes",
+      "list my notes in the recipes folder",
+      "show the notes in my notes app",
+      "qué notas tengo en la app de notas"
+    ],
+    "not_for": [
+      "how do I sync apple notes to icloud"
+    ]
+  },
+  "operator.apple_note_read": {
+    "use_when": "The person wants to read one particular note from their Apple Notes app.",
+    "examples": [
+      "read my apple note called packing list",
+      "what does my groceries note in apple notes say",
+      "open the passwords note in my notes app"
+    ],
+    "not_for": [
+      "can apple notes be locked with a password"
+    ]
+  },
+  "operator.show_agenda": {
+    "use_when": "The person wants to know what is on their calendar for a day, week or other time window.",
+    "examples": [
+      "what's on my calendar tomorrow",
+      "do I have anything this weekend",
+      "what meetings have I got today",
+      "show my schedule for next week",
+      "what am I doing on friday",
+      "qué tengo en el calendario mañana",
+      "qu'est-ce que j'ai à l'agenda cette semaine",
+      "was steht morgen in meinem Kalender",
+      "ką turiu kalendoriuje šiandien"
+    ],
+    "not_for": [
+      "how do I share my google calendar",
+      "what day of the week is christmas"
+    ]
+  },
+  "operator.check_availability": {
+    "use_when": "The person wants to know whether they are free at a certain time or when they have a free slot.",
+    "examples": [
+      "am I free on thursday afternoon",
+      "is tuesday at 3 clear",
+      "when do I have an hour free tomorrow",
+      "can I fit a call in on monday morning",
+      "¿estoy libre el viernes por la tarde?",
+      "est-ce que je suis libre jeudi"
+    ],
+    "not_for": [
+      "is the museum free on sundays",
+      "what's a good time to have a meeting"
+    ]
+  },
+  "operator.search_calendar_event": {
+    "use_when": "The person is looking for a particular event on their calendar by what it is called or about.",
+    "examples": [
+      "when is my dentist appointment",
+      "find the accountant meeting on my calendar",
+      "when's mia's birthday party in my calendar",
+      "cuándo es mi cita con el médico"
+    ],
+    "not_for": [
+      "when is the next full moon"
+    ]
+  },
+  "operator.propose_calendar_event": {
+    "use_when": "The person wants a new event put on their calendar.",
+    "examples": [
+      "put lunch with sam on my calendar friday at 1",
+      "add a dentist appointment next tuesday 10am",
+      "book a call with the accountant on the 3rd at 11",
+      "schedule a meeting tomorrow at 9",
+      "pencil in the school play on thursday evening",
+      "pon una cita el lunes a las 5",
+      "ajoute un rendez-vous jeudi à 14h",
+      "trag einen Termin am Montag um 10 ein"
+    ],
+    "not_for": [
+      "how do I add an event in google calendar",
+      "what's a good schedule for studying"
+    ]
+  },
+  "operator.list_reminders": {
+    "use_when": "The person wants to see the reminders VOOL is holding for them.",
+    "examples": [
+      "what reminders do I have",
+      "show my reminders",
+      "did I set a reminder for the bins",
+      "list everything you're going to remind me about",
+      "qué recordatorios tengo",
+      "quels sont mes rappels"
+    ],
+    "not_for": [
+      "how do reminders work on iphone"
+    ]
+  },
+  "operator.schedule_reminder": {
+    "use_when": "The person wants to be reminded about something at a later time.",
+    "examples": [
+      "remind me to call mum at 6",
+      "remind me tomorrow morning to take the bins out",
+      "set a reminder for the dentist on friday",
+      "don't let me forget to pay rent on the 1st",
+      "ping me in 20 minutes to check the oven",
+      "recuérdame llamar al banco mañana",
+      "rappelle-moi d'acheter du pain ce soir",
+      "erinnere mich morgen an den Arzttermin",
+      "priminkite man rytoj paskambinti mamai"
+    ],
+    "not_for": [
+      "this reminds me of my childhood",
+      "how do I set a reminder on my phone"
+    ]
+  },
+  "operator.cancel_reminder": {
+    "use_when": "The person wants a reminder VOOL is holding cancelled.",
+    "examples": [
+      "cancel the reminder about the bins",
+      "never mind the dentist reminder",
+      "delete my reminder for tomorrow",
+      "cancela el recordatorio del banco"
+    ],
+    "not_for": [
+      "how do I turn off reminders on my phone"
+    ]
+  }
+}

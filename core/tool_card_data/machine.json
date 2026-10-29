@@ -1,0 +1,188 @@
+{
+  "_about": "Cards for this computer's own files, drives and running programs. Owner-local turns only (core.tool_card_router).",
+  "machine.disk_usage": {
+    "use_when": "The person wants to know how much free or used space is left on this computer's drives.",
+    "examples": [
+      "how much space is left on my mac",
+      "is my disk nearly full",
+      "how many gigabytes free do I have",
+      "check my storage",
+      "am I running out of space on this laptop",
+      "how full is my hard drive",
+      "cuánto espacio libre me queda en el disco",
+      "combien d'espace disque il me reste",
+      "wie viel Speicherplatz habe ich noch frei",
+      "kiek vietos liko diske"
+    ],
+    "not_for": [
+      "how do I free up space on a mac",
+      "what is the difference between an ssd and a hard drive",
+      "should I buy a bigger disk"
+    ]
+  },
+  "machine.find_largest": {
+    "use_when": "The person wants to see what is taking up the most space on this computer, the biggest files or folders.",
+    "examples": [
+      "what's eating all my disk space",
+      "show me the biggest files on my computer",
+      "which folders take up the most room",
+      "find large files I could delete",
+      "what is hogging my storage",
+      "qué archivos ocupan más espacio",
+      "quels sont les plus gros fichiers sur mon ordinateur",
+      "welche Dateien sind am größten"
+    ],
+    "not_for": [
+      "how big is a typical movie file",
+      "how do I compress a large file"
+    ]
+  },
+  "machine.inspect_specs": {
+    "use_when": "The person asks what hardware this computer has: processor, memory, model, operating system version.",
+    "examples": [
+      "what are my computer's specs",
+      "how much ram does this mac have",
+      "which processor is in my laptop",
+      "what macos version am I on",
+      "what model is this computer",
+      "cuánta memoria tiene mi ordenador",
+      "quelle est la configuration de mon ordinateur",
+      "kokį procesorių turi mano kompiuteris"
+    ],
+    "not_for": [
+      "what specs should I look for in a new laptop",
+      "is 16gb of ram enough for gaming"
+    ]
+  },
+  "machine.host_state": {
+    "use_when": "The person asks about this computer's live state: battery level, charging, how long it has been on.",
+    "examples": [
+      "how much battery do I have left",
+      "is my laptop charging",
+      "how long has my computer been on",
+      "when did this mac last restart",
+      "cuánta batería me queda",
+      "il me reste combien de batterie"
+    ],
+    "not_for": [
+      "how do I make my battery last longer",
+      "what is a good battery health percentage"
+    ]
+  },
+  "machine.list_processes": {
+    "use_when": "The person wants to see which programs are running on this computer or what is using the memory or processor.",
+    "examples": [
+      "what's running on my computer right now",
+      "which app is using all my memory",
+      "why is my fan so loud, what's using the cpu",
+      "show me running programs",
+      "is anything heavy running in the background",
+      "what's slowing my mac down",
+      "qué programas se están ejecutando",
+      "quelles applications tournent en ce moment",
+      "welche Programme laufen gerade"
+    ],
+    "not_for": [
+      "how do I close an app on a mac",
+      "what does activity monitor do"
+    ]
+  },
+  "machine.list_directory": {
+    "use_when": "The person wants to see what is inside one of their folders such as Downloads, Desktop, Documents, Pictures or Movies.",
+    "examples": [
+      "what's in my downloads folder",
+      "list the files on my desktop",
+      "show me what's in documents",
+      "what photos are in my pictures folder",
+      "do I have any videos in movies",
+      "what did I download recently",
+      "qué hay en mi carpeta de descargas",
+      "montre-moi les fichiers sur mon bureau",
+      "was ist in meinem Download-Ordner",
+      "kas yra mano atsisiuntimų aplanke"
+    ],
+    "not_for": [
+      "how do I organise my downloads folder",
+      "where does chrome save downloads by default"
+    ]
+  },
+  "machine.find_file": {
+    "use_when": "The person is looking for a particular file on their computer by part of its name or what it is.",
+    "examples": [
+      "find my tax return pdf",
+      "where is my CV",
+      "do I have a file called invoice",
+      "find the boarding pass I downloaded",
+      "look for any spreadsheet with budget in the name",
+      "where did I save that screenshot",
+      "do I have any pdfs on this computer",
+      "busca mi factura",
+      "trouve mon fichier de recettes",
+      "finde meine Rechnung",
+      "surask mano gyvenimo aprašymą"
+    ],
+    "not_for": [
+      "how do I search for files on a mac",
+      "what is a pdf file"
+    ]
+  },
+  "machine.find_folder": {
+    "use_when": "The person is looking for a folder on their computer or drives by its name.",
+    "examples": [
+      "where is my photos folder from the holiday",
+      "find the folder called projects",
+      "which drive has my backup folder",
+      "is there a folder named taxes somewhere",
+      "encuentra la carpeta de vacaciones",
+      "trouve le dossier travail"
+    ],
+    "not_for": [
+      "how do I make a new folder",
+      "what's the best way to organise folders"
+    ]
+  },
+  "machine.read_file": {
+    "use_when": "The person wants to know what a particular text file on their computer says, or wants it summarised.",
+    "examples": [
+      "read my todo list on the desktop",
+      "what does my meeting notes file say",
+      "open the readme in my project and tell me what it is",
+      "summarise the q3 report draft in documents",
+      "what's in the recipe text file",
+      "lee el archivo de notas del escritorio",
+      "lis mon fichier todo"
+    ],
+    "not_for": [
+      "how do I open a txt file",
+      "write me a todo list"
+    ]
+  },
+  "machine.write_file": {
+    "use_when": "The person wants a text file saved onto their computer, such as on the Desktop or in Documents.",
+    "examples": [
+      "save this as a text file on my desktop",
+      "write that list into a file in documents",
+      "put this in a new file called shopping.txt",
+      "create a file on my desktop with these notes",
+      "guarda esto en un archivo en el escritorio"
+    ],
+    "not_for": [
+      "how do I save a file",
+      "write me a poem"
+    ]
+  },
+  "machine.move_path": {
+    "use_when": "The person wants a file or folder on their computer moved somewhere else or renamed.",
+    "examples": [
+      "move the invoice from downloads to documents",
+      "rename my cv file to cv_2026",
+      "put the holiday photos into the pictures folder",
+      "move that screenshot to the desktop",
+      "mueve la factura a documentos"
+    ],
+    "not_for": [
+      "how do I rename a file on a mac",
+      "we are moving house next week"
+    ]
+  }
+}

@@ -357,6 +357,30 @@ def _owner_live_source_toolsets(text: str, source_context: dict[str, Any] | None
     return tuple(toolsets)
 
 
+def _tool_card_toolsets(text: str, source_context: dict[str, Any] | None = None) -> tuple[str, ...]:
+    """The toolsets of the tools whose cards strongly fit the words (core.tool_card_router).
+
+    The same gates as the owner live-source arm: owner-local turns only, and the matcher is the one
+    the offer seats from (`model_visible_specs`), so the lane release and the offer cannot
+    disagree. Off unless the ``tools.card_routing`` policy flag is on. A plugin tool's card works
+    here the moment the plugin is registered; no recognizer in this module knows any tool.
+    """
+    if not isinstance(source_context, dict) or not source_context:
+        return ()
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return ()
+        from core.tool_card_router import releases_lane
+        from core.tool_navigator import _family_for_intent
+
+        matches = releases_lane(str(text or ""), owner_local=True)
+        return tuple(dict.fromkeys(_family_for_intent(m.intent) for m in matches))
+    except Exception:
+        return ()
+
+
 def _email_lane_enabled() -> bool:
     try:
         from core import policy_engine
@@ -1078,6 +1102,8 @@ def _compute_requirements(
     # parser's width is a typed-turn UX choice, so ordinary prose that merely mentions notes or
     # calendars releases nothing. The model still decides whether any operator tool is called.
     live_toolsets = () if _operator_arm_silent else _owner_live_source_toolsets(candidate_text, source_context)
+    card_toolsets = () if _operator_arm_silent else _tool_card_toolsets(candidate_text, source_context)
+    live_toolsets = tuple(dict.fromkeys((*live_toolsets, *card_toolsets)))
     if (
         not _operator_arm_silent
         and (_operator_action_demand(candidate_text, source_context) or live_toolsets)
@@ -1116,6 +1142,7 @@ def _compute_requirements(
                 *base.reason_codes,
                 "operator_action_request" if _operator_action_demand(candidate_text, source_context)
                 else "owner_live_source_request",
+                *(("tool_card_request",) if card_toolsets else ()),
             ))),
             multipart=getattr(base, "multipart", None),
             parallel_preferred=getattr(base, "parallel_preferred", None),

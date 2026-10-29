@@ -1,0 +1,56 @@
+{
+  "_about": "Cards for the owner's saved contacts.",
+  "contacts.search": {
+    "use_when": "The person wants a saved contact's details, such as a phone number or email address.",
+    "examples": [
+      "what's sam's phone number",
+      "do I have an email for the plumber",
+      "look up grandma in my contacts",
+      "find the landlord's number",
+      "who do I have saved called anna",
+      "cuál es el teléfono de marta",
+      "quel est l'email de pierre",
+      "was ist die Nummer von Jonas"
+    ],
+    "not_for": [
+      "what's the phone number for the police",
+      "how do I export my contacts"
+    ]
+  },
+  "contacts.save": {
+    "use_when": "The person wants a new contact saved, or a number or address added to someone.",
+    "examples": [
+      "save sam's number 07700 900123",
+      "add the plumber to my contacts, his email is joe@pipes.example",
+      "new contact: dr lee, phone 555 0199",
+      "guarda el número de marta",
+      "ajoute pierre à mes contacts"
+    ],
+    "not_for": [
+      "how do I add a contact on iphone"
+    ]
+  },
+  "contacts.update": {
+    "use_when": "The person wants a saved contact changed: a new number, address, name or label.",
+    "examples": [
+      "update sam's number to 07700 900456",
+      "change grandma's email",
+      "anna has a new phone number",
+      "cambia el email de marta"
+    ],
+    "not_for": [
+      "how do I update my phone"
+    ]
+  },
+  "contacts.delete": {
+    "use_when": "The person wants a saved contact removed.",
+    "examples": [
+      "delete the old plumber from my contacts",
+      "remove sam from my contacts",
+      "borra el contacto de juan"
+    ],
+    "not_for": [
+      "how do I delete my facebook account"
+    ]
+  }
+}

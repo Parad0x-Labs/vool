@@ -1,0 +1,31 @@
+{
+  "_about": "Cards for reading PDFs.",
+  "pdf.extract_text": {
+    "use_when": "The person wants to know what a PDF says, or wants something read or summarised from one.",
+    "examples": [
+      "what does this pdf say",
+      "summarise the invoice pdf",
+      "read the boarding pass pdf and tell me my seat",
+      "what's the total on invoice_4471",
+      "pull the text out of my tax return pdf",
+      "resume este pdf",
+      "que dit ce pdf",
+      "was steht in dieser PDF"
+    ],
+    "not_for": [
+      "how do I make a pdf",
+      "convert this text to pdf"
+    ]
+  },
+  "pdf.ocr": {
+    "use_when": "The person has a scanned PDF and wants the text in it read.",
+    "examples": [
+      "this pdf is a scan, can you read it",
+      "read the scanned receipt pdf",
+      "get the text from the scanned contract"
+    ],
+    "not_for": [
+      "what is ocr"
+    ]
+  }
+}

@@ -1518,6 +1518,18 @@ def model_visible_specs(
                 _add_family(_TOOLSET_HINT_TO_FAMILY.get(OWNER_LIVE_SOURCE_TOOLSET.get(source, ""), ""))
         except Exception:
             pass
+        try:
+            # Tool cards (core.tool_card_router): every tool, builtin or plugin, that declared when a
+            # person needs it. Same matcher as the lane release in core.execution_requirements, so
+            # a turn released for a card is never handed an offer without that tool. Off unless the
+            # tools.card_routing flag is on.
+            from core.tool_card_router import routed_intents
+
+            for match in routed_intents(user_text, owner_local=True):
+                if match.intent not in explicit:
+                    explicit.append(match.intent)
+        except Exception:
+            pass
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())

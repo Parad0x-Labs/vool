@@ -406,6 +406,13 @@ def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = No
         system = dict(config.get("system") or {})
         system["allow_null_dial"] = True
         config["system"] = system
+    # Tool cards route words to tools (core.tool_card_router); off by default until measured.
+    # `VOOL_TOOL_CARD_ROUTING=1` turns it on for a run, `=0` off, whatever the policy file says.
+    card_routing = env_map.get("VOOL_TOOL_CARD_ROUTING")
+    if card_routing is not None and str(card_routing).strip():
+        tools = dict(config.get("tools") or {})
+        tools["card_routing"] = _env_is_truthy(card_routing)
+        config["tools"] = tools
     return config
 
 def load(force_reload: bool = False) -> dict[str, Any]:

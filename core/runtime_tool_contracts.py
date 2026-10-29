@@ -82,6 +82,10 @@ class RuntimeToolContract:
     # must call SOMETHING every round: measured live 2026-10-06 it rebuilt the same file up to five
     # times, then closed with respond.direct prose that dropped the download link.
     completes_turn: bool = False
+    # When a person needs this tool (core.tool_cards.ToolCard): set from a plugin or MCP manifest's
+    # `card`. Builtins leave it None and are carded from core/tool_card_data/. Routing only: no
+    # authority reads it.
+    card: Any = None
 
     @property
     def read_only(self) -> bool:

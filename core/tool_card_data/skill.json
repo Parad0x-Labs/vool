@@ -1,0 +1,53 @@
+{
+  "_about": "Cards for VOOL skills (instructions VOOL follows).",
+  "skill.list": {
+    "use_when": "The person wants to know which skills VOOL has or has turned on.",
+    "examples": [
+      "what skills do you have",
+      "list my skills",
+      "which skills are installed",
+      "show the skills I made",
+      "qué habilidades tienes instaladas",
+      "quelles compétences as-tu"
+    ],
+    "not_for": [
+      "what skills should I put on my cv",
+      "how do I learn new skills"
+    ]
+  },
+  "skill.create": {
+    "use_when": "The person wants VOOL to learn a new skill: a saved set of instructions for a kind of task.",
+    "examples": [
+      "make a skill for writing my weekly report",
+      "create a new skill that formats recipes my way",
+      "teach yourself a skill for replying to customer emails",
+      "save this as a skill",
+      "crea una habilidad para resumir reuniones"
+    ],
+    "not_for": [
+      "what skills do I need to be a nurse"
+    ]
+  },
+  "skill.install": {
+    "use_when": "The person wants a skill they made or added turned on.",
+    "examples": [
+      "turn on the recipe skill",
+      "install the skill I just made",
+      "activate my report skill"
+    ],
+    "not_for": [
+      "install spotify"
+    ]
+  },
+  "skill.remove": {
+    "use_when": "The person wants a skill they made turned off.",
+    "examples": [
+      "turn off the recipe skill",
+      "remove my report skill",
+      "disable the skill I made yesterday"
+    ],
+    "not_for": [
+      "remove the background from this photo"
+    ]
+  }
+}

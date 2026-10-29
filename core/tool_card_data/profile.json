@@ -1,0 +1,43 @@
+{
+  "_about": "Cards for what VOOL keeps about the owner's own preferences.",
+  "profile.remember": {
+    "use_when": "The person tells VOOL a lasting preference about themselves to keep, such as their name, language, time zone or how they like answers.",
+    "examples": [
+      "call me Sam from now on",
+      "my time zone is Lisbon",
+      "always answer me in Spanish",
+      "I prefer short answers",
+      "remember my email signature is Best, Sam",
+      "llámame Ana",
+      "réponds-moi toujours en français"
+    ],
+    "not_for": [
+      "do you remember what we talked about yesterday",
+      "what's the time in Lisbon"
+    ]
+  },
+  "profile.list": {
+    "use_when": "The person wants to see what VOOL keeps about them.",
+    "examples": [
+      "what do you know about me",
+      "what have you saved about me",
+      "show my profile settings",
+      "qué sabes de mí"
+    ],
+    "not_for": [
+      "tell me about yourself"
+    ]
+  },
+  "profile.forget": {
+    "use_when": "The person wants VOOL to forget something it keeps about them.",
+    "examples": [
+      "forget my time zone",
+      "stop calling me Sam",
+      "delete what you know about me",
+      "olvida mi idioma preferido"
+    ],
+    "not_for": [
+      "I forgot my password"
+    ]
+  }
+}

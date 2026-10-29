@@ -1,0 +1,33 @@
+{
+  "_about": "Cards for the owner's connected mailbox. Offered only while an email account is connected (contract supported).",
+  "email.read": {
+    "use_when": "The person wants to know what is in their inbox or find an email they received.",
+    "examples": [
+      "any new emails",
+      "did the bank email me",
+      "check my inbox",
+      "what did the landlord say in his last email",
+      "find the email with my flight booking",
+      "tengo correos nuevos",
+      "est-ce que j'ai reçu un mail de pierre",
+      "habe ich neue E-Mails",
+      "ar gavau laišką iš banko"
+    ],
+    "not_for": [
+      "how do I set up email on my phone",
+      "write an email to my landlord"
+    ]
+  },
+  "email.draft.save": {
+    "use_when": "The person wants an email written and kept ready for them to review before it is sent.",
+    "examples": [
+      "draft an email to the landlord about the boiler",
+      "write a reply to sam saying I'll be late and let me check it",
+      "prepare an email to my accountant asking for the forms",
+      "redacta un correo a marta"
+    ],
+    "not_for": [
+      "what makes a good email subject line"
+    ]
+  }
+}

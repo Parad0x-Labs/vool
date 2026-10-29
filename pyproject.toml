@@ -180,6 +180,8 @@ vool-registry = "registry_service.cli:main"
 "core.wallet" = ["bip39_english.txt"]
 "core.registry" = ["trusted-root.json"]
 "registry_service" = ["curation.json"]
+# Builtin tool cards (core.tool_cards): when a person needs each tool. Read at runtime to route asks.
+"core" = ["tool_card_data/*.json"]
 
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*", "registry_service*"]
