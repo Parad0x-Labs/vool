@@ -97,7 +97,7 @@ def _phone_without_paid_services_answer(
     source_context: dict[str, object] | None,
     interpretation: Any,
 ) -> dict[str, Any] | None:
-    """A paired phone without "Use my paid services" asked for the weather, news or a price.
+    """A paired phone without "Look things up online" asked for the weather, news or a price.
 
     The lane used to stand down without a word and the model, offered no live tools, answered from memory. Say
     what the phone may not do and where the owner turns it on, as the file asks of a phone without the computer

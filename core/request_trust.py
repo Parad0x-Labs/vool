@@ -313,8 +313,8 @@ REMOTE_GRANT_REFUSAL_TEXT = {
         "this phone in VOOL Settings on your computer."
     ),
     REMOTE_GRANT_PAID: (
-        "This phone can't look things up online yet. Turn on \"Use my paid services\" for this phone "
-        "in VOOL Settings on your computer. Your paid models and keys are only used from the computer itself."
+        "This phone can't look things up online yet. Turn on \"Look things up online\" for this phone "
+        "in VOOL Settings on your computer. Lookups use free web sources only."
     ),
 }
 

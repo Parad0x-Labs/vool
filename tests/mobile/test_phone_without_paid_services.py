@@ -1,4 +1,4 @@
-"""A phone without "Use my paid services" asking for the weather, news or a price is told so, never given a guess.
+"""A phone without "Look things up online" asking for the weather, news or a price is told so, never given a guess.
 
 The live-data lane stood down for such a phone without a word, and the model, offered no live tools, answered
 from memory. The phone now gets the same answer its tool fence gives: where the owner turns the right on.

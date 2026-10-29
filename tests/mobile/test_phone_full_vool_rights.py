@@ -59,7 +59,7 @@ def test_a_granted_phone_runs_computer_tools_but_never_money(phone):
     # computer_tools does not open the owner's paid keys.
     assert rt.remote_turn_tool_refusal("web.search", _turn()) == "owner_local_required"
     assert not rt.turn_may_spend_owner_keys(_turn())
-    assert "Use my paid services" in rt.remote_turn_refusal_text("web.search", _turn())
+    assert "Look things up online" in rt.remote_turn_refusal_text("web.search", _turn())
 
 
 def test_changing_vool_itself_and_unknown_tools_stay_the_owners(phone):

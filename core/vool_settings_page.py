@@ -5365,7 +5365,7 @@ function widgetPhoneAccess(host) {
   };
   const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
     wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
-    computer_tools:'Use tools on my computer', paid_services:'Use my paid services'};
+    computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
   const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
     task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
     desktop_inbox:'New desktop inbox item',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model offer',model_market:'Model update',market_watch:'Market watch'};
@@ -5410,12 +5410,8 @@ function widgetPhoneAccess(host) {
       return {set,radios,value:()=>Object.keys(radios).find(k=>radios[k].checked)};
     }
     function field(set,label,input,wide) {const line=el('label',wide?'phone-expiry':'phone-cap',label);line.appendChild(input);set.appendChild(line);return line;}
-    const models=group(T('phone.setup.models','Models'),[['local',T('phone.setup.models_local','This computer only')],['cloud',T('phone.setup.models_cloud','Cloud models too')]],on('paid_services')?'cloud':'local');
-    const monthly=el('input','inp');monthly.inputMode='decimal';monthly.placeholder=T('phone.setup.no_phone_limit','No phone limit');
-    if(typeof device.cloud_monthly_usd==='number')monthly.value=String(device.cloud_monthly_usd);
-    const monthlyLine=field(models.set,T('phone.setup.monthly','Monthly cloud limit for this phone (US dollars)'),monthly);
-    if(typeof device.cloud_spent_month_usd==='number'&&device.cloud_spent_month_usd>0)models.set.appendChild(el('p','help',tfmt('phone.setup.spent','Spent this month: {amount} dollars',{amount:device.cloud_spent_month_usd.toFixed(2)})));
-    models.set.appendChild(el('p','help',T('phone.setup.models_help','Cloud models use your paid models and paid search. The computer’s own cloud limits always apply too.')));
+    const models=group(T('phone.setup.models','Online lookups'),[['local',T('phone.setup.models_local','Off')],['cloud',T('phone.setup.models_cloud','Look things up online')]],on('paid_services')?'cloud':'local');
+    models.set.appendChild(el('p','help',T('phone.setup.models_help','Lookups use free web sources only. Your paid models and keys are only used from the computer itself.')));
     const scope=device.file_scope || {};
     const files=group(T('phone.setup.files','Files'),[['none',T('phone.setup.files_none','None')],['folders',T('phone.setup.files_folders','Only the folders I choose')],['all',T('phone.setup.files_all','Everything on this computer')]],
       !on('computer_tools')?'none':(scope.mode==='folders'?'folders':'all'));
@@ -5433,7 +5429,7 @@ function widgetPhoneAccess(host) {
     const per=amountInput(T('phone.per_payment','Per-payment maximum'),cap.per_payment), daily=amountInput(T('phone.per_day','Daily maximum'),cap.daily);
     const pin=el('input','inp');pin.type='password';pin.autocomplete='off';pin.placeholder=T('phone.credential','Wallet PIN or password');payBox.appendChild(pin);
     payBox.appendChild(el('p','help',T('phone.setup.payments_help','Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.')));
-    function sync(){monthlyLine.hidden=models.value()!=='cloud';folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
+    function sync(){folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
     [models,files,pays].forEach(g=>Object.values(g.radios).forEach(r=>r.addEventListener('change',sync)));sync();
     box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.')));
     const prepared=phonePrepared[device.device_id];
@@ -5454,7 +5450,6 @@ function widgetPhoneAccess(host) {
       const payOn=pays.value()==='on', cloud=models.value()==='cloud', fileChoice=files.value();
       const body={operation:'device_rules',device_id:device.device_id,expected_permission_revision:device.permission_revision || 0,
         rules:{chat:true,history:true,attachments:true,alerts:true,paid_services:cloud,computer_tools:fileChoice!=='none',payment_propose:payOn,wallet_view:payOn || on('wallet_view')}};
-      if(cloud){const text=monthly.value.trim().replace(',','.');if(text){const value=Number(text);if(!(value>=0.01)){say.textContent=T('phone.setup.bad_limit','Enter a monthly limit in dollars, like 20.');return;}body.cloud_monthly_usd=value;}else body.cloud_monthly_usd=null;}
       if(fileChoice==='all')body.file_scope={mode:'all'};
       if(fileChoice==='folders'){const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.length){say.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}body.file_scope={mode:'folders',folders:list};}
       if(payOn && (!on('payment_propose') || per.value!==(cap.per_payment || '') || daily.value!==(cap.daily || '') || payAccount.value!==((device.payment_cap || {}).wallet_id || '') || pin.value)){
