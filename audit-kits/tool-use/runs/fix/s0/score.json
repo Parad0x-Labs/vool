@@ -1,0 +1,314 @@
+{
+ "cases": 30,
+ "rows": 30,
+ "by_kind": {
+  "needs_tool": {
+   "n": 18,
+   "ran": 18,
+   "family_tool": 3,
+   "any_tool": 14,
+   "timeout": 0
+  },
+  "missing_connection": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 1,
+   "any_tool": 5,
+   "timeout": 0
+  },
+  "no_tool": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 0,
+   "any_tool": 6,
+   "timeout": 0
+  }
+ },
+ "per_case": {
+  "tu:A01": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A05": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.disk_usage",
+    "machine.disk_usage",
+    "{'receipt_key': 'exec-0799f6a8f819467273986528e3a0e96296cc009921829de99cd9ac79a7b1da4e', 'status': 'executed', 'tool': 'machine.disk_usage'}",
+    "machine.disk_usage"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A09": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A13": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.find_folder",
+    "machine.find_folder",
+    "{'receipt_key': 'exec-fe88bb5c19d7d0d7af06888a7a58271f758b5e3839a44bb85e9694009328a16d', 'status': 'executed', 'tool': 'machine.find_folder'}",
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "machine.find_folder",
+    "runtime-action"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A17": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A21": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A25": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A29": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A33": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A37": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A41": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A45": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.schedule_reminder",
+    "operator.schedule_reminder",
+    "{'receipt_key': 'exec-70d508bf51f9f7efa08171c13421ad23de36012ba3b53eb38aff743d4e94905e', 'status': 'executed', 'tool': 'operator.schedule_reminder'}",
+    "operator.schedule_reminder",
+    "runtime-action",
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:A49": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A53": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.inspect_specs",
+    "{'receipt_key': 'exec-8253837b2f0b095c671035070f093088f99c1c62a989f4a6daa500c7f403d960', 'status': 'executed', 'tool': 'machine.inspect_specs'}",
+    "machine.inspect_specs",
+    "runtime-action"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A57": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A61": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A65": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:A69": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M03": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.show_agenda",
+    "operator.show_agenda"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M07": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M11": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.show_agenda",
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "operator.show_agenda"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M15": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:M19": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.propose_calendar_event",
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "operator.propose_calendar_event"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "tu:M23": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N02": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N06": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b",
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N10": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N14": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N18": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "tu:N22": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [
+    "ollama-local:qwen3:8b:qwen3:8b"
+   ],
+   "family_tool": false,
+   "timeout": false
+  }
+ }
+}
