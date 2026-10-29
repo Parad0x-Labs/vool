@@ -172,16 +172,69 @@ class SandboxResult:
     network_confined: bool = True
 
 
+# Linux confinement is bubblewrap. The decoder gets an empty mount namespace holding only the
+# system's own program and library trees (read-only), the paths a caller names (read-only) and its
+# scratch directory (read-write); every namespace is unshared, so it has no network, no view of
+# other processes and no home folder. The same contract the macOS profile enforces by path.
+_BWRAP_SYSTEM_READ = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/etc/ld.so.cache",
+                      "/etc/ld.so.conf", "/etc/ld.so.conf.d", "/etc/alternatives")
+
+
+def _bwrap() -> str:
+    for candidate in ("/usr/bin/bwrap", "/bin/bwrap"):
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return ""
+
+
+def _bwrap_prefix(*, scratch: str, extra_read: Sequence[str]) -> list[str]:
+    command = [_bwrap(), "--unshare-all", "--die-with-parent", "--new-session",
+               "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    for path in (*_BWRAP_SYSTEM_READ, *extra_read):
+        if os.path.exists(path):
+            command += ["--ro-bind", path, path]
+    return [*command, "--bind", scratch, scratch, "--chdir", scratch, "--"]
+
+
+_BWRAP_WORKS: dict[str, bool] = {}
+
+
+def _bwrap_works() -> bool:
+    """Present is not enough: a kernel that refuses unprivileged namespaces makes bwrap exit 1."""
+    if "ok" not in _BWRAP_WORKS:
+        ok = False
+        if _bwrap() and os.access(_SHELL, os.X_OK):
+            probe_dir = tempfile.mkdtemp(prefix="vool-bwrap-probe-")
+            try:
+                probe = subprocess.run([*_bwrap_prefix(scratch=probe_dir, extra_read=()), _SHELL, "-c", "true"],
+                                       stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+                ok = probe.returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+            finally:
+                shutil.rmtree(probe_dir, ignore_errors=True)
+        _BWRAP_WORKS["ok"] = ok
+    return _BWRAP_WORKS["ok"]
+
+
 def confinement_available() -> bool:
     """Whether this machine can actually confine a decoder. Nothing external runs without it."""
-    return platform.system() == "Darwin" and os.path.exists(_SANDBOX_EXEC) and os.access(_SHELL, os.X_OK)
+    if platform.system() == "Darwin":
+        return os.path.exists(_SANDBOX_EXEC) and os.access(_SHELL, os.X_OK)
+    if platform.system() == "Linux":
+        return _bwrap_works()
+    return False
 
 
 def confinement_unavailable_reason() -> str:
     if confinement_available():
         return ""
+    if platform.system() == "Linux":
+        if not _bwrap():
+            return "the Linux sandbox (bubblewrap) is not installed on this computer"
+        return "the Linux sandbox (bubblewrap) cannot start here, because this system does not allow it to create namespaces"
     if platform.system() != "Darwin":
-        return f"process confinement for untrusted decoders is implemented for macOS only; this host is {platform.system()}"
+        return f"process confinement for untrusted decoders is implemented for macOS and Linux only; this host is {platform.system()}"
     return "the macOS sandbox (/usr/bin/sandbox-exec) is not available on this machine"
 
 
@@ -193,7 +246,11 @@ def require_confinement(fmt: str = "") -> None:
         f"Reading this file needs an external decoder, and {confinement_unavailable_reason()}. "
         f"It was not read: this runtime does not run untrusted document parsers unconfined.",
         code="confinement_unavailable",
-        remediation="Use a macOS host where the sandbox is available, or attach the content as text.",
+        remediation=(
+            "On Linux, install bubblewrap (for example: sudo apt install bubblewrap) and try again, or paste the text instead."
+            if platform.system() == "Linux"
+            else "Use a macOS host where the sandbox is available, or attach the content as text."
+        ),
         fmt=fmt,
     )
 
@@ -506,8 +563,16 @@ def run_confined(
     # `/private/tmp` on macOS, and an SBPL `subpath` matches the real path only -- an unresolved
     # entry silently grants nothing, which shows up as the decoder dying on SIGSEGV before `main`
     # rather than as a permission error. Measured 2026-09-03 on the compiled OCR helper.
-    profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu)
-    command = [_SANDBOX_EXEC, "-p", profile, *_limited_argv(argv, cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))]
+    if platform.system() == "Linux":
+        # Exec the decoder by its real path: a virtualenv's interpreter is a link that sits outside
+        # every tree the sandbox can see, while its target is a system or bundled interpreter.
+        real = os.path.realpath(executable)
+        limited = _limited_argv([real, *argv[1:]], cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))
+        command = [*_bwrap_prefix(scratch=scratch_path, extra_read=_resolved([*extra_read, os.path.dirname(real)])), *limited]
+    else:
+        limited = _limited_argv(argv, cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))
+        profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu)
+        command = [_SANDBOX_EXEC, "-p", profile, *limited]
     # An empty environment plus only what a decoder needs to find its own libraries. No proxy
     # variables, no credentials, no real HOME: a decoder that wanted a token could not find one,
     # and one that wanted a proxy could not reach it even if the sandbox were somehow absent.
