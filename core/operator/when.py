@@ -80,10 +80,10 @@ _IN_RELATIVE_RE = re.compile(
     re.IGNORECASE,
 )
 # The same delay said in words, not digits: "in an hour" and "in half an hour" read like
-# "in 60 minutes" / "in 30 minutes". Only the hour ("in a week" is a day-word matter), and
-# an "and a half" after the hour names a different delay this reader does not guess at.
+# "in 60 minutes" / "in 30 minutes". Only the hour ("in a week" is a day-word matter). An
+# "and a half" after the hour adds half an hour ("in an hour and a half" = 90 minutes).
 _IN_WORDY_RELATIVE_RE = re.compile(
-    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?!\s+and\s+a\s+half\b)",
+    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?P<more>\s+and\s+a\s+half\b)?",
     re.IGNORECASE,
 )
 # A calendar date in words: "5 November", "5th of Nov", "November 5th", with an optional year.
@@ -263,7 +263,10 @@ def _parse_when_expression(
             basis = relative.group(0)
         else:
             # "in an hour" / "in half an hour": the word form of the same delay reading.
+            # "and a half" after the hour adds half an hour ("in an hour and a half" = 90 min).
             seconds = 1800.0 if wordy.group("half") else 3600.0
+            if wordy.group("more"):
+                seconds += 1800.0
             basis = wordy.group(0)
         if not math.isfinite(seconds) or seconds > MAX_FUTURE_DAYS * 86400:
             return WhenResolution(ok=False, problem="That is too far in the future to schedule reliably; give me a date within the next two years.")

@@ -1083,17 +1083,68 @@ _WHEN_TAIL_RE = re.compile(
 )
 
 
+#: Job 6d (Fix 2): the head of a when-tail -- a preposition followed by a when-word, the same
+#: vocabulary _WHEN_TAIL_RE anchors at the end. The DUE time is the LAST when-expression of
+#: the ask, so the subject cut lands on the RIGHT-MOST head and everything from it to the end
+#: leaves; an earlier when-expression inside the subject ("the Friday at 10 workshop") is a
+#: thing the note names and stays. The old first-match cut landed on the first clock and ate
+#: the subject after it ("book the Friday at 10 workshop tomorrow at 9" stored "book the
+#: Friday").
+_WHEN_TAIL_HEAD_RE = re.compile(
+    r"\s+(?:at|on|in|by)\s+("
+    r"(?:20\d{2}-\d{2}-\d{2})(?:[ T]\d{1,2}:\d{2})?"
+    r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b"
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b"
+    r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?half)?"
+    r"|\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)?\b"
+    r"|(?:at\s+)?(?:noon|midday|midnight)\b"
+    r")",
+    re.IGNORECASE | re.DOTALL,
+)
+
+#: Job 6d (Fix 2): a day phrase left at the END of the subject by the when-tail cut directly
+#: BEFORE the clock that just left ("... workshop tomorrow" after "tomorrow at 9" was cut).
+#: A weekday or an ordinal is schedule-marked (the _DAY_CLOCK_TAIL_RE law cuts weekday+clock
+#: wholly; "on the 3rd" carries its own preposition), so it always goes. A today-word keeps
+#: Job 6b's reading -- alone it may name the thing ("the show tickets tomorrow") -- unless an
+#: earlier when-expression stays inside the subject, which marks the pair as the due time.
+_CARRIED_DAY_TAIL_RE = re.compile(
+    r"[\s,]+(?:on\s+)?(?:"
+    r"yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
+    r")"
+    r"(?:[\s,]+(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday"
+    r"|saturday|sunday|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\s*" + _MONTH_WORDS + r""
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?"
+    r"))*"
+    r"[\s,]*$",
+    re.IGNORECASE,
+)
+_EARLIER_WHEN_HINT_RE = re.compile(
+    r"\b(?:today|tomorrow|tonight|yesterday|monday|tuesday|wednesday|thursday|friday|saturday"
+    r"|sunday|noon|midday|midnight|morning|afternoon|evening)\b"
+    r"|\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)\b"
+    r"|\b(?:at|on|in|by)\s+\d{1,2}\b",
+    re.IGNORECASE,
+)
+
+
 _LEADING_WHEN_RE = re.compile(
     r"^(?:"
     r"(?:on|at|in|by|every|next|this)\s+"
     r"|(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-    r"|morning|afternoon|evening|daily|weekly|day|week)\b[\s,]*"
+    r"|morning|afternoon|evening|noon|midday|midnight|daily|weekly|day|week)\b[\s,]*"
     r"|20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?[\s,]*"
     r"|" + _MONTH_WORDS + r"[\s,]*"
     r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b(?:\s+of\b)?[\s,]*"
     r"|20\d{2}\b[\s,]*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
-    r"|(?:half\s+)?an?\s+hours?\b[\s,]*"
+    r"|(?:half\s+)?an?\s+hours?\b(?:\s+and\s+(?:a\s+)?half)?[\s,]*"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
     r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"
     r"|(?:utc|gmt)(?:[+-]\d{1,2}(?::?\d{2})?)?\b[\s,]*"
@@ -1204,9 +1255,26 @@ def _reminder_note_from_text(text: str) -> str:
         stripped = note[: day_clock.start()].strip()
         if stripped:
             note = stripped
-    tail = _WHEN_TAIL_RE.search(note)
-    if tail:
-        note = note[: tail.start()].strip()
+    # Job 6d (Fix 2): the due time is the LAST when-expression of the ask. The cut lands on
+    # the right-most when-head (everything from it to the end leaves -- the old first-match
+    # cut landed on the FIRST clock and ate the subject after it), and a day phrase the cut
+    # clock was riding leaves with it under the _CARRIED_DAY_TAIL_RE rule.
+    heads = list(_WHEN_TAIL_HEAD_RE.finditer(note))
+    if heads:
+        cut = note[: heads[-1].start()].strip()
+        if cut:
+            note = cut
+            carried = _CARRIED_DAY_TAIL_RE.search(note)
+            if carried:
+                rest = note[: carried.start()].strip()
+                carried_day = carried.group(0).strip().lower()
+                today_word = re.search(r"\b(?:today|tomorrow|tonight|yesterday)\b", carried_day)
+                if rest and (not today_word or _EARLIER_WHEN_HINT_RE.search(rest)):
+                    # "send the invoice friday"/"pay the rent on the 3rd" drop the schedule-marked
+                    # day; a today-word only when an earlier when-expression stays inside the
+                    # subject ("book the Friday at 10 workshop tomorrow" -> "... workshop"),
+                    # else it keeps Job 6b's reading ("the show tickets tomorrow").
+                    note = rest
     note = note.rstrip(".,;:")
     return (note or raw)[:400]
 

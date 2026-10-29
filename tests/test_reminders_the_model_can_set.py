@@ -315,6 +315,27 @@ STORED_SUBJECTS = {
     "I need a reminder to book the dentist on monday at 9": "book the dentist",
     "set me a reminder for the gym at 7 tomorrow": "the gym",
     "want a reminder to submit the timesheet on friday at 4": "submit the timesheet",
+    # Job 6d: the due time is the LAST when-expression of the ask, so when-words said
+    # EARLIER, inside the thing to do, stay in the subject ("the Friday at 10 workshop" is
+    # the thing, the trailing "tomorrow at 9" is the due time); a midnight lead in any
+    # word order and the wordy compound "an hour and a half" are when-words too, and they
+    # leave the subject whole.
+    "remind me tonight at midnight to lock the shed": "lock the shed",
+    "remind me in an hour and a half to leave": "leave",
+    "remind me to book the Friday at 10 workshop tomorrow at 9": "book the Friday at 10 workshop",
+    # Our own rows, one per shape above, in everyday words.
+    "remind me this evening at midnight to shut the shop": "shut the shop",
+    "remind me tomorrow at midnight to take the bins out": "take the bins out",
+    "remind me today at midnight to water the ferns": "water the ferns",
+    "remind me at midnight tonight to lock the studio": "lock the studio",
+    "remind me in an hour and a half to stretch": "stretch",
+    "nudge me in an hour and a half about the oven": "the oven",
+    "could you remind me in an hour and a half to call mum": "call mum",
+    "remind me in an hour and a half about the parcel": "the parcel",
+    "remind me to watch the Tuesday at 9 show tomorrow at 8": "watch the Tuesday at 9 show",
+    "remind me to catch the Friday at 6 train tomorrow at 7": "catch the Friday at 6 train",
+    "remind me to prep for the Thursday at 4 review tomorrow at 5": "prep for the Thursday at 4 review",
+    "remind me to book the Monday at 8 class tomorrow at 6": "book the Monday at 8 class",
 }
 
 #: Fix 2 (too wide on the parent): talk about reminders, a memory, or someone else's

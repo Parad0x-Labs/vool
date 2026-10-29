@@ -18,6 +18,10 @@ sentence names keeps its own day. An ordinal followed directly by a part-of-day 
 and "the 3rd in the evening" stay dates; and the stored subject drops a leading decimal
 clock ("at 9.30 tomorrow to leave" stores "leave").
 
+Job 6d: the compound "an hour and a half" reads as 90 minutes (it stayed refused in
+Job 6c), and a midnight lead leaves the stored subject whole ("remind me tonight at
+midnight to lock the shed" stores "lock the shed").
+
 LABELLED: injected clock (both the UTC and the zoned door), isolated home; no live provider.
 """
 from __future__ import annotations
@@ -524,6 +528,9 @@ SUBJECT_ROWS = [
     ("remind me at 12 tonight to take the bins out", "take the bins out"),
     ("remind me at 9.30 tomorrow to leave", "leave"),                       # decimal clock stripped
     ("remind me at 8.15 pm tomorrow to shut the studio", "shut the studio"),
+    # Job 6d: a midnight lead is a when-word; it leaves the subject whole (due 00:00 on
+    # 29 Oct EET, per the midnight rows above).
+    ("remind me tonight at midnight to lock the shed", "lock the shed"),
 ]
 # "tomorrow at 9.30 to call mom" still keeps its when-head in the note: the decimal clock
 # inside a when-head needs the module-level _LEADING_WHEN_RE in core/operator/handlers.py,
@@ -550,6 +557,13 @@ JOB6C_RELATIVE_ROWS = [
     ("nudge me in an hour to stretch", "2026-10-28T09:00"),
     ("ping me in an hour about the parcel", "2026-10-28T09:00"),
     ("could you remind me in an hour to call mum", "2026-10-28T09:00"),
+    # Job 6d: the compound reads too -- "an hour and a half" is 90 minutes after the
+    # clock (10:00 Athens -> 11:30 = 09:30 UTC), in the same leads as the plain hour.
+    ("remind me in an hour and a half to leave", "2026-10-28T09:30"),
+    ("could you remind me in an hour and a half to call mum", "2026-10-28T09:30"),
+    ("nudge me in an hour and a half to stretch", "2026-10-28T09:30"),
+    ("remind me in an hour and a half about the parcel", "2026-10-28T09:30"),
+    ("ping me in an hour and a half about the roast", "2026-10-28T09:30"),
 ]
 
 
@@ -560,8 +574,10 @@ def test_a_wordy_relative_hour_reads_like_the_minute_form(clock, text, due_prefi
     assert reading.due_at_utc.startswith(due_prefix), (text, reading.due_at_utc)
 
 
-def test_an_hour_and_a_half_is_not_yet_a_reading(clock):
-    # The wordy form covers the plain hour and half an hour only; the compound stays
-    # refused rather than misread, exactly as before Job 6c.
+def test_an_hour_and_a_half_reads_as_ninety_minutes(clock):
+    # Job 6d: the compound reads now -- "an hour and a half" is 90 minutes after the
+    # clock (10:00 Athens -> 11:30, 09:30 UTC). Before Job 6d it stayed refused rather
+    # than misread.
     reading = _parse("remind me in an hour and a half to leave")
-    assert not reading.ok
+    assert reading.ok, reading.problem
+    assert reading.due_at_utc.startswith("2026-10-28T09:30"), reading.due_at_utc

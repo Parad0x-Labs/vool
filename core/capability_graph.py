@@ -1340,6 +1340,17 @@ _WORDING_SEATED_INTENTS = frozenset({
     "operator.save_note",
 })
 
+# Job 6d (Fix 1): the two reminder mutates this repair lane added to the operator family
+# (Job 6). Inside an overflowing expand's path-covered tail they step down FIRST: they are
+# the family's newest members, and they keep two seating surfaces of their own besides the
+# expansion (the dedicated reminder wording seats in ``owner_local_operator_intents`` and
+# the chat lane's reminder parser), so a family expansion is never their last resort. The
+# family's pre-lane tools -- the calendar mutates among them -- seat ahead of them.
+_LANE_ADDED_FAMILY_MUTATES = frozenset({
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
+})
+
 
 def _demand_rule_intents() -> tuple[str, ...]:
     """The intents a tool_demand_signals rule can name (the explicit-demand path)."""
@@ -1470,6 +1481,7 @@ def model_visible_specs(
             source_is_owner_local = bool(request_is_owner_local(source_context))
         except Exception:
             source_is_owner_local = False
+    operator_seats: list[str] = []
     if user_text and source_is_owner_local:
         try:
             from core.tool_demand_signals import owner_local_operator_intents
@@ -1669,6 +1681,9 @@ def model_visible_specs(
         for candidate in queue[:hint_prefix]
     }
     demand_rule_intents = frozenset(_demand_rule_intents())
+    # Job 6d (Fix 1): the intents this turn's own wording seats fired on (owner-local);
+    # they are already in ``explicit`` (rank 0), this is the belt-and-braces tail view.
+    turn_seated = frozenset(operator_seats)
 
     def _has_path_besides_expansion(candidate: CapabilityCandidate) -> bool:
         intent = candidate.tool_intent
@@ -1684,7 +1699,16 @@ def model_visible_specs(
             return 0
         if not _has_path_besides_expansion(candidate):
             return 1 if not candidate.read_only else 2
-        return 4 if not candidate.read_only else 3
+        # Job 6d (Fix 1): inside the path-covered tail a tool this turn's own ask seats
+        # (its wording seat fires on this text) ranks first, so the ask itself can always
+        # re-seat it; the rest keep the 6c read-before-mutate order, with this lane's
+        # added reminder mutates stepping down before every pre-lane tool (they keep the
+        # reminder wording seats and the chat-lane parser as their own surfaces).
+        if candidate.tool_intent in turn_seated:
+            return 3
+        if candidate.tool_intent in _LANE_ADDED_FAMILY_MUTATES:
+            return 6
+        return 5 if not candidate.read_only else 4
 
     for queue in expanded_queues:
         queue.sort(key=_expanded_family_rank)
