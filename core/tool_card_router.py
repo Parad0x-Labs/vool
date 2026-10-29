@@ -372,7 +372,7 @@ def card_routing_enabled() -> bool:
     try:
         from core import policy_engine
 
-        return bool(policy_engine.get(POLICY_FLAG, False))
+        return bool(policy_engine.get(POLICY_FLAG, True))  # MEASURE BUILD ONLY: on by default
     except Exception:
         return False
 
