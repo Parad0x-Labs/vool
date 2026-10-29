@@ -38,7 +38,7 @@ def test_the_receipts_panel_states_the_chain_truth_over_the_retained_window_neve
 
 
 def test_the_settings_budget_line_stays_a_guide_and_admits_nothing_enforces_it():
-    assert "Daily cloud token budget" in _html()
+    assert "Daily cloud spending cap" in _html()
     assert "nothing enforces it yet" in _html(), (
         "the settings budget line must keep admitting the budget is not enforced"
     )

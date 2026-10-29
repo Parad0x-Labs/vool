@@ -82,7 +82,7 @@ def test_a_named_attachment_is_read_from_the_attachment_not_from_the_folder(tmp_
     assert result is not None
     assert "Testville" in result["response"] and "Magic number 8127" in result["response"]
     assert "does not exist" not in result["response"] and "no file" not in result["response"].lower()
-    assert "Attached file `facts.txt`" in result["response"]
+    assert "Attached file facts.txt" in result["response"]
     kinds = [e["event_type"] for e in agent.events]
     assert "attachment_read" in kinds
     tool_rows = [e for e in agent.events if e["event_type"] == "tool_executed"]

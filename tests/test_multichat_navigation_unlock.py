@@ -327,7 +327,7 @@ def test_a_completing_in_the_background_never_reaches_the_displayed_chat() -> No
     assert data["bRunUnchanged"] is True
     assert data["bLogAfter"] == data["bLogBefore"], "A's completion must not repaint B's log"
     assert "done A" not in data["bLogAfter"]
-    assert data["sendLabel"] == "Queue", "B is still running, so B's composer still queues"
+    assert data["sendLabel"] == "Wait and send", "B is still running, so B's composer still queues"
     assert data["posts"] == 2
 
 
@@ -384,7 +384,7 @@ def test_a_failing_in_the_background_leaves_a_running_b_untouched() -> None:
     assert data["b"]["run"]["text"] == "partial B"
     assert data["b"]["busy"] is True
     assert "Model lane failed" not in data["bLog"]
-    assert data["sendLabel"] == "Queue"
+    assert data["sendLabel"] == "Wait and send"
 
 
 # --------------------------------------------------------------------------------------------- #

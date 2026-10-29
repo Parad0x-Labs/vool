@@ -442,7 +442,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             repeat_count = note_smalltalk_turn(session_id, key="status_check")
             if repeat_count >= 2:
                 return "Still stable. Memory online, mesh ready. Give me the task."
-        msg = "Running stable. Memory online, mesh ready."
+        msg = "Running fine, everything ready."
         if with_joke:
             msg += " Caffeine level: synthetic but dangerous."
         if character:
@@ -498,11 +498,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
     if re.search(r"\bwhat can (?:we|you|i|u)\b", phrase) or phrase in {"what now", "now what", "what next"}:
         return (
             "Plenty. The short version:\n"
-            "- answer questions and keep our context, locally and free on your machine\n"
-            "- read, search, and edit files in your workspace, and run bounded commands\n"
+            "- answer questions and remember our chat, locally and free on your machine\n"
+            "- read, search, and edit files in your folders\n"
             "- look things up on the web and turn pages into summaries\n"
-            "- bring your own cloud key for bigger models when you want (`cloud on`), off by default\n"
-            "Say `help` for the full list — or just tell me the task and I'll go."
+            "- use your own cloud key for bigger models when you want (say cloud on), off by default\n"
+            "Say help for the full list, or just tell me the job."
         )
     # Bare confusion / filler — a plain human nudge instead of waking the local model, which
     # over-thinks a one-word message on modest hardware and can time out into a non-answer.
@@ -772,7 +772,7 @@ def _read_attached_file(item: dict[str, Any], read_request: dict[str, object]) -
         if (start_line - 1 + len(chunk)) < total_lines
         else ("\n\n…the attachment was longer than the runtime delivers; only its first part is shown." if item.get("truncated") else "")
     )
-    response_text = (rendered_body if verbatim else f"Attached file `{name}` ({size} bytes):\n" + rendered_body) + tail_note
+    response_text = (rendered_body if verbatim else f"Attached file {name} ({size} bytes):\n" + rendered_body) + tail_note
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -813,7 +813,7 @@ def _record_attachment_fast_read(agent: Any, source_context: dict[str, object] |
     agent._emit_runtime_event(
         source_context,
         event_type="attachment_read",
-        message=f"{name}: read by the file lane, from the attachment",
+        message=f"{name}: read from the attachment",
         attachment_id=attachment_id,
         attachment_name=name,
         kind="text",
