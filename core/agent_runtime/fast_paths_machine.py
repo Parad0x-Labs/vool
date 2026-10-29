@@ -2109,6 +2109,8 @@ def _todo_list_files(roots: list[str]) -> list[tuple[float, str]]:
                     if scanned > _TODO_SCAN_MAX_ENTRIES or _time.monotonic() > deadline:
                         found.sort(key=lambda item: (-item[0], item[1]))
                         return found
+                    if name.startswith("."):
+                        continue
                     stem, ext = os.path.splitext(name)
                     if ext.lower() not in _TODO_SCAN_SUFFIXES:
                         continue
@@ -2155,48 +2157,76 @@ def read_the_named_todo_list(
     todo = machine_todo_list_read_intent(user_input)
     if todo is None:
         return None
-    from core.request_trust import remote_turn_device, remote_turn_folders, turn_is_remote
+    from core.request_trust import (
+        REMOTE_GRANT_COMPUTER,
+        REMOTE_GRANT_REFUSAL_TEXT,
+        remote_turn_device,
+        remote_turn_folders,
+        remote_turn_lacks,
+        turn_is_remote,
+    )
 
     if todo.place is not None:
         roots = [f"~/{todo.place}"]
-        searched = todo.place
+        miss_text = f"I couldn't find a to-do list file on your {todo.place}. Tell me where it is."
     else:
-        roots = ["~/Desktop", "~/Documents"]
-        searched = "Desktop or Documents"
+        roots = ["~/Desktop", "~/Documents", "~/Downloads"]
+        miss_text = "I couldn't find a to-do list file in Desktop or Documents. Tell me where it is."
     if turn_is_remote(source_context):
         if remote_turn_device(source_context) is None:
             # A remote stamp this runtime cannot read back as a paired phone did not come through
             # the sealed phone door; the turn keeps the lanes it has always had.
             return None
+        if remote_turn_lacks(source_context, REMOTE_GRANT_COMPUTER):
+            # The scan never runs for a phone without the computer right: what is or is not on
+            # this disk is not this lane's to disclose there, and the answer the person needs is
+            # where to turn the right on.
+            return agent._fast_path_result(
+                session_id=session_id,
+                user_input=user_input,
+                response=REMOTE_GRANT_REFUSAL_TEXT[REMOTE_GRANT_COMPUTER],
+                confidence=0.95,
+                source_context=source_context,
+                reason="phone_without_computer_rights",
+            )
         folders = remote_turn_folders(source_context)
         if folders is not None:
             # A phone the owner held to chosen folders never hears about -- let alone reads -- a
             # file outside them, so the scan itself runs inside those folders only.
             chosen = [folder for folder in folders if folder]
             roots = chosen
-            searched = ", ".join(_todo_label(folder) for folder in chosen) or "the folders you allowed"
+            named = ", ".join(_todo_label(folder) for folder in chosen) or "the folders you allowed"
+            miss_text = f"I couldn't find a to-do list file in {named}. Tell me where it is."
     matches = _todo_list_files(roots)
     if not matches:
         return agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
-            response=f"I couldn't find a to-do list file in {searched}. Tell me where it is.",
+            response=miss_text,
             confidence=0.9,
             source_context=source_context,
             reason="todo_list_read_fast_path",
         )
     newest = matches[0][1]
-    execution = execute_authorized_runtime_tool(
-        "machine.read_file",
-        {"path": newest, "start_line": 1, "max_lines": 200, "verbatim": True},
-        source_context=dict(source_context or {}),
-    )
-    if execution is None:
-        return None
-    body = str(getattr(execution, "response_text", "") or "").strip()
+    execution: Any = None
+    read_candidate = newest
+    for _, candidate in matches[:3]:
+        read_candidate = candidate
+        execution = execute_authorized_runtime_tool(
+            "machine.read_file",
+            {"path": candidate, "start_line": 1, "max_lines": 200, "verbatim": True},
+            source_context=dict(source_context or {}),
+        )
+        if execution is None:
+            return None
+        status = str(getattr(execution, "status", "") or "")
+        if getattr(execution, "ok", False) or status in REFUSAL_STATUSES or status in {"not_allowed"}:
+            break
+        # The newest candidate was unreadable (binary, vanished between scan and read): the next
+        # one is a real answer too, so it is tried before any failure text is shown.
     if not getattr(execution, "ok", False):
         # The read itself was refused (a phone without the computer right, a path outside the
-        # lane): that refusal is the answer, in its own words.
+        # lane, or no candidate was readable): that refusal is the answer, in its own words.
         return _machine_tool_fast_path_result(
             agent,
             user_input=user_input,
@@ -2206,17 +2236,19 @@ def read_the_named_todo_list(
             execution=execution,
             reason="todo_list_read_fast_path",
         )
-    labels = [_todo_label(path) for _, path in matches[:3]]
     if len(matches) == 1:
-        header = f"Your to-do list ({labels[0]}):"
+        header = f"Your to-do list ({_todo_label(read_candidate)}):"
     else:
-        others = ", ".join(labels[1:])
+        others = [_todo_label(path) for _, path in matches[:3] if path != read_candidate]
         if len(matches) > 3:
-            others += f" (+{len(matches) - 3} more)"
+            others.append(f"+{len(matches) - 3} more")
         header = (
-            f"I found {len(matches)} to-do list files and read the newest one, {labels[0]}."
-            f" The other{'s' if len(labels) > 2 else ''}: {others}."
+            f"I found {len(matches)} to-do list files and read "
+            f"{'the newest one' if read_candidate == newest else 'the newest one I could read'}, {_todo_label(read_candidate)}."
         )
+        if others:
+            header += f" The other{'s' if len(others) > 1 else ''}: {', '.join(others)}."
+    body = str(getattr(execution, "response_text", "") or "").strip()
     return _machine_tool_fast_path_result(
         agent,
         user_input=user_input,
@@ -2663,8 +2695,10 @@ def maybe_handle_direct_machine_read_request(
     # "what's on my to do list again?" names a list FILE, not a folder and not a concept: resolve
     # it to the real file and read it. Before this lane, the ask fell through to the planner,
     # which listed the FOLDER ("Visible entries under ~/Desktop"), or reached a model seated with
-    # no file tool that answered "I don't have access to your personal to-do list".
-    todo_read = read_the_named_todo_list(
+    # no file tool that answered "I don't have access to your personal to-do list". While email
+    # work owns the folder references of this session, the same stand-down its file neighbours
+    # take applies: a list ask mid-email-thread is the mailbox's to answer.
+    todo_read = None if email_owns_folder_reference else read_the_named_todo_list(
         agent, user_input, session_id=session_id, source_context=source_context
     )
     if todo_read is not None:
