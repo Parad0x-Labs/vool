@@ -136,10 +136,24 @@ No sudo or system Python is required. The payload lives in `~/.local/share/vool`
 the command in `~/.local/bin/vool`, and the application menu entry in
 `~/.local/share/applications/vool.desktop`. Add `~/.local/bin` to PATH if needed.
 The desktop opens the local chat in your browser; closing the browser does not
-stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall.
+stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall:
+your chats, settings and memory live in `~/.vool_runtime`, and the uninstaller leaves
+that folder alone on purpose. Delete that folder yourself if you want everything gone.
 The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
 Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.5.
+
+### Local model first steps (Linux)
+
+The Linux package does not include a local model server. VOOL uses
+[Ollama](https://ollama.com) for local models. If Ollama is not on the computer yet,
+install it from [ollama.com](https://ollama.com) and start it. VOOL then picks a local
+model that fits the machine by itself — a qwen3 model, for example `qwen3:4b` on a
+smaller computer without a graphics card. If that model is not downloaded yet,
+`ollama pull qwen3:4b` (or the model VOOL names) fetches it. Before the model can
+answer, certify it once under **Settings → Models & Providers → Local models**; on a
+computer without a graphics card the first certification can take several minutes.
+[Run a local model](guides/local-models.md) has the details.
 
 From 0.7.5 on, the tarball install updates inside VOOL. With "Go online on its own" on
 (Settings > Privacy & Permissions), VOOL checks for a new version when it starts and once a

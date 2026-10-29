@@ -4,14 +4,16 @@ description: What data leaves your computer when you use VOOL, and when. The dif
 
 # Local and cloud
 
-VOOL has two states. The interface always shows which one is active.
+VOOL can answer in two ways: on this computer, or through a cloud provider. The chat
+header shows which way the next request runs — for example **AUTO** with
+**Local first** when VOOL Auto answers from this computer.
 
-## LOCAL
+## Local
 
 Everything stays on this computer. The model runs against a local runtime, files are read
 from disk, and no request is made to a provider.
 
-## CLOUD
+## Cloud
 
 The selected context is sent directly to the provider you selected, from your machine,
 using your key.

@@ -4,13 +4,14 @@ description: How to connect an AI model to VOOL — a local model running on you
 
 # Connect a model
 
-VOOL does not ship a model. You choose one, and the choice determines whether a request
-stays on your machine or leaves it.
+VOOL does not ship a model. It picks a local model by default, and you can choose another;
+the choice determines whether a request stays on your machine or leaves it.
 
 ## Local
 
-If a local runtime is installed and running, VOOL detects it and lists its models.
-Selecting one puts the app in `LOCAL` mode. Setup details are in
+A local model runs on this computer. If a local runtime is installed and running, VOOL
+detects it and picks a local model for you. Choose a specific model yourself under
+**Settings → Models & Providers**; the indicator badge then reads `LOCAL`. Setup details are in
 [Run a local model](../guides/local-models.md).
 
 ## Cloud
@@ -20,12 +21,13 @@ your model under **Models & Providers**. The key is stored in your operating sys
 credential store and is used to make requests **from your machine directly to
 the provider**.
 
-Selecting a cloud model puts the app in `CLOUD` mode, and the indicator changes before
+Selecting a cloud model changes the indicator badge to `CLOUD` before
 any request is made.
 
 See [Connect OpenRouter](../guides/openrouter.md) for the OpenRouter flow specifically.
 
 ## Switching
 
-Switching models switches modes. The indicator is authoritative: if it reads `LOCAL`,
-the next request is handled on this computer.
+Pick a different model and the indicator follows. It is authoritative: if the badge reads
+`LOCAL`, the next request is handled on this computer. By default it reads `AUTO` —
+`VOOL Auto`, `Local first`.

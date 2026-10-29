@@ -17,7 +17,7 @@ See [Release status](../trust/release-status.md) for signing and update details.
 | Disk | 2 GB for the app | 20 GB with local models |
 | macOS | 14 Sonoma, Apple silicon or Intel ([limits](#intel-macs)) | 14 Sonoma or newer, Apple silicon |
 | Windows | 10 (64-bit) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 or newer |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Local models need considerably more memory than the app itself. Sizing guidance is in
 [Run a local model](../guides/local-models.md).
@@ -61,7 +61,7 @@ the old one. If it does not start properly, VOOL switches back by itself.
 
 ### After install
 
-Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine.
+Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a check on your machine; on a computer without a graphics card the first one can take several minutes.
 
 From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings
 live in your profile, outside the app. Crypto features are off by default.
