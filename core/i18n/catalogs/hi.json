@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "ब्राउज़र",
     "settings.row.hide_name_on_screen.label": "स्क्रीन पर मेरा नाम छिपाएँ",
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
-    "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
+    "settings.row.hide_name_on_screen.effect": "तुरंत लागू।",
+    "emailadd.provider_label": "आप कौन-सा ईमेल इस्तेमाल करते हैं?",
+    "emailadd.provider_other": "अन्य",
+    "emailadd.servers": "सर्वर सेटिंग्स",
+    "emailadd.servers_filled": "{provider} के लिए भरी गई हैं। इन्हें तभी बदलें जब आपका ईमेल प्रदाता कहे।",
+    "emailadd.other_help": "आपके ईमेल प्रदाता के सहायता पेज ये सेटिंग्स बताते हैं: उसके नाम के साथ “IMAP सेटिंग्स” खोजें।",
+    "emailadd.steps.gmail": "Gmail को आपके सामान्य पासवर्ड की जगह ऐप पासवर्ड चाहिए। अपने Google खाते में 2-चरणीय सत्यापन चालू करें, फिर ऐप पासवर्ड खोलें, VOOL नाम से एक बनाएँ और नीचे चिपकाएँ।",
+    "emailadd.steps.outlook": "Microsoft ने ज़्यादातर Outlook और Hotmail खातों पर दूसरे ऐप के लिए पासवर्ड से साइन-इन बंद कर दिया है, इसलिए यह अस्वीकार हो सकता है। अगर आपका Microsoft खाता ऐप पासवर्ड देता है (सुरक्षा में, दो-चरणीय सत्यापन चालू होने पर), तो एक बनाएँ और नीचे चिपकाएँ।",
+    "emailadd.steps.icloud": "iCloud Mail को ऐप-विशिष्ट पासवर्ड चाहिए। अपने Apple खाते में साइन इन करें, साइन-इन और सुरक्षा खोलें, ऐप-विशिष्ट पासवर्ड चुनें, VOOL नाम से एक बनाएँ और नीचे चिपकाएँ।",
+    "emailadd.steps.yahoo": "Yahoo Mail को ऐप पासवर्ड चाहिए। अपने Yahoo खाते में खाता सुरक्षा खोलें, ऐप पासवर्ड बनाएँ चुनें, उसका नाम VOOL रखें और नीचे चिपकाएँ।",
+    "emailadd.steps_link": "ऐप पासवर्ड पेज खोलें"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

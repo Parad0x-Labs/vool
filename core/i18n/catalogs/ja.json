@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "ブラウザー",
     "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
-    "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
+    "settings.row.hide_name_on_screen.effect": "即時に適用されます。",
+    "emailadd.provider_label": "どのメールを使っていますか？",
+    "emailadd.provider_other": "その他",
+    "emailadd.servers": "サーバー設定",
+    "emailadd.servers_filled": "{provider} 用に入力済みです。プロバイダから指示があったときだけ変更してください。",
+    "emailadd.other_help": "メールプロバイダのヘルプページにこれらの設定が載っています。プロバイダ名と「IMAP 設定」で検索してください。",
+    "emailadd.steps.gmail": "Gmail では、いつものパスワードではなくアプリ パスワードが必要です。Google アカウントで 2 段階認証プロセスを有効にし、アプリ パスワードを開いて VOOL という名前で作成し、下に貼り付けてください。",
+    "emailadd.steps.outlook": "Microsoft はほとんどの Outlook と Hotmail のアカウントで、他のアプリからのパスワード サインインを無効にしているため、拒否される場合があります。Microsoft アカウントでアプリ パスワードが使える場合（セキュリティ内、2 段階認証が有効なとき）、作成して下に貼り付けてください。",
+    "emailadd.steps.icloud": "iCloud メールにはApp用パスワードが必要です。Apple アカウントにサインインし、「サインインとセキュリティ」を開いて「App用パスワード」を選び、VOOL という名前で作成して下に貼り付けてください。",
+    "emailadd.steps.yahoo": "Yahoo メールにはアプリパスワードが必要です。Yahoo アカウントの「アカウントセキュリティ」を開き、「アプリパスワードを生成」を選んで VOOL と名付け、下に貼り付けてください。",
+    "emailadd.steps_link": "アプリ パスワードのページを開く"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

@@ -1044,6 +1044,7 @@ _SETTINGS_HTML = r"""<!doctype html>
 .x-action-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:8px 10px;border-left:3px solid var(--border);background:var(--panel,transparent);border-radius:6px}
 .x-activity p{margin:0}.x-activity .inline{align-self:flex-start}.x-action-target{overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.x-limits{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.x-limits .inp{min-width:0;width:120px}
 .key-setup-dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--ink);padding:20px}.key-setup-dialog::backdrop{background:rgba(0,0,0,.45)}.key-setup-steps-list{margin:8px 0 12px;padding-left:20px;line-height:1.5}
+.email-provider{flex-wrap:wrap;gap:6px}.email-provider .btn[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.email-provider-help p{margin:4px 0}.email-servers summary{cursor:pointer;margin:4px 0}
 /* Models & Providers redesign (overview / cards / guided / review sheet) */
 .mp-root { gap: 10px; }
 .mp-what .row-label { margin-bottom: 2px; }
@@ -5309,19 +5310,46 @@ function emailSetupError(res) {
 /* The ports whose usual security is STARTTLS; any other port suggests SSL/TLS. Only a suggestion: a
    choice the person makes in the menu is kept. Mirrors core/email_setup.py default_security. */
 const EMAIL_STARTTLS_PORTS = { imap: [143], smtp: [25, 587] };
+/* The big mail providers, so a person picks "Gmail" instead of typing server names they have never seen
+   (fresh-user test, 2026-10-29: a raw IMAP/SMTP form with example.com placeholders, which a
+   non-technical person could not finish). Each fills the servers and says how to get the app password
+   that provider requires; the server fields stay reachable under Server settings. Recognised from the
+   address as it is typed, unless the person picked a provider themselves. */
+const EMAIL_PROVIDERS = [
+  { id: 'gmail', name: 'Gmail', domains: /^(gmail|googlemail)\.com$/i,
+    imap: ['imap.gmail.com', 993, 'ssl'], smtp: ['smtp.gmail.com', 465, 'ssl'],
+    steps: () => T('emailadd.steps.gmail', 'Gmail needs an app password, not your usual password. Turn on 2-Step Verification in your Google Account, then open App passwords, create one named VOOL, and paste it below.'),
+    link: 'https://myaccount.google.com/apppasswords' },
+  { id: 'outlook', name: 'Outlook / Hotmail', domains: /^(outlook|hotmail|live|msn)\.[a-z.]+$/i,
+    imap: ['outlook.office365.com', 993, 'ssl'], smtp: ['smtp-mail.outlook.com', 587, 'starttls'],
+    steps: () => T('emailadd.steps.outlook', 'Microsoft has turned off password sign-in for other apps on most Outlook and Hotmail accounts, so this may be refused. If your Microsoft account offers app passwords (under Security, with two-step verification on), create one and paste it below.'),
+    link: 'https://account.microsoft.com/security' },
+  { id: 'icloud', name: 'iCloud Mail', domains: /^(icloud|me|mac)\.com$/i,
+    imap: ['imap.mail.me.com', 993, 'ssl'], smtp: ['smtp.mail.me.com', 587, 'starttls'],
+    steps: () => T('emailadd.steps.icloud', 'iCloud Mail needs an app-specific password. Sign in to your Apple Account, open Sign-In and Security, choose App-Specific Passwords, create one named VOOL, and paste it below.'),
+    link: 'https://account.apple.com' },
+  { id: 'yahoo', name: 'Yahoo Mail', domains: /^(yahoo\.[a-z.]+|ymail\.com|rocketmail\.com)$/i,
+    imap: ['imap.mail.yahoo.com', 993, 'ssl'], smtp: ['smtp.mail.yahoo.com', 465, 'ssl'],
+    steps: () => T('emailadd.steps.yahoo', 'Yahoo Mail needs an app password. Open Account Security in your Yahoo account, choose Generate app password, name it VOOL, and paste it below.'),
+    link: 'https://login.yahoo.com/account/security' },
+];
+function emailProviderForAddress(address) {
+  const domain = String(address || '').trim().split('@')[1] || '';
+  return EMAIL_PROVIDERS.find(p => p.domains.test(domain)) || null;
+}
 function openEmailAddDialog(onSaved) {
   document.querySelector('dialog.email-add-dialog')?.remove();
   const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog email-add-dialog';
   dlg.setAttribute('aria-label', T('emailadd.dialog_title', 'Add an email account'));
   dlg.appendChild(el('h3', null, T('emailadd.dialog_title', 'Add an email account')));
   dlg.appendChild(el('p', 'subtle', T('emailadd.intro', 'VOOL signs in to your mail server once to check these details. They are saved on this machine only after the server accepts them.')));
-  dlg.appendChild(el('p', 'subtle', T('emailadd.app_password_hint', "Some providers need an app password, and some do not allow password sign-in for other apps at all. Your provider's security settings say which.")));
   const form = document.createElement('form'); form.className = 'stack email-add-form'; form.noValidate = true;
+  let into = form;
   const labelled = (name, control) => {
     const wrap = el('label', 'stack');
     wrap.appendChild(el('span', null, EMAIL_SETUP_FIELDS[name]()));
     control.name = name; control.setAttribute('aria-label', EMAIL_SETUP_FIELDS[name]());
-    wrap.appendChild(control); form.appendChild(wrap);
+    wrap.appendChild(control); into.appendChild(wrap);
     return control;
   };
   const field = (name, type, value, placeholder) => {
@@ -5341,8 +5369,21 @@ function openEmailAddDialog(onSaved) {
     return labelled(name, select);
   };
   const address = field('address', 'email', '', 'name@example.com');
+  /* Which provider: one tap fills the servers and shows that provider's own app-password steps. */
+  const providerRow = el('div', 'inline email-provider'); providerRow.setAttribute('role', 'group');
+  providerRow.setAttribute('aria-label', T('emailadd.provider_label', 'Which email do you use?'));
+  form.appendChild(el('span', null, T('emailadd.provider_label', 'Which email do you use?')));
+  form.appendChild(providerRow);
+  const help = el('div', 'subtle email-provider-help'); help.setAttribute('role', 'note');
+  form.appendChild(help);
   const username = field('username', 'text');
   const password = field('password', 'password');
+  const servers = document.createElement('details'); servers.className = 'email-servers';
+  const serversSummary = document.createElement('summary'); serversSummary.textContent = T('emailadd.servers', 'Server settings');
+  servers.appendChild(serversSummary);
+  const serversNote = el('p', 'subtle email-servers-note'); servers.appendChild(serversNote);
+  form.appendChild(servers);
+  into = servers;
   const imapHost = field('imap_host', 'text', '', 'imap.example.com');
   const imapPort = field('imap_port', 'number', '993');
   const imapSecurity = securityMenu('imap_security');
@@ -5356,7 +5397,47 @@ function openEmailAddDialog(onSaved) {
   };
   followPort('imap', imapPort, imapSecurity);
   followPort('smtp', smtpPort, smtpSecurity);
-  form.appendChild(el('p', 'subtle', T('emailadd.smtp_note', 'Without an outgoing server, VOOL can read this mailbox but not send from it.')));
+  servers.appendChild(el('p', 'subtle', T('emailadd.smtp_note', 'Without an outgoing server, VOOL can read this mailbox but not send from it.')));
+  into = form;
+  let provider = null, pickedByHand = false;
+  const providerButtons = new Map();
+  const fill = (host, port, menu, [h, n, sec]) => { host.value = h; port.value = String(n); menu.value = sec; menu.dataset.chosen = ''; };
+  const choose = (next) => {
+    if (!next && provider) {
+      /* Leaving a provider: its servers are not this mailbox's servers. */
+      imapHost.value = ''; smtpHost.value = ''; imapPort.value = '993'; smtpPort.value = '465';
+      imapSecurity.value = 'ssl'; smtpSecurity.value = 'ssl';
+    }
+    provider = next;
+    providerButtons.forEach((button, id) => button.setAttribute('aria-pressed', String(id === (next ? next.id : 'other'))));
+    help.replaceChildren();
+    if (next) {
+      fill(imapHost, imapPort, imapSecurity, next.imap);
+      fill(smtpHost, smtpPort, smtpSecurity, next.smtp);
+      help.appendChild(el('p', null, next.steps()));
+      const link = el('a', null, T('emailadd.steps_link', 'Open the app password page'));
+      link.href = next.link; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      help.appendChild(link);
+      serversNote.textContent = tfmt('emailadd.servers_filled', 'Filled in for {provider}. Change them only if your provider tells you to.', { provider: next.name });
+      servers.open = false;
+    } else {
+      help.appendChild(el('p', null, T('emailadd.app_password_hint', "Some providers need an app password, and some do not allow password sign-in for other apps at all. Your provider's security settings say which.")));
+      serversNote.textContent = T('emailadd.other_help', "Your email provider's help pages list these settings: search for its name with “IMAP settings”.");
+      servers.open = true;
+    }
+  };
+  [...EMAIL_PROVIDERS, null].forEach((p) => {
+    const button = el('button', 'btn chip', p ? p.name : T('emailadd.provider_other', 'Other'));
+    button.type = 'button'; button.dataset.provider = p ? p.id : 'other';
+    button.addEventListener('click', () => { pickedByHand = true; choose(p); });
+    providerButtons.set(p ? p.id : 'other', button); providerRow.appendChild(button);
+  });
+  address.addEventListener('input', () => {
+    if (pickedByHand) return;
+    const found = emailProviderForAddress(address.value);
+    if (found !== provider) choose(found);
+  });
+  choose(null);
   const replaceWrap = el('label', 'inline');
   const replace = el('input'); replace.type = 'checkbox'; replace.name = 'replace';
   replaceWrap.appendChild(replace); replaceWrap.appendChild(el('span', null, EMAIL_SETUP_FIELDS.replace()));

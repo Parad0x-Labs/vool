@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Webbrowser",
     "settings.row.hide_name_on_screen.label": "Meinen Namen auf dem Bildschirm verbergen",
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
-    "settings.row.hide_name_on_screen.effect": "Wirkt sofort."
+    "settings.row.hide_name_on_screen.effect": "Wirkt sofort.",
+    "emailadd.provider_label": "Welche E-Mail nutzen Sie?",
+    "emailadd.provider_other": "Andere",
+    "emailadd.servers": "Servereinstellungen",
+    "emailadd.servers_filled": "Für {provider} ausgefüllt. Ändern Sie sie nur, wenn Ihr Anbieter es verlangt.",
+    "emailadd.other_help": "Die Hilfeseiten Ihres E-Mail-Anbieters nennen diese Einstellungen: Suchen Sie nach seinem Namen und „IMAP-Einstellungen“.",
+    "emailadd.steps.gmail": "Gmail braucht ein App-Passwort, nicht Ihr übliches Passwort. Aktivieren Sie die Bestätigung in zwei Schritten in Ihrem Google-Konto, öffnen Sie dann App-Passwörter, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
+    "emailadd.steps.outlook": "Microsoft hat die Passwort-Anmeldung für andere Apps bei den meisten Outlook- und Hotmail-Konten abgeschaltet, daher kann dies abgelehnt werden. Wenn Ihr Microsoft-Konto App-Passwörter anbietet (unter Sicherheit, bei aktivierter Bestätigung in zwei Schritten), erstellen Sie eines und fügen Sie es unten ein.",
+    "emailadd.steps.icloud": "iCloud Mail braucht ein app-spezifisches Passwort. Melden Sie sich bei Ihrem Apple Account an, öffnen Sie „Anmeldung und Sicherheit“, wählen Sie „App-spezifische Passwörter“, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
+    "emailadd.steps.yahoo": "Yahoo Mail braucht ein App-Passwort. Öffnen Sie die Kontosicherheit in Ihrem Yahoo-Konto, wählen Sie „App-Passwort generieren“, nennen Sie es VOOL und fügen Sie es unten ein.",
+    "emailadd.steps_link": "App-Passwort-Seite öffnen"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

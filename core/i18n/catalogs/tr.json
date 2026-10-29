@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Tarayıcı",
     "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
-    "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
+    "settings.row.hide_name_on_screen.effect": "Hemen geçerli.",
+    "emailadd.provider_label": "Hangi e-postayı kullanıyorsunuz?",
+    "emailadd.provider_other": "Diğer",
+    "emailadd.servers": "Sunucu ayarları",
+    "emailadd.servers_filled": "{provider} için dolduruldu. Yalnızca sağlayıcınız söylerse değiştirin.",
+    "emailadd.other_help": "E-posta sağlayıcınızın yardım sayfaları bu ayarları listeler: sağlayıcının adını “IMAP ayarları” ile birlikte arayın.",
+    "emailadd.steps.gmail": "Gmail, normal şifrenizi değil bir uygulama şifresi ister. Google Hesabınızda 2 Adımlı Doğrulama'yı açın, ardından Uygulama şifreleri'ni açın, VOOL adında bir şifre oluşturun ve aşağıya yapıştırın.",
+    "emailadd.steps.outlook": "Microsoft, Outlook ve Hotmail hesaplarının çoğunda diğer uygulamalar için şifreyle girişi kapattı, bu yüzden bu reddedilebilir. Microsoft hesabınız uygulama şifreleri sunuyorsa (Güvenlik altında, iki adımlı doğrulama açıkken), bir tane oluşturup aşağıya yapıştırın.",
+    "emailadd.steps.icloud": "iCloud Mail uygulamaya özel bir şifre ister. Apple Hesabınıza giriş yapın, Giriş ve Güvenlik'i açın, Uygulamaya Özel Şifreler'i seçin, VOOL adında bir şifre oluşturun ve aşağıya yapıştırın.",
+    "emailadd.steps.yahoo": "Yahoo Mail bir uygulama şifresi ister. Yahoo hesabınızda Hesap Güvenliği'ni açın, Uygulama şifresi oluştur'u seçin, adını VOOL koyun ve aşağıya yapıştırın.",
+    "emailadd.steps_link": "Uygulama şifresi sayfasını aç"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

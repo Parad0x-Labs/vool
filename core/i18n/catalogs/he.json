@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "דפדפן",
     "settings.row.hide_name_on_screen.label": "הסתרת השם שלי על המסך",
     "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
-    "settings.row.hide_name_on_screen.effect": "חל מיד."
+    "settings.row.hide_name_on_screen.effect": "חל מיד.",
+    "emailadd.provider_label": "באיזה דואר אלקטרוני אתם משתמשים?",
+    "emailadd.provider_other": "אחר",
+    "emailadd.servers": "הגדרות שרת",
+    "emailadd.servers_filled": "מולא עבור {provider}. שנו רק אם ספק הדואר מבקש זאת.",
+    "emailadd.other_help": "דפי העזרה של ספק הדואר שלכם מפרטים את ההגדרות האלה: חפשו את שמו יחד עם „הגדרות IMAP”.",
+    "emailadd.steps.gmail": "Gmail דורש סיסמה לאפליקציה, לא את הסיסמה הרגילה שלכם. הפעילו אימות דו-שלבי בחשבון Google, פתחו את סיסמאות לאפליקציות, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
+    "emailadd.steps.outlook": "Microsoft כיבתה התחברות בסיסמה לאפליקציות אחרות ברוב חשבונות Outlook ו-Hotmail, ולכן ייתכן שהבקשה תידחה. אם חשבון Microsoft שלכם מציע סיסמאות לאפליקציות (תחת אבטחה, כשאימות דו-שלבי פעיל), צרו אחת והדביקו אותה למטה.",
+    "emailadd.steps.icloud": "iCloud Mail דורש סיסמה ייעודית ליישום. התחברו לחשבון Apple, פתחו את התחברות ואבטחה, בחרו סיסמאות ייעודיות ליישומים, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
+    "emailadd.steps.yahoo": "Yahoo Mail דורש סיסמה לאפליקציה. פתחו את אבטחת החשבון בחשבון Yahoo, בחרו ביצירת סיסמה לאפליקציה, קראו לה VOOL והדביקו אותה למטה.",
+    "emailadd.steps_link": "פתיחת דף הסיסמאות לאפליקציות"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

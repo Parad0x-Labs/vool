@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Przeglądarka",
     "settings.row.hide_name_on_screen.label": "Ukryj moje imię na ekranie",
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
-    "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
+    "settings.row.hide_name_on_screen.effect": "Działa natychmiast.",
+    "emailadd.provider_label": "Z jakiej poczty korzystasz?",
+    "emailadd.provider_other": "Inna",
+    "emailadd.servers": "Ustawienia serwera",
+    "emailadd.servers_filled": "Wypełnione dla {provider}. Zmieniaj je tylko wtedy, gdy każe tak dostawca.",
+    "emailadd.other_help": "Strony pomocy Twojego dostawcy poczty podają te ustawienia: wyszukaj jego nazwę razem z „ustawienia IMAP”.",
+    "emailadd.steps.gmail": "Gmail wymaga hasła do aplikacji, a nie zwykłego hasła. Włącz weryfikację dwuetapową na koncie Google, otwórz Hasła do aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
+    "emailadd.steps.outlook": "Microsoft wyłączył logowanie hasłem dla innych aplikacji na większości kont Outlook i Hotmail, więc może to zostać odrzucone. Jeśli Twoje konto Microsoft oferuje hasła aplikacji (w sekcji Zabezpieczenia, przy włączonej weryfikacji dwuetapowej), utwórz je i wklej poniżej.",
+    "emailadd.steps.icloud": "iCloud Mail wymaga hasła dla aplikacji. Zaloguj się na konto Apple, otwórz Logowanie i bezpieczeństwo, wybierz Hasła dla aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
+    "emailadd.steps.yahoo": "Yahoo Mail wymaga hasła do aplikacji. Otwórz Zabezpieczenia konta w swoim koncie Yahoo, wybierz Wygeneruj hasło do aplikacji, nazwij je VOOL i wklej poniżej.",
+    "emailadd.steps_link": "Otwórz stronę haseł do aplikacji"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Navigateur",
     "settings.row.hide_name_on_screen.label": "Masquer mon nom à l’écran",
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
-    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
+    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement.",
+    "emailadd.provider_label": "Quelle messagerie utilisez-vous ?",
+    "emailadd.provider_other": "Autre",
+    "emailadd.servers": "Paramètres du serveur",
+    "emailadd.servers_filled": "Remplis pour {provider}. Ne les modifiez que si votre fournisseur vous le demande.",
+    "emailadd.other_help": "Les pages d'aide de votre fournisseur de messagerie indiquent ces paramètres : cherchez son nom avec « paramètres IMAP ».",
+    "emailadd.steps.gmail": "Gmail demande un mot de passe d'application, pas votre mot de passe habituel. Activez la validation en deux étapes dans votre compte Google, ouvrez Mots de passe des applications, créez-en un nommé VOOL et collez-le ci-dessous.",
+    "emailadd.steps.outlook": "Microsoft a désactivé la connexion par mot de passe pour les autres applications sur la plupart des comptes Outlook et Hotmail, cela peut donc être refusé. Si votre compte Microsoft propose des mots de passe d'application (dans Sécurité, avec la vérification en deux étapes activée), créez-en un et collez-le ci-dessous.",
+    "emailadd.steps.icloud": "iCloud Mail demande un mot de passe pour app. Connectez-vous à votre compte Apple, ouvrez Connexion et sécurité, choisissez Mots de passe pour app, créez-en un nommé VOOL et collez-le ci-dessous.",
+    "emailadd.steps.yahoo": "Yahoo Mail demande un mot de passe d'application. Ouvrez Sécurité du compte dans votre compte Yahoo, choisissez Générer un mot de passe d'application, nommez-le VOOL et collez-le ci-dessous.",
+    "emailadd.steps_link": "Ouvrir la page des mots de passe d'application"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

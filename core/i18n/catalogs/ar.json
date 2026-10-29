@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "المتصفح",
     "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
-    "settings.row.hide_name_on_screen.effect": "يسري فورًا."
+    "settings.row.hide_name_on_screen.effect": "يسري فورًا.",
+    "emailadd.provider_label": "أي بريد إلكتروني تستخدم؟",
+    "emailadd.provider_other": "آخر",
+    "emailadd.servers": "إعدادات الخادم",
+    "emailadd.servers_filled": "تمّ ملؤها لـ {provider}. لا تغيّرها إلا إذا طلب منك مزوّد البريد ذلك.",
+    "emailadd.other_help": "تذكر صفحات المساعدة لدى مزوّد بريدك هذه الإعدادات: ابحث عن اسمه مع «إعدادات IMAP».",
+    "emailadd.steps.gmail": "يحتاج Gmail إلى كلمة مرور للتطبيق، لا إلى كلمة مرورك المعتادة. فعّل التحقق بخطوتين في حساب Google، ثم افتح كلمات مرور التطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
+    "emailadd.steps.outlook": "أوقفت Microsoft تسجيل الدخول بكلمة المرور للتطبيقات الأخرى في معظم حسابات Outlook وHotmail، لذا قد يُرفض هذا. إذا كان حساب Microsoft لديك يتيح كلمات مرور للتطبيقات (ضمن الأمان، مع تفعيل التحقق بخطوتين)، فأنشئ واحدة والصقها أدناه.",
+    "emailadd.steps.icloud": "يحتاج iCloud Mail إلى كلمة سر خاصة بالتطبيق. سجّل الدخول إلى حساب Apple، وافتح تسجيل الدخول والأمان، واختر كلمات السر الخاصة بالتطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
+    "emailadd.steps.yahoo": "يحتاج Yahoo Mail إلى كلمة مرور للتطبيق. افتح أمان الحساب في حساب Yahoo، واختر إنشاء كلمة مرور للتطبيق، وسمّها VOOL والصقها أدناه.",
+    "emailadd.steps_link": "افتح صفحة كلمات مرور التطبيقات"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

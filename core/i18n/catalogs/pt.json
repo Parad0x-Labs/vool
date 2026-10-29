@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Navegador",
     "settings.row.hide_name_on_screen.label": "Ocultar o meu nome no ecrã",
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
-    "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
+    "settings.row.hide_name_on_screen.effect": "Vale imediatamente.",
+    "emailadd.provider_label": "Que email usa?",
+    "emailadd.provider_other": "Outro",
+    "emailadd.servers": "Definições do servidor",
+    "emailadd.servers_filled": "Preenchidas para {provider}. Altere-as apenas se o seu fornecedor o indicar.",
+    "emailadd.other_help": "As páginas de ajuda do seu fornecedor de email indicam estas definições: pesquise o nome dele com «definições IMAP».",
+    "emailadd.steps.gmail": "O Gmail precisa de uma senha de app, não da sua senha habitual. Ative a verificação em duas etapas na sua Conta Google, abra Senhas de app, crie uma chamada VOOL e cole-a abaixo.",
+    "emailadd.steps.outlook": "A Microsoft desativou o início de sessão com senha para outras apps na maioria das contas Outlook e Hotmail, por isso isto pode ser recusado. Se a sua conta Microsoft oferecer senhas de app (em Segurança, com a verificação em dois passos ativa), crie uma e cole-a abaixo.",
+    "emailadd.steps.icloud": "O iCloud Mail precisa de uma senha específica de app. Inicie sessão na sua Conta Apple, abra Início de sessão e segurança, escolha Senhas específicas de apps, crie uma chamada VOOL e cole-a abaixo.",
+    "emailadd.steps.yahoo": "O Yahoo Mail precisa de uma senha de app. Abra a Segurança da conta na sua conta Yahoo, escolha Gerar senha de app, chame-lhe VOOL e cole-a abaixo.",
+    "emailadd.steps_link": "Abrir a página de senhas de app"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

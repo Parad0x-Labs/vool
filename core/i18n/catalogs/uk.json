@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "Браузер",
     "settings.row.hide_name_on_screen.label": "Приховувати моє ім’я на екрані",
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
-    "settings.row.hide_name_on_screen.effect": "Діє негайно."
+    "settings.row.hide_name_on_screen.effect": "Діє негайно.",
+    "emailadd.provider_label": "Якою поштою ви користуєтеся?",
+    "emailadd.provider_other": "Інша",
+    "emailadd.servers": "Налаштування сервера",
+    "emailadd.servers_filled": "Заповнено для {provider}. Змінюйте їх, лише якщо про це просить ваш поштовий сервіс.",
+    "emailadd.other_help": "Ці налаштування є на сторінках довідки вашого поштового сервісу: пошукайте його назву разом із «налаштування IMAP».",
+    "emailadd.steps.gmail": "Gmail потрібен пароль застосунку, а не ваш звичайний пароль. Увімкніть двоетапну перевірку в обліковому записі Google, відкрийте «Паролі застосунків», створіть пароль з назвою VOOL і вставте його нижче.",
+    "emailadd.steps.outlook": "Microsoft вимкнула вхід за паролем для інших застосунків у більшості облікових записів Outlook і Hotmail, тож вхід може бути відхилено. Якщо ваш обліковий запис Microsoft пропонує паролі застосунків (у розділі «Безпека», з увімкненою двоетапною перевіркою), створіть пароль і вставте його нижче.",
+    "emailadd.steps.icloud": "iCloud Mail потрібен пароль для програми. Увійдіть в Apple Account, відкрийте «Вхід і безпека», виберіть «Паролі для програм», створіть пароль з назвою VOOL і вставте його нижче.",
+    "emailadd.steps.yahoo": "Yahoo Mail потрібен пароль застосунку. Відкрийте «Безпека облікового запису» в Yahoo, виберіть «Створити пароль застосунку», назвіть його VOOL і вставте нижче.",
+    "emailadd.steps_link": "Відкрити сторінку паролів застосунків"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

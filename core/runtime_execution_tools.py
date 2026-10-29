@@ -4258,6 +4258,30 @@ def _web_url(raw_url: object) -> str:
     return url
 
 
+_CHARSET_RE = re.compile(r"charset\s*=\s*[\"']?([A-Za-z0-9._-]+)", re.IGNORECASE)
+
+
+def _fetched_page_text(raw: bytes, *, content_type: str, content_encoding: str) -> tuple[str, str, bool]:
+    """(text, title, readable) for a fetched body. An HTML page becomes the text a person reads on
+    it; any other body (JSON, plain text) is returned as sent. A compressed body is decoded first,
+    and its declared charset is honoured."""
+    from tools.web.http_fetch import _decompress
+    from tools.web.page_text import looks_like_html, readable_page
+
+    decoded = _decompress(raw, content_encoding)
+    if decoded is None:
+        return "", "", False
+    match = _CHARSET_RE.search(content_type or "")
+    try:
+        text = decoded.decode(match.group(1) if match else "utf-8", errors="replace")
+    except LookupError:
+        text = decoded.decode("utf-8", errors="replace")
+    if not looks_like_html(content_type, text):
+        return text, "", False
+    page = readable_page(text)
+    return page.text, page.title, True
+
+
 def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
     url = _web_url(arguments.get("url"))
     # this runtime's own service (its chat and owner doors) is never a fetch destination (core.runtime_served_origins)
@@ -4322,6 +4346,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
         with opened as response:
             final_url = str(response.geturl() or url)
             content_type = str(response.headers.get("content-type") or "").strip()
+            content_encoding = str(response.headers.get("content-encoding") or "").strip()
             body = response.read(max_bytes + 1)
     except RemoteTurnTargetRefused as refused:
         return RuntimeExecutionResult(
@@ -4360,12 +4385,16 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     except urllib.error.HTTPError as exc:
-        status = "login_wall" if int(exc.code or 0) in {401, 403} else "error"
+        # 401 asks for a sign-in. 403 is a refusal, most often a site turning away automated
+        # readers, and was reported as "behind a login" (fresh-user test, 2026-10-29), which sent
+        # people looking for an account the page never needed.
+        code = int(exc.code or 0)
+        status = "login_wall" if code == 401 else "access_refused" if code == 403 else "error"
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status=status,
-            response_text=f"Web fetch for `{url}` failed with HTTP {int(exc.code or 0)}.",
+            response_text=f"Web fetch for `{url}` failed with HTTP {code}.",
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4373,7 +4402,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
                     ok=False,
                     status=status,
                     url=url,
-                    http_status=int(exc.code or 0),
+                    http_status=code,
                 ),
             },
         )
@@ -4395,7 +4424,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     truncated = len(body) > max_bytes
-    text = body[:max_bytes].decode("utf-8", errors="replace")
+    text, title, readable = _fetched_page_text(body[:max_bytes], content_type=content_type, content_encoding=content_encoding)
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -4406,6 +4435,8 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             "final_url": final_url,
             "content_type": content_type,
             "text": text,
+            "title": title,
+            "readable_text": readable,
             "truncated": truncated,
             "observation": _tool_observation(
                 intent="web.fetch",

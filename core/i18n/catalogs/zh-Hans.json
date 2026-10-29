@@ -2851,15 +2851,26 @@
     "settings.row.live_browser.label": "浏览器",
     "settings.row.hide_name_on_screen.label": "在屏幕上隐藏我的名字",
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
-    "settings.row.hide_name_on_screen.effect": "立即生效。"
+    "settings.row.hide_name_on_screen.effect": "立即生效。",
+    "emailadd.provider_label": "你用的是哪种邮箱？",
+    "emailadd.provider_other": "其他",
+    "emailadd.servers": "服务器设置",
+    "emailadd.servers_filled": "已按 {provider} 填好。只有邮箱服务商要求时才需要修改。",
+    "emailadd.other_help": "邮箱服务商的帮助页面会列出这些设置：用服务商名称加“IMAP 设置”搜索即可。",
+    "emailadd.steps.gmail": "Gmail 需要应用专用密码，而不是你平时的密码。在 Google 账号中开启两步验证，然后打开“应用专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
+    "emailadd.steps.outlook": "Microsoft 已在大多数 Outlook 和 Hotmail 账号上关闭了其他应用的密码登录，因此可能会被拒绝。如果你的 Microsoft 账号提供应用密码（在“安全”中，需开启两步验证），请创建一个并粘贴到下方。",
+    "emailadd.steps.icloud": "iCloud 邮件需要 App 专用密码。登录你的 Apple 账户，打开“登录与安全”，选择“App 专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
+    "emailadd.steps.yahoo": "Yahoo 邮箱需要应用密码。在 Yahoo 账号中打开“账号安全”，选择“生成应用密码”，命名为 VOOL，再粘贴到下方。",
+    "emailadd.steps_link": "打开应用密码页面"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "f5e3cf53bfa12903d97f684f435468c0e43501fe9c05c05c837fb9487e15a23a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)"
   }
 }

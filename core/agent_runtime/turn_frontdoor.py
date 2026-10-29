@@ -1936,6 +1936,8 @@ def handle_turn_frontdoor(
         effective_input,
         session_id=session_id,
         source_context=source_context,
+        persona=persona,
+        interpretation=interpreted,
     )
     if url_read is not None:
         return {"result": url_read}
