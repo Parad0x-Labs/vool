@@ -6,7 +6,7 @@ This project contains original code developed for VOOL, along with optional inte
 
 ### VOOL Core
 
-Unless otherwise noted, the original VOOL core codebase is licensed under the Business Source License 1.1 (`BSL 1.1`).
+Unless otherwise noted, the VOOL codebase is licensed under the MIT License (see `LICENSE`).
 
 This includes the main product code such as:
 
@@ -169,6 +169,23 @@ Type: Integration adapter
 Bundled: Yes, our adapter code  
 Redistributed by VOOL: Yes, our code only  
 Notes: Adapter code is ours; remote provider services remain under their own terms
+
+## Bundled Web Assets
+
+### Chart.js 4.5.1
+
+- path: `core/web_assets/chart-4.5.1.min.js`
+- license: MIT (`core/web_assets/chart-LICENSE.md`)
+
+### Mermaid 12.0.0
+
+- path: `core/web_assets/mermaid-12.0.0.min.js`
+- license: MIT (`core/web_assets/mermaid-LICENSE`)
+
+### vendor/nebula-media
+
+- path: `vendor/nebula-media/`
+- license: not yet recorded; see `vendor/nebula-media/PROVENANCE.md`
 
 ## Disclaimer
 

@@ -1,5 +1,8 @@
 # Meet And Greet Server Architecture
 
+> **Research, not released.** Meet-and-greet is not shipped or enabled in official releases (see `apps/meet_and_greet_server.py`). This page describes a design, not a running service.
+
+
 > **Retained experimental research.** This service is not required for normal
 > VOOL desktop use. The design below is not a public-deployment readiness claim.
 > See [research activation](../research/README.md) and [repository scope](REPOSITORY_SCOPE.md).

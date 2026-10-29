@@ -1,5 +1,9 @@
 # Proposed trusted admission service
 
+> **Planned for 0.8, not released yet.** The community admission service and PR route described here are not running; nothing in `registry_service/` accepts submissions in 0.7.5.
+
+
+
 This is an activation contract. Scanner adapters, disposable workers, protected
 check identities, independent signing custody and a publisher receipt service
 are not activated by these documents or repository blueprints. Fixture reports

@@ -6,12 +6,12 @@ description: What data leaves your computer when you use VOOL, and when. The dif
 
 VOOL has two states. The interface always shows which one is active.
 
-## LOCAL
+## Local
 
 Everything stays on this computer. The model runs against a local runtime, files are read
 from disk, and no request is made to a provider.
 
-## CLOUD
+## Cloud (provider name)
 
 The selected context is sent directly to the provider you selected, from your machine,
 using your key.

@@ -11,7 +11,7 @@ in passing; when they disagree with this page, this page wins.
 
 VOOL is in **beta**. The current release is
 [**v0.7.5-beta**](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta), a GitHub
-release built from `main` at `6ed307c`. It has app downloads for three platforms,
+release built from `main` at `6466e8b`. It has app downloads for three platforms,
 each with a published SHA-256 checksum. Installing from source with the bootstrap script
 remains supported on macOS, Linux and Windows; see [Install](../getting-started/install.md).
 
