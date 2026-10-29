@@ -191,7 +191,16 @@ def main(argv=None) -> int:
     trial.add_argument("folder", type=Path)
     trial.add_argument("--pick", action="append", required=True)
     trial.add_argument("--not-pick", action="append", default=[])
+    calling = commands.add_parser("call", help="run one VOOL tool in a throwaway profile, through the approval check")
+    calling.add_argument("tool")
+    calling.add_argument("--args", default="{}", help="the tool's arguments as a JSON object")
+    calling.add_argument("--mode", default="manual", choices=("manual", "auto"))
+    calling.add_argument("--approve", action="store_true", help="allow an approval request once and call again")
     args = parser.parse_args(argv)
+    if args.command == "call":
+        from tools.community_skills_call import run_call
+
+        return run_call(args.tool, args.args, mode=args.mode, approve=args.approve)
     if args.command == "try":
         # run_try owns its own error printing and never raises out.
         from tools.community_skills_try import run_try
