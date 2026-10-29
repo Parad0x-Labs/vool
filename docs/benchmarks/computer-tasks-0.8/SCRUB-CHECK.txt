@@ -1,0 +1,25 @@
+Pattern counts in this pack after scrubbing (values never printed). Every count must be 0.
+
+   0  owner account name
+   0  owner first/last name
+   0  host name
+   0  /Users/<owner> path
+   0  email at owner domain
+   0  parad0xlabs.com
+   0  vool.dev
+   0  VOOL_WORK / VOOL-Work
+   0  NULLA_VIDEO
+   0  nulla
+   0  contabo-backup
+   0  dna-x402
+   0  other real home folders
+   0  Wi-Fi network names / ISP
+   0  owner handle
+   0  Wi-Fi hardware address
+   0  keychain item names
+   0  sk- keys
+   0  Bearer tokens
+   0  FLOOR
+   0  Sibyl
+   0  ASTRA
+   0  Sol (project)

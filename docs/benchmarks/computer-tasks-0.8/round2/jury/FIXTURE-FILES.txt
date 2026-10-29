@@ -1,0 +1,40 @@
+MANIFEST.json
+Desktop/Screenshot 2024-05-02 at 18.40.07.png
+Desktop/Screenshot 2024-05-14 at 09.12.33.png
+Desktop/todo.txt
+Desktop/wifi password.txt
+Documents/lasagne recipe.txt
+Documents/letter to gran.txt
+Documents/Car/MOT certificate 2024.pdf
+Documents/Car/garage invoice March.pdf
+Documents/Car/insurance notes.txt
+Documents/House/notes (1).txt
+Documents/House/notes.txt
+Documents/House/tenancy agreement.pdf
+Documents/House/washing machine repair.pdf
+Documents/Money/bank_april_2024.csv
+Documents/Money/budget.md
+Documents/Money/council tax 2024-25.pdf
+Documents/School/class trip letter.txt
+Documents/School/parents evening schedule.csv
+Downloads/Zoom_installer.dmg
+Downloads/amazon_order_204-7781.pdf
+Downloads/eticket_kaiser_chiefs.pdf
+Downloads/gym membership contract.pdf
+Downloads/holiday photos.zip
+Downloads/ticket_LDS_EDB_0607.pdf
+Movies/Cornwall drone clip.mp4
+Movies/Ella school play.mov
+Music/laura wedding first dance.m4a
+Music/voice memo choir practice.m4a
+Pictures/IMG_4501.jpg
+Pictures/IMG_4502.jpg
+Pictures/IMG_4517.jpg
+Pictures/Biscuit/biscuit at the park.jpg
+Pictures/Biscuit/biscuit sleeping.jpg
+Pictures/Biscuit/biscuit zoomies.gif
+Pictures/Cornwall 2023/IMG_3120.HEIC
+Pictures/Cornwall 2023/beach day.jpg
+Pictures/Cornwall 2023/st ives harbour.jpg
+Projects/Allotment/planting plan.md
+Projects/Allotment/seed shopping list.csv

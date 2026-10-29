@@ -1,0 +1,5 @@
+fresh-asks.json sha256 59f36a6ff772a790430ac890d65205dd36bc6234435b3a7c884751c440c9c407
+frozen 2026-10-28T22:07:19Z
+author: claude-opus-5-5 via <keychain-item>, fresh context, pack AUTHOR-PACK.md sha256 b2683c4c73d1e55dbd49a06cbab74bc5dff49c1d2164ab8707d824e775122e6a (fake home without Library caches; no VOOL code, replies or scores)
+ledger row: 2026-10-28T22:05:30.396164+00:00,claude-opus-5-5,622,10086,0,2539,0.000000,0.012695,0.216903,end_turn,req_011CgVPhNZufu42AsAgnDnFA
+validation: VALIDATION.txt (45 of 45 kept)

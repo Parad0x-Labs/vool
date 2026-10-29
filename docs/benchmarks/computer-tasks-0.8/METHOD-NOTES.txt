@@ -1,0 +1,23 @@
+METHOD NOTES (computer-task head-to-head, rounds 1 and 2)
+
+Scrubbing: every text file in this pack was passed through make_pack.py. Owner and machine names, real home, drive and folder names,
+the Wi-Fi network names and Wi-Fi hardware address an agent read (round 2, OpenClaw R05), keychain item names, key patterns and
+internal names are replaced by <placeholders>. Scripts therefore show <work>, <home>, <keychain-item> where the real setup had local
+paths and Keychain names; REPRODUCE.md says what to substitute. SCRUB-CHECK.txt lists the pattern counts in the final pack (all 0).
+
+Answers that carried real-machine details (round 1, OpenClaw 2026.9.6 cloud N28/N33/N34 under sandbox v2) are kept, with the details
+replaced by <real-folder>/<work>/<home> placeholders. Nothing was swapped; the strict-sandbox reruns are separate rows.
+
+Sandbox profiles, in time order: rival v2 (writes/network confined, reads open) -> v3 (reads confined; broke rivals, 4 min) -> v3b
+(v3 + stat-only on run dirs) -> v3c (+ no keychain, 09:53:39Z) -> v4 (deny-by-default exec and reads, 09:58:37Z). VOOL: vool v1 ->
+v2 (stat of the Ollama store path) -> v3 (= rival v4 rules + VOOL program files, 10:00:59Z). Which rows ran under which profile is
+in logs/LOG.md and results/rows-all.csv (sandbox column). Probe tables: sandbox/PROBE-*.txt.
+
+Round-2 Hermes cloud first pass ran R01-R13 v3b, R14-R22 v3c, R23-R45 v4; it and the round-2 OpenClaw v3b pass are kept under
+answers/EVIDENCE-mixed-sandbox as evidence of the keychain findings; the headline round-2 rival rows are the full v4 reruns.
+
+Disclosures: Hermes needs a 64K context (others run the model default). VOOL cloud rows are VOOL's clean loop and its tools called
+directly (vool_cloud_bench.py); VOOL's routing and answer gates are not in those rows. Old-version rival rows ran under v2.
+Round-1 test folder is the synthetic folder VOOL's developers had used before; round 2 removes that (new folder, new asks).
+
+Not yet in this pack: round1/answers/hermes-c73b595-local (fresh-latest/hermes-fresh.jsonl): not run yet; round2/answers/vool-local-voolsb3 (r2-local/vool-r2.jsonl): not run yet; round2/answers/openclaw-2026.10.8-local-v4 (r2-local/openclaw-r2.jsonl): not run yet; round2/answers/hermes-c73b595-local-v4 (r2-local/hermes-r2.jsonl): not run yet
