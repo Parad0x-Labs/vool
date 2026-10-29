@@ -32,7 +32,7 @@ On Windows the same pin is `-Ref v0.7.5-beta`.
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 Local Windows checkout with guided installer:
@@ -72,7 +72,7 @@ bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-max
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta -InstallProfile local-max
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile local-max
 ```
 
 Safe one-line profile shortcuts for macOS / Linux:

@@ -87,8 +87,8 @@ bash bootstrap_vool.sh --ref v0.7.5-beta
 ### From source: Windows PowerShell
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.5-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Installing from source needs Python 3.11 or newer. If none is found, the installer tries to set one up. The app downloads include their own Python. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
