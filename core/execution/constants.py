@@ -1327,6 +1327,11 @@ _PRESENT_APP_WORDS = frozenset({
 # A folder noun makes the object a folder search ("open the invoices folder"), which the
 # named-folder lanes own.
 _PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir"})
+# "find my phone" is not a file lookup (the loose search stands down on it too): the object names
+# a device the owner owns, not words a file's name carries.
+_PRESENT_DEVICE_WORDS = frozenset({
+    "phone", "phones", "laptop", "laptops", "computer", "computers", "pc", "mac", "tv", "tablet", "tablets",
+})
 
 
 class PresentFileAsk(NamedTuple):
@@ -1361,7 +1366,7 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         offset = raw.find(token, offset) + len(token)
     if not kept:
         return None  # "show me what you found" names nothing to search for
-    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS for word in kept):
+    if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS for word in kept):
         return None
     rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
     if _FILE_OTHER_ACTION_RE.search(rest):
