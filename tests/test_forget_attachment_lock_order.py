@@ -22,6 +22,7 @@ import zlib
 import pytest
 
 from core import chat_attachments as ca
+from core.memory.carriers import carries
 from tests.test_forgetting_is_applied_or_never_claimed_20261007 import _forget_command
 from tests.test_question_date_time_leg_20261002 import _hash_backend, _ingest, _profile, _ts
 
@@ -153,8 +154,8 @@ def test_a_forget_racing_uploads_and_attachment_turns_never_deadlocks_and_keeps_
                        deadline_s=ROUND_DEADLINE_S, label=f"round {round_no}")
         assert not errors, (round_no, errors)
         assert len(replies) == 1 and replies[0].startswith("Forget applied"), (round_no, replies)
-        # A paste staged after the forget committed saw it and was refused; one staged before was rewritten.
+        # A paste staged after the forget committed saw it and was refused; one staged before was erased.
         assert set(refused) <= {"forgotten_content"}, (round_no, refused)
-        assert ca.documents_carrying(chat, value) == [], round_no
+        assert not ca.documents_still_carrying(session_id=chat, carries=lambda words: carries(words, value)), round_no
         assert not any(value in name for name in served), (round_no, served)
         assert served_other and set(served_other) == {"other.txt"}, (round_no, served_other)
