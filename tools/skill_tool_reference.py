@@ -10,7 +10,7 @@ person sets anything up, the same on every machine that runs it.
 
 Per tool: the name, what it does (the contract's own first sentence), its input fields
 (`core.runtime_tool_contracts` input_schema; `?` marks an optional field), a scope note where the
-name alone misleads, whether it reads or changes something, and what Manual and Auto mode do with
+name alone misleads, the operating system for a tool that runs on one only, whether it reads or changes something, and what Manual and Auto mode do with
 a call (from `core.mode_permission_policy.actions_for_tool` and the mode matrix).
 """
 from __future__ import annotations
@@ -46,14 +46,14 @@ SCOPE_NOTES = {
     "operator.update_calendar_event": "Takes the request as written in `text`. Stages a change; it applies only "
                                       "after the person approves. Needs a calendar account in Settings.",
     "operator.save_note": "Takes the request as written in `text` (save a note called \"Tea\" saying buy tea). "
-                          "Writes a Markdown file into the chat's project folder, under notes/.",
+                          "Writes a Markdown file into the chat's project folder, under notes/. Adding "
+                          "\"remind me on 2026-11-08 at 09:00\" to the same `text` also sets one reminder "
+                          "(see Reminders from a skill).",
     "operator.schedule_calendar_event": "Writes one .ics file into VOOL's calendar outbox. It does not add the "
                                         "event to any calendar app.",
     "operator.list_reminders": "Only VOOL's own reminders in this chat, not reminders in other apps.",
     "operator.find_notes": "The notes operator.save_note wrote in the chat's project folder, not other apps' notes.",
     "operator.show_note": "The notes operator.save_note wrote in the chat's project folder, not other apps' notes.",
-    "operator.apple_note_list": "Apple Notes on a Mac only.",
-    "operator.apple_note_read": "Apple Notes on a Mac only.",
     "operator.show_agenda": "Needs a calendar account in Settings. `window` is the words of the request "
                             "(\"tomorrow\", \"this week\").",
     "operator.search_calendar_event": "Needs a calendar account in Settings.",
@@ -73,6 +73,19 @@ SCOPE_NOTES = {
     "file.deliver": "Hands the person a file to download; nothing is written to their folders.",
     "profile.remember": "The person's own profile in VOOL (name, language, time zone and so on).",
     "profile.forget": "The person's own profile in VOOL.",
+    "x.post": "Reads only. Posting, replying and every other action on X goes through x.action.propose, "
+              "which the person approves.",
+}
+
+#: Tools that run on one operating system only; elsewhere they answer with a refusal or
+#: `missing_dependency`. Shown in front of the description.
+PLATFORM_ONLY = {
+    "pdf.extract_text": "macOS",   # core/pdf_tools.py: PDFKit through the system Python (Foundation, Quartz)
+    "pdf.ocr": "macOS",            # core/pdf_tools.py: Vision through the system Python
+    "operator.apple_note_list": "macOS",
+    "operator.apple_note_read": "macOS",
+    "machine.display_inspect": "Windows",
+    "machine.event_log_errors": "Windows",
 }
 
 _EFFECT_WORDS = {
@@ -116,6 +129,11 @@ def _first_sentence(text: str, limit: int = 170) -> str:
     return sentence if len(sentence) <= limit else sentence[: limit - 3].rstrip() + "..."
 
 
+def _platform_mark(intent: str) -> str:
+    system = PLATFORM_ONLY.get(intent)
+    return f"**{system} only.** " if system else ""
+
+
 def _inputs(schema: dict) -> str:
     if not schema:
         return "none"
@@ -140,7 +158,7 @@ def render() -> str:
 
     contracts = runtime_tool_contract_map()
     listed: dict[str, list] = defaultdict(list)
-    off: dict[str, list[str]] = defaultdict(list)
+    off: dict[str, list] = defaultdict(list)
     hidden: list[str] = []
     internal: dict[str, list[str]] = defaultdict(list)
     for name in sorted(contracts):
@@ -152,7 +170,7 @@ def render() -> str:
         elif contract.tool_surface in INTERNAL_SURFACES:
             internal[contract.tool_surface].append(name)
         elif not contract.supported:
-            off[" ".join(str(contract.unsupported_reason or "switched off on this runtime").split())].append(name)
+            off[" ".join(str(contract.unsupported_reason or "switched off on this runtime").split())].append(contract)
         else:
             listed[contract.tool_surface].append(contract)
 
@@ -174,6 +192,7 @@ def render() -> str:
             note = SCOPE_NOTES.get(contract.intent, "")
             if note:
                 what = f"{what} *{note}*"
+            what = _platform_mark(contract.intent) + what
             permissions = ", ".join(f"`{item}`" for item in contract.permission_actions) or "none"
             effect = _EFFECT_WORDS.get(contract.side_effect_class, _cell(contract.side_effect_class))
             inputs = _cell(_inputs(contract.input_schema))
@@ -181,10 +200,21 @@ def render() -> str:
         lines.append("")
     lines += ["### Left out of the table", "",
               "These tools exist, and a skill may name them in `allowed-tools` (the validator accepts every "
-              "name below), but on a fresh install they are off until the person sets something up:", ""]
+              "name below), but on a fresh install they are off until the person sets something up.", ""]
     for reason in sorted(off):
-        lines.append("* " + ", ".join(f"`{name}`" for name in off[reason]) + f": {_cell(reason)}")
-    lines += ["", "Not for skills:", ""]
+        lines += [f"**{_cell(reason)}**", "",
+                  "| Tool | What it does | Inputs | Reads or changes |",
+                  "| --- | --- | --- | --- |"]
+        for contract in off[reason]:
+            what = _first_sentence(contract.description)
+            note = SCOPE_NOTES.get(contract.intent, "")
+            if note:
+                what = f"{what} *{note}*"
+            what = _platform_mark(contract.intent) + what
+            effect = _EFFECT_WORDS.get(contract.side_effect_class, _cell(contract.side_effect_class))
+            lines.append(f"| `{contract.intent}` | {_cell(what)} | {_cell(_inputs(contract.input_schema))} | {effect} |")
+        lines.append("")
+    lines += ["Not for skills:", ""]
     for surface in sorted(internal):
         lines.append("* " + ", ".join(f"`{name}`" for name in internal[surface]) + f": {INTERNAL_SURFACES[surface]}.")
     if hidden:

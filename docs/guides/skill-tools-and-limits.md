@@ -15,11 +15,12 @@ asked to approve, and what each refusal means. Writing, testing and sharing a sk
 | --- | --- |
 | Add instructions to the turns where the person's message picks it. | Grant a permission, approve an action, raise a spending limit or turn a setting on. Its text is never an approval. |
 | Narrow the tools VOOL offers on those turns with `allowed-tools` (every name must be a real tool, see the table below). | Add a tool. Naming a tool that is switched off does not switch it on. |
-| Ask VOOL to use a tool. The call goes through the same permission check as any other call. | Run by itself. It is loaded only when a person's message picks it: SKILL.md has no timer, schedule or background setting. |
+| Ask VOOL to use a tool. The call goes through the same permission check as any other call. | Run by itself. It is loaded only when a person's message picks it: SKILL.md has no timer, schedule or background setting (`lint` and `try` warn about a `schedule`, `interval`, `cron` or `every` key). For something that should be checked over time, the skill can ask for `watch.add` (a wallet or a token price); the person approves it, and a watch checks only while VOOL is open. |
 | Write files where the tool allows: the chat's project folder (`workspace.*`) or ~/Desktop, ~/Downloads and ~/Documents (`machine.*`). | Write anywhere else (`I can only write inside this lane: ~/Desktop, ~/Downloads, ~/Documents.`), or touch startup files, credentials, Git metadata or release keys unless the person allows it for that turn. |
 | Run a command through the sandbox tools. | Reach the network from a command (`Network egress is disabled by execution policy.`). |
 | Search the web once the person has turned web lookups on. | Look anything up on the web before that (`Web lookups are off. ...`). |
 | Prepare a payment as a proposal the owner then approves, once the owner has switched the wallet on. | Move money by itself. The wallet is off until the owner switches it on, and every payment waits for the owner's approval in every mode. |
+| Set a reminder, by putting "remind me on <date> at <time>" in the `text` of `operator.save_note` (see [Reminders from a skill](#reminders-from-a-skill)). | Set a reminder any other way: there is no reminder tool for skills. |
 | Ship as SKILL.md plus an optional LICENSE or README. | Carry scripts, programs or any other file. A zip with one is refused at import. |
 
 ## What Manual and Auto mode do with a skill's tool calls
@@ -52,6 +53,7 @@ of this: write the instructions so the answer still makes sense when the person 
 | `Manual mode requires approval for this exact action. ...` (or `Auto mode ...`) | The mode asks before this call. | Nothing to fix. The person approves or declines. |
 | `Auto mode does not permit unknown side effect. The controller blocked the tool before dispatch.` | Auto mode refuses tools whose effect is not classified (marked *refused* under Auto below). | Expect it. In Manual mode the same call asks instead. |
 | `No. Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups. (Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)` | Web lookups are off by default. | Say in the skill that it needs web lookups, and add `"search_web"` to `needs` in metadata.json. |
+| `... and web access is off. Turn on web access in Settings ...` (for example `Price watches read public trading data online, and web access is off. Turn on web access in Settings to watch a price. Nothing was saved.`) | Tools that read public data online (`token.performance`, `token.flow`, a price `watch.add` and others) use the same switch as web lookups, which is off by default. Nothing was looked up or saved. | Say in the skill that it needs web lookups, and add `"search_web"` to `needs` in metadata.json. |
 | `Web fetch is disabled by runtime web policy.` | `web.fetch` is off on this runtime (its reason in the tool list). | Use `web.search` or `web.research`, or say the skill needs web fetch on. |
 | `I can only write inside this lane: ~/Desktop, ~/Downloads, ~/Documents.` | `machine.write_file` was given a path outside those folders. | Write inside them, or into the chat's project folder with `workspace.write_file`. |
 | `` `machine.write_file` was not executed: it names high-risk local paths -- ... (startup). Credentials, Git metadata, startup files, configuration and release keys need an explicit operator allowance for this turn before any byte of them moves.`` | The path is a startup file (`.bashrc`, `.zshrc`, LaunchAgents and so on), a credential, Git metadata, configuration or a release key. | Do not write there. |
@@ -63,6 +65,31 @@ of this: write the instructions so the answer still makes sense when the person 
 
 To see these for yourself, run a tool in a throwaway profile with `vool-community call` (see
 [Exercise a skill's tool calls](build-and-test-a-skill.md#exercise-a-skills-tool-calls)).
+
+## Reminders from a skill
+
+There is no reminder tool for skills. `operator.save_note` sets one when its `text` asks to save a
+note and also says "remind me ...":
+
+```text
+save a note called "ACME" saying invoice ACME due 2026-11-10. remind me on 2026-11-08 at 09:00
+```
+
+The reply has two parts: the note saved, and the reminder scheduled.
+
+* **The date after "remind me" wins.** Here the reminder is due on 8 November at 09:00, not on
+  the due date in the note. When the words after "remind me" name no time, the time is read
+  from the whole text.
+* **One reminder per call.** With several "remind me" phrases in one `text`, only the first
+  one's time is used and only one reminder is set. Call `operator.save_note` once per reminder.
+* **What it says.** "remind me on 2026-11-08 at 09:00 to pay the invoice" reads *pay the
+  invoice*. With no "to ..." it reads *the note "ACME"*.
+* **Time zone.** A time with no zone is read in the person's time zone set in VOOL; a zone
+  named in the text (`Europe/London`, `UTC`) is used instead. The due time is stored in UTC and
+  shown in that zone, for example *08 Nov 2026 at 09:00:00 EET*.
+* **Only the future.** A time that has already passed is refused, and nothing is scheduled.
+* **When it shows.** The reminder appears in that chat while VOOL is running; one that came due
+  while VOOL was closed appears the next time it runs. `operator.list_reminders` lists them.
 
 ## Can a skill with allowed-tools be shared or published?
 
@@ -144,9 +171,9 @@ The full contract of a tool, with every field, is in Python:
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
 | `machine.disk_usage` | Report free and total space for each local drive on this machine. | `drive?` | reads | none | runs | runs |
-| `machine.display_inspect` | Report connected-display resolution and refresh rate from Windows (physical size only if EDID provides it). | none | reads | none | runs | runs |
+| `machine.display_inspect` | **Windows only.** Report connected-display resolution and refresh rate from Windows (physical size only if EDID provides it). | none | reads | none | runs | runs |
 | `machine.ensure_directory` | Create a directory inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path` | writes files | none | asks | runs |
-| `machine.event_log_errors` | List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
+| `machine.event_log_errors` | **Windows only.** List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
 | `machine.find_file` | Search the safe local folders (Desktop, Downloads, Documents) for FILES whose name matches a query. | `name` | reads | none | runs | runs |
 | `machine.find_folder` | Search local drives for folders whose name matches a query. | `name` | reads | none | runs | runs |
 | `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?` | reads | none | runs | runs |
@@ -191,8 +218,8 @@ The full contract of a tool, with every field, is in Python:
 
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
-| `operator.apple_note_list` | List the Apple Notes notes of a named folder or account; a report, never a mutation. *Apple Notes on a Mac only.* | `folder?`, `account?` | reads | `read_files` | runs | runs |
-| `operator.apple_note_read` | Read one Apple Notes note by title, narrowed by the folder or account the request names; reports the note's body without changing anything. *Apple Notes on a Mac only.* | `title` | reads | `read_files` | runs | runs |
+| `operator.apple_note_list` | **macOS only.** List the Apple Notes notes of a named folder or account; a report, never a mutation. | `folder?`, `account?` | reads | `read_files` | runs | runs |
+| `operator.apple_note_read` | **macOS only.** Read one Apple Notes note by title, narrowed by the folder or account the request names; reports the note's body without changing anything. | `title` | reads | `read_files` | runs | runs |
 | `operator.check_availability` | List a day's events on the configured calendar provider and compute free slots for a requested duration. *Takes the request as written in `text` ("am I free Tuesday afternoon?"). Needs a calendar account in Settings. With no morning/afternoon/evening word it checks the whole day from 00:00.* | `text` | reads | `use_network_access` | asks | runs |
 | `operator.cleanup_temp_files` | DELETE temporary files from this machine. | `target_path?` | writes files | `delete_files` | asks | asks |
 | `operator.find_notes` | Search the active workspace's notes by text; reports matches without inventing content. *The notes operator.save_note wrote in the chat's project folder, not other apps' notes.* | `query` | reads | `read_files` | runs | runs |
@@ -205,7 +232,7 @@ The full contract of a tool, with every field, is in Python:
 | `operator.list_tools` | List the operator tools this runtime exposes. | none | reads | none | runs | runs |
 | `operator.move_path` | Move or rename a path on this machine. | `source_path`, `destination_path` | writes files | `move_files` | asks | runs |
 | `operator.propose_calendar_event` | Propose a real event on the configured calendar provider; executes only after explicit approval with conflict and version re-checks. *Takes the request as written in `text`. Put the title in quotes (propose "Project review" on Tuesday at 15:00 for 30 minutes), or it asks "What should it be called?". Needs a calendar account in Settings.* | `text` | publishes | `access_external_providers` | asks | runs |
-| `operator.save_note` | Save a note as a real file in the active workspace's notes directory, optionally linked to a provider event receipt. *Takes the request as written in `text` (save a note called "Tea" saying buy tea). Writes a Markdown file into the chat's project folder, under notes/.* | `text` | writes files | `create_files` | asks | runs |
+| `operator.save_note` | Save a note as a real file in the active workspace's notes directory, optionally linked to a provider event receipt. *Takes the request as written in `text` (save a note called "Tea" saying buy tea). Writes a Markdown file into the chat's project folder, under notes/. Adding "remind me on 2026-11-08 at 09:00" to the same `text` also sets one reminder (see Reminders from a skill).* | `text` | writes files | `create_files` | asks | runs |
 | `operator.schedule_calendar_event` | Create a calendar event on this machine's calendar. *Writes one .ics file into VOOL's calendar outbox. It does not add the event to any calendar app.* | `title`, `start_iso`, `duration_minutes?` | writes files | `external_messages` | asks | asks |
 | `operator.search_calendar_event` | Search the configured provider's events by text; reports matches without inventing content. *Needs a calendar account in Settings.* | `query` | reads | `use_network_access` | asks | runs |
 | `operator.show_agenda` | Show the calendar agenda over a named window; a report of what is scheduled, never a change to it. *Needs a calendar account in Settings. `window` is the words of the request ("tomorrow", "this week").* | `window?` | reads | `use_network_access` | asks | runs |
@@ -216,8 +243,8 @@ The full contract of a tool, with every field, is in Python:
 
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
-| `pdf.extract_text` | Read the text a PDF already carries, page by page. | `path`, `max_pages?` | reads | `read_files` | runs | runs |
-| `pdf.ocr` | Recognise the text on a SCANNED PDF page, on-device. | `path`, `max_pages?`, `scale?` | reads | `read_files` | runs | runs |
+| `pdf.extract_text` | **macOS only.** Read the text a PDF already carries, page by page. | `path`, `max_pages?` | reads | `read_files` | runs | runs |
+| `pdf.ocr` | **macOS only.** Recognise the text on a SCANNED PDF page, on-device. | `path`, `max_pages?`, `scale?` | reads | `read_files` | runs | runs |
 
 ### profile
 
@@ -328,24 +355,144 @@ The full contract of a tool, with every field, is in Python:
 
 ### Left out of the table
 
-These tools exist, and a skill may name them in `allowed-tools` (the validator accepts every name below), but on a fresh install they are off until the person sets something up:
+These tools exist, and a skill may name them in `allowed-tools` (the validator accepts every name below), but on a fresh install they are off until the person sets something up.
 
-* `browser.render`: Browser rendering is disabled by runtime browser policy.
-* `demo.plan`: Demo planning needs web access to read the repo README or docs page (enable web fallback).
-* `email.draft.approve`, `email.draft.get`, `email.draft.save`: Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).
-* `email.open`: Email open is disabled on this runtime (set email.read_enabled and store IMAP credentials).
-* `email.read`: Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials).
-* `email.draft.reconcile`: Email reconciliation is disabled on this runtime (set email.read_enabled and store IMAP credentials).
-* `email.reply`: Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials).
-* `email.draft.send`, `email.send`: Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).
-* `image.generate`: Image generation is disabled on this runtime (set image.generate_enabled and configure an image service).
-* `vool-browser.assert`, `vool-browser.cancel`, `vool-browser.checkout.begin`, `vool-browser.checkout.handoff`, `vool-browser.click`, `vool-browser.download`, `vool-browser.inspect`, `vool-browser.navigate`, `vool-browser.offer.compare`, `vool-browser.offer.extract`, `vool-browser.order.reconcile`, `vool-browser.permission.grant`, `vool-browser.permission.list`, `vool-browser.profile.confirm`, `vool-browser.screenshot`, `vool-browser.session.close`, `vool-browser.session.open`, `vool-browser.session.status`, `vool-browser.type`, `vool-browser.upload`, `vool-browser.upload.stage`: The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy.
-* `ai.paid_ask`, `pay.x402`, `wallet.payment_status`, `wallet.propose`, `wallet.simulate`, `wallet.status`, `x402.propose`: The wallet is switched off on this runtime (VOOL_WALLET_ENABLED).
-* `video.generate`: Video generation is disabled on this runtime (set video.generate_enabled and configure a video service).
-* `wallet.spend`: Wallet spend is disabled on this runtime (set wallet.spend_enabled, configure a capped SpendPolicy, and wire a signer).
-* `web.fetch`: Web fetch is disabled by runtime web policy.
-* `x.account`, `x.action.propose`, `x.action.status`, `x.dms`, `x.follows`, `x.lists`, `x.post`, `x.search`, `x.spaces`, `x.token_callers`, `x.usage`, `x.user`, `x.user_posts`: X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on.
-* `x.trending`: X trending is disabled on this runtime (set x.trending_enabled and configure a bearer token).
+**Browser rendering is disabled by runtime browser policy.**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `browser.render` | Render a public page with the configured browser engine when browser tools are enabled. | `url`, `timeout_ms?`, `max_scroll?` | reads |
+
+**Demo planning needs web access to read the repo README or docs page (enable web fallback).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `demo.plan` | Read a GitHub repo README or a docs/website page and return either a timed subtitled shot list plus image prompts (format=slideshow, default) or a continuous product-p... | `url`, `presenter?`, `seconds?`, `format?`, `set?`, `edits?` | reads |
+
+**Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.draft.approve` | Record the user's explicit approval of the CURRENT draft content (binds the exact content hash and version). | `draft_id?`, `expected_version?` | reads |
+| `email.draft.get` | Show the session's current draft (latest, or by id): content, version, and whether an approval is bound to exactly this content. | `draft_id?` | reads |
+| `email.draft.save` | Create or edit a reviewable email draft (recipient/account/subject/body + threading). | `to`, `subject`, `body`, `account?`, `in_reply_to?`, `references?`, `draft_id?`, `kind?` | reads |
+
+**Email open is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.open` | Open one message by its Message-ID with FULL content (whole body, decoded headers, threading headers), or its whole thread (thread=true): the transitive In-Reply-To/Re... | `message_id`, `thread?`, `account?`, `folder?` | reads |
+
+**Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.read` | Read or search messages in a configured inbox: recent by default, or filtered by sender/subject substrings, a date window (since/before, YYYY-MM-DD) and unread state. | `account?`, `folder?`, `limit?`, `sender?`, `subject?`, `since?`, `before?`, `unseen_only?` | reads |
+
+**Email reconciliation is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.draft.reconcile` | Resolve a delivery_unknown draft: check the account's own Sent folder for OUR generated Message-ID. | `draft_id` | reads |
+
+**Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.reply` | Reply to an email (threaded, 'Re:' subject, your signature appended). | `to`, `subject`, `body`, `in_reply_to?`, `references?`, `account?`, `allow_send`, `approve` | sends out |
+
+**Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `email.draft.send` | Send an APPROVED draft (threaded if in_reply_to was set, signature appended). | `draft_id?` | sends out |
+| `email.send` | Send an email (subject + body) from a locally-configured account. | `to`, `subject`, `body`, `account?`, `allow_send`, `approve` | sends out |
+
+**Image generation is disabled on this runtime (set image.generate_enabled and configure an image service).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `image.generate` | Generate an image from a text prompt via a configured image service. | `prompt`, `account?` | makes media |
+
+**The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy.**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `vool-browser.assert` | Assert bounded page facts (url/title/text contains, element present, element count) with a pass/fail verdict per check. | `session`, `checks` | reads |
+| `vool-browser.cancel` | Cancel a session: stop the engine process so in-flight work returns typed cancelled; delete the disposable profile. | `session` | writes files |
+| `vool-browser.checkout.begin` | Begin a checkout from a CONFIRMED profile: fills contact/address fields only; card fields are never touched. | `session`, `profile_name`, `checkout_url?` | writes files |
+| `vool-browser.checkout.handoff` | Hand the payment to the OPERATOR: detects the merchant's wallet methods (Apple Pay / Google Pay), requires a VISIBLE session for foreground authentication, never click... | `session` | writes files |
+| `vool-browser.click` | Click an element on the session's page by CSS selector, bounded by timeout. | `session`, `selector`, `timeout_seconds?` | reads |
+| `vool-browser.download` | Download a bounded file from a granted origin into the session directory; oversize downloads are deleted and refused, never kept. | `session`, `url`, `max_bytes?`, `timeout_seconds?` | writes files |
+| `vool-browser.inspect` | Read a session's current page as UNTRUSTED evidence (text, selector text, or outline). | `session`, `mode?`, `selector?` | reads |
+| `vool-browser.navigate` | Navigate a session to an http(s) URL with a bounded timeout and redirect control: cross-origin redirects refuse unless the target origin holds a navigation grant. | `session`, `url`, `timeout_seconds?`, `redirect_policy?` | reads |
+| `vool-browser.offer.compare` | Compare 2..10 extracted offers on EXACT totals (price+shipping) with returns as tie-break; refuses mangled records instead of normalising them. | `offers` | reads |
+| `vool-browser.offer.extract` | Extract an exact structured offer (SKU, merchant, price, shipping, returns) from the session's current page into a comparable record. | `session`, `mapping?` | reads |
+| `vool-browser.order.reconcile` | Idempotent order reconciliation against the MERCHANT's order-status endpoint: pending until the merchant confirms; amount must match exactly; one terminal receipt per... | `session`, `order_id`, `expected_total_minor`, `idempotency_key`, `status_url?` | writes files |
+| `vool-browser.permission.grant` | Grant one permission (navigation, downloads, uploads, new_tabs) to one origin for one session. | `session`, `origin`, `permission` | reads |
+| `vool-browser.permission.list` | List a session's per-origin grants. | `session` | reads |
+| `vool-browser.profile.confirm` | Record the operator's CONFIRMED checkout profile (contact + address). | `profile_name`, `contact`, `address`, `operator_confirmed` | writes files |
+| `vool-browser.screenshot` | Capture a bounded screenshot of the session's page into the session directory, with byte size and sha256 on the receipt. | `session`, `full_page?`, `max_bytes?` | writes files |
+| `vool-browser.session.close` | Close a browser session: stop the engine, delete the disposable profile, keep the receipts. | `session` | writes files |
+| `vool-browser.session.open` | Open an isolated browser session: a disposable scratch profile, mock keychain, per-origin deny-by-default permissions and an op/download budget. | `session`, `start_url`, `headless?`, `op_budget?`, `download_budget_bytes?` | writes files |
+| `vool-browser.session.status` | Report a browser session's registry truth (live, stale after a restart, cancelled) without spending its budget. | `session` | reads |
+| `vool-browser.type` | Type text into a page field by CSS selector. | `session`, `selector`, `text`, `secret?`, `submit?` | reads |
+| `vool-browser.upload` | Attach previously staged files into a page file input by CSS selector. | `session`, `selector`, `staged` | writes files |
+| `vool-browser.upload.stage` | Stage bounded content for upload into the session's staging area under a bare name. | `session`, `name`, `content_b64`, `max_bytes?` | writes files |
+
+**The wallet is switched off on this runtime (VOOL_WALLET_ENABLED).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `ai.paid_ask` | Ask a pay-per-answer AI endpoint the owner added in Settings (Crypto, Pay-per-answer AI) one question, paid in USDC on Base with x402. | `question`, `endpoint?` | saves VOOL data |
+| `pay.x402` | Settle an x402 payment. | `resource`, `allow_spend?`, `approve?`, `max_spend_usdc?`, `null_name?`, `privacy_path?` | spends money |
+| `wallet.payment_status` | Report the state of a payment proposal (pending approval, confirmed with its transaction signature, rejected, failed) from the wallet's own records. | `proposal_id` | reads |
+| `wallet.propose` | Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol... | `destination`, `amount?`, `amount_minor?`, `asset`, `chain?`, `network?`, `wallet_id?`, `memo?`, `idempotency_key?` | saves VOOL data |
+| `wallet.simulate` | Re-run the simulation for an existing payment proposal and report the fee and outcome. | `proposal_id` | reads |
+| `wallet.status` | Read the wallet's public-safe status: custody mode, network, public key, spending limits, pending approvals and the last receipt. | none | reads |
+| `x402.propose` | Turn an x402 payment-required challenge (v2 first, v1 compatibility read where safe) into a payment proposal for the owner. | `status`, `headers?`, `body?`, `resource_url?` | saves VOOL data |
+
+**Video generation is disabled on this runtime (set video.generate_enabled and configure a video service).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `video.generate` | Generate a video from a text/scene prompt via a configured video service (RunPod/Replicate/Fal or any configured provider). | `prompt`, `account?` | makes media |
+
+**Wallet spend is disabled on this runtime (set wallet.spend_enabled, configure a capped SpendPolicy, and wire a signer).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `wallet.spend` | Spend from the agent wallet under the user's SpendPolicy caps, with per-spend confirmation. | `to`, `amount_lamports`, `asset?`, `allow_spend`, `approve` | spends money |
+
+**Web fetch is disabled by runtime web policy.**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `web.fetch` | Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status. | `url`, `timeout_s?` | reads |
+
+**X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on.**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `x.account` | About the connected X account: kind=muted or blocked (who it muted or blocked), kind=trends (trends X picks for this account), kind=x_usage (X's own count of this app'... | `kind`, `max_results?`, `next_token?` | reads |
+| `x.action.propose` | Propose an action on X as the user: post, reply, quote, delete (one of the user's own posts), like, unlike, repost, unrepost, follow, unfollow, hide_reply/unhide_reply... | `kind`, `text`, `post`, `username`, `list_id`, `name`, `description?`, `private?` | saves VOOL data |
+| `x.action.status` | Check a proposed X action: waiting for the user's approval, declined, sent (with the post link) or failed. | `action_id?` | reads |
+| `x.dms` | The connected user's own recent direct messages on X, or the conversation with one account (with_user=username). | `with_user?`, `max_results?`, `next_token?` | reads |
+| `x.follows` | List an account's followers (kind=followers) or the accounts it follows (kind=following). | `username`, `kind?`, `max_results?`, `next_token?` | reads |
+| `x.lists` | X lists: an account's lists (kind=owned\|memberships\|followed, with username), or one list's details, posts, members or followers (kind=details\|posts\|members\|followers,... | `username?`, `list_id?`, `kind?`, `max_results?`, `next_token?` | reads |
+| `x.post` | Read X posts by link or id (kind=post), or who liked (liking_users), reposted (reposted_by), quoted (quotes) or replied to (replies) a post. *Reads only. Posting, replying and every other action on X goes through x.action.propose, which the person approves.* | `post`, `kind?`, `max_results?`, `next_token?` | reads |
+| `x.search` | Search X posts. | `token?`, `query?`, `mode?`, `sort?`, `granularity?`, `archive?`, `include_reposts?`, `start_time?`, `end_time?`, `max_results?`, `next_token?` | reads |
+| `x.spaces` | X Spaces (live audio rooms): search by words (query, state=live\|scheduled\|all), look up by id or link (ids), or the Spaces some accounts host (hosts=usernames). | `query?`, `ids?`, `hosts?`, `state?`, `max_results?` | reads |
+| `x.token_callers` | Find who called a token on X: every account that posted its address, $CASHTAG or name, ordered by who posted first, with followers, account age, number of posts and en... | `token`, `max_results?`, `history_for?`, `history_posts?`, `min_followers?`, `evaluate_calls?`, `archive?`, `include_reposts?`, `start_time?`, `end_time?` | reads |
+| `x.usage` | How much of the X API the user's keys used this month (requests, posts and accounts read, actions sent) against the monthly limits the user set. | none | reads |
+| `x.user` | Look up X accounts by username, @handle or profile link (or 'me' for the connected account): name, bio, followers, following, post count, account age, verified. | `usernames`, `search?`, `max_results?`, `next_token?` | reads |
+| `x.user_posts` | Read an account's posts (kind=posts), mentions of it (kind=mentions), posts it liked (kind=likes), or the connected user's home timeline (kind=home). | `username`, `kind?`, `exclude?`, `start_time?`, `end_time?`, `max_results?`, `next_token?` | reads |
+
+**X trending is disabled on this runtime (set x.trending_enabled and configure a bearer token).**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `x.trending` | Fetch trending topics from X for a location (read-only). | `account?`, `woeid?`, `limit?` | reads |
 
 Not for skills:
 

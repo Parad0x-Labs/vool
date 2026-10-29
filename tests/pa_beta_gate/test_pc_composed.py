@@ -268,3 +268,27 @@ def test_reminder_before_a_due_date_uses_the_remind_me_date(home, monkeypatch):
     [reminder] = list_reminders(session_id=session, get_connection_fn=get_connection)
     local = datetime.fromisoformat(str(reminder["due_at_utc"]).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Athens"))
     assert (local.date().isoformat(), local.hour) == ("2026-11-08", 9), reminder
+
+
+def test_save_note_tool_call_with_remind_me_makes_one_reminder(home, monkeypatch):
+    """The skill route: operator.save_note's `text` asks for a note and says "remind me" twice.
+    The note is saved and one reminder is set, at the first "remind me" time."""
+    from core.execution.operator_tools import build_operator_action_intent
+    from core.local_operator_actions import dispatch_operator_action
+
+    Clock(T0, monkeypatch)
+    session = "tool-note-reminder"
+    intent = build_operator_action_intent("save_note", {
+        "text": 'save a note called "ACME" saying invoice due 2026-11-10. '
+                "remind me on 2026-11-08 at 09:00, and remind me on 2026-11-09 at 10:00"})
+    result = dispatch_operator_action(intent, task_id="task-tool", session_id=session)
+    parts = {part["kind"]: part for part in result.details["parts"]}
+    assert parts["save_note"]["ok"] and parts["schedule_reminder"]["ok"], result.response_text
+
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    [reminder] = list_reminders(session_id=session, get_connection_fn=get_connection)
+    local = datetime.fromisoformat(str(reminder["due_at_utc"]).replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Athens"))
+    assert (local.date().isoformat(), local.hour) == ("2026-11-08", 9), reminder
+    assert str(reminder["due_at_utc"]).endswith(("+00:00", "Z")), "stored in UTC"

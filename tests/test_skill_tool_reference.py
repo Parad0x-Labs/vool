@@ -39,3 +39,15 @@ def test_every_listed_name_is_a_real_tool_the_validator_accepts():
 def test_the_page_is_linked_where_authors_start():
     for path in ("docs/guides/build-and-test-a-skill.md", "AGENTS.md", "docs/SUMMARY.md"):
         assert "skill-tools-and-limits.md" in (ROOT / path).read_text(encoding="utf-8"), path
+
+
+def test_platform_marks_and_left_out_descriptions():
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+    from tools.skill_tool_reference import PLATFORM_ONLY
+
+    contracts = runtime_tool_contract_map()
+    assert set(PLATFORM_ONLY) <= set(contracts)
+    text = PAGE.read_text(encoding="utf-8")
+    assert "| `pdf.extract_text` | **macOS only.** " in text
+    left_out = text.split("### Left out of the table", 1)[1]
+    assert re.search(r"^\| `x\.post` \| Read X posts.*x\.action\.propose", left_out, re.MULTILINE)
