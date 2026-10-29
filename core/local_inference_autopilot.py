@@ -300,8 +300,20 @@ def build_local_inference_autopilot_plan(
     # `resident_model_tags` is measured by the CALLER (best-effort, [] on error) and defaults to
     # None = no residency preference, so the plan builder itself never probes the machine and
     # existing callers/tests rank exactly as before.
+    # The verifier also skips a local model that is not ready while another is: it loads a second
+    # model on a computer that may hold only one (minutes on a CPU), and a model that fails the
+    # tool check also returned malformed verdicts (fresh daemon, Oct 29: qwen2.5:7b verifier ->
+    # malformed_verifier_verdict). With no other candidate there is simply no verifier.
     verifier = _select_verifier_capability(
-        capabilities, selected=selected, required=risky, resident_model_tags=resident_model_tags,
+        tuple(
+            item
+            for item in capabilities
+            if item.locality != "local"
+            or str(item.model_id or "").strip().lower() not in _normalized_model_tag_set(unready_local_models)
+        ),
+        selected=selected,
+        required=risky,
+        resident_model_tags=resident_model_tags,
     )
     warnings = _build_warnings(capabilities=capabilities, selected=selected, explicit_heavy=explicit_heavy)
     evidence_refs = _evidence_refs(capabilities)

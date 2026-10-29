@@ -2880,6 +2880,7 @@
     "settings.models.local_pick": "A model is on this computer. Open it and press Use this model to start.",
     "chat.author_refusal.lead": "I couldn’t answer this one.",
     "chat.author_refusal.failed": "{models} didn’t reply properly this time. Please ask again in a moment. If it keeps happening, pick another model in Settings → Models & Providers.",
+    "chat.author_refusal.checking": "VOOL is still getting {model} ready. On this computer that can take a few minutes. Please ask again shortly.",
     "chat.author_refusal.not_ready": "{model} isn’t ready to answer for VOOL yet. Open Settings → Models & Providers → Local models and press Use this model, or pick a model marked Ready.",
     "chat.author_refusal.not_ready_local_only": "{model} isn’t ready to answer for VOOL yet, and This computer only is on, so a cloud model can’t answer instead. Open Settings → Models & Providers → Local models and press Use this model, or pick a model marked Ready.",
     "chat.author_refusal.not_ready_no_cloud": "{model} isn’t ready to answer for VOOL yet, and cloud models are turned off. Open Settings → Models & Providers → Local models and press Use this model, or turn on a cloud model.",

@@ -128,7 +128,10 @@ def _boot_ready(states: dict[str, str], outcomes: dict[str, str], primary: str =
     rows = ready_local_models(
         [_manifest(name) for name in INSTALLED],
         primary_model=primary,
-        status_of=lambda m: {"state": states.get(m.model_name, "unknown")},
+        status_of=lambda m: (
+            states[m.model_name] if isinstance(states.get(m.model_name), dict)
+            else {"state": states.get(m.model_name, "unknown")}
+        ),
         run_check=run_check,
     )
     return rows, ran
@@ -140,16 +143,40 @@ def test_a_never_checked_profile_checks_the_primary_first_and_stops_when_it_is_r
     assert rows == [{"model": "qwen3:8b", "readiness": "ready"}]
 
 
-def test_when_the_primary_cannot_answer_boot_tries_the_next_installed_model() -> None:
+def test_boot_checks_the_recommended_model_before_the_daily_guess() -> None:
+    # The cloud re-audit's fresh boots aligned to qwen2.5:7b before anything was checked; on a
+    # CPU-only box a doomed check of it costs minutes, so the recommended qwen3:8b goes first.
     rows, ran = _boot_ready({}, {"qwen2.5:7b": "incompatible", "qwen3:8b": "verified"}, primary="qwen2.5:7b")
-    assert ran == ["qwen2.5:7b", "qwen3:8b"]
-    assert rows[-1] == {"model": "qwen3:8b", "readiness": "ready"}
+    assert ran == ["qwen3:8b"]
+    assert rows == [{"model": "qwen3:8b", "readiness": "ready"}]
+
+
+def test_when_the_recommended_model_cannot_answer_boot_tries_the_primary_next() -> None:
+    rows, ran = _boot_ready({}, {"qwen3:8b": "incompatible", "qwen2.5:7b": "verified"}, primary="qwen2.5:7b")
+    assert ran == ["qwen3:8b", "qwen2.5:7b"]
+    assert rows[-1] == {"model": "qwen2.5:7b", "readiness": "ready"}
+
+
+_FAILED_ON_SKILL = {
+    "state": "degraded",
+    "stages": {"single_tool_call": {"state": "failed", "failure_code": "missing_tool_calls"}},
+}
+_TIMED_OUT = {
+    "state": "degraded",
+    "stages": {"single_tool_call": {"state": "failed", "failure_code": "timeout"}},
+}
 
 
 def test_nothing_runs_when_a_model_is_already_ready_or_already_failed() -> None:
     assert _boot_ready({"qwen2.5:7b": "verified"}, {}) == ([], [])
-    rows, ran = _boot_ready({"qwen3:8b": "incompatible", "qwen2.5:7b": "degraded"}, {})
+    rows, ran = _boot_ready({"qwen3:8b": "incompatible", "qwen2.5:7b": _FAILED_ON_SKILL}, {})
     assert ran == [] and rows == []
+
+
+def test_a_check_that_timed_out_on_a_busy_computer_is_run_again_on_boot() -> None:
+    # Fresh-eyes test, Oct 29: one timed-out check on a busy machine left VOOL refusing everything.
+    rows, ran = _boot_ready({"qwen3:8b": _TIMED_OUT, "qwen2.5:7b": _FAILED_ON_SKILL}, {"qwen3:8b": "verified"})
+    assert ran == ["qwen3:8b"] and rows[0]["readiness"] == "ready"
 
 
 def test_an_upgrade_rechecks_a_model_checked_under_an_older_build() -> None:
@@ -170,3 +197,63 @@ def test_a_remote_lane_is_never_checked_on_boot() -> None:
     ran: list[str] = []
     ready_local_models([remote], status_of=lambda m: {"state": "unknown"}, run_check=lambda m: ran.append(m) or {})
     assert ran == []
+
+
+# --- the turn plan, and what VOOL says it runs, name the ready model ------------------------------
+
+
+def test_auto_ranking_puts_a_ready_local_model_before_an_unready_one(monkeypatch) -> None:
+    from core import provider_routing
+
+    ranked = [_manifest("qwen2.5:7b"), _manifest("qwen3:8b")]
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    ordered = provider_routing._ready_local_models_first(ranked, certified=provider_routing._cached_ready)
+    assert [m.model_name for m in ordered] == ["qwen3:8b", "qwen2.5:7b"]
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    ordered = provider_routing._ready_local_models_first(ranked, certified=provider_routing._cached_ready)
+    assert [m.model_name for m in ordered] == ["qwen2.5:7b", "qwen3:8b"]
+
+
+def test_what_vool_says_it_runs_is_the_ready_model(monkeypatch) -> None:
+    from core.local_model_readiness import model_in_use
+
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests",
+        lambda self, enabled_only=False, limit=256: [_manifest(name) for name in INSTALLED],
+    )
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    assert model_in_use("qwen2.5:7b") == "qwen3:8b"
+    assert model_in_use("qwen3:8b") == "qwen3:8b"
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    assert model_in_use("qwen2.5:7b") == "qwen2.5:7b"
+
+
+def test_the_builder_generates_with_an_installed_ready_model(monkeypatch) -> None:
+    # Cloud re-audit N4: the builder used the machine recommendation qwen3:4b, never pulled, and
+    # every "make a one page site" ask failed in seconds with "no usable file list".
+    from core.local_model_readiness import local_model_for_work
+
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests",
+        lambda self, enabled_only=False, limit=256: [_manifest(name) for name in INSTALLED],
+    )
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    assert local_model_for_work("qwen3:4b") == "qwen3:8b"
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    assert local_model_for_work("qwen3:4b") == "qwen2.5:7b"
+    assert local_model_for_work("qwen3:8b") == "qwen3:8b"
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests", lambda self, enabled_only=False, limit=256: []
+    )
+    assert local_model_for_work("qwen3:4b") == "qwen3:4b"
+
+
+def test_while_a_model_is_being_made_ready_the_reply_says_so(monkeypatch) -> None:
+    monkeypatch.setattr(authorship, "_local_model_being_checked", lambda: "qwen3:8b")
+    text = authorship.author_refusal_text(reason="no_eligible_author", author="ollama-local:qwen2.5:7b")
+    assert "still getting qwen3:8b ready" in text and "qwen2.5" not in text
+    assert "Use this model" not in text
+    monkeypatch.setattr(authorship, "_local_model_being_checked", lambda: "")
+    assert "qwen2.5:7b isn’t ready" in authorship.author_refusal_text(
+        reason="no_eligible_author", author="ollama-local:qwen2.5:7b"
+    )

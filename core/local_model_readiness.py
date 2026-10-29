@@ -126,9 +126,11 @@ def start_recommended_pull(model_name: str) -> dict[str, Any]:
     return pull_status(tag)
 
 
-# States boot checks on its own: never checked, or checked under an older Ollama/model build.
-# A model that already failed is not re-run on every boot; the person can press Try again.
-_BOOT_CHECK_STATES = frozenset({"unknown", "stale"})
+# What boot checks on its own: never checked, checked under an older Ollama/model build, or a
+# check that did not finish (a timeout or a refused request on a busy computer, which says nothing
+# about the model: the fresh-eyes test, Oct 29, was refused everything after one such run). A model
+# that failed on skill is not re-run on every boot; the person can press Try again.
+_BOOT_CHECK_READINESS = frozenset({NOT_CHECKED, NEEDS_RECHECK, CHECK_UNFINISHED})
 # At most this many models are checked per boot (each check takes up to a couple of minutes).
 _BOOT_CHECK_LIMIT = 3
 
@@ -167,18 +169,30 @@ def ready_local_models(
             continue
         seen.add(name)
         try:
-            state = str((status_of(manifest) or {}).get("state") or "unknown").strip().lower()
+            status = status_of(manifest) or {}
         except Exception:
             continue
-        if state == "verified":
+        readiness = plain_readiness(status)
+        if readiness == READY:
             return []
-        candidates.append((manifest, state))
-    candidates.sort(key=lambda item: 0 if str(item[0].model_name).strip().lower() == primary else 1)
+        candidates.append((manifest, readiness))
+    # A recommended model first (it is the one most likely to pass, and on a slow computer each
+    # check costs minutes), then the boot primary, then the rest in registry order. The primary of a
+    # never-checked profile is only the daily scoring's guess, not the person's pick: a pick made
+    # with Use this model is already checked and never lands here.
+    recommended = [tag for tag, _ram, _size in RECOMMENDED_LOCAL_MODELS]
+
+    def _order(item: tuple[Any, str]) -> tuple[int, int]:
+        name = str(item[0].model_name).strip().lower()
+        rank = recommended.index(name) if name in recommended else len(recommended)
+        return (rank, 0 if name == primary else 1)
+
+    candidates.sort(key=_order)
     checked: list[dict[str, str]] = []
     for manifest, state in candidates:
         if len(checked) >= max(0, int(limit)):
             break
-        if state not in _BOOT_CHECK_STATES:
+        if state not in _BOOT_CHECK_READINESS:
             continue
         try:
             result = run_check(manifest)
@@ -189,3 +203,63 @@ def ready_local_models(
         if readiness == READY:
             break
     return checked
+
+
+def model_in_use(boot_model: str) -> str:
+    """The local model VOOL answers with now, for what it tells the person.
+
+    Boot names its primary before the boot check has run; when that model is not ready and
+    another local model is, turns answer with the ready one, so that is the one to name.
+    """
+
+    tag = str(boot_model or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification, unready_local_model_names
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [m for m in ModelRegistry().list_manifests(enabled_only=True) if manifest_is_local(m)]
+        if tag.lower() not in unready_local_model_names(manifests):
+            return tag
+        for manifest in manifests:
+            if author_certification(manifest).certified:
+                return str(manifest.model_name)
+    except Exception:
+        pass
+    return tag
+
+
+def local_model_for_work(preferred: str) -> str:
+    """The local model a background job (the website/app builder) should generate with.
+
+    ``default_runtime_model_tag`` is the machine's recommendation, not what is installed: on the
+    cloud re-audit boxes it named qwen3:4b, which was never pulled, and every "make a one page site"
+    failed in three seconds with "the model did not return a usable file list" (10 of 10). The
+    ready model goes first (the one the person pressed Use this model on), then the recommendation
+    if it is a registered local model, then any registered local model; the recommendation only
+    when nothing local is registered at all.
+    """
+
+    tag = str(preferred or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [
+            m
+            for m in ModelRegistry().list_manifests(enabled_only=True)
+            if manifest_is_local(m) and str(getattr(m, "provider_name", "")).startswith("ollama")
+        ]
+        names = [str(m.model_name) for m in manifests]
+        ready = [str(m.model_name) for m in manifests if author_certification(m).certified]
+        for pool in (ready, names):
+            if not pool:
+                continue
+            for name in pool:
+                if name.lower() == tag.lower():
+                    return name
+            return pool[0]
+    except Exception:
+        pass
+    return tag

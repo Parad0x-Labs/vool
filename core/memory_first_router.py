@@ -6824,6 +6824,14 @@ class MemoryFirstRouter:
                     if manifest.provider_id not in attempted:
                         attempted.append(manifest.provider_id)
                     failover_used = True
+                    # This model WAS called and its reply was unusable. Recorded now, because when
+                    # the next candidate is one the fence refuses, the turn's refusal otherwise named
+                    # that refused model ("qwen2.5:7b isn't ready") instead of the ready model that
+                    # replied badly (cloud re-audit Oct 29, mailweb:E07).
+                    with contextlib.suppress(Exception):
+                        from core.final_answer_authorship import record_authorship_attempts
+
+                        record_authorship_attempts(source_context, [manifest.provider_id])
                     _emit_model_routing_event(
                         source_context,
                         "model_lane_contract_failed",

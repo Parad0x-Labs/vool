@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Há um modelo neste computador. Abra-o e toque em Usar este modelo para começar.",
     "chat.author_refusal.lead": "Não consegui responder a isto.",
     "chat.author_refusal.failed": "{models} não respondeu direito desta vez. Pergunte de novo daqui a pouco. Se continuar acontecendo, escolha outro modelo em Ajustes → Modelos e provedores.",
+    "chat.author_refusal.checking": "O VOOL ainda está preparando o {model}. Neste computador isso pode levar alguns minutos. Pergunte de novo daqui a pouco.",
     "chat.author_refusal.not_ready": "{model} ainda não está pronto para responder no VOOL. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou escolha um modelo marcado como Pronto.",
     "chat.author_refusal.not_ready_local_only": "{model} ainda não está pronto para responder no VOOL, e Só neste computador está ligado, então um modelo na nuvem não pode responder no lugar. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou escolha um modelo marcado como Pronto.",
     "chat.author_refusal.not_ready_no_cloud": "{model} ainda não está pronto para responder no VOOL, e os modelos na nuvem estão desligados. Abra Ajustes → Modelos e provedores → Modelos locais e toque em Usar este modelo, ou ligue um modelo na nuvem.",
     "chat.author_refusal.unresolved": "O VOOL não conseguiu saber qual modelo escreveu a resposta, então a segurou. Pergunte de novo.",
     "chat.author_refusal.not_running": "Nenhum modelo está rodando neste computador agora. Abra seu app de modelos (como o Ollama) ou escolha um modelo na nuvem no menu de modelos."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Na tym komputerze jest model. Otwórz go i naciśnij Użyj tego modelu, aby zacząć.",
     "chat.author_refusal.lead": "Nie udało mi się na to odpowiedzieć.",
     "chat.author_refusal.failed": "{models} tym razem nie odpowiedział poprawnie. Zapytaj ponownie za chwilę. Jeśli to się powtarza, wybierz inny model w Ustawienia → Modele i dostawcy.",
+    "chat.author_refusal.checking": "VOOL wciąż przygotowuje {model}. Na tym komputerze może to potrwać kilka minut. Zapytaj ponownie za chwilę.",
     "chat.author_refusal.not_ready": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo wybierz model oznaczony jako Gotowy.",
     "chat.author_refusal.not_ready_local_only": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL, a włączona jest opcja Tylko ten komputer, więc model w chmurze nie może odpowiedzieć zamiast niego. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo wybierz model oznaczony jako Gotowy.",
     "chat.author_refusal.not_ready_no_cloud": "{model} nie jest jeszcze gotowy, by odpowiadać w VOOL, a modele w chmurze są wyłączone. Otwórz Ustawienia → Modele i dostawcy → Modele lokalne i naciśnij Użyj tego modelu albo włącz model w chmurze.",
     "chat.author_refusal.unresolved": "VOOL nie rozpoznał, który model napisał odpowiedź, więc ją wstrzymał. Zapytaj ponownie.",
     "chat.author_refusal.not_running": "Na tym komputerze nie działa teraz żaden model. Otwórz aplikację z modelami (np. Ollama) albo wybierz model w chmurze w menu modeli."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

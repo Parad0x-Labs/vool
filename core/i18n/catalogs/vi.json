@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu.",
     "chat.author_refusal.lead": "Mình chưa trả lời được câu này.",
     "chat.author_refusal.failed": "{models} lần này không trả lời đúng cách. Bạn hãy hỏi lại sau giây lát. Nếu cứ bị vậy, hãy chọn mô hình khác trong Cài đặt → Mô hình và nhà cung cấp.",
+    "chat.author_refusal.checking": "VOOL vẫn đang chuẩn bị {model}. Trên máy tính này việc đó có thể mất vài phút. Bạn hãy hỏi lại sau ít phút.",
     "chat.author_refusal.not_ready": "{model} chưa sẵn sàng trả lời cho VOOL. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
     "chat.author_refusal.not_ready_local_only": "{model} chưa sẵn sàng trả lời cho VOOL, và chế độ Chỉ máy tính này đang bật nên mô hình đám mây không thể trả lời thay. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc chọn mô hình có nhãn Sẵn sàng.",
     "chat.author_refusal.not_ready_no_cloud": "{model} chưa sẵn sàng trả lời cho VOOL, và mô hình đám mây đang tắt. Mở Cài đặt → Mô hình và nhà cung cấp → Mô hình cục bộ và nhấn Dùng mô hình này, hoặc bật một mô hình đám mây.",
     "chat.author_refusal.unresolved": "VOOL không xác định được mô hình nào đã viết câu trả lời nên đã giữ lại. Bạn hãy hỏi lại.",
     "chat.author_refusal.not_running": "Hiện không có mô hình nào đang chạy trên máy tính này. Hãy mở ứng dụng mô hình (như Ollama) hoặc chọn mô hình đám mây trong menu mô hình."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

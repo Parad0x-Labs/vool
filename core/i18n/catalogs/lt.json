@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Šiame kompiuteryje yra modelis. Atidarykite jį ir paspauskite Naudoti šį modelį, kad pradėtumėte.",
     "chat.author_refusal.lead": "Į tai atsakyti nepavyko.",
     "chat.author_refusal.failed": "{models} šį kartą tinkamai neatsakė. Paklauskite dar kartą po akimirkos. Jei tai kartojasi, pasirinkite kitą modelį: Nustatymai → Modeliai ir tiekėjai.",
+    "chat.author_refusal.checking": "VOOL dar ruošia {model}. Šiame kompiuteryje tai gali užtrukti kelias minutes. Paklauskite dar kartą netrukus.",
     "chat.author_refusal.not_ready": "{model} dar neparuoštas atsakyti VOOL. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba pasirinkite modelį, pažymėtą Paruošta.",
     "chat.author_refusal.not_ready_local_only": "{model} dar neparuoštas atsakyti VOOL, o įjungta Tik šiame kompiuteryje, todėl debesies modelis negali atsakyti vietoj jo. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba pasirinkite modelį, pažymėtą Paruošta.",
     "chat.author_refusal.not_ready_no_cloud": "{model} dar neparuoštas atsakyti VOOL, o debesies modeliai išjungti. Atidarykite Nustatymai → Modeliai ir tiekėjai → Vietiniai modeliai ir paspauskite Naudoti šį modelį arba įjunkite debesies modelį.",
     "chat.author_refusal.unresolved": "VOOL negalėjo nustatyti, kuris modelis parašė atsakymą, todėl jo nerodė. Paklauskite dar kartą.",
     "chat.author_refusal.not_running": "Šiuo metu šiame kompiuteryje neveikia joks modelis. Atidarykite modelių programą (pvz., Ollama) arba modelių meniu pasirinkite debesies modelį."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

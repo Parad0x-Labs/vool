@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Un modèle est présent sur cet ordinateur. Ouvrez-le et appuyez sur Utiliser ce modèle pour commencer.",
     "chat.author_refusal.lead": "Je n’ai pas pu répondre à cela.",
     "chat.author_refusal.failed": "{models} n’a pas répondu correctement cette fois. Reposez la question dans un instant. Si cela se répète, choisissez un autre modèle dans Réglages → Modèles et fournisseurs.",
+    "chat.author_refusal.checking": "VOOL est encore en train de préparer {model}. Sur cet ordinateur, cela peut prendre quelques minutes. Reposez la question d’ici peu.",
     "chat.author_refusal.not_ready": "{model} n’est pas encore prêt à répondre pour VOOL. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou choisissez un modèle marqué Prêt.",
     "chat.author_refusal.not_ready_local_only": "{model} n’est pas encore prêt à répondre pour VOOL, et Cet ordinateur uniquement est activé, donc un modèle cloud ne peut pas répondre à sa place. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou choisissez un modèle marqué Prêt.",
     "chat.author_refusal.not_ready_no_cloud": "{model} n’est pas encore prêt à répondre pour VOOL, et les modèles cloud sont désactivés. Ouvrez Réglages → Modèles et fournisseurs → Modèles locaux et appuyez sur Utiliser ce modèle, ou activez un modèle cloud.",
     "chat.author_refusal.unresolved": "VOOL n’a pas pu savoir quel modèle a écrit la réponse, il l’a donc retenue. Reposez la question.",
     "chat.author_refusal.not_running": "Aucun modèle ne tourne sur cet ordinateur pour le moment. Ouvrez votre app de modèles (comme Ollama) ou choisissez un modèle cloud dans le menu des modèles."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

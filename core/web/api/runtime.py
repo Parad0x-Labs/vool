@@ -723,10 +723,9 @@ def ready_a_local_model_on_boot(
     if not local_models_enabled(env=env) or not _automatic_ollama_access_allowed(env):
         return
     try:
+        from core.final_answer_authorship import author_certification
         from core.local_model_policy import manifest_is_local
-        from core.local_model_readiness import ready_local_models
-
-        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS
+        from core.local_model_readiness import RECOMMENDED_LOCAL_MODELS, ready_local_models
 
         def _local_manifests() -> list[Any]:
             return [
@@ -736,12 +735,13 @@ def ready_a_local_model_on_boot(
             ]
 
         manifests = _local_manifests()
-        rows = ready_local_models(manifests, primary_model=primary_model)
-        if not any(row["readiness"] == READY for row in rows):
-            # None of the registered models could answer (or none was checkable). A recommended
-            # model that is installed but was never registered (an upgrade that pulled qwen3:8b
-            # beside the old qwen2.5:7b primary) is registered the way Use this model does it, and
-            # checked. Only the recommended tags: boot never adopts an arbitrary installed model.
+        if not any(author_certification(m).certified for m in manifests):
+            # Nothing registered can answer yet. A recommended model that is installed but was
+            # never registered (an upgrade that pulled qwen3:8b beside the old qwen2.5:7b primary)
+            # is registered the way Use this model does it, BEFORE any check, so the recommended
+            # model is checked first instead of after a doomed check of the old one (minutes each
+            # on a CPU-only computer). Only the recommended tags: boot never adopts an arbitrary
+            # installed model.
             from core.runtime_provider_defaults import register_installed_local_model
 
             registered = {str(m.model_name).strip().lower() for m in manifests}
@@ -749,14 +749,11 @@ def ready_a_local_model_on_boot(
                 str(item.name).strip().lower(): str(item.name).strip()
                 for item in installed_ollama_model_inventory(env=env, base_url=ollama_base_url(env), timeout_seconds=2.0)
             }
-            added = []
             for tag, _ram_gb, _size_gb in RECOMMENDED_LOCAL_MODELS:
                 if tag in installed and tag not in registered:
-                    manifest = register_installed_local_model(registry, model_tag=installed[tag])
-                    if manifest is not None:
-                        added.append(manifest)
-            if added:
-                rows += ready_local_models(added, primary_model=added[0].model_name)
+                    register_installed_local_model(registry, model_tag=installed[tag])
+            manifests = _local_manifests()
+        rows = ready_local_models(manifests, primary_model=primary_model)
         for row in rows:
             logger.info("Local model readiness on boot: %s is %s", row["model"], row["readiness"])
     except Exception as exc:  # pragma: no cover - boot must never fail on this
@@ -1130,30 +1127,45 @@ def bootstrap_runtime_services(
     )
     for warning in model_registry.startup_warnings():
         logger.warning("Model warning: %s", warning)
-    def _run_provider_prewarm() -> None:
+    def _run_provider_prewarm(*, inline: bool = False) -> None:
         # Warming loads the model into memory, so it cannot start until the model is on disk.
         model_pull.wait(timeout=_MODEL_PULL_WAIT_SECONDS)
+        if inline:
+            # Bootstrap itself is waiting: the check (minutes on a CPU) gets its own thread.
+            log_prewarm_results(
+                model_registry,
+                model_tag=runtime_model_tag,
+                runtime_home=runtime_home,
+                requested_profile=requested_profile,
+            )
+            threading.Thread(
+                target=ready_a_local_model_on_boot,
+                args=(model_registry,),
+                kwargs={"primary_model": runtime_model_tag, "env": provider_env},
+                name="vool-local-model-readiness",
+                daemon=True,
+            ).start()
+            return
+        # Already off the boot path: ready a model FIRST, then warm the one turns will use. Warming
+        # the boot primary first loaded qwen2.5:7b for 15 minutes on a fresh profile while every
+        # turn went to the qwen3:8b the check had just made ready (fresh daemon, Oct 29): two
+        # models resident on a computer that may hold one.
+        ready_a_local_model_on_boot(model_registry, primary_model=runtime_model_tag, env=provider_env)
+        from core.local_model_readiness import model_in_use
+
         log_prewarm_results(
             model_registry,
-            model_tag=runtime_model_tag,
+            model_tag=model_in_use(runtime_model_tag) or runtime_model_tag,
             runtime_home=runtime_home,
             requested_profile=requested_profile,
         )
-        # Its own thread: a check can take minutes and must never hold bootstrap or prewarm.
-        threading.Thread(
-            target=ready_a_local_model_on_boot,
-            args=(model_registry,),
-            kwargs={"primary_model": runtime_model_tag, "env": provider_env},
-            name="vool-local-model-readiness",
-            daemon=True,
-        ).start()
 
     # Provider prewarm loads models into memory and can take minutes. When run_prewarm is False the
     # API server defers it (binding the port first) and runs this closure on a background thread, so
     # 11435/healthz is reachable immediately instead of refusing connections during warmup.
     deferred_prewarm: Callable[[], None] | None = None
     if run_prewarm:
-        _run_provider_prewarm()
+        _run_provider_prewarm(inline=True)
     else:
         deferred_prewarm = _run_provider_prewarm
         logger.info("Provider prewarm deferred; binding the API port first and warming in the background.")

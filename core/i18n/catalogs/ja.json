@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "このコンピューターにモデルがあります。開いて「このモデルを使う」を押すと始められます。",
     "chat.author_refusal.lead": "この質問には答えられませんでした。",
     "chat.author_refusal.failed": "{models} から今回は正しい返事がありませんでした。少ししてからもう一度聞いてください。何度も起きる場合は、設定 → モデルとプロバイダで別のモデルを選んでください。",
+    "chat.author_refusal.checking": "VOOL はまだ {model} の準備をしています。このコンピュータでは数分かかることがあります。少ししてからもう一度聞いてください。",
     "chat.author_refusal.not_ready": "{model} はまだ VOOL で答える準備ができていません。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、「準備完了」のモデルを選んでください。",
     "chat.author_refusal.not_ready_local_only": "{model} はまだ VOOL で答える準備ができていません。「このコンピューターのみ」がオンなので、代わりにクラウドモデルが答えることもできません。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、「準備完了」のモデルを選んでください。",
     "chat.author_refusal.not_ready_no_cloud": "{model} はまだ VOOL で答える準備ができていません。クラウドモデルもオフになっています。設定 → モデルとプロバイダ → ローカルモデルを開いて「このモデルを使う」を押すか、クラウドモデルをオンにしてください。",
     "chat.author_refusal.unresolved": "どのモデルが返事を書いたのか VOOL が判断できなかったため、返事を保留しました。もう一度聞いてください。",
     "chat.author_refusal.not_running": "このコンピューターでは今、動いているモデルがありません。モデルのアプリ（Ollama など）を開くか、モデルメニューでクラウドモデルを選んでください。"
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

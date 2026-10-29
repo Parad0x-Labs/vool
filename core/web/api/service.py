@@ -595,7 +595,9 @@ def runtime_model_status_response(
             "deterministic": True,
             "requested_model": selected,
         }
-    default_model = str(runtime.runtime_model_tag or "").strip() or "unknown"
+    from core.local_model_readiness import model_in_use
+
+    default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
     lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
@@ -669,7 +671,9 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines.append(f"- Build: `{build}`" + (" (uncommitted changes)" if bool(stamp.get("dirty")) else ""))
     if commit:
         lines.append(f"- Commit: `{commit}`")
-    model = str(runtime.runtime_model_tag or "").strip()
+    from core.local_model_readiness import model_in_use
+
+    model = model_in_use(str(runtime.runtime_model_tag or "").strip())
     if model:
         lines.append(f"- Local model: `{model}`")
     return {

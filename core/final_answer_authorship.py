@@ -289,6 +289,11 @@ _AUTHOR_REFUSAL_TEXTS: dict[str, tuple[str, str]] = {
         "Settings \u2192 Models & Providers \u2192 Local models and press Use this model, or "
         "turn on a cloud model.",
     ),
+    "checking": (
+        "chat.author_refusal.checking",
+        "VOOL is still getting {model} ready. On this computer that can take a few minutes. "
+        "Please ask again shortly.",
+    ),
     "unresolved": (
         "chat.author_refusal.unresolved",
         "VOOL couldn\u2019t tell which model wrote the reply, so it held it back. Please ask again.",
@@ -341,6 +346,11 @@ def author_refusal_text(
     elif attempted:
         names = ", ".join(dict.fromkeys(_plain_model_name(name) for name in attempted))
         cause = say("failed", models=names)
+    elif (checking := _local_model_being_checked()):
+        # A model is being made ready right now (boot's own check, or the Use this model button).
+        # Telling the person to press the button again, mid-check, was the fresh-eyes test's
+        # "chat is blocked with no progress shown" (Oct 29).
+        cause = say("checking", model=checking)
     elif reason == REASON_LOCAL_ONLY_NO_ELIGIBLE_AUTHOR:
         cause = say("not_ready_local_only", model=model)
     elif reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
@@ -351,6 +361,22 @@ def author_refusal_text(
         cause = (cause + " " + say("not_running")) if attempted else say("not_running")
     lead = turn_text(AUTHOR_REFUSAL_LEAD_KEY, AUTHOR_REFUSAL_LEAD, locale)
     return f"{lead} {cause}"
+
+
+def _local_model_being_checked() -> str:
+    """The local model whose readiness check is running now, or ``""``."""
+    try:
+        from core.local_model_policy import manifest_is_local
+        from core.local_model_tool_certification import certification_applies, certification_status
+        from core.model_registry import ModelRegistry
+
+        for manifest in ModelRegistry().list_manifests(enabled_only=True):
+            if manifest_is_local(manifest) and certification_applies(manifest):
+                if str(certification_status(manifest).get("state") or "") == "probing":
+                    return str(manifest.model_name)
+    except Exception:
+        pass
+    return ""
 
 
 _AUTHOR_REFUSAL_LEADS: tuple[str, ...] | None = None

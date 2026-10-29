@@ -626,6 +626,7 @@ def mint_turn_routing_plan(
             ladder = tuple(
                 sorted(ladder, key=lambda pid: (0 if next(r for r in rows if r.provider_id == pid).locality == "local" else 1,))
             )
+        ladder = _ready_local_first(ladder, manifest_list)
         reason = "auto_ranked"
     else:
         reason = "no_eligible_candidate"
@@ -1346,3 +1347,23 @@ __all__ = [
     "routing_failures_for_session",
     "routing_fences_from_rules",
 ]
+
+
+def _ready_local_first(ladder: tuple[str, ...], manifests: Any) -> tuple[str, ...]:
+    """The ladder with a ready local model ahead of an unready one (the routing ranker's rule).
+
+    The plan recorded "selected_model": "qwen2.5:7b" on every turn of the cloud re-audit (Oct 29)
+    while the turn itself ran the ready qwen3:8b: a record that names the wrong model is how the
+    audit read every turn as trying the refused model first.
+    """
+
+    try:
+        from core.provider_routing import _cached_ready, _ready_local_models_first
+
+        by_id = {str(getattr(m, "provider_id", "")): m for m in manifests or ()}
+        ordered = [by_id[pid] for pid in ladder if pid in by_id]
+        if len(ordered) != len(ladder):
+            return ladder
+        return tuple(str(m.provider_id) for m in _ready_local_models_first(ordered, certified=_cached_ready))
+    except Exception:
+        return ladder

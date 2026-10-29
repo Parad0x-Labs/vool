@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "Bu bilgisayarda bir model var. Açın ve başlamak için Bu modeli kullan’a basın.",
     "chat.author_refusal.lead": "Buna yanıt veremedim.",
     "chat.author_refusal.failed": "{models} bu sefer düzgün yanıt vermedi. Lütfen biraz sonra yeniden sorun. Sürekli oluyorsa Ayarlar → Modeller ve sağlayıcılar’dan başka bir model seçin.",
+    "chat.author_refusal.checking": "VOOL, {model} modelini hâlâ hazırlıyor. Bu bilgisayarda bu birkaç dakika sürebilir. Lütfen birazdan yeniden sorun.",
     "chat.author_refusal.not_ready": "{model} henüz VOOL için yanıt vermeye hazır değil. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
     "chat.author_refusal.not_ready_local_only": "{model} henüz VOOL için yanıt vermeye hazır değil ve Yalnızca bu bilgisayar açık, bu yüzden yerine bir bulut modeli yanıt veremez. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da Hazır olarak işaretli bir model seçin.",
     "chat.author_refusal.not_ready_no_cloud": "{model} henüz VOOL için yanıt vermeye hazır değil ve bulut modelleri kapalı. Ayarlar → Modeller ve sağlayıcılar → Yerel modeller’i açıp Bu modeli kullan’a basın ya da bir bulut modelini açın.",
     "chat.author_refusal.unresolved": "VOOL yanıtı hangi modelin yazdığını anlayamadı, bu yüzden yanıtı tuttu. Lütfen yeniden sorun.",
     "chat.author_refusal.not_running": "Şu anda bu bilgisayarda çalışan bir model yok. Model uygulamanızı (örneğin Ollama) açın ya da model menüsünden bir bulut modeli seçin."
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

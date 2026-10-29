@@ -2880,13 +2880,14 @@
     "settings.models.local_pick": "这台电脑上有一个模型。打开它并点“使用此模型”即可开始。",
     "chat.author_refusal.lead": "这个问题我没能回答。",
     "chat.author_refusal.failed": "{models} 这次没有正常回复。请稍后再问一次。如果一直这样，请在 设置 → 模型与提供方 中换一个模型。",
+    "chat.author_refusal.checking": "VOOL 仍在准备 {model}。在这台电脑上可能需要几分钟。请稍后再问一次。",
     "chat.author_refusal.not_ready": "{model} 还没准备好在 VOOL 里回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
     "chat.author_refusal.not_ready_local_only": "{model} 还没准备好在 VOOL 里回答，而且“仅此电脑”已开启，所以云端模型也不能代为回答。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或选一个标着“已就绪”的模型。",
     "chat.author_refusal.not_ready_no_cloud": "{model} 还没准备好在 VOOL 里回答，而且云端模型已关闭。请打开 设置 → 模型与提供方 → 本地模型，点“使用此模型”，或打开一个云端模型。",
     "chat.author_refusal.unresolved": "VOOL 无法确定是哪个模型写的回复，所以先没有发出。请再问一次。",
     "chat.author_refusal.not_running": "这台电脑上现在没有正在运行的模型。请打开你的模型应用（例如 Ollama），或在模型菜单里选一个云端模型。"
   },
-  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
+  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
