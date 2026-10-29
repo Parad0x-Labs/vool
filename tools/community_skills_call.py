@@ -30,7 +30,7 @@ MODES = ("manual", "auto")
 
 
 def call_tool(intent: str, arguments: dict[str, Any], *, mode: str = "manual",
-              approve: bool = False) -> dict[str, Any]:
+              approve: bool = False, workspace: str = "") -> dict[str, Any]:
     """One tool call through the permission check, in the CURRENT profile; a plain dict.
 
     Run it only inside a throwaway profile (`run_call` makes one). With `approve`, an
@@ -44,6 +44,9 @@ def call_tool(intent: str, arguments: dict[str, Any], *, mode: str = "manual",
     tracker = HiveActivityTracker(config=HiveActivityTrackerConfig(enabled=False, watcher_api_url=None))
     session = "skill-author-call"
     context = {"runtime_session_id": session, "operating_mode": mode, "cancel_turn_id": "author-turn"}
+    if workspace:
+        # The chat's project folder: workspace.* tools read and write only inside it.
+        context.update(workspace_root=workspace, workspace=workspace)
 
     def once():
         return execute_tool_intent({"intent": intent, "arguments": dict(arguments)},
@@ -107,6 +110,8 @@ def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve:
         (root / "profile" / "plugins").mkdir(parents=True)
         (root / "bundled").mkdir()
         home.mkdir()
+        workspace = root / "workspace"
+        workspace.mkdir()
         os.environ.update({"HOME": str(home), "VOOL_HOME": str(home / "vool"),
                            "VOOL_PLUGINS_DIR": str(root / "profile"),
                            "VOOL_BUNDLED_PLUGINS_DIR": str(root / "bundled")})
@@ -114,10 +119,13 @@ def run_call(intent: str, arguments_json: str, *, mode: str = "manual", approve:
         from storage.migrations import run_migrations
 
         runtime_paths.configure_runtime_home(home / "vool")
+        here = os.getcwd()
+        os.chdir(workspace)  # a relative path never lands in the author's own folder
         try:
             run_migrations()
-            report = call_tool(str(intent), arguments, mode=mode, approve=approve)
+            report = call_tool(str(intent), arguments, mode=mode, approve=approve, workspace=str(workspace))
         finally:
+            os.chdir(here)
             runtime_paths.configure_runtime_home(None)
     except Exception as exc:  # an author gets words, never a traceback
         detail = " ".join(str(exc).split())[:300]

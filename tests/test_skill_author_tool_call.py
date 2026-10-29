@@ -56,3 +56,10 @@ def test_web_lookup_off_and_unknown_tool_are_plain_refusals(tmp_path):
     assert web["ok"] is False and "Web lookups are off." in web["reply"]
     code, unknown = _call(tmp_path, "workspace.writefile")
     assert code == 1 and "no tool named 'workspace.writefile'" in unknown["reason"]
+
+
+def test_a_write_lands_in_the_throwaway_workspace_never_the_authors_folder(tmp_path):
+    _, report = _call(tmp_path, "workspace.write_file", "--args", '{"path": "a.txt", "content": "x"}',
+                      "--mode", "auto")
+    assert report["status"] == "executed"
+    assert not (tmp_path / "a.txt").exists()
