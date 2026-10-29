@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.4_beta-eee8d5" alt="Version 0.7.4 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.5_beta-eee8d5" alt="Version 0.7.5 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
   <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fapps.json" alt="App installer downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fmacos-arm64.json" alt="macOS Apple silicon app downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Fmacos-intel.json" alt="macOS Intel app downloads across all versions" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fparad0x-labs.github.io%2Fvool%2Fbadges%2Flinux.json" alt="Linux app downloads across all versions" /></a>
 </p>
 
@@ -42,15 +42,15 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 
 ## Install
 
-**Current version: 0.7.4-beta.** Download the app for your computer from the [v0.7.4-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.4-beta), or install from source with the bootstrap script below.
+**Current version: 0.7.5-beta.** Download the app for your computer from the [v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta), or install from source with the bootstrap script below.
 
 ### Downloads
 
 | Your computer | Download |
 | --- | --- |
-| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.4-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-arm64.dmg) |
-| **Mac with an Intel chip** | [`VOOL-0.7.4-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-x86_64.dmg) |
-| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.4-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/vool-0.7.4-beta-linux-x86_64.tar.gz) |
+| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.5-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-arm64.dmg) |
+| **Mac with an Intel chip** | [`VOOL-0.7.5-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/VOOL-0.7.5-beta-macos-x86_64.dmg) |
+| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.5-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/vool-0.7.5-beta-linux-x86_64.tar.gz) |
 
 Each download has a SHA-256 checksum on the release page. Check it before you open the file ([how](docs/getting-started/install.md#verify-a-download)). Not sure which Mac you have? Open the Apple menu and choose **About This Mac**: "Apple M…" means Apple Silicon, "Intel" means Intel. The macOS app needs macOS 14 Sonoma or newer.
 
@@ -64,7 +64,7 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 **Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine.
 
-Updating from 0.7.3, 0.7.2, 0.7.1 or 0.7.0: download 0.7.4 and install it over your current version. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
+From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
 | Platform | Getting started |
 | --- | --- |
@@ -80,8 +80,8 @@ For model choices, system requirements, checksums, and troubleshooting, see the 
 Download the bootstrap script, then run it:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.4-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.4-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.5-beta
 ```
 
 ### From source: Windows PowerShell
@@ -91,7 +91,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
+The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Installing from source needs Python 3.11 or newer. If none is found, the installer tries to set one up. The app downloads include their own Python. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
 
 <details>
 <summary><strong>Choose a local profile or run from a checkout</strong></summary>
@@ -99,9 +99,9 @@ The installer prepares the Python environment, checks your hardware, sets up the
 The default profile is selected from your hardware. To choose explicitly:
 
 ```bash
-bash bootstrap_vool.sh --ref v0.7.4-beta --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-only
 # Or use the larger local model profile:
-bash bootstrap_vool.sh --ref v0.7.4-beta --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-max
 ```
 
 Windows accepts `-InstallProfile local-only` or `-InstallProfile local-max`.

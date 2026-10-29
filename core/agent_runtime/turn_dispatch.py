@@ -311,6 +311,14 @@ def prepare_turn_task_bundle(
         # layer answer independent explanatory siblings; constructing and then rejecting a tool
         # call records a false attempted effect and commonly drops the sibling that was answerable.
         operator_intent = None
+    if operator_intent is not None and operator_intent.kind == "save_note":
+        # "yes, save it as a note" after an answer that offered to save it: the words carry no
+        # content, they point at that answer (core.operator.notes.with_the_answer_it_follows).
+        from core.operator.notes import with_the_answer_it_follows
+
+        operator_intent = with_the_answer_it_follows(
+            operator_intent, session_id=session_id, source_context=source_context
+        )
     if operator_intent is not None:
         # Mode enforcement: Ask/Plan is a READ-ONLY posture. A mutating operator action (anything
         # that would change the system) is refused BEFORE dispatch -- nothing is written and no
@@ -349,11 +357,27 @@ def prepare_turn_task_bundle(
             )
             result["route"] = "mode_read_only"
             return {"result": result}
-        dispatch = dispatch_operator_action_fn(
-            operator_intent,
-            task_id=task.task_id,
-            session_id=session_id,
-        )
+        # Remote-turn fence (core.request_trust.remote_turn_tool_refusal): the local operator lane acts
+        # on this computer (processes, disk, files, notes, calendar, reminders), so a turn the server
+        # stamped as not the owner's own session is refused here, before anything runs.
+        from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+        _remote_refusal = remote_turn_tool_refusal(f"operator.{operator_intent.kind}", source_context)
+        if _remote_refusal:
+            from core.operator.models import OperatorActionResult
+
+            dispatch = OperatorActionResult(
+                ok=False,
+                status=_remote_refusal,
+                response_text=REMOTE_TURN_REFUSAL_TEXT,
+                details={"kind": operator_intent.kind, "executed": False, "reason": _remote_refusal},
+            )
+        else:
+            dispatch = dispatch_operator_action_fn(
+                operator_intent,
+                task_id=task.task_id,
+                session_id=session_id,
+            )
         # Surface the operator action as a REAL tool step so the Activity panel is authoritative:
         # the answer shows a scan/action, so Activity must show it, not "No actions yet". Mirrors the
         # machine-read fast path (U15) -- emitted before _action_fast_path_result's task_completed so

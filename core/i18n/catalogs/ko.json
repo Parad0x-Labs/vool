@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "Mac에서는 플러그인이 실행하는 코드가 설치된 다른 앱과 마찬가지로 실행 중인 다른 프로그램의 시작 설정을 볼 수 있습니다. 플러그인용 서비스 키는 절대 그곳에 두지 않습니다.",
     "addons.plugin_message_17a835e333a0": "이 플러그인의 서버는 이 Mac이 다른 프로그램으로부터 보호할 수 없는 방식으로 서비스 키를 받기 때문에 여기서는 꺼진 상태로 유지됩니다. 키가 필요 없는 플러그인과 제공자·검사 플러그인은 계속 작동합니다.",
     "addons.plugin_message_96b8e83efb56": "이 Mac에서는 macOS 샌드박스 안에서 플러그인 코드를 실행할 수 없으므로 자체 코드를 실행하는 플러그인은 꺼진 상태로 유지됩니다. 제공자와 검사 플러그인은 계속 작동합니다.",
-    "addons.plugin_message_1461237e0e9b": "이 키는 이전 VOOL 설정에서 가져온 것으로, VOOL 자체 요청에만 사용됩니다. 애드온에서 이 플러그인용 키를 연결하세요."
+    "addons.plugin_message_1461237e0e9b": "이 키는 이전 VOOL 설정에서 가져온 것으로, VOOL 자체 요청에만 사용됩니다. 애드온에서 이 플러그인용 키를 연결하세요.",
+    "update.checks_off": "업데이트 확인 꺼짐"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

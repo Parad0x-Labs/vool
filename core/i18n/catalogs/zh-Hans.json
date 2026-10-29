@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "在 Mac 上，插件运行的代码可以看到你运行的其他程序的启动设置，任何已安装的应用也都可以。你为插件提供的服务密钥绝不会放在那里。",
     "addons.plugin_message_17a835e333a0": "此插件的服务器接收服务密钥的方式在这台 Mac 上无法对其他程序保密，因此在这里保持关闭。无需密钥的插件，以及提供方和扫描插件，仍可正常使用。",
     "addons.plugin_message_96b8e83efb56": "这台 Mac 无法在 macOS 沙盒中运行插件代码，因此运行自身代码的插件保持关闭。提供方和扫描插件仍可正常使用。",
-    "addons.plugin_message_1461237e0e9b": "此密钥沿用自 VOOL 以前的设置，仅用于 VOOL 自身的请求。请在“附加组件”中为此插件连接一个密钥。"
+    "addons.plugin_message_1461237e0e9b": "此密钥沿用自 VOOL 以前的设置，仅用于 VOOL 自身的请求。请在“附加组件”中为此插件连接一个密钥。",
+    "update.checks_off": "更新检查已关闭"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

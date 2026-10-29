@@ -3,6 +3,10 @@
 Add-ons keeps browsing, inspection and installation separate. A scan describes particular bytes;
 it is not a safety guarantee, publisher endorsement, runtime permission or wallet approval.
 
+Browse lists VOOL's own skills first, including 53 text-only VOOL skills bundled with the app,
+then the reviewed catalogue add-ons. Skill Codex lists VOOL team skills first, above editor's
+picks and featured skills.
+
 ## Public skills
 
 Choose a public GitHub skill at a fixed revision and approve downloading its contents. VOOL checks

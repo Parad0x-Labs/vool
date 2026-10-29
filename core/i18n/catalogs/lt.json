@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "„Mac“ kompiuteryje papildinio paleistas kodas gali matyti kitų jūsų paleistų programų paleidimo nustatymus, kaip ir bet kuri įdiegta programa. Jūsų paslaugų raktai papildiniams ten niekada nededami.",
     "addons.plugin_message_17a835e333a0": "Šio papildinio serveris gauna paslaugos raktą taip, kad šis „Mac“ negali jo apsaugoti nuo kitų programų, todėl čia jis lieka išjungtas. Papildiniai, kuriems rakto nereikia, taip pat teikėjų ir tikrinimo papildiniai veikia toliau.",
     "addons.plugin_message_96b8e83efb56": "Šis „Mac“ negali vykdyti papildinių kodo „macOS“ smėlio dėžėje, todėl papildiniai, vykdantys savo kodą, lieka išjungti. Teikėjų ir tikrinimo papildiniai veikia toliau.",
-    "addons.plugin_message_1461237e0e9b": "Šis raktas perkeltas iš ankstesnio VOOL nustatymo ir naudojamas tik paties VOOL užklausoms. Prijunkite šio papildinio raktą skiltyje „Priedai“."
+    "addons.plugin_message_1461237e0e9b": "Šis raktas perkeltas iš ankstesnio VOOL nustatymo ir naudojamas tik paties VOOL užklausoms. Prijunkite šio papildinio raktą skiltyje „Priedai“.",
+    "update.checks_off": "Atnaujinimų tikrinimas išjungtas"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

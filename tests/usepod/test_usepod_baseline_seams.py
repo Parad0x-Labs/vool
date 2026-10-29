@@ -130,6 +130,7 @@ def _dispatch_post(path: str, body: dict) -> tuple[int, dict, str]:
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
     text = response.body.decode("utf-8")
     return response.status, json.loads(text), text
@@ -139,7 +140,7 @@ def _dispatch_get(path: str, query: dict | None = None) -> str:
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_get
 
-    return dispatch_get(path=path, query=query or {}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool").body.decode("utf-8")
+    return dispatch_get(path=path, query=query or {}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1").body.decode("utf-8")
 
 
 def _manifest_rows_text() -> str:

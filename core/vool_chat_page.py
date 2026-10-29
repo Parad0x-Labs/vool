@@ -14177,13 +14177,16 @@ function renderUpdateChip(payload) {
   let text = label;
   if (phase === 'downloading' && payload.progress_percent != null) text = pageTF('update.downloading_pct', 'Downloading {percent}%', { percent: payload.progress_percent });
   if (phase === 'ready' && payload.target_version) text = pageTF('update.ready_version', 'Update ready · {version}', { version: payload.target_version });
+  // With the outbound switch off no check runs, so a quiet chip must not read as "nothing new".
+  const checksOff = payload.online_access === false && UPDATE_QUIET.has(phase);
+  if (checksOff) text = pageT('update.checks_off', 'Update checks off');
   updateChipTxt.textContent = text;
   updateChip.classList.remove('upd-ready', 'upd-working', 'upd-ok', 'upd-warn', 'upd-off');
   if (phase === 'ready' || phase === 'ready_to_restart') updateChip.classList.add('upd-ready');
   else if (UPDATE_BUSY.has(phase)) updateChip.classList.add('upd-working');
   else if (phase === 'done') updateChip.classList.add('upd-ok');
   else if (phase === 'rolled_back' || phase === 'failed') updateChip.classList.add('upd-warn');
-  else if (phase === 'unavailable') updateChip.classList.add('upd-off');
+  else if (phase === 'unavailable' || checksOff) updateChip.classList.add('upd-off');
   updateVersionEl.textContent = payload.target_version ? pageTF('update.version_line', 'Version {version}', { version: payload.target_version }) : '';
   updateNotesEl.textContent = (payload.notes || '').trim();
   // The outbound switch is the master over update checks: while it is off the popover says so and

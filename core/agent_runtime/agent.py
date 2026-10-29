@@ -3543,6 +3543,10 @@ class VoolAgent(
         it reaches this function, so that structural fix did nothing against the real `/api/chat`
         path until entity extraction was given text that still has its boundaries intact.
         """
+        from core.request_trust import turn_is_remote
+
+        if turn_is_remote(source_context):
+            return None
         # ARCH-TRUTH-R1d: `planned_subturn` blocks RECURSIVE PLANNING (see
         # `_maybe_answer_planned_turn` and the conductor), never an execution lane. This
         # lane used to refuse a planned sub-request outright, so the planner admitted a
@@ -6946,7 +6950,10 @@ def main() -> int:
         print("Vool agent started. Provide --input for one-shot execution.")
         return 0
 
-    result = agent.run_once(str(args.input))
+    from core.request_trust import in_process_owner_source_context
+
+    # the owner's own terminal one-shot: the owner-local stamp is named here, not inferred
+    result = agent.run_once(str(args.input), source_context=in_process_owner_source_context())
     # R-8 (K-11): one-shot CLI serves the SEALED commit bytes -- commit-first,
     # mirroring vool_chat.py; raw response text only as typed no-answer frame.
     _cli_commit = (

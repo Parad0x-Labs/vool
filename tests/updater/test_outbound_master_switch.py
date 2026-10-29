@@ -290,3 +290,48 @@ def test_shipped_auto_check_and_feed_override_stay_offline_with_the_switch_off(t
     assert automatic_checks_enabled(feed=feed, data_dir=tmp_path) is True
     _set_switch(monkeypatch, False)
     assert automatic_checks_enabled(feed=feed, data_dir=tmp_path) is False
+
+
+def test_the_shipped_feed_checks_on_its_own_once_online_is_on_and_never_before(tmp_path, monkeypatch):
+    """0.7.3 users never heard of 0.7.4: the shipped feed waited for a Check press nobody made. With the
+    shipped configuration and a fresh home (no press on record), the switch alone decides."""
+    from dataclasses import replace
+
+    from core.updater.feed import load_feed_config
+    from core.updater.runtime import UpdateSubsystem
+
+    shipped = load_feed_config(env={})
+    assert shipped.source == "config" and shipped.manifest_url.startswith("https://github.com/")
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel=shipped.channel)
+    calls: list[str] = []
+
+    def fetch(url):
+        calls.append(url)
+        return manifest_bytes(document)
+
+    def make() -> UpdateSubsystem:
+        subsystem = UpdateSubsystem(feed=replace(shipped, app_path=str(tmp_path / "VOOL.app")),
+                                    trust=TrustedPublishers({"release-2026-01": public}), data_dir=tmp_path / "data",
+                                    platform="macos-arm64", installed_version="0.7.0", fetch=fetch)
+        return subsystem.start()
+
+    _set_switch(monkeypatch, False)
+    quiet = make()
+    time.sleep(0.5)
+    assert quiet.service._thread is None and calls == []
+    assert quiet.status_payload()["online_access"] is False
+
+    _set_switch(monkeypatch, True)
+    checking = make()
+    try:
+        deadline = time.monotonic() + 3
+        while not (checking.service.current_offer() and calls) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert calls == [shipped.manifest_url]
+        assert checking.status_payload()["phase"] == "ready" and checking.status_payload()["target_version"] == "0.7.1"
+        assert not (tmp_path / "data" / "update_v2" / "check_consent.json").exists(), "no Check press was needed"
+    finally:
+        checking.service.stop()
+        if checking.service._thread is not None:
+            checking.service._thread.join(timeout=2)

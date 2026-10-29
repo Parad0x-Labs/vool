@@ -32,7 +32,7 @@ def _post(path, body, *, host="127.0.0.1", headers=None):
 
 
 def _get(path):
-    return dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _j(response):

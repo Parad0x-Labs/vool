@@ -17,6 +17,7 @@ import uuid
 from pathlib import Path
 
 from core.addon_catalog import CATALOG
+from core.addon_discovery import is_own
 from core.addon_security import AddonError, fetch_bytes, validate_report
 from core.plugin_scanners import scan_skill, scanners
 
@@ -262,7 +263,8 @@ def catalog() -> dict:
         row = dict(item)
         plugin_id = PREFIX + item["id"]
         record = record_for(plugin_id)
-        row.update(plugin_id=plugin_id, installed=bool(record and record.stage != "uninstalled"), enabled=False, scan="not_checked")
+        row.update(plugin_id=plugin_id, installed=bool(record and record.stage != "uninstalled"), enabled=False, scan="not_checked",
+                   first_party=is_own(item))
         if row["installed"]:
             row["enabled"] = plugin_id not in _disabled_ids() and available(plugin_id, Path(record.root))
             row["stage"] = record.stage
@@ -291,6 +293,8 @@ def catalog() -> dict:
             except AddonError:
                 continue
     pending.sort(key=lambda item: item["checked_at"], reverse=True)
+    # VOOL's own skills come first; the rest keep their catalogue order.
+    rows.sort(key=lambda row: not row["first_party"])
     from core.plugin_manager import inventory
     from core.plugin_migration import notices
 

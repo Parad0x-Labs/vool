@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "Sur un Mac, le code qu'exécute un plugin peut voir les paramètres de démarrage des autres programmes que vous lancez, comme n'importe quelle app installée. Vos clés de service pour les plugins n'y sont jamais placées.",
     "addons.plugin_message_17a835e333a0": "Le serveur de ce plugin reçoit sa clé de service d'une manière que ce Mac ne peut pas garder privée vis-à-vis des autres programmes ; il reste donc désactivé ici. Les plugins sans clé, ainsi que les plugins de fournisseur et d'analyse, fonctionnent toujours.",
     "addons.plugin_message_96b8e83efb56": "Ce Mac ne peut pas exécuter le code des plugins dans le bac à sable de macOS ; les plugins qui exécutent leur propre code restent donc désactivés. Les plugins de fournisseur et d'analyse fonctionnent toujours.",
-    "addons.plugin_message_1461237e0e9b": "Cette clé provient d'un ancien réglage de VOOL et n'est utilisée que par les requêtes de VOOL lui-même. Connectez une clé pour ce plugin dans Modules complémentaires."
+    "addons.plugin_message_1461237e0e9b": "Cette clé provient d'un ancien réglage de VOOL et n'est utilisée que par les requêtes de VOOL lui-même. Connectez une clé pour ce plugin dans Modules complémentaires.",
+    "update.checks_off": "Recherche de mises à jour désactivée"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

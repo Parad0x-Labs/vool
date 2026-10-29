@@ -33,7 +33,7 @@ def _rt() -> RuntimeServices:
 
 
 def _get(path: str, query: dict[str, list[str]]):
-    return dispatch_get(path=path, query=query, runtime=_rt(), model_name="vool")
+    return dispatch_get(path=path, query=query, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _body(response):

@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "Mac'te bir eklentinin çalıştırdığı kod, yüklediğiniz her uygulama gibi, çalıştırdığınız diğer programların başlangıç ayarlarını görebilir. Eklentiler için hizmet anahtarlarınız oraya asla konmaz.",
     "addons.plugin_message_17a835e333a0": "Bu eklentinin sunucusu hizmet anahtarını, bu Mac'in diğer programlardan gizli tutamayacağı bir şekilde alıyor; bu yüzden burada kapalı kalır. Anahtar gerektirmeyen eklentiler ile sağlayıcı ve tarayıcı eklentileri çalışmaya devam eder.",
     "addons.plugin_message_96b8e83efb56": "Bu Mac, eklenti kodunu macOS korumalı alanında çalıştıramıyor; bu yüzden kendi kodunu çalıştıran eklentiler kapalı kalır. Sağlayıcı ve tarayıcı eklentileri çalışmaya devam eder.",
-    "addons.plugin_message_1461237e0e9b": "Bu anahtar önceki bir VOOL ayarından aktarıldı ve yalnızca VOOL'un kendi istekleri için kullanılır. Eklentiler bölümünde bu eklenti için bir anahtar bağlayın."
+    "addons.plugin_message_1461237e0e9b": "Bu anahtar önceki bir VOOL ayarından aktarıldı ve yalnızca VOOL'un kendi istekleri için kullanılır. Eklentiler bölümünde bu eklenti için bir anahtar bağlayın.",
+    "update.checks_off": "Güncelleme denetimi kapalı"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

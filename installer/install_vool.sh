@@ -16,7 +16,7 @@ if [ -z "${VOOL_HOME_DEFAULT:-}" ]; then
   fi
 fi
 MIN_PYTHON_MAJOR=3
-MIN_PYTHON_MINOR=10
+MIN_PYTHON_MINOR=11
 AUTO_YES=0
 AUTO_START=0
 RUNTIME_HOME_OVERRIDE=""
@@ -287,7 +287,7 @@ bootstrap_python_toolchain() {
 
 resolve_python_bin() {
   local candidate=""
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
+  for candidate in python3.13 python3.12 python3.11 python3 python; do
     if command -v "${candidate}" >/dev/null 2>&1 && python_supports_minimum "${candidate}"; then
       command -v "${candidate}"
       return 0
@@ -298,7 +298,7 @@ resolve_python_bin() {
   # re-scan, so a fresh Mac shipping only the CLT python3.9 still installs one-click like Windows.
   if ! command -v uv >/dev/null 2>&1; then
     bootstrap_python_toolchain
-    for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+    for candidate in python3.13 python3.12 python3.11 python3; do
       if command -v "${candidate}" >/dev/null 2>&1 && python_supports_minimum "${candidate}"; then
         command -v "${candidate}"
         return 0
@@ -308,7 +308,7 @@ resolve_python_bin() {
 
   if command -v uv >/dev/null 2>&1; then
     local uv_target=""
-    for uv_target in 3.13 3.12 3.11 3.10; do
+    for uv_target in 3.13 3.12 3.11; do
       candidate="$(uv python find "${uv_target}" 2>/dev/null || true)"
       if [[ -n "${candidate}" && -x "${candidate}" ]] && python_supports_minimum "${candidate}"; then
         printf '%s\n' "${candidate}"
@@ -317,7 +317,7 @@ resolve_python_bin() {
     done
 
     say "No supported system Python found. Attempting uv-managed Python bootstrap..."
-    for uv_target in 3.12 3.11 3.10; do
+    for uv_target in 3.12 3.11; do
       if uv python install "${uv_target}" >/tmp/vool_uv_python_install.log 2>&1; then
         candidate="$(uv python find "${uv_target}" 2>/dev/null || true)"
         if [[ -n "${candidate}" && -x "${candidate}" ]] && python_supports_minimum "${candidate}"; then
@@ -353,7 +353,7 @@ install_dependencies() {
   fi
 
   say "Step 2/14: Installing dependencies (this can take a while)..."
-  "${VENV_DIR}/bin/python" -m pip install --upgrade "pip<26" setuptools wheel
+  "${VENV_DIR}/bin/python" -m pip install --upgrade "pip<26" "setuptools>=84.1.0" wheel
   if dir_has_files "${WHEELHOUSE_DIR}"; then
     say "Using bundled wheelhouse from ${WHEELHOUSE_DIR}"
     if ! "${VENV_DIR}/bin/python" -m pip install --no-index --find-links "${WHEELHOUSE_DIR}" -r "${requirements_file}"; then
@@ -738,7 +738,7 @@ install_llamacpp_runtime_package() {
   local python_minor
   python_minor="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "")"
   if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
-    if [[ "${python_minor}" == "3.10" || "${python_minor}" == "3.11" || "${python_minor}" == "3.12" ]]; then
+    if [[ "${python_minor}" == "3.11" || "${python_minor}" == "3.12" ]]; then
       if CMAKE_ARGS="" "${VENV_DIR}/bin/python" -m pip install "llama-cpp-python[server]>=0.3.0" \
         --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal >/tmp/vool_llamacpp_install.log 2>&1; then
         say "Installed llama.cpp runtime from the Metal wheel index."

@@ -29,6 +29,14 @@ Two rules hold for both sources:
   same list. A skill appearing in a list is not proof it can load — each entry carries its
   live state (available, disabled, prerequisite missing, invalid contract) and the reason.
 
+## Finding skills
+
+Skills & Plugins lists VOOL's own skills first. **Browse** comes with 53 ready VOOL
+skills. They are text-only: each one is a set of instructions, bundled with the app, so
+Browse lists them without a lookup online. VOOL skills that use VOOL tools are listed in
+the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
+enable it.
+
 ## Availability states
 
 A skill can show as unavailable with a typed reason: a missing prerequisite (for example, the

@@ -3730,6 +3730,31 @@ def execute_runtime_tool(
     workspace root the dispatch resolves against is replaced by that workspace, so even an
     approved builder seat cannot reach the operator's checkout through a relative path.
     """
+    # Remote-turn fence: a turn the server stamped as NOT the owner's own session (a request from
+    # another device on the network, a paired phone, a channel) can chat and read public
+    # information, never reach this computer's files, notes, mail, accounts or settings.
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+    remote_refusal = remote_turn_tool_refusal(intent, source_context)
+    if remote_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=remote_refusal,
+            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            details={
+                "reason": remote_refusal,
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="owner_local_gate",
+                    ok=False,
+                    status=remote_refusal,
+                    reason=remote_refusal,
+                ),
+            },
+        )
+
     from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
 
     if not browser_tool_allowed(intent, arguments):
@@ -4240,13 +4265,45 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
     # reported into the owning turn's ledger BEFORE any socket opens. A refusal
     # surfaces as the tool's existing "disabled by policy" result shape.
     from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
+    from core.remote_turn_fetch import RemoteTurnTargetRefused, open_public_only
+    from core.request_trust import turn_is_remote
 
-    request = urllib.request.Request(url, headers={"User-Agent": "VOOL-runtime/1.0", "Accept": "text/html,text/plain,*/*"})
+    def _request(target: str) -> urllib.request.Request:
+        return urllib.request.Request(target, headers={"User-Agent": "VOOL-runtime/1.0", "Accept": "text/html,text/plain,*/*"})
+
+    # A turn from another device reads the public internet only: never this computer's own
+    # services or the owner's private network, checked after DNS and on every redirect hop.
+    remote_turn = turn_is_remote(source_context)
     try:
-        with open_remote(request, timeout=timeout_seconds) as response:
+        opened = (
+            open_public_only(url, make_request=_request, timeout=timeout_seconds)
+            if remote_turn
+            else open_remote(_request(url), timeout=timeout_seconds)
+        )
+        with opened as response:
             final_url = str(response.geturl() or url)
             content_type = str(response.headers.get("content-type") or "").strip()
             body = response.read(max_bytes + 1)
+    except RemoteTurnTargetRefused as refused:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="private_target_refused",
+            response_text=(
+                f"Web fetch did not open `{refused.url}`: from another device VOOL only opens public web "
+                "addresses, not this computer or its local network."
+            ),
+            details={
+                "observation": _tool_observation(
+                    intent="web.fetch",
+                    tool_surface="web",
+                    ok=False,
+                    status="private_target_refused",
+                    url=url,
+                    reason=refused.reason,
+                ),
+            },
+        )
     except RemoteFetchRefusedError:
         return RuntimeExecutionResult(
             handled=True,

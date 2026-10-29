@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "Mac では、プラグインが実行するコードは、インストールしたほかのアプリと同じく、実行中のほかのプログラムの起動時設定を参照できます。プラグイン用のサービスキーがそこに置かれることはありません。",
     "addons.plugin_message_17a835e333a0": "このプラグインのサーバーは、この Mac ではほかのプログラムから隠せない方法でサービスキーを受け取るため、ここではオフのままです。キーが不要なプラグインや、プロバイダー・スキャナーのプラグインは引き続き使えます。",
     "addons.plugin_message_96b8e83efb56": "この Mac では macOS のサンドボックス内でプラグインのコードを実行できないため、独自のコードを実行するプラグインはオフのままです。プロバイダーとスキャナーのプラグインは引き続き使えます。",
-    "addons.plugin_message_1461237e0e9b": "このキーは以前の VOOL の設定から引き継がれたもので、VOOL 自身のリクエストにだけ使われます。アドオンでこのプラグイン用のキーを接続してください。"
+    "addons.plugin_message_1461237e0e9b": "このキーは以前の VOOL の設定から引き継がれたもので、VOOL 自身のリクエストにだけ使われます。アドオンでこのプラグイン用のキーを接続してください。",
+    "update.checks_off": "更新の確認はオフ"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

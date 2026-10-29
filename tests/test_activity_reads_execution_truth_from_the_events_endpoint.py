@@ -54,6 +54,7 @@ def _events_payload(session: str = SESSION) -> dict:
         query={"session": [session], "after": ["0"], "limit": ["400"]},
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
+        client_host="127.0.0.1",
     )
     return json.loads(response.body.decode("utf-8"))
 

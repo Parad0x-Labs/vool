@@ -3094,9 +3094,10 @@
     "addons.plugin_mac_process_note": "Num Mac, o código que um plugin executa pode ver as definições de arranque de outros programas que executa, como qualquer app que instale. As suas chaves de serviço para plugins nunca são colocadas aí.",
     "addons.plugin_message_17a835e333a0": "O servidor deste plugin recebe a chave de serviço de uma forma que este Mac não consegue manter privada de outros programas, por isso fica desligado aqui. Os plugins que não precisam de chave, e os plugins de fornecedor e de análise, continuam a funcionar.",
     "addons.plugin_message_96b8e83efb56": "Este Mac não consegue executar código de plugins dentro da sandbox do macOS, por isso os plugins que executam o seu próprio código ficam desligados. Os plugins de fornecedor e de análise continuam a funcionar.",
-    "addons.plugin_message_1461237e0e9b": "Esta chave veio de uma definição anterior do VOOL e só é usada pelos pedidos do próprio VOOL. Ligue uma chave para este plugin em Complementos."
+    "addons.plugin_message_1461237e0e9b": "Esta chave veio de uma definição anterior do VOOL e só é usada pelos pedidos do próprio VOOL. Ligue uma chave para este plugin em Complementos.",
+    "update.checks_off": "Verificação de atualizações desativada"
   },
-  "source_catalog_sha256": "37a72cc6f7d6406301db52f0727579d24706e8f2062f174f85f23201f3b3273c",
+  "source_catalog_sha256": "437a93df11ae9a2b3dcd535a795b39475f70f33089cb680089dbd5aeed1fcd81",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

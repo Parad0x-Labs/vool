@@ -146,6 +146,13 @@ _SCOPE_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
 )
 
 
+def remote_turn_active() -> bool:
+    """Read the owning turn's ingress trust stamp, including inherited worker contexts."""
+    from core.request_trust import turn_is_remote
+
+    return turn_is_remote(_SCOPE_CONTEXT.get())
+
+
 def _utcnow_iso() -> str:
     from datetime import datetime, timezone
 

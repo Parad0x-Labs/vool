@@ -117,9 +117,9 @@ def test_credentials_door_removes_but_never_writes_a_market_key(monkeypatch):
     runtime = SimpleNamespace(runtime_version_stamp={})
     deleted = []
     monkeypatch.setattr("core.credential_store.delete_credential", lambda name: deleted.append(name) or True)
-    refused = ra.set_credentials_authority({"name": "market.data.coingecko", "value": DEMO}, {}, runtime)
+    refused = ra.set_credentials_authority({"name": "market.data.coingecko", "value": DEMO}, {}, runtime, client_host="127.0.0.1")
     assert refused.status == 400
-    removed = ra.set_credentials_authority({"name": "market.data.coingecko", "delete": True}, {}, runtime)
+    removed = ra.set_credentials_authority({"name": "market.data.coingecko", "delete": True}, {}, runtime, client_host="127.0.0.1")
     assert removed.status == 200 and deleted == ["market.data.coingecko"]
 
 
