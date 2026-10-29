@@ -103,6 +103,93 @@ def _needle_pattern(needle: str) -> tuple[re.Pattern[str], bool, bool, bool]:
             bool(normalized) and normalized[-1].isdecimal())
 
 
+#: Spellings of one character that a forget matches as that character, on both sides: a fullwidth form
+#: (U+FF01..U+FF5E, "Ｈａｒｇｒｅａｖｅ", "ＺＸ－４４１０") is its ASCII character; the hyphen (U+2010),
+#: non-breaking hyphen (U+2011), figure dash (U+2012), en dash (U+2013), minus sign (U+2212) and small
+#: hyphen-minus (U+FE63) are "-"; the invisible soft hyphen (U+00AD), zero-width space (U+200B),
+#: zero-width joiner (U+200D), word joiner (U+2060) and zero-width no-break space (U+FEFF) are no
+#: character ("Harg\u200breave" shows as "Hargreave"). Every other character maps to itself, one for one,
+#: so a span found in the folded text could map back to the original. The em dash is
+#: punctuation between words, not a hyphen, and is not folded; letters are not normalized beyond this
+#: (the exactness law in `fold_forget_text`).
+_SPELLING_FOLD = {
+    **{code: code - 0xFEE0 for code in range(0xFF01, 0xFF5F)},
+    **dict.fromkeys((0x2010, 0x2011, 0x2012, 0x2013, 0x2212, 0xFE63), ord("-")),
+    **dict.fromkeys((0x00AD, 0x200B, 0x200D, 0x2060, 0xFEFF), None),
+}
+
+#: The first fold: `_SPELLING_FOLD` without the zero-width characters and U+FE63, which were added later.
+#: Folded away, those join two digit runs into one number ("3\u200b12" is "312") or make a number joint
+#: ("10\ufe6312" is "10-12"), so the full fold alone would lose matches the first fold has. Both are
+#: tried, the first one first: each fold only adds matches.
+_LATER_FOLD_CODES = frozenset({0xFE63, 0x200B, 0x200D, 0x2060, 0xFEFF})
+_FIRST_FOLD = {code: to for code, to in _SPELLING_FOLD.items() if code not in _LATER_FOLD_CODES}
+
+
+def _fold_class(table: Mapping[int, int | None], *, removed: bool = False) -> re.Pattern[str]:
+    """A character class of the characters ``table`` changes (only those it removes, with ``removed``)."""
+    codes = sorted(code for code, to in table.items() if not removed or to is None)
+    return re.compile("[" + "".join(re.escape(chr(code)) for code in codes) + "]")
+
+
+#: Any character `_SPELLING_FOLD` changes. A text without one is its own fold: the cheap test that keeps a
+#: long non-ASCII text (accents, CJK) from being translated character by character for every forgotten word.
+_SPELLING_FOLD_CHARS = _fold_class(_SPELLING_FOLD)
+_FIRST_FOLD_CHARS = _fold_class(_FIRST_FOLD)
+#: The characters only the full fold changes, each with its replacement: the full fold is the first fold
+#: with these replaced (none is a character the first fold writes, and each maps to at most one
+#: character), which `str.replace` does without the per-character cost of `str.translate`.
+_LATER_FOLD = tuple((chr(code), "" if _SPELLING_FOLD[code] is None else chr(_SPELLING_FOLD[code]))
+                    for code in sorted(_LATER_FOLD_CODES))
+#: The folds in the order they are tried, each with the class of the characters it removes.
+_SPELLING_FOLDS = (
+    (_FIRST_FOLD, _fold_class(_FIRST_FOLD, removed=True)),
+    (_SPELLING_FOLD, _fold_class(_SPELLING_FOLD, removed=True)),
+)
+
+
+def _spelling_forms(text: str) -> tuple[str, str]:
+    """``text`` in `_FIRST_FOLD` and in `_SPELLING_FOLD` form (a text with no character a fold changes is
+    returned as it is)."""
+    if text.isascii() or _SPELLING_FOLD_CHARS.search(text) is None:
+        return text, text
+    later = [(char, to) for char, to in _LATER_FOLD if char in text]
+    if not later:
+        full = text.translate(_FIRST_FOLD)
+        return full, full
+    first = text.translate(_FIRST_FOLD) if _FIRST_FOLD_CHARS.search(text) is not None else text
+    full = first
+    for char, to in later:
+        full = full.replace(char, to)
+    return first, full
+
+
+def _spelling_passes(text: str, needle: str) -> list[tuple[int, str, str]]:
+    """The folded (fold index, text, needle) pairs to try after the text as written: each only when it
+    differs from the pair tried before it."""
+    passes: list[tuple[int, str, str]] = []
+    previous = (text, needle)
+    for index, form in enumerate(zip(_spelling_forms(text), _spelling_forms(needle), strict=True)):
+        if form != previous:
+            passes.append((index, *form))
+            previous = form
+    return passes
+
+
+def _needle_found(text: str, needle: str) -> bool:
+    """Whether ``needle`` stands in the already folded ``text`` by the forget law (`forget_needle_in`)."""
+    pattern, numeric, digit_first, digit_last = _needle_pattern(needle)
+    match = pattern.search(text)
+    if not numeric:
+        return match is not None
+    while match is not None:
+        start, end = match.span()
+        if _own_number(text, start, end, digit_first, digit_last):
+            return True
+        match = pattern.search(text, start + 1)
+    return False
+
+
 def forget_needle_in(hay: Any, needle: str) -> bool:
     """Whether a forget needle occurs in a text.
 
@@ -119,29 +206,34 @@ def forget_needle_in(hay: Any, needle: str) -> bool:
       followed by a digit and does not protect the number.
 
     Measured 2026-10-14: "forget 12" also erased "the meeting is in room 312".
+
+    A text or a needle written in another spelling of the same characters (`_SPELLING_FOLD`: fullwidth
+    ASCII, a hyphen or dash variant, a soft hyphen or zero-width character) is also compared folded, in the
+    first fold and then the full one. The folds only add matches: a text that matched as written, or in
+    the first fold, still matches, and plain ASCII on both sides is compared exactly as before.
     """
-    pattern, numeric, digit_first, digit_last = _needle_pattern(str(needle or ""))
+    needle = str(needle or "")
     text = fold_forget_text(hay)
-    match = pattern.search(text)
-    if not numeric:
-        return match is not None
-    while match is not None:
-        start, end = match.span()
-        left = start
-        while left > 0 and text[left - 1].isalnum():
-            left -= 1
-        right = end
-        while right < len(text) and text[right].isalnum():
-            right += 1
-        own = not any(char.isdecimal() for char in text[left:start] + text[end:right])
-        if own and digit_first and start >= 2 and text[start - 1] in _NUMBER_JOINTS and text[start - 2].isdecimal():
-            own = False
-        if own and digit_last and end + 1 < len(text) and text[end] in _NUMBER_JOINTS and text[end + 1].isdecimal():
-            own = False
-        if own:
-            return True
-        match = pattern.search(text, start + 1)
-    return False
+    if _needle_found(text, needle):
+        return True
+    return any(_needle_found(folded_text, folded_needle)
+               for _, folded_text, folded_needle in _spelling_passes(text, needle))
+
+
+def _own_number(text: str, start: int, end: int, digit_first: bool, digit_last: bool) -> bool:
+    """`forget_needle_in`'s number rule for one match at ``text[start:end]`` (folded text)."""
+    left = start
+    while left > 0 and text[left - 1].isalnum():
+        left -= 1
+    right = end
+    while right < len(text) and text[right].isalnum():
+        right += 1
+    own = not any(char.isdecimal() for char in text[left:start] + text[end:right])
+    if own and digit_first and start >= 2 and text[start - 1] in _NUMBER_JOINTS and text[start - 2].isdecimal():
+        own = False
+    if own and digit_last and end + 1 < len(text) and text[end] in _NUMBER_JOINTS and text[end + 1].isdecimal():
+        own = False
+    return own
 
 
 def text_carries(text: Any, token: str) -> bool:
