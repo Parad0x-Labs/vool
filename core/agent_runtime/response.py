@@ -563,6 +563,21 @@ def _validate_final_chat_output(
                         _request_text_of(source_context),
                         part_of_turn=bool((source_context or {}).get("planned_subturn")),
                     )
+                # A records-SCOPED ask ("according to my notes") never asked for a live lookup,
+                # so "I didn't run any live lookup" answers a door it never knocked on: the
+                # question pointed at the records, the records hold nothing for it, and the
+                # withdrawal that names the records is the truthful notice. Same family as the
+                # records branch the reasoning seam applies; this is the sealing door every
+                # final reply crosses, so a turn that reached the model on a lane the reasoning
+                # seam did not guard still cannot ship the wrong notice.
+                try:
+                    from core.execution.constants import records_scoped_ask
+                    from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+
+                    if records_scoped_ask(_request_text_of(source_context)):
+                        withdrawn = RECORDS_WITHDRAWAL_NOTICE
+                except Exception:
+                    pass
                 final_text = withdrawn
                 live_claim_kinds_withdrew = True
                 _mark_turn_unfulfilled(source_context, "live figures withheld: no lookup ran for them")

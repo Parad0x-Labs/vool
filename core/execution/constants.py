@@ -321,6 +321,85 @@ def conversation_recall_remainder(text: str) -> tuple[str, ...] | None:
     return tuple(remaining) if recalled else None
 
 
+# The user's own kept material, named as the SOURCE OF TRUTH of the ask. A bare currency word
+# widens a DIRECT ask into a current-information requirement (the signals and amount arms in
+# core/execution_requirements.py); when the ask itself says where its answer must be read from,
+# a live retrieval can never produce that reading, and the widening has fired on the wrong
+# subject. The vocabulary is STORE-shaped, not topic-shaped: a preposition or a reporting verb
+# must SEAT the notes/records/chats as the source, so a sentence that merely mentions notes
+# stays untouched, and an ask that names the web is a lookup whatever it recalls (the same
+# `_NAMES_A_WEB_SOURCE_RE` guard the recall family above applies).
+_RECORDS_SOURCE_NOUN = r"(?:notes?|notebooks?|records?|chats?|conversations?|journals?|diar(?:y|ies))"
+_RECORDS_SOURCE_DET = r"(?:my|our|the|this|that|these|those|his|her|their)"
+# Anchors no note-WRITING imperative carries: a write places its target with "in/into/to", never
+# "according to/per/from", so these fire without an ask shape.
+_RECORDS_SOURCE_ANCHOR_RE = re.compile(
+    r"\b(?:according\s+to|as\s+(?:noted|recorded|written)\s+in|per|from|out\s+of|off|based\s+on)\s+"
+    + _RECORDS_SOURCE_DET
+    + r"\s+"
+    + _RECORDS_SOURCE_NOUN
+    + r"\b",
+    re.IGNORECASE,
+)
+# Shapes a write command can share ("write this in my notes", "save this in my notes"): the
+# placement, the kept material made to speak, and the user's own telling asked back. Each needs
+# the question shape an imperative write lacks.
+_RECORDS_SOURCE_WEAK_RE = re.compile(
+    r"\b(?:in|within|inside)\s+" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\b"
+    r"|\b" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\s+"
+    r"(?:say|says|said|show|shows|showed|list|lists|listed|state|states|stated|hold|holds|held|"
+    r"have|has|had|mention|mentions|mentioned|record|records|recorded|note|notes|noted|tell|tells|"
+    r"told|put|puts)\b"
+    r"|\bwhat\s+did\s+(?:i|we)\s+(?:tell\s+(?:you|u)|say|mention|write|note|record|log|put|ask)\b"
+    r"|\b(?:have|had)\s+(?:i|we)\s+(?:told\s+(?:you|u)|said|mentioned|written|noted|recorded)\b"
+    r"|\b(?:that|which)\s+(?:i|we)\s+(?:told\s+(?:you|u)|said|mentioned|wrote|noted|recorded)\b"
+    r"|\b(?:check|read|search|scan|review|look\s+at|look\s+through|look\s+up\s+in|go\s+through|"
+    r"dig\s+through)\s+" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\b",
+    re.IGNORECASE,
+)
+# A clause that WRITES to the kept material, not one that reads it. Checked before the weak
+# shapes because a question form of a write ("can you save this in my notes?") carries both the
+# question mark and the exact placement the weak group reads. The verb must open the clause, so
+# a past-tense read ("what did i write in my notes") is never taken for a write.
+_RECORDS_WRITE_IMPERATIVE_RE = re.compile(
+    r"^(?:so|ok|okay|hey|hi|and|but|also|then|now|please|pls|just|quick(?:ly)?|"
+    r"can\s+you|could\s+you|will\s+you|would\s+you)?[\s,]*"
+    r"(?:writ(?:e|ing)|save|saving|stor(?:e|ing)|jot(?:ting)?|add(?:ing)?|update|updating|"
+    r"edit(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|eras(?:e|ing)|append(?:ing)?|note\s+down|"
+    r"put(?:ting)?)\b"
+    r"[\s\S]{0,60}?"
+    r"\b(?:in|into|onto|to|on|from|within|inside)\s+" + _RECORDS_SOURCE_DET + r"\s+"
+    + _RECORDS_SOURCE_NOUN + r"\b",
+    re.IGNORECASE,
+)
+
+
+def records_scoped_ask(text: str) -> bool:
+    """True when the ask names the user's own notes/records/chats as its source of truth.
+
+    Read clause by clause, the same discipline the recall family above uses. A bare
+    what-was-said turn is still the recall arm's to answer in core/execution_requirements.py;
+    this recognizer only disarms the currency widenings for an ask that names its store.
+    """
+    lowered = " ".join(str(text or "").strip().lower().split())
+    if not lowered or _NAMES_A_WEB_SOURCE_RE.search(lowered):
+        return False
+    asks_a_question = "?" in lowered
+    for clause in _CLAUSE_SPLIT_RE.split(lowered):
+        piece = clause.strip()
+        if not piece or _RECORDS_WRITE_IMPERATIVE_RE.match(piece):
+            continue
+        if _RECORDS_SOURCE_ANCHOR_RE.search(piece):
+            return True
+        if _RECORDS_SOURCE_WEAK_RE.search(piece) and (
+            asks_a_question
+            or _INTERROGATIVE_OPENER_RE.match(piece) is not None
+            or _IMPERATIVE_ASK_RE.match(piece) is not None
+        ):
+            return True
+    return False
+
+
 # A device the sentence itself marks as NOT this host: another kind of device ("my phone", "her
 # tablet"), another person's ("my son's laptop"), or one of several the user owns ("my new laptop",
 # "my work pc"). The host is "this machine"; a qualifier that picks one device out of the user's
