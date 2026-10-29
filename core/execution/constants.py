@@ -1710,6 +1710,68 @@ def machine_place_file_read_path(text: str) -> str | None:
     return f"~/{match.group('place').capitalize()}/{name}"
 
 
+class TodoListRead(NamedTuple):
+    """A read of the owner's to-do list: ``place`` is the folder the ask itself named, if any."""
+
+    place: str | None
+
+
+# The noun only. "to do" as two bare words is a verb phrase ("what do I have to do today"), not a
+# list, so the two-word form counts only when "list" follows it; the one-word spellings (todo,
+# to-do, to_do) and "checklist" / "list of things to do" are always the noun.
+_TODO_LIST_NOUN_RE = re.compile(
+    r"\bto[\s\-_]?dos?\s+lists?\b"
+    r"|\bto[\-_]dos?\b"
+    r"|\btodos?\b"
+    r"|\bchecklists?\b"
+    r"|\blists?\s+of\s+things\s+to\s+do\b",
+    re.IGNORECASE,
+)
+_TODO_LIST_READ_CUE_RE = re.compile(
+    r"\bwhat(?:'s|’s|s| is| was)?\s+(?:on|in)\b"
+    r"|\bwhat\s+(?:do|did|have)\s+i\s+(?:got\s+)?(?:on|in)\b"
+    r"|\bread\s+(?:me|my|the|us)\b"
+    r"|\bshow\s+(?:me\s+)?(?:my|the|us)\b"
+    r"|\bopen\s+(?:my|the)\b"
+    r"|\bcheck\s+(?:my|the)\b"
+    r"|\bremind\s+me\s+what\b"
+    r"|\btell\s+me\s+what\b"
+    r"|\bsee\s+(?:my|the|what)\b"
+    r"|\blook\s+at\s+(?:my|the)\b"
+    r"|\bgo\s+(?:over|through)\s+(?:my|the)\b"
+    r"|\bpull\s+up\s+(?:my|the)\b"
+    r"|\bwhat\s+did\s+i\s+(?:put|write)\s+(?:on|in)\b",
+    re.IGNORECASE,
+)
+# Reads only. An ask that edits the list ("add milk to my todo list", "make me a to do list",
+# "cross off the first one") keeps the lane it has today; this family never writes.
+_TODO_LIST_WRITE_RE = re.compile(
+    r"\b(?:add|adds|adding|append|tick|check\s+off|cross\s+(?:off|out)|mark|update|edit|write|"
+    r"create|make|makes|making|new|start|begin|copy|move|rename|send|e-?mail|upload|delete|"
+    r"remove|clear|finish|complete|share|print|save|reorder|sort|prioriti[sz]e)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_todo_list_read_intent(text: str) -> TodoListRead | None:
+    """The to-do list ask ("what's on my to do list again?") when the whole message reads it.
+
+    Measured on the phone parity audit 2026-10-29: that ask reached a model seated with no file
+    tool at all and was answered "I don't have access to your personal to-do list" while
+    ~/Desktop/todo.txt sat on the disk, and "what was on that todo list on my desktop again?"
+    was answered with a directory listing of the Desktop. The noun names a FILE here, not a
+    folder and not a concept; the caller resolves it to a real file and reads it.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return None
+    if _TODO_LIST_WRITE_RE.search(raw):
+        return None
+    if _TODO_LIST_NOUN_RE.search(raw) is None or _TODO_LIST_READ_CUE_RE.search(raw) is None:
+        return None
+    return TodoListRead(place=(_named_place(raw) or None))
+
+
 # An ANALYSIS verb wants the folder's CONTENTS ("audit/analyze/review/what's in my X folder"),
 # not just its location. find_folder only LISTS paths, so those asks used to stop at a path list
 # and never read anything -- the model then talked about an audit it never ran. This routes them to
