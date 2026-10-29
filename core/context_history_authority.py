@@ -160,7 +160,8 @@ _SAME_CHAT_HISTORY_RECALL_RE = re.compile(
     r"earlier|before|above|history|this\s+(?:chat|conversation)|"
     r"(?:did|have)\s+(?:we|i|you)\s+(?:ask|answer|say|calculate)|"
     r"(?:my|our)\s+first\s+(?:question|thing|message|ask|request)|"
-    r"(?:question|thing|message|ask|request)\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)"
+    r"(?:question|thing|message|ask|request)\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)|"
+    r"what\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)\b[^.!?]{0,20}\bfirst\b"
     r")\b",
     re.IGNORECASE,
 )
