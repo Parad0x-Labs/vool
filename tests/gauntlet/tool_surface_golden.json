@@ -12101,7 +12101,7 @@
         "timeout_s",
         "url"
       ],
-      "description": "Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status.",
+      "description": "Fetch a public web page over HTTP(S) and return bounded text plus the fetch status.",
       "native_name": "web__fetch",
       "native_parameters": {
         "additionalProperties": false,

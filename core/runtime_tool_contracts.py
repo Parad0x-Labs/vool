@@ -1347,7 +1347,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="web.fetch",
-            description="Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status.",
+            description="Fetch a public web page over HTTP(S) and return bounded text plus the fetch status.",
             tool_surface="web",
             capability_id="web.fetch",
             capability_claim="fetch public web pages when web access is enabled and report policy, network, or page barriers honestly",

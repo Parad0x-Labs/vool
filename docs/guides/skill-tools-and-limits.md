@@ -468,7 +468,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
-| `web.fetch` | Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status. | `url`, `timeout_s?` | reads |
+| `web.fetch` | Fetch a public web page over HTTP(S) and return bounded text plus the fetch status. | `url`, `timeout_s?` | reads |
 
 **X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on.**
 
