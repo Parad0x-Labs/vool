@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 id: database
 risk-class: workspace_write
 priority: 20
