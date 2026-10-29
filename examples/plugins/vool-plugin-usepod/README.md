@@ -1,9 +1,27 @@
 # UsePod example
 
-Connect your own UsePod service account through a declarative model provider.
+A reference model provider plugin for UsePod, written by VOOL. It is not endorsed by, or made with, UsePod.
+Plugins are planned for VOOL 0.8, not released yet.
 
-This is an example written by VOOL, with no endorsement from the named service. Install from this folder in Add-ons, review every file, connect your own service key if requested, then review access and enable. Installation keeps the package disabled.
+## What it does
 
-The VOOL declarations use the existing `.codex-plugin/plugin.json` format. The minimal `.claude-plugin/plugin.json` supplies package metadata. Native provider and scanner integration in other hosts depends on those hosts; metadata alone does not add those capabilities.
+UsePod is paid from a balance that you fund through VOOL's wallet. So this plugin never turns UsePod into a
+plain model provider, and it never hands a UsePod token to plugin code. With the plugin enabled, VOOL keeps
+using your saved UsePod connection through the wallet's approvals, spending limits and receipts. Choosing
+**Refresh model list** explains this and adds no models.
 
-Choose Refresh model list after enabling and connecting. Path authentication is assembled at invocation; the token is not saved in model manifests. Published prices are service reports, not charge receipts; normal spending checks and conservative unknown-price handling remain. A payment challenge cannot authorize payment. The existing money lane requires separate owner controls and an enabled provider declaring x402; a provider-neutral money-lane rewrite is not released.
+If you used UsePod before plugins, VOOL keeps your saved token in its own place, unchanged. Chats that used a
+UsePod model have no model selected after the upgrade, and automatic cloud escalation is off until you choose
+again.
+
+## What it reaches
+
+- Network: `api.usepod.ai`, through VOOL's own requests only.
+- Keys: none given to plugin code.
+- Files: none.
+
+## As a model provider example
+
+The manifest shows the `model_provider` fields with path authentication (`auth_path` containing
+`{credential}`). For a service that is not paid from a VOOL wallet balance, the same fields make a working
+provider. See [docs/authoring.md](https://github.com/Parad0x-Labs/vool-plugins/blob/main/docs/authoring.md#model-providers-and-scanners).
