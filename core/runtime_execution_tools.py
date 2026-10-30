@@ -1359,6 +1359,114 @@ def _machine_find_file(
         details={"matches": [], "observation": observation},
     )
 
+def _locate_read_target(
+    intent: str, arguments: dict[str, Any], *, workspace_root: Path | None = None
+) -> tuple[dict[str, Any], RuntimeExecutionResult | None]:
+    """Find a file before reading it when the path a model asked for does not exist.
+
+    A local model asked to "read my boarding pass pdf" guesses a name ("~/Downloads/boarding_pass.pdf")
+    for a file that is on disk as ``boarding-pass-VNO-LIS.pdf``; measured 2026-10-30 on qwen3:8b,
+    pdf.extract_text then failed on the guess and the turn ended without the answer that was one
+    search away. So a path that names no file is searched for by name in the folders VOOL may
+    already read (``machine.find_file``, same safe roots): one match is read, several are listed
+    with a question, none is said plainly. A file in a home folder VOOL may not read (~/Pictures)
+    is never searched for there: the reply says in one line that VOOL cannot read that folder yet.
+
+    Returns ``(arguments, None)`` to read with the (possibly located) arguments, or
+    ``(arguments, result)`` when the search itself is the answer. A path that exists is never
+    touched: what it may read stays the reading tool's own decision.
+    """
+    raw = str(arguments.get("path") or "").strip().strip("'\"")
+    if not raw:
+        return arguments, None
+    candidate = _expand_machine_user(raw)
+    if not candidate.is_absolute():
+        candidate = _machine_home() / candidate
+    try:
+        if candidate.exists():
+            return arguments, None
+    except OSError:
+        return arguments, None
+    requested = candidate.name
+    if not requested:
+        return arguments, None
+    suffix = candidate.suffix.lower()
+    if intent.startswith("pdf.") and not suffix:
+        suffix = ".pdf"
+    stem = candidate.stem if candidate.suffix else requested
+    matches: list[str] = []
+    for needle in dict.fromkeys(n for n in (requested, stem) if n.strip()):
+        found = _machine_find_file({"name": needle}, workspace_root=workspace_root)
+        matches = [
+            str(path) for path in list((found.details or {}).get("matches") or [])
+            if not suffix or Path(str(path)).suffix.lower() == suffix
+        ]
+        if matches:
+            break
+    scope = ", ".join(Path(str(root)).name for root in _safe_machine_roots())
+    observation_base = {"intent": intent, "tool_surface": "machine", "requested_path": _home_relative_label(candidate)}
+    if len(matches) == 1:
+        return {**arguments, "path": matches[0]}, None
+    if len(matches) > 1:
+        shown = matches[:10]
+        lines = [f"I found {len(matches)} files that could be '{requested}':"]
+        lines.extend(f"- {_home_relative_label(Path(path))}" for path in shown)
+        lines.append("Which one should I read?")
+        return arguments, RuntimeExecutionResult(
+            handled=True, ok=False, status="ambiguous_match",
+            response_text="\n".join(lines),
+            details={
+                "matches": matches,
+                "observation": _tool_observation(
+                    **observation_base, ok=False, status="ambiguous_match", match_count=len(matches),
+                    matches=[_home_relative_label(Path(path)) for path in shown],
+                ),
+            },
+        )
+    outside_folder = _home_folder_outside_safe_roots(candidate)
+    if outside_folder:
+        text = f"VOOL cannot read your {outside_folder} folder yet; it can read {scope}."
+        status = "folder_not_readable"
+    else:
+        text = f"I could not find a file called '{requested}' in {scope}."
+        status = "not_found"
+    return arguments, RuntimeExecutionResult(
+        handled=True, ok=False, status=status, response_text=text,
+        details={"matches": [], "observation": _tool_observation(**observation_base, ok=False, status=status, match_count=0)},
+    )
+
+
+def _home_folder_outside_safe_roots(path: Path) -> str:
+    """The home folder ``path`` sits in when that folder is not one VOOL may read ("Pictures"), else ""."""
+    try:
+        home = _machine_home().resolve()
+        relative = Path(os.path.abspath(path)).relative_to(home)
+    except (OSError, ValueError):
+        return ""
+    parts = relative.parts
+    if len(parts) < 2 or parts[0].startswith("."):
+        return ""
+    if parts[0].lower() in {name.lower() for name in _SAFE_MACHINE_DIRECTORY_NAMES}:
+        return ""
+    return parts[0]
+
+
+def _with_located_note(
+    result: RuntimeExecutionResult, located: dict[str, Any], requested: dict[str, Any]
+) -> RuntimeExecutionResult:
+    """Say which file was read when the search, not the model's guess, chose it."""
+    if located is requested or located.get("path") == requested.get("path"):
+        return result
+    found = _home_relative_label(Path(str(located.get("path") or "")))
+    details = dict(result.details or {})
+    details["located_from"] = str(requested.get("path") or "")
+    return RuntimeExecutionResult(
+        handled=result.handled, ok=result.ok, status=result.status,
+        response_text=f"(No file at `{requested.get('path')}`; found and read `{found}`.)\n{result.response_text}",
+        details=details,
+    )
+
+
 def _resolved_existing_directory(value: str) -> str | None:
     """The absolute path ``value`` names, if it is path-shaped and that directory exists.
 
@@ -3443,7 +3551,10 @@ def _dispatch_runtime_tool(
         if intent == "machine.move_path":
             return _covered(lambda: _machine_move_path(arguments, workspace_root=workspace_root))
         if intent == "machine.read_file":
-            return _read_machine_file(arguments)
+            located, answered = _locate_read_target(intent, arguments, workspace_root=workspace_root)
+            if answered is not None:
+                return answered
+            return _with_located_note(_read_machine_file(located), located, arguments)
         if intent == "machine.ensure_directory":
             return _covered(lambda: _ensure_machine_directory(arguments))
         if intent == "machine.write_file":
@@ -3453,10 +3564,12 @@ def _dispatch_runtime_tool(
                     reviewed_destination=_approved_destination_for(source_context, intent, arguments.get("path")),
                 )
             )
-        if intent == "pdf.extract_text":
-            return _pdf_extract_text(arguments)
-        if intent == "pdf.ocr":
-            return _pdf_ocr(arguments)
+        if intent in {"pdf.extract_text", "pdf.ocr"}:
+            located, answered = _locate_read_target(intent, arguments, workspace_root=workspace_root)
+            if answered is not None:
+                return answered
+            reader = _pdf_extract_text if intent == "pdf.extract_text" else _pdf_ocr
+            return _with_located_note(reader(located), located, arguments)
         if intent == "skill.list":
             return _skill_list(arguments, source_context)
         if intent == "skill.create":
