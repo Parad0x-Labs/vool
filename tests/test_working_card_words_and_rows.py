@@ -8,7 +8,7 @@ Driven through the real page script under the node DOM, so these are what the ca
 
 from __future__ import annotations
 
-from core.working_words import MAX_WORD, WORKING_WORDS
+from core.working_words import MAX_WORD, WORKING_LINES, WORKING_WORDS
 from tests.chat_page_js_harness import DOM, run_node, script
 
 DRIVE = """
@@ -61,6 +61,18 @@ try {
   steps.refs = null; buildCard(steps, null);
   seen.detailsRebuilt = { hidden: steps.refs.details.hidden };
 
+  // A self-talk line stands alone: "I can do it · 12s", never "... for 12s".
+  const talk = cardFor();
+  talk.start = Date.now() - 7000;
+  for (let seed = 0; seed < 5000; seed++) {
+    talk.wordSeed = seed; renderCard(talk);
+    if (WORKING_LINE_SET.has(talk.refs.title.textContent)) break;
+  }
+  seen.line = title(talk);
+  const picks = new Set();
+  for (let seed = 0; seed < 40; seed++) { talk.wordSeed = seed * 7919; picks.add(workingWord(talk)); }
+  seen.distinctPicks = picks.size;
+
   window.VOOL_I18N = { tag: 'de' };
   const german = cardFor();
   seen.german = title(german);
@@ -78,8 +90,9 @@ def _seen() -> dict:
 
 def test_the_word_list_is_short_plain_and_unique() -> None:
     assert WORKING_WORDS[0] == "Vooling", "a turn opens on VOOL's own word"
-    assert len(set(WORKING_WORDS)) == len(WORKING_WORDS)
-    for word in WORKING_WORDS:
+    entries = WORKING_WORDS + WORKING_LINES
+    assert len({w.casefold() for w in entries}) == len(entries)
+    for word in entries:
         assert 0 < len(word) <= MAX_WORD, word
         assert word == word.strip() and "<" not in word and "\n" not in word, word
         assert all(ord(ch) < 0x2000 for ch in word), f"no emoji or symbols: {word!r}"
@@ -91,8 +104,11 @@ def test_a_working_turn_shows_a_playful_word_with_its_clock_and_keeps_the_plain_
     assert seen["fresh"]["clock"].startswith("for ")
     assert seen["fresh"]["tip"], "the plain state must stay on the tooltip"
     assert seen["fresh"]["label"] == seen["fresh"]["tip"], "screen readers get the plain state, not the word"
-    assert seen["later"]["text"] in WORKING_WORDS, "the word rotates through the shipped list"
-    assert seen["later"]["clock"] == "for 7s"
+    assert seen["later"]["text"] in WORKING_WORDS + WORKING_LINES, "the word comes from the shipped lists"
+    expected = "for 7s" if seen["later"]["text"] in WORKING_WORDS else "· 7s"
+    assert seen["later"]["clock"] == expected
+    assert seen["line"]["text"] in WORKING_LINES and seen["line"]["clock"] == "· 7s"
+    assert seen["distinctPicks"] >= 30, "picks are spread across the list, not a walk down it"
 
 
 def test_states_the_person_acts_on_keep_their_plain_words() -> None:
@@ -100,7 +116,7 @@ def test_states_the_person_acts_on_keep_their_plain_words() -> None:
     assert seen["permission"]["text"] == "Waiting for approval"
     assert seen["verifying"]["text"] == "Answer ready · model review running…"
     for key in ("permission", "verifying", "paused", "stopping"):
-        assert seen[key]["text"] not in WORKING_WORDS, key
+        assert seen[key]["text"] not in WORKING_WORDS + WORKING_LINES, key
         assert seen[key]["clock"].startswith("· "), key
     assert seen["paused"]["text"] == "Paused — waiting for your price", "the price pause keeps its own title"
     assert seen["stopping"]["text"] == "Stopping…", "a stop replaces the word at once"
@@ -111,7 +127,7 @@ def test_states_the_person_acts_on_keep_their_plain_words() -> None:
 
 def test_a_non_english_ui_never_shows_the_english_words() -> None:
     seen = _seen()
-    assert seen["german"]["text"] not in WORKING_WORDS
+    assert seen["german"]["text"] not in WORKING_WORDS + WORKING_LINES
     assert seen["german"]["clock"].startswith("· ")
 
 

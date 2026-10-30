@@ -5889,8 +5889,11 @@ function humanActivityState(run) {
 }
 // The playful title while a turn genuinely works (core/working_words.py). English UI only; never
 // while VOOL waits on the person (approval, price), reviews its answer, or is stopping -- those
-// keep their plain words. A turn opens on "Vooling", then moves to a new word every few seconds.
-const WORKING_WORDS = /*__VOOL_WORKING_WORDS__*/[];
+// keep their plain words. A turn opens on "Vooling", then picks a new word every few seconds.
+// Verbs read "Vooling for 12s"; self-talk lines stand alone, "I can do it · 12s".
+const WORKING_WORD_DATA = /*__VOOL_WORKING_WORDS__*/{ verbs: [], lines: [] };
+const WORKING_WORDS = WORKING_WORD_DATA.verbs.concat(WORKING_WORD_DATA.lines);
+const WORKING_LINE_SET = new Set(WORKING_WORD_DATA.lines);
 const WORKING_WORD_MS = 5000;
 function workingWord(run) {
   if (!WORKING_WORDS.length || !run || run.ended || run.status !== 'running') return '';
@@ -5900,15 +5903,19 @@ function workingWord(run) {
   if (tag && !/^en\b/i.test(tag)) return '';
   const slot = Math.floor(Math.max(0, Date.now() - run.start) / WORKING_WORD_MS);
   if (!slot) return WORKING_WORDS[0];
-  if (run.wordSeed == null) run.wordSeed = Math.floor(Math.random() * WORKING_WORDS.length);
-  return WORKING_WORDS[(run.wordSeed + slot) % WORKING_WORDS.length];
+  // A random pick per slot (a seeded hash, so every repaint within a slot agrees), never a walk
+  // down the list: the list is grouped by theme, and the owner asked for it "100% random".
+  if (run.wordSeed == null) run.wordSeed = Math.floor(Math.random() * 0x7fffffff);
+  return WORKING_WORDS[(Math.imul(run.wordSeed ^ slot, 2654435761) >>> 0) % WORKING_WORDS.length];
 }
-// "for 12s" beside a playful word, "· 12s" beside a plain state; nothing once the turn has ended.
+// "for 12s" beside a playful verb, "· 12s" beside a self-talk line or a plain state; nothing once
+// the turn has ended.
 function paintWorkingClock(run) {
   const r = run.refs; if (!r || !r.clock) return;
   if (run.ended) { r.clock.textContent = ''; return; }
   const t = fmtElapsed(Date.now() - run.start);
-  r.clock.textContent = (workingWord(run) ? 'for ' : '· ') + t;
+  const word = workingWord(run);
+  r.clock.textContent = (word && !WORKING_LINE_SET.has(word) ? 'for ' : '· ') + t;
 }
 // The step rows under the summary line, repainted only when they change.
 function paintStepGroups(run) {
@@ -14779,7 +14786,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
         _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
-        .replace("/*__VOOL_WORKING_WORDS__*/[]", working_words_json(), 1)
+        .replace("/*__VOOL_WORKING_WORDS__*/{ verbs: [], lines: [] }", working_words_json(), 1)
         .replace("/*__VOOL_WORKING_MARK_CSS__*/", mark_css(), 1)
         .replace("/*__VOOL_WORKING_MARK_SVG__*/''", "'" + mark_svg() + "'", 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
