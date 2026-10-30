@@ -174,3 +174,34 @@ def test_a_world_question_keeps_the_ambiguity_probe_on_a_catalog_turn(text: str,
 
     registry(LOCAL)
     assert single_plain_know_question(text, source_context=dict(OWNER))
+
+
+def _definitions():
+    from core.cloud_tool_call_contract import build_cloud_tool_definitions
+    from core.tool_intent_executor import runtime_tool_specs
+
+    specs = [s for s in runtime_tool_specs() if s.get("intent") in {"respond.direct", "machine.list_directory"}]
+    return tuple(build_cloud_tool_definitions(specs))
+
+
+def test_prose_on_a_catalog_round_is_the_direct_answer() -> None:
+    from adapters.openai_compatible_adapter import _prose_as_direct_answer
+    from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY
+
+    request = SimpleNamespace(metadata={PROSE_IS_DIRECT_ANSWER_KEY: True})
+    call = _prose_as_direct_answer(request, _definitions(), "The capital of Australia is Canberra.")
+    assert call is not None and call.intent == "respond.direct"
+    assert call.arguments == {"message": "The capital of Australia is Canberra."}
+
+
+def test_prose_elsewhere_stays_a_missing_tool_call() -> None:
+    from adapters.openai_compatible_adapter import _prose_as_direct_answer
+    from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY
+
+    # Not a catalog round: the required call is still missing.
+    assert _prose_as_direct_answer(SimpleNamespace(metadata={}), _definitions(), "Canberra.") is None
+    # A catalog round with nothing said, or with no respond.direct offered.
+    flagged = SimpleNamespace(metadata={PROSE_IS_DIRECT_ANSWER_KEY: True})
+    assert _prose_as_direct_answer(flagged, _definitions(), "   ") is None
+    no_direct = tuple(d for d in _definitions() if d.intent != "respond.direct")
+    assert _prose_as_direct_answer(flagged, no_direct, "Canberra.") is None

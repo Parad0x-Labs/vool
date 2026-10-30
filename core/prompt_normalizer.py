@@ -1043,6 +1043,12 @@ def _build_conversational_request(
             "ownership, and project facts. Use it instead of model priors, and do not invent a "
             "conflicting owner, product expansion, or project description."
         )
+    if output_mode == "tool_intent":
+        from core.owner_tool_catalog import OWNER_CATALOG_DIRECTIVE, owner_catalog_applies
+
+        if owner_catalog_applies(str(user_text or ""), source_context):
+            system_segments.append(("owner_catalog_directive", _PAYLOAD_ANSWER_BINDER, OWNER_CATALOG_DIRECTIVE))
+            turn_directives.append(OWNER_CATALOG_DIRECTIVE)
     from core.tool_use_retry import retry_directive
 
     _tool_use_retry = retry_directive(source_context)

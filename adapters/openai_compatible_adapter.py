@@ -804,6 +804,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # would cut a block it cannot see the end of.
             output_text = strip_reasoning_block(_extract_ollama_chat_text(data))
         if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
+            prose_answer = _prose_as_direct_answer(request, native_tools, output_text)
+            if prose_answer is not None:
+                native_tool_calls = (prose_answer,)
+                output_text = canonical_intent_text(prose_answer)
+        if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
             # SWITCHBOARD repair: `_extract_ollama_tool_calls` deliberately never raises on an
             # absent/empty `tool_calls` array (see its own docstring) -- a local turn that carries
             # no tools is an ordinary conversational one, and elsewhere that silence is correct.
@@ -2676,6 +2681,35 @@ def _extract_ollama_tool_call_text(
         return ""
     return json.dumps(
         {"intent": calls[0].intent, "arguments": dict(calls[0].arguments)}, ensure_ascii=False
+    )
+
+
+def _prose_as_direct_answer(
+    request: ModelRequest,
+    definitions: tuple[CloudToolDefinition, ...],
+    text: str,
+) -> CloudToolCall | None:
+    """A catalog round's plain-prose reply as the respond.direct it means, or None.
+
+    Only on a round the router marked (core.owner_tool_catalog.PROSE_IS_DIRECT_ANSWER_KEY: the
+    owner's own turn on a local model, where Ollama does not enforce tool_choice "required"), only
+    when respond.direct was offered, and only for non-empty prose. Tool markup never reaches here:
+    a call expressed in text was already resolved or rejected by the recovery path above.
+    """
+    from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY
+
+    if not bool((getattr(request, "metadata", None) or {}).get(PROSE_IS_DIRECT_ANSWER_KEY)):
+        return None
+    answer = str(text or "").strip()
+    if not answer:
+        return None
+    definition = next((d for d in definitions if d.intent == "respond.direct"), None)
+    if definition is None:
+        return None
+    digest = hashlib.sha256(answer.encode("utf-8")).hexdigest()[:16]
+    return CloudToolCall(
+        call_id=f"prose-direct-{digest}", intent="respond.direct", name=definition.name,
+        arguments={"message": answer},
     )
 
 

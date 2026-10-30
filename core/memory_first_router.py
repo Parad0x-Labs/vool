@@ -1921,6 +1921,12 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            # On the owner catalog's rounds (core.owner_tool_catalog) a local model that answers in
+            # plain prose has decided no tool is needed: that prose is its direct answer.
+            from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY, owner_catalog_applies
+
+            if owner_catalog_applies(user_text_for_offer, source_context):
+                request.metadata[PROSE_IS_DIRECT_ANSWER_KEY] = True
             # Which offer this request carries: the same digest the prompt catalog's offer has.
             request.metadata["tool_offer_fingerprint"] = offer.fingerprint
             # A later contextual follow-up in the same session inherits this
@@ -6091,6 +6097,12 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            # On the owner catalog's rounds (core.owner_tool_catalog) a local model that answers in
+            # plain prose has decided no tool is needed: that prose is its direct answer.
+            from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY, owner_catalog_applies
+
+            if owner_catalog_applies(user_text_for_offer, source_context):
+                request.metadata[PROSE_IS_DIRECT_ANSWER_KEY] = True
             # A later contextual follow-up in the same session inherits this
             # turn's families instead of receiving zero tools. The recorded set is what the
             # offer ACTUALLY seated (demand-signal and control-plane-session families

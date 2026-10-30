@@ -47,6 +47,23 @@ OWNER_CATALOG: tuple[str, ...] = tuple(OWNER_CATALOG_DESCRIPTIONS)
 #: source-context key caching the local-lane verdict for one turn (one registry read per turn).
 _LOCAL_LANE_KEY = "_owner_catalog_local_lane"
 
+#: The one instruction a catalog round carries. Measured 2026-10-30 on qwen3:8b with the catalog
+#: seated and VOOL's system prompt: without it "kas yra mano Downloads aplanke?" was answered in
+#: prose ("Downloads is a folder where files you download are saved"); with it the same payload
+#: called machine.list_directory, "whats eating my cpu" called machine.list_processes, and "whats
+#: the capital of australia" / "how do i take a screenshot on a mac" were answered without a tool.
+OWNER_CATALOG_DIRECTIVE = (
+    "The user's own files, PDFs, notes, reminders, calendar, contacts, running programs, disk, "
+    "VOOL skills and VOOL settings live on this computer and only the tools can read them. When "
+    "the request is about any of those, call the matching tool; never describe, guess or invent "
+    "them. For general knowledge or chat, answer directly without a tool."
+)
+
+#: ModelRequest metadata key: on a catalog round a reply in plain prose is the model's direct
+#: answer (respond.direct), not a malformed tool call. Local models do not honour
+#: tool_choice "required", so a knowledge ask answered in prose is the model deciding no tool.
+PROSE_IS_DIRECT_ANSWER_KEY = "owner_catalog_prose_is_direct_answer"
+
 
 def _pinned_manifests(requested: str, manifests: list[Any]) -> list[Any]:
     wanted = requested.strip().lower()
