@@ -42,7 +42,7 @@ from installer.bundle.linux.install_bundle import (
     process_cwd,
 )
 
-SERVER_ARG = "apps.vool_api_server"
+SERVER_ARG = "-m apps.vool_api_server"
 LLAMACPP_MODULE = "llama_cpp.server"
 # ps(1) folds long argument lists unless told not to; a checkout path with a few
 # directories already crosses the default width, which once hid the server arg.
