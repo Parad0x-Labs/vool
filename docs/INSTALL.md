@@ -114,6 +114,14 @@ cd vool
 bash Install_And_Run_VOOL.sh
 ```
 
+Removing that source install: `bash installer/uninstall_vool_local.sh` from the
+checkout stops a running VOOL first — only processes proven to belong to that
+install — and removes nothing if it cannot stop it. It keeps your chats and
+settings in `~/.vool_runtime` and says so when it finishes; a fresh install
+finds them there again. Run it again with `--remove-data` to delete them too; it
+asks once, and `--yes` skips the question for scripts. Ollama's own models
+folder is never deleted.
+
 
 ## Linux x86_64 tarball
 
@@ -130,15 +138,19 @@ bash vool-0.7.5-beta-linux-x86_64/install.sh
 ~/.local/bin/vool
 # Server only: ~/.local/bin/vool --headless
 # Remove package: bash ~/.local/share/vool/current/uninstall.sh
+# Also delete saved chats and settings: bash ~/.local/share/vool/current/uninstall.sh --remove-data
 ```
 
 No sudo or system Python is required. The payload lives in `~/.local/share/vool`,
 the command in `~/.local/bin/vool`, and the application menu entry in
 `~/.local/share/applications/vool.desktop`. Add `~/.local/bin` to PATH if needed.
 The desktop opens the local chat in your browser; closing the browser does not
-stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall:
-your chats, settings and memory live in `~/.vool_runtime`, and the uninstaller leaves
-that folder alone on purpose. Delete that folder yourself if you want everything gone.
+stop the runtime. Headless mode ends with Ctrl-C. Uninstall stops a running
+VOOL first and removes nothing if it cannot stop it. It keeps your chats, settings
+and memory in `~/.vool_runtime` and says so when it finishes; a fresh install
+finds them there again. To delete them as well, run the uninstall again with
+`--remove-data` and answer its one question (`--yes` skips it for scripts).
+Uninstall never deletes anything outside VOOL's own folders.
 The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
 Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.5.
