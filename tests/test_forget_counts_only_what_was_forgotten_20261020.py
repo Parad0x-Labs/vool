@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from core.memory.copies import FORGET_LIST_NOTE
 from tests.test_forget_scrubs_run_history import (
     _db_carriers,
     _file_carriers,
@@ -75,7 +76,7 @@ def test_two_named_targets_are_both_forgotten_and_counted_once_each(isolated_pag
 
     handled, reply = command(isolated_pages, chat, f"Forget {LABEL} and forget {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == ["my harbor lantern is painted signal green."]
     # Both stay forgotten in this chat: saying either again is refused calmly, not stored.
     for fact in (f"my storage label is {LABEL}.", f"my locker code is {CODE}."):
@@ -92,8 +93,8 @@ def test_one_target_stored_and_one_not_reports_each(isolated_pages):
 
     assert handled, reply
     assert reply.splitlines() == [
-        f'Nothing was removed. Forget found no memory in this chat that matched "my locker code {CODE}".',
-        "Forget applied. Removed 1 memory entry.",
+        f'Nothing was removed. Forget found no memory in this chat that matched "my locker code {CODE}".' + " " + FORGET_LIST_NOTE,
+        "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE,
     ], reply
     assert _live_entries() == []
 
@@ -109,8 +110,8 @@ def test_two_targets_with_nothing_stored_say_nothing_was_removed_for_each(isolat
 
     assert handled and "Removed" not in reply and "Forget applied" not in reply, reply
     assert reply.splitlines() == [
-        f'Nothing was removed. Forget found no memory in this chat that matched "{LABEL}".',
-        f'Nothing was removed. Forget found no memory in this chat that matched "{CODE}".',
+        f'Nothing was removed. Forget found no memory in this chat that matched "{LABEL}".' + " " + FORGET_LIST_NOTE,
+        f'Nothing was removed. Forget found no memory in this chat that matched "{CODE}".' + " " + FORGET_LIST_NOTE,
     ], reply
     words = _session_words(chat)
     assert LABEL.casefold() not in words.casefold() and CODE not in words, words
@@ -125,7 +126,7 @@ def test_a_described_label_forgets_the_value_stored_in_a_sentence(isolated_pages
 
     handled, reply = command(isolated_pages, chat, f"Forget storage label {LABEL}.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     live = "\n".join(_live_entries())
     assert LABEL not in live and BYSTANDER in live
 
@@ -163,7 +164,7 @@ def test_a_described_value_nothing_holds_is_echoed_as_typed(isolated_pages):
 
     handled, reply = command(isolated_pages, chat, "Forget storage label MINT-85.")
 
-    assert handled and reply == 'Nothing was removed. Forget found no memory in this chat that matched "storage label MINT-85".', reply
+    assert handled and reply == 'Nothing was removed. Forget found no memory in this chat that matched "storage label MINT-85".' + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my storage label is {LABEL}."]
 
 
@@ -179,7 +180,7 @@ def test_a_chat_whose_name_holds_the_number_forgets_only_that_number(isolated_pa
 
     handled, reply = command(isolated_pages, chat, f"Forget {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my phone number is 555-{CODE}."]
     phone = next(row for row in map(json.loads, memory_entries_path().read_text(encoding="utf-8").splitlines())
                  if row.get("status") != "erased")
@@ -193,7 +194,7 @@ def test_a_curly_apostrophe_is_the_same_mark_as_a_straight_one(isolated_pages):
 
     handled, reply = command(isolated_pages, chat, f"Forget Bob's locker code {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
 
 
@@ -206,7 +207,7 @@ def test_a_curly_apostrophe_typed_in_the_forget_is_the_same_mark_as_a_straight_o
 
     handled, reply = command(isolated_pages, chat, f"Forget Bob’s locker code {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
 
 
@@ -223,7 +224,7 @@ def test_every_apostrophe_the_memory_reads_as_one_is_one_for_forget_too(isolated
 
     handled, reply = command(isolated_pages, chat, f"Forget Bob's locker code {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
 
 
@@ -234,7 +235,7 @@ def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):
 
     handled, reply = command(isolated_pages, chat, "Forget the phrase 'stop and forget me'.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == ["my harbor lantern is painted signal green."]
 
 
@@ -246,7 +247,7 @@ def test_an_apostrophe_is_no_quote_and_keeps_two_targets_apart(isolated_pages):
 
     handled, reply = command(isolated_pages, chat, f"Forget the kids' toys. Forget {LABEL}.")
 
-    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == ["my harbor lantern is painted signal green."]
 
 
@@ -270,7 +271,7 @@ def test_one_target_failing_while_another_is_forgotten_is_never_reported_as_appl
 
     lines = reply.splitlines()
     assert handled and len(lines) == 2, reply
-    assert lines[0] == "Forget applied. Removed 1 memory entry.", reply
+    assert lines[0] == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert lines[1].startswith("Forget could not be verified as fully applied") and "Please retry the forget" in lines[1], reply
 
     # The retry finishes the run history the first attempt could not erase, and says it removed rows.
@@ -309,7 +310,7 @@ def test_a_multi_target_forget_leaves_no_bytes_in_the_database_or_its_write_ahea
 
     handled, reply = command(isolated_pages, chat, f"Forget {LABEL}. Forget {CODE}.")
 
-    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     for needle in (LABEL, CODE):
         assert _carriers_outside_the_revocation_ledger(home, needle) == {}, needle
         assert _file_carriers(_runtime_db(), needle) == [], needle
@@ -403,7 +404,7 @@ def test_served_forget_counts_only_memory_and_forgets_the_named_label(served):
     reply = _reply_text(daemon.chat(f"Forget my name. Forget storage label {LABEL}.", session_id=stored, mode="auto"))
 
     # The entry, and the chat's semantic records of the turns that quoted it.
-    assert re.fullmatch(r"Forget applied\. Removed [1-9]\d* memory entr(?:y|ies)\.", reply), reply
+    assert re.fullmatch(r"Forget applied\. Removed [1-9]\d* memory entr(?:y|ies)\. " + re.escape(FORGET_LIST_NOTE), reply), reply
     # The daemon still runs: the database files and their write-ahead logs as they are now.
     assert _carriers_outside_the_revocation_ledger(home, LABEL) == {}
     entries = (home / "data" / "memory_entries.jsonl").read_text(encoding="utf-8")

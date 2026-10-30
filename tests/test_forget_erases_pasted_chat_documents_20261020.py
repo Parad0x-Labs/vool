@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from core.memory.copies import FORGET_LIST_NOTE
 from tests._reader_served_rig import CapturingProvider, ServedDaemon, canonical_session
 from tests.test_forget_scrubs_run_history import command, isolated_pages  # isolated_pages: the runtime home fixture
 from tests.test_question_date_time_leg_20261002 import _hash_backend
@@ -78,7 +79,7 @@ def test_a_forget_erases_the_pasted_document_that_holds_the_words(isolated_pages
 
     handled, reply = command(isolated_pages, chat, "Forget my locker code is 4417.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     carried = _carried(chat)
     assert [entry["attachment_id"] for entry in carried] == [bystander["id"]], carried
     assert not any("4417" in entry["text"] for entry in carried)
@@ -105,7 +106,7 @@ def test_a_document_named_for_the_words_loses_the_name_and_keeps_unrelated_text(
 
     handled, reply = command(isolated_pages, chat, "Forget xqz4417.")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert "xqz4417" not in json.dumps(_manifest(dropped))
     carried = _carried(chat)
     assert [entry["attachment_id"] for entry in carried] == [dropped["id"]]
@@ -241,7 +242,7 @@ def test_served_paste_then_forget_then_ask_never_carries_the_words_to_the_model(
     assert provider.any_payload_has("4417"), "probe is blind: the pasted document never reached a later turn"
 
     reply = _reply(daemon.chat("Forget my locker code is 4417.", session_id=session))
-    assert reply == "Forget applied. Removed 1 memory entry.", reply
+    assert reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
 
     provider.reset()
     daemon.chat("Tell me a short rhyme about harbor lanterns.", session_id=session)
