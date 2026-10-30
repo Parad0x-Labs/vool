@@ -3376,6 +3376,53 @@ class VoolAgent(
                     "reason": "demand_owned_mixed_turn_degraded",
                 }
 
+        if outcomes and all(outcome.needs_approval for outcome in outcomes):
+            # A turn whose every unit ended WAITING is an ask, not a failed turn. No unit
+            # answered and none errored: each stopped at an approval boundary and asked,
+            # which is the same truth of the units the branch above stamps for a mixed
+            # turn with answers ('this will delete ... reply to confirm') — the gate that
+            # publishes that route is dead code for this shape only because an asking
+            # sub-turn is never `ok`. Measured on the merged 0.7.7 head: 'yes, delete my
+            # apple note "Tax receipts 2025", cancel that' splits into a delete ask and a
+            # pointer-cancel ask, both waited, and the turn ended "I could not answer any
+            # part of this message" — an ask both children made, misread as a failure.
+            # `merged` already carries every pending unit's request and ask (the
+            # merge-honesty check above guarantees it names each non-ok outcome).
+            _ask_reason = "demand_owned_mixed_turn_ask"
+            _ask_prefix = "deterministic"
+            try:
+                if isinstance(source_context, dict):
+                    from core.turn_contract import TURN_DEMAND_EXECUTORS_KEY
+
+                    _stamped_routes = [
+                        str((row or {}).get("route_reason") or "")
+                        for row in (source_context.get(TURN_DEMAND_EXECUTORS_KEY) or {}).values()
+                        if isinstance(row, dict)
+                    ]
+                    _operator_routes = [r for r in _stamped_routes if r.startswith("operator_action_")]
+                    if _operator_routes and all(r.endswith("approval_required") for r in _operator_routes):
+                        _ask_reason = _operator_routes[0]
+                        _ask_prefix = "action"
+            except Exception:
+                pass
+            try:
+                return self._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=merged.strip() or _degraded_unit_synthesis(outcomes),
+                    confidence=0.86,
+                    source_context=source_context,
+                    reason=_ask_reason,
+                    route_prefix=_ask_prefix,
+                )
+            except Exception:
+                return {
+                    "ok": True,
+                    "response": merged.strip() or _degraded_unit_synthesis(outcomes),
+                    "confidence": 0.5,
+                    "reason": "demand_owned_mixed_turn_ask",
+                }
+
         # Every unit failed. ONE deterministic typed failure summary naming every
         # unmet unit; the external request is not retried through another lane.
         summary = _unmet_unit_summary(tasks, outcomes)
