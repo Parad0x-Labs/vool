@@ -511,7 +511,18 @@ def owner_proof_wallet() -> WalletProfile | None:
     sign with: nothing here can pay."""
     with connection() as conn:
         rows = conn.execute(_SELECT + " WHERE mode = ? ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
-    return next((profile for profile in map(_row_to_profile, rows) if setup_state(profile.wallet_id) in {"", "ready"}), None)
+        device_bound = {str(row[0]) for row in conn.execute(
+            "SELECT wallet_id FROM wallet_profiles WHERE mode = ? AND COALESCE(device_sealed_blob, '') != ''", (MODE_POCKET_SEALED,))}
+    device_here = device_auth.current_authority().available()
+
+    def provable(profile: WalletProfile) -> bool:
+        # a Touch ID wallet this machine cannot ask for (no device authentication, or the wallet was never bound to
+        # this Mac) could never prove anyone, and the owner would be locked out of these settings for good; a local
+        # process can change neither fact
+        return profile.approval_method != APPROVAL_DEVICE or (device_here and profile.wallet_id in device_bound)
+
+    return next((profile for profile in map(_row_to_profile, rows)
+                 if setup_state(profile.wallet_id) in {"", "ready"} and provable(profile)), None)
 
 
 def _unseal_counted(wallet_id: str, secret: str, *, source_context: dict[str, Any] | None) -> tuple[str, bytes]:
