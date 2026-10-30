@@ -5975,13 +5975,18 @@ const EMAIL_STATE_TEXT = {
 function emailStateText(state) {
   return EMAIL_STATE_TEXT[state] ? EMAIL_STATE_TEXT[state]() : T('email.state.unknown', 'This account is in a state VOOL does not recognise.');
 }
-/* Why an account is the one in use, in words; the internal source ids never reach the page. */
+/* Why an account is the one in use, in words, keyed (emailadd.source.*); the internal source
+   ids never reach the page -- same shape as EMAIL_STATE_TEXT above. */
 const EMAIL_SOURCE_TEXT = {
-  global: 'your default',
-  chat: 'chosen for this chat',
-  only_account: 'the only account',
-  legacy_default: 'used because it is named “default”'
+  global: () => T('emailadd.source.global', 'your default'),
+  chat: () => T('emailadd.source.chat', 'chosen for this chat'),
+  only_account: () => T('emailadd.source.only_account', 'the only account'),
+  legacy_default: () => T('emailadd.source.legacy_default', 'used because it is named “default”')
 };
+/* A source this page does not know still gets words -- never the raw source id. */
+function emailSourceText(source) {
+  return EMAIL_SOURCE_TEXT[source] ? EMAIL_SOURCE_TEXT[source]() : T('emailadd.source.other', 'chosen another way');
+}
 function widgetEmailAccounts(stack) {
   const src = state.sources['/api/email/accounts'];
   const err = state.sourceErr['/api/email/accounts'];
@@ -6034,7 +6039,7 @@ function widgetEmailAccounts(stack) {
     const st = el('span', 'subtle email-account-state', emailStateText(a.state)); st.dataset.state = a.state;
     rowEl.appendChild(st);
     if (a.is_default) {
-      rowEl.appendChild(el('span', 'pill email-default-badge', 'default' + (def.source && def.source !== 'global' ? ' · ' + def.source : '')));
+      rowEl.appendChild(el('span', 'pill email-default-badge', 'default' + (def.source && def.source !== 'global' ? ' · ' + emailSourceText(def.source) : '')));
     } else if (a.state !== 'unreadable') {
       /* One profile item, one authority: the value is the credential NAME the account authority names. */
       const use = el('button', 'btn email-use-default', T('emailadd.use_default', 'Use as default')); use.type = 'button'; use.dataset.account = a.account;
@@ -6068,7 +6073,7 @@ function widgetEmailAccounts(stack) {
   });
   const chosen = el('div', 'subtle email-default-summary'); chosen.id = 'emailDefaultSummary';
   if (def.account) {
-    chosen.textContent = 'Default: ' + def.account + ' (' + (def.source || 'global') + ' scope)' + (def.configured ? '.' : ' — that account is not configured any more.');
+    chosen.textContent = 'Default: ' + def.account + ' (' + emailSourceText(def.source || 'global') + ')' + (def.configured ? '.' : ' — that account is not configured any more.');
     if (def.item_id) {
       const clear = el('button', 'btn danger email-clear-default', 'Clear default'); clear.type = 'button';
       clear.addEventListener('click', async () => {
@@ -6093,7 +6098,7 @@ function widgetEmailAccounts(stack) {
     const name = s.account === 'default' ? 'the account named “default”' : s.account;
     /* The server's reason a lane has no account is diagnosis: the plain sentence names the state. */
     if (!s.ok && s.message) console.warn('email selection status:', s.message);
-    line.textContent = label + ': ' + (s.ok ? (name + (s.address ? ' (' + s.address + ')' : '') + (EMAIL_SOURCE_TEXT[s.source] ? ' — ' + EMAIL_SOURCE_TEXT[s.source] : '')) : 'none — no account can do this');
+    line.textContent = label + ': ' + (s.ok ? (name + (s.address ? ' (' + s.address + ')' : '') + (s.source ? ' — ' + emailSourceText(s.source) : '')) : ('none — ' + (s.message || 'no account can do this')));
     body.appendChild(line);
   });
 }
