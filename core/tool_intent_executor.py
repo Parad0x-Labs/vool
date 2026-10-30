@@ -1080,10 +1080,13 @@ def _execute_tool_intent_impl(
     # The front door stamps this proof only when the existing typed list-directory probe found an
     # explicit machine/path target in the authoritative post-resume raw turn. A model-selected
     # tool name is a proposal, never substitute evidence for that binding.
+    from core.owner_tool_catalog import list_directory_target_named_by_owner
+
     if (
         intent == "machine.list_directory"
         and "_semantic_machine_list_directory_admitted" in (source_context or {})
         and not bool((source_context or {}).get("_semantic_machine_list_directory_admitted"))
+        and not list_directory_target_named_by_owner(arguments.get("path"), source_context)
     ):
         response = (
             "I did not inspect a local directory because this turn did not establish a "

@@ -21,6 +21,7 @@ of the turn. A remote session, a cloud model and a tools-forbidden turn are unto
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 #: One read tool per owner family, in seating order, each with the short description the local
@@ -137,3 +138,39 @@ def owner_catalog_applies(text: str, source_context: dict[str, Any] | None) -> b
 def owner_catalog_intents(text: str, source_context: dict[str, Any] | None) -> tuple[str, ...]:
     """The catalog intents to seat on this turn, or () when the catalog does not apply."""
     return OWNER_CATALOG if owner_catalog_applies(text, source_context) else ()
+
+
+#: The safe folders machine.list_directory may read (core.runtime_execution_tools).
+_SAFE_FOLDER_NAMES: tuple[str, ...] = ("Desktop", "Downloads", "Documents")
+#: source-context key: the safe folders the owner's own words name on a catalog turn.
+OWNER_NAMED_FOLDERS_KEY = "_owner_catalog_named_folders"
+
+
+def owner_named_safe_folders(text: str) -> tuple[str, ...]:
+    """The safe folders the words name, in any language's sentence ("kas yra mano Downloads aplanke?")."""
+    return tuple(name for name in _SAFE_FOLDER_NAMES if re.search(rf"\b{name}\b", str(text or ""), re.IGNORECASE))
+
+
+def list_directory_target_named_by_owner(path: Any, source_context: dict[str, Any] | None) -> bool:
+    """Whether a model's machine.list_directory path is a folder the owner's own words named.
+
+    The binding is the owner's words, not the model's proposal: the path must be one of the safe
+    folders the turn's text named (``OWNER_NAMED_FOLDERS_KEY``, stamped only on catalog turns), or
+    inside one. The tool keeps enforcing its own safe roots.
+    """
+    named = {str(n).lower() for n in (source_context or {}).get(OWNER_NAMED_FOLDERS_KEY) or ()}
+    raw = str(path or "").strip().replace("\\", "/")
+    if not named or not raw or ".." in raw.split("/"):
+        return False
+    parts = [p for p in raw.split("/") if p and p != "~"]
+    if raw.startswith("/"):
+        try:
+            from pathlib import Path
+
+            home_parts = [p for p in Path.home().resolve().as_posix().split("/") if p]
+        except Exception:
+            return False
+        if parts[: len(home_parts)] != home_parts:
+            return False
+        parts = parts[len(home_parts):]
+    return bool(parts) and parts[0].lower() in named

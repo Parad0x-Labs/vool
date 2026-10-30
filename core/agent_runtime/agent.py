@@ -2406,6 +2406,20 @@ class VoolAgent(
         runtime_source_context["_semantic_machine_list_directory_admitted"] = (
             list_directory_admitted
         )
+        # On the owner's catalog turn the owner's own words can name the folder in any sentence
+        # shape the probe has no grammar for ("kas yra mano Downloads aplanke?"); the folders they
+        # name bind a model's list_directory proposal to them (core.owner_tool_catalog).
+        from core.owner_tool_catalog import (
+            OWNER_NAMED_FOLDERS_KEY,
+            owner_catalog_applies,
+            owner_named_safe_folders,
+        )
+
+        runtime_source_context[OWNER_NAMED_FOLDERS_KEY] = (
+            owner_named_safe_folders(semantic_text)
+            if owner_catalog_applies(semantic_text, runtime_source_context)
+            else ()
+        )
 
         # The initial action policy was necessarily computed before checkpoint resolution, when a
         # resumed turn still read only ``continue``. Rebind it to the authoritative semantic text.
@@ -5697,6 +5711,26 @@ class VoolAgent(
                 )
                 if not _catalog_lane and not demand_coverage(str(raw_input or effective_input)).mixed:
                     raise _ConductorHandoffNotApplicableError
+                if _catalog_lane:
+                    # Any clause the plan holds no operation for is the catalog lane's, even
+                    # when another node overlaps it by span (measured: the unresolved notes
+                    # clause sat beside a workspace search of "the file on the desktop").
+                    from core.conductor.registry import UNRESOLVED_OPERATION
+
+                    _unresolved = [
+                        (str(getattr(node, "node_id", "") or ""), str(getattr(node, "request_text", "") or ""))
+                        for node in (getattr(plan, "nodes", ()) or ())
+                        if str(getattr(node, "operation", "") or "") == UNRESOLVED_OPERATION
+                    ]
+                    if _unresolved:
+                        self._record_lane_proposal(
+                            turn_context if turn_context is not None else source_context,
+                            declined_conductor_proposal(
+                                "plan cannot execute a clause the owner catalog lane can: "
+                                + "; ".join(f"{nid} ({text!r})" for nid, text in _unresolved)
+                            ),
+                        )
+                        return None
 
                 # The EXECUTION grain, not the mint grain: this asks "would another
                 # lane run this demand?", and the lane that would is the demand-owned

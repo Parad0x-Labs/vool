@@ -205,3 +205,33 @@ def test_prose_elsewhere_stays_a_missing_tool_call() -> None:
     assert _prose_as_direct_answer(flagged, _definitions(), "   ") is None
     no_direct = tuple(d for d in _definitions() if d.intent != "respond.direct")
     assert _prose_as_direct_answer(flagged, no_direct, "Canberra.") is None
+
+
+def test_the_owners_words_bind_a_list_directory_proposal_to_the_folder_they_name(monkeypatch, tmp_path) -> None:
+    from core.owner_tool_catalog import (
+        OWNER_NAMED_FOLDERS_KEY,
+        list_directory_target_named_by_owner,
+        owner_named_safe_folders,
+    )
+
+    assert owner_named_safe_folders("kas yra mano Downloads aplanke?") == ("Downloads",)
+    assert owner_named_safe_folders("List only members of this standard") == ()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    context = {OWNER_NAMED_FOLDERS_KEY: ("Downloads",)}
+    for path in ("Downloads", "~/Downloads", "downloads/sub", f"{tmp_path}/Downloads"):
+        assert list_directory_target_named_by_owner(path, context), path
+    # A folder the words did not name, an escape, or no stamp at all stays unbound.
+    for path in ("Documents", "~/Downloads/../.ssh", "/etc", ""):
+        assert not list_directory_target_named_by_owner(path, context), path
+    assert not list_directory_target_named_by_owner("Downloads", {})
+
+
+def test_a_list_directory_proposal_the_words_did_not_bind_stays_blocked() -> None:
+    from core.owner_tool_catalog import OWNER_NAMED_FOLDERS_KEY
+    from core.tool_intent_executor import execute_tool_intent
+
+    payload = {"intent": "machine.list_directory", "arguments": {"path": "Documents"}}
+    context = {**OWNER, "_semantic_machine_list_directory_admitted": False, OWNER_NAMED_FOLDERS_KEY: ("Downloads",)}
+    result = execute_tool_intent(payload, task_id="t", session_id="s", source_context=context,
+                                 hive_activity_tracker=None)
+    assert result.status == "blocked_by_semantic_preflight"
