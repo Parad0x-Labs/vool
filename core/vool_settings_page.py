@@ -5314,7 +5314,7 @@ function widgetPhoneAccess(host) {
     } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); toggle.disabled = false; }
   };
   const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; stack.appendChild(refresh);
-  refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){note.textContent=e.message;refresh.disabled=false;}};
+  refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){console.warn(e);note.textContent=T('fault.unknown.message','Something went wrong on this machine while handling that. You can try again.');refresh.disabled=false;}};
   const frozen = el('button', 'btn', src.frozen ? T('phone.unfreeze', 'Unfreeze payments') : T('phone.freeze', 'Freeze payments'));
   frozen.type = 'button'; stack.appendChild(frozen);
   const accounts = (src.wallet_accounts || []).filter(a => a.seal_policy === 'pilot-v3' && a.setup_state === 'ready');
@@ -5324,9 +5324,13 @@ function widgetPhoneAccess(host) {
     if (value) select.value = value;
     return select;
   }
+  // A failed phone-settings action shows the server's own reason when it sent one, else one keyed sentence;
+  // the raw error only goes to the console.
+  const phoneFailWords=(e,key,fallback)=>{console.warn(e);return (e&&e.plain)||T(key||'settings.switch.no_answer',fallback||'Not saved \u2014 VOOL did not answer.');};
+  const phoneFail=(said)=>{const err=new Error(said||'not saved');err.plain=said||'';return err;};
   async function save(body) {
     const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    const j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'));
+    const j = await r.json(); if (!r.ok || !j.ok) throw phoneFail(j.error);
     state.sources[url] = await getJSON(url); redrawPhoneSettings();
   }
   const chatApps=el('details','phone-bot-connect'); stack.appendChild(chatApps);
@@ -5338,9 +5342,9 @@ function widgetPhoneAccess(host) {
   botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
   const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
   connectBot.onclick=async()=>{const token=botToken.value;botToken.value='';connectBot.disabled=true;try {
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
     phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
-  }catch(e){note.textContent=e.message;connectBot.disabled=false;}};
+  }catch(e){note.textContent=phoneFailWords(e);connectBot.disabled=false;}};
   const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
   relayForm.appendChild(el('summary','',T('phone.relay_title','Connect away from home (advanced)')));
   relayForm.appendChild(el('p','help',T('phone.relay_help','Your own server passes encrypted messages between phone and computer. It can see when they connect. Pair at home first.')));
@@ -5354,14 +5358,14 @@ function widgetPhoneAccess(host) {
   const relayEnable=el('button','btn',T('phone.relay_enable','Connect through my server')); relayEnable.type='button';
   relayEnable.disabled=!(src.devices || []).some(d=>d.status==='active'); relayForm.appendChild(relayEnable);
   relayEnable.onclick=()=>{const token=relayToken.value; relayToken.value=''; relayEnable.disabled=true;
-    save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=e.message;relayEnable.disabled=false;});};
+    save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=phoneFailWords(e);relayEnable.disabled=false;});};
   if (src.mode==='relay') relayForm.appendChild(el('p','help',T('phone.relay_phone','Phone connection address')+': '+src.relay_endpoint+'/rooms/'+src.relay_room));
   frozen.onclick = () => {
-    if (!src.frozen) {frozen.disabled = true; save({operation:'freeze'}).catch(e => {note.textContent=e.message; frozen.disabled=false;}); return;}
+    if (!src.frozen) {frozen.disabled = true; save({operation:'freeze'}).catch(e => {note.textContent=phoneFailWords(e); frozen.disabled=false;}); return;}
     const form = el('div', 'phone-unfreeze'); const account = accountSelect(); const credential = el('input', 'inp');
     credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential', 'Wallet PIN or password');
     const button = el('button','btn',T('phone.unfreeze','Unfreeze payments')); button.type='button'; form.append(account, credential, button); stack.appendChild(form);
-    button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=e.message;button.disabled=false;});};
+    button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=phoneFailWords(e);button.disabled=false;});};
   };
   const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
     wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
@@ -5391,9 +5395,9 @@ function widgetPhoneAccess(host) {
       const preferences={quiet:{enabled:quiet.checked,start:start.value,end:end.value,offset_minutes:-new Date().getTimezoneOffset(),approvals_through:approvals.checked,payments_through:payments.checked}};
       if(preset.value==='custom')preferences.types=Object.fromEntries(Object.entries(boxes).map(([kind,box])=>[kind,{enabled:box.checked}]));else preferences.preset=preset.value;
       section.disabled=true;try {
-        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw phoneFail(j.error);
         device.notification_preferences=j.preferences;section.remove();botNotices(row,device);
-      }catch(e){note.textContent=e.message;section.disabled=false;}
+      }catch(e){note.textContent=phoneFailWords(e);section.disabled=false;}
     };
   }
   /* Quick setup: models, files, payments, then Done. Saved through the same device_rules door as Advanced. */
@@ -5464,7 +5468,7 @@ function widgetPhoneAccess(host) {
         try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'prepare_folders',device_id:device.device_id})});const j=await r.json();
           phonePrepared[device.device_id]=r.ok&&j.ok?{folders:j.folders}:{failed:true};}catch(_){phonePrepared[device.device_id]={failed:true};}
         redrawPhoneSettings();
-      }).catch(e=>{say.textContent=e.message;done.disabled=false;});
+      }).catch(e=>{say.textContent=phoneFailWords(e);done.disabled=false;});
     };
     return box;
   }
@@ -5514,7 +5518,7 @@ function widgetPhoneAccess(host) {
         body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
       }
       credential.value=''; saveButton.disabled=true;
-      save(body).catch(e=>{note.textContent=e.message;saveButton.disabled=false;});
+      save(body).catch(e=>{note.textContent=phoneFailWords(e);saveButton.disabled=false;});
     };
     const revoke=el('button','btn',isBot?T('phone.bot_disconnect','Disconnect chat app'):T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);
     revoke.onclick=async()=>{revoke.disabled=true;try {const r=await fetch(isBot?url:'/api/mobile/devices/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isBot?{operation:'bot_disconnect',platform:device.platform}:{device_id:device.device_id})});if(!r.ok)throw new Error();delete phoneBotPairing[device.platform];state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(_){note.textContent=T('settings.switch.no_answer','Not saved — VOOL did not answer.');revoke.disabled=false;}};
