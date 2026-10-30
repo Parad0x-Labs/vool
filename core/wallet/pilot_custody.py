@@ -970,7 +970,7 @@ def recovery_options(wallet_id: str, *, source_context: dict[str, Any] | None = 
         "no_reset": {"text": "Without the saved backup or an enrolled device secret, VOOL cannot reset access to this wallet. The public address, its status and its records stay visible; "
                              "nothing is deleted, no replacement address is created and no funds move."},
         "unlock_retry_after_seconds": unlock_locked[1] if unlock_locked else 0,
-        "pin_change_note": "Changing a remembered PIN is a separate step that needs the current PIN (Settings → Wallet → Payment approval).",
+        "pin_change_note": "Changing a remembered PIN is a separate step that needs the current PIN (Settings → Crypto).",
     }
 
 

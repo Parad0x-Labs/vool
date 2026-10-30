@@ -171,7 +171,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
 
     if not account.get("id") or not all(saved.get(name) for name in FIELDS):
         return _result(False, "needs_account",
-                       "Acting on X needs your own X account connected (the four account keys in Settings > API Keys > X). "
+                       "Acting on X needs your own X account connected (the four account keys in Settings > Your keys > X). "
                        "Nothing was proposed.")
     payload: dict[str, Any] = {"kind": kind}
     target: dict[str, Any] = {}
@@ -260,12 +260,12 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         _expire(state, now)
         if sum(1 for a in state["actions"].values() if a.get("state") == "pending") >= MAX_PENDING:
             return _result(False, "busy", f"{MAX_PENDING} X actions are already waiting for approval. "
-                           "Approve or decline some in Settings > API Keys > X first. Nothing was proposed.")
+                           "Approve or decline some in Settings > Your keys > X first. Nothing was proposed.")
         state["actions"][action["id"]] = action
         _save(state)
     note = x_usage.action_refusal()
     message = (f"{action['summary']} is ready and waiting for your approval. Nothing has been sent to X. "
-               "Approve or decline it in Settings > API Keys > X.")
+               "Approve or decline it in Settings > Your keys > X.")
     if note:
         message += " Note: " + note
     return _result(True, "awaiting_approval", message, public(action))

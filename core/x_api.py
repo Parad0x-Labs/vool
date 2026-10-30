@@ -91,7 +91,7 @@ def _auth(saved: dict[str, Any], method: str, url: str, *, user_context: bool) -
         if not has_keys:
             raise XReadError(
                 "needs_account",
-                "This needs your X account connected (the four account keys in Settings > API Keys > X). "
+                "This needs your X account connected (the four account keys in Settings > Your keys > X). "
                 "Nothing was sent to X.",
             )
         keys = OAuth1Keys(**{name: saved[name] for name in FIELDS})
@@ -99,7 +99,7 @@ def _auth(saved: dict[str, Any], method: str, url: str, *, user_context: bool) -
     if not token:
         raise XReadError(
             "needs_credentials",
-            "X is not connected. Add your X keys in Settings > API Keys > X first. Nothing was sent to X.",
+            "X is not connected. Add your X keys in Settings > Your keys > X first. Nothing was sent to X.",
         )
     return f"Bearer {token}", (token,)
 
@@ -113,7 +113,7 @@ def _http_failure(status: int, body: dict[str, Any] | None) -> XReadError:
         detail = detail or str(body.get("detail") or "")[:300]
     tail = f" X said: {detail}" if detail else ""
     if status == 401:
-        return XReadError("unauthorized", "X rejected the saved keys. Check them in Settings > API Keys > X." + tail, http_status=status)
+        return XReadError("unauthorized", "X rejected the saved keys. Check them in Settings > Your keys > X." + tail, http_status=status)
     if status == 403:
         return XReadError("plan_refused", "X refused this read: your X app's plan or permissions do not include it." + tail, http_status=status)
     if status == 402:
@@ -162,7 +162,7 @@ _PLAN_NOTES = (
     (("/2/users/search",), "Searching X accounts by name is not included in your X plan."),
     (("/2/dm_events", "/2/dm_conversations"),
      "Reading your DMs needs your X app's permission set to \"Read and write and Direct message\" "
-     "(developer.x.com > your app > User authentication settings), then new Access Tokens in Settings > API Keys > X."),
+     "(developer.x.com > your app > User authentication settings), then new Access Tokens in Settings > Your keys > X."),
     (("/2/spaces",), "Reading Spaces is not included in your X plan."),
     (("/2/usage",), "X's own usage count is not available on your X plan."),
     (("/2/users/personalized_trends",), "Personalized trends are not included in your X plan."),
@@ -311,7 +311,7 @@ def _page_size(requested: Any, default: int = 25, lo: int = 10, hi: int = MAX_PA
         if left // 2 < lo:
             raise XReadError("usage_limit_reached", x_usage.refusal() or (
                 f"Only {left} reads are left under your X limit this month, fewer than one page needs. "
-                "Nothing was sent to X. You can raise the limit in Settings > API Keys > X."))
+                "Nothing was sent to X. You can raise the limit in Settings > Your keys > X."))
         size = min(size, left // 2)
     return size
 

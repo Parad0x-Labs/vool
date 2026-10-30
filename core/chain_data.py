@@ -231,14 +231,14 @@ def _choose_provider(args: dict[str, Any], chain: str, op: str) -> tuple[cp.Chai
         if not cfg.serves(chain, op):
             raise ChainDataError("not_offered", f"{cfg.label} does not offer {_OP_PHRASES[op]} on {chain_label}. {_names(serving)} can. Nothing was looked up.")
         if not _stored(cfg):
-            raise ChainDataError("key_missing", f"No {cfg.label} key is saved. Add one in Settings → API Keys, then ask again. Nothing was looked up.")
+            raise ChainDataError("key_missing", f"No {cfg.label} key is saved. Add one in Settings → Your keys, then ask again. Nothing was looked up.")
         others = tuple(c for c in serving if c is not cfg and _stored(c))
         return cfg, others
     stored = tuple(c for c in serving if _stored(c))
     if not stored:
         raise ChainDataError(
             "key_missing",
-            f"To look up {_OP_PHRASES[op]} on {chain_label}, add a {_names(serving)} key in Settings → API Keys. "
+            f"To look up {_OP_PHRASES[op]} on {chain_label}, add a {_names(serving)} key in Settings → Your keys. "
             "Nothing was looked up, and VOOL did not go online.",
         )
     return stored[0], stored[1:]
@@ -256,7 +256,7 @@ def _read_key(cfg: cp.ChainProviderConfig) -> str:
         raise ChainDataError("key_unreadable", f"VOOL could not read the saved {cfg.label} key from this machine's key store. Nothing was looked up.") from None
     key = str(key or "").strip()
     if not key:
-        raise ChainDataError("key_missing", f"No {cfg.label} key is saved. Add one in Settings → API Keys, then ask again. Nothing was looked up.")
+        raise ChainDataError("key_missing", f"No {cfg.label} key is saved. Add one in Settings → Your keys, then ask again. Nothing was looked up.")
     return key
 
 
@@ -280,7 +280,7 @@ def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int, body: st
         return ChainDataError("quota_exhausted", f"{label}'s free daily allowance for this key is used up (HTTP 401). It resets on its own; "
                               "the key is fine, keep it. Nothing was looked up.")
     if status == 401:
-        return ChainDataError("key_rejected", f"{label} rejected the saved key (HTTP 401). Replace it in Settings → API Keys. Nothing was looked up.")
+        return ChainDataError("key_rejected", f"{label} rejected the saved key (HTTP 401). Replace it in Settings → Your keys. Nothing was looked up.")
     if status == 403:
         if cfg.provider_id == "alchemy":
             return ChainDataError("chain_not_enabled", f"Alchemy refused this request on {chain_label} (HTTP 403). Turn on {chain_label} for this key's app in the Alchemy dashboard, then ask again.")
@@ -387,7 +387,7 @@ def _rpc_error(cfg: cp.ChainProviderConfig, chain: str, error: object, key: str 
     if code in (429, -32005) or "rate limit" in text or "too many requests" in text:
         return ChainDataError("rate_limited", f"{cfg.label} is limiting requests right now. Try again shortly. Nothing was looked up.")
     if code in (-32401, 401) or "api key" in text or "unauthorized" in text:
-        return ChainDataError("key_rejected", f"{cfg.label} rejected the saved key. Replace it in Settings → API Keys. Nothing was looked up.")
+        return ChainDataError("key_rejected", f"{cfg.label} rejected the saved key. Replace it in Settings → Your keys. Nothing was looked up.")
     if "not enabled" in text or "not allowed" in text or code == 403:
         return _http_failure(cfg, chain, 403)
     detail = _safe_provider_text(message, key)

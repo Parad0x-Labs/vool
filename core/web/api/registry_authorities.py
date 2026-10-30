@@ -356,7 +356,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
     if _market_name in _market_slots():
         if body.get("delete") is not True:
             return apply_runtime_headers(json_response(400, {
-                "error": "market-data keys are saved through Settings → API Keys, which verifies them first"}), runtime)
+                "error": "market-data keys are saved through Settings → Your keys, which verifies them first"}), runtime)
         from core.credential_store import delete_credential as _mdelete
 
         _plan = _market_plan_for_slot(_market_name)
@@ -391,7 +391,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             return apply_runtime_headers(json_response(400, {"error": "unsupported credential name"}), runtime)
         if body.get("delete") is not True:
             return apply_runtime_headers(json_response(400, {
-                "error": "chain-data keys are saved through Settings → API Keys → Save key, which verifies them first"}), runtime)
+                "error": "chain-data keys are saved through Settings → Your keys → Save key, which verifies them first"}), runtime)
         from core.credential_intelligence.provider_registry import default_registry as _chain_registry
         from core.credential_intelligence.store import CredentialStore as _ChainStore
         from core.credential_intelligence.store import StorageUnavailableError as _ChainStorageError

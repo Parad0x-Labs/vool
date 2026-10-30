@@ -103,7 +103,7 @@ def online_access_allowed(account: dict[str, Any]) -> bool:
 RECOVERY: dict[str, str] = {
     "configured": "Refresh the calendar list, choose calendars, then turn on sync.",
     "connected": "",
-    "revoked": "The provider no longer accepts this account's sign-in. Check the sign-in under API Keys, then refresh the calendar list. Alerts already scheduled stay, but VOOL cannot see changes until then.",
+    "revoked": "The provider no longer accepts this account's sign-in. Check the sign-in under Your keys, then refresh the calendar list. Alerts already scheduled stay, but VOOL cannot see changes until then.",
     "denied": "The provider refused access to this calendar. Check the account's calendar permission, then refresh the calendar list.",
     "rate_limited": "The provider asked VOOL to slow down. VOOL tries again later on its own.",
     "offline": "The provider could not be reached. VOOL tries again on its own; check the network or the server address.",
