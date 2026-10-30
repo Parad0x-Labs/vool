@@ -33,8 +33,8 @@ owner's Discord messages get the same limits as another device on the network.
 
 ## Keys
 
-Your provider key is stored by the operating system — Keychain, Credential Manager, or
-Secret Service — and used from your machine to reach your provider. It is not sent to
+Your provider key is stored in the macOS Keychain on a Mac; on Linux and Windows it is kept
+in an encrypted vault file in your VOOL profile. It is used from your machine to reach your provider. It is not sent to
 Parad0x Labs, and there is no Parad0x-operated endpoint in the request path.
 
 ## Plugins

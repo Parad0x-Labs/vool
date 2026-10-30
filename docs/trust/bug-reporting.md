@@ -6,7 +6,7 @@ description: Reporting a bug safely — redacted drafts, exact-byte approval, an
 
 ## The built-in bug reporter
 
-Use the in-app bug reporter (or the `vool bug-report` CLI). It never sends anything by
+Use the in-app bug reporter (or the `python -m apps.vool_cli bug-report` CLI). It never sends anything by
 itself — the flow is deliberately three-stage:
 
 1. **Draft** — a report is built locally from recent logs and diagnostics, redacted as it is

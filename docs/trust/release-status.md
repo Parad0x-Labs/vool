@@ -10,16 +10,16 @@ in passing; when they disagree with this page, this page wins.
 ## Current stage
 
 VOOL is in **beta**. The current release is
-[**v0.7.5-beta**](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta), a GitHub
-release built from `main` at `6ed307c`. It has app downloads for three platforms,
+[**v0.7.6-beta**](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta), a GitHub
+release built from `main` at `411efdb`. It has app downloads for three platforms,
 each with a published SHA-256 checksum. Installing from source with the bootstrap script
 remains supported on macOS, Linux and Windows; see [Install](../getting-started/install.md).
 
 | Download | For |
 | --- | --- |
-| `VOOL-0.7.5-beta-macos-arm64.dmg` | Apple Silicon Macs, macOS 14 or newer |
-| `VOOL-0.7.5-beta-macos-x86_64.dmg` | Intel Macs, macOS 14 or newer |
-| `vool-0.7.5-beta-linux-x86_64.tar.gz` | Linux x86_64, tested on Ubuntu 22.04 and 24.04 |
+| `VOOL-0.7.6-beta-macos-arm64.dmg` | Apple Silicon Macs, macOS 14 or newer |
+| `VOOL-0.7.6-beta-macos-x86_64.dmg` | Intel Macs, macOS 14 or newer |
+| `vool-0.7.6-beta-linux-x86_64.tar.gz` | Linux x86_64, tested on Ubuntu 22.04 and 24.04 |
 
 This repository's release records cover the GitHub channel. Other download channels are
 operated separately; verify any download against the checksum published on the GitHub
@@ -27,12 +27,12 @@ release.
 
 | | Status |
 | --- | --- |
-| Public downloads | macOS Apple Silicon DMG, macOS Intel DMG, Linux x86_64 tarball on the v0.7.5-beta GitHub release |
+| Public downloads | macOS Apple Silicon DMG, macOS Intel DMG, Linux x86_64 tarball on the v0.7.6-beta GitHub release |
 | Published checksums | SHA-256 for every download, on the release |
 | Code signing | macOS apps are ad-hoc signed, not Developer ID. Signing is added after this beta and does not gate it |
 | macOS notarization | Not notarized. macOS asks you to confirm the first open (see below) |
 | Windows | No Windows download in this release; Windows installs from source and is experimental |
-| Updates | From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app. See [Updates and migration](../reference/updates-migration.md) |
+| Updates | From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.6 and install it over your current version. Your chats and settings live in your profile, outside the app. See [Updates and migration](../reference/updates-migration.md) |
 | API stability | Changing between builds |
 
 ## What that means for you

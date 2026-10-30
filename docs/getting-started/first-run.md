@@ -13,7 +13,7 @@ anywhere during setup.
    See [Workspaces](../concepts/workspaces.md).
 2. **You choose a model.** Local runtimes already installed are detected. Cloud providers
    are listed but stay inactive until you add a key.
-3. **The mode indicator appears.** It reads `LOCAL` or `CLOUD` and reflects the model
+3. **The mode indicator appears.** It reads Local, Auto or the cloud provider's name and reflects the model
    currently selected.
 4. **Certify a local model once.** Before a local model can answer, open
    **Settings → Models & Providers → Local models** and press **Certify** for it. This runs a short check on

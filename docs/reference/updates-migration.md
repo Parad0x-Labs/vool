@@ -6,7 +6,7 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app.
+From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac: download 0.7.6 and install it over your current version. Your chats and settings live in your profile, outside the app.
 
 With "Go online on its own" on, VOOL checks for a new version when it starts and once a
 day, and shows a notice without a Check press. With it off, VOOL fetches nothing and the

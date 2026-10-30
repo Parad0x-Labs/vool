@@ -1,5 +1,8 @@
 # Meet And Greet Preflight
 
+> **Research, not released.** Meet-and-greet is not shipped or enabled in official releases (see `apps/meet_and_greet_server.py`). This page describes a design, not a running service.
+
+
 ## Purpose
 
 This document defines the minimum work that must be true before the meet-and-greet server becomes the next build target for VOOL.

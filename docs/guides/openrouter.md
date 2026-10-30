@@ -9,14 +9,14 @@ OpenRouter account.
 
 ## Connect
 
-1. Open **Settings → Models → OpenRouter**.
-2. Choose **Connect**. Your browser opens OpenRouter's authorization page.
-3. Approve. The browser returns to VOOL's callback page, which hands the
-   authorization back to the desktop app.
-4. The app completes the exchange **on your machine** and stores the key in your
-   operating system's credential store.
+{% hint style="warning" %}
+One-click **Connect** / **Disconnect** for OpenRouter is planned for 0.8, not released yet.
+{% endhint %}
 
-## What the callback page does
+In 0.7.6: create a key in your OpenRouter account, paste it under **Settings → API Keys** and press **Save key**.
+It is stored in the macOS Keychain (on Linux and Windows, in an encrypted vault in your profile).
+
+## What the callback page will do (planned for 0.8, not released yet)
 
 The callback page is a relay and nothing more. It passes
 the authorization code and state to the desktop app and then clears them from the URL.
@@ -35,5 +35,4 @@ and identities are not published.
 
 ## Disconnect
 
-**Settings → Models → OpenRouter → Disconnect** removes the key from the credential
-store. Revoke the key in your OpenRouter account as well if you want it dead server-side.
+Remove the key under **Settings → API Keys**. Revoke the key in your OpenRouter account as well if you want it dead server-side.

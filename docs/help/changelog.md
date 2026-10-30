@@ -6,6 +6,26 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.6-beta — 2026-10-30
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.6-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta).
+A small update for finding your files.
+
+**New**
+* **Find a file by name or description.** "Find the photo called day 4" or "where is my tax letter" looks for a file, not a folder, and matches everyday spellings such as Day_4.png or day-4.jpg.
+* **Hide my name on screen.** A switch in Settings masks your name and your home folder on screen (chat, Settings and notifications). Nothing changes on disk or in memory. Off by default.
+
+**Fixes**
+* Folder and file searches start in your home folder and on plugged-in drives, never in system folders, and finish in a second or two.
+* Hidden folders (names starting with a dot) are left out of searches unless you name one.
+* Linux: chats no longer treat VOOL's own install folder as your workspace.
+
+**Updating**
+* **From 0.7.5:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+* **From 0.7.4 or 0.7.3 on a Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.6 and install it over your current version. Your chats and settings stay in your profile.
+
 ## 0.7.5-beta — 2026-10-27
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
@@ -13,14 +33,14 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 From this version on, VOOL tells you about new versions by itself and installs them with one press, on Mac and on Linux.
 
 Updating from 0.7.4 or 0.7.3 (one time only):
-* **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Download and update. From 0.7.5 on, the notice comes by itself.
+* **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Update. From 0.7.5 on, the notice comes by itself.
 * **Linux:** install 0.7.5 from the release once. From 0.7.5 on, updates install in the app.
 * From 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app.
-* **Updates arrive on their own.** With "Go online on its own" on (Settings > Privacy & Permissions), VOOL checks for a new version at start and once a day and shows a notice. Press Download and update: VOOL installs it, restarts on the new version and keeps your data. With it off, VOOL fetches nothing and the header says Update checks off.
+* **Updates arrive on their own.** With "Go online on its own" on (Settings > Privacy & Permissions), VOOL checks for a new version at start and once a day and shows a notice. Press Update: VOOL installs it, restarts on the new version and keeps your data. With it off, VOOL fetches nothing and the header says Update checks off.
 * **Linux updates in the app.** The Linux download now updates itself from inside VOOL. The new version is installed next to the old one; if it does not start properly, VOOL switches back by itself.
 * **Your VOOL on the local network stays yours.** When VOOL listens on your local network, only this computer reaches settings, files, keys and tools. Another device gets plain chat and can read one public web page; web searches, research, the browser, quotes, payments and your paid keys stay on your own computer. The Discord bridge answers only its owner.
 * **Notes and agenda do what you said.** Saving to notes, the agenda or Apple Notes keeps exactly what you asked for. An answer is saved only when you ask, only the answer you saw, and never from a private chat.
-* **VOOL's own skills first.** Skills & Plugins lists VOOL's own skills first, and Browse Skill Codex ships with 53 ready skills.
+* **VOOL's own skills first.** Skills & Plugins lists VOOL's own skills first, and the app ships with 53 ready VOOL skills. Browse Skill Codex shows the list from the Skill Codex service.
 
 Fixes:
 

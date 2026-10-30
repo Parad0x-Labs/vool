@@ -1,5 +1,8 @@
 # VOOL — Windows Lane Capability Matrix
 
+> **Historical 0.4.x audit; superseded.** See the README for 0.7.6.
+
+
 **Lane:** Windows (Windows 10 19045, 8-core CPU, 8 GB RAM, GTX 1080 8 GB VRAM, driver 582.66)
 **Original audit:** 2026-07-19 against `main` @ `1e4fd82` (runtime reported `build_id 0.4.1-closed-test+1e4fd82d09d7`, `dirty=false`)
 **Re-verified:** 2026-07-20 against `main` @ `b88e8a9` — see [What moved since `1e4fd82`](#what-moved-since-1e4fd82)
