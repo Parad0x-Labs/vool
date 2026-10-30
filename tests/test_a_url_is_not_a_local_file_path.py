@@ -306,7 +306,7 @@ def test_an_http_status_reaches_the_user_when_that_is_all_there_is() -> None:
     assert "503" in reply
 
 
-def test_a_fetch_through_the_runtime_tool_counts_as_a_fetch_attempt() -> None:
+def test_a_fetch_through_the_runtime_tool_counts_as_a_fetch_attempt(enable_web) -> None:
     """The counter the URL-grounding backstop reads must see the fetches this runtime really makes.
 
     `tools/web/http_fetch.py` records its attempts; `_web_fetch` in `core/runtime_execution_tools.py`

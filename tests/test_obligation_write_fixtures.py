@@ -183,7 +183,7 @@ def test_read_recorded_obligation_reports_a_row_that_genuinely_exists() -> None:
     assert obligation["request_text"] == "what is the price of polkadot"
 
 
-def test_the_driver_observes_a_real_write_from_the_known_writing_lane(make_agent) -> None:
+def test_the_driver_observes_a_real_write_from_the_known_writing_lane(make_agent, enable_web) -> None:
     """The DRIVE half, proven end to end against a REAL, currently-working production write.
 
     `_answer_single_live_data_turn` (`apps/vool_agent.py:1407`) unconditionally calls

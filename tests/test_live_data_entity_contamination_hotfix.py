@@ -542,7 +542,7 @@ def _mock_weather(location: str, temp: float, condition: str = "Sunny"):
 
 
 class TestEndToEndThroughRealAgentEntryPoint:
-    def test_production_prompt_renders_clean_through_run_once_despite_whitespace_collapsing(self) -> None:
+    def test_production_prompt_renders_clean_through_run_once_despite_whitespace_collapsing(self, enable_web) -> None:
         """Pins the deepest root cause directly: `run_once` -> `_maybe_answer_live_data_turn` must
         hand `build_live_data_plan` text that still has its paragraph boundaries, not
         `interpreted.normalized_text` (whitespace-collapsed). Sabotage-provable: reverting the

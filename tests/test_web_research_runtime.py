@@ -7,6 +7,7 @@ from unittest import mock
 from core.effect_gateway import named_background_effect_scope
 from core.live_quote_contract import format_quote_timestamp
 from core.remote_fetch_policy import remote_fetch_policy_scope
+from tests._web_lookups import switch_web_lookups_on
 from tools.web.web_research import (
     PageEvidence,
     WebHit,
@@ -79,6 +80,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         return _Response(json.dumps(payload).encode("utf-8"))
 
     def test_ddg_instant_empty_falls_through_to_duckduckgo_html(self) -> None:
+        switch_web_lookups_on(self)
         with mock.patch(
             "tools.web.web_research._provider_order",
             return_value=["ddg_instant", "duckduckgo_html"],
@@ -110,6 +112,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(result.hits[0].url, "https://core.telegram.org/bots/api")
 
     def test_remote_fetch_disabled_short_circuits_all_providers(self) -> None:
+        switch_web_lookups_on(self)
         with remote_fetch_policy_scope({"allow_remote_fetch": False}), mock.patch(
             "tools.web.web_research._specialized_live_research",
             side_effect=AssertionError("specialized live provider must not run"),
@@ -128,6 +131,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(_looks_like_price_query("what is Seth price?"), "")
 
     def test_browser_disabled_keeps_http_text_without_claiming_browser_use(self) -> None:
+        switch_web_lookups_on(self)
         with mock.patch(
             "tools.web.web_research._provider_order",
             return_value=["duckduckgo_html"],
@@ -160,6 +164,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertFalse(result.pages[0].used_browser)
 
     def test_low_remaining_budget_skips_slow_browser_fallback(self) -> None:
+        switch_web_lookups_on(self)
         # Regression: a 3-minute hang came from the headless-browser fallback firing on
         # every short page. With little of the wall-clock budget left, the browser leg
         # must be skipped and the plain HTTP text recorded instead -- even though the
@@ -204,6 +209,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(result.pages[0].text, "short docs text")
 
     def test_weather_query_uses_specialized_live_fallback_when_search_providers_fail(self) -> None:
+        switch_web_lookups_on(self)
         with mock.patch(
             "tools.web.web_research._provider_order",
             return_value=["ddg_instant", "duckduckgo_html"],
@@ -249,7 +255,9 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertIn("live_weather_fallback:wttr_in", result.notes)
         self.assertEqual(result.pages[0].text, "London: Rain, 12 C.")
 
-    def test_weather_fallback_accepts_nested_data_payload(self) -> None:
+    # Web lookups on: this exercises the lookup itself, which the door refuses while they are off.
+    @mock.patch("core.policy_engine.allow_web_fallback", return_value=True)
+    def test_weather_fallback_accepts_nested_data_payload(self, _web_on) -> None:
         payload = {
             "data": {
                 "current_condition": [
@@ -281,6 +289,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertIn("Vilnius, Lithuania: Overcast, 4 C", result.hits[0].snippet)
 
     def test_weather_query_prefers_specialized_live_fallback_over_generic_provider_hits(self) -> None:
+        switch_web_lookups_on(self)
         with mock.patch(
             "tools.web.web_research._provider_order",
             return_value=["duckduckgo_html"],
@@ -324,6 +333,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(result.pages[0].text, "Vilnius, Lithuania: Clear, 8 C.")
 
     def test_news_query_uses_specialized_live_fallback_and_preserves_final_url(self) -> None:
+        switch_web_lookups_on(self)
         with mock.patch(
             "tools.web.web_research._provider_order",
             return_value=["ddg_instant", "duckduckgo_html"],
@@ -389,7 +399,9 @@ class WebResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(_demote_instant_answer(["ddg_instant", "duckduckgo_html"]), ["duckduckgo_html", "ddg_instant"])
         self.assertEqual(_demote_instant_answer(["ddg_instant"]), ["ddg_instant"])
 
-    def test_market_quote_query_uses_specialized_live_fallback_when_search_providers_fail(self) -> None:
+    # Web lookups on: this exercises the lookup itself, which the door refuses while they are off.
+    @mock.patch("core.policy_engine.allow_web_fallback", return_value=True)
+    def test_market_quote_query_uses_specialized_live_fallback_when_search_providers_fail(self, _web_on) -> None:
         yahoo_payload = {
             "chart": {
                 "result": [
@@ -485,7 +497,7 @@ def test_news_query_respects_word_boundary_and_names() -> None:
         assert _extract_news_topic(name) == name
 
 
-def test_news_rss_fallback_returns_none_on_empty_feed() -> None:
+def test_news_rss_fallback_returns_none_on_empty_feed(enable_web) -> None:
     from unittest import mock
 
     from tools.web import web_research

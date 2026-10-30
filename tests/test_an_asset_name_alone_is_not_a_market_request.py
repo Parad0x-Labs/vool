@@ -145,7 +145,7 @@ def test_a_semantic_request_about_an_asset_schedules_no_market_quote(agent: Vool
 
 
 @pytest.mark.parametrize("text", MARKET_REQUESTS)
-def test_a_genuine_market_request_still_schedules_a_market_quote(agent: VoolAgent, text: str) -> None:
+def test_a_genuine_market_request_still_schedules_a_market_quote(enable_web, agent: VoolAgent, text: str) -> None:
     """The other half of the invariant, and the one a careless fix breaks: every market phrasing
     the brief lists must still reach the market lane."""
     scheduled, _reached_ordinary = _drive(agent, text)
@@ -264,7 +264,7 @@ def test_a_second_turn_correction_is_not_dragged_back_to_market_by_the_prior_ent
         ("Is gold worthless?", ["Gold"]),
     ],
 )
-def test_an_inflected_market_request_still_schedules_the_right_market_quotes(
+def test_an_inflected_market_request_still_schedules_the_right_market_quotes(enable_web, 
     agent: VoolAgent, text: str, expected_entities: list[str]
 ) -> None:
     scheduled, _reached_ordinary = _drive(agent, text)
@@ -275,7 +275,7 @@ def test_an_inflected_market_request_still_schedules_the_right_market_quotes(
     )
 
 
-def test_the_recency_false_positive_is_now_closed(agent: VoolAgent) -> None:
+def test_the_recency_false_positive_is_now_closed(enable_web, agent: VoolAgent) -> None:
     """It moved, deliberately, and this records the move the previous expectation asked for.
 
     This test used to assert the OPPOSITE -- that "Explain gold structure today." routes MARKET --
@@ -314,7 +314,7 @@ def test_the_recency_false_positive_is_now_closed(agent: VoolAgent) -> None:
         ("Explain silver structure.", "Silver prices"),
     ],
 )
-def test_the_same_split_holds_for_every_ambiguous_asset_not_just_gold(
+def test_the_same_split_holds_for_every_ambiguous_asset_not_just_gold(enable_web, 
     agent: VoolAgent, semantic: str, market: str
 ) -> None:
     """`silver` is the second commodity this runtime registers under a name that is an ordinary

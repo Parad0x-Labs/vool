@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from core import policy_engine
 from core.retrieval_constraints import analyze_retrieval_constraints
 from core.stipulated_frame import stipulated_frame_active
 
@@ -49,7 +48,17 @@ def prepare_live_info_request(
         return "", "", None
     if _explicit_remote_fetch_disabled(source_context):
         return "", "", None
-    if not policy_engine.allow_web_fallback():
+    from core import policy_engine
+    from core.remote_fetch_policy import local_only_active
+
+    # Web lookups off: nothing is looked up, and the person is told why. Under Local Only the
+    # web plan is kept and refused at the door, which records the refusal the turn answers from.
+    if not policy_engine.allow_web_fallback() and not local_only_active(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import asks_only_for_general_knowledge
+
+        if asks_only_for_general_knowledge(candidate_input):
+            # Nothing to look up: the model's to answer offline, not a refusal.
+            return "", "", None
         return live_mode, "", disabled_live_info_result(
             agent,
             session_id=session_id,

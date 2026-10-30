@@ -318,14 +318,14 @@ def test_a_search_hit_whose_redirects_land_on_this_computer_is_not_read(local_se
     assert "4472" not in fetched["text"] + fetched["html"]
 
 
-def test_a_search_hit_whose_name_resolves_to_this_computer_is_never_sent(monkeypatch):
+def test_a_search_hit_whose_name_resolves_to_this_computer_is_never_sent(monkeypatch, enable_web):
     _resolving_to("127.0.0.1", monkeypatch)
     fetched, sent = _owner_hit_fetch("http://router-admin.example/", monkeypatch,
                                      lambda *_a: pytest.fail("the door sent a request to this computer"))
     assert sent == [] and fetched["status"] == "private_target_refused"
 
 
-def test_the_owners_research_does_not_read_a_hit_this_computer_cannot_resolve(monkeypatch):
+def test_the_owners_research_does_not_read_a_hit_this_computer_cannot_resolve(monkeypatch, enable_web):
     """A hit's name that does not resolve here cannot be checked, so it is never handed to a proxy
     or the normal door to resolve elsewhere: it is refused before anything is sent."""
     import io

@@ -136,7 +136,7 @@ def _fetch_under_a_turn_scope(monkeypatch) -> None:
     monkeypatch.setattr(http_fetch, "http_fetch_text", _scoped)
 
 
-def test_a_gzip_body_is_decompressed_not_handed_over_as_mojibake(monkeypatch) -> None:
+def test_a_gzip_body_is_decompressed_not_handed_over_as_mojibake(monkeypatch, enable_web) -> None:
     monkeypatch.setattr(
         http_fetch.urllib.request, "urlopen",
         lambda req, timeout=None: _Resp(gzip.compress(_ARTICLE), encoding="gzip"),
@@ -146,7 +146,7 @@ def test_a_gzip_body_is_decompressed_not_handed_over_as_mojibake(monkeypatch) ->
     assert "19 March 1932" in result["text"]
 
 
-def test_a_truncated_gzip_body_still_yields_what_arrived(monkeypatch) -> None:
+def test_a_truncated_gzip_body_still_yields_what_arrived(monkeypatch, enable_web) -> None:
     # The body is read under a byte cap, so a compressed stream is normally cut mid-block.
     # gzip.decompress() rejects the whole page in that case; a decompressobj returns the prefix.
     varied = ("<html><body>" + " ".join(
@@ -164,7 +164,7 @@ def test_a_truncated_gzip_body_still_yields_what_arrived(monkeypatch) -> None:
     assert len(result["text"]) > 1000
 
 
-def test_a_deflate_body_is_decompressed(monkeypatch) -> None:
+def test_a_deflate_body_is_decompressed(monkeypatch, enable_web) -> None:
     monkeypatch.setattr(
         http_fetch.urllib.request, "urlopen",
         lambda req, timeout=None: _Resp(zlib.compress(_ARTICLE), encoding="deflate"),
@@ -172,7 +172,7 @@ def test_a_deflate_body_is_decompressed(monkeypatch) -> None:
     assert "19 March 1932" in http_fetch.http_fetch_text("https://example.com/p")["text"]
 
 
-def test_an_encoding_we_cannot_decode_reports_that_instead_of_emitting_garbage(monkeypatch) -> None:
+def test_an_encoding_we_cannot_decode_reports_that_instead_of_emitting_garbage(monkeypatch, enable_web) -> None:
     pytest.importorskip  # noqa: B018 - documented: brotli is not installed here on purpose
     monkeypatch.setattr(
         http_fetch.urllib.request, "urlopen",
@@ -183,7 +183,7 @@ def test_an_encoding_we_cannot_decode_reports_that_instead_of_emitting_garbage(m
     assert result["text"] == ""
 
 
-def test_an_uncompressed_body_is_unaffected(monkeypatch) -> None:
+def test_an_uncompressed_body_is_unaffected(monkeypatch, enable_web) -> None:
     monkeypatch.setattr(
         http_fetch.urllib.request, "urlopen",
         lambda req, timeout=None: _Resp(_ARTICLE),
@@ -195,7 +195,7 @@ def test_an_uncompressed_body_is_unaffected(monkeypatch) -> None:
 # 3. Block-page detection must not eat real articles
 # --------------------------------------------------------------------------
 
-def test_a_long_article_that_merely_mentions_a_login_is_still_readable(monkeypatch) -> None:
+def test_a_long_article_that_merely_mentions_a_login_is_still_readable(monkeypatch, enable_web) -> None:
     # Every Wikipedia article carries "Sign in"/"Log in" chrome, and this check discarded all of
     # them -- the single most useful grounding source on the web, returned as empty text.
     article = (
@@ -209,7 +209,7 @@ def test_a_long_article_that_merely_mentions_a_login_is_still_readable(monkeypat
     assert "19 March 1932" in result["text"]
 
 
-def test_a_long_article_that_mentions_captcha_is_still_readable(monkeypatch) -> None:
+def test_a_long_article_that_mentions_captcha_is_still_readable(monkeypatch, enable_web) -> None:
     article = (
         "<html><body><p>A captcha is a challenge-response test used in computing. "
         + ("It distinguishes humans from software agents. " * 60)
@@ -219,7 +219,7 @@ def test_a_long_article_that_mentions_captcha_is_still_readable(monkeypatch) -> 
     assert http_fetch.http_fetch_text("https://en.wikipedia.org/wiki/CAPTCHA")["status"] == "ok"
 
 
-def test_a_real_block_page_is_still_caught(monkeypatch) -> None:
+def test_a_real_block_page_is_still_caught(monkeypatch, enable_web) -> None:
     # A genuine block page is short and is almost entirely the notice itself.
     block = b"<html><body><h1>Are you human?</h1><p>Please complete the captcha to continue.</p></body></html>"
     monkeypatch.setattr(http_fetch.urllib.request, "urlopen", lambda req, timeout=None: _Resp(block))
@@ -228,7 +228,7 @@ def test_a_real_block_page_is_still_caught(monkeypatch) -> None:
     assert result["text"] == ""
 
 
-def test_a_real_login_wall_is_still_caught(monkeypatch) -> None:
+def test_a_real_login_wall_is_still_caught(monkeypatch, enable_web) -> None:
     wall = b"<html><body><h1>Sign in to continue</h1><p>Enter your password.</p></body></html>"
     monkeypatch.setattr(http_fetch.urllib.request, "urlopen", lambda req, timeout=None: _Resp(wall))
     assert http_fetch.http_fetch_text("https://example.com/login")["status"] == "login_wall"

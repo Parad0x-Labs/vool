@@ -473,7 +473,7 @@ class _HermeticResponse:
         return self._payload
 
 
-def test_declared_remote_operations_really_reach_the_network(monkeypatch) -> None:
+def test_declared_remote_operations_really_reach_the_network(monkeypatch, enable_web) -> None:
     """Hermetic transports + a socket sentinel: each operation the runner
     dispatches under `effect_class=remote_fetch` must, when it really runs,
     drive at least one call through the remote-fetch door. This is the ground

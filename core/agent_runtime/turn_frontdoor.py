@@ -264,9 +264,13 @@ def _currency_reply(
         text, chat_codes=extra["chat_codes"]
     )
     source = dict(source_context or {})
-    from core import policy_engine
+    from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
 
-    web_runtime_enabled = policy_engine.allow_web_fallback()
+    from core.remote_fetch_policy import effective_web_available
+
+    # The switch AND Local Only: under a chat's Local Only the rate was fetched anyway, its name
+    # resolved over public DNS, and the person read a reply that never said Local Only.
+    web_runtime_enabled = effective_web_available(source)
     # ROUTE-PARITY GATE: the live FX retrieval is a public read-only network retrieval -- the same
     # action class the model route crosses `decide_tool_call` for when it fetches (web.fetch). The
     # lane now takes its permission decision from the ONE authority before opening a socket, so a
@@ -350,10 +354,9 @@ def _currency_reply(
     ):
         reply = {
             **reply,
-            "response": (
-                "A current exchange rate is a live observation, but external retrieval is "
-                "disabled by the runtime policy. I will not substitute a rate from training data."
-            ),
+            # Plain words and the switch's place, like every other lookup refusal; the rate
+            # itself is still never guessed from training data.
+            "response": web_lookups_off_text("for a current exchange rate", source_context=source),
             "grounded": "retrieval_disabled_declined",
         }
     elif (
@@ -2272,8 +2275,11 @@ def handle_turn_frontdoor(
         # honest refusal is destroyed by a task-failure that was policy all along (the
         # first-run denial demo measured exactly this shape).
         from core import policy_engine as _policy_engine
+        from core.remote_fetch_policy import local_only_active as _local_only_active
 
-        if (
+        # Local Only chosen for this chat blocks the same lanes: continuing sent the weather to
+        # the model, which had nothing to answer it with.
+        if _local_only_active(source_context) or (
             bool(_policy_engine.local_only_mode())
             and not bool(_policy_engine.allow_web_fallback())
             and not bool(_policy_engine.get("network.outbound_enabled", False))

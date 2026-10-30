@@ -243,7 +243,7 @@ def test_state_record_lists_start_empty_never_guessed(make_agent):
 # ==================================================================================================
 
 
-def test_a_live_data_turn_records_its_typed_claim(make_agent):
+def test_a_live_data_turn_records_its_typed_claim(make_agent, enable_web):
     """THE fail-on-old-defect pin for slice 3: no proposal recording, no claim."""
     from core.turn_contract import TURN_STATE_KEY, LaneProposal
 
@@ -263,7 +263,7 @@ def test_a_live_data_turn_records_its_typed_claim(make_agent):
     assert proposal.confidence == 0.9  # the lane's own long-standing constant
 
 
-def test_the_route_metadata_comes_from_the_proposal(make_agent):
+def test_the_route_metadata_comes_from_the_proposal(make_agent, enable_web):
     """The displacement pin: the served result's route identity is the PROPOSAL's,
     and the lane-id literal no longer appears at the agent's call sites (its one
     home is the lane constant)."""
@@ -1026,7 +1026,7 @@ def test_the_live_data_lane_declines_when_the_kernel_refuses():
     assert allowed2
 
 
-def test_consult_before_serve_blocks_the_execute(make_agent):
+def test_consult_before_serve_blocks_the_execute(make_agent, enable_web):
     """End-to-end at the lane seam: a pre-seeded earlier claim on the plan's
     units makes the live-data turn return None (no plan executed) with the
     typed consult refusal recorded — the earlier lane's service stands."""

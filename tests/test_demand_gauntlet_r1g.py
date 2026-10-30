@@ -653,7 +653,7 @@ _LIVE_MIX_CASES = (
 )
 
 
-def test_i6_live_mixed_both_orders_discharge_every_demand(harness):
+def test_i6_live_mixed_both_orders_discharge_every_demand(harness, enable_web):
     for case_id, text in _LIVE_MIX_CASES:
         groups = _CASE_INDEX[case_id]["atoms"]
         with _incident_mocks(), _model_stand_in(harness.agent, _ENTROPY_STAND_IN):
@@ -698,7 +698,7 @@ def test_i6_the_model_lane_owns_whole_plans_for_general_pairs(harness):
     )
 
 
-def test_i6_a_pure_two_city_live_turn_serves_both_cities(harness):
+def test_i6_a_pure_two_city_live_turn_serves_both_cities(harness, enable_web):
     with _incident_mocks():
         result, _context = harness.turn(_PURE_WEATHER_PAIR, session_id=harness.session_id)
     answer = str(result.get("response") or "")
@@ -739,7 +739,7 @@ def _planned_outcomes_spy():
     return seen, mock.patch.object(planner, "run_plan", _spy)
 
 
-def test_i5_composite_execution_creates_one_outcome_per_demand(harness):
+def test_i5_composite_execution_creates_one_outcome_per_demand(harness, enable_web):
     """I5 on a real three-unit mixed turn: three minted demands, three owned
     outcomes, and every demand discharged in the synthesis."""
     spy, patch = _planned_outcomes_spy()
@@ -789,7 +789,7 @@ def test_i5_run_plan_returns_one_outcome_per_task_even_when_a_child_is_skipped()
     )
 
 
-def test_i7_a_failing_sibling_never_erases_a_satisfied_demand(harness):
+def test_i7_a_failing_sibling_never_erases_a_satisfied_demand(harness, enable_web):
     """I7: partial failure is named, success survives (R1e incident pin, held in
     the gauntlet so every invariant has at least one live-turn proof)."""
     with _incident_mocks(), _model_stand_in(harness.agent, _ENTROPY_STAND_IN):
@@ -862,7 +862,7 @@ def test_S3_omitting_a_declaration_turns_the_inventory_red():
         assert missing, "an omitted declaration went undetected by the inventory"
 
 
-def test_S4_a_skipped_planned_child_is_named_never_absent(harness):
+def test_S4_a_skipped_planned_child_is_named_never_absent(harness, enable_web):
     """S4: sabotage execution to skip one planned child entirely. The turn must
     still discharge EVERY demand — the missing unit surfaces as an explicit
     failure naming it, never as silence. RED at base: the skipped child vanished."""

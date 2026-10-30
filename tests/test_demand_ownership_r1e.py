@@ -158,7 +158,7 @@ def _children(harness: _Harness, context: dict, *, session_id: str | None = None
 # ------------------------------------------------- 1. the user-visible defect (RED)
 
 
-def test_mixed_explanation_and_weather_loses_neither_demand(harness):
+def test_mixed_explanation_and_weather_loses_neither_demand(enable_web, harness):
     """THE R1e incident. A message with one live-data entity and one general demand must
     answer BOTH: the live lane serves its unit, the normal path serves the other, and the
     reply is one synthesis. At base the live-data lane claimed the whole turn and the
@@ -198,7 +198,7 @@ def test_mixed_conversion_and_explanation_loses_neither_demand(harness):
     )
 
 
-def test_two_live_demands_plus_general_reasoning_serves_all_three(harness):
+def test_two_live_demands_plus_general_reasoning_serves_all_three(enable_web, harness):
     """Two DISTINCT live demands (two cities) AND a general reasoning demand. All three
     must survive: both cities' data and the reasoning. At base the reply carried the
     two-city weather table and nothing else."""
@@ -213,7 +213,7 @@ def test_two_live_demands_plus_general_reasoning_serves_all_three(harness):
     )
 
 
-def test_successful_output_survives_a_failed_sibling(harness):
+def test_successful_output_survives_a_failed_sibling(enable_web, harness):
     """Invariant 8, and the sharpest base defect: one live unit that FAILS (the fetch
     raises) beside one general unit that succeeds. The failure must not erase the
     success, the reply must state the partial failure truthfully, and — the measured
@@ -252,7 +252,7 @@ def test_near_miss_city_name_without_live_request_never_fetches(harness):
     assert "GENERAL-STAND-IN" in str(result.get("response") or "")
 
 
-def test_pure_live_request_keeps_the_direct_fast_path(harness):
+def test_pure_live_request_keeps_the_direct_fast_path(enable_web, harness):
     """Invariant 4: one live demand, one direct answer — no unit plan, no children, the
     same fast-path reply the runtime served before this contract existed."""
     with _incident_mocks():
@@ -286,7 +286,7 @@ def test_pure_general_request_keeps_the_normal_answer_path(harness):
 # ------------------------------------------------- 3. the contract's shape
 
 
-def test_one_external_turn_owns_one_request_one_user_row_and_one_root(harness):
+def test_one_external_turn_owns_one_request_one_user_row_and_one_root(enable_web, harness):
     """Invariants 1 and 7: a mixed turn is ONE external turn — one canonical request,
     one user dialogue row, one turn root — and every child it executes for a unit shares
     that identity with its own stable execution slot."""
@@ -385,7 +385,7 @@ def test_no_demand_unit_executes_twice(harness):
     )
 
 
-def test_followup_recall_sees_the_complete_synthesized_turn(harness):
+def test_followup_recall_sees_the_complete_synthesized_turn(enable_web, harness):
     """Invariant 10: the turn's persisted answer — what the next turn's history
     augmentation reads — is the COMPLETE synthesis, carrying both the live half and the
     general half. At base the logged reply was the weather line alone."""
@@ -554,7 +554,7 @@ def _parent_rerun_recorder(parent_text: str):
     return reruns, stack
 
 
-def test_a_merge_failure_after_children_ran_never_reruns_the_turn(harness):
+def test_a_merge_failure_after_children_ran_never_reruns_the_turn(enable_web, harness):
     """Requirements 3 and 6. The first child answers through the model lane, the
     second serves live weather, then `merge_outcomes` RAISES. The seam must keep
     the turn: synthesize from the outcomes it already holds, and never hand the
@@ -629,7 +629,7 @@ def test_all_children_failed_answers_with_a_typed_failure_not_a_fallback(harness
     )
 
 
-def test_childrens_distinct_evidence_all_reaches_the_parent(harness):
+def test_childrens_distinct_evidence_all_reaches_the_parent(enable_web, harness):
     """Requirement 7. Two live children publish DISTINCT observation identities
     (a weather lookup and a market quote). The parent turn's evidence channel must
     carry BOTH. At base the first-writer-wins propagation kept the first child's

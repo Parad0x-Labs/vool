@@ -28,6 +28,19 @@ from typing import Any
 from core.agent_runtime.live_data_plan import LiveDataPlan, LiveDataSubtask, SubtaskLifecycle, SubtaskOutcome
 
 
+def _failure_reason(exc: BaseException) -> str:
+    """The reason a subtask failed, as it is shown in the answer's table. A lookup the door refused
+    because Web lookups is off (or Local Only binds) reads as that, in plain words, never as the
+    refusal's code: the retry lane showed "RemoteFetchRefusedError: web_lookups_off"."""
+    from core.agent_runtime.fast_live_info_runtime_results import refusal_reason_text
+    from core.remote_fetch_policy import RemoteFetchRefusedError
+
+    if isinstance(exc, RemoteFetchRefusedError):
+        plain = refusal_reason_text(exc)
+        if plain:
+            return plain
+    return f"{type(exc).__name__}: {exc}"[:200]
+
 def _now() -> tuple[float, str]:
     """(monotonic seconds, wall-clock ISO string) captured together, for the same instant."""
     return time.monotonic(), datetime.now(timezone.utc).isoformat()
@@ -52,7 +65,7 @@ def _run_market_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subtas
             quotes = _market_quote_fallback_multi("", [target], timeout_s=timeout_s)
     except Exception as exc:
         return SubtaskOutcome(
-            subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason=f"{type(exc).__name__}: {exc}"[:200]
+            subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason=_failure_reason(exc)
         )
     if not quotes:
         return SubtaskOutcome(subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason="no quote returned")
@@ -113,7 +126,7 @@ def _run_weather_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subta
         result = structured_weather_lookup(location, timeout_s=timeout_s)
     except Exception as exc:
         return SubtaskOutcome(
-            subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason=f"{type(exc).__name__}: {exc}"[:200]
+            subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason=_failure_reason(exc)
         )
     if result is None:
         return SubtaskOutcome(subtask=subtask, state=SubtaskLifecycle.FAILED, failure_reason="no observation returned")
@@ -147,7 +160,7 @@ def _run_water_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subtask
         return SubtaskOutcome(
             subtask=subtask,
             state=SubtaskLifecycle.FAILED,
-            failure_reason=f"{type(exc).__name__}: {exc}"[:200],
+            failure_reason=_failure_reason(exc),
         )
     if result is None:
         return SubtaskOutcome(

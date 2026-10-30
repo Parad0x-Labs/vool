@@ -26,6 +26,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+from tests._web_lookups import switch_web_lookups_on_in_home
 from tests.test_conversation_intent_served import (
     OR_MODEL,
     OpenAICompatibleService,
@@ -73,6 +74,8 @@ def lane(tmp_path_factory):
     service.reply = _scripted
     daemon = OfflineOpenRouterDaemon(tmp_path_factory.mktemp("live-not-records") / "home", service)
     try:
+        # A failed live lookup needs the lookup to be allowed first: Web lookups on, as the person sets it.
+        switch_web_lookups_on_in_home(daemon.env())
         daemon.start()
         status, catalog = daemon.call("GET", "/api/cloud/models?provider=openrouter")
         assert status == 200, catalog

@@ -375,7 +375,7 @@ def test_without_a_dispatch_record_the_ladder_still_accuses_nothing(fresh_store)
 # ------------------------------------------------------------------ the production wiring
 
 
-def test_a_real_turn_writes_the_lane_receipt_the_census_counts(make_agent):
+def test_a_real_turn_writes_the_lane_receipt_the_census_counts(make_agent, enable_web):
     """§6.6 anchor, driven through `agent.run_once` — the PRODUCTION call sites, not the
     helper: `_answer_single/_multipart_live_data_turn` must call
     `_record_live_data_discharge`, the seal must convert it, and the ledger must end up with

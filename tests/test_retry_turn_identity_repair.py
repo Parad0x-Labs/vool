@@ -25,6 +25,7 @@ from core.runtime_continuity import (
 )
 from storage.migrations import run_migrations
 from tests._turn_session_identity import echoed_session_identity
+from tests._web_lookups import switch_web_lookups_on
 
 _SOURCE_CONTEXT = {"surface": "openclaw", "platform": "openclaw"}
 _INCIDENT_TEXT = "market prices for gold and bitcoin plus weather in Atlantisxyzabc123 and Kaunas"
@@ -32,6 +33,7 @@ _INCIDENT_TEXT = "market prices for gold and bitcoin plus weather in Atlantisxyz
 
 class RetryTurnIdentityTests(unittest.TestCase):
     def setUp(self) -> None:
+        switch_web_lookups_on(self)
         self._tmp = tempfile.TemporaryDirectory()
         self._db_path = Path(self._tmp.name) / "turnid.db"
         run_migrations(db_path=self._db_path)

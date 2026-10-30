@@ -163,7 +163,7 @@ def test_the_research_fallback_also_declines_the_weather_provider() -> None:
     assert _weather_fallback("sea surface temperature of the Adriatic", timeout_s=5.0) is None
 
 
-def test_the_research_fallback_still_serves_ordinary_air_weather(monkeypatch) -> None:
+def test_the_research_fallback_still_serves_ordinary_air_weather(monkeypatch, enable_web) -> None:
     """Negative control: the guard must not close the road for a real weather question."""
 
     import urllib.request
