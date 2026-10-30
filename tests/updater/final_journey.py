@@ -239,7 +239,7 @@ def app_health(bundle: Path) -> dict | None:
 
 def live_app_processes(root: Path) -> list[tuple[int, str]]:
     """(pid, bundle-path) for every LIVE journey app process under root, by ps scan."""
-    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    out = subprocess.run(["ps", "-axwwo", "pid=,command="], capture_output=True, text=True).stdout
     rows = []
     for line in out.splitlines():
         line = line.strip()
