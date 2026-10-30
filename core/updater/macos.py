@@ -266,6 +266,8 @@ class MacProcessHelper:
         self.app_path = Path(app_path) if app_path else None
         self.relaunch_cmd = list(relaunch_cmd) if relaunch_cmd else []
         self.poll_interval = poll_interval
+        self._launch_process: subprocess.Popen | None = None
+        self._launch_prior_pid = 0
 
     def _read_pid(self) -> int:
         if self.pid_file is None or not self.pid_file.exists():
@@ -309,11 +311,36 @@ class MacProcessHelper:
                          "VOOL_PROJECT_ROOT", "VOOL_EXPECTED_COMMIT", "VOOL_RUNTIME_MODE",
                          "VOOL_OWNED_BY_WINDOW_PID", "VOOL_NATIVE_PARENT_PID"):
                 launch_env.pop(name, None)
-            subprocess.Popen(command, env=launch_env, start_new_session=True, close_fds=True)
+            # The health wait observes THIS launch when the command execs the app
+            # directly (a launcher script's exec keeps this pid); the pid whose
+            # replacement marks the new process as actually up is captured first.
+            # The `open -n` handoff is NOT recorded: it returns while the app is
+            # still starting, so its exit would masquerade as the app's.
+            self._launch_process = None
+            if self.relaunch_cmd:
+                self._launch_prior_pid = self._read_pid()
+                self._launch_process = subprocess.Popen(
+                    command, env=launch_env, start_new_session=True, close_fds=True
+                )
+            else:
+                subprocess.Popen(command, env=launch_env, start_new_session=True, close_fds=True)
             return True
         except OSError as exc:
             logger.error("helper relaunch failed: %s", exc)
             return False
+
+    def observe_relaunch(self) -> str:
+        """Fair-start evidence for the last relaunch: 'exited' = the relaunched process
+        itself concluded (it ran), 'up' = a new process has taken the app's pidfile seat,
+        'starting' = spawned but not yet observed up, 'unknown' = this helper launched
+        nothing observable (a supervisor owns the restart)."""
+        process = self._launch_process
+        if process is None:
+            return "unknown"
+        if process.poll() is not None:
+            return "exited"
+        pid = self._read_pid()
+        return "up" if pid > 0 and pid != self._launch_prior_pid else "starting"
 
 
 class ExternalScriptHelper:
@@ -351,6 +378,8 @@ class ExternalScriptHelper:
         self._txid = ""
         self._staged = Path()
         self.process: subprocess.Popen | None = None
+        self._launch_process: subprocess.Popen | None = None
+        self._launch_prior_pid = 0
 
     def prepare(self, *, txid: str, staged_bundle: Path) -> None:
         """The flow hands over the transaction id + extracted bundle before shutdown."""
@@ -437,12 +466,31 @@ class ExternalScriptHelper:
         # never calls this. This is the ROLLBACK path's relauncher: bring the
         # previous version back up from this process (the daemon), detached.
         try:
-            command = shlex.split(self.relaunch_cmd) if self.relaunch_cmd else ["open", "-n", str(app_path)]
-            subprocess.Popen(command, start_new_session=True, close_fds=True)
+            direct = bool(self.relaunch_cmd)
+            command = shlex.split(self.relaunch_cmd) if direct else ["open", "-n", str(app_path)]
+            # Observed by the health wait only when the command execs the app
+            # directly; the `open -n` handoff returns while the app still starts,
+            # so its exit would masquerade as the app's.
+            self._launch_process = None
+            if direct:
+                self._launch_prior_pid = self._pid()
+                self._launch_process = subprocess.Popen(command, start_new_session=True, close_fds=True)
+            else:
+                subprocess.Popen(command, start_new_session=True, close_fds=True)
             return True
         except OSError as exc:
             logger.error("external helper relaunch failed: %s", exc)
             return False
+
+    def observe_relaunch(self) -> str:
+        """Same contract as MacProcessHelper.observe_relaunch, on this helper's pid source."""
+        process = self._launch_process
+        if process is None:
+            return "unknown"
+        if process.poll() is not None:
+            return "exited"
+        pid = self._pid()
+        return "up" if pid > 0 and pid != self._launch_prior_pid else "starting"
 
     def wait_for_result(self, *, timeout: float) -> tuple[bool, str]:
         """Poll the helper's result receipt (bounded)."""
