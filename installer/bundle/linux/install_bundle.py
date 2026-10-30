@@ -239,7 +239,8 @@ def owned_server_pid(home: Path, root: Path) -> int:
     if _pid_has_exited(pid):
         return 0  # already gone, or an unreaped zombie: nothing to stop
     try:
-        command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
+        # -ww: never fold the line, a long install path must not hide the server arg
+        command = subprocess.run(["ps", "-ww", "-p", str(pid), "-o", "args="],
                                  capture_output=True, text=True, timeout=5, check=False)
     except Exception as exc:
         # A live pidfile number that cannot be inspected must block removal,
