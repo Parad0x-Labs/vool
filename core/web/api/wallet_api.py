@@ -360,16 +360,29 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
 
             wallet_id = _wallet_id(body)
             custody.require_wallet(wallet_id, source_context=source_context)
-            current = limits.load_limits(wallet_id, str(body.get("asset") or "SOL"))
-            wanted = limits.SpendLimits(
-                per_tx_minor=int(body.get("per_tx_minor", current.per_tx_minor)), daily_minor=int(body.get("daily_minor", current.daily_minor)),
-                per_destination_daily_minor=int(body.get("per_destination_daily_minor", current.per_destination_daily_minor)),
-            )
-            if limits.loosens(current, wanted):
+            asset = str(body.get("asset") or "SOL")
+            current = limits.load_limits(wallet_id, asset)
+            try:
+                wanted = limits.SpendLimits(
+                    per_tx_minor=int(body.get("per_tx_minor", current.per_tx_minor)), daily_minor=int(body.get("daily_minor", current.daily_minor)),
+                    per_destination_daily_minor=int(body.get("per_destination_daily_minor", current.per_destination_daily_minor)),
+                )
+            except (TypeError, ValueError, OverflowError):
+                return _json(400, {"ok": False, "error": "limits_invalid", "message": "Caps are whole numbers of minor units. Nothing was changed."})
+
+            def prove() -> None:
                 # raising a cap needs the wallet's own approval credential: loopback alone is any process on this machine
                 custody.prove_owner(wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
                                     purpose="raise a spending cap", source_context=source_context)
-            updated = limits.set_limits(wallet_id, str(body.get("asset") or "SOL"), wanted)
+
+            proven = limits.loosens(current, wanted)
+            if proven:
+                prove()
+            updated = limits.set_limits_unless_raised(wallet_id, asset, wanted, proven=proven)
+            if updated is None:
+                # a cap was lowered after the first read: against the stored caps this write is now a raise
+                prove()
+                updated = limits.set_limits_unless_raised(wallet_id, asset, wanted, proven=True)
             return _ok({"limits": updated.to_dict()})
         if path == "/api/wallet/dna-fees/policy":
             # the trusted Settings door for the collection threshold (the rate and the treasury are not settable here or
