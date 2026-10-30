@@ -20,8 +20,8 @@ A card is one JSON object with four fields, and only these four:
 | Field | What it says | Rules |
 | --- | --- | --- |
 | `use_when` | One plain sentence: the situation in which a person needs this tool. | 12–300 characters. |
-| `examples` | Short asks a person would actually type when they need the tool. | 3–24 asks, each up to 200 characters, no duplicates. Any language. |
-| `not_for` | Near misses: asks that must NOT pick this tool — advice, how-to questions, talking about the topic. | Up to 16 asks, same shape as examples. Never the same ask as an example. |
+| `examples` | Short asks a person would actually type when they need the tool. | 3–24 asks, each up to 200 characters; a repeated ask counts once. Any language. |
+| `not_for` | Optional — near misses: asks that must NOT pick this tool (advice, how-to questions, talking about the topic). | Up to 16 asks, same shape as examples. Never the same ask as an example. |
 | `surfaces` | Optional: the surfaces the tool is offered on. | `pc`, `phone`, `chat_app`. It can only narrow — no list means every surface. |
 
 The card for a fictional tide-times plugin looks like this
@@ -116,8 +116,8 @@ tool does.
 
 ## How the router uses it
 
-When a turn's words come in, every registered tool's card is scored against them, locally and
-with no model call:
+When a turn's words come in, every registered tool that carries a card is scored against them,
+locally and with no chat-model call (a plugin tool with no card is never matched by words):
 
 * The ask and each example are reduced to word stems; stems shared with an example count more
   when they are rare across all cards (a stem every card uses, like *find*, counts for almost
@@ -130,7 +130,8 @@ with no model call:
 * The best few cards win: at most four card seats per turn, and a runner-up close to the top
   (85% of the best score) is seated too, because the ask may fit both.
 
-The scores gate two doors, and nothing else:
+The scores gate two doors (the same matches also feed two smaller readers — a tool-use retry
+that insists on a near-certain fit before it overrides an answer, and one folder check):
 
 1. **The chat lane.** A strong match (a score of 0.50 with meaning in play, or 0.75 for a
    near-verbatim word fit) tells VOOL this turn needs tools, so it is not answered tool-less
