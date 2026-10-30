@@ -62,6 +62,19 @@ def _last_attempted_version(paths: UpdaterPaths) -> str:
     return version
 
 
+def _newest_above(installed: str, *versions: str) -> str:
+    try:
+        floor = parse_semver(installed)
+    except (ValueError, TypeError):
+        return ""
+    best = ""
+    for text in versions:
+        with contextlib.suppress(ValueError, TypeError):
+            if parse_semver(text) > floor and (not best or parse_semver(text) > parse_semver(best)):
+                best = text
+    return best
+
+
 class SkippedVersionStore:
     """`{channel: {version, failure_at}}`: the version scheduled checks never offer again after it failed."""
 
@@ -205,14 +218,16 @@ class UpdateCheckService:
                 # First scheduled check after this failure: remember which version failed, once.
                 version = ""
                 if previous.fault_code in _SKIP_AFTER_FAULTS:
-                    version = _last_attempted_version(self._paths) or str(
-                        (self.high_water.load(self.channel) or {}).get("version") or "")
+                    # The newest version tried or seen that is above this copy: an update can fail before
+                    # its journal names a target, and high water has not moved since the failure.
+                    version = _newest_above(self.installed_version, _last_attempted_version(self._paths),
+                                            str((self.high_water.load(self.channel) or {}).get("version") or ""))
                 skip = {"version": version, "failure_at": previous.updated_at} if version else {}
                 if skip:
                     self.skipped.save(self.channel, skip)
             skip_semver = None
-            with contextlib.suppress(ValueError, TypeError):
-                skip_semver = parse_semver(str(skip.get("version") or "")) if skip else None
+            with contextlib.suppress(ValueError, TypeError):  # a skip only holds while the failure is shown
+                skip_semver = parse_semver(str(skip.get("version") or "")) if skip and failed_state else None
             if preserve_failure and failed_state and skip_semver is None:
                 self._offer = None
                 return CheckOutcome(False, "the previous update needs attention; recovery status was retained")
