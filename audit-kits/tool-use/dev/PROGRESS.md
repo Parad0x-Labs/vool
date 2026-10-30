@@ -31,3 +31,23 @@
   pass 4/9 -> 5/9 (scorer family tool 4/9 -> 8/9), missing_connection 2/3 -> 2/3, no_tool 3/3 -> 3/3, one timeout.
   Tests on e41b738 (207 related files): 5246 passed, 44 failed; 43 of the 44 fail on base too; one new red
   (test_answer_integrity_consecutive_turns served-door sequence). Details and what is left in RESULT.md.
+
+## Round 3 (from 598dc25a, 2026-10-30 evening)
+
+- 19:28Z: box set up from the kit branch (CPU Ollama 0.40.13, qwen3:8b, venv, fake home); the kit files are not on this
+  branch, so they were read from `origin/audit/tool-use-kit-20261029` (encrypted hidden set never extracted).
+- 20:20Z: four fixes committed, each with a test red before and green after.
+  (1) 13d31ed3 red test root cause: on the catalog turn the WoW design question classified `system_design`, and the
+  workflow planner's inferred research flow planned `web.search` ("Web lookups are off") before any model call, so the
+  model call carrying the failed-exchange note never happened. Inferred research now leaves catalog turns to the model.
+  (2) 4d7a4252 find before read for PDFs/files with a guessed path. (3) 0f573385 mail/calendar asks in LT/FR/ES/DE/RU/PL
+  (+PT/IT) with nothing connected answered plainly. (4) 71943158 native catalog rounds drop the text copy of the
+  catalog (context message 8.6k -> 6.1k chars) and send keep_alive 10m. Related -k selection running on 71943158.
+- 20:40Z: two more commits. 949495cd: a list_directory proposal for a named home folder VOOL may not read (Pictures,
+  dev nt-22) is refused in one plain line. 30c8cb31: the related -k run on 13d31ed3 found one red that passes on
+  cb4852e5 and also fails on 598dc25a (`test_final_answer_authorship_served_p0.py::test_served_a_real_tool_turn_is_executed_and_published_untouched`):
+  the catalog took the whole seat budget and evicted `workspace.read_file`; the catalog's seats are now additive.
+  -k selection on 13d31ed3: 7056 passed, 93 failed, 5 errors; 92 of the 93 failing ids also fail on cb4852e5.
+- 21:12Z: -k on 30c8cb31: 7060 passed, 94 failed, 5 errors. Against cb4852e5 by id: 92 fail there too; the 5 errors
+  error there too (environment); 2 were new reds from find-before-read (a missing path outside the home lost
+  machine.read_file's own refusal), fixed in cd904b2c. -k re-running on cd904b2c; push and the 81-ask dev run follow.
