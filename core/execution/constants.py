@@ -2036,6 +2036,93 @@ _TODO_LIST_WRITE_RE = re.compile(
 )
 
 
+class SpreadsheetQuestion(NamedTuple):
+    """A totals question about the owner's own table file ("how much did i spend in october, not
+    counting the salary, in my bank csv").
+
+    ``file_words`` are name stems to look for in the file's name (empty = the newest CSV wins);
+    ``month`` is a full month name; ``year`` only when the ask named one (else the file's own dates
+    decide); ``date_from``/``date_to`` are ISO dates or both ``None``; ``direction`` is "out"
+    (spend), "in" (came in) or "both" (a total); ``exclude`` are stems whose rows are left out.
+    """
+
+    file_words: tuple[str, ...]
+    month: str | None
+    year: int | None
+    date_from: str | None
+    date_to: str | None
+    direction: str
+    exclude: tuple[str, ...]
+
+
+# The ask must NAME the table thing it means: a csv/spreadsheet file, or the bank's own words for
+# one. A bare "statement"/"export" names no file and stays with the lanes that read or make one.
+_SPREADSHEET_THING_RE = re.compile(
+    r"\b(?:csv|spread\s?sheets?|(?:bank|card)\s+(?:statement|thing|export)|transactions?|"
+    r"my\s+(?:bank\s+)?export|the\s+export)\b",
+    re.IGNORECASE,
+)
+# ... and it must ASK for money, not for the file itself. "how much" alone is enough of a question.
+_SPREADSHEET_MONEY_RE = re.compile(
+    r"\b(?:how\s+much|how\s+many|total(?:s|led)?|spend|spent|spending|paid|pay|payments?|withdraw\w*|"
+    r"came\s+in|coming\s+in|come\s+in|went\s+out|goes\s+out|gone\s+out|income|earned|earnings?|deposits?|"
+    r"received|money\s+(?:in|out)|incoming?s?|outgoing?s?|expenses?)\b",
+    re.IGNORECASE,
+)
+# Another action on the file keeps its own lane (write/convert/send/find-by-name).
+_SPREADSHEET_OTHER_ACTION_RE = re.compile(
+    r"\b(?:make|create|write|build|generate|convert|send|email|share|upload|delete|remove|rename|"
+    r"copy|move|edit|fix|clean|sort|merge|split|plot|graph|chart|visuali[sz]e|open|read|print|"
+    r"find|locate|search|named|called|titled|summari[sz]e|summari[sz]ing)\b",
+    re.IGNORECASE,
+)
+# "how much" about the FILE itself (its size, its rows) is not a money question.
+_SPREADSHEET_NOT_MONEY_RE = re.compile(
+    r"\b(?:space|storage|size|sizes|big|bigger|biggest|large|larger|largest|disk|ram|memory|"
+    r"rows?|lines?|columns?|fields?|cells?|entries?)\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_MONTHS = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may",
+                       "jun": "june", "jul": "july", "aug": "august", "sep": "september", "sept": "september",
+                       "oct": "october", "nov": "november", "dec": "december"}
+_SPREADSHEET_MONTH_RE = re.compile(
+    r"\b(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|"
+    r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(?:of\s+|in\s+)?(?P<year>20\d{2}))?\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_DATE = r"(?:20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})"
+_SPREADSHEET_RANGE_RE = re.compile(
+    r"\b(?:from\s+|between\s+)?(?P<from>" + _SPREADSHEET_DATE + r")\s+(?:to|until|till|through|up\s+to|and)\s+"
+    r"(?P<to>" + _SPREADSHEET_DATE + r")\b",
+    re.IGNORECASE,
+)
+_SPREADSHEET_ON_DATE_RE = re.compile(r"\b(?:on|for|at)\s+(?P<date>" + _SPREADSHEET_DATE + r")\b", re.IGNORECASE)
+# "not counting the salary", "leaving out the gym membership": the words after the phrase are the
+# rows to leave out, up to a month, a date word, a connector or the end of the ask.
+_SPREADSHEET_EXCLUDE_RE = re.compile(
+    r"\b(?:not\s+counting|not\s+count|don'?t\s+count|not\s+including|excluding|leaving\s+out|left\s+out|"
+    r"but\s+not\s+the|except\s+(?:for\s+)?(?:the\s+)?|minus\s+the|without\s+(?:the\s+|my\s+)?)\s+"
+    r"(?P<what>(?:the\s+|my\s+|any\s+)?[a-z][\w'-]*(?:\s+[\w'-]+){0,2}?)"
+    r"(?=\s+(?:in|during|for|from|to|until|and|or|but|please|plus)\b|\s+(?:jan|feb|mar|apr|may|jun|jul|aug|"
+    r"sep|oct|nov|dec)[a-z]*\b|[?.!,;]|\s*$)",
+    re.IGNORECASE,
+)
+_SPREADSHEET_STOPWORDS = frozenset({
+    "the", "my", "a", "an", "any", "all", "of", "for", "from", "to", "until", "and", "or", "but", "please", "plus",
+    "thing", "file", "files", "csv", "spreadsheet", "bank", "statement", "statements", "transaction",
+    "transactions", "export", "exports", "much", "many", "how", "did", "do", "does", "i", "you", "we", "me",
+    "spend", "spent", "spending", "total", "totals", "totaled", "came", "come", "coming", "in", "out", "in-out",
+    "money", "month", "year", "day", "days", "counting", "count", "include", "including", "leave", "leaving",
+    "left", "except", "minus", "not", "don't",
+})
+_SPREADSHEET_FILE_WORD_RE = re.compile(
+    r"\b(?:bank|card|transaction|transactions|statement|statements|export|exports|invoice|invoices|"
+    r"shop|shopping|store|amazon|paypal|revolut|cash|budget|spending|expenses?|account|salary|wage|"
+    r"wages|checking|savings|credit|debit|groceries|utility|utilities|rent|mortgage)\b",
+    re.IGNORECASE,
+)
+
+
 def machine_todo_list_read_intent(text: str) -> TodoListRead | None:
     """The to-do list ask ("what's on my to do list again?") when the whole message reads it.
 
@@ -2053,6 +2140,79 @@ def machine_todo_list_read_intent(text: str) -> TodoListRead | None:
     if _TODO_LIST_NOUN_RE.search(raw) is None or _TODO_LIST_READ_CUE_RE.search(raw) is None:
         return None
     return TodoListRead(place=(_named_place(raw) or None))
+
+
+def _spreadsheet_month(text: str) -> tuple[str | None, int | None]:
+    match = _SPREADSHEET_MONTH_RE.search(text)
+    if match is None:
+        return None, None
+    month = _SPREADSHEET_MONTHS[match.group("month").lower()[:3]]
+    year = int(match.group("year")) if match.group("year") else None
+    return month, year
+
+
+def _spreadsheet_iso(raw: str) -> str:
+    """One date the person wrote, as ISO yyyy-mm-dd (dd/mm assumed, 2-digit years completed)."""
+    from datetime import datetime
+
+    for order in ("%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(raw, order).date().isoformat()
+        except ValueError:
+            continue
+    return ""
+
+
+def spreadsheet_question_intent(text: str) -> SpreadsheetQuestion | None:
+    """A totals question about a table file the owner names in words ("how much did i spend in
+    october in my bank csv"), else ``None``.
+
+    The ask must name the table thing (a csv/spreadsheet, the bank statement, the transactions
+    export) AND ask for money. Making, converting, sending or finding the file by name keeps its
+    own lane; so does an ask with no month, range or money words at all.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    if not _SPREADSHEET_THING_RE.search(raw) or not _SPREADSHEET_MONEY_RE.search(raw):
+        return None
+    if _SPREADSHEET_NOT_MONEY_RE.search(raw):
+        return None
+    if _SPREADSHEET_OTHER_ACTION_RE.search(raw) or _FILE_NOT_THIS_DISK_RE.search(raw):
+        return None
+    month, year = _spreadsheet_month(raw)
+    date_from = date_to = None
+    if (span := _SPREADSHEET_RANGE_RE.search(raw)) is not None:
+        date_from, date_to = _spreadsheet_iso(span.group("from")), _spreadsheet_iso(span.group("to"))
+        if not date_from or not date_to:
+            return None
+    elif (single := _SPREADSHEET_ON_DATE_RE.search(raw)) is not None:
+        date_from = date_to = _spreadsheet_iso(single.group("date")) or None
+        if date_from is None:
+            return None
+    # The excluded rows are spoken after the ask's real question; scan direction and file words on
+    # the ask with the exclusion clause lifted out, so "not counting the salary" never reads as
+    # money IN or steers the file pick toward a salary.csv.
+    without_exclusions = _SPREADSHEET_EXCLUDE_RE.sub(" ", raw)
+    exclude: list[str] = []
+    for phrase in _SPREADSHEET_EXCLUDE_RE.finditer(raw):
+        for word in re.findall(r"[a-z'][a-z'-]*", phrase.group("what").lower()):
+            stem = word[:-1] if len(word) > 4 and word.endswith("s") and not word.endswith("ss") else word
+            if len(stem) >= 3 and stem not in _SPREADSHEET_STOPWORDS and stem not in exclude:
+                exclude.append(stem)
+    # "how much did i get paid" is money IN even though it says "paid"; the passive forms are
+    # lifted out before the outgoing scan so they cannot flip the direction.
+    passive_paid = re.compile(r"\b(?:get|got|was|were|be|being)\s+paid\b", re.IGNORECASE)
+    outgoing = re.search(r"\b(?:spend|spent|spending|paid|pay|payments?|withdraw\w*|money\s+out|"
+                         r"outgoing?s?|expenses?|went\s+out|goes\s+out|gone\s+out)\b",
+                         passive_paid.sub(" ", without_exclusions), re.IGNORECASE)
+    incoming = re.search(r"\b(?:came\s+in|coming\s+in|come\s+in|went\s+in|goes\s+in|income|earned|earnings?|"
+                         r"deposits?|received|money\s+in|incoming?s?|salary|wages?|credits?)\b",
+                         without_exclusions, re.IGNORECASE) or passive_paid.search(without_exclusions)
+    direction = "both" if outgoing and incoming else "out" if outgoing else "in" if incoming else "both"
+    file_words = tuple(dict.fromkeys(word.lower() for word in _SPREADSHEET_FILE_WORD_RE.findall(
+        without_exclusions)))[:3]
+    return SpreadsheetQuestion(file_words, month, year, date_from, date_to, direction, tuple(exclude[:4]))
 
 
 # An ANALYSIS verb wants the folder's CONTENTS ("audit/analyze/review/what's in my X folder"),

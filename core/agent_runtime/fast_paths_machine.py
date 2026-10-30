@@ -40,6 +40,7 @@ from core.execution.constants import (
     machine_todo_list_read_intent,
     resolve_drive_scope,
     resolve_named_folder_under_home,
+    spreadsheet_question_intent,
 )
 from core.onboarding import get_agent_display_name
 from core.persistent_memory import recent_conversation_events
@@ -2702,6 +2703,105 @@ def measure_folder_size(place: str, *, source_context: dict | None) -> Any:
     )
 
 
+_SPREADSHEET_PLACES = ("Desktop", "Downloads", "Documents")
+
+
+def _csv_files_under_home_places(matches: list[str], words: tuple[str, ...]) -> tuple[list[str], list[str]]:
+    """The ``.csv`` files under Desktop/Downloads/Documents; the ones whose NAME carries one of
+    the ask's words come first, and when no name does, every csv stays a candidate."""
+    home = os.path.expanduser("~")
+    roots = [os.path.realpath(os.path.join(home, place)) for place in _SPREADSHEET_PLACES]
+    under: list[str] = []
+    for path in dict.fromkeys(str(item) for item in matches):
+        if not path.lower().endswith(".csv"):
+            continue
+        try:
+            real = os.path.realpath(path)
+        except OSError:
+            continue
+        if any(real.startswith(root + os.sep) for root in roots if os.path.isdir(root)):
+            under.append(path)
+    stems = [word.lower()[:-1] if len(word) > 4 and word.lower().endswith("s") and not word.lower().endswith("ss")
+             else word.lower() for word in words]
+    named = [
+        path for path in under
+        if any(token.startswith(stem) for token in re.findall(r"[0-9a-z]+", os.path.basename(path).lower()) for stem in stems)
+    ]
+    return named or under, under
+
+
+def answer_spreadsheet_question(question: Any, *, source_context: dict | None) -> Any:
+    """Answer a totals question about the owner's own csv file by reading the file it names.
+
+    "i downloaded my bank thing as a csv, how much did i spend in october? not counting the
+    salary" was answered from no file at all ("I can't access files directly") while the csv sat
+    in Downloads (phone parity audit F17). The csv is found with the same safe-roots walk and the
+    same phone rights fence as any file lookup; the newest of several wins and the reply names
+    the file, the rows and the rule, so the person can check every number. Read-only: nothing is
+    advised, nothing is changed. ``None`` when no tool ran, so the turn continues as before.
+    """
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    found = execute_authorized_runtime_tool(
+        "machine.find_file", {"name": ".csv"}, source_context=dict(source_context or {})
+    )
+    if found is None:
+        return None
+    if not getattr(found, "ok", False):
+        return found  # the refusal (a phone without computer rights) or the miss says why
+    everywhere = list((getattr(found, "details", None) or {}).get("matches") or [])
+    matches, under_places = _csv_files_under_home_places(everywhere, tuple(question.file_words))
+    if not matches:
+        lines = ["No CSV file found in Desktop, Downloads or Documents."]
+        elsewhere = [
+            path for path in everywhere
+            if path.lower().endswith(".csv") and path not in under_places
+        ][:3]
+        for path in elsewhere:
+            lines.append(f"There is one outside those folders: {_home_relative_safe_machine_path(Path(path))}.")
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed", response_text=" ".join(lines),
+            details={"matches": [], "observation": {"intent": "spreadsheet.question", "found": 0}},
+        )
+    newest = max(matches, key=lambda path: (os.path.getmtime(path) if os.path.exists(path) else 0.0))
+    label = _home_relative_safe_machine_path(Path(newest))
+    try:
+        from core.spreadsheet_questions import summarize
+
+        summary = summarize(newest, question, file_label=label)
+        text = str(summary.reply).strip()
+    except Exception:
+        # A plain question must never die on a broken file: fail closed, in plain words.
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status="failed",
+            response_text=f"I found {label}, but I could not read it as a table of rows.",
+            details={"path": newest, "observation": {"intent": "spreadsheet.question", "ok": False}},
+        )
+    if len(matches) > 1:
+        by_newest = sorted(
+            (path for path in matches if path != newest),
+            key=lambda path: os.path.getmtime(path) if os.path.exists(path) else 0.0,
+            reverse=True,
+        )[:3]
+        also = ", ".join(_home_relative_safe_machine_path(Path(path)) for path in by_newest)
+        text += f"\nI used the newest of the {len(matches)} CSV files there; also there: {also}."
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text=text,
+        details={
+            "path": newest, "matches": matches,
+            "observation": {
+                "intent": "spreadsheet.question", "file": newest,
+                "rows_read": summary.rows_read, "rows_counted": summary.rows_counted,
+                "total_in": summary.total_in_text, "total_out": summary.total_out_text,
+                "needs_column_choice": summary.needs_column_choice,
+                "month": question.month, "year": question.year,
+                "date_from": question.date_from, "date_to": question.date_to,
+                "direction": question.direction, "exclude": list(question.exclude),
+            },
+        },
+    )
+
+
 def _kind_nouns(kind: str) -> tuple[str, str]:
     if kind.startswith("."):
         label = kind[1:].upper()
@@ -3025,6 +3125,24 @@ def maybe_handle_direct_machine_read_request(
                 source_context=source_context,
                 intent="machine.list_directory",
                 execution=measured,
+                reason="machine_read_fast_path",
+            )
+    # "how much did i spend in october in my bank csv, not counting the salary" is a question
+    # ABOUT a file's contents. Find the csv by the words in the ask (newest of several, named in
+    # the reply), read it, and answer with the measured numbers -- the file-search lane below only
+    # answers WHERE a file is, and before this lane the model answered from no file at all (phone
+    # parity audit F17: "Since I can't access files directly, I'll need to guide you").
+    spreadsheet_q = spreadsheet_question_intent(user_input)
+    if spreadsheet_q is not None:
+        answered = answer_spreadsheet_question(spreadsheet_q, source_context=source_context)
+        if answered is not None:
+            return _machine_tool_fast_path_result(
+                agent,
+                user_input=user_input,
+                session_id=session_id,
+                source_context=source_context,
+                intent="machine.find_file",
+                execution=answered,
                 reason="machine_read_fast_path",
             )
     # A path the user typed out plus "what is inside it" needs no classification at all. Routed
