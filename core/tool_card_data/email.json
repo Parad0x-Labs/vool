@@ -29,5 +29,193 @@
     "not_for": [
       "what makes a good email subject line"
     ]
+  },
+  "email.send": {
+    "use_when": "The person wants a message emailed to someone, with a recipient, subject and body, or confirms that a drafted email should go out now.",
+    "examples": [
+      "email my landlord that the sink is leaking again and ask when someone can come by",
+      "Send an email to the team saying the meeting moved to 3pm",
+      "pls mail john@example.com the invoice, subject: March invoice",
+      "Could you please send a quick email to my boss saying I'm out sick today?",
+      "shoot an email to HR asking about my vacation balance",
+      "yes, send that email now",
+      "email sara@example.com: thanks for dinner, had a great time!",
+      "Send my cover letter to jobs@example.com with the subject Application for designer role",
+      "mail the landlord i cant pay rent till friday, send it now",
+      "write and send a reminder email to everyone on the list about Friday's potluck",
+      "Envía un correo a mi profesora diciendo que hoy no puedo ir a clase",
+      "Envoie un mail à mon propriétaire pour dire que le chauffage est en panne",
+      "Schick bitte eine E-Mail an Herrn Becker, dass ich den Termin absage",
+      "Išsiųsk el. laišką savo vadovui, kad šiandien dirbsiu iš namų"
+    ],
+    "not_for": [
+      "How do I write a professional email to my boss?",
+      "Draft an email declining a job offer, but don't send it yet",
+      "What's the difference between CC and BCC?",
+      "Read me my latest unread emails",
+      "Why does my email keep going to spam?",
+      "I get way too many emails on Mondays lol"
+    ]
+  },
+  "email.open": {
+    "use_when": "The person wants to read one specific email in full, with the whole body and headers, or see the entire back-and-forth conversation it belongs to, rather than a preview or a list.",
+    "examples": [
+      "open that email from my landlord and show me the whole thing",
+      "show the full message, not just the preview",
+      "can you pull up the whole thread for the invoice conversation",
+      "read me the entire email from Sarah about the trip pls",
+      "whats the full text of that email about my flight change",
+      "show me the headers and everything on that message",
+      "Could you please open the whole conversation with the plumber, oldest first?",
+      "open msg <abc123@mail.example.com>",
+      "i only see a snippet, need the entire body of the bank email",
+      "open the first one in full",
+      "Abre el correo completo del casero y muéstrame todo el contenido.",
+      "Ouvre tout le fil de discussion avec le comptable, s'il te plaît.",
+      "Zeig mir die komplette E-Mail von der Versicherung, nicht nur die Vorschau.",
+      "Atidaryk visą laišką iš banko ir parodyk visą tekstą."
+    ],
+    "not_for": [
+      "how do I find the Message-ID of an email in Gmail",
+      "write a reply to my boss saying I'll be late",
+      "what does CC vs BCC mean",
+      "search my inbox for emails about taxes",
+      "how do email threads work",
+      "ugh I get way too many emails lol"
+    ]
+  },
+  "email.draft.get": {
+    "use_when": "The person wants to look at the email draft currently being worked on (the latest one or a specific one), including its text, version number, and whether an approval still matches the exact content.",
+    "examples": [
+      "show me the draft",
+      "what does my current draft say?",
+      "can I see the email draft again",
+      "pull up draft 3 pls",
+      "whats the latest version of the draft",
+      "read me back the email before I send it",
+      "is the approval still valid for this draft or did it change since",
+      "lemme see what i have so far",
+      "show draft abc123",
+      "which version of the draft are we on?",
+      "Muéstrame el borrador del correo tal como está ahora",
+      "Peux-tu m'afficher le brouillon actuel du mail ?",
+      "Zeig mir bitte den aktuellen Entwurf der E-Mail",
+      "Parodyk man dabartinį laiško juodraštį"
+    ],
+    "not_for": [
+      "How do I write a good follow-up email?",
+      "Write an email to my landlord about the broken heater",
+      "Change the second paragraph to sound friendlier",
+      "Send it to Anna now",
+      "What's the difference between Cc and Bcc?",
+      "ugh I hate drafting emails, so boring"
+    ]
+  },
+  "email.draft.approve": {
+    "use_when": "The person has read the current email draft and says it is good, fine, or approved, and wants that exact version marked as approved, including after they have edited it.",
+    "examples": [
+      "Looks good, approve the draft",
+      "yes that's fine, approved",
+      "I'm happy with this version, you can mark it as approved",
+      "approve it",
+      "ok after the changes I approve the new version",
+      "Yep aproved, looks perfect",
+      "i read version 3 and it's good to go, approve that one",
+      "Please approve my reply to the landlord",
+      "its good approve the draft now",
+      "Great, I sign off on this email text exactly as it is",
+      "Me gusta cómo quedó, apruebo el borrador",
+      "C'est bon pour moi, j'approuve ce brouillon",
+      "Sieht gut aus, ich genehmige den Entwurf",
+      "Atrodo gerai, patvirtinu šį laiško juodraštį"
+    ],
+    "not_for": [
+      "How do I write a good follow-up email to a client?",
+      "Write me an email asking my boss for Friday off",
+      "Change the last paragraph to sound friendlier",
+      "Why do companies require approval before sending mass emails?",
+      "Send the email now",
+      "I'm so tired of approving things at work lol"
+    ]
+  },
+  "email.draft.send": {
+    "use_when": "The person has reviewed an email draft, approves it, and wants it actually sent to the recipient now.",
+    "examples": [
+      "Send it",
+      "ok the draft looks good, go ahead and send it",
+      "send that reply to my landlord",
+      "yep approved, fire it off",
+      "Please send the email we just wrote.",
+      "looks perfect. send",
+      "can u send that mail now, i approved it",
+      "Go ahead and send draft 3",
+      "sned the email we just wrote",
+      "I'm happy with it, hit send",
+      "Está bien, envía el borrador ahora",
+      "C'est validé, tu peux envoyer le mail.",
+      "Sieht gut aus, schick die E-Mail bitte ab.",
+      "Gerai, siųsk šį laišką dabar."
+    ],
+    "not_for": [
+      "How do I write a polite email asking for a refund?",
+      "Write a draft email to my boss asking for Friday off",
+      "What's the best time of day to send emails?",
+      "Why do some emails end up in spam?",
+      "Check if I got any new email from the bank"
+    ]
+  },
+  "email.draft.reconcile": {
+    "use_when": "The person is unsure whether an email they wrote actually went out, because sending failed or got stuck, and wants to know if it reached their Sent folder.",
+    "examples": [
+      "did my email to the landlord actually go out? it froze when I hit send",
+      "can you check if that draft was sent",
+      "not sure the email sent, the wifi dropped. can you verify",
+      "check my sent folder for the message I just tried to send",
+      "Was the email about the invoice delivered or is it still stuck?",
+      "my send button hung, did it go through or not",
+      "pls check whether the reply to my boss got sent",
+      "email status unknown, can u look in sent items",
+      "did that message leave my outbox or should I worry",
+      "can you confirm my draft was really sent, it showed some error",
+      "¿Se envió mi correo al banco? Me salió un error al mandarlo.",
+      "Peux-tu vérifier si mon e-mail est bien parti ? L'envoi a planté.",
+      "Ist meine E-Mail wirklich rausgegangen? Beim Senden gab es einen Fehler.",
+      "Ar mano laiškas tikrai išsiųstas? Nesu tikras, ar jis išėjo."
+    ],
+    "not_for": [
+      "How do I find my Sent folder in Gmail?",
+      "Write an email to my landlord asking about the deposit",
+      "Why do emails sometimes fail to send?",
+      "Send that draft again right now",
+      "What does a Message-ID header mean?",
+      "Thanks for sending that email earlier, you're great"
+    ]
+  },
+  "email.reply": {
+    "use_when": "The person wants to answer an email they received and have the reply sent in the same thread, with their signature, to the original sender.",
+    "examples": [
+      "Reply to Sarah's email and tell her Thursday at 3 works for me",
+      "send a reply to the landlord saying I'll pay the rent on Friday",
+      "can you answer that email from my boss and say the report will be done by noon tomorrow",
+      "reply yes to the invite from Tom",
+      "pls respond to the last email from the dentist and confirm my appt",
+      "Answer John's message: thanks, got the files, will review tonight. Go ahead and send it.",
+      "reply to this email thread saying I'm out of office until Monday",
+      "respnd to the recruiter and politely decline the offer, send it now",
+      "Could you please reply to Maria's email and let her know I received the invoice?",
+      "tell the school back that Liam will be absent tomorrow, reply to their email",
+      "Responde al correo de Ana y dile que mañana sí puedo asistir a la reunión",
+      "Réponds au mail de mon propriétaire pour confirmer que je passe samedi",
+      "Antworte bitte auf die E-Mail von Herrn Weber und sag, dass ich die Unterlagen morgen schicke",
+      "Atsakyk į Editos laišką ir parašyk, kad susitikimas penktadienį man tinka"
+    ],
+    "not_for": [
+      "How do I write a polite reply to a customer complaint?",
+      "Write me a template for declining a job offer",
+      "What does 'reply all' mean?",
+      "Show me my unread emails from today",
+      "I always forget to reply to emails, any tips?",
+      "Save a draft reply to Sarah so I can review it later"
+    ]
   }
 }

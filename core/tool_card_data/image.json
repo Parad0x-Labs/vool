@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "image.generate": {
+    "use_when": "The person wants a brand-new picture, illustration or artwork created from a description they give, such as a scene, character, logo idea or wallpaper.",
+    "examples": [
+      "make me a picture of a cat astronaut floating in space",
+      "can you draw a cozy cabin in the snow at sunset, watercolor style",
+      "create a flat minimal image of a blue fox for a logo idea",
+      "pls make a pic of a dragon eating pizza",
+      "i need an illustration of a futuristic city at night for my desktop wallpaper",
+      "draw me a cartoon of my dog as a pirate",
+      "could you please create a realistic image of a mountain lake at dawn",
+      "make a birthday card picture with balloons and a unicorn",
+      "robot barista, anime style, make the picture",
+      "cn you make an imge of a red vintage car on a beach",
+      "Crea una imagen de un gato astronauta en la luna",
+      "Dessine-moi un château dans les nuages, style aquarelle",
+      "Erstelle bitte ein Bild von einem Wald im Herbstnebel",
+      "Sukurk paveikslėlį su drakonu virš Vilniaus senamiesčio"
+    ],
+    "not_for": [
+      "How do AI picture makers actually work?",
+      "Write a short poem describing a sunset over the sea",
+      "What makes a good prompt for a fantasy portrait?",
+      "Resize this photo to 800x600 for me",
+      "Find me pictures of the Eiffel Tower online",
+      "I love painting landscapes on weekends"
+    ]
+  }
+}

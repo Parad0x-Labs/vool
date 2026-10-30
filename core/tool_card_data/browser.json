@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "browser.render": {
+    "use_when": "The person gives a public web page link and wants VOOL to open it, let it fully load or scroll, and read what it actually shows.",
+    "examples": [
+      "open https://example.com/pricing and tell me what the plans cost",
+      "can you load this page and read me what it says? https://news.example.org/story/123",
+      "this page looks empty without scripts, please load it fully https://shop.example.com/deals",
+      "scroll down the whole page at https://example.com/reviews and summarize the reviews",
+      "pls check whats on https://example.net/events rn",
+      "Could you please visit this link and tell me the opening hours listed there? https://example.org/contact",
+      "grab the text from this single page app https://app.example.com/docs",
+      "go to https://example.com/jobs and list the open positions",
+      "what does this page show now https://status.example.com",
+      "load https://example.org/blog and keep scrolling to the bottom, then give me the headlines",
+      "Abre https://example.com/precios y dime cuánto cuesta el plan básico",
+      "Peux-tu ouvrir cette page https://example.fr/actualites et me dire ce qu'elle affiche ?",
+      "Lade bitte https://example.de/angebote und sag mir, welche Angebote dort stehen",
+      "Atidaryk https://example.lt/naujienos ir pasakyk, kokios ten naujienos"
+    ],
+    "not_for": [
+      "how do web pages that use JavaScript get displayed?",
+      "write a short description for my website's landing page",
+      "what is the best web browser for privacy?",
+      "explain what a URL is",
+      "my browser keeps crashing, how can I fix it?",
+      "I love browsing the web late at night, it's so relaxing"
+    ]
+  }
+}

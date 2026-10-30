@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "pay.x402": {
+    "use_when": "The person wants VOOL to actually pay, with their own wallet, for a paywalled page, data feed or resource that is asking for a small crypto payment.",
+    "examples": [
+      "pay for this paywalled article so I can read it: https://news.example.com/premium/story-42",
+      "go ahead and pay the 0.50 USDC to unlock that data feed",
+      "settle the payment that site is asking for, cap it at 2 USDC",
+      "yes pay it, I approve the charge",
+      "unlock https://data.example.org/report/q3 using my wallet, max 1 usdc",
+      "pls pay the invoice for that resource, im ok with spending up to 5 dollars",
+      "can you buy access to this page with my crypto wallet",
+      "pay up for the premium dataset i just asked about",
+      "send the usdc payment to get the weather feed, limit 0.10",
+      "I authorize spending to open this link, please pay for it",
+      "Paga con mi cartera para desbloquear este recurso, máximo 1 USDC",
+      "Règle le paiement demandé par ce site, je t'autorise à dépenser jusqu'à 2 USDC",
+      "Bezahl bitte den Zugang zu dieser Seite mit meinem Wallet, maximal 1 USDC",
+      "Sumokėk 0,50 USDC, kad atrakintum šį straipsnį, aš sutinku"
+    ],
+    "not_for": [
+      "How does the HTTP 402 payment protocol work?",
+      "What's the price of USDC today?",
+      "Write a blog post about paying for web content with stablecoins",
+      "Should I keep my crypto in a hardware wallet?",
+      "Explain how I could set up a wallet to receive micropayments",
+      "ugh I hate paywalls, lol"
+    ]
+  }
+}

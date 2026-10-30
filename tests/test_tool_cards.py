@@ -7,7 +7,7 @@ What this protects (DESIGN: /mnt/project-files/modular-tools-20261029/DESIGN.md)
   refused, and a plugin contract with a card has exactly the trust of the same tool without one;
 - a plugin tool with a card is offered on a person's ordinary words, not only on its intent
   token, the moment it is registered and never after it is removed;
-- card routing is owner-local only and off unless the ``tools.card_routing`` flag is on;
+- card routing is owner-local only, on by default, and the ``tools.card_routing`` flag turns it off;
 - a ``not_for`` near miss vetoes its card.
 """
 
@@ -181,17 +181,17 @@ def test_a_removed_plugin_tool_is_never_routed_again(bin_pack, card_flag) -> Non
     )
 
 
-def test_card_routing_is_owner_local_only_and_off_by_default(bin_pack, monkeypatch) -> None:
+def test_card_routing_is_owner_local_only_and_can_be_switched_off(bin_pack, monkeypatch) -> None:
     from core import policy_engine
 
     monkeypatch.delenv("VOOL_TOOL_CARD_ROUTING", raising=False)
     policy_engine.load(force_reload=True)
-    assert tool_card_router.routed_intents("when are the bins collected", owner_local=True) == ()
-    monkeypatch.setenv("VOOL_TOOL_CARD_ROUTING", "1")
-    policy_engine.load(force_reload=True)
     try:
+        assert tool_card_router.routed_intents("when are the bins collected", owner_local=True), "on by default"
         assert tool_card_router.routed_intents("when are the bins collected", owner_local=False) == ()
-        assert tool_card_router.routed_intents("when are the bins collected", owner_local=True)
+        monkeypatch.setenv("VOOL_TOOL_CARD_ROUTING", "0")
+        policy_engine.load(force_reload=True)
+        assert tool_card_router.routed_intents("when are the bins collected", owner_local=True) == ()
     finally:
         monkeypatch.delenv("VOOL_TOOL_CARD_ROUTING", raising=False)
         policy_engine.load(force_reload=True)

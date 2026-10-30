@@ -1521,7 +1521,7 @@ def model_visible_specs(
         try:
             # Tool cards (core.tool_card_router): every tool, builtin or plugin, that declared when a
             # person needs it. Same matcher as the lane release in core.execution_requirements, so
-            # a turn released for a card is never handed an offer without that tool. Off unless the
+            # a turn released for a card is never handed an offer without that tool. On unless the
             # tools.card_routing flag is on.
             from core.tool_card_router import routed_intents
 

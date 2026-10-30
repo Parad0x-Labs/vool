@@ -345,7 +345,7 @@ def test_find_folder_still_needs_every_named_word(tmp_path, monkeypatch) -> None
 
 def test_only_a_near_certain_meaning_fit_insists_on_the_retry(card_flag, monkeypatch) -> None:
     # The local embedder is not up under test, so the matcher's meaning arm is fixed here at two
-    # real cosines: 0.82 releases the lane (it is above 0.70) but must not override a prose answer;
+    # real cosines: 0.82 releases the lane (it is above the ~0.725 release point) but must not override a prose answer;
     # 0.90 is a near-certain fit and does.
     from core.tool_card_router import CardMatch, semantic_score
     from core.tool_use_retry import RETRY_MEANING_COSINE

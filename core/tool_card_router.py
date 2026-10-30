@@ -23,7 +23,9 @@ across all cards (so "find" or "show", which every card has, counts for little a
 index follows `core.tool_registry.registry_epoch()`, so a plugin installed while VOOL runs is
 routable on its next turn with no restart and no router edit.
 
-Behind the policy flag ``tools.card_routing`` (default off) until measured; `match_cards` itself
+On by default since the 2026-10-30 tool-use kit A/B (quarter 0, qwen3:8b: the right tool ran on 8/18
+needs-a-tool asks with cards against 3/18 without; no-tool asks 0/6 both). The policy flag
+``tools.card_routing`` (or VOOL_TOOL_CARD_ROUTING=0) turns it off; `match_cards` itself
 is pure and always available to tests and the measuring harness.
 """
 from __future__ import annotations
@@ -247,8 +249,8 @@ def _score(query: _Ask, ask: _Ask, idf: dict[str, float], vocab: frozenset[str])
 # are ready, and whenever the embedder is down (the hash fallback is not a meaning space), matching
 # is word overlap alone.
 #
-# The band puts RELEASE_SCORE (0.50) at cosine 0.70, chosen from
-# `python -m tools.tool_card_calibrate` on the tool-use dev asks (2026-10-30, nomic-embed-text,
+# The band releases (RELEASE_SCORE 0.50) at cosine ~0.725: the band the 2026-10-30 frozen-kit A/B
+# measured. `python -m tools.tool_card_calibrate` on the tool-use dev asks (nomic-embed-text,
 # 39 cards; asks that would be released by meaning, per kind):
 #
 #     cosine   needs_tool   no_tool   missing_connection
@@ -256,10 +258,9 @@ def _score(query: _Ask, ask: _Ask, idf: dict[str, float], vocab: frozenset[str])
 #     0.70     18/26        4/12      2/2
 #     0.65     21/26        7/12      2/2
 #
-# 0.70 is the knee: above it each step buys more needs-a-tool asks than no-tool asks it hands tools
-# to; below it the cost catches up. The old band (0.55, 0.90) released at 0.725. Released is only
-# offered: the model still decides, and a no-tool ask handed tools is measured separately.
-SEM_ZERO = 0.50
+# 0.70 would find more needs-a-tool asks but doubles the no-tool asks handed tools on the dev set;
+# loosen only when the frozen kit shows the gain without that cost.
+SEM_ZERO = 0.55
 SEM_ONE = 0.90
 
 _vectors_lock = threading.Lock()
@@ -425,7 +426,7 @@ def card_routing_enabled() -> bool:
     try:
         from core import policy_engine
 
-        return bool(policy_engine.get(POLICY_FLAG, False))
+        return bool(policy_engine.get(POLICY_FLAG, True))
     except Exception:
         return False
 
@@ -463,6 +464,11 @@ def routed_intents(
         return ()
     out: list[CardMatch] = []
     for match in matches:
+        if not match.by_meaning and match.score < WORDS_ONLY_RELEASE_SCORE:
+            # Word overlap alone is not evidence of an ask: "what are the notes of a C major chord?"
+            # shares "notes" with save_note at 0.45 and "any events in Berlin this weekend?" shares
+            # "weekend" with show_agenda at 0.67. Without meaning, only a near-verbatim fit seats.
+            continue
         try:
             if _usable(match.intent):
                 out.append(match)
