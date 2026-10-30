@@ -88,6 +88,7 @@ class LinuxProcessHelper(MacProcessHelper):
 
     def relaunch(self, app_path: Path) -> bool:
         self.lock_path.unlink(missing_ok=True)
+        self._launch_process = None  # a supervisor or systemd restart is not observed through an old handle
         if os.environ.get("VOOL_LAUNCHD_SUPERVISOR") == "1" or os.environ.get("VOOL_UPDATE_LAUNCHER_WAITING") == "1":
             return True  # the existing installer-owned supervisor resumes
         try:

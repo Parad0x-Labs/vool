@@ -345,3 +345,21 @@ def test_up_but_silent_new_version_health_window_from_up(rig, monkeypatch):
     assert elapsed < 30
     assert (rig["target"] / "core/version").read_text() == "0.7.0"
     assert _health_version(rig) == "0.7.0"
+
+
+def test_a_new_version_given_up_on_is_stopped_before_the_rollback(rig, monkeypatch):
+    """A new version still starting when its start allowance runs out is stopped with the
+    rollback, not left running: otherwise it finishes starting later, takes the pidfile and
+    changes the data the rollback just put back (independent review, 2026-10-30)."""
+    _shrink_start_bound(monkeypatch, 2.0)
+    raw, manifest, decision, server = _offer(rig, {"start_sleep": 8, "broken": True})
+    (rig["home"] / "update-trigger").touch()
+
+    result = _flow(rig, server, health_timeout=3.0).run(raw, manifest, decision)
+
+    assert result.rolled_back
+    time.sleep(10)  # past the moment the abandoned new version would have finished starting
+    assert not (rig["home"] / "update-mutation-proof").exists()
+    assert _seed_rows(rig) == [("retained",)]
+    assert _health_version(rig) == "0.7.0"
+    assert _app_seat_pids(rig) == {int((rig["data"] / "vool_api.pid").read_text())}
