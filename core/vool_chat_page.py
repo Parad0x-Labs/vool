@@ -1284,7 +1284,7 @@ body:not(.panel-open) #xpanel { display:none; }
        unconditionally), so the element was permanently hidden. /web0 and /trace are reachable from
        Settings -> Advanced, which is a link that actually works. -->
 </header>
-<div id="offlineBar" class="offline-bar" role="status" hidden><span class="ob-text" id="offlineText">VOOL isn&rsquo;t running right now. Your chats are safe. Reconnecting&hellip;</span><button type="button" id="offlineRetry">Try again</button></div>
+<div id="offlineBar" class="offline-bar" role="status" hidden><span class="ob-text" id="offlineText" data-i18n="chat.offline_bar">VOOL isn&rsquo;t running right now. Your chats are safe. Reconnecting&hellip;</span><button type="button" id="offlineRetry" data-i18n="chat.offline_retry">Try again</button></div>
 <div id="searchBar" class="search-bar" role="search" hidden>
   <input type="search" id="searchInput" class="search-field" placeholder="Search this chat — messages, answers, tool results" autocomplete="off" spellcheck="false" aria-label="Search this chat" data-i18n-placeholder="header.search_placeholder" data-i18n-aria-label="header.search_aria">
   <span id="searchCount" class="search-count" aria-live="polite"></span>
@@ -2431,8 +2431,8 @@ function flushQueuedPatch(id) {
       return;
     }
     _patchRetry.delete(id);
-    toast(res.status === 0 ? "VOOL couldn't be reached, so the new chat name wasn't saved. Try renaming it again."
-      : "Couldn't save the new chat name. Try renaming it again.");
+    toast(res.status === 0 ? pageT('chat.rename_failed_offline', 'VOOL couldn’t be reached, so the new chat name wasn’t saved. Try renaming it again.')
+      : pageT('chat.rename_failed', 'Couldn’t save the new chat name. Try renaming it again.'));
     loadSessions();
   });
 }
@@ -2683,10 +2683,10 @@ function showLoadFailed(chatId) {
   const box = document.createElement('div');
   box.className = 'empty load-failed'; box.setAttribute('role', 'status');
   const h = document.createElement('div'); h.className = 'load-failed-title';
-  h.textContent = "Couldn\u2019t load this chat right now.";
+  h.textContent = pageT('chat.load_failed_title', 'Couldn’t load this chat right now.');
   const p = document.createElement('div'); p.className = 'load-failed-text';
-  p.textContent = "VOOL isn\u2019t reachable at the moment. Your chat is safe and will show again once VOOL is back.";
-  const b = document.createElement('button'); b.type = 'button'; b.className = 'tc-view'; b.textContent = 'Try again';
+  p.textContent = pageT('chat.load_failed_text', 'VOOL isn’t reachable at the moment. Your chat is safe and will show again once VOOL is back.');
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'tc-view'; b.textContent = pageT('chat.load_failed_retry', 'Try again');
   b.addEventListener('click', () => openSession(chatId));
   box.appendChild(h); box.appendChild(p); box.appendChild(b);
   logEl.appendChild(box);
@@ -2694,11 +2694,11 @@ function showLoadFailed(chatId) {
 function showEmpty() {
   // Time-aware greeting + a rotating opener so a new chat never opens on a blank screen.
   const h = new Date().getHours();
-  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?', ['🌙', '🦉']] : h < 12 ? ['first_run.greet_morning', 'Good morning', ['👋', '☀️', '☕']]
-    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon', ['👋', '🙂']] : h < 22 ? ['first_run.greet_evening', 'Good evening', ['👋', '🌆']] : ['first_run.greet_working_late', 'Working late?', ['🌙', '🦉']];
-  // A friendly emoji once in a while (not every open) — Codex-style "Good morning 👋".
-  let greet = emptyT(period[0], period[1]);
-  if (Math.random() < 0.45) greet += ' ' + period[2][Math.floor(Math.random() * period[2].length)];
+  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?'] : h < 12 ? ['first_run.greet_morning', 'Good morning']
+    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon'] : h < 22 ? ['first_run.greet_evening', 'Good evening'] : ['first_run.greet_working_late', 'Working late?'];
+  // The greeting is plain text only: no emoji after "Good morning" — a person reads this, and
+  // colour emoji are pictures, not words.
+  const greet = emptyT(period[0], period[1]);
   const openers = [
     ['first_run.opener_1', 'What are we working on today?'], ['first_run.opener_2', 'What’s the task?'],
     ['first_run.opener_3', 'What are you thinking about?'], ['first_run.opener_4', 'What should we build?'],
@@ -2846,7 +2846,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
     edit.addEventListener('click', () => resendFromBubble(el, false));
     actions.insertBefore(edit, actions.firstChild);
   }
-  // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
+  // Pin: save this message to the chat so it's findable later (the pin button in the header opens the pinned list).
   const pin = document.createElement('button');
   pin.type = 'button'; pin.className = 'msg-act msg-pin';
   setPinBtn(pin, isPinnedLocal(role, text));
@@ -2997,7 +2997,7 @@ function resendFromBubble(el, sendNow) {
   inputEl.setSelectionRange(text.length, text.length);
 }
 
-// ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
+// ---- Pinned messages: save an answer in a long chat, find it again from the header pin ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
 function setPinBtn(btn, on) { btn.textContent = on ? pageT('pin.pinned', 'Pinned') : pageT('pin.pin', 'Pin'); btn.title = on ? pageT('pin.unpin_title', 'Unpin this message') : pageT('pin.pin_title', 'Pin this message to the chat'); btn.classList.toggle('on', !!on); }
 function updatePinCount() {
@@ -3583,8 +3583,8 @@ async function deleteSession(sid, title) {
   // 404 on a chat whose first turn never finished is the expected answer (nothing on disk yet);
   // the tombstone covers the turn persisting it afterwards. Any other refusal keeps the row.
   if (!res.ok && !(res.status === 404 && (wasRunning || wasPending))) {
-    toast(res.status === 0 ? "VOOL couldn't be reached, so nothing was deleted. Try again in a moment."
-      : "Couldn't delete this chat yet. Try again in a moment.");
+    toast(res.status === 0 ? pageT('chat.delete_failed_offline', 'VOOL couldn’t be reached, so nothing was deleted. Try again in a moment.')
+      : pageT('chat.delete_failed', 'Couldn’t delete this chat yet. Try again in a moment.'));
     await loadSessions();
     return;
   }
@@ -3610,7 +3610,7 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const caret = document.createElement('span'); caret.className = 'proj-caret'; caret.textContent = collapsed ? '▸' : '▾';
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
-  nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
+  nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ✕') : name;
   nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
@@ -4081,6 +4081,9 @@ function renderSessions(sessions) {
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
     ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
     ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    // Reachable without a mouse, like a project head: the head is a button that opens/closes its group.
+    ph.tabIndex = 0; ph.setAttribute('role', 'button'); ph.setAttribute('aria-expanded', pinCollapsed ? 'false' : 'true');
+    ph.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === ph) { e.preventDefault(); ph.click(); } });
     sessionsEl.appendChild(ph);
     if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
   }
@@ -4096,6 +4099,9 @@ function renderSessions(sessions) {
     gh.appendChild(c); gh.appendChild(n); gh.appendChild(cnt);
     appendLifecycleBadge(gh, aggregateLifecycleState(general));
     gh.addEventListener('click', () => { const cc = loadCollapsed(); cc[GEN_KEY] = !cc[GEN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    // Reachable without a mouse, like a project head: the head is a button that opens/closes its group.
+    gh.tabIndex = 0; gh.setAttribute('role', 'button'); gh.setAttribute('aria-expanded', genCollapsed ? 'false' : 'true');
+    gh.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === gh) { e.preventDefault(); gh.click(); } });
     sessionsEl.appendChild(gh);
     if (!genCollapsed) { for (const s of general) sessionsEl.appendChild(makeSessionItem(s, false, projectIds.length > 0)); }
   }
@@ -4136,7 +4142,7 @@ function startRename(item, titleEl, id) {
     if (save && input.value.trim()) {
       const res = await postSession(id, { title: input.value });
       if (!res.ok) {
-        toast(res.status === 0 ? "VOOL couldn't be reached, so the new name wasn't saved." : "Couldn't rename this chat. Try again.");
+        toast(res.status === 0 ? pageT('chat.rename_failed_offline', 'VOOL couldn’t be reached, so the new chat name wasn’t saved. Try renaming it again.') : pageT('chat.rename_failed', 'Couldn’t save the new chat name. Try renaming it again.'));
         if (input.parentNode) input.parentNode.replaceChild(titleEl, input);   // the old name stays
         return;
       }
@@ -4193,8 +4199,8 @@ async function postSession(id, patch) {
 async function archiveSession(id, archived) {
   const res = await postSession(id, { archived: archived });   // persist the state change immediately
   if (!res.ok) {
-    toast(res.status === 0 ? (archived ? "VOOL couldn't be reached, so the chat wasn't archived." : "VOOL couldn't be reached, so the chat wasn't brought back.")
-      : (archived ? "Couldn't archive this chat. Try again in a moment." : "Couldn't bring this chat back. Try again in a moment."));
+    toast(res.status === 0 ? (archived ? pageT('chat.archive_failed_offline', 'VOOL couldn’t be reached, so the chat wasn’t archived.') : pageT('chat.unarchive_failed_offline', 'VOOL couldn’t be reached, so the chat wasn’t brought back.'))
+      : (archived ? pageT('chat.archive_failed', 'Couldn’t archive this chat. Try again in a moment.') : pageT('chat.unarchive_failed', 'Couldn’t bring this chat back. Try again in a moment.')));
     return;
   }
   // Archiving the ACTIVE thread mid-stream: leave the live output + currentSessionId untouched and
@@ -4253,8 +4259,8 @@ function listRetryRow(emptyClass) {
 }
 async function loadSessions() {
   try {
+    if (!sessionsLoaded) paintSessionsState('loading');   // a calm row before the first answer, painted BEFORE the projects await so the sidebar is never blank while it waits
     await refreshProjects();   // server-side project list drives the sidebar grouping
-    if (!sessionsLoaded) paintSessionsState('loading');   // a calm row before the first answer
     const r = await fetch('/api/chat/sessions');
     const data = await r.json().catch(() => null);   // an unreadable body is not a list either
     // Render only on a real answer. An HTTP error, a broken body, or a store still opening
@@ -6152,11 +6158,11 @@ function reviewStatePresentation(value) {
     not_run: { cls: '', icon: '', label: '', evidence: '', detail: '', meta: '' },
     running: { cls: 'run', icon: '»', label: 'Model review running', evidence: 'Model review running', detail: 'no reviewer verdict recorded yet', meta: 'model review running' },
     passed: { cls: 'ok', icon: '✓', label: 'Independent review passed', evidence: 'Model-reviewed — passed', detail: 'reviewer model returned PASS — this is not validation or answer proof', meta: 'model review passed' },
-    flagged: { cls: 'fail', icon: '⚠', label: 'Review flagged', evidence: 'Review flagged', detail: 'reviewer executed and returned a flagged verdict — this is not validation proof', meta: 'review flagged' },
-    blocked: { cls: 'fail', icon: '⚠', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'review was blocked before a reviewer verdict was produced', meta: 'model review blocked' },
-    degraded: { cls: 'fail', icon: '⚠', label: 'Model review degraded', evidence: 'Model review degraded', detail: 'review path was degraded or unavailable; no reviewer verdict was produced', meta: 'model review degraded' },
-    runtime_failed: { cls: 'fail', icon: '⚠', label: 'Model review failed to run', evidence: 'Model review failed to run', detail: 'review execution failed before producing a valid verdict', meta: 'model review failed to run' },
-    unavailable: { cls: 'fail', icon: '⚠', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'legacy review evidence is ambiguous; no reviewer verdict can be inferred', meta: 'model review unavailable' },
+    flagged: { cls: 'fail', icon: '✕', label: 'Review flagged', evidence: 'Review flagged', detail: 'reviewer executed and returned a flagged verdict — this is not validation proof', meta: 'review flagged' },
+    blocked: { cls: 'fail', icon: '✕', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'review was blocked before a reviewer verdict was produced', meta: 'model review blocked' },
+    degraded: { cls: 'fail', icon: '✕', label: 'Model review degraded', evidence: 'Model review degraded', detail: 'review path was degraded or unavailable; no reviewer verdict was produced', meta: 'model review degraded' },
+    runtime_failed: { cls: 'fail', icon: '✕', label: 'Model review failed to run', evidence: 'Model review failed to run', detail: 'review execution failed before producing a valid verdict', meta: 'model review failed to run' },
+    unavailable: { cls: 'fail', icon: '✕', label: 'Model review unavailable', evidence: 'Model review unavailable', detail: 'legacy review evidence is ambiguous; no reviewer verdict can be inferred', meta: 'model review unavailable' },
   };
   return presentations[state] || presentations.unavailable;
 }
@@ -6557,14 +6563,14 @@ const LEDGER_MAP = {
   model_lane_started:           ['run', '◆', 'Model running'],
   model_lane_completed:         ['ok',  '◆', 'Model answered'],
   model_verification_receipt:   ['meta', '≡', 'Model identity receipt'],
-  model_lane_failed:            ['fail','⚠', 'Model call failed'],
-  model_lane_contract_failed:   ['fail','⚠', 'Model output rejected'],
+  model_lane_failed:            ['fail','✕', 'Model call failed'],
+  model_lane_contract_failed:   ['fail','✕', 'Model output rejected'],
   model_lane_verifier_started:  ['run', '»', 'Model review running'],
   model_lane_verifier_completed:['ok',  '✓', 'Independent review passed'],
-  model_lane_verifier_degraded: ['fail','⚠', 'Model review degraded'],
-  model_lane_verifier_flagged:  ['fail','⚠', 'Review flagged'],
-  model_lane_verifier_blocked:  ['fail','⚠', 'Model review unavailable'],
-  model_lane_verifier_failed:   ['fail','⚠', 'Model review failed to run'],
+  model_lane_verifier_degraded: ['fail','✕', 'Model review degraded'],
+  model_lane_verifier_flagged:  ['fail','✕', 'Review flagged'],
+  model_lane_verifier_blocked:  ['fail','✕', 'Model review unavailable'],
+  model_lane_verifier_failed:   ['fail','✕', 'Model review failed to run'],
   // Attachment receipts (core/chat_attachments.py via the API door and the router): what was
   // attached, refused, sent with a message, read or withheld by a model, and released after.
   attachment_staged:            ['ok',  '\u{1F4CE}', 'Attached'],
@@ -6582,29 +6588,29 @@ const LEDGER_MAP = {
   tool_fallback_to_research:    ['run', '»', 'Falling back to research'],
   tool_loop_resumed:            ['run', '▸', 'Resumed tools'],
   tool_loop_completed:          ['ok',  '✓', 'Tools done'],
-  tool_repeat_blocked:          ['fail','⚠', 'Repeated tool blocked'],
+  tool_repeat_blocked:          ['fail','✕', 'Repeated tool blocked'],
   tool_synthesizing:            ['run', '»', 'Synthesizing'],
   workflow_planner_step:        ['run', '»', 'Plan step'],
   workflow_planner_stop:        ['ok',  '✓', 'Plan complete'],
   task_pending_approval:        ['wait','⏸', 'Waiting for approval'],
-  task_interrupted:             ['fail','⚠', 'Interrupted'],
+  task_interrupted:             ['fail','✕', 'Interrupted'],
   task_completed:               ['ok',  '✓', 'Completed'],
   task_failed:                  ['fail','✕', 'Failed'],
-  stale_result_rejected:        ['fail','⚠', 'Stale result rejected'],
-  model_routing_failed:         ['fail','⚠', 'Routing failed'],
+  stale_result_rejected:        ['fail','✕', 'Stale result rejected'],
+  model_routing_failed:         ['fail','✕', 'Routing failed'],
   // The canonical workspace-mutation receipts emitted by core/runtime_execution_tools.py. These are
   // the only events that testify a file on disk actually changed; without them keyed here they fell
   // to the ['run','•',''] default and rendered as an unlabelled bullet.
   workspace_mutation_completed:          ['ok',  '✎', 'File changed'],
   workspace_mutation_rollback_completed: ['ok',  '↩', 'Change rolled back'],
   workspace_mutation_failed:             ['fail','✕', 'File change failed'],
-  workspace_mutation_rollback_conflict:  ['fail','⚠', 'Rollback conflict'],
+  workspace_mutation_rollback_conflict:  ['fail','✕', 'Rollback conflict'],
   // The router emits TWO shapes: model_lane_* for the lane timeline and DOTTED model.call_* for each
   // per-adapter call. Only the underscore names were keyed here, so every dotted type fell to the
   // ['run','•',''] default and rendered as a bare bullet with no label and no sub-line.
   'model.call_started':              ['run', '◆', 'Model running'],
   'model.call_completed':            ['ok',  '◆', 'Model answered'],
-  'model.call_failed':               ['fail','⚠', 'Model call failed'],
+  'model.call_failed':               ['fail','✕', 'Model call failed'],
   'model.response_constraint_retry': ['run', '»', 'Retrying for output shape'],
   // Retrieval receipts (core/retrieval_observability.py, core/fresh_data/fx.py). Unkeyed, a FAILED
   // retrieval fell to ['run','•',''] and drew a neutral running bullet reading "Web retrieval
@@ -8460,7 +8466,7 @@ function wireActivityPanelActions() {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
         const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
         view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
-      } catch (e) { button.disabled = false; toast(pageT('recovery.cancel_failed_prefix', 'Could not cancel recovered task: ') + e.message); }
+      } catch (e) { button.disabled = false; console.warn('cancel recovered task failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     }
   }));
 }
@@ -8851,7 +8857,7 @@ function receiptRowHtml(rc) {
   const cls = rc.verdict === 'clean' ? 'ok' : (rc.verdict === 'blocked_false_claim' ? 'fail' : 'run');
   const rid = String(rc.receipt_id || '');
   return '<details class="rc-item ' + cls + '" data-receipt="' + esc(rid) + '">'
-    + '<summary class="rc-sum"><span class="ic">' + (rc.signed ? '🔏' : '•') + '</span>'
+    + '<summary class="rc-sum"><span class="ic">' + (rc.signed ? '✓' : '•') + '</span>'
     + '<span class="rc-hd">Turn ' + esc(rc.turn_index) + ' · ' + esc(rc.verdict || 'unrecorded verdict')
     + '<span class="rc-sub mono">' + esc(String(rc.content_hash || 'no content hash').slice(0, 16)) + '</span></span></summary>'
     + '<div class="rc-body">'
@@ -10604,7 +10610,7 @@ async function syncModeController() {
   try { await setModeController(owner.mode, owner.bypassGrant && owner.bypassGrant.token); }
   catch (e) {
     if (owner.mode === 'bypass_permissions') { owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode(); }
-    toast(pageTF('mode.activate_failed', 'Could not activate {label}: {error}', { label: (MODE_LABELS[owner.mode] || owner.mode), error: e.message }));
+    console.warn('mode activate failed', owner.mode, e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
   }
 }
 async function restoreChatBypass(chatId) {
@@ -10648,7 +10654,7 @@ async function refreshBypassReadiness(context) {
     Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || pageT('bypass.setup.project_fallback', 'Project')));
     add('__new', pageT('bypass.setup.new', 'Choose a new folder…'));
   } catch (e) {
-    if (bypassDialogContext === context) hint.textContent = pageTF('bypass.readiness.error', 'Could not check permissions: {error} Close and reopen to retry.', { error: e.message });
+    if (bypassDialogContext === context) { console.warn('bypass readiness check failed', e); hint.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
   }
 }
 function openBypassModal() {
@@ -10746,7 +10752,7 @@ async function revokeBypass() {
   const token = owner.bypassGrant && owner.bypassGrant.token;
   try { await postMode({ op: 'revoke_bypass', token: token || '' }, context); } catch (e) {}
   owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode();
-  try { await setModeController('manual', '', context); } catch (e) { toast(pageTF('bypass.sync_failed', 'Bypass ended locally; controller sync failed: {error}', { error: e.message })); }
+  try { await setModeController('manual', '', context); } catch (e) { console.warn('controller sync after bypass failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 // The composer shows a short label; the exact name lives on the tooltip and, unchanged, in
 // Activity, About and receipts. "NVIDIA: Nemotron 3 Ultra 550B A55B (free)" is 41 characters and
@@ -10763,7 +10769,7 @@ function reflectModel() {
   // Label priority: known tier -> friendly cloud name -> the raw id itself (never blank).
   const label = modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   reflectControl('modelPop', 'modelLbl', modelValue, { [modelValue]: label }, '');
-  // When Auto is sticking to this chat's cloud model, mark the pill (📌) so the switching-stop is visible.
+  // When Auto is sticking to this chat's cloud model, mark the pill so the switching-stop is visible.
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
   const laneKind = (modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL) ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
@@ -11794,8 +11800,8 @@ async function renderCloudModels() {
     row.className = 'pop-group cloud-dyn cloud-empty';
     const msg = document.createElement('span'); msg.className = 'pi-hint';
     const refreshInfo = data && typeof data.refresh === 'object' && data.refresh ? data.refresh : null;
-    if (fetchError) msg.textContent = pageTF('model.catalog_load_failed', 'Could not load the model catalog: {error}', { error: fetchError });
-    else if (refreshInfo && refreshInfo.ok === false) msg.textContent = 'Model catalog refresh failed' + (refreshInfo.error ? ': ' + refreshInfo.error : '') + '.';
+    if (fetchError) { console.warn('model catalog load failed', fetchError); msg.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
+    else if (refreshInfo && refreshInfo.ok === false) { console.warn('model catalog refresh failed', refreshInfo.error || ''); msg.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
     else msg.textContent = 'No model catalog loaded yet. The connection test checks your key, not the catalog.';
     row.appendChild(msg);
     const retry = document.createElement('button');
@@ -11988,7 +11994,8 @@ async function brCreateAnswerDraft() {
     brFlow.destination = (data.draft && data.draft.destination_repo) || brDefaultDestination;
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not build the report: ' + esc(e.message) + '</p>' +
+    console.warn('bug report build failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>' +
       '<div class="br-actions"><button type="button" class="set-btn" id="brBackAnswer">Back</button></div>';
     document.getElementById('brBackAnswer').addEventListener('click', renderAnswerReportForm);
   }
@@ -12054,7 +12061,8 @@ async function renderMyReports() {
     if (!res.ok || !data.ok) throw new Error(data.error || 'list unavailable');
     rows = data.reports || [];
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not load your reports: ' + esc(e.message) + '</p>';
+    console.warn('bug report list load failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   const body = rows.length ? '<table class="br-mine"><tbody>' + rows.map((r) => {
@@ -12067,7 +12075,7 @@ async function renderMyReports() {
     '<div class="br-actions"><button type="button" class="set-btn" id="brMineClose">Close</button></div>';
   document.getElementById('brMineClose').addEventListener('click', closeBugReport);
   bugReportBody.querySelectorAll('.br-mine-del').forEach((b) => b.addEventListener('click', async () => {
-    try { await brPost('/api/bug-report/delete', { report_id: b.dataset.id }); } catch (e) { toast('Delete failed: ' + e.message); }
+    try { await brPost('/api/bug-report/delete', { report_id: b.dataset.id }); } catch (e) { console.warn('bug report delete failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     renderMyReports();
   }));
   bugReportBody.querySelectorAll('.br-mine-open').forEach((b) => b.addEventListener('click', async () => {
@@ -12080,7 +12088,7 @@ async function renderMyReports() {
       brFlow.removedFields = st.consent ? (st.consent.removed_fields || []) : [];
       brFlow.removedAttachments = st.consent ? (st.consent.removed_attachments || []) : [];
       await renderBugReportReview();
-    } catch (e) { toast('Could not open the report: ' + e.message); }
+    } catch (e) { console.warn('bug report open failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
   }));
 }
 
@@ -12100,7 +12108,7 @@ async function brOpenOnGitHub() {
   let data;
   try {
     data = await brPost('/api/bug-report/handoff', { report_id: brFlow.reportId, method: 'browser' });
-  } catch (e) { toast('Could not prepare the GitHub page: ' + e.message); return; }
+  } catch (e) { console.warn('bug report GitHub page prepare failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); return; }
   let pasteNote = '';
   if (!data.complete) {
     try { await brWriteClipboard(data.clipboard_text || ''); pasteNote = '<p class="br-status"><b>The report was too long for a link, so it is on your clipboard.</b> Paste it into the GitHub page.</p>'; }
@@ -12126,7 +12134,7 @@ async function brCopyReport(btn) {
     if (btn) { btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
     toast('Report copied. Paste it wherever you want to send it.');
   } catch (e) {
-    toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
+    console.warn('bug report copy to clipboard failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
   }
 }
 
@@ -12170,7 +12178,8 @@ async function loadBugReportCandidates(turnId) {
     if (!res.ok || !data.ok) throw new Error(data.error || 'candidates unavailable');
     brFlow.candidates = data.candidates || [];
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not load failed turns: ' + esc(e.message) + '</p>';
+    console.warn('bug report failed-turns load failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   let start = -1;
@@ -12268,7 +12277,8 @@ async function brCreateDraft() {
     brFlow.form = Object.assign({}, brFlow.form, { destination: brFlow.destination });
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Draft failed: ' + esc(e.message) + '</p><div class="br-actions"><button type="button" class="set-btn" id="brBackPick">Back</button></div>';
+    console.warn('bug report draft failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p><div class="br-actions"><button type="button" class="set-btn" id="brBackPick">Back</button></div>';
     document.getElementById('brBackPick').addEventListener('click', () => renderBugReportPick(brFlow.selected));
   }
 }
@@ -12286,7 +12296,8 @@ async function brRefreshPreview() {
 async function renderBugReportReview() {
   bugReportBody.innerHTML = '<p class="br-status">Rendering the exact outbound preview&hellip;</p>';
   try { await brRefreshPreview(); } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Preview failed: ' + esc(e.message) + '</p>';
+    console.warn('bug report preview failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   const p = brFlow.preview;
@@ -12345,7 +12356,7 @@ async function brRevoke() {
     brFlow.approved = false;
     toast('Approval withdrawn. Nothing can be sent until you approve again.');
     await renderBugReportReview();
-  } catch (e) { toast('Withdraw failed: ' + e.message); }
+  } catch (e) { console.warn('bug report approval withdraw failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 
 async function brExport() {
@@ -12364,7 +12375,8 @@ async function brExport() {
     document.getElementById('brBackReview').addEventListener('click', renderBugReportReview);
     document.getElementById('brDoneX').addEventListener('click', closeBugReport);
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Local save failed: ' + esc(e.message) + '</p>' +
+    console.warn('bug report local save failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>' +
       '<div class="br-actions"><button type="button" class="set-btn" id="brBackReview">Back to preview</button></div>';
     document.getElementById('brBackReview').addEventListener('click', renderBugReportReview);
   }
@@ -12391,7 +12403,7 @@ async function brApprove() {
     brFlow.approved = true;
     toast('Approved. Open it on GitHub, copy it, or save it.');
     await renderBugReportReview();
-  } catch (e) { toast('Approval failed: ' + e.message); }
+  } catch (e) { console.warn('bug report approval failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 
 function brEditDraft() {
@@ -12424,7 +12436,8 @@ async function brSaveEdit() {
     toast('Edits saved — approval was reset.');
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Edit failed: ' + esc(e.message) + '</p>';
+    console.warn('bug report draft edit failed', e);
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
   }
 }
 
@@ -13517,8 +13530,8 @@ async function saveCloudKey() {
       showKeySavedBanner(label || provider);
       toast('API key saved and encrypted on this machine.');
     }
-    else { orStatusEl.textContent = 'Could not save: ' + (j.error || r.status); orStatusEl.className = 'set-status err'; hideKeySavedBanner(); }
-  } catch (e) { orStatusEl.textContent = 'Could not save: ' + (e && e.message ? e.message : e); orStatusEl.className = 'set-status err'; }
+    else { console.warn('credential save refused', j && j.error, r && r.status); orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; hideKeySavedBanner(); }
+  } catch (e) { console.warn('credential save failed', e); orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; }
   orSaveEl.disabled = false;
 }
 
@@ -13611,7 +13624,7 @@ async function testCloudConnection() {
       else if (j.detail === 'unauthorized') { orStatusEl.textContent = 'OpenRouter rejected the key (HTTP ' + (j.http_status || '?') + '). Re-check or replace it.'; orStatusEl.className = 'set-status err'; }
       else { orStatusEl.textContent = 'Could not reach OpenRouter — the key itself was not judged.'; orStatusEl.className = 'set-status err'; }
     }
-  } catch (e) { if (orStatusEl) { orStatusEl.textContent = 'Test failed: ' + (e && e.message ? e.message : e); orStatusEl.className = 'set-status err'; } }
+  } catch (e) { console.warn('credential test failed', e); if (orStatusEl) { orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; } }
   orTestEl.disabled = false;
 }
 
@@ -13720,7 +13733,7 @@ if (sbExportBtn) sbExportBtn.addEventListener('click', async () => {
     document.body.appendChild(a); a.click(); a.remove();
     sbStatus(sbExportStatus, d.encrypted ? 'Saved: signed + encrypted bundle (' + d.counts.turns + ' turns).' : 'Saved: signed, UNENCRYPTED bundle (' + d.counts.turns + ' turns).', !d.encrypted);
     sbRenderExportPreview();
-  } catch (e) { sbStatus(sbExportStatus, 'Export failed: ' + (e && e.message || e), true); }
+  } catch (e) { console.warn('chat bundle export failed', e); sbStatus(sbExportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 if (sbImportFile) sbImportFile.addEventListener('change', () => {
   sbStagedPath = ''; sbNeedsConfirm = false;
@@ -13750,7 +13763,7 @@ if (sbPreviewBtn) sbPreviewBtn.addEventListener('click', async () => {
     if (sbForeignRow) sbForeignRow.hidden = !sbNeedsConfirm;
     if (sbOpenRestored) sbOpenRestored.hidden = true;
     sbStatus(sbImportStatus, sbNeedsConfirm ? 'Signed by an UNKNOWN key — tick the acknowledgement to import it untrusted.' : 'Preview ready — review, then Import.');
-  } catch (e) { sbStatus(sbImportStatus, 'Preview failed: ' + (e && e.message || e), true); }
+  } catch (e) { console.warn('chat bundle preview failed', e); sbStatus(sbImportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 function renderSbPreview(d) {
   if (!sbPreviewBox) return;
@@ -13785,7 +13798,7 @@ if (sbImportBtn) sbImportBtn.addEventListener('click', async () => {
     if (sbPreviewBox) { sbPreviewBox.hidden = true; }
     if (sbOpenRestored) sbOpenRestored.hidden = false;
     sbStatus(sbImportStatus, 'Imported ' + d.counts.turns + ' turns' + (d.collision ? ' under a new id (the original was already here).' : '.') + (d.trust && d.trust.trusted === false ? ' Marked UNTRUSTED (unknown signer).' : ''));
-  } catch (e) { sbStatus(sbImportStatus, 'Import failed: ' + (e && e.message || e), true); }
+  } catch (e) { console.warn('chat bundle import failed', e); sbStatus(sbImportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 if (sbOpenRestored) sbOpenRestored.addEventListener('click', async () => {
   if (!sbRestoredId) return;
@@ -14077,7 +14090,7 @@ async function resolvePermission(decision, scope) {
       if (owner.run) { owner.run.permission = false; owner.run.permissionDenied = true; owner.run.action = pageT('run.permission_denied', 'Permission denied'); renderCard(owner.run); }
       toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
     }
-  } catch (e) { toast(pageT('permissions.resolve_failed_prefix', 'Could not resolve approval: ') + e.message); }
+  } catch (e) { console.warn('resolve approval failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 if (permBarEl) {
   document.getElementById('permOnce').addEventListener('click', () => resolvePermission('allow', 'once'));
@@ -14113,7 +14126,7 @@ if (permBarEl) {
         openProjectMenu(chatId, chatGrantBtn);
         return;
       }
-      toast(pageT('permissions.chat_grant_failed_prefix', 'Could not grant chat workspace approval: ') + e.message);
+      console.warn('chat workspace approval grant failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
     }
   });
   document.getElementById('permReview').addEventListener('click', () => { permDetailEl.hidden = !permDetailEl.hidden; });
@@ -14629,7 +14642,7 @@ const VoolConnection = (function () {
       clearTimeout(timer); delay = 2000;
       if (offline) {
         show(false);
-        toast('VOOL is running again.');
+        toast(pageT('chat.back_online', 'VOOL is running again.'));
         try { loadSessions(); } catch (e) {}
         try { if (logEl && logEl.querySelector('.load-failed')) openSession(displayedChat); } catch (e) {}
       }
