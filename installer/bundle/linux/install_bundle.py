@@ -6,12 +6,21 @@ import hashlib
 import os
 import re
 import shutil
+import signal
+import subprocess
 import sys
 import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 MARKER = "vool-linux-bundle-v1\n"
 DESKTOP_MARKER = "X-VOOL-Linux-Bundle=true"
+SERVER_ARG = "-m apps.vool_api_server"
+PIDFILE_RELATIVE = Path("data/vool_api.pid")
+STOP_POLL_SECONDS = 0.2
+TERM_WAIT_SECONDS = 10.0
+KILL_WAIT_SECONDS = 10.0
 
 
 def safe_directory(path: Path) -> None:
@@ -156,11 +165,160 @@ def install(package: Path, home: Path) -> None:
     print(f"Uninstall: bash {root}/current/uninstall.sh (runtime profiles are preserved).")
 
 
-def uninstall(home: Path) -> None:
+def runtime_home_for(home: Path) -> Path:
+    """Where the installed package keeps its chats and settings (launch.py parity)."""
+    env = os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME")
+    if env:
+        return Path(env)
+    canonical = home / ".vool_runtime"
+    legacy = home / ".nulla_runtime"
+    if not canonical.exists() and legacy.exists():
+        return legacy
+    return canonical
+
+
+def process_cwd(pid: int) -> Path | None:
+    """The working directory of ``pid``, or None when it cannot be proven."""
+    proc_cwd = Path(f"/proc/{int(pid)}/cwd")
+    if proc_cwd.exists():
+        try:
+            return proc_cwd.resolve()
+        except OSError:
+            return None
+    listing = subprocess.run(
+        ["lsof", "-a", "-p", str(int(pid)), "-d", "cwd", "-Fn"],
+        capture_output=True, text=True, timeout=5, check=False,
+    )
+    if listing.returncode != 0:
+        return None
+    for line in listing.stdout.splitlines():
+        if line.startswith("n") and len(line) > 1:
+            return Path(line[1:])
+    return None
+
+
+def _pid_has_exited(pid: int) -> bool:
+    """Gone from the kernel, or a zombie the parent has not reaped yet."""
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, PermissionError):
+        return True
+    out = subprocess.run(["ps", "-p", str(pid), "-o", "stat="],
+                         capture_output=True, text=True, check=False)
+    return out.returncode != 0 or out.stdout.strip().startswith("Z")
+
+
+def owned_server_pid(home: Path, root: Path) -> int:
+    """This package's own API server pid, proven the way the updater proves it.
+
+    The pidfile alone proves nothing (numbers get reused): the command line must
+    be VOOL's server and the working directory must sit inside this package's
+    own ``versions`` tree. Anything else returns 0 and is never signalled.
+    """
+    pidfile = runtime_home_for(home) / PIDFILE_RELATIVE
+    try:
+        pid = int(pidfile.read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        return 0
+    if pid <= 1 or pid == os.getpid():
+        return 0
+    command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
+                             capture_output=True, text=True, timeout=5, check=False)
+    if command.returncode or SERVER_ARG not in command.stdout:
+        return 0
+    try:
+        cwd = process_cwd(pid)
+    except OSError:
+        return 0
+    if cwd is None:
+        return 0
+    versions = (Path(root) / "versions").resolve()
+    return pid if cwd.parent.parent == versions and cwd.name == "app" else 0
+
+
+def _wait_until_exited(pid: int, timeout: float) -> bool:
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    while True:
+        if _pid_has_exited(pid):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(STOP_POLL_SECONDS)
+
+
+def stop_running_server(home: Path, root: Path, *, term_wait: float = TERM_WAIT_SECONDS,
+                        kill_wait: float = KILL_WAIT_SECONDS) -> tuple[bool, str | None]:
+    """Stop the package's own running server before its files are removed.
+
+    A live server with its package deleted underneath it keeps the port and
+    answers with errors, so removal waits for a real exit: SIGTERM, a bounded
+    wait, SIGKILL, another bounded wait. Refuses (removing nothing) when the
+    server will not die. A process the ownership check did not prove to be this
+    package's server is never touched.
+    """
+    pid = owned_server_pid(home, root)
+    if pid <= 0:
+        return True, None
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass  # exited between the check and the signal
+    if _wait_until_exited(pid, term_wait):
+        return True, None
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+    if _wait_until_exited(pid, kill_wait):
+        return True, None
+    return False, ("VOOL is still running and could not be stopped, so nothing was removed. "
+                   "Close VOOL and run this uninstall again.")
+
+
+def _report_kept_data(home: Path) -> None:
+    runtime_home = runtime_home_for(home)
+    if runtime_home.is_dir():
+        print(f"Your chats and settings were kept, in: {runtime_home}")
+        print("A fresh VOOL install will find them there again.")
+        print("To delete them as well, run this uninstall again with --remove-data")
+    else:
+        print("No saved chats and settings were found; nothing was kept.")
+
+
+def _remove_profile_data(home: Path, *, assume_yes: bool,
+                         prompt: Callable[..., str] = input) -> None:
+    runtime_home = runtime_home_for(home)
+    if not runtime_home.exists() and not runtime_home.is_symlink():
+        return
+    resolved = runtime_home.resolve()
+    home_resolved = Path(home).resolve()
+    if runtime_home.is_symlink() or not runtime_home.is_dir():
+        raise ValueError(f"Refusing to remove {runtime_home}: it is not a plain VOOL data folder")
+    if resolved == home_resolved or resolved == resolved.parent:
+        raise ValueError("Refusing to remove the home folder itself")
+    if not assume_yes:
+        answer = prompt(f"Delete your saved chats and settings in {runtime_home} too? [no]: ")
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Kept your chats and settings.")
+            return
+    shutil.rmtree(runtime_home)
+    print("Deleted your saved chats and settings.")
+
+
+def uninstall(home: Path, *, remove_data: bool = False, assume_yes: bool = False,
+              prompt: Callable[..., str] = input) -> None:
     root, binary, desktop = layout(home)
     if not root.exists():
         print("VOOL Linux package is already absent.")
+        _report_kept_data(home)
+        if remove_data:
+            _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
         return
+    stopped, refusal = stop_running_server(home, root)
+    if not stopped:
+        raise ValueError(refusal)
     if not owned_root(root):
         raise ValueError("Refusing to remove an unowned install directory")
     check_entrypoints(root, binary, desktop)
@@ -193,13 +351,20 @@ def uninstall(home: Path) -> None:
     if list(root.iterdir()) == [root / ".vool-linux-bundle"]:
         (root / ".vool-linux-bundle").unlink()
         root.rmdir()
-    print("Uninstalled VOOL Linux package; user profiles and unrelated files preserved.")
+    print("Uninstalled VOOL Linux package; unrelated files were preserved.")
+    _report_kept_data(home)
+    if remove_data:
+        _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("install", "uninstall"))
     parser.add_argument("--package", type=Path)
+    parser.add_argument("--remove-data", action="store_true",
+                        help="uninstall: also delete your saved chats and settings (asks once)")
+    parser.add_argument("--yes", action="store_true",
+                        help="uninstall: skip the delete-data question asked by --remove-data")
     args = parser.parse_args()
     try:
         home = Path(os.environ.get("HOME", ""))
@@ -208,9 +373,10 @@ def main() -> int:
                 parser.error("install requires --package")
             install(args.package.resolve(), home)
         else:
-            uninstall(home)
+            uninstall(home, remove_data=args.remove_data, assume_yes=args.yes)
     except (OSError, ValueError) as exc:
-        print(f"Installation refused: {exc}", file=sys.stderr)
+        prefix = "Installation refused" if args.action == "install" else "Uninstall refused"
+        print(f"{prefix}: {exc}", file=sys.stderr)
         return 1
     return 0
 
