@@ -1,6 +1,6 @@
 # Proposed trusted admission service
 
-> **Planned for 0.8, not released yet.** The community admission service and PR route described here are not running; nothing in `registry_service/` accepts submissions in 0.7.5.
+> **Status:** skill uploads are checked and signed automatically by the Skill Codex signer (`registry_service/github_authority.py`). The fork-and-PR route and the parts this contract lists as not activated are planned for 0.8, not released yet.
 
 
 
