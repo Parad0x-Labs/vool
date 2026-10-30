@@ -69,7 +69,7 @@ def _ask(intent: str, arguments: dict[str, object]) -> str:
 @pytest.mark.parametrize(
     ("intent", "arguments", "plain_word"),
     [
-        ("machine.ensure_directory", {"path": "~/Desktop/Reports"}, "directory"),  # a folder
+        ("machine.ensure_directory", {"path": "~/Desktop/Reports"}, "folder"),  # a folder
         ("machine.write_file", {"path": "~/Documents/notes", "content": "x"}, "file"),  # a file write
         ("acme.magic_widget", {"deck": "q4"}, ""),  # no contract at all (plugin/MCP/unknown)
     ],
@@ -93,15 +93,16 @@ def test_a_tool_without_a_contract_gets_the_one_general_sentence() -> None:
 
 
 def test_every_builtin_tool_derives_a_phrase_with_no_id_in_it() -> None:
-    """The derivation is general, not a hand-picked table: every registered contract must
-    yield plain words, and no contract's phrase may carry the id shape."""
-    from core.runtime_tool_contracts import plain_action_phrase, runtime_tool_contract_map
+    """Every tool that can ask for approval has plain words, and no phrase carries the id shape.
+    The words come from the keyed phrase table (approval.action.*), not the contract text."""
+    from core.runtime_tool_contracts import plain_action_phrase
+    from tests.test_approval_everyday_words import _approval_capable_intents
 
-    contracts = runtime_tool_contract_map()
-    assert len(contracts) > 50, "the builtin catalogue unexpectedly small -- parser rot?"
-    empty = [intent for intent in contracts if not plain_action_phrase(intent)]
-    assert not empty, f"tools that would fall to the general sentence despite a contract: {empty[:5]}"
-    with_id = [intent for intent in contracts if TOOL_ID.search(plain_action_phrase(intent))]
+    capable = _approval_capable_intents()
+    assert len(capable) > 50, "the approval-capable set unexpectedly small -- parser rot?"
+    empty = [intent for intent in capable if not plain_action_phrase(intent)]
+    assert not empty, f"approval-capable tools that would fall to the general sentence: {empty[:5]}"
+    with_id = [intent for intent in capable if TOOL_ID.search(plain_action_phrase(intent))]
     assert not with_id, f"phrases carrying a dotted id: {[(i, plain_action_phrase(i)) for i in with_id[:5]]}"
 
 
@@ -225,7 +226,7 @@ def test_the_approval_payload_carries_a_plain_name_for_the_page() -> None:
     assert "machine.ensure_directory" in str(request.get("action") or "")
     plain = str(request.get("action_plain") or "")
     assert plain and not TOOL_ID.search(plain), request
-    assert "directory" in plain.lower(), plain
+    assert "folder" in plain.lower(), plain
 
 
 def test_a_command_approval_has_no_second_name_and_an_unknown_tool_keeps_it_empty() -> None:

@@ -3313,59 +3313,40 @@ def runtime_tool_contract_map() -> dict[str, RuntimeToolContract]:
 # ---- The plain-words name of what a tool does, for approval asks --------------------------------
 #
 # An approval ask a person reads must never lead with a raw dotted tool id
-# ("machine.ensure_directory needs your approval..."). The phrase below is derived from the
-# tool's OWN contract description, so it stays true to what the tool does without a second,
-# drifting catalogue of pretty names; and a tool WITHOUT a builtin contract (a plugin, an MCP
-# tool, anything unknown) returns "" so every caller shows its one general fallback sentence --
-# by construction, never by enumerating third-party names, and never the tool's id.
+# ("machine.ensure_directory needs your approval...") and never with the tool's developer
+# contract description ("Create a directory inside a safe local directory...", "Run one
+# bounded shell command..."). The words a person reads come from the ONE keyed phrase table
+# in core/approval_action_phrases.py (approval.action.<intent> in the catalogs, translated
+# in every locale), covering every intent that can REQUIRE APPROVAL; a tool without a keyed
+# phrase (a plugin, an MCP tool, anything unknown) returns "" so every caller shows its one
+# general fallback sentence -- by construction, never by enumerating third-party names, and
+# never the tool's id.
 
-_GENERAL_APPROVAL_ASK = "This request needs your approval first."
 _GENERAL_ACTION_LABEL = "Run this request"
-# Anything shaped like a dotted tool id (machine.ensure_directory, web.fetch) is scrubbed from
-# the derived clause: a person reads words, not identifiers.
-_DOTTED_ID_RE = re.compile(r"\b[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_.]*")
-# The description's leading clause is the action in plain words; the tail after any of these
-# markers is detail (lists, schema talk, caveats) that does not belong in the ask's first line.
-_CLAUSE_CUT_MARKERS = (" such as", " e.g.", ", ", "; ", " (", ":", "`", " -- ", " - ", " plus ")
 
 
 def plain_action_phrase(intent: str) -> str:
-    """What the tool DOES, in plain words a person reads, from the tool's own contract.
+    """What the tool DOES, in plain words a person reads: the keyed everyday phrase.
 
-    Empty when the intent has no builtin contract: the caller then uses its general fallback,
-    so a third-party tool can neither leak its dotted id into a sentence nor be given a name
-    the contract never made.
+    Empty when the intent has no keyed phrase: the caller then uses its general fallback, so
+    a third-party tool can neither leak its dotted id into a sentence nor be given a name
+    nobody wrote for it. The contract's developer description is never read for words a
+    person sees.
     """
-    try:
-        contract = runtime_tool_contract_map().get(str(intent or "").strip().lower())
-    except Exception:
-        return ""
-    description = " ".join(str(getattr(contract, "description", "") or "").split())
-    if not description:
-        return ""
-    cut = len(description)
-    for marker in _CLAUSE_CUT_MARKERS:
-        idx = description.find(marker)
-        if idx != -1:
-            cut = min(cut, idx)
-    dot = description.find(".")
-    if dot != -1:
-        cut = min(cut, dot)
-    clause = description[:cut].strip().rstrip(",;:").strip()
-    # No dotted ids, no backticked schema words, in anything a person reads.
-    clause = _DOTTED_ID_RE.sub(" ", clause).replace("`", " ")
-    clause = " ".join(clause.split())
-    if len(clause.split(" ")) < 2 or len(clause) > 160:
-        return ""
-    return clause
+    from core.approval_action_phrases import approval_action_phrase
+
+    return approval_action_phrase(intent)
 
 
 def plain_approval_ask(intent: str) -> str:
-    """The leading sentence of the approval ask: the plain action, then the ask itself."""
-    phrase = plain_action_phrase(intent)
-    if not phrase:
-        return _GENERAL_APPROVAL_ASK
-    return f"{phrase}. This needs your approval first."
+    """The leading sentences of the approval ask, in English source words.
+
+    The live ask is minted per page language (and with the target named) by
+    localized_approval_ask in core/approval_action_phrases.py.
+    """
+    from core.approval_action_phrases import localized_approval_ask
+
+    return localized_approval_ask(intent, "en")
 
 
 def plain_action_label(intent: str) -> str:

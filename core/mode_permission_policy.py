@@ -3747,13 +3747,40 @@ def _new_approval_request(
         if command_line
         else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
     )
-    # The plain-words name of the same action, from the tool's own contract, so a page can read
-    # the ask without the dotted id the exact `action` line still carries (pinned by an existing
-    # test). A command card names the exact line that will run, so it has no second name; a tool
-    # without a contract keeps "" and the page falls back to `action`.
-    from core.runtime_tool_contracts import plain_action_phrase
+    # The plain-words name of the same action, from the keyed phrase table
+    # (approval.action.<intent>), in the page's own language, naming the target by its name
+    # when the ask knows one -- so a page can read the ask without the dotted id the exact
+    # `action` line still carries (pinned by an existing test). A command card names the exact
+    # line that will run, so it has no second name; a tool without a keyed phrase keeps "" and
+    # the page falls back to `action`.
+    from core.approval_action_phrases import localized_action_words, localized_target_words
+    from core.private_chat_languages import ui_locale_of
 
-    action_plain = "" if command_line else plain_action_phrase(display_intent)
+    ask_locale = ui_locale_of(source_context)
+    action_plain = (
+        ""
+        if command_line
+        else localized_action_words(display_intent, ask_locale, display_arguments)
+    )
+
+    def _named_rows(rows: tuple[dict[str, str], ...]) -> list[dict[str, str]]:
+        # Each bullet the page renders carries its own plain phrase (the keyed everyday
+        # words, never the dotted id) and, when the plan names a target, its own "called
+        # Receipts" clause -- so the page never re-derives either from the id.
+        named = []
+        for row in rows:
+            member_intent = str(row.get("intent") or "")
+            target = {"target": str(row.get("target") or "")}
+            named.append(
+                {
+                    "intent": member_intent,
+                    "target": row.get("target", ""),
+                    "phrase": localized_action_words(member_intent, ask_locale, None),
+                    "target_plain": localized_target_words(member_intent, ask_locale, target),
+                }
+            )
+        return named
+
     request = {
         "approval_id": token,
         "task_id": task_id,
@@ -3771,12 +3798,12 @@ def _new_approval_request(
         "expires_at": time.time() + 86400,
         # What the "allow all planned changes" button would actually cover, named file by file, so
         # the operator approves a visible list rather than a count.
-        "planned_actions": [dict(item) for item in planned_actions],
+        "planned_actions": _named_rows(planned_actions),
         "planned_action_count": len(batch_fingerprints),
         # And what it would NOT cover, from the same plan, named the same way. A batch that quietly
         # dropped the `sandbox.run_command` sitting beside the writes still showed a truthful count,
         # so the operator could only learn the command was excluded by being asked about it later.
-        "excluded_actions": [dict(item) for item in excluded_actions],
+        "excluded_actions": _named_rows(excluded_actions),
         # Server-derived button copy. The composition of the covered set is what decides it, so the
         # browser never has to classify anything to phrase the grant it is offering.
         "planned_action_label": _planned_batch_label(planned_actions),
