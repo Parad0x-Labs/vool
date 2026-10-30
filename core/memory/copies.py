@@ -212,12 +212,11 @@ def _scrub_file(path: Path, token: str, chat_id: str, *, in_place: bool) -> int:
     raw = path.read_bytes()
     main = Path(re.sub(r"-(?:wal|shm|journal)$", "", str(path)))
     if main != path and main.exists() and _is_sqlite(main):
-        # a database's side file: the database pass above folded a live write-ahead log into the file; one that is
-        # left beside a copy the database does not read is stale pages, and is emptied
+        # a database's side file is part of the database (a running writer may hold it open): the database pass
+        # above folds what it can and closes, which removes the log; one that still holds the words is said
         if path.name.endswith("-shm") or not text_carries(raw.decode("utf-8", "replace"), token):
             return 0
-        _rewrite(path, b"", in_place=in_place)
-        return 1
+        raise _Unchangeable(path.name)
     if "cas_chunks" in path.parts:
         # a content-addressed chunk is named by its bytes and cannot be edited; the live forget removes it. In a
         # backup it is emptied, not removed: the backup's index lists it, and a restore needs every listed file
@@ -436,7 +435,9 @@ def _sqlite_carriers(conn: sqlite3.Connection, token: str, chat_id: str
 def _index_only_carries(conn: sqlite3.Connection, full_text: dict[str, str], token: str) -> bool:
     """A full-text table that keeps no text of its own (``content=''``) cannot be rewritten row by row; its index is
     asked for the words instead. One that still finds them is said, not reported as forgotten."""
-    phrase = '"' + " ".join(re.findall(r"[^\W_]+", fold_forget_text(token))) + '"'
+    # the index may hold the words as typed ("Straße", a ligature) or folded: either finds them
+    phrases = {'"' + " ".join(re.findall(r"[^\W_]+", words)) + '"' for words in (token, fold_forget_text(token))}
+    phrase = " OR ".join(sorted(phrases))
     for name, definition in full_text.items():
         if not _CONTENTLESS_RE.search(definition):
             continue
