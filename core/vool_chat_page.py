@@ -13758,6 +13758,17 @@ const permDetailEl = document.getElementById('permDetail');
 // when the server acts on it -- a superseding request, or a turn that ended without asking again.
 // Grants are held per chat (see the DISPATCHER block): a token granted in chat A must never be
 // attached to chat B's turn, where the server would reject it AND the grant would be destroyed.
+// One planned or excluded bullet in words a person reads: the keyed everyday phrase for the
+// action (approval.action.<intent> in the catalog), never the tool's dotted id. The server
+// names the target ("called Receipts") on the row itself; an old payload minted before the
+// phrase rode along still resolves it here from the intent, and an intent with no keyed
+// phrase reads the one general phrase instead -- never the id.
+function approvalBulletWords(p) {
+  const phrase = (p && p.phrase) || pageT('approval.action.' + String((p && p.intent) || ''), '');
+  const action = phrase || pageT('permissions.action_general', 'do this');
+  const target = (p && p.target_plain) || '';
+  return target ? (action + ' ' + target) : action;
+}
 function showPermBar(chatId, ev) {
   const owner = chatState(chatId);
   const a = (ev && ev.approval) || {};
@@ -13781,14 +13792,14 @@ function showPermBar(chatId, ev) {
   if (a.action) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + (a.action_plain || a.action));
   if (Array.isArray(a.planned_actions) && a.planned_actions.length > 1) {
     detailBits.push(pageTF('permissions.planned_header', 'Planned changes in this request ({count}):', { count: a.planned_actions.length }));
-    a.planned_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });
+    a.planned_actions.forEach((p) => { detailBits.push('  - ' + approvalBulletWords(p)); });
   }
   // What the same plan asked for that this grant refuses. Named, because a truthful count of the
   // covered set still leaves an operator to GUESS whether the delete or the command beside it rode
   // along -- and the whole point of the bounded batch is that it did not.
   if (Array.isArray(a.excluded_actions) && a.excluded_actions.length) {
     detailBits.push(pageTF('permissions.not_covered_prefix', 'Not covered -- each of these asks separately ({count}):', { count: a.excluded_actions.length }));
-    a.excluded_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });
+    a.excluded_actions.forEach((p) => { detailBits.push('  - ' + approvalBulletWords(p)); });
   }
   if (a.diff_preview) detailBits.push('\n' + pageT('permissions.proposed_changes', 'Proposed changes:') + '\n' + a.diff_preview);
   permDetailEl.textContent = detailBits.join('\n'); permDetailEl.hidden = true;
