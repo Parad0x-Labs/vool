@@ -11,7 +11,7 @@ import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from core.updater.macos import _pid_has_exited
+from core.updater.macos import _pid_has_exited, _process_command
 from core.updater.state import UpdaterPaths, _atomic_write_json, _read_json
 
 
@@ -73,9 +73,8 @@ def worker_alive(data_dir: Path) -> bool:
     if pid <= 1 or not marker or _pid_has_exited(pid):
         return False
     # A stale/reused pid is insufficient. It must still run this exact plan.
-    command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
-                             capture_output=True, text=True, check=False)
-    return command.returncode == 0 and marker in command.stdout
+    command = _process_command(pid)
+    return command is not None and marker in command
 
 
 def start_worker(subsystem, offer, txid: str, *, recovery: bool = False, rollback: dict | None = None,
