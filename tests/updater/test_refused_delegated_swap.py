@@ -60,9 +60,10 @@ def test_a_refused_swap_ends_the_update_with_the_old_app_running(harness):
     assert later.stops == 0
 
 
-def test_the_swap_script_waits_as_long_as_the_flow_for_the_app_to_close(tmp_path, monkeypatch):
-    """F1: the flow waits STOP_BOUND_SECONDS for the app to close; the script it starts must not
-    give up sooner, or an app closing slowly (60-90 s on a busy Mac) is stopped but never swapped."""
+def test_the_swap_script_waits_for_a_slow_app_but_gives_up_before_the_flow(tmp_path, monkeypatch):
+    """F1: the script used to give up after 60 s while the flow waited 90 s for the app to close.
+    It now waits longer than before for a slow app, and still gives up just before the flow, so a
+    slow close ends as a clean "did not exit in time" instead of a swap racing the rollback."""
     from core.updater import macos, relaunch_health
 
     started = []
@@ -83,7 +84,7 @@ def test_the_swap_script_waits_as_long_as_the_flow_for_the_app_to_close(tmp_path
 
     command = started[0]
     wait = float(command[command.index("--wait-seconds") + 1])
-    assert wait >= relaunch_health.STOP_BOUND_SECONDS
+    assert 60 < wait < relaunch_health.STOP_BOUND_SECONDS
 
 
 def test_the_mac_helper_stops_a_version_it_relaunched_that_never_took_the_pidfile(tmp_path):
@@ -102,3 +103,74 @@ def test_the_mac_helper_stops_a_version_it_relaunched_that_never_took_the_pidfil
     finally:
         if launched.poll() is None:
             launched.kill()
+
+
+class LateSwappingScript(RefusingScript):
+    """The script is still waiting for the slow app when the flow gives up: once the rollback stops
+    the app, the script would see it gone and swap the new bundle in under the rollback."""
+
+    def __init__(self, harness):
+        super().__init__(harness, "unused")
+        self.app_path = harness.app_path
+        self.stop_waiter = lambda timeout: False  # the app did not close inside the flow's wait
+        self.script_stopped = False
+        self._swap = None
+
+    def prepare(self, *, txid, staged_bundle) -> None:
+        app = self.app_path
+        self._swap = (app, app.parent / f".{app.name}.prior-{txid}", staged_bundle)
+
+    def stop_swap_script(self, *, timeout: float) -> bool:
+        self.script_stopped = True
+        return True
+
+    def stop_running_app(self, *, timeout: float = 10.0) -> bool:
+        if not self.script_stopped and self._swap is not None:
+            app, prior, staged = self._swap
+            app.rename(prior)
+            staged.rename(app)
+        return True
+
+
+def test_a_rollback_stops_the_swap_script_before_it_can_swap_under_it(harness):
+    helper = LateSwappingScript(harness)
+
+    result = harness.make_flow(helper=helper).run(harness.raw_manifest, harness.manifest, harness.decision)
+
+    assert helper.script_stopped
+    assert result.terminal is Step.ROLLED_BACK
+    assert harness.marker() == "old"
+
+
+def test_stopping_the_real_swap_script_while_it_waits_means_it_never_swaps(tmp_path):
+    import subprocess
+    import time
+    from pathlib import Path
+
+    from core.updater import macos
+
+    app, staged = tmp_path / "VOOL.app", tmp_path / "staged.app"
+    app.mkdir()
+    (app / "marker.txt").write_text("old")
+    staged.mkdir()
+    (staged / "marker.txt").write_text("new")
+    slow_app = subprocess.Popen(["sleep", "3"])
+    script = Path(macos.__file__).resolve().parents[2] / "installer/update/mac_update_helper.sh"
+    helper = macos.ExternalScriptHelper(script=script, app_path=app, target_pid=slow_app.pid,
+                                        result_path=tmp_path / "result.json")
+    helper.prepare(txid="t1", staged_bundle=staged)
+    real_kill = macos.os.kill
+    macos.os.kill = lambda pid, sig: None  # leave the slow app to close on its own
+    try:
+        helper.shutdown_app()
+    finally:
+        macos.os.kill = real_kill
+    try:
+        assert helper.stop_swap_script(timeout=5.0)
+        slow_app.wait(timeout=10)
+        time.sleep(1.0)  # the script would have seen the app gone and swapped by now
+        assert (app / "marker.txt").read_text() == "old"
+        assert staged.exists()
+    finally:
+        if slow_app.poll() is None:
+            slow_app.kill()

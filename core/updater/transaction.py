@@ -317,6 +317,11 @@ class UpdateFlow:
         # shutdown_app() IS the swap vehicle and must never run here.
         try:
             if getattr(self.helper, "performs_swap", False):
+                # The swap script may still be waiting for a slow app to close: stopped first, so it
+                # cannot see the app gone and swap the new version in under this rollback.
+                stop_script = getattr(self.helper, "stop_swap_script", None)
+                if callable(stop_script) and not stop_script(timeout=10.0):
+                    raise RuntimeError("the update helper could not be stopped for rollback")
                 stop = getattr(self.helper, "stop_running_app", None)
                 if not callable(stop) or stop(timeout=10.0) is False:
                     raise RuntimeError("the new app could not be stopped for rollback")
