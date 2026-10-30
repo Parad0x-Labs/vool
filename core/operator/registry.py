@@ -106,7 +106,7 @@ def list_operator_tools() -> list[dict[str, Any]]:
             "destructive": False,
             **_operator_action_guardrails("list_reminders", destructive=False),
             "available": True,
-            "description": "List this chat's pending reminders with their due times and any delivery-uncertain flags.",
+            "description": "List every pending reminder on this computer — all chats, soonest due first — with due times, the chat each one came from, and any delivery-uncertain flags.",
         },
         {
             "tool_id": "cancel_reminder",
@@ -336,7 +336,7 @@ def _operator_capability_claim(tool_id: str, *, destructive: bool) -> str:
         "inspect_services": "inspect running services or startup agents on the local machine",
         "schedule_calendar_event": "create local calendar events after approval when required",
         "schedule_reminder": "schedule durable local reminders with a timezone-aware due time",
-        "list_reminders": "list this chat's pending reminders",
+        "list_reminders": "list the owner's pending reminders across all chats",
         "cancel_reminder": "cancel pending reminders before they are delivered",
         "move_reminder": "move pending reminders to a new due time",
         "complete_reminder": "mark a reminder done (pending or delivered) without deleting it",

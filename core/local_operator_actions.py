@@ -355,7 +355,9 @@ def _handle_list_reminders(
         intent,
         task_id=task_id,
         session_id=session_id,
-        list_reminders_fn=_list_reminders,
+        list_owner_reminders_fn=_list_owner_reminders,
+        chat_label_fn=_ChatLabels().get,
+        is_private_chat_fn=_is_private_chat,
         now_fn=lambda: CLOCK.now_utc().isoformat(),
         audit_log_fn=audit_logger.log,
     )
@@ -1475,6 +1477,48 @@ def _schedule_reminder(**kwargs):
 
 def _list_reminders(**kwargs):
     return operator_reminders.list_reminders(get_connection_fn=get_connection, **kwargs)
+
+
+def _list_owner_reminders(**kwargs):
+    return operator_reminders.list_owner_reminders(get_connection_fn=get_connection, **kwargs)
+
+
+def _is_private_chat(session_id: str) -> bool:
+    from core.private_chat import is_private
+
+    return is_private(session_id)
+
+
+#: The plain-words cap on a chat's title in a reminder listing line (the sidebar keeps 80).
+_CHAT_LABEL_MAX_CHARS = 48
+
+
+class _ChatLabels:
+    """Chat titles for a listing ask: ONE snapshot of the sidebar's source, read lazily.
+
+    The log parse happens on the first foreign row and is shared by every row of the same
+    ask; a store fault leaves the map empty and every origin falls back to plain words.
+    """
+
+    def __init__(self) -> None:
+        self._labels: dict[str, str] | None = None
+
+    def get(self, session_id: str) -> str:
+        if self._labels is None:
+            try:
+                from core.memory.entries import list_conversation_sessions
+
+                self._labels = {
+                    str(row.get("session_id") or ""): str(row.get("title") or "").strip()
+                    for row in list_conversation_sessions(limit=1_000_000)
+                    if str(row.get("session_id") or "")
+                }
+            except Exception:
+                self._labels = {}
+        label = self._labels.get(str(session_id or ""), "")
+        if len(label) > _CHAT_LABEL_MAX_CHARS:
+            label = label[:_CHAT_LABEL_MAX_CHARS - 1].rstrip() + "…"
+        return label
 
 
 def _load_reminder(reminder_id: str):

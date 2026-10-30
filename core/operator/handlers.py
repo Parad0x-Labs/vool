@@ -901,39 +901,68 @@ def handle_list_reminders(
     *,
     task_id: str,
     session_id: str,
-    list_reminders_fn: Any,
+    list_owner_reminders_fn: Any,
+    chat_label_fn: Any,
+    is_private_chat_fn: Any,
     now_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
+    """The owner's reminders, asked for and answered in ANY chat.
+
+    A reminder set in one chat is the owner's, not that chat's: the listing reads every
+    pending reminder of the runtime, soonest due first, and names the chat each one came
+    from in plain words. Two rules hold: a chat marked private keeps its reminders to
+    itself (they never appear in another chat's listing), and cancel/move pointers stay
+    scoped to the chat that owns them -- this lane only reads.
+    """
     del intent
-    rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+    rows = list_owner_reminders_fn(include_delivered=False)
     now = now_fn()
-    if not rows:
-        return OperatorActionResult(
-            ok=True,
-            status="reported",
-            response_text="You have no pending reminders in this chat.",
-            details={"count": 0},
-        )
-    lines = []
+    lines: list[str] = []
+    shown: list[dict[str, Any]] = []
     for row in rows:
+        owner_session = str(row.get("session_id") or "")
+        if owner_session != session_id:
+            # A private chat's reminders are that chat's alone; is_private_chat_fn fails
+            # closed (an unreadable privacy store hides, never leaks).
+            try:
+                private = bool(is_private_chat_fn(owner_session))
+            except Exception:
+                private = True
+            if private:
+                continue
         due = str(row.get("due_at_utc") or "")
         overdue = " (OVERDUE)" if due and due <= now else ""
         wall = format_due_time(due, str(row.get("tz_name") or ""), str(row.get("due_wall") or ""))
         status = str(row.get("status") or "")
         flag = " [delivery uncertain -- an attempt was interrupted]" if status == "delivery_uncertain" else overdue
-        lines.append(f"- {row.get('note')} — due {wall}{flag} (id {str(row.get('reminder_id'))[:8]})")
+        origin = ""
+        if owner_session != session_id:
+            try:
+                label = str(chat_label_fn(owner_session) or "").strip()
+            except Exception:
+                label = ""
+            origin = f' — set in "{label}"' if label else " — set in another chat"
+        lines.append(f"- {row.get('note')} — due {wall}{flag}{origin} (id {str(row.get('reminder_id'))[:8]})")
+        shown.append(row)
+    if not shown:
+        return OperatorActionResult(
+            ok=True,
+            status="reported",
+            response_text="You have no pending reminders.",
+            details={"count": 0, "scope": "owner"},
+        )
     audit_log_fn(
         "operator_action_list_reminders",
         target_id=task_id,
         target_type="task",
-        details={"count": len(rows)},
+        details={"count": len(shown)},
     )
     return OperatorActionResult(
         ok=True,
         status="reported",
         response_text="Pending reminders:\n" + "\n".join(lines),
-        details={"count": len(rows), "reminders": rows},
+        details={"count": len(shown), "reminders": shown, "scope": "owner"},
     )
 
 
