@@ -80,12 +80,12 @@ def plain_message(phase: UpdatePhase, **context) -> str:
                 return f"Returned to {previous}. Your current chats, memory, keys and settings were kept."
             return f"The update didn't finish, so {previous} was put back and restarted with the saved settings and data."
         case UpdatePhase.FAILED:
-            detail = str(context.get("detail") or "something went wrong")
+            detail = str(context.get("detail") or "something went wrong").rstrip(".")
             if context.get("fault") is UpdateFault.ROLLBACK_FAILED:
                 return f"The update failed and recovery is incomplete: {detail}. Backups are retained."
             return f"The update couldn't be installed: {detail}."
         case UpdatePhase.UNAVAILABLE:
-            reason = str(context.get("reason") or "the update service isn't configured")
+            reason = str(context.get("reason") or "the update service isn't configured").rstrip(".")
             return f"Updates are unavailable — {reason}."
     return "Updating…"  # pragma: no cover - exhaustive match
 

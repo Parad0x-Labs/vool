@@ -171,7 +171,7 @@ class UpdateCheckService:
                 # Verified-refused manifests still leave a trail, but no offer.
                 logger.info("manifest refused: %s", verification.reason.value)
                 self._offer = None
-                self.status.publish(UpdatePhase.FAILED, detail=f"release manifest refused: {verification.reason.value}")
+                self.status.publish(UpdatePhase.FAILED, detail=verification.plain_message)
                 return CheckOutcome(False, verification.reason.value, verification=verification)
             manifest = verification.manifest
 
