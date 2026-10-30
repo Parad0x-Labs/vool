@@ -770,6 +770,11 @@ def folder_read_fast_path_result(
             ),
         },
     )
+    if not hasattr(agent, "_emit_runtime_event"):
+        # A caller that hands this lane only `_fast_path_result` (it answered with nothing else
+        # before) still gets the read recorded, by the one emitter every runtime event passes
+        # through and where an execution becomes a fact.
+        agent = _WithRuntimeEvents(agent)
     return _machine_tool_fast_path_result(
         agent,
         user_input=user_input,
@@ -779,6 +784,19 @@ def folder_read_fast_path_result(
         execution=execution,
         reason=reason,
     )
+
+
+class _WithRuntimeEvents:
+    def __init__(self, agent: Any) -> None:
+        self._agent = agent
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._agent, name)
+
+    def _emit_runtime_event(self, source_context: Any, *, event_type: str, message: str, **details: Any) -> None:
+        from core.runtime_task_events import emit_runtime_event
+
+        emit_runtime_event(source_context, event_type=event_type, message=message, details=details)
 
 
 def maybe_handle_direct_machine_write_request(
