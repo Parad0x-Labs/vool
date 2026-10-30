@@ -125,6 +125,42 @@ def list_reminders(
         conn.close()
 
 
+def list_owner_reminders(
+    *,
+    include_delivered: bool = False,
+    get_connection_fn: Callable[[], Any],
+) -> list[dict[str, Any]]:
+    """Every pending chat reminder of this runtime's owner, across ALL chat sessions.
+
+    The owner asks "what reminders do I have?" wherever they happen to be, so the listing
+    lane reads the whole store, not the asking chat's slice. Only ``reminder`` rows belong
+    here: a ``calendar_alert`` row has no chat and is the calendar lane's own surface.
+    Cancel/move/complete keep their per-chat pointer scoping (``list_reminders``).
+    """
+    conn = get_connection_fn()
+    try:
+        if include_delivered:
+            rows = conn.execute(
+                """
+                SELECT * FROM reminder_requests
+                WHERE source_kind = 'reminder' AND status != 'cancelled'
+                ORDER BY due_at_utc ASC, created_at ASC
+                """,
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM reminder_requests
+                WHERE source_kind = 'reminder'
+                  AND status IN ('scheduled', 'dispatching', 'delivery_uncertain')
+                ORDER BY due_at_utc ASC, created_at ASC
+                """,
+            ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def load_reminder(
     reminder_id: str,
     *,
