@@ -40,6 +40,9 @@ NON_DISK_ASKS = [
     # independent review 2026-10-30: "on my computer" says where the one thing lives, not that the drives are asked about
     "how much space does report.pdf take up on my computer",
     "how much space do my photos take on my computer",
+    "how much space does my music library take on my computer",
+    "how much space does the taxes stuff take up on my computer",
+    "how much space do my downloads take on this machine",
 ]
 
 # Asks whose own words ARE the disk question: these keep their drive numbers (the deterministic
@@ -58,6 +61,7 @@ DISK_ASKS = [
     "show me the disk space",
     "how much free space is on this computer",
     "do I have enough free space on my computer to download a 4GB file",
+    "do I have 4.5 GB of free space on my computer?",
 ]
 
 # A number about the machine's drives, in either the reply or a tool result: a bare "12.0 MB"
