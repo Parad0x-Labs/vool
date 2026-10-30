@@ -128,10 +128,13 @@ _MACHINE_DRIVE_STAT_INTENTS = frozenset(
 )
 
 
-# A file name with its extension, or a file/folder noun: "how much space does report.pdf take up on my
-# computer" names ONE thing on the computer, and "on my computer" is where it lives, not what is asked about.
+# An ask about ONE thing on the computer, whatever the thing is called: "how much space does <X> take (up)",
+# a file name with its extension ("report.pdf", not "4.5 GB"), or "the/my/this ... folder|file". "On my
+# computer" then says where that thing lives, not that the drives are asked about.
 _NAMES_ONE_THING_RE = re.compile(
-    r"\b[\w-]+\.[A-Za-z0-9]{1,5}\b|\b(?:file|files|folder|folders|directory|directories|zip|photo|photos|video|videos)\b",
+    r"\bhow\s+much\s+(?:space|room|storage|disk)\b[^?!\n]{0,80}?\b(?:take|takes|taking|took|use|uses|using|occupy|occupies|fill|fills)\b"
+    r"|\b[\w-]*[A-Za-z][\w-]*\.[A-Za-z][A-Za-z0-9]{0,4}\b"
+    r"|\b(?:the|my|this|that|our)\s+(?:[\w-]+\s+){0,4}?(?:folder|directory|file)\b",
     re.IGNORECASE,
 )
 
