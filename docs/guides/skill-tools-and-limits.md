@@ -113,7 +113,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-145 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+146 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -175,14 +175,15 @@ The full contract of a tool, with every field, is in Python:
 | `machine.ensure_directory` | Create a directory inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path` | writes files | none | asks | runs |
 | `machine.event_log_errors` | **Windows only.** List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
 | `machine.find_file` | Search the safe local folders (Desktop, Downloads, Documents) for FILES whose name matches a query. | `name` | reads | none | runs | runs |
-| `machine.find_folder` | Search local drives for folders whose name matches a query. | `name` | reads | none | runs | runs |
-| `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?` | reads | none | runs | runs |
+| `machine.find_folder` | Search the home folder (and plugged-in drives when drives is true) for folders whose name matches a query. | `name`, `drives?` | reads | none | runs | runs |
+| `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |
 | `machine.host_state` | Report this machine's live state: uptime, battery level and power source, and whether it is a laptop or a desktop. | none | reads | `read_files` | runs | runs |
 | `machine.inspect_specs` | Inspect grounded machine hardware and runtime specs for this local host. | none | reads | none | runs | runs |
 | `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?` | reads | none | runs | runs |
 | `machine.list_processes` | List the heaviest running processes on this machine, ranked by memory or by CPU. | `limit?`, `sort?` | reads | none | runs | runs |
 | `machine.move_path` | Move or rename a file or folder on this machine. *Refuses protected system locations and asks for a live confirmation from the operating system before moving.* | `source`, `destination` | writes files | none | asks | asks |
 | `machine.read_file` | Read a text file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `start_line?`, `max_lines?`, `verbatim?` | reads | none | runs | runs |
+| `machine.send_to_phone` | Send one file from this computer (Desktop, Downloads, Documents and the other safe folders) to the owner's paired VOOL phone app, where it shows under "From your compu... | `path` | saves VOOL data | `read_files` | runs | runs |
 | `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content` | writes files | none | asks | runs |
 
 ### market
