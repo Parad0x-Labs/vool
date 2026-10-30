@@ -8228,25 +8228,37 @@ function scopeCandidateSessionIds() {
 }
 async function loadScopedEvidence() {
   const key = scopeKey();
-  if (panelScope === 'chat') { scopedEvidence = { key: key, loading: false, sessions: [], dropped: 0 }; return; }
+  if (panelScope === 'chat') { scopedEvidence = { key: key, loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 }; return; }
   if (scopedEvidence.key === key) return;                  // already loaded or loading for this scope
-  scopedEvidence = { key: key, loading: true, sessions: [], dropped: 0 };
+  scopedEvidence = { key: key, loading: true, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
   const ids = scopeCandidateSessionIds();
   const capped = ids.slice(0, SCOPE_SESSION_CAP);
   const out = [];
+  let failedReads = 0, answered = 0;
   for (const sid of capped) {
     try {
       const r = await fetch('/api/runtime/events?session=' + encodeURIComponent(sid) + '&limit=200');
-      if (!r.ok) continue;
+      if (!r.ok) { failedReads++; continue; }
       const d = await r.json();
+      answered++;
       const events = d.events || [];
       if (events.length) out.push({ session_id: sid, title: chatTitleFor(sid), events: events });
-    } catch (e) { /* one unreadable chat must not empty the whole scope */ }
+    } catch (e) { failedReads++; /* one unreadable chat must not empty the whole scope */ }
   }
   if (scopeKey() !== key) return;                          // the user moved on mid-load
-  scopedEvidence = { key: key, loading: false, sessions: out, dropped: Math.max(0, ids.length - capped.length) };
+  scopedEvidence = { key: key, loading: false, sessions: out, dropped: Math.max(0, ids.length - capped.length), failedReads: failedReads, answered: answered };
+  // Every read in the scope failed: the events are unknown, not absent. Ask again on the growing
+  // delay rather than leaving a scope-empty text standing in for a panel VOOL never answered.
+  if (failedReads && !answered) scopedEvidenceRetry.schedule();
+  else scopedEvidenceRetry.settled();
   renderPanelBody();
 }
+// The wide-scope event sweep's own retry: a re-read has to clear the cached key first, or
+// loadScopedEvidence would treat the failed sweep as already loaded for this scope.
+const scopedEvidenceRetry = makeListRetry(function () {
+  scopedEvidence = { key: '', loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
+  loadScopedEvidence();
+});
 function scopeNoteHtml() {
   const note = document.getElementById('xpScopeNote');
   if (!note) return;
@@ -8744,6 +8756,9 @@ function renderAgents(body) {
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
     if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.reading_scope', 'Reading activity for {scope}\u2026', { scope: scopeWhere() })) + '</div>'; return; }
+    // A sweep where every read failed leaves the events unknown: the calm retry row, never the
+    // scope-empty text (a chat that really answered with no events keeps that text true).
+    if (!scopedEvidence.sessions.length && scopedEvidence.failedReads && !scopedEvidence.answered) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026')) + '</div>'; return; }
     if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();

@@ -369,3 +369,44 @@ out({ afterFail: __afterFail, afterRetry: attachBucket(__cid).map((i) => i.name)
     assert result["errors"] == []
     assert result["afterFail"] == 0
     assert "staged-note.txt" in result["afterRetry"], "the quiet retry brings the staged draft back"
+
+
+def test_wide_scope_event_log_failure_is_not_the_scope_empty_text() -> None:
+    result = _run(
+        """
+// One real chat in scope, so the wide sweep has a session to read.
+globalThis.fetch = __route({ '/api/chat/sessions': () => __ok({
+  sessions: [{ session_id: 'openclaw:abc123', title: 'Seed chat', updated_at: 1 }],
+  counts: {}, state: 'ready' }) });
+await loadSessions();
+document.body.classList.add('panel-open');
+panelScope = 'all';
+panelTab = 'Event log';
+globalThis.fetch = __route({ '/api/runtime/events': () => __fail(503) });
+await loadScopedEvidence();
+renderPanelBody();
+const __afterFail = __text(xpBodyEl);
+// The sweep's own retry clears the cached key; a landed answer renders the real rows.
+globalThis.fetch = __route({ '/api/runtime/events': () => __ok({
+  events: [{ after: 1, kind: 'task_started', summary: 'Seed event' }], next_after: 1 }) });
+scopedEvidenceRetry.settled();
+scopedEvidence = { key: '', loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
+await loadScopedEvidence();
+renderPanelBody();
+const __afterOk = __text(xpBodyEl);
+// A real answer with no events in scope is the only path to the scope-empty text.
+globalThis.fetch = __route({ '/api/runtime/events': () => __ok({ events: [], next_after: 0 }) });
+scopedEvidenceRetry.settled();
+scopedEvidence = { key: '', loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
+await loadScopedEvidence();
+renderPanelBody();
+out({ afterFail: __afterFail, afterOk: __afterOk, afterEmpty: __text(xpBodyEl) });
+"""
+    )
+    assert result["errors"] == []
+    assert _RETRY in result["afterFail"]
+    assert "recorded anywhere in VOOL" not in result["afterFail"]
+    assert "Seed chat" in result["afterOk"] and "1 event" in result["afterOk"], "a landed answer renders the real rows"
+    assert _RETRY not in result["afterOk"]
+    assert "recorded anywhere in VOOL" in result["afterEmpty"], "a real OK empty sweep is the only empty"
+    assert _RETRY not in result["afterEmpty"]

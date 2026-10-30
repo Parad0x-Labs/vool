@@ -102,6 +102,12 @@ def render_goal_progress_fragment() -> str:
   "use strict";
   if (window.VoolGoalCard) return;
   var el = null, view = null, chatId = "", pollTimer = null, elapsedTimer = null, openPref = null;
+  // The state read: a failed load (error status, unreadable body, fetch that throws) is never a
+  // "no goal" answer. The last good view stands (or, before any view exists, the collapsed card
+  // carries one calm line) and the state is asked for again on a growing delay. Only a real OK
+  // answer may put the card away.
+  var stateRetryTimer = null, stateRetryDelayMs = 1000;
+  var STATE_RETRY_MAX_MS = 15000;
   function t(key, fallback){ try { if (typeof VOOLT === 'function') { var v = VOOLT(key, null); if (v && v !== key) return v; } } catch(e){} return fallback; }
   function fmtElapsed(sec){
     sec = Math.max(0, Math.floor(Number(sec) || 0));
@@ -251,17 +257,34 @@ def render_goal_progress_fragment() -> str:
       fetchState().then(function(){ if (view) schedulePoll(3000); });
     }, delay || 3000);
   }
+  function scheduleStateRetry(){
+    clearTimeout(stateRetryTimer);
+    stateRetryTimer = setTimeout(fetchState, stateRetryDelayMs);
+    stateRetryDelayMs = Math.min(Math.round(stateRetryDelayMs * 1.6), STATE_RETRY_MAX_MS);
+  }
+  function showStateRetry(){
+    ensureEl();
+    if (!el) return;
+    // Unknown is not "no goal": the collapsed card carries one calm line while the retry runs.
+    el.classList.remove('vgc-hidden');
+    $('vgcCount').textContent = ''; $('vgcElapsed').textContent = ''; $('vgcFootElapsed').textContent = '';
+    var chip = $('vgcState');
+    chip.className = 'vgc-state';
+    chip.textContent = t('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026');
+  }
   function fetchState(){
     var cid = sameChat();
     if (!cid) return Promise.resolve();
     return fetch('/api/goal/state?session=' + encodeURIComponent(cid))
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){
+      .then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
         chatId = cid;
-        var goal = d && d.goal;
+        if (!res.ok || !res.j){ if (!view) showStateRetry(); scheduleStateRetry(); return; }
+        clearTimeout(stateRetryTimer); stateRetryTimer = null; stateRetryDelayMs = 1000;
+        var goal = res.j.goal;
         if (goal){ applyView(goal, cid); }
         else { view = null; if (el) el.classList.add('vgc-hidden'); }
-      }).catch(function(){});
+      }).catch(function(){ if (!view) showStateRetry(); scheduleStateRetry(); });
   }
   function applyView(goal, forChatId){
     if (String(goal.session_id||'') !== sameChat()) return;  // a foreign chat's goal never paints here
