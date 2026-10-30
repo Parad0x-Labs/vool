@@ -278,3 +278,52 @@ def test_off_the_catalog_inferred_research_is_planned_as_before(context: dict, r
     registry(CLOUD)
     decision = _planned(DESIGN_ASK, "system_design", context)
     assert (decision.next_payload or {}).get("intent") == "web.search", decision
+
+
+
+def _catalog_text(native_round: bool) -> str:
+    from core.prompt_normalizer import _tool_intent_catalog_text
+    from core.tool_offer_assembly import assemble_tool_offer
+
+    offer = assemble_tool_offer(task_class="chat_conversation", user_text="whats eating my cpu", source_context=dict(OWNER))
+    return _tool_intent_catalog_text(offer=offer, native_round=native_round)
+
+
+def test_a_native_catalog_round_carries_no_text_copy_of_the_catalog(registry) -> None:
+    from core.owner_tool_catalog import NATIVE_ROUND_CATALOG_LINE, catalog_round_is_native
+
+    registry(LOCAL)
+    assert catalog_round_is_native("whats eating my cpu", dict(OWNER))
+    full, native = _catalog_text(False), _catalog_text(True)
+    assert "machine.list_processes" in full and len(full) > 1500
+    assert native.startswith(NATIVE_ROUND_CATALOG_LINE)
+    assert "machine.list_processes" not in native and "machine__list_processes" not in native
+
+
+def test_off_the_catalog_or_without_native_tools_the_text_catalog_stays(registry, monkeypatch) -> None:
+    from core.owner_tool_catalog import catalog_round_is_native
+
+    registry(LOCAL)
+    assert not catalog_round_is_native("whats eating my cpu", dict(REMOTE))
+    monkeypatch.setenv("VOOL_OLLAMA_NATIVE_TOOLS", "0")
+    assert not catalog_round_is_native("whats eating my cpu", dict(OWNER))
+    registry(CLOUD)
+    monkeypatch.delenv("VOOL_OLLAMA_NATIVE_TOOLS")
+    assert not catalog_round_is_native("whats eating my cpu", dict(OWNER))
+
+
+def test_a_catalog_round_holds_the_local_runner_warm() -> None:
+    from adapters.base_adapter import ModelRequest
+    from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+    from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY
+
+    def _payload(metadata: dict, runtime_config: dict | None = None) -> dict:
+        adapter = OpenAICompatibleAdapter(SimpleNamespace(provider_id="cat", model_name="qwen3:8b", metadata={"runtime_family": "ollama"},
+                                             runtime_config={"base_url": "http://127.0.0.1:11434", **(runtime_config or {})}))
+        request = ModelRequest(task_kind="chat", prompt="", metadata=dict(metadata),
+                               messages=[{"role": "user", "content": "whats eating my cpu"}])
+        return adapter._build_ollama_payload(request, force_json=False, stream=False)
+
+    assert _payload({PROSE_IS_DIRECT_ANSWER_KEY: True}).get("keep_alive") == "10m"
+    assert "keep_alive" not in _payload({})
+    assert _payload({PROSE_IS_DIRECT_ANSWER_KEY: True}, {"keep_alive": "2h"}).get("keep_alive") == "2h"

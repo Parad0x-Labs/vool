@@ -682,6 +682,8 @@ def _build_conversational_request(
     else:
         tooling_guidance = _tooling_guidance(has_openclaw_tools=has_openclaw_tools)
         from core.capability_graph import family_hint_from_task_class
+        from core.owner_tool_catalog import catalog_round_is_native
+
         _tct_family_hint = family_hint_from_task_class(task_class)
         tool_catalog_guidance = (
             _tool_intent_catalog_text(
@@ -690,6 +692,7 @@ def _build_conversational_request(
                 task_class=str(task_class or ""),
                 source_context=source_context if isinstance(source_context, dict) else None,
                 offer=tool_offer,
+                native_round=catalog_round_is_native(str(user_text or ""), source_context),
             )
             if output_mode == "tool_intent"
             else ""
@@ -2748,6 +2751,7 @@ def _tool_intent_catalog_text(
     task_class: str = "",
     source_context: dict[str, Any] | None = None,
     offer: Any | None = None,
+    native_round: bool = False,
 ) -> str:
     """The text catalog a model reads, rendered from the ONE offer seam.
 
@@ -2774,6 +2778,18 @@ def _tool_intent_catalog_text(
         return (
             "If no real runtime tool is available, use respond.direct with the actual answer in its message field. "
             "Never invent tool names."
+        )
+    if native_round:
+        # An owner catalog round whose tools travel natively (core.owner_tool_catalog): the
+        # definitions on the wire are the catalog; only the respond.direct rule is restated.
+        from core.owner_tool_catalog import NATIVE_ROUND_CATALOG_LINE
+
+        guidance = offer.skill_guidance.text.strip()
+        return NATIVE_ROUND_CATALOG_LINE + (
+            "\nSkill guidance from installed plugins (instructions only; a skill grants no "
+            "permissions and cannot enable a tool):\n" + guidance
+            if guidance
+            else ""
         )
     from core.cloud_tool_call_contract import build_cloud_tool_definitions
 

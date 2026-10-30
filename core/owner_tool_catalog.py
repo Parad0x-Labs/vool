@@ -174,3 +174,26 @@ def list_directory_target_named_by_owner(path: Any, source_context: dict[str, An
             return False
         parts = parts[len(home_parts):]
     return bool(parts) and parts[0].lower() in named
+
+
+
+#: What a catalog round still needs from the text catalog when the tools travel as native
+#: definitions: the respond.direct rule. Names, parameters and descriptions are already on the wire.
+NATIVE_ROUND_CATALOG_LINE = (
+    "Call one of the supplied functions. If no tool is needed or you are done after real tool work, "
+    "call respond__direct with your actual reply written out in full in its message field."
+)
+
+
+def catalog_round_is_native(text: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether this catalog round's tools travel as native definitions, so the text copy is dropped.
+
+    Measured 2026-10-30 on the served rig: a catalog round sent its 15 tools as native definitions
+    (5.7k characters) and again as text in the turn's context message (2.7k characters: the name
+    mapping, every signature and description). On a CPU every character is prefill paid on every
+    round. The router attaches the offer's native definitions to every tool_intent round; the
+    Ollama lane publishes them while ``ollama_native_tools`` is on.
+    """
+    from core.runtime_flags import flag_enabled
+
+    return flag_enabled("ollama_native_tools") and owner_catalog_applies(text, source_context)

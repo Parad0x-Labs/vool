@@ -1326,6 +1326,12 @@ class OpenAICompatibleAdapter(ModelAdapter):
         if think_flag is not None:
             payload["think"] = think_flag
         keep_alive = str(self.manifest.runtime_config.get("keep_alive") or "").strip()
+        if not keep_alive and _owner_catalog_round(request):
+            # An owner catalog round (core.owner_tool_catalog) on a CPU box is minutes of prefill;
+            # a request with no keep_alive resets the runner to Ollama's 5-minute default, so the
+            # owner's next turn could pay a reload and a cold prompt cache. The prewarm's own
+            # default holds the runner instead; a configured value always wins.
+            keep_alive = "10m"
         if keep_alive:
             payload["keep_alive"] = keep_alive
         # Ollama's /api/chat speaks the OpenAI `tools` shape. Without this the local lane can
@@ -2682,6 +2688,13 @@ def _extract_ollama_tool_call_text(
     return json.dumps(
         {"intent": calls[0].intent, "arguments": dict(calls[0].arguments)}, ensure_ascii=False
     )
+
+
+def _owner_catalog_round(request: ModelRequest | None) -> bool:
+    """Whether the router marked this request as an owner catalog round."""
+    from core.owner_tool_catalog import PROSE_IS_DIRECT_ANSWER_KEY
+
+    return bool((getattr(request, "metadata", None) or {}).get(PROSE_IS_DIRECT_ANSWER_KEY))
 
 
 def _prose_as_direct_answer(
