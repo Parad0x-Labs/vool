@@ -1720,7 +1720,10 @@ def _machine_find_folder(
 
     # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
     # breadth-first spent the budget on system and app folders before it reached the user's own.
-    home = os.path.expanduser("~")
+    # One home for the whole search: the roots above were picked with _machine_home(), so the
+    # home-first walk must start there too — resolving "~" again from the raw environment can
+    # point at a different folder than the one the rest of this search calls home.
+    home = str(_machine_home())
     if os.path.isdir(home):
         # The drive that holds the home folder is searched through the home folder only. Audit
         # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
