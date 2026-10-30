@@ -5274,20 +5274,20 @@ const EMAIL_SETUP_FIELDS = {
 };
 const EMAIL_SETUP_ERRORS = {
   invalid: () => T('emailadd.err.invalid', 'Some details are missing or not valid. Nothing was saved.'),
-  password_charset: () => T('emailadd.err.password_charset', 'This password has characters a mail server sign-in cannot carry. If your provider offers app passwords, create one and use it here. Nothing was saved.'),
+  password_charset: () => T('emailadd.err.password_charset', 'This password has characters a mail server sign-in cannot carry. If your email service offers app passwords, create one and use it here. Nothing was saved.'),
   local_only: () => T('emailadd.err.local_only', 'Local Only is on, so VOOL did not contact this mail server. Nothing was saved.'),
   exists: () => T('emailadd.err.exists', 'This email account is already set up. Tick replace to save the new details.'),
   conflict: () => T('emailadd.err.conflict', 'Another mailbox is already saved under this account name, so nothing was changed.'),
-  managed_elsewhere: () => T('emailadd.err.managed_elsewhere', "This account was connected through its provider's sign-in, so it is changed there, not here."),
-  auth_failed: () => T('emailadd.err.auth_failed', 'The incoming mail server did not accept this username and password. Some providers need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
+  managed_elsewhere: () => T('emailadd.err.managed_elsewhere', "This account was connected through its email service's sign-in, so it is changed there, not here."),
+  auth_failed: () => T('emailadd.err.auth_failed', 'The incoming mail server did not accept this username and password. Some email services need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
   cannot_reach: () => T('emailadd.err.cannot_reach', 'VOOL could not reach the incoming mail server. Check the server name and port. Nothing was saved.'),
   tls_failed: () => T('emailadd.err.tls_failed', "The incoming mail server's secure connection could not be verified, so VOOL did not send the password. Nothing was saved."),
   timeout: () => T('emailadd.err.timeout', 'The incoming mail server did not answer in time. Nothing was saved.'),
-  smtp_auth_failed: () => T('emailadd.err.smtp_auth_failed', 'The outgoing mail server did not accept this username and password. Some providers need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
+  smtp_auth_failed: () => T('emailadd.err.smtp_auth_failed', 'The outgoing mail server did not accept this username and password. Some email services need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
   smtp_cannot_reach: () => T('emailadd.err.smtp_cannot_reach', 'VOOL could not reach the outgoing mail server. Check the server name and port. Nothing was saved.'),
   smtp_tls_failed: () => T('emailadd.err.smtp_tls_failed', "The outgoing mail server's secure connection could not be verified, so VOOL did not send the password. Nothing was saved."),
   smtp_timeout: () => T('emailadd.err.smtp_timeout', 'The outgoing mail server did not answer in time. Nothing was saved.'),
-  store_failed: () => T('emailadd.err.store_failed', 'VOOL could not save the change securely on this machine. Check local storage and try again.'),
+  store_failed: () => T('emailadd.err.store_failed', 'VOOL could not save the change securely on this machine. Please try again.'),
   not_found: () => T('emailadd.err.not_found', 'There is no such email account.'),
   owner_local_required: () => T('emailadd.err.forbidden', 'Email accounts can only be changed inside the VOOL app on this machine.'),
 };
@@ -5340,6 +5340,16 @@ function emailDomain(address) {
 function emailProviderForAddress(address) {
   const domain = emailDomain(address);
   return EMAIL_PROVIDERS.find(p => p.domains.test(domain)) || null;
+}
+/* The service a person picked, by the name the preset table already carries -- never the internal
+   provider id ("graph", "imap") the account authority reports. The preset names are the one mapping;
+   Microsoft's sign-in is not a preset (it cannot be added here yet), and anything unknown still gets
+   a plain name instead of its id. */
+function emailServiceName(provider) {
+  const preset = EMAIL_PROVIDERS.find(p => p.id === provider);
+  if (preset) return preset.name;
+  if (provider === 'graph') return 'Outlook';
+  return T('emailadd.service.other', 'Other email');
 }
 function openEmailAddDialog(onSaved) {
   document.querySelector('dialog.email-add-dialog')?.remove();
@@ -5422,15 +5432,15 @@ function openEmailAddDialog(onSaved) {
       const link = el('a', null, T('emailadd.steps_link', 'Open the app password page'));
       link.href = next.link; link.target = '_blank'; link.rel = 'noopener noreferrer';
       help.appendChild(link);
-      serversNote.textContent = tfmt('emailadd.servers_filled', 'Filled in for {provider}. Change them only if your provider tells you to.', { provider: next.name });
+      serversNote.textContent = tfmt('emailadd.servers_filled', 'Filled in for {provider}. Change them only if your email service tells you to.', { provider: next.name });
       servers.open = false;
     } else if (EMAIL_MICROSOFT_DOMAINS.test(emailDomain(address.value))) {
       help.appendChild(el('p', null, T('emailadd.microsoft_not_yet', "Outlook, Hotmail and Live addresses can't be added here yet. Microsoft only lets other apps in through its own sign-in, which VOOL does not have yet.")));
-      serversNote.textContent = T('emailadd.other_help', "Your email provider's help pages list these settings: search for its name with “IMAP settings”.");
+      serversNote.textContent = T('emailadd.other_help', "Your email service's help pages list these settings: search for its name with “IMAP settings”.");
       servers.open = true;
     } else {
-      help.appendChild(el('p', null, T('emailadd.app_password_hint', "Some providers need an app password, and some do not allow password sign-in for other apps at all. Your provider's security settings say which.")));
-      serversNote.textContent = T('emailadd.other_help', "Your email provider's help pages list these settings: search for its name with “IMAP settings”.");
+      help.appendChild(el('p', null, T('emailadd.app_password_hint', "Some email services need an app password, and some do not allow password sign-in for other apps at all. Your email service's security settings say which.")));
+      serversNote.textContent = T('emailadd.other_help', "Your email service's help pages list these settings: search for its name with “IMAP settings”.");
       servers.open = true;
     }
   };
@@ -5495,14 +5505,20 @@ function openEmailAddDialog(onSaved) {
    default is ONE Operator Profile item (default_account.email, an opaque credential NAME), written through
    the same POST /api/profile/remember the profile widget uses and cleared through POST /api/profile/forget;
    the listing is re-read after every action, so the page shows only what the authority reports. */
+/* Every state in words a person can read, keyed (email.state.*); the word "grant" never appears --
+   needs_reconnect says plainly that the sign-in is no longer stored. */
 const EMAIL_STATE_TEXT = {
-  configured: 'ready',
-  needs_reconnect: 'needs reconnect: its grant is no longer stored',
-  send_only: 'send only: it has no way to read',
-  read_only: 'read only: it has no way to send',
-  mismatch: 'not one mailbox: its send and read entries name different mailboxes',
-  unreadable: 'could not be read as an account'
+  configured: () => T('email.state.configured', 'ready'),
+  needs_reconnect: () => T('email.state.needs_reconnect', 'needs reconnect: its sign-in is no longer stored'),
+  send_only: () => T('email.state.send_only', 'send only: it has no way to read'),
+  read_only: () => T('email.state.read_only', 'read only: it has no way to send'),
+  mismatch: () => T('email.state.mismatch', 'not one mailbox: its sending and its reading name different mailboxes'),
+  unreadable: () => T('email.state.unreadable', 'could not be read as an account')
 };
+/* A state this page does not know still gets ONE plain sentence -- never the raw state id. */
+function emailStateText(state) {
+  return EMAIL_STATE_TEXT[state] ? EMAIL_STATE_TEXT[state]() : T('email.state.unknown', 'This account is in a state VOOL does not recognise.');
+}
 /* Why an account is the one in use, in words; the internal source ids never reach the page. */
 const EMAIL_SOURCE_TEXT = {
   global: 'your default',
@@ -5528,7 +5544,7 @@ function widgetEmailAccounts(stack) {
   stack.appendChild(addRow);
   stack.appendChild(status);
   if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
-  if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (!src) { body.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/accounts'); renderPane(); };
   const post = async (action, payload) => {
@@ -5557,23 +5573,23 @@ function widgetEmailAccounts(stack) {
     const derived = !!a.address && /-[0-9a-f]{10}$/.test(a.account);
     pill.appendChild(el('span', 'email-account-name', derived ? a.address : a.account + (a.address ? ' · ' + a.address : '')));
     rowEl.appendChild(pill);
-    rowEl.appendChild(el('span', 'subtle mono', a.provider));
+    rowEl.appendChild(el('span', 'subtle email-account-service', emailServiceName(a.provider)));
     rowEl.appendChild(el('span', 'subtle', (a.read ? 'reads' : 'cannot read') + ' · ' + (a.send ? 'sends' : 'cannot send')));
-    const st = el('span', 'subtle email-account-state', EMAIL_STATE_TEXT[a.state] || a.state); st.dataset.state = a.state;
+    const st = el('span', 'subtle email-account-state', emailStateText(a.state)); st.dataset.state = a.state;
     rowEl.appendChild(st);
     if (a.is_default) {
       rowEl.appendChild(el('span', 'pill email-default-badge', 'default' + (def.source && def.source !== 'global' ? ' · ' + def.source : '')));
     } else if (a.state !== 'unreadable') {
       /* One profile item, one authority: the value is the credential NAME the account authority names. */
-      const use = el('button', 'btn email-use-default', 'Use as default'); use.type = 'button'; use.dataset.account = a.account;
+      const use = el('button', 'btn email-use-default', T('emailadd.use_default', 'Use as default')); use.type = 'button'; use.dataset.account = a.account;
       use.addEventListener('click', async () => {
-        use.disabled = true; say('Choosing ' + a.account + ' as the default…');
+        use.disabled = true; say(tfmt('emailadd.default_choosing', 'Choosing {account} as the default…', { account: a.account }));
         const res = await post('remember', { category: 'default_account.email', value: a.binding_ref, scope: 'global', replace: true });
-        if (!res.ok) { use.disabled = false; say('Not chosen — ' + why(res, 'the profile refused it'), true); return; }
+        if (!res.ok) { use.disabled = false; say(tfmt('emailadd.default_not_chosen', 'Not chosen — {reason}', { reason: why(res, T('emailadd.default_refused', 'VOOL could not save that choice.')) }), true); return; }
         await refresh();
         const back = ((state.sources['/api/email/accounts'] || {}).default || {}).account;
-        if (back === a.account) say('Default email account: ' + a.account + '.');
-        else say('VOOL stored ' + JSON.stringify(back) + ' as the default instead.', true);
+        if (back === a.account) say(tfmt('emailadd.default_set', 'Default email account: {account}.', { account: a.account }));
+        else say(T('emailadd.default_not_made', 'VOOL could not make it the default email account.'), true);
       });
       rowEl.appendChild(use);
     }
@@ -5639,7 +5655,7 @@ function widgetEmailRecovery(stack) {
   stack.appendChild(body);
   stack.appendChild(status);
   if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
-  if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (!src) { body.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/recovery'); renderPane(); };
   const post = async (path, payload) => {
