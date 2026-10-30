@@ -27,11 +27,18 @@ from core.vool_settings_page import settings_groups
 
 REPO = Path(__file__).resolve().parent.parent
 CORE = REPO / "core"
+ADAPTERS = REPO / "adapters"
 CATALOGS = CORE / "i18n" / "catalogs"
 LOCALES = ["ar", "de", "es", "fr", "he", "hi", "ja", "ko", "lt", "pl", "pt", "ru", "tr", "uk", "vi", "zh-Hans"]
 
-# The one tolerated nowhere-direction island (banned memory code + pinned wording).
-BLOCKED_ISLAND_FILES = {"core/agent_runtime/memory_runtime.py"}
+# Tolerated nowhere-direction islands: banned memory code whose wording a test pins; the
+# provider adapter line pinned by tests/test_provider_credential_dispatch.py:74; and the
+# no-route notice pinned by tests/test_cloud_only_path.py:212 (the reply embeds this text).
+BLOCKED_ISLAND_FILES = {
+    "core/agent_runtime/memory_runtime.py",
+    "adapters/openai_compatible_adapter.py",
+    "core/cloud_only_default.py",
+}
 
 # Third-party app menus that happen to be named "Settings": the sentence names the other
 # app right before the path, so the direction is not into this app's Settings page.
@@ -96,7 +103,7 @@ def _py_string_constants(path: Path) -> list[str]:
 
 def _py_pointers() -> list[tuple[str, str, str]]:
     found: list[tuple[str, str, str]] = []
-    for path in sorted(CORE.rglob("*.py")):
+    for path in sorted(CORE.rglob("*.py")) + sorted(ADAPTERS.rglob("*.py")):
         rel = str(path.relative_to(REPO))
         for text in _py_string_constants(path):
             if any(marker in text for marker in THIRD_PARTY_MARKERS):
@@ -134,17 +141,18 @@ def test_every_settings_pointer_names_a_group_row_or_real_control() -> None:
     assert not problems, "\n".join(problems)
 
 
-def test_the_blocked_island_is_still_just_the_pinned_memory_wording() -> None:
-    """The tolerated island must not grow: only memory code may still say the old name."""
+def test_the_blocked_island_is_still_just_the_pinned_wording() -> None:
+    """The tolerated islands must not grow: nowhere else may still say the old name, and
+    every island file must still carry its pinned hit, so a fix must shrink the set."""
+    pointers = [(source, _hops(target)) for source, _, target in _py_pointers()]
     stray = [
-        (source, target)
-        for source, _, target in _py_pointers()
-        if _hops(target) and _hops(target)[0].startswith("API Keys") and source not in BLOCKED_ISLAND_FILES
+        (source, hops[0])
+        for source, hops in pointers
+        if hops and hops[0].startswith("API Keys") and source not in BLOCKED_ISLAND_FILES
     ]
-    assert not stray, f"new nowhere-directions appeared outside the pinned island: {stray[:5]}"
-    island = [
-        1
-        for source, _, target in _py_pointers()
-        if source in BLOCKED_ISLAND_FILES and _hops(target) and _hops(target)[0].startswith("API Keys")
-    ]
-    assert island, "memory_runtime no longer says the old name: shrink BLOCKED_ISLAND_FILES in this test"
+    assert not stray, f"new nowhere-directions appeared outside the pinned islands: {stray[:5]}"
+    for island_file in BLOCKED_ISLAND_FILES:
+        still = any(
+            source == island_file and hops and hops[0].startswith("API Keys") for source, hops in pointers
+        )
+        assert still, f"{island_file} no longer says the old name: shrink BLOCKED_ISLAND_FILES in this test"

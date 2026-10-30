@@ -202,7 +202,7 @@ def no_route_hint() -> str:
         )
     return (
         "no local model is running on this computer and no cloud model is set up. Add a cloud "
-        "key in Settings \u2192 Your keys, or start a local model."
+        "key in Settings \u2192 API Keys, or start a local model."
     )
 
 

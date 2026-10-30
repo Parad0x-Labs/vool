@@ -26,7 +26,8 @@ from tests.chat_page_js_harness import script, slice_source
 HTML = render_vool_chat_html()
 SCRIPT = script()
 
-# The CLAIMS contract English for this file's keys (chat.*), verbatim.
+# The CLAIMS contract English for this file's keys (chat.*), verbatim. The contract's
+# seventh key chat.result_failed found no site and was pruned from the catalogs.
 CONTRACT = {
     "chat.still_unreachable": "Still can't reach VOOL. It will keep trying.",
     "chat.session_export_failed": "The chat list could not be saved to a file.",
@@ -34,7 +35,6 @@ CONTRACT = {
     "chat.session_import_failed": "The chats could not be brought back. Nothing was changed.",
     "chat.model_switch_failed": "That model could not be picked. The old one stays.",
     "chat.send_failed": "The message could not be sent.",
-    "chat.result_failed": "This answer could not be shown. Try again.",
 }
 
 
