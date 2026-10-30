@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "文件 — VOOL 在所有聊天中生成的全部内容",
     "sidebar.home": "主页",
     "sidebar.home_title": "主页 — 工具与设置",
+    "sidebar.load_retry": "暂时无法加载你的聊天。正在重试。",
+    "sidebar.loading": "正在加载你的聊天…",
     "sidebar.new_chat": "+ 新建",
     "sidebar.new_project": "+ 项目",
     "sidebar.new_project_title": "新建项目 — 选择一个文件夹;其中的聊天在该文件夹中工作并保持隔离",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
     "settings.row.hide_name_on_screen.effect": "立即生效。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

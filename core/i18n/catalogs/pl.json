@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Pliki — wszystko, co wygenerował VOOL, we wszystkich czatach",
     "sidebar.home": "Start",
     "sidebar.home_title": "Start — narzędzia i ustawienia",
+    "sidebar.load_retry": "Nie udało się jeszcze załadować Twoich czatów. Próbujemy ponownie.",
+    "sidebar.loading": "Ładowanie Twoich czatów…",
     "sidebar.new_chat": "+ Nowy",
     "sidebar.new_project": "+ Projekt",
     "sidebar.new_project_title": "Nowy projekt — wybierz folder; czaty w nim działają w tym folderze i pozostają odizolowane",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
     "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

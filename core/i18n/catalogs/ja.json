@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "ファイル — すべてのチャットにわたってVOOLが生成したすべてのもの",
     "sidebar.home": "ホーム",
     "sidebar.home_title": "ホーム — ツールと設定",
+    "sidebar.load_retry": "チャットをまだ読み込めませんでした。再試行しています。",
+    "sidebar.loading": "チャットを読み込んでいます…",
     "sidebar.new_chat": "+ 新規",
     "sidebar.new_project": "+ プロジェクト",
     "sidebar.new_project_title": "新規プロジェクト — フォルダーを選択します。その中のチャットはそのフォルダーで動作し、隔離されます",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

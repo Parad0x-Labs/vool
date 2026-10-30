@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Fichiers — tout ce que VOOL a généré, toutes discussions confondues",
     "sidebar.home": "Accueil",
     "sidebar.home_title": "Accueil — outils et réglages",
+    "sidebar.load_retry": "Vos discussions ne sont pas encore chargées. Nouvelle tentative en cours.",
+    "sidebar.loading": "Chargement de vos discussions…",
     "sidebar.new_chat": "+ Nouveau",
     "sidebar.new_project": "+ Projet",
     "sidebar.new_project_title": "Nouveau projet — choisissez un dossier ; ses discussions travaillent dans ce dossier et restent isolées",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

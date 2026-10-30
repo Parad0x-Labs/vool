@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "קבצים — כל מה ש-VOOL ייצר, בכל הצ'אטים",
     "sidebar.home": "בית",
     "sidebar.home_title": "בית — כלים והגדרות",
+    "sidebar.load_retry": "עוד לא הצלחנו לטעון את הצ'אטים שלך. מנסים שוב.",
+    "sidebar.loading": "הצ'אטים שלך נטענים…",
     "sidebar.new_chat": "+ חדש",
     "sidebar.new_project": "+ פרויקט",
     "sidebar.new_project_title": "פרויקט חדש — בחר תיקייה; צ'אטים שבתוכו עובדים באותה תיקייה ונשארים מבודדים",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
     "settings.row.hide_name_on_screen.effect": "חל מיד."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

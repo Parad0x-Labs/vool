@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Файли — усе, що згенерував VOOL, у всіх чатах",
     "sidebar.home": "Домівка",
     "sidebar.home_title": "Домівка — інструменти й налаштування",
+    "sidebar.load_retry": "Поки не вдалося завантажити ваші чати. Пробуємо ще раз.",
+    "sidebar.loading": "Завантажуємо ваші чати…",
     "sidebar.new_chat": "+ Новий",
     "sidebar.new_project": "+ Проєкт",
     "sidebar.new_project_title": "Новий проєкт — оберіть теку; чати в ній працюють у цій теці та залишаються ізольованими",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
     "settings.row.hide_name_on_screen.effect": "Діє негайно."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

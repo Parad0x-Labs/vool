@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "파일 — 모든 채팅에서 VOOL이 생성한 모든 것",
     "sidebar.home": "홈",
     "sidebar.home_title": "홈 — 도구와 설정",
+    "sidebar.load_retry": "채팅을 아직 불러오지 못했습니다. 다시 시도하는 중입니다.",
+    "sidebar.loading": "채팅을 불러오는 중…",
     "sidebar.new_chat": "+ 새 채팅",
     "sidebar.new_project": "+ 프로젝트",
     "sidebar.new_project_title": "새 프로젝트 — 폴더를 선택하세요. 그 안의 채팅은 해당 폴더에서 작업하며 격리됩니다",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "फ़ाइलें — VOOL ने जो कुछ भी बनाया, सभी चैट में",
     "sidebar.home": "होम",
     "sidebar.home_title": "होम — टूल और सेटिंग्स",
+    "sidebar.load_retry": "आपकी चैट अभी तक लोड नहीं हो सकीं। पुनः प्रयास किया जा रहा है।",
+    "sidebar.loading": "आपकी चैट लोड हो रही हैं…",
     "sidebar.new_chat": "+ नई",
     "sidebar.new_project": "+ प्रोजेक्ट",
     "sidebar.new_project_title": "नया प्रोजेक्ट — एक फ़ोल्डर चुनें; उसकी चैट उसी फ़ोल्डर में काम करती हैं और अलग-अलग रहती हैं",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

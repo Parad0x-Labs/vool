@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Archivos — todo lo que VOOL ha generado, en todos los chats",
     "sidebar.home": "Inicio",
     "sidebar.home_title": "Inicio — herramientas y ajustes",
+    "sidebar.load_retry": "Aún no se han podido cargar tus chats. Se vuelve a intentar.",
+    "sidebar.loading": "Cargando tus chats…",
     "sidebar.new_chat": "+ Nuevo",
     "sidebar.new_project": "+ Proyecto",
     "sidebar.new_project_title": "Nuevo proyecto — elige una carpeta; sus chats trabajan en esa carpeta y permanecen aislados",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "الملفات — كل ما أنتجه VOOL، عبر جميع المحادثات",
     "sidebar.home": "الرئيسية",
     "sidebar.home_title": "الرئيسية — الأدوات والإعدادات",
+    "sidebar.load_retry": "تعذّر تحميل محادثاتك حتى الآن. نعيد المحاولة.",
+    "sidebar.loading": "جارٍ تحميل محادثاتك…",
     "sidebar.new_chat": "+ جديدة",
     "sidebar.new_project": "+ مشروع",
     "sidebar.new_project_title": "مشروع جديد — اختر مجلدًا؛ تعمل المحادثات فيه في ذلك المجلد وتبقى معزولة",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

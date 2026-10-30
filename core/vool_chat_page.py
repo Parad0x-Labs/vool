@@ -3184,6 +3184,15 @@ function saveCollapsed(c) { localStorage.setItem('vool_project_collapsed', JSON.
 let _serverProjects = {};   // {id: {id, name, root, exists}}
 let _lastSessions = [];
 let _sessionCounts = null;   // true per-group chat counts from the server; the page is capped
+// Across a VOOL restart the daemon rebinds its port and the sessions fetch fails or answers
+// "starting" while the store opens; an answer that is not a real list must never render as
+// "No past chats yet." (that reads as lost data). Until the FIRST real answer the list area
+// holds one calm row and loadSessions retries on a growing delay; after a first success a
+// later transient failure keeps the last good list -- same law as refreshProjects above.
+let sessionsLoaded = false;   // false until the first real /api/chat/sessions answer renders
+let sessionsRetryTimer = null;   // at most one pending retry; cleared the moment a real answer lands
+let sessionsRetryDelayMs = 1000;   // grows per failure, resets to 1 s after a real answer
+const SESSIONS_RETRY_MAX_MS = 15000;   // same cap as the connection watcher's healthz backoff
 function loadProjects() { return _serverProjects; }
 async function refreshProjects() {
   try {
@@ -4169,15 +4178,54 @@ async function archiveSession(id, archived) {
   else loadSessions();
 }
 
+// One quiet row for the sessions area before the first real answer: 'loading' goes up before the
+// first fetch, 'retry' whenever that fetch failed or the store was still opening (the restart
+// window). Once a real answer has rendered, this does nothing -- a later transient failure keeps
+// the last good list rather than repainting over it. Clearing the area here is safe because it
+// only ever runs before the first successful load.
+function paintSessionsState(kind) {
+  if (sessionsLoaded) return;
+  const row = document.createElement('div');
+  row.className = 'side-empty';
+  row.textContent = kind === 'retry'
+    ? pageT('sidebar.load_retry', 'Couldn\'t load your chats yet. Trying again.')
+    : pageT('sidebar.loading', 'Loading your chats…');
+  sessionsEl.innerHTML = '';
+  sessionsEl.appendChild(row);
+}
+// A failed or not-yet-real answer is never a "no chats" answer: pull the list again on a growing
+// delay (reset after a real answer) instead of leaving the area blank and waiting for the
+// connection watcher's slower healthz backoff to reload the page's data.
+function scheduleSessionsRetry() {
+  clearTimeout(sessionsRetryTimer);
+  sessionsRetryTimer = setTimeout(loadSessions, sessionsRetryDelayMs);
+  sessionsRetryDelayMs = Math.min(Math.round(sessionsRetryDelayMs * 1.6), SESSIONS_RETRY_MAX_MS);
+}
 async function loadSessions() {
   try {
     await refreshProjects();   // server-side project list drives the sidebar grouping
+    if (!sessionsLoaded) paintSessionsState('loading');   // a calm row before the first answer
     const r = await fetch('/api/chat/sessions');
-    const data = await r.json();
+    const data = await r.json().catch(() => null);   // an unreadable body is not a list either
+    // Render only on a real answer. An HTTP error, a broken body, or a store still opening
+    // ("starting") must never render as an empty list -- that reads as lost data during a
+    // restart. Retry instead; after a first success the last good list simply stays.
+    if (!r.ok || !data || data.state === 'starting' || !Array.isArray(data.sessions)) {
+      if (!sessionsLoaded) paintSessionsState('retry');
+      scheduleSessionsRetry();
+      return;
+    }
+    sessionsLoaded = true;
+    clearTimeout(sessionsRetryTimer); sessionsRetryTimer = null; sessionsRetryDelayMs = 1000;
     _sessionCounts = (data && typeof data.counts === 'object') ? data.counts : null;
-    renderSessions(data.sessions || []);
+    renderSessions(data.sessions);
     await restoreChatBypass(displayedChat);
-  } catch (e) {}
+  } catch (e) {
+    // The fetch itself threw -- the daemon is rebinding its port across a restart. Same law as
+    // above: never a fake-empty list, retry on the growing delay.
+    if (!sessionsLoaded) paintSessionsState('retry');
+    scheduleSessionsRetry();
+  }
 }
 
 // Paint a chat: its transcript from its OWN bucket, and -- if it owns a run -- that run's card,

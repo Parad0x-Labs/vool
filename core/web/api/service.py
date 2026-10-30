@@ -1416,28 +1416,35 @@ def _dispatch_get(
         # the page; both were wrong about the chats. Counts are computed over every chat and sent
         # alongside, keyed by project id with "" for unbound, and archived rows are excluded to
         # match what the sidebar groups.
-        every_session = list_conversation_sessions(limit=1_000_000)
-        counts: dict[str, int] = {}
-        for row in every_session:
-            if row.get("archived"):
-                continue
-            counts[str(row.get("project_id") or "")] = (
-                counts.get(str(row.get("project_id") or ""), 0) + 1
-            )
-        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
-        # one that would otherwise fall outside the 100-row page.
-        from core.chat_housekeeping import pinned_chat_ids_from
+        # While a restart's store read can still fail, the answer is "starting" and the page
+        # retries -- an empty "no chats" list is only ever sent over a read that happened.
+        try:
+            every_session = list_conversation_sessions(limit=1_000_000)
+            counts: dict[str, int] = {}
+            for row in every_session:
+                if row.get("archived"):
+                    continue
+                counts[str(row.get("project_id") or "")] = (
+                    counts.get(str(row.get("project_id") or ""), 0) + 1
+                )
+            # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+            # one that would otherwise fall outside the 100-row page.
+            from core.chat_housekeeping import pinned_chat_ids_from
 
-        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
-        for row in every_session:
-            sid = str(row.get("session_id") or "")
-            row["pinned"] = sid in pinned_at
-            row["pinned_at"] = pinned_at.get(sid, "")
-        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+            pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+            for row in every_session:
+                sid = str(row.get("session_id") or "")
+                row["pinned"] = sid in pinned_at
+                row["pinned_at"] = pinned_at.get(sid, "")
+            page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+        except Exception:
+            # Fail closed with plain words: no traceback, no error text riding the body.
+            return apply_runtime_headers(json_response(503, {"ok": False, "state": "starting"}), runtime)
         return apply_runtime_headers(
             json_response(
                 200,
                 {
+                    "state": "ready",
                     "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),

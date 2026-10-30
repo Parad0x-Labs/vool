@@ -1861,6 +1861,8 @@
     "sidebar.files_title": "Files — everything VOOL generated, across all chats",
     "sidebar.home": "Home",
     "sidebar.home_title": "Home — tools and settings",
+    "sidebar.load_retry": "Couldn't load your chats yet. Trying again.",
+    "sidebar.loading": "Loading your chats…",
     "sidebar.new_chat": "+ New",
     "sidebar.new_project": "+ Project",
     "sidebar.new_project_title": "New project — pick a folder; chats in it work in that folder and stay isolated",

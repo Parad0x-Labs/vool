@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Dosyalar — VOOL'un ürettiği her şey, tüm sohbetler genelinde",
     "sidebar.home": "Başlangıç",
     "sidebar.home_title": "Başlangıç — araçlar ve ayarlar",
+    "sidebar.load_retry": "Sohbetlerinizi henüz yükleyemedik. Yeniden deniyoruz.",
+    "sidebar.loading": "Sohbetleriniz yükleniyor…",
     "sidebar.new_chat": "+ Yeni",
     "sidebar.new_project": "+ Proje",
     "sidebar.new_project_title": "Yeni proje — bir klasör seç; içindeki sohbetler o klasörde çalışır ve izole kalır",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
     "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Arquivos — tudo que o VOOL gerou, em todos os chats",
     "sidebar.home": "Início",
     "sidebar.home_title": "Início — ferramentas e ajustes",
+    "sidebar.load_retry": "Ainda não foi possível carregar as suas conversas. A tentar novamente.",
+    "sidebar.loading": "A carregar as suas conversas…",
     "sidebar.new_chat": "+ Novo",
     "sidebar.new_project": "+ Projeto",
     "sidebar.new_project_title": "Novo projeto — escolha uma pasta; os chats dela trabalham nessa pasta e ficam isolados",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
     "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1191,6 +1191,8 @@
     "sidebar.files_title": "Dateien — alles, was VOOL erzeugt hat, über alle Chats hinweg",
     "sidebar.home": "Start",
     "sidebar.home_title": "Start — Werkzeuge und Einstellungen",
+    "sidebar.load_retry": "Deine Chats konnten noch nicht geladen werden. Es wird erneut versucht.",
+    "sidebar.loading": "Deine Chats werden geladen…",
     "sidebar.new_chat": "+ Neu",
     "sidebar.new_project": "+ Projekt",
     "sidebar.new_project_title": "Neues Projekt — Ordner wählen; Chats darin arbeiten in diesem Ordner und bleiben isoliert",
@@ -2853,7 +2855,7 @@
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
     "settings.row.hide_name_on_screen.effect": "Wirkt sofort."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
