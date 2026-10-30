@@ -625,6 +625,16 @@ class LiveSession:
         if cookies:
             await self._context.add_cookies(cookies)
 
+    @property
+    def engine_ready(self) -> bool:
+        """The cold start finished: driver, engine and first page exist.
+
+        This is the same boundary _execute_bounded uses to give the engine start
+        its own allowance outside the operation budget. A failed start reports
+        True as well; the operation's own handling then classifies it."""
+        opening = self._opening
+        return opening is not None and opening.done()
+
     def snapshot(self) -> dict[str, Any]:
         if not self.closed and not available():
             self.stop()

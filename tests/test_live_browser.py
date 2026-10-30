@@ -106,9 +106,13 @@ def propose(world,op,args):
 
 
 def finish(world,op,args):
+    from core.vool_browser.live import ENGINE_START_TIMEOUT
     rig,item,origin,requests=world
     token=propose(world,op,args)
     status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True});assert status==200,data
+    # The cold start has its own ENGINE_START_TIMEOUT allowance; the 20 s page budget starts at readiness.
+    deadline=time.monotonic()+ENGINE_START_TIMEOUT+5
+    while item.state=='running' and not item.engine_ready and time.monotonic()<deadline: time.sleep(.05)
     deadline=time.monotonic()+20
     while item.state=='running' and time.monotonic()<deadline: time.sleep(.05)
     assert item.state!='running'
@@ -293,6 +297,10 @@ def test_live_view_in_chromium_keyboard_takeover_and_upload(world, tmp_path):
             page.locator('#open').click();page.locator('#approve').wait_for(state='visible')
             # Approve using the keyboard, then observe the actual live screenshot.
             page.locator('#approve').focus();page.keyboard.press('Enter')
+            # The cold start has its own ENGINE_START_TIMEOUT allowance; the 20 s page wait starts at readiness.
+            from core.vool_browser.live import ENGINE_START_TIMEOUT
+            deadline=time.monotonic()+ENGINE_START_TIMEOUT+5
+            while not item.engine_ready and time.monotonic()<deadline: time.sleep(.05)
             page.locator('#frame').wait_for(state='visible',timeout=20000)
             assert ('GET','/') in requests
             shots=os.environ.get('VOOL_BROWSER_SHOTS')
@@ -393,6 +401,7 @@ def test_manual_tool_proposes_without_the_legacy_approval_lane(world):
     rig,item,origin,requests=world
     from core.runtime_flags import override
     from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live import ENGINE_START_TIMEOUT
     from core.vool_browser.live_requests import turn_scope
     from tests._toolchain_fixtures import executor_kwargs
     with override('plugin_runtime_tools',True), turn_scope(f'Use the browser to open {origin}/','live-test'):
@@ -403,6 +412,9 @@ def test_manual_tool_proposes_without_the_legacy_approval_lane(world):
     token=item.pending['id']
     status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
     assert status==200,data
+    # The cold start has its own ENGINE_START_TIMEOUT allowance; the 20 s page budget starts at readiness.
+    deadline=time.monotonic()+ENGINE_START_TIMEOUT+5
+    while item.state=='running' and not item.engine_ready and time.monotonic()<deadline: time.sleep(.05)
     deadline=time.monotonic()+20
     while item.state=='running' and time.monotonic()<deadline: time.sleep(.05)
     assert item.state=='ready'
