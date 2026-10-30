@@ -151,6 +151,45 @@ def owner_named_safe_folders(text: str) -> tuple[str, ...]:
     return tuple(name for name in _SAFE_FOLDER_NAMES if re.search(rf"\b{name}\b", str(text or ""), re.IGNORECASE))
 
 
+
+#: Home folders VOOL may not read yet. A catalog turn that names one gets one plain line, never a
+#: read and never a wider root (measured 2026-10-30, dev nt-22: "how many photos do i have in
+#: Pictures" was refused as "this turn did not establish a machine or path target").
+_UNREADABLE_HOME_FOLDER_NAMES: tuple[str, ...] = ("Pictures", "Music", "Movies", "Videos")
+#: source-context key: the not-yet-readable home folders the owner's own words name on a catalog turn.
+OWNER_NAMED_UNREADABLE_FOLDERS_KEY = "_owner_catalog_named_unreadable_folders"
+
+
+def owner_named_unreadable_folders(text: str) -> tuple[str, ...]:
+    """The home folders VOOL may not read yet that the words name ("Pictures")."""
+    return tuple(
+        name for name in _UNREADABLE_HOME_FOLDER_NAMES if re.search(rf"\b{name}\b", str(text or ""), re.IGNORECASE)
+    )
+
+
+def unreadable_folder_reply(path: Any, source_context: dict[str, Any] | None) -> str | None:
+    """One plain line when a list_directory proposal targets a home folder the owner named and VOOL
+    may not read yet, else None. The proposal stays refused; only the words of the refusal change."""
+    named = {str(n).lower(): str(n) for n in (source_context or {}).get(OWNER_NAMED_UNREADABLE_FOLDERS_KEY) or ()}
+    raw = str(path or "").strip().replace("\\", "/")
+    if not named or not raw or ".." in raw.split("/"):
+        return None
+    parts = [p for p in raw.split("/") if p and p != "~"]
+    if raw.startswith("/"):
+        try:
+            from pathlib import Path
+
+            home_parts = [p for p in Path.home().resolve().as_posix().split("/") if p]
+        except Exception:
+            return None
+        if parts[: len(home_parts)] != home_parts:
+            return None
+        parts = parts[len(home_parts):]
+    if not parts or parts[0].lower() not in named:
+        return None
+    return f"VOOL cannot read your {named[parts[0].lower()]} folder yet; it can read {', '.join(_SAFE_FOLDER_NAMES)}."
+
+
 def list_directory_target_named_by_owner(path: Any, source_context: dict[str, Any] | None) -> bool:
     """Whether a model's machine.list_directory path is a folder the owner's own words named.
 

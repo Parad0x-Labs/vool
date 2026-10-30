@@ -327,3 +327,24 @@ def test_a_catalog_round_holds_the_local_runner_warm() -> None:
     assert _payload({PROSE_IS_DIRECT_ANSWER_KEY: True}).get("keep_alive") == "10m"
     assert "keep_alive" not in _payload({})
     assert _payload({PROSE_IS_DIRECT_ANSWER_KEY: True}, {"keep_alive": "2h"}).get("keep_alive") == "2h"
+
+
+def test_a_named_folder_vool_may_not_read_is_refused_in_one_plain_line(monkeypatch, tmp_path) -> None:
+    # Dev nt-22, "how many photos do i have in Pictures": the model's list_directory proposal stays
+    # refused (Pictures is not a safe folder and is never widened), but the refusal names it.
+    from core.owner_tool_catalog import OWNER_NAMED_UNREADABLE_FOLDERS_KEY, owner_named_unreadable_folders
+    from core.tool_intent_executor import execute_tool_intent
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert owner_named_unreadable_folders("how many photos do i have in Pictures") == ("Pictures",)
+    context = {**OWNER, "_semantic_machine_list_directory_admitted": False,
+               OWNER_NAMED_UNREADABLE_FOLDERS_KEY: ("Pictures",)}
+    for path in ("Pictures", "~/Pictures", f"{tmp_path}/Pictures/Holiday"):
+        result = execute_tool_intent({"intent": "machine.list_directory", "arguments": {"path": path}},
+                                     task_id="t", session_id="s", source_context=context, hive_activity_tracker=None)
+        assert result.status == "blocked_by_semantic_preflight" and not result.ok
+        assert result.response_text == "VOOL cannot read your Pictures folder yet; it can read Desktop, Downloads, Documents."
+    # A folder the words did not name keeps the general refusal.
+    other = execute_tool_intent({"intent": "machine.list_directory", "arguments": {"path": "Music"}},
+                                task_id="t", session_id="s", source_context=context, hive_activity_tracker=None)
+    assert "did not establish a machine or path target" in other.response_text

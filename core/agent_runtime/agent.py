@@ -2411,14 +2411,18 @@ class VoolAgent(
         # name bind a model's list_directory proposal to them (core.owner_tool_catalog).
         from core.owner_tool_catalog import (
             OWNER_NAMED_FOLDERS_KEY,
+            OWNER_NAMED_UNREADABLE_FOLDERS_KEY,
             owner_catalog_applies,
             owner_named_safe_folders,
+            owner_named_unreadable_folders,
         )
 
+        _catalog_turn = owner_catalog_applies(semantic_text, runtime_source_context)
         runtime_source_context[OWNER_NAMED_FOLDERS_KEY] = (
-            owner_named_safe_folders(semantic_text)
-            if owner_catalog_applies(semantic_text, runtime_source_context)
-            else ()
+            owner_named_safe_folders(semantic_text) if _catalog_turn else ()
+        )
+        runtime_source_context[OWNER_NAMED_UNREADABLE_FOLDERS_KEY] = (
+            owner_named_unreadable_folders(semantic_text) if _catalog_turn else ()
         )
 
         # The initial action policy was necessarily computed before checkpoint resolution, when a

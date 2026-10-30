@@ -1080,7 +1080,7 @@ def _execute_tool_intent_impl(
     # The front door stamps this proof only when the existing typed list-directory probe found an
     # explicit machine/path target in the authoritative post-resume raw turn. A model-selected
     # tool name is a proposal, never substitute evidence for that binding.
-    from core.owner_tool_catalog import list_directory_target_named_by_owner
+    from core.owner_tool_catalog import list_directory_target_named_by_owner, unreadable_folder_reply
 
     if (
         intent == "machine.list_directory"
@@ -1088,7 +1088,9 @@ def _execute_tool_intent_impl(
         and not bool((source_context or {}).get("_semantic_machine_list_directory_admitted"))
         and not list_directory_target_named_by_owner(arguments.get("path"), source_context)
     ):
-        response = (
+        # A folder the owner named that VOOL may not read yet (~/Pictures) is still refused, in
+        # one plain line that names it (core.owner_tool_catalog.unreadable_folder_reply).
+        response = unreadable_folder_reply(arguments.get("path"), source_context) or (
             "I did not inspect a local directory because this turn did not establish a "
             "machine or path target for that action."
         )
