@@ -235,3 +235,46 @@ def test_a_list_directory_proposal_the_words_did_not_bind_stays_blocked() -> Non
     result = execute_tool_intent(payload, task_id="t", session_id="s", source_context=context,
                                  hive_activity_tracker=None)
     assert result.status == "blocked_by_semantic_preflight"
+
+
+# The served consecutive-turn sequence (tests/test_answer_integrity_consecutive_turns.py): on a
+# catalog turn the WoW design question classified as system_design and the workflow planner's
+# INFERRED research flow planned web.search before the model was ever called. The turn answered
+# "Web lookups are off" and the model call carrying the failed-exchange history note never ran.
+DESIGN_ASK = (
+    "I want to build a small community bot system with a World of Warcraft theme. "
+    "How would you design this system? Keep it practical."
+)
+
+
+def _planned(text: str, task_class: str, context: dict):
+    from core.execution.planner import plan_tool_workflow
+
+    return plan_tool_workflow(user_text=text, task_class=task_class, executed_steps=[], source_context=dict(context))
+
+
+@pytest.mark.parametrize(
+    ("text", "task_class"),
+    [
+        (DESIGN_ASK, "system_design"),
+        ("what is my current reply language in vool", "chat_conversation"),
+        ("compare the two pdfs in my downloads", "chat_conversation"),
+    ],
+)
+def test_a_catalog_turn_leaves_inferred_research_to_the_model(text: str, task_class: str, registry) -> None:
+    registry(LOCAL)
+    decision = _planned(text, task_class, OWNER)
+    assert (decision.next_payload or {}).get("intent") != "web.search", decision
+
+
+def test_an_explicit_web_ask_keeps_its_plan_on_a_catalog_turn(registry) -> None:
+    registry(LOCAL)
+    decision = _planned("search the web for the latest python release notes", "research", OWNER)
+    assert (decision.next_payload or {}).get("intent") == "web.search", decision
+
+
+@pytest.mark.parametrize("context", [REMOTE, OWNER])
+def test_off_the_catalog_inferred_research_is_planned_as_before(context: dict, registry) -> None:
+    registry(CLOUD)
+    decision = _planned(DESIGN_ASK, "system_design", context)
+    assert (decision.next_payload or {}).get("intent") == "web.search", decision

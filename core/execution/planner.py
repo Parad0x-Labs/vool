@@ -3073,6 +3073,23 @@ def plan_tool_workflow(
     # any wallet tool ran. Live-data confinements (prices, weather) map to the web family and keep it.
     if research_flow and _web_planning_excluded_by_requirements(text, task_class=task_class, source_context=source_context):
         research_flow = False
+    # The owner's catalog turn (core.owner_tool_catalog) reaches this planner because the model,
+    # holding the owner catalog, decides what the ask needs. Research INFERRED from a classifier
+    # label or a word ("system_design", "current", "compare", "docs") is the guess the catalog
+    # replaces: measured on the served consecutive-turn sequence, a WoW bot design question
+    # classified as system_design was planned onto web.search, answered "Web lookups are off",
+    # and the model call carrying the turn's history never ran. An explicit lookup, a research
+    # verdict and a web follow-up keep their plan.
+    if (
+        research_flow
+        and not explicit_lookup
+        and str(task_class or "").strip().lower() not in {"research", "chat_research"}
+        and not (followup_resume and last_intent in {"web.search", "web.fetch", "web.research"})
+    ):
+        from core.owner_tool_catalog import owner_catalog_applies
+
+        if owner_catalog_applies(text, source_context):
+            research_flow = False
     # An open email conversation owns what its follow-ups refer to
     # (core.email_work_state.email_work_owns_follow_up_references): "Confirm it's in the Sent folder." or
     # "Is this the latest estimate?" there is about the mailbox as plausibly as the web, so research inferred
