@@ -16,7 +16,8 @@ No. A local model is enough to use the app.
 
 ## Where is my key stored?
 
-In your operating system's credential store, on your machine. See
+With your computer's own protections, on your machine — on a Mac the Keychain (after you
+allow that once); elsewhere an encrypted file inside your VOOL profile. See
 [Security model](../trust/security.md).
 
 ## Does Parad0x see my prompts?

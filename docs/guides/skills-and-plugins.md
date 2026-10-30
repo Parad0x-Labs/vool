@@ -17,7 +17,7 @@ your own.
 | --- | --- | --- |
 | Where it lives | Inside the app | Your plugins folder (managed from the plugins window in VOOL, not from Settings) |
 | Updates | With the app | When you update the pack |
-| Can be disabled | Yes — individually | Yes — individually |
+| Can be disabled | No button in the app's windows yet | Yes — from the plugins window |
 | Grants permissions | **No** | **No** |
 
 Two rules hold for both sources:

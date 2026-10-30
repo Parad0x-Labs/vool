@@ -38,7 +38,7 @@ macOS 14 sistemoje taip pat galite spustelėti VOOL laikydami Control ir pasirin
 
 ## Vietiniai modeliai
 
-Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers → Local models** ir vieną kartą paspauskite **Certify**. Tai atlieka patikrinimą jūsų kompiuteryje; jei kompiuteryje nėra grafikos plokštės, pirmasis patikrinimas gali užtrukti kelias minutes.
+Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers → Local models** ir vieną kartą paspauskite **Certify** (jei patikrinimas jau buvo įrašytas, mygtukas rodo **Re-run certification**). Tai atlieka patikrinimą jūsų kompiuteryje; jei kompiuteryje nėra grafikos plokštės, pirmasis patikrinimas gali užtrukti kelias minutes.
 
 ## Linux
 
@@ -50,7 +50,7 @@ tar -xzf vool-0.7.5-beta-linux-x86_64.tar.gz
 bash vool-0.7.5-beta-linux-x86_64/install.sh
 ```
 
-Nuo 0.7.5 versijos Linux atsisiuntimas atnaujinamas pačioje VOOL. Nauja versija įdiegiama šalia senosios. Jei ji tinkamai nepasileidžia, VOOL savaime grįžta prie ankstesnės versijos.
+Nuo 0.7.5 versijos, įjungus "Go online on its own", Linux atsisiuntimas atnaujinamas pačioje VOOL. Nauja versija įdiegiama šalia senosios. Jei ji tinkamai nepasileidžia, VOOL savaime grįžta prie ankstesnės versijos.
 
 ## Patikrinkite atsisiuntimą
 

@@ -6,7 +6,8 @@ description: How to run AI models locally on your own computer with VOOL — ins
 
 ## Install a runtime
 
-VOOL uses Ollama to run local models. Ollama is a separate program, installed on its own
+VOOL uses Ollama by default to run local models; other local runtimes with an
+OpenAI-compatible endpoint also work. Ollama is a separate program, installed on its own
 from [ollama.com](https://ollama.com). The macOS app includes its own local-model runner,
 so on a Mac you can skip this step. On Linux and source installs, install Ollama, start
 it, and pull a model.
@@ -17,7 +18,8 @@ ollama pull qwen3:4b
 ```
 
 VOOL picks the local model for you by default — a Qwen model sized to your computer. On
-many computers that model is `qwen3:4b`.
+many computers that model is `qwen3:4b`; on computers with 32 GB of memory or more the
+default is a larger Qwen model.
 
 ## Point VOOL at it
 

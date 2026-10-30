@@ -11,8 +11,9 @@ OpenRouter key.
 
 1. Create a key in your OpenRouter account (openrouter.ai/keys).
 2. Open **Settings → API Keys** and find OpenRouter under **Find a provider**.
-3. Paste the key. It is stored in your operating system's credential store and is
-   used to make requests **from your machine directly to OpenRouter**.
+3. Paste the key. It is stored with your computer's own protections — on a Mac in your
+   Keychain (after you allow that once), elsewhere in an encrypted file inside your VOOL
+   profile — and is used to make requests **from your machine directly to OpenRouter**.
 
 There is no browser sign-in step for OpenRouter in VOOL today: you paste the key
 straight into the app.

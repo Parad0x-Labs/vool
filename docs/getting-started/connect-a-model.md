@@ -17,9 +17,10 @@ detects it and picks a local model for you. Choose a specific model yourself und
 ## Cloud
 
 Open **Settings**, choose **API Keys**, and add your key under **Your keys**. Then pick
-your model under **Models & Providers**. The key is stored in your operating system's
-credential store and is used to make requests **from your machine directly to
-the provider**.
+your model under **Models & Providers**. The key is stored with your computer's own
+protections — on a Mac in your Keychain (after you allow that once), elsewhere in an
+encrypted file inside your VOOL profile — and is used to make requests **from your machine
+directly to the provider**.
 
 Selecting a cloud model changes the indicator badge to `CLOUD` before
 any request is made.
