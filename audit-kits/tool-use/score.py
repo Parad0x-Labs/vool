@@ -53,10 +53,12 @@ def main() -> int:
             continue
         k["ran"] += 1
         tools = []
-        for t in r.get("tools_executed") or []:
+        # tools_ran (harness after ba74d947) holds only tools that ran; older rows only have tools_executed,
+        # which also lists selected or proposed calls.
+        for t in (r["tools_ran"] if "tools_ran" in r else r.get("tools_executed") or []):
             name = t.get("tool") if isinstance(t, dict) else str(t)
-            if name and "." in name and not name.startswith(("ollama-", "openai", "anthropic")):
-                tools.append(name)  # model ids and runtime markers are not tools
+            if name and "." in name and not name.startswith(("ollama-", "openai", "anthropic", "respond.")):
+                tools.append(name)  # model ids, runtime markers and respond.* (a plain answer) are not tools
         want = c.get("expect", {}).get("tool_any") or []
         fam = any(re.search(FAMILY.get(f, re.escape(f)), t, re.I) for f in want for t in tools)
         timeout = any((t.get("http_status") or 0) in (0, 504) or "TIMEOUT" in str(t.get("reply", "")).upper()

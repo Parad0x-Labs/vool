@@ -268,7 +268,9 @@ def answered_by(events: list[dict], routing: dict) -> dict:
     return {"fast_path_families": fast, "model_lanes": lanes, "failures": failed}
 
 
-def executed(events: list[dict]) -> list[str]:
+def executed(events: list[dict], *, ran_only: bool = False) -> list[str]:
+    """Tool names seen this turn. ran_only: only what actually ran (receipts, tool_executed/tool_result),
+    not a selection or a proposed call."""
     names = []
     for event in events:
         if event.get("event_type") == "semantic_resolution_receipt":
@@ -277,7 +279,8 @@ def executed(events: list[dict]) -> list[str]:
                 names.append(str(item.get("intent") or item.get("name") or item) if isinstance(item, dict) else str(item))
             continue
         kind = str(event.get("event_type") or "")
-        if kind in ("tool_executed", "tool_result", "tool_selected", "tool_call", "tool_started"):
+        if kind in (("tool_executed", "tool_result") if ran_only else
+                    ("tool_executed", "tool_result", "tool_selected", "tool_call", "tool_started")):
             name = str(event.get("intent") or event.get("tool") or event.get("tool_name") or "")
             if name:
                 names.append(name)
@@ -361,6 +364,7 @@ def run_case(daemon: Daemon, case: dict, run_tag: str, home: Path) -> dict:
         "at": utcnow(),
         "turns": turns,
         "tools_executed": executed(events),
+        "tools_ran": executed(events, ran_only=True),
         "answered_by": answered_by(events, routing),
         "events": events[-80:],
         "offered_per_round": prompt_rows,
