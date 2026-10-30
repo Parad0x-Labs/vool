@@ -403,7 +403,7 @@ def test_a_testnet_selection_verifies_no_mainnet_network_and_refuses_at_the_pick
         assert "wallet_payment_network_unverified" in json.dumps(events), [event.get("event_type") for event in events]
         assert len(service.requests_to(X402_PATH)) == quotes_before and node.distinct_sends() == sends
     finally:
-        status, restored = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet"})
+        status, restored = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
         assert status == 200, restored
     status, view = daemon.call("GET", "/api/cloud/usepod/discovery")
     assert view["authorities"]["payment"]["verified_networks"] == [SOLANA_MAINNET], view["authorities"]["payment"]

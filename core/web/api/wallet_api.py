@@ -98,6 +98,23 @@ def _fault(exc: WalletFault) -> Any:
     return _json(_STATUS_FOR_CODE.get(exc.code, 400), payload)
 
 
+def _prove_settings_owner(body: dict[str, Any], *, purpose: str, source_context: dict[str, Any] | None) -> None:
+    """A wallet-wide setting that loosens what can be paid (Mainnet, a payment channel on, a pay-per-answer endpoint
+    on, the fee threshold) needs the same owner proof as raising a cap: loopback alone is any process on this machine.
+    With no wallet that holds a key VOOL could sign with, nothing here can pay, so nothing is asked."""
+    profile = custody.owner_proof_wallet(str(body.get("wallet_id") or ""))
+    if profile is None:
+        return
+    try:
+        custody.prove_owner(profile.wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
+                            purpose=purpose, source_context=source_context)
+    except WalletFault as exc:
+        # the page names the wallet whose PIN or password it asks for, and sends that wallet's id back with it
+        exc.context.setdefault("wallet_id", profile.wallet_id)
+        exc.context["wallet_label"] = profile.label
+        raise
+
+
 def _source_context(body: dict[str, Any], client_host: str) -> dict[str, Any]:
     return {"session_id": str(body.get("session_id") or ""), "surface": "wallet_api", "client_host": str(client_host or "")}
 
@@ -325,6 +342,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             from core.wallet import environment
             from core.wallet.status import crypto_pilot_status
 
+            if str(body.get("environment") or "").strip().lower() == environment.ENVIRONMENT_MAINNET and environment.active_environment().environment != environment.ENVIRONMENT_MAINNET:
+                _prove_settings_owner(body, purpose="switch payments to Mainnet", source_context=source_context)
             environment.set_active_environment(str(body.get("environment") or ""), source_context=source_context)
             return _ok({"crypto_pilot": crypto_pilot_status()})
         if path == "/api/wallet/channels":
@@ -334,6 +353,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             raw = body.get("on")
             if not isinstance(raw, bool):
                 return _json(400, {"ok": False, "error": "channel_choice_invalid", "reason": "on_must_be_true_or_false"})
+            if raw and channels.get(str(body.get("channel") or "")) is not None and not channels.is_on(str(body.get("channel") or "")):
+                _prove_settings_owner(body, purpose="turn on a payment channel", source_context=source_context)
             changed = channels.set_on(str(body.get("channel") or ""), raw, source_context=source_context)
             return _ok({"channel": changed, "payment_channels": channels.status()})
         if path == "/api/wallet/ai-endpoints":
@@ -341,6 +362,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             from core import x402_ai
 
             action = str(body.get("action") or "")
+            if action == "add" or (action == "set_on" and body.get("on") is True):
+                _prove_settings_owner(body, purpose="add or turn on a pay-per-answer AI service", source_context=source_context)
             try:
                 if action == "add":
                     x402_ai.add_endpoint(label=body.get("label"), base_url=body.get("base_url"), model=body.get("model"), max_price=body.get("max_price"))
@@ -393,6 +416,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             asset = str(body.get("asset") or "USDC")
             saved = None
             if "collect_min_atomic" in body:
+                _prove_settings_owner(body, purpose="change when fees are collected", source_context=source_context)
                 value = dna_fees.set_collect_min_atomic(asset, body.get("collect_min_atomic"), source_context=source_context)
                 saved = {"asset": asset.upper(), "atomic": value, "source": "settings"}
             view = dna_fees.collect_min_view(asset)
