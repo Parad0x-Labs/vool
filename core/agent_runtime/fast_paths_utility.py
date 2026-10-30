@@ -399,6 +399,32 @@ def build_greeting_reply(phrase: str, *, addr: str = "", want_tail: bool = True)
     return opener
 
 
+def help_short_reply(agent: Any) -> str:
+    # `help` is the front door for someone who just opened the app: a short, plain,
+    # grouped pointer to real things to type and real Settings pages. The full
+    # capability manifest stays one ask away on "what can you do"; this reply never
+    # carries it. Every typed example below is a phrasing the runtime really parses,
+    # and every page named is a real Settings card or row (core/vool_settings_page.py).
+    lines = [
+        "The short version:",
+        'Chat and files: ask in your own words — "read notes.txt", "make a file called plan.md with …", or just talk it through.',
+        'Web: say "look up …" for fresh facts — needs Web lookups on, on the Privacy & Permissions page in Settings.',
+        'Reminders and notes: "remind me to … at 9am" sets a reminder; "take a note: …" saves one.',
+        'Cloud models (your own key): say "cloud ask" or "cloud auto" to use them, "cloud status" to check; the key goes on the API Keys page in Settings.',
+        "Settings: General is how I talk, Models & Providers is which brain answers, Notifications is reminders and quiet hours.",
+    ]
+    try:
+        from core.wallet.config import wallet_enabled
+
+        wallet_on = bool(wallet_enabled())
+    except Exception:
+        wallet_on = False
+    if wallet_on:
+        lines.append("Crypto: the wallet is switched on — see the Crypto page in Settings.")
+    lines.append("Ask me in your own words; you don't need exact commands.")
+    return "\n".join(lines)
+
+
 def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: str, session_id: str) -> str | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
@@ -468,10 +494,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
                 "- keep actions explicit: I report what I did, what failed, and what needs approval",
             ]
         )
+    if phrase == "help":
+        return help_short_reply(agent)
     if phrase in {
         "what can you do",
         "what can we do",
-        "help",
     }:
         return agent._help_capabilities_text()
     if phrase in {"kill me lol", "omfg just kill me", "omfg just kill me lol", "kms lol"}:
@@ -493,7 +520,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             return compact_capabilities_text(agent)
         return agent._help_capabilities_text()
     # "what can we/you/i do|build" wrapped in filler ("no idea tbh what can we", "so what can you do")
-    # — a SHORT friendly answer, not the full capability manifest (that's `help`), and never the
+    # — a SHORT friendly answer, not the full capability manifest (that's `what can you do`), and never the
     # slow model. "what can you tell me about the cat_on_sofa picture" asks about a THING, not about
     # VOOL (re-audit 2026-10-29, mailweb:M01), so a tell/say/find/see verb stands this down.
     if re.search(
@@ -504,8 +531,8 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             "- answer questions and remember our chat, locally and free on your machine\n"
             "- read, search, and edit files in your folders\n"
             "- look things up on the web and turn pages into summaries\n"
-            "- use your own cloud key for bigger models when you want (say cloud on), off by default\n"
-            "Say help for the full list, or just tell me the job."
+            "- bring your own cloud key for bigger models when you want (`cloud auto`), off by default\n"
+            "Say `what can you do` for the full list — or just tell me the task and I'll go."
         )
     # Bare confusion / filler — a plain human nudge instead of waking the local model, which
     # over-thinks a one-word message on modest hardware and can time out into a non-answer.
