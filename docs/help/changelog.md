@@ -14,38 +14,38 @@ Fixes people will notice:
 
 * **Ask about a web page, get its words.** "Summarise this page" and "what does this link say" are answered from the page's readable text, never from its underlying code. A page that refuses to load says so plainly, instead of talking about logging in.
 * **Email, step by step.** Adding an email account comes with guides for Gmail, iCloud and Yahoo, each with the steps for its app password. An Outlook address is told plainly that it cannot be added yet.
-* **Skills, tidied.** Skills that overlapped were cut and merged. Each skill can be turned on or off.
+* **Skills, tidied.** Skills that overlapped were cut and merged. Each skill you see can be turned on or off.
 * "Read notes.txt in my Documents" now reads that file. Desktop and Downloads work the same way, and only when the file is really there.
 * Name a project in a coding chat — "plan.py in the garden planner project" — and VOOL works in that project's folder. It never guesses, and a chat that already belongs to a project stays there.
 * Reload the page while VOOL is answering and the chat is still there, together with the message you sent while it answered.
 * An approval you have not answered yet survives a reload, a second tab and a reopened chat, Allow button and all. The error that could appear right after VOOL carried out an approved action by itself is gone too.
 * "List my reminders" now answers from every chat. Private chats keep their reminders to themselves.
-* "Cancel that one" cancels the reminder you set most recently.
+* "Cancel that one" cancels the reminder you set most recently in that chat.
 * "What did I ask you first?" now recalls the right message.
 * Lead-ins like "quick one" are no longer taken as part of the request.
 * Asking for help gets a shorter answer.
 * A reminder set with a date lands on the day you meant.
-* Asking VOOL to send email when no account is connected gets a plain answer that says so.
+* Asking about your inbox when no email account is connected gets a plain answer that says so.
 * After a restart, the chat list says it is loading instead of looking empty.
 * The label showing which model will answer settles on the right name once the model has finished getting ready.
 * Settings use plainer words in all 17 languages, such as "Daily cloud use guide" and "word pieces".
+* Settings say "On this computer" where they used to say "On my Mac", on every computer.
 * VOOL keeps running even when this computer denies it a look at the folder where models are kept.
 
 Safer:
 
 * **Web lookups off means off.** With the Web lookups switch off, nothing goes online for a lookup: weather, prices, rates, web searches, page reads and downloads are refused before any connection is made, and the reply says where the switch is.
 * When you ask VOOL to find a folder, it searches your own folders. Other drives are searched only when you ask for them.
-* The docs say only what VOOL has. Offline means your chats and your files; looking up live facts such as weather can still go online unless you turn on Local Only.
+* The docs say only what VOOL has. Offline means your chats and your files; looking up live facts such as weather can still go online unless you turn off Web lookups or turn on Local Only.
 
 Linux:
 
 * **VOOL reads PDFs on Linux.** It happens inside a closed-off reading space; where the system's security setup blocks that space, VOOL says so plainly.
 * Removing VOOL stops a running VOOL first, keeps your data and tells you where it was kept.
-* Settings say "On this computer" where they used to say "On my Mac".
 
 Phone:
 
-* **A phone companion.** VOOL now has a phone companion, so you can use VOOL from your phone. The settings pages fit a phone screen.
+* **A phone companion.** VOOL now has a phone companion, so you can use VOOL from your phone. The Settings page fits a phone screen.
 * The finish-setup hint appears only on a new, empty chat.
 
 ## 0.7.5-beta — 2026-10-27
