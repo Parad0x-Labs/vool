@@ -278,7 +278,75 @@ def test_worker_pruning_keeps_active_and_incomplete_jobs(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("fault", ["install_failed", "health_check_failed", "rollback_failed"])
-def test_background_checks_preserve_update_failure_until_manual_check(tmp_path, fault):
+def test_background_checks_after_a_failed_update_skip_that_version_and_offer_a_newer_one(tmp_path, fault):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta", sequence=47)
+    newer, _ = build_manifest(private_hex=private, version="0.7.2", channel="beta", sequence=48)
+    feed = {"document": failed}
+    calls = []
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: (calls.append(True), manifest_bytes(feed["document"]))[1])
+    assert service.check_once(preserve_failure=True).ok  # 0.7.1 is offered, then its update fails
+    calls.clear()
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.current_offer() is None
+    assert service.status.load().fault_code == fault
+    if fault == "rollback_failed":  # a failed rollback needs a person: no check, not even a pressed one
+        assert calls == []
+        assert not service.check_once().ok and calls == []
+        assert service.status.load().fault_code == fault
+        return
+    assert calls == [True]  # the daily check goes on, but 0.7.1 is not offered again
+
+    feed["document"] = newer
+    assert service.check_once(preserve_failure=True).ok
+    assert service.status.load().phase is UpdatePhase.READY
+    assert service.current_offer().manifest.version == "0.7.2"
+
+
+@pytest.mark.parametrize("fault", ["install_failed", "health_check_failed"])
+def test_a_pressed_check_after_a_failed_update_may_offer_the_same_version_again(tmp_path, fault):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: manifest_bytes(document))
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.status.load().fault_code == fault
+    assert service.check_once().ok and service.status.load().phase is UpdatePhase.READY
+
+
+def test_a_refused_or_unusable_feed_after_a_failed_update_keeps_what_happened(tmp_path):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta", sequence=47)
+    other_channel, _ = build_manifest(private_hex=private, version="0.7.2", channel="stable", sequence=48)
+    feed = {"raw": manifest_bytes(failed)}
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: feed["raw"])
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.FAILED, detail="injected update failure", fault=UpdateFault("install_failed"))
+    for raw in (b"not a signed feed", manifest_bytes(other_channel)):
+        feed["raw"] = raw
+        service.check_once(preserve_failure=True)
+        assert service.current_offer() is None
+        assert service.status.load().fault_code == "install_failed"
+
+
+def test_a_failed_update_with_no_known_version_keeps_waiting_for_a_pressed_check(tmp_path):
     from core.updater.status import UpdateFault
 
     private, public = generate_publisher_keypair()
@@ -287,18 +355,9 @@ def test_background_checks_preserve_update_failure_until_manual_check(tmp_path, 
     service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
                                  installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
                                  fetch=lambda _: (calls.append(True), manifest_bytes(document))[1])
-    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
-                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
-    assert not service.check_once(preserve_failure=True).ok
-    assert calls == [] and service.current_offer() is None
-    assert service.status.load().fault_code == fault
-    manual = service.check_once()
-    if fault == "rollback_failed":
-        assert not manual.ok and calls == []
-        assert service.status.load().fault_code == fault
-    else:
-        assert manual.ok and service.status.load().phase is UpdatePhase.READY
-        assert calls == [True]
+    service.status.publish(UpdatePhase.FAILED, detail="injected update failure", fault=UpdateFault("install_failed"))
+    assert not service.check_once(preserve_failure=True).ok and calls == []
+    assert service.status.load().fault_code == "install_failed"
 
 
 def test_startup_recovery_that_can_stop_its_host_is_detached(tmp_path, monkeypatch):
