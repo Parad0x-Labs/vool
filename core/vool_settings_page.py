@@ -418,7 +418,7 @@ def _settings_groups() -> list[dict]:
         {
             "id": "keys",
             "icon": "⚿",
-            "title": "Your keys",
+            "title": "API Keys",
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
@@ -1976,7 +1976,9 @@ function renderWidget(row, host) {
    only in these fields and travels only to the export/import doors, never into history or logs. */
 async function bundlePost(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return await r.json().catch(() => ({ ok: false, error: 'HTTP ' + r.status }));
+  /* An answer that is not words (no JSON body) is diagnosis, not prose: the status goes to the
+     console and the caller's status line carries the keyed plain sentence. */
+  return await r.json().catch(() => { console.warn('settings bundle call answered without words:', path, r.status); return { ok: false, error: T('settings.not_responding', "VOOL isn\u2019t responding right now.") }; });
 }
 function countWords(n, one, many) { n = Number(n) || 0; return n + ' ' + (n === 1 ? one : many); }
 function sizeWords(bytes) { return bytes < 1024 ? bytes + ' bytes' : bytes < 1048576 ? Math.round(bytes / 1024) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB'; }
@@ -2098,7 +2100,7 @@ function widgetBundleExport(stack) {
     exportBtn.disabled = true; status.className = 'state saving'; status.textContent = 'Working…';
     try {
       const d = await bundlePost('/api/session/bundle/export', { session_id: sid, passphrase: passphrase });
-      if (!d.ok) { say(d.error || 'Export refused.', true); exportBtn.disabled = false; return; }
+      if (!d.ok) { console.warn('chat export refused:', d.error || ''); say(T('settings.export_failed', "Couldn\u2019t export this chat. Try again."), true); exportBtn.disabled = false; return; }
       pass.value = ''; pass2.value = '';
       /* The file is fetched and handed to the browser as a blob, so the name said below is the name
          it is saved under (a plain link would take the server's internal file name instead). */
@@ -2179,11 +2181,11 @@ function widgetBundleImport(stack) {
     try {
       const staged = await fetch('/api/session/bundle/upload', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Vool-Bundle-Name': encodeURIComponent(f.name) }, body: f });
       const sj = await staged.json();
-      if (!sj.ok) { say(sj.error || 'Could not stage the file.', true); return; }
+      if (!sj.ok) { console.warn('bundle staging refused:', sj.error || ''); say(T('settings.import_failed', "Couldn\u2019t import this chat. Try again."), true); return; }
       stagedPath = sj.path;
       status.textContent = 'Previewing…';
       const d = await bundlePost('/api/session/bundle/inspect-import', { path: stagedPath, passphrase: String(ipass.value || '') });
-      if (!d.ok) { say(d.error || 'Preview refused.', true); return; }
+      if (!d.ok) { console.warn('bundle preview refused:', d.error || ''); say(T('settings.preview_failed', "Couldn\u2019t preview this file. Try again."), true); return; }
       needsConfirm = !!d.needs_confirmation;
       renderImportPreview(d);
       importBtn.disabled = false; foreignRow.hidden = !needsConfirm; openBtn.hidden = true;
@@ -2196,7 +2198,7 @@ function widgetBundleImport(stack) {
     importBtn.disabled = true; status.className = 'state saving'; status.textContent = 'Importing…';
     try {
       const d = await bundlePost('/api/session/bundle/import', { path: stagedPath, passphrase: String(ipass.value || ''), confirm_untrusted: !!foreign.checked });
-      if (!d.ok) { say(d.error || 'Import refused — nothing was changed.', true); importBtn.disabled = false; return; }
+      if (!d.ok) { console.warn('bundle import refused:', d.error || ''); say(T('settings.import_failed', "Couldn\u2019t import this chat. Try again."), true); importBtn.disabled = false; return; }
       restoredId = d.imported_session_id || '';
       file.value = ''; ipass.value = ''; box.hidden = true; stagedPath = '';
       openBtn.hidden = !restoredId; openBtn.dataset.session = restoredId;
@@ -2284,7 +2286,7 @@ function setupRestoreControl() {
     try {
       const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: false }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      if (!r.ok || (j && j.error)) { console.warn('setup checklist restore refused:', r.status, (j && j.error) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
       await readSource(SETUP_STATE_URL);
       const s = state.sources[SETUP_STATE_URL];
       if (s && s.show_entry && removedSetup && !MODEL.some(g => g.id === 'setup')) {
@@ -2342,7 +2344,7 @@ function widgetSetupProgress(stack) {
     try {
       const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: true }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      if (!r.ok || (j && j.error)) { console.warn('setup checklist dismiss refused:', r.status, (j && j.error) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
       await readSource(SETUP_STATE_URL);
       if (state.sources[SETUP_STATE_URL] && !state.sources[SETUP_STATE_URL].show_entry) {
         removeSetupGroup();
@@ -2590,7 +2592,7 @@ function widgetUpdates(stack) {
         const response = await fetch('/api/update/rollback', { method: 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' }, body: '{}' });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.detail || result.message || 'Rollback could not start');
+        if (!response.ok) { console.warn('rollback refused:', response.status, result.detail || result.message || ''); throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.')); }
         await readSource('/api/update/status'); widgetUpdates(stack);
       } catch (e) { console.warn('rollback failed:', e); status.textContent = T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'); rollback.disabled = false; }
     });
@@ -2787,8 +2789,11 @@ function widgetKeys(stack) {
             const payload = fam === 'security.' ? {action:'test_key'} : fam === 'x.api.' ? {action:'test'} : {provider:providerId};
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
-            st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
-          } catch (e) { console.warn(e); st.textContent = tfmt('keys.test_failed', 'Test failed: {error}', { error: (e && e.message ? e.message : e) }); }
+            /* The security check's server message and status are diagnosis on refusal: the keyed
+               sentence is what the person reads. */
+            if (fam === 'security.' && !(r.ok && j.ok)) console.warn('security key check refused:', r.status, j.message || j.error || '');
+            st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again.")) : keyTestMessage(providerLabel, j);
+          } catch (e) { console.warn(e); st.textContent = T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."); }
           testBtn.disabled = false;
         });
         const rm = el('button', 'btn danger', T('keys.remove', 'Remove')); rm.type = 'button';
@@ -2798,10 +2803,10 @@ function widgetKeys(stack) {
           try {
             const r = await fetch(fam === 'security.' ? '/api/addons' : fam === 'x.api.' ? '/api/x/setup' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : fam === 'x.api.' ? {action:'remove'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
-            if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
+            if (!r.ok || (j && j.error)) { console.warn('key removal refused:', r.status, (j && j.error) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
             await readSource('/api/settings/credentials');
             renderPane();
-          } catch (e) { rm.disabled = false; console.warn(e); st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
+          } catch (e) { rm.disabled = false; console.warn(e); st.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); }
         });
         /* A market-data key was verified when it was saved; its use is the check after that (a refusal
            drops back to keyless prices), so the row offers Remove only. */
@@ -2957,7 +2962,9 @@ function widgetKeys(stack) {
   };
   const selectedGroup = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; const g = o && o.parentElement; return (g && g.tagName === 'OPTGROUP' && g.dataset.family) || ''; };
   const selectedLabel = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; return o && prov.value ? o.textContent : ''; };
-  const failText = (res) => res.j.detail || res.j.error || ('HTTP ' + res.status);
+  /* A refused intake step is a refusal to store, not words for the person: the server's code and
+     text go to the console, the status line carries the keyed plain sentence. */
+  const failText = (res) => { console.warn('key intake refused:', res.status, (res.j && (res.j.detail || res.j.error)) || ''); return T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); };
   const openEndpoint = () => needsBaseUrl() && keyAuth.value === 'none';
   /* The explicit "use anyway" for a custom endpoint that answered but cannot confirm a key. Offered
      only when the server says this session's outcome allows it; it stores the pair as unconfirmed and
@@ -2970,14 +2977,14 @@ function widgetKeys(stack) {
     try {
       const done = await intakePost('/api/intake/complete', { session_id: assertableSession, persist: 'asserted' });
       assertableSession = ''; useAnyway.hidden = true;
-      if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
+      if (!done.ok) { setSt('failed', failText(done)); return; }
       key.value = '';
       const note = T('keys.stored_unconfirmed', 'Stored sealed on this machine as an UNCONFIRMED custom endpoint. It is now the active model provider; your first message will show whether the key works.');
       setSt('saved', note);
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
     finally { useAnyway.disabled = false; }
   });
   const saveVerified = async () => {
@@ -3021,7 +3028,7 @@ function widgetKeys(stack) {
       if (isPathTokenProvider() && origin.value.trim()) verifyBody.base_url = origin.value.trim();
       setSt('saving', tfmt('keys.asking', 'Asking {label} once whether it accepts this key…', { label: label }));
       const verified = await intakePost('/api/intake/verify', verifyBody);
-      if (!verified.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(verified) })); return; }
+      if (!verified.ok) { setSt('failed', failText(verified)); return; }
       if (verified.j.outcome !== 'verified') {
         setSt('failed', verifyOutcomeMessage(label, verified.j));
         if (verified.j.can_use_unconfirmed) {
@@ -3032,7 +3039,7 @@ function widgetKeys(stack) {
       }
       setSt('saving', tfmt('keys.storing', '{label} accepted the key. Storing it sealed on this machine…', { label: label }));
       const done = await intakePost('/api/intake/complete', { session_id: sid });
-      if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
+      if (!done.ok) { setSt('failed', failText(done)); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
       const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : done.j.kind === 'market_data' ? T('keys.use_market', ' VOOL uses it for crypto prices from now on.') : T('keys.use_model', ' It is now the active model provider.');
@@ -3045,7 +3052,7 @@ function widgetKeys(stack) {
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
     finally { save.disabled = false; }
   };
   save.addEventListener('click', saveVerified);
@@ -3093,7 +3100,7 @@ function widgetKeys(stack) {
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
     finally { later.disabled = false; }
   });
   /* A retry that did not promote the key, in words: the key stays saved and unused either way. */
@@ -3202,7 +3209,7 @@ function widgetKeys(stack) {
     quarantine.textContent = '';
     let q;
     try { q = await getJSON('/api/intake/quarantine/list'); }
-    catch (e) { console.warn(e); quarantine.appendChild(el('div', 'subtle', tfmt('keys.quarantine_unavailable', 'Saved-for-later list unavailable — {error}', { error: (e && e.message ? e.message : e) }))); return; }
+    catch (e) { console.warn(e); quarantine.appendChild(el('div', 'subtle', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
     const rows = (q && (q.quarantined || (q.data && q.data.quarantined))) || [];
     if (!rows.length) return;
     quarantine.appendChild(el('div', 'row-label', T('keys.quarantine_title', 'Saved for later (unverified)')));
@@ -3221,10 +3228,10 @@ function widgetKeys(stack) {
         try {
           const r = await fetch('/api/intake/quarantine/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_id: row.provider_id }) });
           const j = await r.json().catch(() => ({}));
-          if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
+          if (!r.ok || j.ok === false) { console.warn('quarantine retry refused:', r.status, (j && (j.detail || j.error)) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
           if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
           else qst.textContent = quarantineOutcome(row.provider_label || row.provider_id, String(j.outcome || ''));
-        } catch (e) { console.warn(e); qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
+        } catch (e) { console.warn(e); qst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); retry.disabled = false; }
       });
       const del = el('button', 'btn danger key-quarantine-delete', T('keys.delete', 'Delete')); del.type = 'button'; del.dataset.provider = row.provider_id;
       del.addEventListener('click', async () => {
@@ -3233,9 +3240,9 @@ function widgetKeys(stack) {
         try {
           const r = await fetch('/api/intake/quarantine/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_id: row.provider_id }) });
           const j = await r.json().catch(() => ({}));
-          if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
+          if (!r.ok || j.ok === false) { console.warn('quarantine delete refused:', r.status, (j && (j.detail || j.error)) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
           await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane();
-        } catch (e) { console.warn(e); qst.textContent = tfmt('keys.not_deleted', 'Not deleted — {error}', { error: (e && e.message ? e.message : e) }); del.disabled = false; }
+        } catch (e) { console.warn(e); qst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); del.disabled = false; }
       });
       line.appendChild(retry); line.appendChild(del); line.appendChild(qst);
       quarantine.appendChild(line);
@@ -3326,7 +3333,8 @@ function openXSetupDialog(onSaved) {
       save.disabled = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
       try {
         const res = await call({ action: 'save_bearer', bearer_token: f.input.value });
-        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (!res.ok) console.warn('x setup bearer save refused:', (res.j && res.j.message) || '');
+        note.textContent = res.ok ? String((res.j && res.j.message) || '') : T('xsetup.failed', 'X setup failed. Nothing was saved.');
         if (res.ok) { f.input.value = ''; if (onSaved) await onSaved(); }
       } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
       save.disabled = false;
@@ -3352,7 +3360,8 @@ function openXSetupDialog(onSaved) {
       check.disabled = true; confirmRow.hidden = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
       try {
         const res = await call({ action: 'keys_check', credentials: { api_key: ck.input.value, api_secret: cs.input.value, access_token: at.input.value, access_token_secret: as.input.value } });
-        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (!res.ok) console.warn('x setup key check refused:', (res.j && res.j.message) || '');
+        note.textContent = res.ok ? String((res.j && res.j.message) || '') : T('xsetup.failed', 'X setup failed. Nothing was saved.');
         if (res.ok && res.j.session_id) {
           pendingSession = res.j.session_id;
           [ck, cs, at, as].forEach(f => { f.input.value = ''; });
@@ -3367,7 +3376,8 @@ function openXSetupDialog(onSaved) {
       keep.disabled = true;
       try {
         const res = await call({ action: 'keys_save', session_id: pendingSession });
-        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (!res.ok) console.warn('x setup key save refused:', (res.j && res.j.message) || '');
+        note.textContent = res.ok ? String((res.j && res.j.message) || '') : T('xsetup.failed', 'X setup failed. Nothing was saved.');
         if (res.ok) { pendingSession = ''; confirmRow.hidden = true; if (onSaved) await onSaved(); }
       } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
       keep.disabled = false;
@@ -3446,7 +3456,7 @@ function widgetXActivity(host) {
     const data = res.j, usage = data.usage || {};
     const pending = data.pending || [];
     host.appendChild(el('h4', 'row-label', data.store === 'unreadable' ? T('xact.section_title', 'X activity') : pending.length ? tfmt('xact.waiting_title', 'Waiting for your approval ({count})', { count: pending.length }) : T('xact.waiting_none_title', 'Nothing waiting for your approval')));
-    if (data.store === 'unreadable') host.appendChild(el('p', 'subtle', data.store_message || T('xact.store_unreadable', 'VOOL could not read its list of X actions, so anything waiting can\'t be shown or sent.')));
+    if (data.store === 'unreadable') { console.warn('x action store unreadable:', data.store_message || ''); host.appendChild(el('p', 'subtle', T('xact.store_unreadable', 'VOOL could not read its list of X actions, so anything waiting can\'t be shown or sent.'))); }
     else if (!pending.length) host.appendChild(el('p', 'subtle', T('xact.waiting_none', 'When you ask VOOL to do something on X, like posting, replying, liking, following or sending a message, it shows here first. Nothing is sent until you approve it.')));
     host.appendChild(note);
     pending.forEach(a => {
@@ -3474,7 +3484,9 @@ function widgetXActivity(host) {
           ? T('xact.lost_answer', 'VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.')
           : T('xact.failed', 'That did not work. Nothing was sent.');
         try { out = await xActivityCall(payload); } catch (e) { out = { ok: false, j: { message: lost } }; }
-        await draw(out.j.message || (out.ok ? '' : lost));
+        /* A refusal's server message is diagnosis: the person reads the keyed sentence. */
+        if (!out.ok) console.warn('x action refused:', (out.j && out.j.message) || '');
+        await draw(out.ok ? String((out.j && out.j.message) || '') : lost);
       };
       yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
       no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));
@@ -3482,14 +3494,15 @@ function widgetXActivity(host) {
       host.appendChild(card);
     });
     host.appendChild(el('h4', 'row-label', T('xact.usage_title', 'X usage this month')));
-    if (usage.ok === false) {
-      console.warn('x activity message:', usage.message); host.appendChild(el('p', 'subtle', usage.message || T('xact.unavailable', 'Could not load your X activity right now.')));
+      if (usage.ok === false) {
+      console.warn('x activity message:', usage.message); host.appendChild(el('p', 'subtle', T('xact.unavailable', 'Could not load your X activity right now.')));
       host.appendChild(el('p', 'subtle', T('xact.reset_note', 'X still counts on its side. Check your X developer account if you are close to your limit.')));
       const row = el('div', 'inline'); const reset = el('button', 'btn', T('xact.reset', 'Start counting from zero')); reset.type = 'button';
       reset.addEventListener('click', async () => {
         reset.disabled = true;
         const out = await xActivityCall({ action: 'reset_usage' }).catch(() => ({ ok: false, j: {} }));
-        await draw(out.ok ? '' : (out.j.message || T('xact.reset_failed', 'The count was not reset. Try again.')));
+        if (!out.ok) console.warn('x usage reset refused:', (out.j && out.j.message) || '');
+        await draw(out.ok ? '' : T('xact.reset_failed', 'The count was not reset. Try again.'));
       });
       row.appendChild(reset); host.appendChild(row);
     } else {
@@ -3518,7 +3531,8 @@ function widgetXActivity(host) {
         save.disabled = true;
         const val = (inp) => inp.value.trim() === '' ? '' : Number(inp.value);
         const out = await xActivityCall({ action: 'set_limits', monthly_reads: val(readsInp), monthly_actions: val(actsInp) }).catch(() => ({ ok: false, j: {} }));
-        await draw(out.ok ? T('xact.limits_saved', 'Limits saved.') : (out.j.message || T('xact.limits_failed', 'Your limits were not saved. Try again.')));
+        if (!out.ok) console.warn('x limits save refused:', (out.j && out.j.message) || '');
+        await draw(out.ok ? T('xact.limits_saved', 'Limits saved.') : T('xact.limits_failed', 'Your limits were not saved. Try again.'));
       });
       limits.appendChild(save);
       host.appendChild(limits);
@@ -3736,7 +3750,7 @@ async function mpBudgetStep({ usdc, mode, resume }) {
   let approval = resume && resume.approval_id ? { approval_id: resume.approval_id } : null;
   if (!approval) {
     const p = await usepodPost('/api/cloud/usepod/spend-approval/propose', { per_call_atomic: atomic, max_total_atomic: atomic, budget_mode: mode || 'daily', expiry_epoch: 0, asset: 'USDC' });
-    if (!p.ok) return { ok: false, error: 'Budget not registered — ' + (p.body && (p.body.error || p.body.code) || 'refused') + '.' };
+    if (!p.ok) { console.warn('usepod budget proposal refused:', (p.body && (p.body.error || p.body.code)) || ''); return { ok: false, error: T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.") }; }
     approval = { approval_id: p.body.approval_id };
   }
   const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'resolve_approval', approval_id: approval.approval_id, decision: 'allow', session_id: 'openclaw:settings-operator' }) });
@@ -3752,14 +3766,16 @@ function mpSheetForSetup({ pin, usepod, guided, reads, onClose }) {
     facts.push(['Model', (pin.provider && pin.provider !== 'openrouter' ? pin.provider + ':' : '') + pin.model + (pin.cost_state ? ' — ' + pin.cost_state : '')]);
     steps.push({ label: 'Set ' + pin.model + ' as the model that answers', run: async () => {
       const r = await usepodPost('/api/cloud/model', { model: pin.model, provider: pin.provider || 'usepod', confirm_paid: true });
-      return r.ok ? { ok: true } : { ok: false, error: 'Model not pinned — ' + (r.body && (r.body.error || r.body.message) || 'refused') + '.' };
+      if (!r.ok) console.warn('usepod guide model pin refused:', (r.body && (r.body.error || r.body.message)) || '');
+      return r.ok ? { ok: true } : { ok: false, error: T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.") };
     } });
   }
   if (usepod && usepod.limits) {
     facts.push(['Maximum input and output prices', usepod.limits.in + ' / ' + usepod.limits.out + ' USDC per 1M tokens (rates; not a per-request bill)']);
     steps.push({ label: 'Save the maximum prices', run: async () => {
       const r = await usepodPost('/api/cloud/usepod/approve-route', { model_id: usepod.modelId, max_input_usdc_per_million: usepod.limits.in, max_output_usdc_per_million: usepod.limits.out });
-      return r.ok ? { ok: true } : { ok: false, error: 'Limits not saved — ' + (r.body && (r.body.error || r.body.code) || 'refused') + '.' };
+      if (!r.ok) console.warn('usepod guide limits refused:', (r.body && (r.body.error || r.body.code)) || '');
+      return r.ok ? { ok: true } : { ok: false, error: T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.") };
     } });
   }
   if (usepod && usepod.budget) {
@@ -3821,7 +3837,7 @@ function widgetModelsOverview(stack) {
       : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
       : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
       : localModels.length ? T('settings.models.local_pick', 'A model is on this computer. Open it and press Use this model to start.')
-      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in Your keys to use an online model.');
+      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
     cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
     // card sends the operator to the detail with the saved approval, never through guided again
@@ -3985,7 +4001,7 @@ async function mpDrawGuided(body, reads, st, redraw) {
       const m = value.match(/^(https?:\/\/[^\/]+)\/proxy\/([^\/]+)\/v1$/);
       if (m) { baseUrl = m[1]; tokenValue = m[2]; }
       const r = await usepodPost('/api/settings/credentials', { provider: 'usepod', value: tokenValue, base_url: baseUrl || undefined });
-      if (!r.ok) { sayLine.textContent = 'Not saved — ' + (r.body && (r.body.error || r.body.code) || 'refused') + '.'; save.disabled = false; return; }
+      if (!r.ok) { console.warn('usepod token save refused:', (r.body && (r.body.error || r.body.code)) || ''); sayLine.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); save.disabled = false; return; }
       const t = await usepodPost('/api/cloud/test', { provider: 'usepod' });
       sayLine.textContent = t.ok && t.body.state === 'ok' ? 'Connected — the token is saved and UsePod accepted it.' : 'Saved, but the test did not confirm — you can retry from the full controls.';
       g.token = '';
@@ -4260,13 +4276,14 @@ async function autoFallbackControl(body, openrouterCatalogue) {
     try {
       const r = await fetch('/api/cloud/auto-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: wanted }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || (j && j.ok === false)) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
+      if (!r.ok || (j && j.ok === false)) { console.warn('auto fallback change refused:', r.status, (j && (j.error || j.message)) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
       const back = await getJSON('/api/cloud/models?provider=openrouter');
       const now = String(back.auto_free_model || 'auto');
       confirmed = now; fbSel.value = now;
-      if (now !== wanted) st.textContent = 'VOOL stored ' + now + ' instead.';
+      /* The stored value, not the model id, is the diagnosis: the person reads the keyed sentence. */
+      if (now !== wanted) { console.warn('auto fallback stored differs from the choice:', now, 'wanted:', wanted); st.textContent = T('settings.store_mismatch', 'What Settings stored does not match what was saved. Try again.'); }
       else st.textContent = now === 'auto' ? 'Auto falls back to the best verified free model.' : 'Auto falls back to ' + now + '. Used only by VOOL Auto; never paid.';
-    } catch (e) { fbSel.value = confirmed; console.warn(e); st.textContent = 'Not changed — ' + (e && e.message ? e.message : e); }
+    } catch (e) { fbSel.value = confirmed; console.warn(e); st.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); }
     fbSel.disabled = false;
   });
   line.appendChild(lab); line.appendChild(fbSel); line.appendChild(st);
@@ -4311,7 +4328,7 @@ function widgetModel(stack) {
       dl.appendChild(el('dd', null, m.cost_state === 'paid' ? 'Paid — spends your provider credits' : (m.cost_state === 'free' ? 'Free' : 'Not classified')));
     }
     body.appendChild(dl);
-    if (m.error || m.ok === false) body.appendChild(el('div', 'subtle', 'VOOL could not resolve the pin (' + (m.error || 'unavailable') + '), so it will not act on one.'));
+    if (m.error || m.ok === false) { console.warn('pin resolution unavailable:', m.error || ''); body.appendChild(el('div', 'subtle', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); }
     /* Pick and pin from here too. The list is the provider's own catalogue (/api/cloud/models), the pin is the
        same door the composer uses (POST /api/cloud/model), including the server's 409 handshake for a paid or
        unpriced model -- the person confirms, or nothing is pinned. */
@@ -4334,8 +4351,8 @@ function widgetModel(stack) {
     if (!provider) {
       /* Nothing to pick yet: say what makes this row useful, with the way there. */
       const line = el('div', 'inline');
-      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in Your keys to choose a model here.')));
-      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to Your keys')); jump.type = 'button';
+      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in API Keys to choose a model here.')));
+      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to API Keys')); jump.type = 'button';
       jump.addEventListener('click', () => { location.hash = '#keys'; });
       line.appendChild(jump);
       body.appendChild(line);
@@ -4361,7 +4378,7 @@ function widgetModel(stack) {
       if (revision !== drawRevision) return;
       if (catalogue.provider !== provider) throw new Error('Provider catalogue identity mismatch');
       models = (catalogue.models || []).filter(x => x && x.id && (!x.provider || x.provider === provider));
-    } catch (e) { console.warn(e); count.textContent = 'Model list unavailable — ' + e.message; pinBtn.disabled = true; }
+    } catch (e) { console.warn(e); count.textContent = T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."); pinBtn.disabled = true; }
     function renderMatches() {
       const previous = sel.value;
       sel.textContent = '';
@@ -4401,9 +4418,9 @@ function widgetModel(stack) {
           r = await fetch('/api/cloud/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id, provider: provider, confirm_paid: true }) });
           j = await r.json().catch(() => ({}));
         }
-        if (!r.ok || (j && j.ok === false)) throw new Error((j && (j.error || j.code)) || ('HTTP ' + r.status));
+        if (!r.ok || (j && j.ok === false)) { console.warn('model pin refused:', r.status, (j && (j.error || j.code)) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
         await draw(clearing ? 'Pin cleared — VOOL chooses.' : 'Pinned for every conversation.');
-      } catch (e) { console.warn(e); pst.textContent = 'Not pinned — ' + (e && e.message ? e.message : e); pinBtn.disabled = false; }
+      } catch (e) { console.warn(e); pst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); pinBtn.disabled = false; }
     });
     if (note) pst.textContent = note;   /* the message survives the redraw that shows the new pin */
     body.appendChild(sel); pick.appendChild(pinBtn); body.appendChild(pick); body.appendChild(pst);
@@ -4420,7 +4437,7 @@ function widgetModel(stack) {
       discBox.textContent = '';
       discBox.appendChild(el('summary', null, 'Provider details'));
       let d;
-      try { d = await getJSON('/api/discovery'); } catch (e) { console.warn(e); discBox.appendChild(el('div', 'subtle', 'Discovery state unavailable — ' + (e && e.message ? e.message : e))); return; }
+      try { d = await getJSON('/api/discovery'); } catch (e) { console.warn(e); discBox.appendChild(el('div', 'subtle', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
       const entry = (d.providers || {})[provider];
       const refBtn = el('button', 'btn model-discovery-refresh', 'Refresh from ' + provider); refBtn.type = 'button';
       const rst = el('span', 'subtle model-discovery-state', '');
@@ -4429,12 +4446,12 @@ function widgetModel(stack) {
         try {
           const r = await fetch('/api/discovery/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: provider }) });
           const j = await r.json().catch(() => ({}));
-          if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+          if (!r.ok || j.ok === false) { console.warn('discovery refresh refused:', r.status, (j && j.error) || ''); throw new Error(T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again.")); }
           rst.textContent = j.last_refresh_status === 'verified'
             ? 'Refreshed ' + (j.observed_at || '') + ' — the key was re-verified and the list re-observed.'
             : 'Not refreshed — ' + (j.last_refresh_status || 'unknown') + '. The key was not judged unless the reason says so.';
           drawDiscovery();
-        } catch (e) { console.warn(e); rst.textContent = 'Refresh failed — ' + (e && e.message ? e.message : e); }
+        } catch (e) { console.warn(e); rst.textContent = T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."); }
         refBtn.disabled = false;
       });
       const head = el('div', 'inline'); head.appendChild(refBtn); head.appendChild(rst); discBox.appendChild(head);
@@ -4546,16 +4563,17 @@ function widgetUsePod(stack) {
       /* Wording only: the result says what is really true. A payment way with nothing behind it (no wallet
          on a supported network, no stored token) is saved as the choice, not announced as working. */
       const ready = transportMode === 'x402' ? walletReady : tokenReady;
+      if (!ok) console.warn('pay lane switch refused:', j.error || j.code || '');
       say(ok ? 'saved' : 'failed', ok
         ? (ready ? ('Calls are now paid by ' + (transportMode === 'x402' ? 'your wallet (x402)' : 'the funded token') + '.')
           : (transportMode === 'x402' ? 'Saved. Wallet payments can start only once Crypto is on and a wallet on a supported network is ready.' : 'Saved. Token payments can start only once a UsePod token is stored.'))
-        : ('Not switched — ' + (j.error || j.code || 'refused') + '.'));
+        : T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."));
       await draw();
     };
     const tokenCard = el('div', 'stack profile-item usepod-pay-mode');
     tokenCard.setAttribute('data-mode', 'prepaid_token');
     tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? inUse(tokenReady) : '')));
-    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (Your keys → UsePod).')));
+    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (API Keys → UsePod).')));
     if (payLane.transport_mode === 'x402') {
       const useToken = el('button', 'btn usepod-use-prepaid', 'Pay with the funded token'); useToken.type = 'button';
       useToken.addEventListener('click', () => useLane('prepaid_token', useToken));
@@ -4578,7 +4596,8 @@ function widgetUsePod(stack) {
       originBtn.addEventListener('click', async () => {
         originBtn.disabled = true;
         const { ok, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: payLane.protocol || 'openai', transport_mode: payLane.transport_mode || 'prepaid_token', origin: originInput.value.trim() });
-        say(ok ? 'saved' : 'failed', ok ? ('Accountless calls now go to ' + String(j.origin || '?') + '.') : ('Origin not changed — ' + (j.error || j.code || 'refused') + '.'));
+        if (!ok) console.warn('origin change refused:', j.error || j.code || '');
+        say(ok ? 'saved' : 'failed', ok ? ('Accountless calls now go to ' + String(j.origin || '?') + '.') : T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."));
         await draw();
       });
       originLine.appendChild(originInput); originLine.appendChild(originBtn);
@@ -4600,7 +4619,7 @@ function widgetUsePod(stack) {
     const cred = d.credential || {};
     if (!cred.configured) {
       body.appendChild(el('div', 'subtle',
-        'No UsePod token stored. Save one under Your keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
+        'No UsePod token stored. Save one under API Keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
     } else {
       const kv = el('dl', 'kv');
       const stateText = { configured_not_verified_here: 'stored, not verified in this view (Test asks UsePod once)', token_or_origin_unusable: 'stored, but the token or origin is not usable as configured' }[cred.state] || cred.state;
@@ -4616,9 +4635,11 @@ function widgetUsePod(stack) {
       test.addEventListener('click', async () => {
         test.disabled = true; st.textContent = 'Asking UsePod once whether this token is accepted (a balance read; no inference, no spend)…';
         const { ok, body: j } = await usepodPost('/api/cloud/test', { provider: 'usepod' });
+        /* The status code is diagnosis for the console, never part of the sentence. */
+        if (j.state !== 'ok') console.warn('usepod token test ' + String(j.state || '') + ':', j.detail || '', j.http_status || '');
         st.textContent = j.state === 'ok' ? 'Connection verified — UsePod accepted the token.'
-          : (j.detail === 'unauthorized' || j.http_status === 401 || j.http_status === 403) ? 'UsePod rejected the token (HTTP ' + (j.http_status || '?') + ').'
-          : 'Could not reach UsePod — the token itself was not judged' + (j.detail ? ' (' + j.detail + ')' : '') + '.';
+          : (j.detail === 'unauthorized' || j.http_status === 401 || j.http_status === 403) ? 'UsePod rejected the token.'
+          : 'Could not reach UsePod — the token itself was not judged.';
         test.disabled = false;
       });
       line.appendChild(test); line.appendChild(st); body.appendChild(line);
@@ -4648,7 +4669,7 @@ function widgetUsePod(stack) {
     refresh.addEventListener('click', async () => {
       refresh.disabled = true; rst.textContent = 'Fetching the public marketplace feed' + (cred.configured ? ' and this credential\u2019s model list and balance' : '') + '…';
       const { ok, body: j } = await usepodPost('/api/cloud/usepod/refresh', {});
-      if (!ok) { rst.textContent = 'Not refreshed — ' + (j.error || 'HTTP refused') + '.'; refresh.disabled = false; return; }
+      if (!ok) { console.warn('usepod refresh refused:', (j && j.error) || ''); rst.textContent = T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."); refresh.disabled = false; return; }
       const m = j.marketplace || {}, c = j.credential || {};
       /* The outcome goes on the persistent note: draw() below rebuilds this row, and a message
          written into the row it destroys was never seen by anyone. */
@@ -4694,14 +4715,14 @@ function widgetUsePod(stack) {
             ? '. Active spend grants: ' + grantBits.join(' · ')
             : '. NO active spend grant for UsePod — every paid turn refuses (MONEY_AUTHORITY_INVALID) until an operator grants one.'),
       moneyLabel.startsWith('unavailable:')
-        ? 'none integrated. Every prepaid dispatch is refused before anything is sent. This is the monetary-budgets integration — Settings → Budgets.'
+        ? 'none integrated. Every prepaid dispatch is refused before anything is sent. This is the monetary-budgets integration — Settings → Usage & Budgets.'
         : 'Spending caps come from operator grants (the money law), not from route approval alone.'));
     const payNetworks = pay.verified_networks || [];
     body.appendChild(depLine(!!pay.installed && payNetworks.length > 0, 'Wallet payment authority (x402 signing)',
       'installed: ' + String(pay.label || '?') + (String(pay.label || '').startsWith('test_double:') ? ' (a labelled TEST DOUBLE, not a real wallet)' : '') + '; pays on: ' + payNetworks.join(', '),
       pay.installed
-        ? 'installed (' + String(pay.label || '?') + ') but it pays on no network now: turn Crypto on, choose Mainnet and finish a Crypto Pilot wallet on Solana Mainnet. Accountless x402 is refused at the pick until then (wallet_payment_network_unverified) — Settings → Wallet.'
-        : 'none integrated. Accountless x402 is refused before any reservation or payment (wallet_payment_authority_unavailable) — Settings → Wallet.'));
+        ? 'installed (' + String(pay.label || '?') + ') but it pays on no network now: turn Crypto on, choose Mainnet and finish a Crypto Pilot wallet on Solana Mainnet. Accountless x402 is refused at the pick until then (wallet_payment_network_unverified) — Settings → Crypto.'
+        : 'none integrated. Accountless x402 is refused before any reservation or payment (wallet_payment_authority_unavailable) — Settings → Crypto.'));
 
     /* -- trusted spend approval: the user's consent bridge. Proposing registers a PENDING
        approval in the SAME approval store the tool gate uses; the operator allows or denies it
@@ -4728,7 +4749,9 @@ function widgetUsePod(stack) {
         balanceLine.textContent = usepodDisplayAmount(bal.usdc_balance_microunits, 'USDC') + (age == null ? '' : (age < 60 ? ' — checked just now' : ' — checked ' + Math.round(age / 60) + ' min ago'))
           + (age != null && age > 900 ? ' · older than 15 minutes; it is re-read before sending' : '');
       } else if (bal) {
-        balanceLine.textContent = 'Not verified (' + String(bal.state) + (bal.http_status ? ', HTTP ' + bal.http_status : (bal.error_code ? ', ' + bal.error_code : '')) + ') — sending is refused until UsePod confirms a balance.';
+        /* Status and provider codes are diagnosis: they go to the console, the sentence names the outcome. */
+        if (bal.http_status || bal.error_code) console.warn('usepod balance not verified:', bal.state || '', bal.http_status || '', bal.error_code || '');
+        balanceLine.textContent = 'Not verified (' + String(bal.state) + ') — sending is refused until UsePod confirms a balance.';
       } else {
         balanceLine.textContent = 'Not read yet — it is read before your first request.';
       }
@@ -4740,9 +4763,10 @@ function widgetUsePod(stack) {
       checkBtn.addEventListener('click', async () => {
         checkBtn.disabled = true; checkState.textContent = 'Reading the balance once (no inference, no spend)…';
         const { ok, body: j } = await usepodPost('/api/cloud/usepod/balance', { max_age_seconds: 0 });
+        if (!(ok && j.state === 'reported')) console.warn('usepod balance check refused:', j.state || '', j.error || '', j.http_status || '');
         say(ok && j.state === 'reported' ? 'saved' : 'failed', ok && j.state === 'reported'
           ? 'Balance ' + usepodDisplayAmount(j.usdc_balance_microunits, 'USDC') + ' confirmed by UsePod.'
-          : 'Balance not verified — ' + String(j.state || j.error || 'refused') + (j.http_status ? ' (HTTP ' + j.http_status + ')' : '') + '.');
+          : T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."));
         await draw();
       });
       checkLine.appendChild(checkBtn); checkLine.appendChild(checkState); summary.appendChild(checkLine);
@@ -4821,15 +4845,17 @@ function widgetUsePod(stack) {
             try {
             const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'resolve_approval', approval_id: consent.approval_id, decision: decision, session_id: 'openclaw:settings-operator' }) });
             const j = await r.json().catch(() => ({}));
-            ast.textContent = r.ok ? ('Consent ' + decision + 'ed.') : ('Not recorded — ' + (j.error || 'HTTP ' + r.status) + '.');
+            if (!r.ok) console.warn('approval recording refused:', r.status, (j && j.error) || '');
+            ast.textContent = r.ok ? ('Consent ' + decision + 'ed.') : T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.");
             if (r.ok && decision === 'allow') {
               const result = await usepodPost('/api/cloud/usepod/spend-approval/confirm', { approval_id: consent.approval_id });
-              say(result.ok ? 'saved' : 'failed', result.ok ? 'Budget enabled. Return to chat to send; eligible tasks already queued can start automatically.' : 'Approval recorded, but enabling failed — ' + (result.body.error || 'retry below') + '.');
+              if (!result.ok) console.warn('budget enabling refused:', (result.body && result.body.error) || '');
+              say(result.ok ? 'saved' : 'failed', result.ok ? 'Budget enabled. Return to chat to send; eligible tasks already queued can start automatically.' : T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."));
             }
-            if (!r.ok) say('failed', 'Approval not recorded — ' + (j.error || 'HTTP ' + r.status) + '.');
+            if (!r.ok) say('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."));
             await draw();
             } catch (e) {
-              console.warn(e); say('failed', 'Could not finish this approval. Checking its saved state — ' + e.message);
+              console.warn(e); say('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."));
               await draw();
             } finally { resolving = false; allowBtn.disabled = false; denyBtn.disabled = false; }
           };
@@ -4848,7 +4874,7 @@ function widgetUsePod(stack) {
             const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/confirm', { approval_id: consent.approval_id });
             /* The outcome rides the persistent note: the redraw below replaces this branch. */
             if (ok) say('saved', 'Enabled: ' + String(j.grant_id) + (j.idempotent ? ' (already enabled)' : '') + '. ' + usepodBudgetScope(facts));
-            else say('failed', 'Not enabled — ' + (j.error || 'refused') + '.');
+            else { console.warn('budget enabling refused:', j.error || ''); say('failed', T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
             await draw();
           });
           line.appendChild(confirmBtn); line.appendChild(cst); approvalBox.appendChild(line);
@@ -4869,7 +4895,7 @@ function widgetUsePod(stack) {
             const again = { per_call_atomic: parseInt(per, 10) || 0, max_total_atomic: parseInt(tot, 10) || 0 };
             if (facts && facts.x402 && facts.asset) again.asset = String(facts.asset);
             const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/propose', again);
-            if (!ok) { ast2.textContent = 'Not proposed — ' + (j.error || 'refused') + '.'; againBtn.disabled = false; return; }
+            if (!ok) { console.warn('budget re-proposal refused:', j.error || ''); ast2.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); againBtn.disabled = false; return; }
             say('saved', 'Fresh approval requested. Allow or deny it above — nothing is enabled until you do.');
             await draw();
           });
@@ -4907,7 +4933,7 @@ function widgetUsePod(stack) {
         if (accountlessLane) proposal.asset = assetSelect.value;
         else { proposal.budget_mode = budgetMode.value; proposal.expiry_epoch = 0; }
         const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/propose', proposal);
-        if (!ok) { pst.textContent = 'Not proposed — ' + (j.error || 'refused') + '.'; proposeBtn.disabled = false; return; }
+        if (!ok) { console.warn('budget proposal refused:', j.error || ''); pst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); proposeBtn.disabled = false; return; }
         say('saved', 'Review the budget above, then approve or deny it. Nothing is enabled yet.');
         await draw();
         /* The redraw replaced the form; a refusal written into it would never be seen. */
@@ -4965,9 +4991,10 @@ function widgetUsePod(stack) {
             resumeBtn.disabled = true;
             const { ok, body: j } = await usepodPost('/api/cloud/usepod/x402/resume', { operation_id: op.operation_id });
             const answer = String(j.answer || '');
+            if (!ok) console.warn('paid call resume refused:', j.code || j.error || '', j.http_status || '');
             say(ok ? 'saved' : 'failed', ok
               ? ('Resumed: the paid call answered — ' + answer.slice(0, 160) + (answer.length > 160 ? '…' : '') + ' (' + String(j.settlement_recording || '').replace(/_/g, ' ') + ')')
-              : ('Not resumed — ' + (j.code || j.error || 'refused') + (j.http_status ? ' (provider HTTP ' + j.http_status + ')' : '') + '. Nothing was paid again.'));
+              : 'Not resumed. Nothing was paid again.');
             await draw();
           });
           row.appendChild(resumeBtn);
@@ -5011,7 +5038,7 @@ function widgetUsePod(stack) {
     laneBtn.addEventListener('click', async () => {
       laneBtn.disabled = true; lst.textContent = 'Saving…';
       const { ok: ok2, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: proto.value, transport_mode: transport.value });
-      if (!ok2) { lst.textContent = 'Not saved — ' + (j.error || j.code || 'refused') + '.'; laneBtn.disabled = false; return; }
+      if (!ok2) { console.warn('lane save refused:', j.error || j.code || ''); lst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); laneBtn.disabled = false; return; }
       say('saved', 'Lane saved; ' + ((j.refreshed_lanes || []).length) + ' registered lane(s) refreshed.');
       await draw();
     });
@@ -5021,9 +5048,9 @@ function widgetUsePod(stack) {
     const syncLaneWarn = () => {
       const hasGrant = (money.grants || []).length > 0;
       laneWarn.textContent = transport.value === 'x402' && !pay.installed
-        ? 'x402 selected, but no wallet payment authority is integrated: x402 turns refuse at the pick — before any reservation, quote or payment — until one is (Settings → Wallet).'
+        ? 'x402 selected, but no wallet payment authority is integrated: x402 turns refuse at the pick — before any reservation, quote or payment — until one is (Settings → Crypto).'
         : transport.value === 'x402' && !(pay.verified_networks || []).length
-          ? 'x402 selected, but the wallet pays on no network now: x402 turns refuse at the pick (wallet_payment_network_unverified) — before any reservation, quote or payment — until Crypto is on with a ready Crypto Pilot wallet on Solana Mainnet (Settings → Wallet).'
+          ? 'x402 selected, but the wallet pays on no network now: x402 turns refuse at the pick (wallet_payment_network_unverified) — before any reservation, quote or payment — until Crypto is on with a ready Crypto Pilot wallet on Solana Mainnet (Settings → Crypto).'
         : transport.value === 'prepaid_token' && money.installed && !hasGrant && !String(money.label || '').startsWith('test_double:')
           ? 'Prepaid selected on the money law, but no spend grant exists yet: paid turns refuse with MONEY_AUTHORITY_INVALID until an operator grants one.'
           : 'Protocol and transport do not change prices; an approved route bound survives a lane change.';
@@ -5061,12 +5088,12 @@ function widgetUsePod(stack) {
       if (cin.value.trim() !== '') payload.max_input_microunits_per_million = parseInt(cin.value.trim(), 10);
       if (cout.value.trim() !== '') payload.max_output_microunits_per_million = parseInt(cout.value.trim(), 10);
       const { ok: ok2, body: j } = await usepodPost('/api/cloud/usepod/route-policy', payload);
-      if (!ok2) { pst.textContent = 'Not saved — ' + (j.error || j.code || 'refused') + '.'; polBtn.disabled = false; return; }
+      if (!ok2) { console.warn('route policy save refused:', j.error || j.code || ''); pst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); polBtn.disabled = false; return; }
       say('saved', 'Policy saved. Existing route approvals bound to the previous policy will refuse (route_policy_changed_since_approval) until re-approved.');
       await draw();
     });
     const pline4 = el('div', 'inline'); pline4.appendChild(polBtn); pline4.appendChild(pst); body.appendChild(pline4);
-    if (d.route_store_error) body.appendChild(el('div', 'state failed', 'Route store error — ' + d.route_store_error));
+    if (d.route_store_error) { console.warn('route store error:', d.route_store_error); body.appendChild(el('div', 'state failed', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); }
     body.appendChild(el('div', 'subtle', 'A pin names centralized providers only; marketplace-only with a pin is refused upstream. Ceilings are maxima per million tokens in integer µUSDC; dispatch re-checks the live price against them before every send.'));
 
     /* -- models: prices with source and age, and the approval that gates paid dispatch. */
@@ -5136,7 +5163,7 @@ function usepodModelRow(m, d, say, draw) {
     forget.addEventListener('click', async () => {
       forget.disabled = true; fst.textContent = 'Withdrawing…';
       const { ok, body: j } = await usepodPost('/api/cloud/usepod/forget-route', { model_id: m.model_id });
-      if (!ok) { fst.textContent = 'Not withdrawn — ' + (j.error || 'refused') + '.'; forget.disabled = false; return; }
+      if (!ok) { console.warn('route approval withdrawal refused:', j.error || ''); fst.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); forget.disabled = false; return; }
       say('saved', 'Route approval for ' + m.model_id + ' withdrawn. Paid turns on it refuse immediately.');
       await draw();
     });
@@ -5158,7 +5185,8 @@ function usepodModelRow(m, d, say, draw) {
       approve.disabled = true; ast.textContent = 'Approving at current prices…';
       const { ok, status, body: j } = await usepodPost('/api/cloud/usepod/approve-route', { model_id: m.model_id });
       if (!ok) {
-        ast.textContent = 'Not approved — ' + (status === 409 ? 'no route can be approved at current prices (' + (j.code || '?') + ')' : (j.error || 'refused')) + '.';
+        console.warn('route approval refused:', status, j.code || j.error || '');
+        ast.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.");
         approve.disabled = false; return;
       }
       const b = j.approved_route || {};
@@ -5637,18 +5665,19 @@ function widgetAnswerLanguage(stack) {
         body: JSON.stringify({ category: 'language', value: value, scope: 'global', replace: true }),
       });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || (j.change && j.change.report))) || ('HTTP ' + r.status));
+      if (!r.ok || !j || j.ok === false) { console.warn('answer language change refused:', r.status, (j && (j.error || (j.change && j.change.report))) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
       await readSource('/api/profile');
       const back = (state.sources['/api/profile'].items || []).find(i => i.category === 'language' && i.scope === 'global');
       if (!back || String(back.value) !== value) {
+        console.warn('answer language stored differs from the sent value:', back ? back.value : null);
         st.className = 'state stale';
-        st.textContent = 'Sent, but VOOL reports ' + JSON.stringify(back ? back.value : null) + '.';
+        st.textContent = T('settings.store_mismatch', 'What Settings stored does not match what was saved. Try again.');
         renderPane();
         return;
       }
       widgetCache.answerLanguageNote = 'Saved';
       renderPane();
-    } catch (e) { console.warn(e); fail('Not saved — ' + profileWords(e.message)); }
+    } catch (e) { console.warn(e); fail(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
   });
 
   clear.addEventListener('click', async () => {
@@ -5660,9 +5689,9 @@ function widgetAnswerLanguage(stack) {
         body: JSON.stringify({ item_id: global_.item_id, expected_revision: global_.revision }),
       });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || (j.change && j.change.report))) || ('HTTP ' + r.status));
+      if (!r.ok || !j || j.ok === false) { console.warn('answer language clear refused:', r.status, (j && (j.error || (j.change && j.change.report))) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
       await refresh();
-    } catch (e) { console.warn(e); fail('Not cleared — ' + e.message); }
+    } catch (e) { console.warn(e); fail(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
   });
 
   /* What is actually in force, stated rather than implied. */
@@ -6012,11 +6041,11 @@ function widgetEmailAccounts(stack) {
       use.addEventListener('click', async () => {
         use.disabled = true; say(tfmt('emailadd.default_choosing', 'Choosing {account} as the default…', { account: a.account }));
         const res = await post('remember', { category: 'default_account.email', value: a.binding_ref, scope: 'global', replace: true });
-        if (!res.ok) { use.disabled = false; say(tfmt('emailadd.default_not_chosen', 'Not chosen — {reason}', { reason: why(res, T('emailadd.default_refused', 'VOOL could not save that choice.')) }), true); return; }
+        if (!res.ok) { use.disabled = false; console.warn('default email choice refused:', why(res, '')); say(tfmt('emailadd.default_not_chosen', 'Not chosen — {reason}', { reason: why(res, T('emailadd.default_refused', 'VOOL could not save that choice.')) }), true); return; }
         await refresh();
         const back = ((state.sources['/api/email/accounts'] || {}).default || {}).account;
         if (back === a.account) say(tfmt('emailadd.default_set', 'Default email account: {account}.', { account: a.account }));
-        else say(T('emailadd.default_not_made', 'VOOL could not make it the default email account.'), true);
+        else { console.warn('default email account stored differs from the choice:', back); say(T('emailadd.default_not_made', 'VOOL could not make it the default email account.'), true); }
       });
       rowEl.appendChild(use);
     }
@@ -6045,7 +6074,7 @@ function widgetEmailAccounts(stack) {
       clear.addEventListener('click', async () => {
         clear.disabled = true; say('Clearing the default…');
         const res = await post('forget', { item_id: def.item_id });
-        if (!res.ok) { clear.disabled = false; say('Not cleared — ' + why(res, 'the profile refused it'), true); return; }
+        if (!res.ok) { clear.disabled = false; console.warn('default email clear refused:', why(res, '')); say(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."), true); return; }
         await refresh(); say('Default cleared. With several accounts VOOL asks which one instead of guessing.');
       });
       chosen.appendChild(document.createTextNode(' ')); chosen.appendChild(clear);
@@ -6062,7 +6091,9 @@ function widgetEmailAccounts(stack) {
     const s = sel[kind] || {};
     const line = el('div', 'subtle email-selection'); line.dataset.kind = kind;
     const name = s.account === 'default' ? 'the account named “default”' : s.account;
-    line.textContent = label + ': ' + (s.ok ? (name + (s.address ? ' (' + s.address + ')' : '') + (EMAIL_SOURCE_TEXT[s.source] ? ' — ' + EMAIL_SOURCE_TEXT[s.source] : '')) : ('none — ' + (s.message || 'no account can do this')));
+    /* The server's reason a lane has no account is diagnosis: the plain sentence names the state. */
+    if (!s.ok && s.message) console.warn('email selection status:', s.message);
+    line.textContent = label + ': ' + (s.ok ? (name + (s.address ? ' (' + s.address + ')' : '') + (EMAIL_SOURCE_TEXT[s.source] ? ' — ' + EMAIL_SOURCE_TEXT[s.source] : '')) : 'none — no account can do this');
     body.appendChild(line);
   });
 }
@@ -6122,7 +6153,8 @@ function widgetEmailRecovery(stack) {
         check.disabled = true; outcome.textContent = 'Asking the account\'s sent view…';
         const res = await post('/api/email/recovery/check', { message_id: mid });
         const c = (res.data && res.data.check) || {};
-        outcome.textContent = c.status ? (c.status + (c.account ? ' in ' + c.account : '') + ' — ' + c.message) : ('Check failed — ' + (res.data.message || res.data.error || ('HTTP ' + res.http)));
+        if (!c.status) console.warn('sent-view check refused:', res.http || 0, (res.data && (res.data.message || res.data.error)) || '');
+        outcome.textContent = c.status ? (c.status + (c.account ? ' in ' + c.account : '') + ' — ' + c.message) : T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again.");
         check.disabled = false;
         if (c.status) await refresh();
       });
@@ -6157,7 +6189,8 @@ function widgetEmailRecovery(stack) {
       say('This page is out of date: the store was recovered again since it loaded. Reloading the current hold.', true);
       await readSource('/api/email/recovery', true); renderPane(); return;
     }
-    say('Not released — ' + (d.message || d.error || ('HTTP ' + res.http)), true);
+    console.warn('sending release refused:', res.http || 0, d.message || d.error || '');
+    say(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."), true);
     ack.disabled = !tick.checked;
   });
   body.appendChild(ack);
@@ -6216,7 +6249,7 @@ function widgetProfile(stack) {
     pause.addEventListener('click', async () => {
       pause.disabled = true;
       const res = await post('pause', { paused: !p.paused });
-      if (!res.ok) { pause.disabled = false; say('Not changed — ' + report(res, 'HTTP ' + res.status), true); return; }
+      if (!res.ok) { pause.disabled = false; console.warn('memory pause change refused:', res.status, report(res, '')); say(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."), true); return; }
       await draw();
       say(res.data.paused ? T('settings.profile.paused_note', 'Memory paused: VOOL keeps what it knows and learns nothing new until you resume.') : T('settings.profile.resumed_note', 'Memory resumed: VOOL learns from conversation again.'));
     });
@@ -6235,7 +6268,7 @@ function widgetProfile(stack) {
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         say('Saved as a file: ' + a.download + '. It holds what VOOL remembers, never a key or password.');
-      } catch (e) { console.warn(e); say('Could not export — ' + e.message, true); }
+      } catch (e) { console.warn(e); say(T('settings.export_failed', "Couldn\u2019t export this chat. Try again."), true); }
       exp.disabled = false;
     });
     /* The exported document stays folded away; it is there to look at on request, and closes again. */
@@ -6280,10 +6313,10 @@ function widgetProfile(stack) {
       try {
         const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_address: value }) });
         const j = await r.json().catch(() => null);
-        if (!r.ok || (j && j.error)) throw new Error(profileWords((j && j.error) || ('HTTP ' + r.status)));
+        if (!r.ok || (j && j.error)) { console.warn('name save refused:', r.status, profileWords((j && j.error) || '')); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
         widgetCache.profileNote = value ? tfmt('settings.profile.name_saved', 'Saved. VOOL will call you {name}.', { name: value }) : T('settings.profile.name_cleared', 'Name cleared.');
         await draw();
-      } catch (e) { save.disabled = false; st.className = 'state failed'; console.warn(e); st.textContent = 'Not saved — ' + e.message; }
+      } catch (e) { save.disabled = false; st.className = 'state failed'; console.warn(e); st.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); }
     };
     save.addEventListener('click', send);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
@@ -6307,7 +6340,9 @@ function widgetProfile(stack) {
     const run = async (label, action, payload, okText, plainOk) => {
       const res = await post(action, payload);
       if (res.status === 409) { say(T('settings.profile.changed_elsewhere', 'This item changed elsewhere. The list was reloaded; try again.'), true); await draw(); return; }
-      say(res.ok && plainOk ? okText : report(res, res.ok ? okText : ('Could not ' + label.toLowerCase() + '.')), !res.ok);
+      /* A refusal's server report is diagnosis: the person reads the keyed sentence. */
+      if (!res.ok) console.warn('profile ' + label.toLowerCase() + ' refused:', report(res, ''));
+      say(res.ok ? (plainOk ? okText : report(res, okText)) : T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."), !res.ok);
       if (res.ok) await draw();
     };
     const acts = el('div', 'inline');
@@ -6343,7 +6378,8 @@ function widgetProfile(stack) {
       undo.addEventListener('click', async () => {
         undo.remove();
         const res = await post('restore', { item_id: it.item_id });
-        say(res.ok ? T('settings.profile.brought_back', 'Brought back.') : (T('settings.profile.undo_failed', 'Could not undo.') + ' ' + report(res, 'HTTP ' + res.status)), !res.ok);
+        if (!res.ok) console.warn('profile restore refused:', res.status, report(res, ''));
+        say(res.ok ? T('settings.profile.brought_back', 'Brought back.') : (T('settings.profile.undo_failed', 'Could not undo.') + ' ' + T('settings.retry', 'Retry')), !res.ok);
         if (res.ok) await draw();
       });
       status.appendChild(document.createTextNode(' ')); status.appendChild(undo);

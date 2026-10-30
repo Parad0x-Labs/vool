@@ -5341,7 +5341,7 @@ function mountAnswerExport(host, chatId, requestId) {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
-        if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
+        if (!result.ok && !result.cancelled) { console.warn('pdf save refused', result.message || result.error || ''); throw new Error(label('msg.pdf_failed', 'PDF export failed')); }
         status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
@@ -5349,17 +5349,18 @@ function mountAnswerExport(host, chatId, requestId) {
           + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || ''));
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
+          console.warn('pdf export refused', refusal.message || refusal.error || '', response.status);
+          throw new Error(label('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
-        if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
+        if (!/^application\/pdf\b/i.test(blob.type)) { console.warn('pdf export returned wrong type', blob.type); throw new Error(label('msg.pdf_failed', 'PDF export failed')); }
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = downloadFilenameFrom(response.headers.get('Content-Disposition'), 'VOOL answer.pdf');
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || label('msg.pdf_failed', 'PDF export failed'); }
+    } catch (error) { console.warn('pdf export failed', error); status.textContent = label('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -8619,7 +8620,7 @@ function wireActivityPanelActions() {
       button.disabled = true;
       try {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
-        const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+        const d = await r.json(); if (!r.ok) { console.warn('cancel recovered task refused', d && d.error, r.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
         view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
       } catch (e) { button.disabled = false; console.warn('cancel recovered task failed', e); toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     }
@@ -9361,7 +9362,7 @@ async function fetchJsonWithin(url, parentSignal, timeoutMs) {
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error('Could not read runtime state (HTTP ' + response.status + ').');
+    if (!response.ok) { console.warn('runtime state read refused', response.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     return await response.json();
   } catch (error) {
     if (timedOut) throw new Error('Runtime state did not respond within ' + (timeoutMs / 1000) + ' seconds. Please retry.');
@@ -9587,15 +9588,18 @@ async function runTurn(text, queueItemId, opts) {
         return;
       }
     }
-    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
-    // reason, never an empty stream read as "(no response)" and marked Completed.
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: one keyed
+    // sentence, never an empty stream read as "(no response)" and marked Completed. The typed
+    // refusal words ride the machine field and the console, not the person's transcript row.
     if (!res.ok) {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
       const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      console.warn('turn refused', reason || '', res.status);
+      run.error = reason || String(res.status);
       run.text = reason
-        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
-        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+        ? pageT('run.refused_reason', 'VOOL did not run this turn.')
+        : pageT('run.refused_status', 'VOOL did not run this turn.');
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       if (run.textEl) run.textEl.textContent = run.text;
       finishRun(run, 'failed', run.text);
@@ -9694,9 +9698,12 @@ async function runTurn(text, queueItemId, opts) {
       finishRun(run, 'failed', "Couldn't reach VOOL");
     }
     else {
+      // The raw exception stays a machine field (cross-tab/queue state reads run.error);
+      // the transcript row the person reads carries one keyed sentence.
+      console.warn('chat send failed', e);
       run.error = (e && e.message ? e.message : String(e));
-      run.text = run.text || (pageT('run.error_prefix', 'Error: ') + run.error);
-      withRunDom(run, () => { if (run.textEl) run.textEl.textContent = pageT('run.error_prefix', 'Error: ') + run.error; });
+      run.text = run.text || pageT('chat.send_failed', 'The message could not be sent.');
+      withRunDom(run, () => { if (run.textEl) run.textEl.textContent = pageT('chat.send_failed', 'The message could not be sent.'); });
       finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
     }
   }
@@ -9782,7 +9789,7 @@ async function postJsonWithin(url, body, timeoutMs) {
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: controller.signal });
     let data = null;
     try { data = await response.json(); } catch (e) { data = null; }
-    if (!response.ok && !(data && typeof data === 'object' && data.state)) throw new Error('Could not read runtime state (HTTP ' + response.status + ').');
+    if (!response.ok && !(data && typeof data === 'object' && data.state)) { console.warn('runtime state post refused', response.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     return data;
   } catch (error) {
     if (timedOut) throw new Error('Runtime state did not respond within ' + (timeoutMs / 1000) + ' seconds. Please retry.');
@@ -9804,8 +9811,8 @@ function usepodBalanceBlocker(balance) {
   if (state === 'no_token') return pageT('usepod.no_account', 'Your UsePod account is not connected.');
   if (state === 'credential_pair_unresolved') return pageT('usepod.token_saving', 'Your UsePod token is still being saved or removed; try again in a moment.');
   if (state === 'unavailable') {
-    const where = balance.http_status ? ' (HTTP ' + balance.http_status + ')' : (balance.error_code ? ' (' + balance.error_code + ')' : '');
-    return pageT('usepod.unavailable', 'UsePod did not confirm your balance') + where + '.';
+    if (balance.http_status || balance.error_code) console.warn('usepod balance unavailable', balance.http_status || '', balance.error_code || '');
+    return pageT('usepod.unavailable', 'UsePod did not confirm your balance') + '.';
   }
   if (state === 'not_observed') return pageT('usepod.not_observed', 'Your UsePod balance has not been read yet.');
   return pageT('usepod.unreadable_form', 'UsePod answered the balance check in a form this build cannot read (') + state + ').';
@@ -10074,7 +10081,7 @@ function buildDocPreview(chip, item) {
     try {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
       if (r.status === 410) { pre.textContent = pageT('attach.doc_erased', 'This document was erased from the chat; its name and size are all that remain.'); return; }
-      if (!r.ok) { pre.textContent = pageTF('attach.doc_gone_http', 'This document is no longer available (HTTP {status}).', { status: r.status }); return; }
+      if (!r.ok) { console.warn('attachment preview unavailable', r.status); pre.textContent = pageT('attach.doc_gone_http', 'This document is no longer available.'); return; }
       paint(await r.text());
     } catch (e) { loaded = false; pre.textContent = pageT('attach.doc_preview_failed', 'The preview could not be loaded. Check the connection and try again.'); }
   }
@@ -10257,10 +10264,11 @@ async function uploadAttachment(item, chatId) {
       }
       item.state = 'ready'; item.retryable = false;
     } else {
-      // A validation refusal names its reason and is final for these bytes; a server or transport
-      // failure is retryable in place.
+      // A validation refusal names its reason on the console and is final for these bytes; a
+      // server or transport failure is retryable in place. The chip reads one keyed sentence.
       item.state = 'failed';
-      item.error = (data && data.message) || pageTF('attach.upload_failed_http', 'Upload failed (HTTP {status}).', { status: res.status });
+      if (data && data.message) console.warn('attachment upload refused', data.message);
+      item.error = pageT('attach.upload_failed_http', 'The file could not be uploaded.');
       item.retryable = !(data && data.error && res.status < 500 && data.error !== 'upload_failed');
       // A FINAL refusal (a secret, an unsupported type, over the limit) takes its marker home: the
       // composer returns to its pre-paste bytes; the chip stays, red, with the door's reason.
@@ -10542,8 +10550,10 @@ async function beginDictationRecording() {
         if (inputEl && isDisplayed(chatId)) inputEl.dispatchEvent(new Event('input'));
         showDictationNote(data.complete ? '' : (data.disclosure || dictT('partial_transcript', 'The recording was longer than the transcription budget; only part was transcribed.')));
       } else {
-        // The server's typed truth: a missing dependency names itself and what would fix it.
-        setDictationError((data && (data.message + (data.remediation ? ' ' + data.remediation : ''))) || dictT('failed_http', 'Dictation failed (HTTP ' + res.status + ').', { status: res.status }));
+        // The server's typed truth (a missing dependency, its remedy) goes to the console;
+        // the person reads one keyed sentence with no status code in it.
+        if (data && (data.message || data.remediation)) console.warn('dictation failed', data.message || '', data.remediation || '');
+        setDictationError(dictT('failed_http', 'Dictation did not work. Try again.'));
       }
     } catch (e) {
       setDictationError(dictT('did_not_complete', 'Dictation did not complete. Check the connection and try again.'));
@@ -10604,7 +10614,8 @@ async function probeDictationAvailability() {
     .then((r) => r.json())
     .then((j) => {
       if (j && j.available === false) {
-        showDictationNote((j.message || 'Dictation is unavailable on this machine.') + (j.remediation ? ' ' + j.remediation : ''));
+        console.warn('dictation unavailable', j.message || '', j.remediation || '');
+        showDictationNote(dictT('unavailable', 'Dictation is not available on this machine. Type instead.'));
       }
     })
     .catch(() => {});
@@ -10749,7 +10760,7 @@ async function postMode(payload, context) {
   const owner = context || modeContext(displayedChat);
   const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: owner.session_id, project_id: owner.project_id, turn_id: owner.turn_id }, payload || {})) });
   let data = {}; try { data = await r.json(); } catch (e) {}
-  if (!r.ok) { const err = new Error((data && data.error) || ('HTTP ' + r.status)); err.body = data; throw err; }
+  if (!r.ok) { console.warn('mode change refused', (data && data.error) || '', r.status); const err = new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); err.body = data; throw err; }
   return data;
 }
 async function setModeController(mode, bypassToken, context) {
@@ -10900,7 +10911,9 @@ async function confirmBypass() {
     // A refusal arrives as (reason, workspace_reason, error) — never parse the prose:
     // the typed reason picks the catalog presentation, the message stays the fallback.
     const refusal = e.body && e.body.reason === 'bypass_workspace_required' && e.body.workspace_reason;
-    const detail = refusal ? pageT('bypass.readiness.' + String(refusal), String(e.message || '')) : e.message;
+    console.warn('bypass activation failed', e);
+    const plain = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
+    const detail = refusal ? pageT('bypass.readiness.' + String(refusal), plain) : plain;
     if (bypassDialogContext === context) { const error = document.getElementById('bypassError'); error.textContent = pageT('bypass.not_activated_prefix', 'Bypass was not activated: ') + detail; error.hidden = false; }
     else toast(pageTF('bypass.not_activated_original', 'Bypass was not activated for its original chat: {error}', { error: detail }));
   }
@@ -11071,7 +11084,7 @@ function initComposerControls() {
       e.stopPropagation();
       const requested = it.getAttribute('data-mode'); closePops(null);
       if (requested === 'bypass_permissions') { openBypassModal(); return; }
-      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: err.message })); }
+      try { await setModeController(requested); } catch (err) { console.warn('mode change failed', err); toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: pageT('chat.try_again', 'Couldn’t do that just now. Try again.') })); }
     });
   });
   const modeItems = Array.from(document.querySelectorAll('#modePop .pop-item'));
@@ -11779,7 +11792,11 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
     throw new Error((j && (j.message || j.error)) || 'Could not select this model. Try again.');
   } catch (e) {
     if (!stillCurrent()) return false;
-    const message = e.message || 'Could not select this model. Try again.';
+    // The server's own refusal words never reach the person: one keyed sentence, the
+    // detail stays on the console. dataset.selectionError rides the row hint, so it
+    // carries the keyed sentence too.
+    console.warn('cloud model switch failed', e);
+    const message = pageT('chat.model_switch_failed', 'That model could not be picked. The old one stays.');
     if (rowEl) {
       rowEl.dataset.selectionError = message;
       const hint = rowEl.querySelector('.pi-hint');
@@ -11796,7 +11813,9 @@ async function switchAutoFreeModel(id, selectEl) {
     const j = await r.json();
     if (r.ok && j.ok) {
       autoFreeModel = j.model || id;
-      if (selectEl) selectEl.title = j.message || '';
+      // The server's confirmation words ride the console; a tooltip carries no raw detail.
+      if (j.message) console.warn('auto fallback set', j.message);
+      if (selectEl) selectEl.title = '';
       // Auto's fallback is one of the rows the provenance strip renders; refresh it from the
       // server rather than leaving the strip describing the previous fallback.
       refreshSelectionProvenance();
@@ -11936,7 +11955,7 @@ async function renderCloudModels() {
   let fetchError = '';
   try {
     const r = await fetch(catalogUrl);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) { console.warn('model catalog fetch refused', r.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     data = await r.json();
   } catch (e) { fetchError = String(e && e.message ? e.message : e); }  // fail-soft: keep whatever is already shown
   if (!current()) return;
@@ -12217,7 +12236,7 @@ async function renderMyReports() {
   try {
     const res = await fetch('/api/bug-report/list');
     const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || 'list unavailable');
+    if (!res.ok || !data.ok) { console.warn('bug report list refused', data && data.error, res.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     rows = data.reports || [];
   } catch (e) {
     console.warn('bug report list load failed', e);
@@ -12241,7 +12260,7 @@ async function renderMyReports() {
     try {
       const res = await fetch('/api/bug-report/status?report_id=' + encodeURIComponent(b.dataset.id));
       const st = await res.json();
-      if (!res.ok) throw new Error(st.error || 'not found');
+      if (!res.ok) { console.warn('bug report status refused', st && st.error, res.status); throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
       brFlow.reportId = st.report_id; brFlow.fingerprint = st.fingerprint || ''; brFlow.destination = st.destination_repo || '';
       brFlow.redaction = null; brFlow.approved = !!st.consent;
       brFlow.removedFields = st.consent ? (st.consent.removed_fields || []) : [];
@@ -12304,10 +12323,11 @@ async function brPost(path, body) {
   let data = null;
   try { data = await res.json(); } catch (e) { data = {}; }
   if (!res.ok) {
-    // Plain words first: the diagnostic envelope's message when the server sent one,
-    // technical detail kept for the expandable section.
+    // Plain words in the carrier; the diagnostic envelope's message and codes stay on the
+    // console and in err.diagnostic for the expandable section.
     const diag = data && data.diagnostic;
-    const err = new Error((diag && diag.message) || data.error || data.detail || ('HTTP ' + res.status));
+    console.warn('bug report request refused', (diag && diag.message) || data.error || data.detail || '', res.status);
+    const err = new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
     err.diagnostic = diag || null;
     err.httpStatus = res.status;
     throw err;
@@ -12636,7 +12656,10 @@ function brRenderFailed(failure) {
   // Plain words first; the technical detail (code, hashes, upstream status) sits in an
   // expandable disclosure, not in the first sentence a worried user reads.
   const diag = failure.diagnostic || {};
-  const plain = failure.message || 'submission failed';
+  // The first sentence is keyed plain words; the caller's raw refusal (server detail,
+  // e.message) goes to the console, the machine diagnostic stays in the disclosure.
+  if (failure.message) console.warn('bug report submission failed', failure.message);
+  const plain = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
   const techBits = [];
   if (diag.code) techBits.push('code: ' + diag.code);
   if (diag.upstream_status) techBits.push('upstream HTTP ' + diag.upstream_status);
@@ -13817,7 +13840,7 @@ async function testCloudConnection() {
     paintCloudPill(j.state);
     if (orStatusEl) {
       if (j.state === 'ok') { orStatusEl.textContent = 'Connection verified — OpenRouter accepted your key.'; orStatusEl.className = 'set-status ok'; }
-      else if (j.detail === 'unauthorized') { orStatusEl.textContent = 'OpenRouter rejected the key (HTTP ' + (j.http_status || '?') + '). Re-check or replace it.'; orStatusEl.className = 'set-status err'; }
+      else if (j.detail === 'unauthorized') { console.warn('cloud key test refused', j.http_status || j.detail || ''); orStatusEl.textContent = pageT('cloud.err_401', 'That key was refused. It may be wrong, expired, or withdrawn. Copy it fresh from the service’s own page and save it here again.'); orStatusEl.className = 'set-status err'; }
       else { orStatusEl.textContent = 'Could not reach OpenRouter — the key itself was not judged.'; orStatusEl.className = 'set-status err'; }
     }
   } catch (e) { console.warn('credential test failed', e); if (orStatusEl) { orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; } }
@@ -13921,7 +13944,7 @@ if (sbExportBtn) sbExportBtn.addEventListener('click', async () => {
   try {
     const r = await fetch('/api/session/bundle/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, passphrase }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbExportStatus, d.error || 'Export refused.', true); return; }
+    if (!d.ok) { console.warn('chat bundle export refused', d.error || 'Export refused.'); sbStatus(sbExportStatus, pageT('chat.session_export_failed', 'The chat list could not be saved to a file.'), true); return; }
     sbPass && (sbPass.value = ''); sbPass2 && (sbPass2.value = '');
     const a = document.createElement('a');
     a.href = '/api/session/bundle/download?path=' + encodeURIComponent(d.path);
@@ -13947,12 +13970,12 @@ if (sbPreviewBtn) sbPreviewBtn.addEventListener('click', async () => {
   try {
     const staged = await fetch('/api/session/bundle/upload', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Vool-Bundle-Name': encodeURIComponent(file.name) }, body: file });
     const sj = await staged.json();
-    if (!sj.ok) { sbStatus(sbImportStatus, sj.error || 'Could not stage the file.', true); return; }
+    if (!sj.ok) { console.warn('chat bundle upload refused', sj.error || 'Could not stage the file.'); sbStatus(sbImportStatus, pageT('chat.session_preview_failed', 'The preview could not be loaded.'), true); return; }
     sbStagedPath = sj.path;
     sbStatus(sbImportStatus, 'Previewing\u2026');
     const r = await fetch('/api/session/bundle/inspect-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: sbStagedPath, passphrase: String((sbImportPass && sbImportPass.value) || '') }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbImportStatus, d.error || 'Preview refused.', true); return; }
+    if (!d.ok) { console.warn('chat bundle preview refused', d.error || 'Preview refused.'); sbStatus(sbImportStatus, pageT('chat.session_preview_failed', 'The preview could not be loaded.'), true); return; }
     sbNeedsConfirm = !!d.needs_confirmation;
     renderSbPreview(d);
     if (sbImportBtn) sbImportBtn.disabled = false;
@@ -13987,7 +14010,7 @@ if (sbImportBtn) sbImportBtn.addEventListener('click', async () => {
   try {
     const r = await fetch('/api/session/bundle/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: sbStagedPath, passphrase: String((sbImportPass && sbImportPass.value) || ''), confirm_untrusted: !!(sbConfirmForeign && sbConfirmForeign.checked) }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbImportStatus, d.error || 'Import refused — nothing was changed.', true); return; }
+    if (!d.ok) { console.warn('chat bundle import refused', d.error || 'Import refused.'); sbStatus(sbImportStatus, pageT('chat.session_import_failed', 'The chats could not be brought back. Nothing was changed.'), true); return; }
     sbRestoredId = d.imported_session_id || '';
     sbImportFile && (sbImportFile.value = '');
     if (sbImportBtn) sbImportBtn.disabled = true;
@@ -14265,7 +14288,7 @@ async function resolvePermission(decision, scope) {
         const response = await fetch('/api/goal/retry', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({session_id:chatId, goal_id:goalApproval.goal_id})});
         const resumed = await response.json();
-        if (!response.ok || !resumed.ok) throw new Error(resumed.error || pageT('permissions.approval_gone', 'This approval is no longer available.'));
+        if (!response.ok || !resumed.ok) { console.warn('goal retry after approval refused', resumed.error, response.status); throw new Error(pageT('permissions.approval_gone', 'This approval is no longer available.')); }
         if (window.VoolGoalCard) window.VoolGoalCard.refresh();
       } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
       return;
@@ -14467,9 +14490,8 @@ panelBtnEl.addEventListener('click', togglePanel);
       exportAborter = null;
       if (closed) return;
       if (!r.ok) {
-        let msg = "Couldn\u2019t export this chat. Try again.";
-        try { const j = await r.json(); if (j && j.message) msg = j.message; } catch (e) {}
-        statusEl.textContent = msg;
+        try { const j = await r.json(); if (j && j.message) console.warn('chat export refused', j.message); } catch (e) {}
+        statusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
         return;
       }
       const blob = await r.blob();
@@ -14483,8 +14505,10 @@ panelBtnEl.addEventListener('click', togglePanel);
       overlay.hidden = true;
     } catch (e) {
       exportAborter = null;
+      // The app's own refusal words stay on the console; the person reads one keyed sentence.
+      if (e && e.fromApp) console.warn('chat export refused by the app', e.message);
       statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
-        : (e && e.fromApp) ? e.message
+        : (e && e.fromApp) ? pageT('chat.try_again', 'Couldn’t do that just now. Try again.')
         : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;
@@ -14868,7 +14892,7 @@ const VoolConnection = (function () {
     retry.disabled = true;
     const ok = await check();
     retry.disabled = false;
-    if (!ok) toast("Still can't reach VOOL. It will keep trying.");
+    if (!ok) toast(pageT('chat.still_unreachable', "Still can't reach VOOL. It will keep trying."));
   });
   return { markOffline, check, isOffline: () => offline };
 })();

@@ -33,7 +33,7 @@ _FAULT_REMEDIATIONS = {
     "evidence_missing": ("run the real action first; the pact never fakes a step",),
     "evidence_unverifiable": ("the evidence did not verify; retry the real action or skip",),
     "evidence_session_unknown": ("that chat has no receipt ledger here",),
-    "not_applicable_readonly": ("replay the tour by asking VOOL in the chat: show me around",),
+    "not_applicable_readonly": ("replay the tour by asking to be shown around",),
     "boundary_key_unknown": ("use local_only_composite, memory_paused, web_lookups or automatic_checks",),
     "pact_absent": ("the tour seed has not run yet; re-poll in a moment",),
     "lock_unavailable": ("another window is publishing; retry in a moment",),
@@ -1118,7 +1118,7 @@ def register(reg) -> None:
         CommandSpec(
             command_id="first_run.pact.begin",
             group=GROUP_ID,
-            description="Start or replay the tour (ask VOOL in the chat: show me around)",
+            description="Start or replay the tour (ask: show me around)",
             input_schema=RevisionInput,
             effects="mutating",
             permission=pact_perm,

@@ -16,9 +16,8 @@ SETTINGS_HTML = render_vool_settings_html()
 SETTINGS_SRC = "\n".join(settings_scripts())
 
 
-def test_the_keys_group_is_named_your_keys() -> None:
-    assert '"API Keys"' not in SETTINGS_HTML, "the keys group still carries the old 'API Keys' title"
-    assert "Your keys" in SETTINGS_HTML, "the keys group lost its 'Your keys' title"
+def test_the_keys_group_keeps_the_title_every_direction_names() -> None:
+    assert "API Keys" in SETTINGS_HTML, "the keys group lost the 'API Keys' title the directions point at"
 
 
 def test_no_row_composes_http_status_or_raw_server_detail_into_person_visible_text() -> None:

@@ -53,7 +53,6 @@ RETIRED_EN_VALUES = {
     "model.reason_paid_classified": "PAID",
     "session.project_delete_confirm": "VOOL will FORGET",
     "msg.review_flagged": "⚠ review flagged",
-    "setup.step.thinking.later": "API Keys",
 }
 JARGON = ("endpoint", "provider", "base url")
 EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F]")
@@ -130,15 +129,14 @@ def test_the_served_settings_page_carries_the_german_row_words() -> None:
         assert value in html, f"the de bundle did not reach the served settings page for {key}"
 
 
-def test_the_setup_pointer_names_your_keys_not_api_keys() -> None:
+def test_the_setup_pointer_names_the_keys_group_by_its_real_title() -> None:
     en = _messages("en")
     pointer = en["setup.step.thinking.later"]
-    assert "Your keys" in pointer, f"the setup pointer must point at Settings → Your keys: {pointer!r}"
-    assert "API Keys" not in pointer
-    # the pointer names groups by their real titles, so the renamed title and it must agree
-    assert en["settings.group.keys.title"] == "Your keys"
+    # the pointer names groups by their real titles, so the keys group title and it must agree
+    assert en["settings.group.keys.title"] == "API Keys"
+    assert en["settings.group.keys.title"] in pointer, f"the setup pointer must point at Settings → API Keys: {pointer!r}"
     assert en["settings.group.models.title"] == "Models & Providers", "the models group title was not this job's to rename"
     for loc in LOCALES:
-        pointer = _messages(loc)["setup.step.thinking.later"]
-        assert "API Keys" not in pointer, f"{loc} still points at the old key-group name"
-        assert _messages(loc)["settings.group.keys.title"].strip(), f"{loc} lost its keys group title"
+        title = _messages(loc)["settings.group.keys.title"]
+        assert title.strip(), f"{loc} lost its keys group title"
+        assert title in _messages(loc)["setup.step.thinking.later"], f"{loc} setup pointer does not name its own keys group title"
