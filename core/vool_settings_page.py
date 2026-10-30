@@ -1117,7 +1117,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 /* ---- sidebar ---- */
 #side { flex:0 0 248px; width:248px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 /* App-language control: top-left, above everything else in the nav. Compact (globe + the
-   language's own name); the honest coverage note sits under it. */
+   language's own name); the plain coverage note sits under it. */
 #uiLocaleWrap { padding:12px 12px 4px; border-bottom:1px solid var(--border); margin-bottom:8px; }
 #uiLocaleWrap .loc-label { display:flex; align-items:center; gap:6px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:5px; }
 #uiLocaleWrap .loc-globe { font-size:14px; line-height:1; }
@@ -2022,20 +2022,53 @@ function widgetBundleExport(stack) {
   const syncEnc = () => { passRow.hidden = !enc.checked; warnRow.hidden = enc.checked; renderPreview(); };
   enc.addEventListener('change', syncEnc);
   chatSel.addEventListener('change', renderPreview);
-  getJSON('/api/chat/sessions').then(d => {
-    const sessions = d.sessions || [];
-    sessions.forEach(s => {
-      if (!s.session_id) return;
-      const when = chatWhen(s);
-      const o = el('option', null, (s.title || 'New chat') + (when ? ' · ' + when : ''));
-      o.value = s.session_id; o.dataset.title = s.title || ''; chatSel.appendChild(o);
-    });
-    if (!sessions.length) {
-      /* Nothing to export is a plain fact, not a success: neutral words, and nothing to press. */
-      status.className = 'state loading'; status.textContent = T('settings.backup.no_chats', 'No chats to export yet.');
-      chatSel.disabled = true; exportBtn.disabled = true;
+  /* The picker's list comes from the same endpoint the sidebar reads. While VOOL restarts that
+     fetch throws or answers "starting", and an answer that is not a real list must never read as
+     "No chats to export yet." (that looks like lost data). Until the FIRST real answer the status
+     row holds one calm line and the list is retried on a growing delay; after a first success a
+     later transient failure keeps the last good list -- same law as the sidebar. */
+  let chatsLoaded = false, chatsTimer = null, chatsDelayMs = 1000;
+  const CHATS_RETRY_MAX_MS = 15000;
+  function paintChatsState(kind) {
+    status.className = 'state loading';
+    status.textContent = kind === 'retry'
+      ? T('sidebar.load_retry', 'Couldn\'t load your chats yet. Trying again.')
+      : T('sidebar.loading', 'Loading your chats…');
+  }
+  function scheduleChatsRetry() {
+    clearTimeout(chatsTimer);
+    chatsTimer = setTimeout(loadExportChats, chatsDelayMs);
+    chatsDelayMs = Math.min(Math.round(chatsDelayMs * 1.6), CHATS_RETRY_MAX_MS);
+  }
+  async function loadExportChats() {
+    try {
+      if (!chatsLoaded) paintChatsState('loading');
+      const r = await fetch('/api/chat/sessions');
+      const d = await r.json().catch(() => null);   /* an unreadable body is not a list either */
+      if (!r.ok || !d || d.state === 'starting' || !Array.isArray(d.sessions)) {
+        if (!chatsLoaded) paintChatsState('retry');
+        scheduleChatsRetry();
+        return;
+      }
+      chatsLoaded = true;
+      clearTimeout(chatsTimer); chatsTimer = null; chatsDelayMs = 1000;
+      d.sessions.forEach(s => {
+        if (!s.session_id) return;
+        const when = chatWhen(s);
+        const o = el('option', null, (s.title || 'New chat') + (when ? ' · ' + when : ''));
+        o.value = s.session_id; o.dataset.title = s.title || ''; chatSel.appendChild(o);
+      });
+      if (!d.sessions.length) {
+        /* Nothing to export is a plain fact, not a success: neutral words, and nothing to press. */
+        status.className = 'state loading'; status.textContent = T('settings.backup.no_chats', 'No chats to export yet.');
+        chatSel.disabled = true; exportBtn.disabled = true;
+      }
+    } catch (e) {
+      if (!chatsLoaded) paintChatsState('retry');
+      scheduleChatsRetry();
     }
-  }).catch(e => say('Could not list chats — ' + e.message, true));
+  }
+  loadExportChats();
 
   exportBtn.addEventListener('click', async () => {
     const sid = chatSel.value;
@@ -2889,7 +2922,7 @@ function widgetKeys(stack) {
   const save = el('button', 'btn primary key-save', T('keys.save', 'Save key')); save.type = 'button';
   /* Save for later: the EXPLICIT unverified path. The key is stored sealed in a quarantine
      slot nothing reads — no lane, no probe, no search uses it — and shows as unverified until
-     a later verification promotes it. Offered next to the verified save so the honest path
+     a later verification promotes it. Offered next to the verified save so the open path
      stays the obvious one. */
   const later = el('button', 'btn key-save-later', T('keys.save_later', 'Save for later (unverified)')); later.type = 'button';
   const st = el('span', 'state idle key-save-state', '');
@@ -4229,7 +4262,7 @@ async function autoFallbackControl(body, openrouterCatalogue) {
    says where it goes before it goes: the public marketplace feed, plus (only if a token is
    stored) that token's own model list and balance. No inference, no spend, no wallet.
 
-   Three honest-refusal facts are shown as they stand, not as we would like them: prices carry
+   Three refusal facts are shown as they stand, not as we would like them: prices carry
    their source and age (a stale or missing feed never reads as free), a balance is an
    observation with its time (never a spending authority), and the two paid-dispatch dependencies
    (a monetary authority for prepaid, a verified-network wallet authority for x402) are named
@@ -6490,7 +6523,7 @@ def _ui_locale_head(ui_locale: str) -> tuple[str, str, str]:
 
 
 def _locale_coverage_note(tag: str) -> str:
-    """The honest completeness line for the selected locale, computed from the real catalog.
+    """The completeness line for the selected locale, computed from the real catalog.
 
     A locale with a shipped catalog serves its strings; anything the catalog does not carry
     falls back to English VISIBLY (the i18n engine's law). The line states exactly that, so

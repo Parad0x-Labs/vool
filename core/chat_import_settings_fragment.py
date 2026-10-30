@@ -112,6 +112,18 @@ function errorText(j){
 }
 function noAnswer(){ return IT('notif.no_answer', 'VOOL did not answer; nothing was changed.'); }
 
+// The sources read: a failed load (error status, unreadable body, fetch that throws) is not
+// "no other AI apps were found". Until the FIRST real answer the list says so in one calm line
+// and retries on a growing delay; after a first success a later failure keeps the last list.
+// One timer for the panel, aimed at whichever mount is live.
+var sourcesRetryTimer = null, sourcesRetryDelayMs = 1000, sourcesLoader = null;
+var SOURCES_RETRY_MAX_MS = 15000;
+function scheduleSourcesRetry(){
+  clearTimeout(sourcesRetryTimer);
+  sourcesRetryTimer = setTimeout(function(){ if (sourcesLoader) sourcesLoader(); }, sourcesRetryDelayMs);
+  sourcesRetryDelayMs = Math.min(Math.round(sourcesRetryDelayMs * 1.6), SOURCES_RETRY_MAX_MS);
+}
+
 function mountInto(host){
   host.textContent = '';
   var root = h('div', 'vci-root');
@@ -148,7 +160,7 @@ function mountInto(host){
     return radio;
   }
   var fileBox = null;
-  function paintSources(local){
+  function paintSources(local, unreachable){
     sourceList.textContent = '';
     (local || []).forEach(function(source){
       var entry = SOURCE_TEXT[source.kind];
@@ -163,7 +175,8 @@ function mountInto(host){
     fileBox.appendChild(h('span', 'vci-note', IT('chatimport.file.help', 'Most AI apps let you download your data from their settings. Pick the .zip file you received.')));
     fileBox.appendChild(fileInput);
     sourceOption('file', IT('chatimport.source.file', 'A data export file (.zip)'), '', fileBox);
-    if (!(local || []).length) sourceList.insertBefore(h('div', 'vci-note', IT('chatimport.source.none_found', 'No other AI apps were found on this computer. You can bring chats from a data export file.')), sourceList.firstChild);
+    if (unreachable) sourceList.insertBefore(h('div', 'vci-note', IT('load.unreachable', 'Can’t reach VOOL right now, trying again…')), sourceList.firstChild);
+    else if (!(local || []).length) sourceList.insertBefore(h('div', 'vci-note', IT('chatimport.source.none_found', 'No other AI apps were found on this computer. You can bring chats from a data export file.')), sourceList.firstChild);
   }
 
   function problemLines(problems){
@@ -302,11 +315,27 @@ function mountInto(host){
     }).catch(function(){ say(noAnswer(), 'bad'); importBtn.disabled = false; lookBtn.disabled = false; });
   }
 
-  request('GET', '/api/chat/import/sources').then(function(j){
-    if (!j.ok) { paintSources([]); say(errorText(j), 'bad'); return; }
-    paintSources(j.local || []);
-    request('GET', '/api/chat/import/status').then(function(s){ if (s.state === 'running') watch(); }).catch(function(){});
-  }).catch(function(){ paintSources([]); say(noAnswer(), 'bad'); });
+  var sourcesLoaded = false;
+  function loadSources(){
+    sourcesLoader = loadSources;
+    request('GET', '/api/chat/import/sources').then(function(j){
+      // Render only on a real answer: the file-import option stays usable either way, but only
+      // a real OK answer may say which apps were found -- or that none were.
+      if (!j.ok || !Array.isArray(j.local)){
+        if (!sourcesLoaded){ paintSources([], true); say(errorText(j), 'bad'); }
+        scheduleSourcesRetry();
+        return;
+      }
+      sourcesLoaded = true;
+      clearTimeout(sourcesRetryTimer); sourcesRetryTimer = null; sourcesRetryDelayMs = 1000;
+      paintSources(j.local);
+      request('GET', '/api/chat/import/status').then(function(s){ if (s.state === 'running') watch(); }).catch(function(){});
+    }).catch(function(){
+      if (!sourcesLoaded){ paintSources([], true); say(noAnswer(), 'bad'); }
+      scheduleSourcesRetry();
+    });
+  }
+  loadSources();
   return true;
 }
 window.VoolChatImport = Object.freeze({mountInto: mountInto});

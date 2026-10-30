@@ -296,7 +296,7 @@ const $ = (sel, root) => (root || document).querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const live = (msg) => { const l = $('#live'); if (l) l.textContent = msg; };
 // Catalog lookup: the deterministic i18n bundle resolves the key when the UI locale
-// carries it; the inline English is the honest fallback when no bundle shipped.
+// carries it; the inline English is the fallback when no bundle shipped.
 function T(key, fallback) {
   try {
     if (typeof VOOLT === 'function') { const t = VOOLT(key); if (t && t !== key) return t; }
@@ -320,7 +320,10 @@ view.notes = {};
 function paintNote() {
   const n = $('#stepNote'); if (!n) return;
   const step = current();
-  const note = view.summary ? null : (view.offline && !view.snap ? { kind: 'failed', text: OFFLINE() } : view.notes[step.id]);
+  // A failed state read is never "no state": one calm retry line instead of a wizard that reads as
+  // "nothing done yet" -- while VOOL restarts that would read as lost progress. Only a real
+  // failure says it; the shell paint before the first answer stays quiet.
+  const note = view.summary ? null : (!view.snap && view.loadFailed ? { kind: 'failed', text: T('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026') } : view.notes[step.id]);
   n.className = 'status note' + (note ? ' ' + note.kind : '');
   n.textContent = note ? note.text : '';
 }
@@ -384,13 +387,25 @@ async function postJSON(url, body) {
   return { ok: ok, status: r.status, json: j };
 }
 
+/* A failed state read is never "no state": until the FIRST real answer the page holds one calm
+   retry line and pulls again on a growing delay; after a first success a later transient failure
+   keeps the last good snapshot, so progress already made never reads as undone. */
+let setupRetryTimer = null;
+let setupRetryDelayMs = 1000;
+const SETUP_RETRY_MAX_MS = 15000;
+function scheduleSetupRetry() {
+  clearTimeout(setupRetryTimer);
+  setupRetryTimer = setTimeout(refresh, setupRetryDelayMs);
+  setupRetryDelayMs = Math.min(Math.round(setupRetryDelayMs * 1.6), SETUP_RETRY_MAX_MS);
+}
 async function refresh() {
   try {
-    view.snap = await getJSON('/api/setup/state'); view.offline = false;
+    view.snap = await getJSON('/api/setup/state'); view.offline = false; view.loadFailed = false;
     // VOOL answers again: a stored "VOOL isn't running" note is no longer true on any step.
     Object.keys(view.notes).forEach((id) => { const n = view.notes[id]; if (n && n.text === OFFLINE()) view.notes[id] = null; });
+    clearTimeout(setupRetryTimer); setupRetryTimer = null; setupRetryDelayMs = 1000;
   }
-  catch (e) { view.snap = null; view.offline = !!(e && e.offline); }
+  catch (e) { view.offline = !!(e && e.offline); view.loadFailed = true; if (!view.snap) scheduleSetupRetry(); }
   render();
   return view.snap;
 }
