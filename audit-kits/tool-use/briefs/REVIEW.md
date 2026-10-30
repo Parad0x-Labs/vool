@@ -1,6 +1,7 @@
 # Brief: independent review of the tool-use fix (review session)
 
-You are an independent reviewer. You change no code on the fix branch. Repo: Parad0x-Labs/vool. Review the diff
+You are an independent reviewer, working READ-ONLY: no commits, no pushes, no git writes of any kind, and no edits to
+the repo. You may run code and tests in a scratch copy. Repo: Parad0x-Labs/vool. Review the diff
 from `0776813b` to the head of the branch named in your prompt. Do not read the builder's RESULT.md or PROGRESS.md
 until you have written your own findings.
 
@@ -24,8 +25,12 @@ computer, so it stops guessing results. Hunt for:
    - Fast paths that worked before and now break: "free up memory", "what's on my desktop", reminders.
 5. **Tests:** any test weakened, skipped or retargeted; whether the new tests fail on the base.
 
-Write `audit-kits/tool-use/review/REVIEW-<head short sha>.md` on a new branch `audit/tool-use-review-20261030`
-(from the kit branch) and push. It holds your counts, every failing example verbatim, the code findings with
-file:line, and a verdict: ACCEPT, ACCEPT WITH FIXES (list them) or REJECT. Never push to the fix branch or to main.
-Commit as `sls_0x <240776969+Parad0x-Labs@users.noreply.github.com>`, with no AI attribution and never the word
-"honest". Hard stop at 2 hours.
+## Output
+
+Give your review as plain text in your final answer. The owner pastes it back. It holds:
+- your counts;
+- every failing example, verbatim;
+- code findings with file:line;
+- a verdict: ACCEPT, ACCEPT WITH FIXES (list them) or REJECT.
+
+Never use the word "honest". Hard stop at 2 hours.
