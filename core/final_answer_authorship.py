@@ -279,9 +279,9 @@ _AUTHOR_REFUSAL_TEXTS: dict[str, tuple[str, str]] = {
     ),
     "not_ready_local_only": (
         "chat.author_refusal.not_ready_local_only",
-        "{model} isn\u2019t ready to answer for VOOL yet, and This computer only is on, so a cloud "
-        "model can\u2019t answer instead. Open Settings \u2192 Models & Providers \u2192 Local models "
-        "and press Use this model, or pick a model marked Ready.",
+        "{model} isn\u2019t ready to answer for VOOL yet, and the chat is set to This computer "
+        "only, so a cloud model can\u2019t answer instead. Open Settings \u2192 Models & Providers "
+        "\u2192 Local models and press Use this model, or pick a model marked Ready.",
     ),
     "not_ready_no_cloud": (
         "chat.author_refusal.not_ready_no_cloud",
@@ -296,7 +296,7 @@ _AUTHOR_REFUSAL_TEXTS: dict[str, tuple[str, str]] = {
     ),
     "unresolved": (
         "chat.author_refusal.unresolved",
-        "VOOL couldn\u2019t tell which model wrote the reply, so it held it back. Please ask again.",
+        "Something went wrong with that reply, so VOOL didn\u2019t show it. Please ask again.",
     ),
     "not_running": (
         "chat.author_refusal.not_running",

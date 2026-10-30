@@ -261,3 +261,17 @@ def test_while_a_model_is_being_made_ready_the_reply_says_so(monkeypatch) -> Non
     assert "qwen2.5:7b isn’t ready" in authorship.author_refusal_text(
         reason="no_eligible_author", author="ollama-local:qwen2.5:7b"
     )
+
+
+def test_the_unresolved_refusal_speaks_plainly_without_naming_an_internal_check() -> None:
+    text = authorship.author_refusal_text(reason="author_identity_unresolved", author="qwen2.5:7b")
+    assert "Something went wrong with that reply, so VOOL didn’t show it." in text
+    assert "Please ask again." in text
+    assert "which model wrote" not in text and "held it back" not in text
+
+
+def test_the_local_only_refusal_reads_naturally_around_the_modes_name() -> None:
+    text = authorship.author_refusal_text(reason="local_only_no_eligible_author", author="qwen2.5:7b")
+    # The mode keeps its exact display name; only the sentence around it changed.
+    assert "the chat is set to This computer only, so a cloud model can’t answer instead" in text
+    assert "This computer only is on" not in text

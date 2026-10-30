@@ -2882,12 +2882,12 @@
     "chat.author_refusal.failed": "{models}이(가) 이번에는 제대로 답하지 않았어요. 잠시 후 다시 물어봐 주세요. 계속 그러면 설정 → 모델과 공급자에서 다른 모델을 고르세요.",
     "chat.author_refusal.checking": "VOOL이 아직 {model}을(를) 준비하고 있어요. 이 컴퓨터에서는 몇 분 걸릴 수 있어요. 잠시 후 다시 물어봐 주세요.",
     "chat.author_refusal.not_ready": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
-    "chat.author_refusal.not_ready_local_only": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, '이 컴퓨터에서만'이 켜져 있어 클라우드 모델이 대신 답할 수도 없어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
+    "chat.author_refusal.not_ready_local_only": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, 채팅이 '이 컴퓨터에서만'으로 설정되어 있어 클라우드 모델이 대신 답할 수도 없어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, '준비됨' 표시가 있는 모델을 고르세요.",
     "chat.author_refusal.not_ready_no_cloud": "{model}은(는) 아직 VOOL에서 답할 준비가 안 됐고, 클라우드 모델은 꺼져 있어요. 설정 → 모델과 공급자 → 로컬 모델을 열고 '이 모델 사용'을 누르거나, 클라우드 모델을 켜세요.",
-    "chat.author_refusal.unresolved": "어떤 모델이 답을 썼는지 VOOL이 알 수 없어서 답을 보류했어요. 다시 물어봐 주세요.",
+    "chat.author_refusal.unresolved": "그 답변에 문제가 생겨서 VOOL이 표시하지 않았어요. 다시 물어봐 주세요.",
     "chat.author_refusal.not_running": "지금 이 컴퓨터에서 실행 중인 모델이 없어요. 모델 앱(예: Ollama)을 열거나 모델 메뉴에서 클라우드 모델을 고르세요."
   },
-  "source_catalog_sha256": "fed45aa3497c99506e4d941815710b61321b9c0e51541d04745574e93ed66d5c",
+  "source_catalog_sha256": "81e7d8621000d596c04e36c5ac6a168a5cc3e1341f20f69df7cc627b383114e1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
