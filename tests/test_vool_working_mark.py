@@ -65,19 +65,20 @@ def test_the_old_canvas_spinner_and_the_sketch_are_completely_removed() -> None:
 
 def test_the_mark_is_an_inline_svg_aria_hidden_at_a_fixed_36px_footprint() -> None:
     svg = _mark_svg()
-    assert svg.startswith('"<svg class=\\"tc-mark\\"'), "the mark must be one inline SVG, not an image"
-    assert 'width=\\"36\\" height=\\"36\\"' in svg, "36px: 30-40% smaller than the old 56px"
-    assert 'aria-hidden=\\"true\\"' in svg and 'focusable=\\"false\\"' in svg, (
+    assert svg.startswith("'<svg class=\"tc-mark\""), "the mark must be one inline SVG, not an image"
+    assert 'width="36" height="36"' in svg, "36px: 30-40% smaller than the old 56px"
+    assert 'aria-hidden="true"' in svg and 'focusable="false"' in svg, (
         "the title text beside it is the status signal; the SVG is decoration"
     )
     assert "http" not in svg.lower(), "no external assets"
+    assert "'" not in wm.mark_svg() and "\\" not in wm.mark_svg(), "the page embeds it in a '...' JS string"
     assert ".tc-mark { flex:0 0 auto; width:36px; height:36px;" in _css()
 
 
 def test_the_panel_holds_every_dim_bulb_and_the_lit_bulbs_spell_the_mark() -> None:
     svg = _mark_svg()
-    assert svg.count('class=\\"tc-panel\\"') == 1
-    assert svg.count('class=\\"tc-off\\"') == wm.COLS * wm.ROWS, "every grid cell is a dim bulb"
+    assert svg.count('class="tc-panel"') == 1
+    assert svg.count('class="tc-off"') == wm.COLS * wm.ROWS, "every grid cell is a dim bulb"
     order = wm.lit_order()
     assert svg.count("tc-on tc-") == len(order)
     parts = [part for _cell, part in order]

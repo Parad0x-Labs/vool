@@ -55,7 +55,8 @@ def _pct(value: float) -> str:
 
 
 def mark_svg() -> str:
-    """The panel, every dim bulb, and the lit layer, as one inline SVG string."""
+    """The panel, every dim bulb, and the lit layer, as one inline SVG string. It uses double
+    quotes only, so the page embeds it as a single-quoted JS string as it is."""
     width, height = COLS * CELL + 2 * PAD, ROWS * CELL + 2 * PAD
     inset = (CELL - BULB) / 2
 

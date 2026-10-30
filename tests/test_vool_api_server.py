@@ -2950,7 +2950,7 @@ def test_vool_chat_page_is_self_contained_and_wired() -> None:
     assert "task-card" in html  # inline live status card
     assert 'id="xpanel"' in html  # right-side execution panel
     assert "TC_MARK_SVG" in html and 'class="tc-mark"' in html  # the animated VOOL working mark
-    assert "tc-v" in html and "tc-ol" in html and "tc-or" in html and "tc-l" in html  # staged parts
+    assert 'class="tc-panel"' in html and "tc-on tc-v" in html and "tc-on tc-eye" in html and "tc-on tc-smile" in html  # LED panel, staged parts
     assert "/api/runtime/receipts" in html  # Receipts tab data source
     assert "AbortController" in html  # Stop control cancels the turn
     # Accessibility: reduced motion, screen-reader status, focus.

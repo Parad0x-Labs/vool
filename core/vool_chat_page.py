@@ -14741,7 +14741,6 @@ def _no_model_leads_js() -> str:
 
 def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
-    import json
     from base64 import b64encode
     from pathlib import Path
 
@@ -14765,7 +14764,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
         .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
         .replace("/*__VOOL_WORKING_WORDS__*/[]", working_words_json(), 1)
         .replace("/*__VOOL_WORKING_MARK_CSS__*/", mark_css(), 1)
-        .replace("/*__VOOL_WORKING_MARK_SVG__*/''", json.dumps(mark_svg()), 1)
+        .replace("/*__VOOL_WORKING_MARK_SVG__*/''", "'" + mark_svg() + "'", 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )
     # The UI locale rides the same deterministic i18n authority the Settings selector drives
