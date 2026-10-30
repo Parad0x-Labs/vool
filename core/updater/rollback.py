@@ -10,6 +10,13 @@ import time
 from pathlib import Path
 
 from core.updater.migrations import SCHEMA_STATE_NAME
+from core.updater.relaunch_health import (
+    RELAUNCH_START_BOUND_SECONDS,
+    await_relaunch_health,
+)
+from core.updater.relaunch_health import (
+    STOP_BOUND_SECONDS as _STOP_BOUND_SECONDS,
+)
 from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import _atomic_write_json, _read_json
 from core.updater.status import UpdateFault, UpdatePhase
@@ -20,10 +27,9 @@ TERMINAL = frozenset({'completed', 'restored', 'aborted', 'rollback_failed'})
 
 # The rollback's verdicts are observations of the app, never clock arithmetic measured
 # from launch time: a slow machine must not fail a rollback (or "restore" one) before
-# the relaunched version actually got to run. Both bounds below stay bounded so a
-# genuinely dead runtime cannot hang the rollback; they document the whole allowance.
-_STOP_BOUND_SECONDS = 90.0            # stop grace, the same window the health wait uses
-RELAUNCH_START_BOUND_SECONDS = 90.0   # start allowance before a never-observed process is failed
+# the relaunched version actually got to run. The bounds live in core/updater/relaunch_health.py
+# (shared with the forward update flow); they stay finite so a genuinely dead runtime
+# cannot hang the rollback, and they document the whole allowance.
 
 
 def _compatible_schema(data_dir: Path, previous: str) -> bool:
@@ -148,37 +154,16 @@ def _stop(helper) -> None:
 
 
 def _await_relaunch_health(subsystem, helper, *, expected_version: str):
-    """The health verdict for a version this flow just relaunched: an observation of
-    the relaunched process, never elapsed time since launch. Not-healthy stands only
-    once the process was seen to exit (it ran and failed without serving), or was seen
-    up and then stayed silent for the health window measured from that moment, or the
-    documented start bound passed while it was never seen up. A helper that cannot
-    observe its launch (a supervisor owns the restart, or an injected test helper)
-    keeps the plain bounded probe."""
-    probe = subsystem._make_probe()
-    observe = getattr(helper, 'observe_relaunch', None)
-    if observe is None:
-        return probe(timeout=subsystem.health_timeout, expected_version=expected_version)
-    started = time.monotonic()
-    up_since = None
-    while True:
-        health = probe(timeout=1.0, expected_version=expected_version)
-        if health.ok:
-            return health
-        state = observe()
-        if state == 'unknown':
-            # This launch is not observable (supervisor-owned); fall back to the
-            # plain bounded probe so the wait stays the documented health window.
-            return probe(timeout=subsystem.health_timeout, expected_version=expected_version)
-        now = time.monotonic()
-        if state == 'exited':
-            return health
-        if state == 'up':
-            up_since = now if up_since is None else up_since
-            if now - up_since >= subsystem.health_timeout:
-                return health
-        elif now - started >= RELAUNCH_START_BOUND_SECONDS:
-            return health
+    """See core/updater/relaunch_health.py — the shared fair-start verdict. The start
+    bound is read from THIS module at call time so the documented allowance stays
+    one name here (tests and callers rebind it in one place)."""
+    return await_relaunch_health(
+        subsystem._make_probe(),
+        helper,
+        health_timeout=subsystem.health_timeout,
+        expected_version=expected_version,
+        start_bound=RELAUNCH_START_BOUND_SECONDS,
+    )
 
 
 def _restore_current(subsystem, path: Path, state: dict) -> dict:

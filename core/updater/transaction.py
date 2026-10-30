@@ -52,6 +52,7 @@ from core.updater.migrations import (
     run_migrations,
     snapshot_tree,
 )
+from core.updater.relaunch_health import STOP_BOUND_SECONDS, await_relaunch_health
 from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import HighWaterStore, UpdaterPaths
 from core.updater.status import StatusStore, UpdateFault, UpdatePhase
@@ -321,7 +322,7 @@ class UpdateFlow:
                     raise RuntimeError("the new app could not be stopped for rollback")
             else:
                 self.helper.shutdown_app()
-                if not self.helper.wait_until_stopped(timeout=30.0):
+                if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                     raise RuntimeError("the new app did not stop for rollback")
             if self._journal.has(Step.SWAPPED) or (prior is not None and prior.exists()):
                 if prior is None or not prior.exists() or self.installer is None:
@@ -343,7 +344,12 @@ class UpdateFlow:
             if not self.helper.relaunch(self.app_path):
                 raise RuntimeError("the previous app could not be relaunched")
             previous_identity = str(self._journal.payload_of(Step.DECIDED).get("previous_identity") or previous_version)
-            previous_health = self.health_probe(timeout=self.health_timeout, expected_version=previous_identity or None)
+            previous_health = await_relaunch_health(
+                self.health_probe,
+                self.helper,
+                health_timeout=self.health_timeout,
+                expected_version=previous_identity or None,
+            )
             if not previous_health.ok:
                 raise RuntimeError("the previous app was restored but did not become healthy")
         except Exception as exc:
@@ -667,7 +673,7 @@ class UpdateFlow:
             except Exception as exc:
                 return self._fail_and_rollback(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.HELPER_SHUTDOWN, {"delegated": True})
-            if not self.helper.wait_until_stopped(timeout=30.0):
+            if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._fail_and_rollback("the app did not stop in time", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED, {"delegated": True})
             # The script does the swap; journal the deterministic prior location so
@@ -687,7 +693,7 @@ class UpdateFlow:
             except Exception as exc:
                 return self._abort(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.HELPER_SHUTDOWN)
-            if not self.helper.wait_until_stopped(timeout=30.0):
+            if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._abort("the app did not stop in time; nothing was changed", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED)
 
@@ -711,8 +717,16 @@ class UpdateFlow:
                 )
             self._step(Step.RESTARTED)
 
-        health = self.health_probe(
-            timeout=self.health_timeout, expected_version=manifest.expected_health_identity
+        # The health verdict for the version this flow just relaunched waits for the
+        # relaunched process to be observed (relaunch_health.py): a slow machine must
+        # not roll back a good update before the new version got to run. A helper
+        # whose launch is not observable (the external script's relaunch, a test
+        # helper) keeps the plain bounded probe.
+        health = await_relaunch_health(
+            self.health_probe,
+            self.helper,
+            health_timeout=self.health_timeout,
+            expected_version=manifest.expected_health_identity,
         )
         if not health.ok:
             return self._fail_and_rollback(
@@ -886,7 +900,7 @@ def recover_interrupted_update(
                     raise RuntimeError("the new app could not be stopped for recovery")
             else:
                 helper.shutdown_app()
-                if not helper.wait_until_stopped(timeout=30.0):
+                if not helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                     raise RuntimeError("the new app could not be stopped for recovery")
             if swapped:
                 if installer is None:
@@ -907,8 +921,17 @@ def recover_interrupted_update(
                 restore_runtime(data_dir, runtime_snapshot)
             if not helper.relaunch(app_path):
                 raise RuntimeError("the prior app was restored but could not be restarted")
-            prior_health = health_probe(timeout=30.0, expected_version=str(
-                decided.get("previous_identity") or decided.get("installed_version") or "") or None)
+            # Same fair-start verdict as the live flow (relaunch_health.py): the
+            # window is measured from the moment the restored prior version is
+            # actually up, not from the relaunch call.
+            prior_health = await_relaunch_health(
+                health_probe,
+                helper,
+                health_timeout=30.0,
+                expected_version=str(
+                    decided.get("previous_identity") or decided.get("installed_version") or ""
+                ) or None,
+            )
             if not prior_health.ok:
                 raise RuntimeError("the prior app was restored but did not become healthy")
         except Exception as exc:
