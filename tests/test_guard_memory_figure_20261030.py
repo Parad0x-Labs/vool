@@ -177,3 +177,89 @@ def test_inspect_unsourced_current_claim_keeps_memory_figure_answer_supported():
         user_turn_text=QUESTION_KNOWLEDGE_UPDATE,
     )
     assert not verdict.unsupported
+
+
+# --- Review R1 (2026-10-30): a stale market price in memory must not pass as current ----------
+#
+# The admitted capsule is BOTH sides of past chats -- the user's lines, VOOL's own old
+# replies and the tool results they quoted. A recorded figure being present is not
+# permission to re-assert it as a CURRENT market reading: that is the stale-price failure
+# the guard exists for. These fixtures put the market figure IN the memory (so the M1
+# exemption candidate exists) and assert the notice still fires.
+
+PACKET_ETH_PURCHASE = (
+    'Evidence receipts (typed facts read from the records above and below):\n'
+    '- [2025-04-12] user said: "I bought ETH at $3,000 last spring and I\'m still holding it, '
+    'not planning to sell."  <amount: $3,000>  (event day 2025-04-12, explicit)\n'
+    '- This question needs: record (the record that states it). Receipts found: complete.'
+)
+
+PACKET_BTC_OLD_REPLY = (
+    'Evidence receipts (typed facts read from the records above and below):\n'
+    '- [2026-10-30] assistant said: "BTC was $61,250 at 14:02, down 0.4% on the day."  '
+    '<amount: $61,250>\n'
+    '- This question needs: record (the record that states it). Receipts found: complete.'
+)
+
+PACKET_OLD_FX_RATE = (
+    'Evidence receipts (typed facts read from the records above and below):\n'
+    '- [2026-10-28] assistant said: "100 USD was about 92 EUR at the fix."  <amount: 92 EUR>\n'
+    '- This question needs: record (the record that states it). Receipts found: complete.'
+)
+
+PACKET_RENT_RECORD = (
+    'Evidence receipts (typed facts read from the records above and below):\n'
+    '- [2025-01-10] user said: "My Gold Coast flat rents for $2,000 a month, same as last '
+    'year."  <amount: $2,000>  (event day 2025-01-10, explicit)\n'
+    '- This question needs: record (the record that states it). Receipts found: complete.'
+)
+
+
+def test_stale_eth_price_from_memory_keeps_the_notice():
+    """R1 case 1: the user's own purchase record holds $3,000, and the reply asserts it as
+    ETH's CURRENT price -- the exemption must not apply (BASE: notice; HEAD: notice)."""
+    question = "What's ETH trading at right now?"
+    reply = "ETH is currently trading at $3,000."
+    assert _kinds(reply, user_turn_text=question, evidence_text=PACKET_ETH_PURCHASE)
+    delivered = _replace(reply, user_turn_text=question, evidence_text=PACKET_ETH_PURCHASE)
+    assert delivered.startswith(NOTICE_OPENER)
+
+
+def test_stale_btc_price_from_old_reply_record_keeps_the_notice():
+    """R1 case 2: the figure sits in an OLD VOOL REPLY the capsule retrieved (a quoted market
+    reading), and the reply re-asserts it as current -- the exemption must not apply."""
+    question = "What is Bitcoin right now?"
+    reply = "Bitcoin is $61,250 right now."
+    assert _kinds(reply, user_turn_text=question, evidence_text=PACKET_BTC_OLD_REPLY)
+    delivered = _replace(reply, user_turn_text=question, evidence_text=PACKET_BTC_OLD_REPLY)
+    assert delivered.startswith(NOTICE_OPENER)
+
+
+def test_stale_fx_rate_from_memory_keeps_the_notice():
+    """An FX pair's recorded rate restated as the current conversion keeps the notice: a
+    rate is a market reading, whichever side of the past chats recorded it."""
+    question = "Convert 100 USD to EUR."
+    reply = "100 USD to EUR is currently about 92 EUR."
+    assert _kinds(reply, user_turn_text=question, evidence_text=PACKET_OLD_FX_RATE)
+    delivered = _replace(reply, user_turn_text=question, evidence_text=PACKET_OLD_FX_RATE)
+    assert delivered.startswith(NOTICE_OPENER)
+
+
+def test_rent_figure_with_asset_word_in_a_name_keeps_surviving():
+    """The market-subject denial is subject-shaped, not a keyword: "Gold Coast" is an
+    address, not an asset -- the user's own rent figure keeps the exemption."""
+    question = "How much is my rent right now?"
+    reply = "Your Gold Coast flat currently rents for $2,000."
+    assert not _kinds(reply, user_turn_text=question, evidence_text=PACKET_RENT_RECORD)
+    delivered = _replace(reply, user_turn_text=question, evidence_text=PACKET_RENT_RECORD)
+    assert delivered == reply
+
+
+def test_market_subject_denial_needs_the_figure_in_memory_to_matter():
+    """Without the figure in the capsule the notice fires with or without a market subject
+    (the figure is simply unstated) -- the R1 change only narrows the EXEMPTION."""
+    question = "What's ETH trading at right now?"
+    reply = "ETH is currently trading at $3,000."
+    assert _kinds(reply, user_turn_text=question, evidence_text=PACKET_RENT_RECORD)
+    delivered = _replace(reply, user_turn_text=question, evidence_text=PACKET_RENT_RECORD)
+    assert delivered.startswith(NOTICE_OPENER)

@@ -1450,14 +1450,14 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 _LIVE_CLAIM_WINDOW = 120
 
 
-# --- Memory-stated figures: the user's own numbers are observed values -------------------------
+# --- Memory-stated figures: a recorded figure is an observed value, not a live claim -------------
 #
 # Measured 2026-10-30 (org-credit job 3, fresh 100-question memory run on 411efdb2): five
 # answers about figures the user themselves stated in earlier chats -- "What's my current
 # salary?" against a memory that says "my $98,000 salary", a raise history, a snack budget --
 # were replaced whole by the unverified-live-value notice, or had it spliced mid-answer,
 # because every currency figure bound to a currentness anchor read as an unobserved live
-# price.  A figure the user stated is recorded fact, not a market reading: the answer stands.
+# price.  A figure a record states is recorded fact, not a market reading: the answer stands.
 #
 # The exemption is decided by the EVIDENCE TEXT the turn carried (the admitted capsule), and
 # only by it: a figure is exempt when the SAME number AND unit/currency is stated there --
@@ -1469,6 +1469,16 @@ _LIVE_CLAIM_WINDOW = 120
 # turn is exempt at L1495; the user's recorded statements are exempt here.  Dated memory
 # still never becomes an observation channel for `turn_ran_observations` or
 # `turn_has_current_evidence`; this is a value-for-value stand-down, narrower than a channel.
+#
+# The capsule is BOTH sides of past chats -- the user's lines, VOOL's own old replies and the
+# tool results they quoted (an old "BTC was $61,250 at 14:02" record).  Review R1
+# (2026-10-30): a record's figure being present is not permission to re-assert it as a
+# CURRENT market reading -- "Bitcoin is $61,250 right now" against that record is exactly
+# the stale-price-stated-as-current failure this guard exists for.  So the exemption never
+# applies to a match whose own clause states the figure as the value of a MARKET-priced
+# subject (crypto asset/ticker, commodity, an FX conversion pair): those keep the notice
+# however old the record is.  The subject recognizers are imported, not written here -- see
+# `_clause_states_a_market_priced_value` below the keys helper.
 
 #: Currency tokens the price kind reads, canonicalised to lowercase ISO codes -- the same
 #: formal standard `_LIVE_CURRENCY_CODE` cites.  "cents" stays its own unit: 42 cents is not
@@ -1549,6 +1559,71 @@ def _memory_figure_keys(text: str) -> frozenset[tuple[float, str]]:
     return frozenset(keys)
 
 
+#: Word-boundary patterns over the price lane's closed alias table, longest first so "bitcoin"
+#: is never also read as "btc" (the same law `price_assets_named` states).  Built once from
+#: `core.agent_runtime.fast_live_info_price._PRICE_ASSET_ALIASES` -- imported, not copied,
+#: so this guard can never drift from the table every market lane reads.
+_MARKET_ALIAS_BOUNDARIES: list[tuple[str, "re.Pattern[str]"]] | None = None
+
+
+def _clause_states_a_market_priced_value(clause: str) -> bool:
+    """Whether ``clause`` asserts a figure as the value of a MARKET-priced subject.
+
+    Review R1 (2026-10-30): the memory-figure exemption below must not stand down a match
+    whose own clause re-asserts a recorded figure as a CURRENT market reading.  Every
+    recognizer here is imported from the module that owns it -- no private market vocabulary
+    is written into this guard:
+
+    * ``price_assets_named`` (default authorization): the clause's own market semantics
+      bind a crypto asset / ticker / commodity alias -- "ETH is currently trading at
+      $3,000", "Bitcoin is trading at $97,400".  This is the G4-safe authority: an alias
+      alone authorizes nothing.
+    * the bare-subject form that authority cannot see (no market word in the clause):
+      "Bitcoin is $61,250 right now."  The quote-intent recognizer admits the clause on its
+      recency marker (the same arm the market lane's quote recognizers read), and the alias
+      table supplies the subject -- guarded by the authority's own law that an asset is a
+      proper/mass noun and never takes a common-noun determiner, which is what keeps "your
+      Gold Coast flat" an address, not an asset.
+    * ``fx_conversion_intent``: the clause itself carries a currency-pair conversion shape
+      ("100 USD to EUR is currently about 92 EUR") -- a rate statement, never a user's own
+      figure.
+    """
+
+    global _MARKET_ALIAS_BOUNDARIES
+    text = " ".join(str(clause or "").split())
+    if not text:
+        return False
+    try:
+        from core.agent_runtime.fast_live_info_price import _PRICE_ASSET_ALIASES
+        from core.currency_intent import fx_conversion_intent
+        from core.market_intent import market_quote_intent_present
+        from core.semantic_claim_authority import (
+            _COMMON_NOUN_DETERMINERS,
+            price_assets_named,
+        )
+    except Exception:
+        return False
+    if price_assets_named(text):
+        return True
+    if fx_conversion_intent(text) is not None:
+        return True
+    if not market_quote_intent_present(text):
+        return False
+    if _MARKET_ALIAS_BOUNDARIES is None:
+        _MARKET_ALIAS_BOUNDARIES = [
+            (alias, re.compile(rf"\b{re.escape(alias)}\b", re.IGNORECASE))
+            for alias in sorted(_PRICE_ASSET_ALIASES, key=len, reverse=True)
+        ]
+    lowered = text.lower()
+    for _alias, pattern in _MARKET_ALIAS_BOUNDARIES:
+        for mention in pattern.finditer(lowered):
+            before = lowered[: mention.start()].split()
+            if before and before[-1] in _COMMON_NOUN_DETERMINERS:
+                continue
+            return True
+    return False
+
+
 def unobserved_live_value_claims(
     text: str, *, user_turn_text: str = "", evidence_text: str = ""
 ) -> tuple[str, ...]:
@@ -1569,14 +1644,19 @@ def unobserved_live_value_claims(
     user's own words are skipped; kinds with NO surviving match drop out. Dated memory and
     hydrated history are not exempt channels -- only this turn's user text.
 
-    ``evidence_text`` is the memory/evidence the turn carried (the admitted capsule).
-    A FIGURE the user stated in it -- same number AND unit/currency, notation-insensitive
-    ("GBP 90,000" == "£90,000") -- is a value the user observed about themselves: salary,
-    offer, budget, a price they paid. Each such match is skipped exactly like a
-    user-turn echo, and a kind whose every match is memory-stated drops out. A figure the
-    evidence does not state is untouched: the notice's premise ("any specific numbers I
-    gave would be invented") is true for it, and no question keyword is consulted -- see
-    the memory-figure section above.
+    ``evidence_text`` is the memory/evidence the turn carried (the admitted capsule, BOTH
+    sides of the past chats: the user's lines, VOOL's old replies and the tool results they
+    quoted). A figure STATED IN IT -- same number AND unit/currency, notation-insensitive
+    ("GBP 90,000" == "£90,000") -- is a recorded fact, not an invention: salary, offer,
+    budget, a price paid. Each such match is skipped exactly like a user-turn echo, and a
+    kind whose every match is memory-stated drops out -- UNLESS the match's own clause
+    states the figure as the value of a market-priced subject (crypto asset/ticker,
+    commodity, an FX pair: "Bitcoin is $61,250 right now" against a recorded "BTC was
+    $61,250"), which keeps the notice however old the record is; see
+    `_clause_states_a_market_priced_value`. A figure the evidence does not state is
+    untouched: the notice's premise ("any specific numbers I gave would be invented") is
+    true for it, and no question keyword is consulted -- see the memory-figure section
+    above.
     """
 
     body = _INLINE_CODE_RE.sub(" ", _FENCED_CODE_RE.sub(" ", str(text or "")))
@@ -1624,7 +1704,12 @@ def unobserved_live_value_claims(
                 ):
                     continue
             if memory_figures and _memory_figure_keys(match.group(0)) & memory_figures:
-                continue
+                # R1: a figure the capsule states may be re-asserted as the user's own
+                # recorded fact, but never as the CURRENT value of a market-priced
+                # subject -- a stale recorded market price stated as current keeps the
+                # notice, whichever side of the past chats stated it first.
+                if not _clause_states_a_market_priced_value(body[clause_start:clause_end]):
+                    continue
             if kind not in found:
                 found.append(kind)
             break
@@ -1898,7 +1983,8 @@ def replace_unobserved_live_claims(
     sentence-level recognitions: a value the user stated this turn is exempt at
     every level of the split, exactly as it is in the whole-text trigger.
     ``evidence_text`` carries the memory/evidence the turn held the same way:
-    a figure the user stated in it is exempt at every level of the split.
+    a figure the capsule states is exempt at every level of the split, except a
+    clause asserting it as a market-priced subject's value (R1), which never is.
     """
 
     body = str(text or "")
