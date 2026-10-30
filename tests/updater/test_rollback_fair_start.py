@@ -205,3 +205,21 @@ def test_up_but_silent_previous_version_health_window_from_up(installed):
     assert result == {'ok': False, 'restored_current': True}
     assert elapsed < 30
     assert (installed['target'] / 'core/version').read_text() == '0.7.1'
+
+
+def test_a_previous_version_given_up_on_is_stopped_before_the_restore(installed):
+    """A previous version still starting when its start allowance runs out is stopped when
+    the current version is restored, not left to finish its start on top of it and change
+    the restored data (independent review, 2026-10-30)."""
+    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 2.0,
+                                  raising=False)
+    subsystem = _install(installed, health_timeout=3.0, old_spec={'start_sleep': 8, 'broken': True})
+    (installed['home'] / 'manual-trigger').touch()
+
+    result = run_manual_rollback(subsystem, rollback_candidate(subsystem), 'rollback-abandoned')
+
+    assert result == {'ok': False, 'restored_current': True}
+    time.sleep(10)  # past the moment the abandoned previous version would have finished starting
+    assert not (installed['home'] / 'manual-mutation-proof').exists()
+    assert _seed_rows(installed['data']) == [('retained',)]
+    assert (installed['target'] / 'core/version').read_text() == '0.7.1'

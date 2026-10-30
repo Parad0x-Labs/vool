@@ -166,9 +166,13 @@ def _await_relaunch_health(subsystem, helper, *, expected_version: str):
     )
 
 
-def _restore_current(subsystem, path: Path, state: dict) -> dict:
-    """Failed manual rollback uses its OWN fresh snapshot, never the update's old one."""
-    helper = subsystem._make_helper()
+def _restore_current(subsystem, path: Path, state: dict, helper=None) -> dict:
+    """Failed manual rollback uses its OWN fresh snapshot, never the update's old one.
+
+    ``helper`` is the one that relaunched the previous version, when there was one: it alone
+    knows that process, so a previous version still starting is stopped too instead of
+    finishing its start on top of the restored current version."""
+    helper = helper if helper is not None else subsystem._make_helper()
     _stop(helper)
     installer = _installer(subsystem)
     backup = expected_prior(subsystem, state['txid'])
@@ -252,7 +256,7 @@ def run_manual_rollback(subsystem, candidate: dict, txid: str) -> dict:
             subsystem.status.publish(UpdatePhase.FAILED, detail=str(exc), fault=UpdateFault.VERIFICATION_FAILED)
             return {'ok': False, 'detail': str(exc)}
         try:
-            return _restore_current(subsystem, path, state)
+            return _restore_current(subsystem, path, state, helper)
         except Exception as restore:
             _save(path, state, 'rollback_failed')
             subsystem.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED, detail=str(restore))
@@ -268,6 +272,7 @@ def recover_manual_rollbacks(subsystem) -> dict:
                                      detail='The manual rollback journal is damaged; retained app and data backups were kept')
             results.append({'ok': False, 'detail': 'damaged rollback journal'})
             continue
+        helper = None
         try:
             if state['phase'] in ('swapped', 'healthy'):
                 health = subsystem._make_probe()(timeout=3, expected_version=state['candidate']['identity'])
@@ -280,7 +285,7 @@ def recover_manual_rollbacks(subsystem) -> dict:
                 if health.ok:
                     results.append(_finish(subsystem, path, state))
                     continue
-            results.append(_restore_current(subsystem, path, state))
+            results.append(_restore_current(subsystem, path, state, helper))
         except Exception as exc:
             _save(path, state, 'rollback_failed')
             subsystem.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED, detail=str(exc))
