@@ -446,6 +446,14 @@ def should_keep_ai_first_chat_lane(
     # is overridden -- and never for a turn that forbids tools.
     if _email_work_owns_follow_up(user_input, source_context):
         return False
+    # The owner's own turn on a local model is offered the compact owner catalog and the model
+    # decides whether it needs this computer; this tools-less lane cannot offer it
+    # (core.owner_tool_catalog). After every specific keep above, so stipulated frames, live info
+    # and builder turns keep their own lanes.
+    from core.owner_tool_catalog import owner_catalog_applies
+
+    if owner_catalog_applies(str(user_input or ""), source_context):
+        return False
 
     return routed_task_class in {
         "chat_conversation",

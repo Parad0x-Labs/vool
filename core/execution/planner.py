@@ -687,6 +687,12 @@ def should_attempt_tool_intent(
     # does not need simply answers; a model never handed them cannot act however it is asked.
     if flag_enabled("always_on_tool_catalog"):
         return True
+    # The owner's own turn on a local model: the compact owner catalog is offered and the model
+    # decides, instead of this allowlist (core.owner_tool_catalog).
+    from core.owner_tool_catalog import owner_catalog_applies
+
+    if owner_catalog_applies(text, source_context):
+        return True
     # A turn the runtime ITSELF classified as research needs retrieval by definition. This is not
     # the keyword guess the block above warns about -- `task_class` is the classifier's own verdict,
     # produced before this gate runs, and "research" means "go and find out".

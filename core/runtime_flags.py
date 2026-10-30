@@ -83,6 +83,17 @@ _FLAGS: tuple[RuntimeFlag, ...] = (
         ),
     ),
     RuntimeFlag(
+        name="owner_local_tool_catalog",
+        env_var="VOOL_OWNER_LOCAL_TOOL_CATALOG",
+        default=True,
+        description=(
+            "On the owner's own turns answered by a local model, leave the tools-less chat lane "
+            "and offer a compact catalog of one read tool per owner family (files, PDFs, disk, "
+            "processes, notes, reminders, calendar, contacts, skills, profile), so the model, "
+            "not a word gate, decides whether the ask needs this computer (core.owner_tool_catalog)."
+        ),
+    ),
+    RuntimeFlag(
         name="capability_tool_dialect",
         env_var="VOOL_CAPABILITY_TOOL_DIALECT",
         default=True,

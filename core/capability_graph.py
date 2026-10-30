@@ -1518,6 +1518,17 @@ def model_visible_specs(
                 _add_family(_TOOLSET_HINT_TO_FAMILY.get(OWNER_LIVE_SOURCE_TOOLSET.get(source, ""), ""))
         except Exception:
             pass
+    # The compact owner catalog (core.owner_tool_catalog): on the owner's own turn served by a
+    # local model, one read tool per owner family seats after the words' own seats, and the
+    # budget widens by exactly what it adds (still under the hard cap).
+    catalog_seats: list[str] = []
+    if user_text and source_is_owner_local:
+        try:
+            from core.owner_tool_catalog import owner_catalog_intents
+
+            catalog_seats = [i for i in owner_catalog_intents(user_text, source_context) if i not in explicit]
+        except Exception:
+            catalog_seats = []
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())
@@ -1580,6 +1591,8 @@ def model_visible_specs(
         # The same bounded-bonus shape an expansion pays: a matched skill's tools
         # must not evict each other out of the 8-seat default.
         seat_budget += len(seatable)
+    if catalog_seats:
+        seat_budget = max(seat_budget, len(_ALWAYS_VISIBLE_ORDER) + len(explicit) + len(catalog_seats))
     seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     result_specs: list[dict[str, Any]] = []
@@ -1613,6 +1626,9 @@ def model_visible_specs(
     for intent in _ALWAYS_VISIBLE_ORDER:
         _seat(intent)
     for intent in explicit:
+        if _intent_available(intent):
+            _seat(intent)
+    for intent in catalog_seats:
         if _intent_available(intent):
             _seat(intent)
     for intent in skill_seats:
