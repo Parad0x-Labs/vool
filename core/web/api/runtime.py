@@ -1439,6 +1439,11 @@ def run_agent(
             workspace_root_provider=workspace_root_provider,
         )
         _publish_canonical_turn_request(source_context, caller_context)
+        # The transport finalizes with `caller_context`; both claim gates find this turn's tool
+        # runs through the ledger stamp, which was opened on the runtime's own copy.
+        from core.turn_model_call_ledger import carry_turn_ledger
+
+        carry_turn_ledger(source_context, caller_context)
         return result
 
 
@@ -1899,6 +1904,11 @@ def _run_agent_locked(
     # beside the turn-usage reset, because this is where one user message begins, and the id is
     # stamped into `base_context` so every shallow copy and every pool worker counts into it.
     _begin_model_call_ledger(base_context)
+    # `base_context` is this function's own copy; the caller finalizes the reply with the dict it
+    # passed in, so the stamp goes back to that dict too (see `run_agent`).
+    from core.turn_model_call_ledger import carry_turn_ledger
+
+    carry_turn_ledger(base_context, source_context)
     with remote_fetch_policy_scope(base_context):
         # The scripted web0/.null topic-answer interception that lived here is REMOVED by the
         # owner's instruction (2026-09-16): its keyword evidence was far weaker than its
