@@ -66,6 +66,11 @@ fr25 to fr30 (no_tool).
 - Latency: median turn 102 s BEFORE vs 138 s AFTER, totals 83.7 vs 82.0 min over 33 turns each. Token counts are not
   in the rows (unknown).
 
+- Scoring: the rows come from the ba74d947 harness, so they have no `tools_ran`. Tool lists come from
+  `tools_executed`, which can also hold selected or proposed calls. Rescoring with `score.py` at 60b4c00b gives identical
+  counts. The "expected tool family ran" number (4/18) counts fr17 `skill.list`, which may only have been selected, and
+  the fr21 to fr23 approval-pending calls were proposed, not run. Pass counts are unaffected.
+
 ## Card vectors
 
 The AFTER daemon started at about 21:50:44Z. Ollama `/api/embed` calls ran at about 110 per minute until 22:25:53Z, then
