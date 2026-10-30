@@ -41,12 +41,11 @@ WORKING_WORDS: tuple[str, ...] = (
     "Snorfling",
     "Moseying",
     "Doodling",
-    "Bamboozling the bits",
+    "Juggling the bits",
     "Fluffing the pixels",
     "Wrangling the bytes",
     "Untangling spaghetti",
     "Shaking the snow globe",
-    "Pondificating",
     "Blooping",
     "Voolinating",
     # German-flavoured.

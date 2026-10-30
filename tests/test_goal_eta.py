@@ -12,7 +12,9 @@ import json
 import re
 
 from core.goal_progress_fragment import render_goal_progress_fragment
-from core.goal_workflow import goal_eta_seconds
+import time
+
+from core.goal_workflow import goal_eta_seconds, goal_public_view
 from tests.chat_page_js_harness import run_node
 
 
@@ -23,6 +25,15 @@ def test_the_estimate_is_the_goals_own_pace_and_unknown_without_one() -> None:
     for state in ("paused", "waiting_approval", "blocked", "interrupted", "planning", "queued",
                   "completed", "failed", "cancelled"):
         assert goal_eta_seconds(state, 600.0, 2, 5) is None, state
+
+
+def test_the_served_goal_view_carries_the_estimate() -> None:
+    steps = [{"id": f"s{i}", "state": "completed" if i < 2 else "pending"} for i in range(5)]
+    goal = {"goal_id": "g1", "state": "running", "started_at": time.time() - 600, "plan": {"steps": steps}}
+    view = goal_public_view(goal)
+    assert 880 <= view["eta_seconds"] <= 920, view["eta_seconds"]
+    paused = goal_public_view({**goal, "state": "paused", "paused_at": time.time()})
+    assert paused["eta_seconds"] is None
 
 
 CARD = r"""

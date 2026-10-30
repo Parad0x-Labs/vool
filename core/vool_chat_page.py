@@ -898,8 +898,10 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
    drawn dim; the bulbs of the mark switch on one after another -- the V, both eyes together, the
    L-smile -- hold while the eyes blink, go dark, and restart, all on one shared clock. The resting
    markup IS the finished lit mark, so `animation: none` (reduced motion, a finished card) shows the
-   complete logo instantly. 36px: the owner asked for it 30-40% smaller than the old 56px. */
-.tc-mark { flex:0 0 auto; width:36px; height:36px; color:var(--accent); --tc-flash:#fff8e6; }
+   complete logo instantly. 36px: the owner asked for it 30-40% smaller than the old 56px. The
+   bulbs keep one warm LED colour in every theme: a theme accent (dark brown in the light theme)
+   all but vanished on the black panel. */
+.tc-mark { flex:0 0 auto; width:36px; height:36px; color:#ffd27a; --tc-flash:#fffaf0; }
 .tc-mark .tc-panel { fill:#0b0c0e; stroke:rgba(255,255,255,.08); stroke-width:1; }
 .tc-mark .tc-off { fill:#fff; opacity:.075; }
 .tc-mark .tc-on { fill:currentColor; animation-duration:4s; animation-timing-function:linear; animation-iteration-count:infinite; }
@@ -939,6 +941,7 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 @media (prefers-reduced-motion: reduce) { .tc-group.live::before { animation:none; } .tc-chev { transition:none; } }
 .tc-details { display:flex; flex-direction:column; gap:6px; }
 .tc-details[hidden] { display:none; }
+.tc-details .tc-steps { display:none; }   /* the step rows above already say it */
 /* A long-running job writes long stage strings. One clipped line hid the end of every one of them;
    two wrapped lines fit the sentence and still bound the card's height. */
 /* A running turn's status obeys the same rule as the composer label: one line, ellipsis, exact
@@ -5742,6 +5745,7 @@ function paintRunState(run) {
 // canvas, no images, no libraries -- sharp at any display scale.
 const TC_MARK_SVG = /*__VOOL_WORKING_MARK_SVG__*/'';
 
+let _tcDetailsSeq = 0;   // ids for each card's details block (the toggle's aria-controls)
 // Builds this run's status card on `host`. Pure DOM: no timers, no state. Callers decide whether
 // this run's chat is on screen -- attachRunDom for a re-open, runTurn for a fresh turn.
 function buildCard(run, host) {
@@ -5755,7 +5759,7 @@ function buildCard(run, host) {
     + '<div class="tc-head">'
     + TC_MARK_SVG
     + '<div class="tc-headtext"><div class="tc-title"><button type="button" class="tc-toggle" aria-expanded="false">'
-    + '<span class="tc-titletext">VOOL is working</span><span class="tc-for"></span><span class="tc-chev vi" data-ico="chevron" aria-hidden="true"></span></button></div></div>'
+    + '<span class="tc-titletext" aria-hidden="true">VOOL is working</span><span class="tc-for" aria-hidden="true"></span><span class="tc-chev vi" data-ico="chevron" aria-hidden="true"></span></button></div></div>'
     + '<span class="tc-badges"><span class="tc-mode"></span><span class="tc-model"></span><span class="tc-cost"></span></span>'
     + '<button type="button" class="tc-stop" title="Stop this turn — cancels the running task on your machine and stops the answer.">Stop</button>'
     + '</div>'
@@ -5778,6 +5782,11 @@ function buildCard(run, host) {
     refs.stop.disabled = true;
     refs.stop.textContent = pageT('run.status_stopping', 'Stopping…');
     card.classList.add('tc-hold');
+    // A stop is a fact, not a joke: the title says so at once, without waiting for the next event.
+    refs.title.textContent = pageT('run.status_stopping', 'Stopping…');
+    refs.title.title = '';
+    refs.toggle.setAttribute('aria-label', refs.title.textContent);
+    if (refs.clock) refs.clock.textContent = '';
   };
   if (run.stopRequested && !run.ended) showStopping();
   refs.stop.addEventListener('click', () => {
@@ -5856,6 +5865,8 @@ function buildCard(run, host) {
   });
   refs.view.addEventListener('click', openPanel);
   // The details stay as the person left them for this turn, across a re-built card too.
+  refs.details.id = 'tcDetails' + (++_tcDetailsSeq);
+  refs.toggle.setAttribute('aria-controls', refs.details.id);
   const showDetails = () => { refs.details.hidden = !run.detailsOpen; refs.toggle.setAttribute('aria-expanded', run.detailsOpen ? 'true' : 'false'); };
   refs.toggle.addEventListener('click', () => { run.detailsOpen = !run.detailsOpen; showDetails(); });
   showDetails();
@@ -5880,7 +5891,7 @@ function humanActivityState(run) {
 // while VOOL waits on the person (approval, price), reviews its answer, or is stopping -- those
 // keep their plain words. A turn opens on "Vooling", then moves to a new word every few seconds.
 const WORKING_WORDS = /*__VOOL_WORKING_WORDS__*/[];
-const WORKING_WORD_MS = 3200;
+const WORKING_WORD_MS = 5000;
 function workingWord(run) {
   if (!WORKING_WORDS.length || !run || run.ended || run.status !== 'running') return '';
   if (run.permission || run.pricePaused || run.verifying || run.stopRequested) return '';
@@ -5974,7 +5985,7 @@ function renderCard(run) {
   const stageText = run.action || run.stage || '';
   r.stage.textContent = stageText;
   r.stage.title = stageText;
-  if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
+  if (!run.ended && !run.stopRequested) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
   r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
@@ -5995,12 +6006,17 @@ function renderCard(run) {
   r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
-  if (run.status === 'running') {
+  // A paused price keeps its own title: the person has to act on it. (The running branch below
+  // used to overwrite it with the generic stage.) A stop being decided keeps "Stopping…".
+  if (!run.ended) r.title.title = '';
+  if (run.status === 'running' && !run.pricePaused && !run.stopRequested) {
     const plain = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
     const word = workingWord(run);
     r.title.textContent = word || plain;
     r.title.title = word ? plain : '';   // the plain state stays one hover away
   }
+  // Screen readers get the plain state, never the playful word (the word and clock are aria-hidden).
+  r.toggle.setAttribute('aria-label', r.title.title || r.title.textContent);
   paintWorkingClock(run);
   paintStepGroups(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
@@ -6187,6 +6203,7 @@ function paintFinishedCard(run) {
   const title = kind === 'completed' ? pageT('run.status_completed', 'Completed') : (kind === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : (kind === 'awaiting_approval' ? pageT('run.status_waiting', 'Waiting for your approval') : pageT('run.failed_safely_label', 'Failed safely')));
   r.title.textContent = title;
   r.title.title = '';
+  if (r.toggle) r.toggle.setAttribute('aria-label', title);
   if (r.clock) r.clock.textContent = '';
   r.stage.textContent = run.endSummary || title;
   r.elapsed.innerHTML = '<b>' + fmtElapsed((run.endedAtMs || (run.endedAtMs = Date.now())) - run.start) + '</b> ' + pageT('run.total_word', 'total');

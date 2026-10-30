@@ -18,7 +18,7 @@ function cardFor() {
   buildCard(run, null);
   return run;
 }
-function title(run) { return { text: run.refs.title.textContent, tip: run.refs.title.title, clock: run.refs.clock.textContent }; }
+function title(run) { return { text: run.refs.title.textContent, tip: run.refs.title.title, clock: run.refs.clock.textContent, label: run.refs.toggle.attrs['aria-label'] }; }
 try {
   const fresh = cardFor();
   applyTaskEvent(fresh, { type: 'task.started', summary: 'Understanding the request' });
@@ -40,6 +40,11 @@ try {
   const paused = cardFor();
   paused.pricePaused = true; renderCard(paused);
   seen.paused = title(paused);
+
+  const stopping = cardFor();
+  stopping.refs.stop.click();
+  renderCard(stopping);
+  seen.stopping = title(stopping);
 
   const done = cardFor();
   finishRun(done, 'completed', 'Complete', new Date().toISOString());
@@ -85,6 +90,7 @@ def test_a_working_turn_shows_a_playful_word_with_its_clock_and_keeps_the_plain_
     assert seen["fresh"]["text"] == "Vooling"
     assert seen["fresh"]["clock"].startswith("for ")
     assert seen["fresh"]["tip"], "the plain state must stay on the tooltip"
+    assert seen["fresh"]["label"] == seen["fresh"]["tip"], "screen readers get the plain state, not the word"
     assert seen["later"]["text"] in WORKING_WORDS, "the word rotates through the shipped list"
     assert seen["later"]["clock"] == "for 7s"
 
@@ -93,10 +99,14 @@ def test_states_the_person_acts_on_keep_their_plain_words() -> None:
     seen = _seen()
     assert seen["permission"]["text"] == "Waiting for approval"
     assert seen["verifying"]["text"] == "Answer ready · model review running…"
-    for key in ("permission", "verifying", "paused"):
+    for key in ("permission", "verifying", "paused", "stopping"):
         assert seen[key]["text"] not in WORKING_WORDS, key
         assert seen[key]["clock"].startswith("· "), key
-    assert seen["done"] == {"text": "Completed", "tip": "", "clock": ""}
+    assert seen["paused"]["text"] == "Paused — waiting for your price", "the price pause keeps its own title"
+    assert seen["stopping"]["text"] == "Stopping…", "a stop replaces the word at once"
+    for key in ("permission", "verifying", "paused", "stopping"):
+        assert seen[key]["label"] == seen[key]["text"], key
+    assert seen["done"] == {"text": "Completed", "tip": "", "clock": "", "label": "Completed"}
 
 
 def test_a_non_english_ui_never_shows_the_english_words() -> None:

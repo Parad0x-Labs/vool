@@ -31,6 +31,7 @@ def render_goal_progress_fragment() -> str:
   .vgc-title{font-weight:600;font-size:13px}
   .vgc-elapsed{color:var(--vgc-dim);font-variant-numeric:tabular-nums;font-size:12px}
   .vgc-eta{color:var(--vgc-dim);font-size:12px;white-space:nowrap}
+  .vgc-eta::before{content:'\\00b7  '}
   .vgc-eta:empty{display:none}
   .vgc-state{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--vgc-border);white-space:nowrap}
   .vgc-state.is-running{background:rgba(48,209,88,.18);color:var(--vgc-ok)}
@@ -129,7 +130,8 @@ def render_goal_progress_fragment() -> str:
     var node = $('vgcEta'); if (!node) return;
     var left = (view && view.eta_seconds != null && view.state === 'running' && !view.paused)
       ? Math.max(0, Number(view.eta_seconds) - Math.max(0, elapsedNow - (view.elapsed_seconds || 0))) : null;
-    if (left == null || !isFinite(left) || left < 30 || elapsedNow + left < ETA_SHOW_FROM_SECONDS){ node.textContent = ''; return; }
+    // Counted down to zero between polls, it stays at about a minute until the next poll re-estimates.
+    if (left == null || !isFinite(left) || elapsedNow + left < ETA_SHOW_FROM_SECONDS){ node.textContent = ''; return; }
     node.textContent = t('goal.eta_left', 'About {time} left').replace('{time}', fmtEtaTime(left));
   }
   function stateLabel(state){

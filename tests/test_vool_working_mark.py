@@ -179,6 +179,15 @@ drive('terminal cards take their kind class', () => {
     finishRun(run, kind, 'end', new Date().toISOString());
     if (!run.card.classList.contains(kind === 'completed' ? 'done' : kind)) throw new Error(kind + ' did not paint its terminal class');
   }
+  // Waiting for approval is not terminal: it paints `perm`, which pauses the panel mid-light-up.
+  const run = cardFor();
+  finishRun(run, 'awaiting_approval', 'needs you', new Date().toISOString());
+  if (!run.card.classList.contains('perm')) throw new Error('awaiting_approval did not paint perm');
+});
+drive('repeated sends rebuild one mark per card with no shared handle', () => {
+  const cards = [];
+  for (let i = 0; i < 3; i++) { const run = cardFor(); cards.push(run.card); run.refs = null; }
+  if (new Set(cards).size !== 3) throw new Error('cards were reused across sends');
 });
 _st(() => {
   for (const e of globalThis.__consoleErrors || []) errors.push('console.error: ' + e);
@@ -190,4 +199,4 @@ _st(() => {
 def test_the_card_lifecycle_drives_clean_under_the_node_dom() -> None:
     data = run_node(DOM + script() + DRIVE)
     assert data["errors"] == [], "\n".join(data["errors"])
-    assert len(data["drove"]) == 3, f"only drove {data['drove']}"
+    assert len(data["drove"]) == 4, f"only drove {data['drove']}"
