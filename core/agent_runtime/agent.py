@@ -1337,6 +1337,33 @@ def _r3_open_turn_execution(
         raise
 
 
+def _owner_folder_demand(text: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether the owner's own words name one of their folders, by the recognizers that SEAT the tool.
+
+    The list-directory proof used to come from the list-directory word probe alone, while the offer
+    seats `machine.list_directory` from the owner live-source recognizer ("files") and from the
+    tool cards. The two disagreed: "which PDFs are sitting in my Downloads right now?" (fresh ask
+    fu01, 2026-10-30, qwen3:8b) was released and seated for the tool, the model called it, and the
+    executor refused with "this turn did not establish a machine or path target", which became the
+    answer. Owner-local turns only, the same law as the seat; the semantic frame check still runs
+    on the result, so a stipulated or quoted turn stays unproved.
+    """
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        from core.tool_demand_signals import owner_live_sources
+
+        if "files" in owner_live_sources(text):
+            return True
+        from core.tool_card_router import releases_lane
+
+        return any(m.intent == "machine.list_directory" for m in releases_lane(text, owner_local=True))
+    except Exception:
+        return False
+
+
 class VoolAgent(
     RuntimeCheckpointSupportMixin,
     VoolBookRuntimeMixin,
@@ -2390,7 +2417,7 @@ class VoolAgent(
 
         list_directory_claimed = any(
             claim.family == FAMILY_LIST_DIRECTORY for claim in probe_claims(semantic_text)
-        )
+        ) or _owner_folder_demand(semantic_text, runtime_source_context)
         list_directory_admitted = False
         if list_directory_claimed:
             list_directory_candidate = explicit_text_whole_turn_candidate(

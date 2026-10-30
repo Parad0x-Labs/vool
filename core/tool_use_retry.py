@@ -30,6 +30,18 @@ def needed_tool_intents(text: str, source_context: dict[str, Any] | None) -> tup
         intents = [*owner_local_operator_intents(text), *owner_live_source_intents(text)]
     except Exception:
         return ()
+    try:
+        # A tool whose card strongly fits the words is needed just as much: the card released the
+        # lane and seated the tool (core.tool_card_router), so prose over it is the same fake
+        # answer. On the 2026-10-29 cards-on run (qwen3:8b) seated card tools answered in prose (an
+        # offer to check, "it isn't saved" without looking) were never retried, because this list
+        # only knew the hand-written recognizers. Same matcher as the release, so the two cannot
+        # disagree.
+        from core.tool_card_router import releases_lane
+
+        intents.extend(m.intent for m in releases_lane(text, owner_local=True))
+    except Exception:
+        pass
     return tuple(i for i in dict.fromkeys(intents) if not i.startswith("email."))
 
 
@@ -37,9 +49,9 @@ def tool_use_retry_directive(intents: tuple[str, ...] | list[str]) -> str:
     names = ", ".join(str(i) for i in intents)
     return (
         "You answered without calling a tool, but this request needs live data from the user's own "
-        "computer, notes, calendar or reminders, which only the tools can read or change. Call the "
-        f"right tool now ({names}). Do not answer from memory, and never say something was checked, "
-        "scheduled, saved or changed unless a tool did it."
+        "computer, files, notes, contacts, skills, calendar or reminders, which only the tools can read "
+        f"or change. Call the right tool now ({names}). Do not answer from memory, and never say "
+        "something was checked, scheduled, saved or changed unless a tool did it."
     )
 
 
