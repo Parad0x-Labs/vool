@@ -145,9 +145,15 @@ class UpdateCheckService:
             if not self._check_allowed():
                 return CheckOutcome(False, "an update is already in progress")
             previous = self.status.load()
+            # After a failed or undone update, scheduled checks go on but never offer the version that failed
+            # (the newest one this copy has seen); a newer one is offered. A failed rollback still needs a person.
+            failed_version = ""
+            if previous is not None and preserve_failure and previous.fault_code and previous.phase in (
+                    UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK):
+                failed_version = str((self.high_water.load(self.channel) or {}).get("version") or "")
             if previous is not None and (
                 previous.fault_code == "rollback_failed" or (
-                    preserve_failure and previous.fault_code
+                    preserve_failure and previous.fault_code and not failed_version
                     and previous.phase in (UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK)
                 )
             ):
@@ -171,9 +177,17 @@ class UpdateCheckService:
                 # Verified-refused manifests still leave a trail, but no offer.
                 logger.info("manifest refused: %s", verification.reason.value)
                 self._offer = None
+                if failed_version:  # a refused feed never hides what happened to the failed update
+                    self.status.save(previous)
+                    return CheckOutcome(False, verification.reason.value, verification=verification)
                 self.status.publish(UpdatePhase.FAILED, detail=verification.plain_message)
                 return CheckOutcome(False, verification.reason.value, verification=verification)
             manifest = verification.manifest
+            if failed_version and manifest.version == failed_version:
+                self._offer = None
+                self.status.save(previous)
+                return CheckOutcome(False, "the version that failed to update is not offered again",
+                                    verification=verification)
 
             decision = decide_update(
                 manifest,
@@ -196,7 +210,9 @@ class UpdateCheckService:
                 self.status.publish(UpdatePhase.READY, version=manifest.version)
             else:
                 self._offer = None
-                if decision.reason is UpdateDecisionReason.UP_TO_DATE:
+                if failed_version:  # only a newer offer replaces what happened to the failed update
+                    self.status.save(previous)
+                elif decision.reason is UpdateDecisionReason.UP_TO_DATE:
                     self.status.publish(UpdatePhase.UP_TO_DATE)
                 else:
                     self.status.publish(UpdatePhase.UNAVAILABLE, reason=decision.plain_message,
