@@ -33,6 +33,7 @@ from core.execution.constants import (
     resolve_drive_scope,
     resolve_named_folder_under_home,
 )
+from core.file_size_answer import size_answer_for_ask
 from core.onboarding import get_agent_display_name
 from core.persistent_memory import recent_conversation_events
 
@@ -1681,6 +1682,24 @@ def maybe_handle_direct_machine_read_request(
         user_input, source_context=source_context, whole_turn=True
     ):
         return None
+    # A size-of-a-thing ask ("how big is the holiday photos zip") is answered with the size of
+    # THAT thing only. Measured on the benchmark run 2026-10-30: with no lane owning the question
+    # the model lane answered it by pulling the machine's drive fill ("94.6% full, 24.7 GB free
+    # of 460.4 GB") into the reply and the provider request -- numbers about the whole computer,
+    # which the person never asked for, from outside the folder the ask was about. Answering
+    # here, deterministically, is what keeps drive numbers off that path entirely: the ask is
+    # about one thing, the answer states that thing's size, and a miss fails closed in plain
+    # words rather than widening to the machine.
+    size_answer = size_answer_for_ask(user_input)
+    if size_answer is not None:
+        return agent._fast_path_result(
+            session_id=session_id,
+            user_input=user_input,
+            response=str(size_answer.get("response_text") or ""),
+            confidence=0.95,
+            source_context=source_context,
+            reason="file_size_fast_path",
+        )
     # Read-only diagnostics (per-drive disk space, Windows event-log errors) execute the machine.*
     # tool directly. This runs before the planner/gate below because the deterministic tools already
     # return real data — "how many drives does my PC have" must inspect the host, not answer as prose.
