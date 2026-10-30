@@ -102,16 +102,15 @@ def _prove_settings_owner(body: dict[str, Any], *, purpose: str, source_context:
     """A wallet-wide setting that loosens what can be paid (Mainnet, a payment channel on, a pay-per-answer endpoint
     on, the fee threshold) needs the same owner proof as raising a cap: loopback alone is any process on this machine.
     With no wallet that holds a key VOOL could sign with, nothing here can pay, so nothing is asked."""
-    profile = custody.owner_proof_wallet(str(body.get("wallet_id") or ""))
+    profile = custody.owner_proof_wallet()
     if profile is None:
         return
     try:
         custody.prove_owner(profile.wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
                             purpose=purpose, source_context=source_context)
     except WalletFault as exc:
-        # the page names the wallet whose PIN or password it asks for, and sends that wallet's id back with it
-        exc.context.setdefault("wallet_id", profile.wallet_id)
-        exc.context["wallet_label"] = profile.label
+        # the page names the wallet whose PIN or password it asks for
+        exc.context["wallet_label"] = profile.label or "your first wallet"
         raise
 
 
@@ -342,7 +341,9 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             from core.wallet import environment
             from core.wallet.status import crypto_pilot_status
 
-            if str(body.get("environment") or "").strip().lower() == environment.ENVIRONMENT_MAINNET and environment.active_environment().environment != environment.ENVIRONMENT_MAINNET:
+            # asked whatever the current choice: a check of the current state first would let a request that
+            # raced the owner's own switch to Test networks turn Mainnet back on with no proof
+            if str(body.get("environment") or "").strip().lower() == environment.ENVIRONMENT_MAINNET:
                 _prove_settings_owner(body, purpose="switch payments to Mainnet", source_context=source_context)
             environment.set_active_environment(str(body.get("environment") or ""), source_context=source_context)
             return _ok({"crypto_pilot": crypto_pilot_status()})
@@ -353,7 +354,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             raw = body.get("on")
             if not isinstance(raw, bool):
                 return _json(400, {"ok": False, "error": "channel_choice_invalid", "reason": "on_must_be_true_or_false"})
-            if raw and channels.get(str(body.get("channel") or "")) is not None and not channels.is_on(str(body.get("channel") or "")):
+            if raw and channels.get(str(body.get("channel") or "")) is not None:
                 _prove_settings_owner(body, purpose="turn on a payment channel", source_context=source_context)
             changed = channels.set_on(str(body.get("channel") or ""), raw, source_context=source_context)
             return _ok({"channel": changed, "payment_channels": channels.status()})

@@ -141,3 +141,52 @@ def test_with_no_wallet_that_can_pay_nothing_is_asked(app, monkeypatch):
     _post(app, "/api/wallet/channels", {"channel": channel, "on": False})
     status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": True})
     assert status == 200 and channels.is_on(channel), answer
+
+
+def test_a_wallet_another_process_makes_never_proves_the_owner(app, stored_environment):
+    """Review of 2d7c9584: the proof wallet was the one the request named, else the default. Any process can make a
+    wallet of its own through the setup doors (and a new older-style wallet becomes the default), then prove with
+    its own PIN. The owner's wallet is the oldest one, whatever the request names."""
+    from core.wallet import channels, custody
+
+    owner = _pilot()
+    status, answer = _post(app, "/api/wallet/setup/create", {"network": DEVNET, "method": "pin", "credential": "111222",
+                                                             "credential_confirmation": "111222", "creation_key": f"x-{uuid.uuid4().hex}"})
+    assert status == 200, answer
+    theirs = answer["setup"]["wallet_id"]
+    for door in ("/api/wallet/setup/reveal", "/api/wallet/setup/acknowledge"):
+        status, answer = _post(app, door, {"wallet_id": theirs, "credential": "111222"})
+        assert status == 200, answer
+    status, answer = _post(app, "/api/wallet/pocket/create", {"acknowledged_warning": True, "pin": "135790", "network": DEVNET,
+                                                              "confirmation_phrase": custody.POCKET_CONFIRMATION_PHRASE})
+    assert status == 200, answer
+    assert custody.default_wallet().wallet_id not in {owner, theirs}  # the newest older-style wallet is the default now
+
+    channel = channels.CHANNELS[0].channel_id
+    status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": False})  # off never asks
+    assert status == 200 and not channels.is_on(channel), answer
+    for body in ({"environment": "mainnet", "wallet_id": theirs, "credential": "111222"},
+                 {"environment": "mainnet", "credential": "135790"}):
+        status, answer = _post(app, "/api/wallet/environment", body)
+        assert status == 400 and answer["fault"]["context"]["wallet_id"] == owner, answer
+    assert stored_environment.active_environment().environment == "testnet"
+    status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": True, "credential": "135790"})
+    assert status == 400 and not channels.is_on(channel), answer
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
+    assert status == 200 and stored_environment.active_environment().environment == "mainnet", answer
+
+
+def test_turning_on_asks_even_when_it_already_looks_on(app, stored_environment):
+    """A check of the current state before the write let a request that raced the owner's own switch back turn it on."""
+    from core.wallet import channels
+
+    _pilot()
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
+    assert status == 200, answer
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet"})
+    assert _needs_pin(status, answer), answer
+    channel = channels.CHANNELS[0].channel_id
+    status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": True, "credential": PIN})
+    assert status == 200, answer
+    status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": True})
+    assert _needs_pin(status, answer), answer

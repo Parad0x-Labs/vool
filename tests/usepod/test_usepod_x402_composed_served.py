@@ -140,7 +140,7 @@ def test_the_daemon_boots_with_the_wallet_payment_authority_registered(composed)
 
 def test_accountless_consent_names_the_wallet_payer_without_a_usepod_token(composed) -> None:
     daemon, service, node = composed.daemon, composed.service, composed.node
-    status, environment = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet"})
+    status, environment = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
     assert status == 200, environment
     wallet = ready_pilot_wallet(daemon)
     node.fund_sol(wallet["address"], 20_000_000)

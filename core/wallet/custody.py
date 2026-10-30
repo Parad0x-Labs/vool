@@ -503,22 +503,15 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     del material
 
 
-def owner_proof_wallet(wallet_id: str = "") -> WalletProfile | None:
+def owner_proof_wallet() -> WalletProfile | None:
     """The wallet whose credential proves the owner for a wallet-wide setting (the environment, payment channels,
-    pay-per-answer endpoints, the fee threshold): the named wallet when it holds a key VOOL seals, else the default
-    one, else the newest ready one. None when no wallet holds a key VOOL could sign with: nothing here can pay."""
-    def usable(profile: WalletProfile | None) -> bool:
-        return bool(profile and profile.mode == MODE_POCKET_SEALED and setup_state(profile.wallet_id) in {"", "ready"})
-
-    named = get_wallet(wallet_id) if str(wallet_id or "") else None
-    if usable(named):
-        return named
-    fallback = default_wallet()
-    if usable(fallback):
-        return fallback
+    pay-per-answer endpoints, the fee threshold): the OLDEST ready wallet whose key VOOL seals. Never one the caller
+    names and never the default: any process on this machine can create a wallet with a PIN of its own (a new one
+    also becomes the default), and it is always newer than the owner's. None when no wallet holds a key VOOL could
+    sign with: nothing here can pay."""
     with connection() as conn:
-        rows = conn.execute(_SELECT + " WHERE mode = ? ORDER BY created_at DESC", (MODE_POCKET_SEALED,)).fetchall()
-    return next((profile for profile in map(_row_to_profile, rows) if usable(profile)), None)
+        rows = conn.execute(_SELECT + " WHERE mode = ? ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
+    return next((profile for profile in map(_row_to_profile, rows) if setup_state(profile.wallet_id) in {"", "ready"}), None)
 
 
 def _unseal_counted(wallet_id: str, secret: str, *, source_context: dict[str, Any] | None) -> tuple[str, bytes]:
