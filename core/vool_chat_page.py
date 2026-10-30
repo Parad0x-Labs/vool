@@ -13252,12 +13252,12 @@ async function renderUsage(range) {
   const paidUsd = Number(paid.usd || 0);
   const paidVal = fmtInt(paid.total_tokens) + (paid.total_tokens ? ('  ' + (paid.all_actual ? '$' : '~$') + paidUsd.toFixed(4)) : '');
   head.appendChild(usageCard('paid', 'Cloud (paid) tokens', paidVal));
-  head.appendChild(usageCard('', 'Total word pieces', fmtInt(data && data.total_tokens)));
+  head.appendChild(usageCard('', pageT('settings.usage.total_word_pieces', 'Total word pieces'), fmtInt(data && data.total_tokens)));
   usageBodyEl.appendChild(head);
   if (!rows.length) { const e = document.createElement('div'); e.className = 'usage-empty'; e.textContent = 'No usage recorded in this window yet.'; usageBodyEl.appendChild(e); return; }
   const table = document.createElement('table'); table.className = 'usage-table';
   const thead = document.createElement('thead'); const htr = document.createElement('tr');
-  ['Model', 'Word pieces', 'Answers', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
+  [pageT('settings.usage.col_model', 'Model'), pageT('settings.usage.col_word_pieces', 'Word pieces'), pageT('settings.usage.col_answers', 'Answers'), pageT('settings.usage.col_cost', 'Cost')].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
   thead.appendChild(htr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
   rows.slice(0, 30).forEach((row) => {
