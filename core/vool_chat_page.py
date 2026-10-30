@@ -4241,9 +4241,10 @@ async function archiveSession(id, archived) {
 function paintSessionsState(kind) {
   if (sessionsLoaded) return;
   const row = document.createElement('div');
-  row.className = 'side-empty';
+  if (kind === 'retry') { row.className = 'side-loading'; row.setAttribute('role', 'status'); }
+  else row.className = 'side-empty';
   row.textContent = kind === 'retry'
-    ? pageT('sidebar.load_retry', 'Couldn\'t load your chats yet. Trying again.')
+    ? pageT('sidebar.load_retry', 'Could not load your chats yet, retrying')
     : pageT('sidebar.loading', 'Loading your chats…');
   sessionsEl.innerHTML = '';
   sessionsEl.appendChild(row);
