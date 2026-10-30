@@ -596,7 +596,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
 .perm-ico { font-size:15px; flex:0 0 auto; }
 .perm-copy { flex:1 1 auto; min-width:0; }
 .perm-msg { font-weight:650; }
-.perm-meta { color:var(--muted); font-size:11px; line-height:1.45; margin-top:2px; }
+.perm-meta { color:var(--muted); font-size:11px; line-height:1.45; margin-top:2px; overflow-wrap:anywhere; }
 .perm-detail { margin-top:7px; padding:7px 8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--muted); font-size:11px; white-space:pre-wrap; max-height:160px; overflow:auto; }
 .perm-actions { flex:0 0 auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
 .perm-btn { font:inherit; font-size:12.5px; border:1px solid var(--border); background:var(--field); color:var(--ink); border-radius:8px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
@@ -8258,12 +8258,12 @@ function paintRecoveryNote(st) {
   const text = document.createElement('div');
   const quoted = asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '';
   text.textContent = !waiting
-    ? 'This chat was interrupted when VOOL stopped.' + quoted + ' You can resume it or cancel it.'
+    ? pageT('permissions.recovery_interrupted', 'This chat was interrupted when VOOL stopped.') + quoted + ' ' + pageT('recovery.resume_or_cancel', 'You can resume it or cancel it.')
     : (st.approvalAskedElsewhere
       ? pageT('recovery.waiting_elsewhere', 'This request is waiting for your OK, but it was sent from somewhere else, so it cannot be allowed here.') + quoted + ' ' + pageT('recovery.send_again', 'Send it again here to allow it, or cancel it.')
       : pageT('recovery.waiting_expired', 'This request was waiting for your OK, and that question is no longer open.') + quoted + ' ' + pageT('recovery.resume_or_cancel', 'You can resume it or cancel it.'));
   const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
+  btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = pageT('permissions.recovery_resume_or_cancel', 'Resume or cancel\u2026');
   btn.addEventListener('click', () => openPanel());
   note.appendChild(text); note.appendChild(btn);
   const empty = logEl.querySelector('.empty');
@@ -8291,7 +8291,9 @@ function renderActivityHistoryHtml() {
     const bounded = h.bounded_execution || {};
     const task = h.request_preview || item.request_preview || h.title || 'Task';
     const status = h.request_state_label || h.status || item.status || 'unknown';
-    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
+    // A session this page has no name for came from somewhere else: say that in words
+    // instead of leaking a slice of its session id.
+    const chatTitle = chat.title || pageT('permissions.activity_chat_fallback', 'Another window');
     const evidence = [];
     if (h.latest_tool) evidence.push('last action ' + h.latest_tool);
     if (Array.isArray(h.changed_paths) && h.changed_paths.length) evidence.push(h.changed_paths.length + ' file' + (h.changed_paths.length === 1 ? '' : 's') + ' changed');
@@ -13773,8 +13775,10 @@ function showPermBar(chatId, ev) {
   const effects = a.expected_side_effects || pageT('permissions.side_effect_undescribed', 'Side effect not described');
   permMetaEl.textContent = pageTF('permissions.meta_line', 'Affects: {resources} · Side effects: {effects} · {reversibility}', { resources: resources, effects: effects, reversibility: (a.reversible ? pageT('permissions.reversible', 'Reversible') : pageT('permissions.may_not_reversible', 'May not be reversible')) });
   const detailBits = [];
-  if (a.intent) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + a.intent);
-  if (a.task_id) detailBits.push(pageT('permissions.detail_task', 'Task: ') + a.task_id);
+  // The folded details speak plain words: the server's action line names the action (never a
+  // bare dotted tool id), and a task id is bookkeeping a person cannot act on, so it is not
+  // rendered here at all.
+  if (a.action) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + a.action);
   if (Array.isArray(a.planned_actions) && a.planned_actions.length > 1) {
     detailBits.push(pageTF('permissions.planned_header', 'Planned changes in this request ({count}):', { count: a.planned_actions.length }));
     a.planned_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });
@@ -13919,7 +13923,7 @@ async function resolvePermission(decision, scope) {
       if (owner.run) { owner.run.permission = false; owner.run.permissionDenied = true; owner.run.action = pageT('run.permission_denied', 'Permission denied'); renderCard(owner.run); }
       toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
     }
-  } catch (e) { toast(pageT('permissions.resolve_failed_prefix', 'Could not resolve approval: ') + e.message); }
+  } catch (e) { console.error('resolve_approval failed:', e); toast(pageT('permissions.resolve_failed', 'This approval could not be answered. Please try again.')); }
 }
 if (permBarEl) {
   document.getElementById('permOnce').addEventListener('click', () => resolvePermission('allow', 'once'));

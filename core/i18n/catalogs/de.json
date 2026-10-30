@@ -804,6 +804,7 @@
     "pay.unit_in": "USDC / 1 Mio. rein",
     "pay.unit_out": "USDC / 1 Mio. raus",
     "pay.usepod_prices_note": "Preise in USDC pro 1 Mio. Tokens (Markt-Feed)",
+    "permissions.activity_chat_fallback": "Ein anderes Fenster",
     "permissions.allow_all_n": "Alle {count} {label} für diese Anfrage erlauben",
     "permissions.allow_chat": "Arbeitsbereich-Bearbeitungen in diesem Chat erlauben",
     "permissions.allow_chat_title": "In DIESEM Chat nicht mehr nach Lesezugriffen und gewöhnlichen Dateibearbeitungen fragen — nur Lesen, neue Dateien und Bearbeitungen im vertrauenswürdigen Arbeitsbereich. Löschen, Überschreiben, Befehle, Netzwerk, Geheimnisse und Zahlungen fragen weiterhin jedes Mal.",
@@ -831,6 +832,9 @@
     "permissions.planned_changes_label": "geplante Änderungen",
     "permissions.planned_header": "Geplante Änderungen in dieser Anfrage ({count}):",
     "permissions.proposed_changes": "Vorgeschlagene Änderungen:",
+    "permissions.recovery_interrupted": "Dieser Chat wurde unterbrochen, als VOOL anhielt.",
+    "permissions.recovery_resume_or_cancel": "Fortsetzen oder abbrechen…",
+    "permissions.resolve_failed": "Diese Freigabe konnte nicht beantwortet werden. Bitte versuchen Sie es erneut.",
     "permissions.resolve_failed_prefix": "Freigabe konnte nicht aufgelöst werden: ",
     "permissions.reversible": "Umkehrbar",
     "permissions.review_details": "Details ansehen",
@@ -2858,7 +2862,7 @@
     "recovery.waiting_elsewhere": "Diese Anfrage wartet auf Ihr OK, wurde aber von woanders gesendet und kann deshalb hier nicht erlaubt werden.",
     "recovery.waiting_expired": "Diese Anfrage wartete auf Ihr OK, und diese Frage ist nicht mehr offen."
   },
-  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
+  "source_catalog_sha256": "63b3ddb8382da6ffb435d1a2a0cc8d6d20a42c5117b8be83da178c61aeeece38",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

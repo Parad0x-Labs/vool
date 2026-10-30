@@ -804,6 +804,7 @@
     "pay.unit_in": "USDC / 1 mln wej.",
     "pay.unit_out": "USDC / 1 mln wyj.",
     "pay.usepod_prices_note": "ceny w USDC za 1 mln tokenów (feed rynkowy)",
+    "permissions.activity_chat_fallback": "Inne okno",
     "permissions.allow_all_n": "Zezwól na wszystkie {count} {label} dla tego żądania",
     "permissions.allow_chat": "Zezwól na edycje w przestrzeni roboczej w tym czacie",
     "permissions.allow_chat_title": "Przestań pytać o odczyty i zwykłe edycje plików TYLKO w tym czacie — odczyty, nowe pliki i edycje wyłącznie w zaufanej przestrzeni roboczej. Usuwanie, nadpisywanie, polecenia, sieć, sekrety i płatności nadal pytają za każdym razem.",
@@ -831,6 +832,9 @@
     "permissions.planned_changes_label": "planowane zmiany",
     "permissions.planned_header": "Planowane zmiany w tym żądaniu ({count}):",
     "permissions.proposed_changes": "Proponowane zmiany:",
+    "permissions.recovery_interrupted": "Ta rozmowa została przerwana, gdy VOOL się zatrzymał.",
+    "permissions.recovery_resume_or_cancel": "Wznów lub anuluj…",
+    "permissions.resolve_failed": "Nie udało się odpowiedzieć na to zatwierdzenie. Spróbuj ponownie.",
     "permissions.resolve_failed_prefix": "Nie udało się rozstrzygnąć zatwierdzenia: ",
     "permissions.reversible": "Odwracalne",
     "permissions.review_details": "Przejrzyj szczegóły",
@@ -2858,7 +2862,7 @@
     "recovery.waiting_elsewhere": "To żądanie czeka na Twoją zgodę, ale zostało wysłane z innego miejsca, więc nie można na nie zezwolić tutaj.",
     "recovery.waiting_expired": "To żądanie czekało na Twoją zgodę, a to pytanie nie jest już otwarte."
   },
-  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
+  "source_catalog_sha256": "63b3ddb8382da6ffb435d1a2a0cc8d6d20a42c5117b8be83da178c61aeeece38",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -290,12 +290,16 @@ def execute_authorized_runtime_tool(
         request = dict(decision.approval_request or {})
         resources = [str(item) for item in list(request.get("affected_resources") or []) if str(item).strip()]
         resource_text = f" Affected: {', '.join(resources)}." if resources else ""
+        # The ask names the action in plain words from the tool's own contract -- never its
+        # dotted id -- and a tool without a contract gets the one general sentence.
+        from core.runtime_tool_contracts import plain_approval_ask
+
         return _refusal_result(
             intent,
             decision,
             status="pending_approval",
             response_text=(
-                f"`{intent}` needs your approval before it runs. {decision.reason}{resource_text} "
+                f"{plain_approval_ask(intent)} {decision.reason}{resource_text} "
                 "Review the details, then allow or deny this request."
             ),
             approval_request=request,

@@ -804,6 +804,7 @@
     "pay.unit_in": "USDC / 1M 输入",
     "pay.unit_out": "USDC / 1M 输出",
     "pay.usepod_prices_note": "价格为每 1M token 多少 USDC（市场源）",
+    "permissions.activity_chat_fallback": "另一个窗口",
     "permissions.allow_all_n": "允许此请求的全部 {count} 项{label}",
     "permissions.allow_chat": "在此对话中允许工作区编辑",
     "permissions.allow_chat_title": "在此对话中不再询问工作区读取和普通文件编辑 -- 仅限受信工作区内的读取、新建文件与编辑。删除、覆盖、命令、网络、机密和付款每次都会询问。",
@@ -831,6 +832,9 @@
     "permissions.planned_changes_label": "计划中的变更",
     "permissions.planned_header": "此请求中的计划变更（{count}）：",
     "permissions.proposed_changes": "提议的变更：",
+    "permissions.recovery_interrupted": "VOOL 停止时，此聊天被中断了。",
+    "permissions.recovery_resume_or_cancel": "继续或取消…",
+    "permissions.resolve_failed": "无法回应此批准。请重试。",
     "permissions.resolve_failed_prefix": "无法解析批准: ",
     "permissions.reversible": "可撤销",
     "permissions.review_details": "审查详情",
@@ -2858,7 +2862,7 @@
     "recovery.waiting_elsewhere": "此请求正在等待你的同意，但它是从别处发送的，因此无法在这里允许。",
     "recovery.waiting_expired": "此请求曾在等待你的同意，该询问已不再有效。"
   },
-  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
+  "source_catalog_sha256": "63b3ddb8382da6ffb435d1a2a0cc8d6d20a42c5117b8be83da178c61aeeece38",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

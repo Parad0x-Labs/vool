@@ -804,6 +804,7 @@
     "pay.unit_in": "USDC / 1M إدخال",
     "pay.unit_out": "USDC / 1M إخراج",
     "pay.usepod_prices_note": "الأسعار بالدولار USDC لكل 1M رمز (تغذية السوق)",
+    "permissions.activity_chat_fallback": "نافذة أخرى",
     "permissions.allow_all_n": "السماح بجميع {count} {label} لهذا الطلب",
     "permissions.allow_chat": "السماح بتعديلات مساحة العمل في هذه المحادثة",
     "permissions.allow_chat_title": "التوقف عن طلب قراءات مساحة العمل وتعديلات الملفات العادية في هذه المحادثة -- قراءات وملفات جديدة وتعديلات داخل مساحة العمل الموثوقة فقط. الحذف والكتابة فوق والأوامر والشبكة والأسرار والمدفوعات تُطلب في كل مرة.",
@@ -831,6 +832,9 @@
     "permissions.planned_changes_label": "تغييرات مخططة",
     "permissions.planned_header": "التغييرات المخططة في هذا الطلب ({count}):",
     "permissions.proposed_changes": "التغييرات المقترحة:",
+    "permissions.recovery_interrupted": "تمت مقاطعة هذه المحادثة عندما توقف VOOL.",
+    "permissions.recovery_resume_or_cancel": "استئناف أو إلغاء…",
+    "permissions.resolve_failed": "تعذّر الإجابة على هذه الموافقة. يرجى المحاولة مرة أخرى.",
     "permissions.resolve_failed_prefix": "تعذّر حل الموافقة: ",
     "permissions.reversible": "قابل للتراجع",
     "permissions.review_details": "مراجعة التفاصيل",
@@ -2858,7 +2862,7 @@
     "recovery.waiting_elsewhere": "هذا الطلب ينتظر موافقتك، لكنه أُرسل من مكان آخر، لذلك لا يمكن السماح به هنا.",
     "recovery.waiting_expired": "كان هذا الطلب ينتظر موافقتك، ولم يعد ذلك السؤال مطروحًا."
   },
-  "source_catalog_sha256": "1bd47e22baac615e77c76173d6b75baba9bfccb62f13dac1797093b3ea44008b",
+  "source_catalog_sha256": "63b3ddb8382da6ffb435d1a2a0cc8d6d20a42c5117b8be83da178c61aeeece38",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
