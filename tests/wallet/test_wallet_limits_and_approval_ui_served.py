@@ -78,6 +78,18 @@ def test_caps_and_approval_method_are_set_from_the_page_and_stored_by_the_doors(
             stored = _status(daemon.base_url)["limits"]
             assert (stored["per_tx_minor"], stored["daily_minor"], stored["per_destination_daily_minor"]) == (250000, 900000, 400000), stored
 
+            # --- raising a cap needs the wallet PIN: without it the page says so and nothing is stored; with it the raise lands
+            page.fill("#vwLimitPerTx", "300000")
+            page.click("#vwLimitsSave")
+            page.wait_for_function("() => { const m = document.querySelector('#vwMsg'); return !!m && m.textContent.includes('needs your wallet PIN'); }", timeout=20000)
+            assert _status(daemon.base_url)["limits"]["per_tx_minor"] == 250000
+            page.fill("#vwLimitPerTx", "300000")
+            page.fill("#vwLimitSecret", PIN)
+            page.click("#vwLimitsSave")
+            page.wait_for_function("() => { const l = document.querySelector('#vwLimitsLine'); return !!l && l.textContent.includes('300000'); }", timeout=20000)
+            assert _status(daemon.base_url)["limits"]["per_tx_minor"] == 300000
+            assert page.query_selector("#vwLimitSecret") is None or page.query_selector("#vwLimitSecret").input_value() == ""
+
             # --- approval method: PIN -> password with the current PIN; the door re-seals and status reads back the new method
             page.wait_for_selector("#vwApprovalSave", state="visible", timeout=20000)
             page.select_option("#vwApprovalMethod", "password")
