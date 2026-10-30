@@ -17,9 +17,12 @@ experimental; see the [install guide](../getting-started/install.md#install-from
 
 ## No local models are listed
 
-1. Confirm the runtime is running.
-2. Confirm at least one model is pulled.
-3. Confirm the port matches what VOOL expects.
+1. Confirm the local model runtime is installed — on Linux, install
+   [Ollama](https://ollama.com) first if you have not
+   (see [the install guide](../INSTALL.md#local-model-first-steps-linux)).
+2. Confirm the runtime is running.
+3. Confirm at least one model is pulled.
+4. Confirm the port matches what VOOL expects.
 
 ```bash
 curl http://localhost:11434/api/tags

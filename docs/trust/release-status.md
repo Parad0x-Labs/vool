@@ -54,7 +54,7 @@ release.
 | Mainnet transfers | Native coins, and USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One, sent from a VOOL Wallet created on this device. USDC on Solana and Base is for payment channels only. A connected or watch-only account can receive and show its balance but cannot send from VOOL. |
 | Paying with x402 | Websites that ask for x402 payment in USDC on Base or Base Sepolia can be paid from your Crypto Pilot wallet: one approval with your PIN, within your limits. The website's payment service covers the network fee. **Settings → Crypto → Payment channels** has an on/off switch for each way the wallet can pay a website; a channel that's off refuses before anything is signed. No live mainnet payment has been made with this yet. Paying through Solana pay-kit is not included in the downloads; that channel shows as not usable. |
 | X | From any chat: search posts and accounts, Spaces, trends and DMs, and look up past calls on a token. Anything that acts on your account waits for your OK. |
-| Dictation | Temporarily unavailable in this beta build; it returns in an update. |
+| Dictation | Unavailable in this beta build. |
 | Cloud "burst" ask mode | The per-call prompt is not wired yet in this build. |
 | Local models | Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. |
 | Intel Macs | Local models run on the processor and are slow. Certification allows for slower processors, but a long memory answer can time out, so use a cloud model there for now. |

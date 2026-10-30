@@ -134,7 +134,7 @@ Once your model and workspace are configured, try:
 - **Documents:** “Read these PDFs and summarize the differences with references.”
 - **Memory:** “Remember this project decision so we can pick it up next session.”
 
-These are starting prompts, not fixed demos. Available tools depend on your setup and permissions; task quality depends on the model you choose. Web research requires web access to be enabled.
+These are starting prompts, not fixed demos. Available tools depend on your setup and permissions; task quality depends on the model you choose. Web research requires web access to be enabled. Reading PDFs works on a Mac; on Linux it is not available in this release.
 
 Inspect the local service at [`/healthz`](http://127.0.0.1:11435/healthz), its activity at [`/trace`](http://127.0.0.1:11435/trace), and configured features at [`/api/runtime/capabilities`](http://127.0.0.1:11435/api/runtime/capabilities).
 

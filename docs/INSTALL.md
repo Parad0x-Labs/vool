@@ -282,7 +282,7 @@ On macOS the Stop control boots out the launchd keep-alive agent and frees port 
 
 ## Web Access (opt-in)
 
-VOOL is local-first. Live web lookup (`web.search`, `web.fetch`, `web.research`, browser render) is opt-in and OFF by default, so a fresh runtime never reaches out to the network for answers unless you deliberately turn it on.
+VOOL is local-first. Live web lookup (`web.search`, `web.fetch`, `web.research`, browser render) is opt-in and OFF by default: a fresh runtime does not search or browse for answers unless you deliberately turn it on. One exception: asking for live facts such as weather or market prices can still fetch them from public web services, even with Web lookups off. Local Only mode and the local-only install profile block those too.
 
 **Local-only profile:** the local-only profile (`VOOL_INSTALL_PROFILE=local-only`) is a hard "nothing leaves the box" guarantee. It keeps live web lookup OFF and that guarantee **overrides** the opt-in — `VOOL_ENABLE_WEB=1` will not turn web on while local-only is active. To use live web lookup, run a **non-local-only profile** (and/or set `VOOL_ENABLE_WEB=1` when not local-only).
 
