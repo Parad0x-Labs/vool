@@ -205,8 +205,11 @@ def _pid_has_exited(pid: int) -> bool:
         os.kill(pid, 0)
     except (ProcessLookupError, PermissionError):
         return True
-    out = subprocess.run(["ps", "-p", str(pid), "-o", "stat="],
-                         capture_output=True, text=True, check=False)
+    try:
+        out = subprocess.run(["ps", "-p", str(pid), "-o", "stat="],
+                             capture_output=True, text=True, timeout=5, check=False)
+    except Exception:
+        return False
     return out.returncode != 0 or out.stdout.strip().startswith("Z")
 
 
@@ -224,16 +227,21 @@ def owned_server_pid(home: Path, root: Path) -> int:
         return 0
     if pid <= 1 or pid == os.getpid():
         return 0
-    command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
-                             capture_output=True, text=True, timeout=5, check=False)
+    try:
+        command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
+                                 capture_output=True, text=True, timeout=5, check=False)
+    except Exception as exc:
+        # A live pidfile number that cannot be inspected must block removal,
+        # never silently proceed under a server we failed to check.
+        raise OSError(f"could not check whether VOOL is running: {exc}") from exc
     if command.returncode or SERVER_ARG not in command.stdout:
-        return 0
+        return 0  # no such process (stale number) or not VOOL's server
     try:
         cwd = process_cwd(pid)
-    except OSError:
-        return 0
+    except OSError as exc:
+        raise OSError(f"could not prove the running VOOL belongs to this package: {exc}") from exc
     if cwd is None:
-        return 0
+        raise OSError("could not prove the running VOOL belongs to this package")
     versions = (Path(root) / "versions").resolve()
     return pid if cwd.parent.parent == versions and cwd.name == "app" else 0
 
