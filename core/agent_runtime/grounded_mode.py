@@ -199,20 +199,81 @@ def _is_about_the_assistant(text: str) -> bool:
     return bool(_ABOUT_THE_ASSISTANT_RE.search(str(text or "")))
 
 
-def _records_scoped(text: str) -> bool:
-    """Whether the ask names the user's own notes/records/chats as its source of truth.
+def _records_scoped_currency_ask(text: str) -> bool:
+    """Whether every asking unit that carries the currency wording names the store.
 
-    The reading belongs to ``core.execution.constants.records_scoped_ask``, reused rather than
-    restated so this promotion and the widening arms under it cannot disagree about the same
-    ask. Import-defensive like the lookup authorities above: on a consumer that cannot reach
-    the constants the promotion keeps today's reading rather than failing the turn.
+    The reading belongs to ``core.execution.constants.records_scoped_ask``, reused rather
+    than restated so this promotion and the widening arms under it cannot disagree about the
+    same ask. Read unit by unit with the recall family's own discipline (clause splits, then
+    joined-ask splits): a mixed turn keeps its promotion when ONE unit asks the world and
+    names no store ("what did I tell you about Lisbon, and what's the latest news from
+    Lisbon?"), while a lead-in fragment reads with the asking unit it opens ("right now,
+    what does my diary say the baby weighed?"). Import-defensive like the lookup authorities
+    above: on a consumer that cannot reach the constants the promotion keeps today's reading
+    rather than failing the turn.
     """
     try:
-        from core.execution.constants import records_scoped_ask
-
-        return records_scoped_ask(text)
+        from core.execution.constants import (
+            _IMPERATIVE_ASK_RE,
+            _INTERROGATIVE_OPENER_RE,
+            _JOINED_ASK_SPLIT_RE,
+            records_scoped_ask,
+        )
+        from core.temporal_question_scope import current_observation_text
     except Exception:
         return False
+
+    # The same clause boundaries the recall family reads, but the split KEEPS the punctuation
+    # with the piece it closes: the temporal authority below reads a clause differently with
+    # and without its question mark, so a consuming split would hand it a different sentence
+    # than the one the user wrote. A colon does not close a unit here -- "read my diary: what
+    # is the current roof budget?" addresses the store the question belongs to.
+    def _asks(piece: str) -> bool:
+        return (
+            piece.endswith("?")
+            or _INTERROGATIVE_OPENER_RE.match(piece) is not None
+            or _IMPERATIVE_ASK_RE.match(piece) is not None
+        )
+
+    units: list[str] = []
+    pending = ""
+    for part in re.split(r"(?<=[.!?;,])\s+", str(text or "")):
+        for piece in _JOINED_ASK_SPLIT_RE.split(part):
+            piece = piece.strip()
+            if not piece:
+                continue
+            if not _asks(piece):
+                pending = f"{pending} {piece}".strip()
+                continue
+            units.append(f"{pending} {piece}".strip() if pending else piece)
+            pending = ""
+    if pending:
+        units.append(pending)
+    # A trailing imperative that only names the store ("what is the current gate code, check
+    # my notebook?") is the SOURCE the question before it asks to read, not a second ask: it
+    # joins that unit. A conjunction lead ("..., and check my notes for the gate code?") or
+    # any currency wording of its own keeps it a separate ask on its own reading.
+    if len(units) >= 2:
+        last = units[-1]
+        lead_word = last.split(None, 1)[0].strip(",").lower() if last else ""
+        if (
+            lead_word not in {"and", "also", "then", "plus", "but", "or"}
+            and _IMPERATIVE_ASK_RE.match(last) is not None
+            and _INTERROGATIVE_OPENER_RE.match(last) is None
+            and not _matches(current_observation_text(last), _WANTS_CURRENT)
+            and records_scoped_ask(last)
+        ):
+            units[-2] = f"{units[-2]}, {last}"
+            units.pop()
+    scoped_any = False
+    for unit in units:
+        if not _matches(current_observation_text(unit), _WANTS_CURRENT):
+            continue
+        if records_scoped_ask(unit):
+            scoped_any = True
+            continue
+        return False
+    return scoped_any
 
 
 # A request to BUILD software. The freshness words inside such a request ("check the latest chats",
@@ -536,9 +597,10 @@ def answer_mode_for(request: str) -> AnswerMode:
         # refusal while the records held the reading). The same records-scope recognizer the
         # two DIRECT widening arms stand down under disarms this promotion, so the turn reads
         # DIRECT and the records reading answers it. An ask that names the web is never
-        # records-scoped, and an ask that promised evidence, named a currency conversion or
-        # demanded a breakdown was promoted above and keeps its contract.
-        if _records_scoped(text):
+        # records-scoped, a mixed turn keeps its promotion while any asking unit names no
+        # store, and an ask that promised evidence, named a currency conversion or demanded a
+        # breakdown was promoted above and keeps its contract.
+        if _records_scoped_currency_ask(text):
             return AnswerMode.DIRECT
         # Currency alone means "go and look" only when the subject is the WORLD. "what is your
         # current mood right now" carries every currency marker and is a question about the
