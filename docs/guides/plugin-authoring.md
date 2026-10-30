@@ -50,14 +50,16 @@ plugin's invocation. Wildcards, IP addresses, localhost and private destinations
 A handler always receives its keys on its private input: the JSON request on standard
 input carries them under `context.credentials`, keyed by the declared environment names.
 Read them from there; it works on every platform. On Linux they are also set as those
-environment variables. On macOS they never are, because any program of the same user can
-read another program's starting environment there and the macOS sandbox cannot stop it.
+environment variables. On macOS they never are, because any program of the same user that
+runs outside the sandbox can read another program's starting environment there.
 
 An MCP server receives its declared keys as environment variables, as Claude Code and Codex
 expect. On macOS such a server therefore runs only in the optional isolated runtime
 (`VOOL_PLUGIN_DOCKER_SOCKET`, a local Unix socket, and the already present image pinned by
-`core/plugin_container.py`); without it, VOOL keeps that plugin off and says why. An MCP
-server that needs no key runs in the macOS sandbox like any handler.
+`core/plugin_container.py`); without it, VOOL keeps that plugin off and says why. There the
+keys travel on the server's input into the container and are set as environment variables
+only inside it, never in a process on the Mac. An MCP server that needs no key runs in the
+macOS sandbox like any handler.
 
 ### Network
 
@@ -76,12 +78,16 @@ itself, to declared hosts only, on every platform.
 The package and approved dependency copies are read-only; writable tools receive only their
 own scratch. Python handlers in the isolated runtime use its interpreter; other bundled
 executables must support its Linux architecture. Unsupported confinement refuses execution.
-On a Mac, code a plugin runs can still see other programs' starting settings, as any app you
-install can; the access sheet says so.
+The macOS sandbox also refuses reading another program's arguments and starting
+environment. Paths in a handler's or server's `args` are passed to your program but never
+made readable: keep every file your code reads inside the package.
 
 Every invocation checks enabled state and exact package/dependency digests. Disable stops
-owned work and discards late results. Changed bytes withdraw consent. Updates and re-installs
-start disabled. Uninstall retains history and defaults to deleting saved keys.
+owned work and discards late results; turning a plugin off in the Plugins panel does the same
+and also withdraws its consent. Changed bytes withdraw consent. Updates and re-installs
+start disabled. An update from another repository or publisher does not keep the saved keys;
+the owner saves them again after reviewing it. Uninstall retains history and defaults to
+deleting saved keys.
 
 Plugins cannot request wallet, payment, signing, cap, budget, approval or receipt-writing
 authority, owner paid model keys or another plugin's credentials. Auto-enable and autostart

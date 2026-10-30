@@ -53,6 +53,12 @@ if sys.argv[1] == "1":
         raise RuntimeError("The plugin child-process boundary could not be installed.")
 args=json.loads(sys.argv[2])
 environment={name:os.environ[name] for name in json.loads(sys.argv[3]) if name in os.environ}
+line=b""
+while not line.endswith(b"\n"):
+    part=os.read(0,1)
+    if not part or len(line)>65536: raise SystemExit("The plugin's private settings did not arrive.")
+    line+=part
+environment.update({str(k):str(v) for k,v in json.loads(line).items()})
 os.execvpe(args[0],args,environment)
 '''
 
@@ -96,13 +102,22 @@ def available() -> bool:
 
 
 class ContainerCommand(list):
-    """A launch command plus cleanup of only its recorded container identity."""
+    """A launch command plus cleanup of only its recorded container identity.
+
+    The child's service keys never travel in a host environment or argv: the starter writes
+    them as the first line of the child's input (``private_input_line``), which passes through
+    this launcher and the container client unread and is consumed by the bootstrap inside.
+    """
     def __init__(self, config, directory):
         self.config = config
         self.directory = directory
         self.lock = threading.Lock()
         wire = {key: value for key, value in config.items() if key != "args"}
         super().__init__([sys.executable, "-I", str(Path(__file__).resolve()), json.dumps(wire), *config["args"]])
+
+    @staticmethod
+    def private_input_line(values) -> str:
+        return json.dumps({str(name): str(value) for name, value in dict(values or {}).items()}) + "\n"
 
     def close(self):
         with self.lock:
@@ -183,8 +198,9 @@ def _run(config):
     for mount in config["mounts"]:
         path = mount["path"]
         argv += ["--mount", f"type=bind,source={path},target={path}" + ("" if mount["write"] else ",readonly")]
-    # Only the executor's already-minimal environment reaches this trusted
-    # launcher. Names go in argv; their values travel only through the environment.
+    # Only the executor's already-minimal environment, without service keys, reaches
+    # this trusted launcher. Names go in argv; their values travel only through the
+    # environment. Keys arrive inside the container on the child's input.
     env = dict(os.environ)
     env["PATH"] = "/usr/local/bin:/usr/bin:/bin"
     env["TMPDIR"] = "/tmp"

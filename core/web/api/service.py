@@ -5942,6 +5942,10 @@ def _dispatch_post_inner(
             return apply_runtime_headers(
                 json_response(403, {"ok": False, "error": "owner_local_required"}), runtime
             )
+        from core.web.api.addon_api import same_origin_json_refusal
+
+        if refusal := same_origin_json_refusal(headers):
+            return apply_runtime_headers(json_response(refusal[0], {"ok": False, **refusal[1]}), runtime)
         from core.web.api.repoops_api import plugin_lifecycle_action
 
         payload = plugin_lifecycle_action(
@@ -5980,20 +5984,11 @@ def _dispatch_post_inner(
         import json as _json
 
         from core.plugin_catalog import set_plugin_enabled
-        from core.web.api.runtime import host_header_allowed
+        from core.web.api.addon_api import same_origin_json_refusal
 
-        def _plugin_header(name: str) -> str:
-            for key, value in (headers or {}).items():
-                if str(key).lower() == name:
-                    return str(value or "")
-            return ""
-
-        ctype = _plugin_header("content-type").lower()
-        if ctype and "json" not in ctype:
-            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
-        origin = _plugin_header("origin").strip()
-        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
-            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        # The same exact-origin JSON rule as /api/addons: a page on another local port is another site.
+        if refusal := same_origin_json_refusal(headers):
+            return apply_runtime_headers(json_response(refusal[0], refusal[1]), runtime)
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"error": "plugins can only be changed from your own local session"}), runtime)
         try:

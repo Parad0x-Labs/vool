@@ -209,6 +209,18 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
                 raise lifecycle.LifecycleError("A plugin with this identity is already installed. Use Update to review a replacement.")
         elif saved["update"]:
             raise lifecycle.LifecycleError("Install the plugin before updating it.")
+        # An update from another repository or publisher is another party's code: it must not
+        # inherit keys the owner saved for the plugin it replaces.
+        new_source = "plugin:" + saved["source"]
+        keys_follow = True
+        if active:
+            try:
+                prior = load_manifest(Path(previous.root) / ".codex-plugin" / "plugin.json")
+                prior_publisher = str((prior.vool or {}).get("publisher") or "")
+            except Exception:
+                prior_publisher = ""
+            keys_follow = (_origin(previous.source) == _origin(new_source)
+                           and prior_publisher == str(plugin.vool.get("publisher") or ""))
         backup = _state() / "pending" / (review_id + "-previous")
         moved = False
         try:
@@ -224,10 +236,15 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
             stage.rename(target)
             target.chmod(0o555)
             moved = True
-            lifecycle.install(plugin.plugin_id, root=target, source="plugin:" + saved["source"])
+            lifecycle.install(plugin.plugin_id, root=target, source=new_source)
             record = lifecycle.verify(plugin.plugin_id, expected_digest=digest)
             record.credential_bindings = [f"plugin.{plugin.plugin_id}.{slot}" for slot in plugin.vool["credentials"]]
             lifecycle._save(record)
+            if not keys_follow:
+                from core.credential_store import delete_credential
+
+                for name in _owned_key_names(plugin.plugin_id, previous):
+                    delete_credential(name)
             _remove(backup)
         except Exception:
             if moved:
@@ -249,7 +266,22 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
                     lifecycle.uninstall(plugin.plugin_id)
             raise
         _refresh(plugin.plugin_id)
-        return {"ok": True, "plugin": inspect(plugin.plugin_id), "enabled": False}
+        return {"ok": True, "plugin": inspect(plugin.plugin_id), "enabled": False, "keys_removed": not keys_follow}
+
+
+def _origin(source: str) -> str:
+    """Where a package came from, without the exact version: a repository, or a local folder."""
+    return str(source or "").split("@", 1)[0]
+
+
+def _owned_key_names(plugin_id: str, record) -> list[str]:
+    """Every key slot this plugin ever owned, including ones an update dropped from its manifest."""
+    from core.credential_store import list_credentials
+
+    owned = {name for name in (record.credential_bindings if record else ()) if name.startswith(f"plugin.{plugin_id}.")}
+    owned |= {str(row.get("name", "")) for row in list_credentials()
+              if str(row.get("name", "")).startswith(f"plugin.{plugin_id}.")}
+    return sorted(owned)
 
 
 def inspect(plugin_id: str) -> dict:
@@ -375,7 +407,7 @@ def test_connection(plugin_id: str) -> dict:
 
 
 def uninstall(plugin_id: str, *, remove_key=True) -> dict:
-    from core.credential_store import delete_credential, list_credentials
+    from core.credential_store import delete_credential
     from core.plugin_tools import plugin_scratch_dir
 
     record = lifecycle.record_for(plugin_id)
@@ -389,11 +421,7 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
         raise lifecycle.LifecycleError("This package is managed by its original installation settings.")
     lifecycle.disable(plugin_id)
     if remove_key:
-        # Every slot this plugin ever owned, including ones an update dropped from its manifest.
-        owned = {name for name in record.credential_bindings if name.startswith(f"plugin.{plugin_id}.")}
-        owned |= {str(row.get("name", "")) for row in list_credentials()
-                  if str(row.get("name", "")).startswith(f"plugin.{plugin_id}.")}
-        for name in sorted(owned):
+        for name in _owned_key_names(plugin_id, record):
             delete_credential(name)
     _remove(plugin_scratch_dir(plugin_id))
     _remove(target)

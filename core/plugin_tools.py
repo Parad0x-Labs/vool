@@ -510,11 +510,13 @@ def _available_contracts(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...
     contracts = plugin.contracts
     from core.plugin_lifecycle import is_available
 
-    if not is_available(plugin.plugin_id, root=Path(plugin.root)):
-        reason = lifecycle_reason(plugin.plugin_id)
-        contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
-    elif not plugin.enabled or _owner_disabled(plugin.plugin_id):
+    # The owner's off switch is named first: turning a plugin off also withdraws its lifecycle
+    # consent, and the reason should say what the owner did, not what followed from it.
+    if not plugin.enabled or _owner_disabled(plugin.plugin_id):
         reason = disabled_reason(plugin.plugin_id)
+        contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
+    elif not is_available(plugin.plugin_id, root=Path(plugin.root)):
+        reason = lifecycle_reason(plugin.plugin_id)
         contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
     return contracts
 

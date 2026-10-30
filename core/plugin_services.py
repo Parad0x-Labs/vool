@@ -84,10 +84,10 @@ def safe_data(value):
 def declaration(plugin_id: str, kind: str, *, expected_approval: str = ""):
     from core import plugin_lifecycle
     from core.plugin_package import PackageError, capture_package
-    from core.plugin_tools import parse_manifest
+    from core.plugin_tools import _owner_disabled, parse_manifest
 
     record = plugin_lifecycle.record_for(plugin_id)
-    if (record is None or not plugin_lifecycle.is_available(plugin_id)
+    if (record is None or _owner_disabled(plugin_id) or not plugin_lifecycle.is_available(plugin_id)
             or (expected_approval and expected_approval != record.approval_digest)):
         raise ServiceRefused("This plugin is disabled, changed, or no longer approved. Review it in Add-ons.")
     # Parse the manifest from the same bytes whose digest is checked, so a file

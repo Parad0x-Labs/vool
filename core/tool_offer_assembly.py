@@ -136,14 +136,19 @@ def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
     2026-09-10, the boot-time twin of this walk hung the packaged app; see core.plugin_catalog).
     """
     try:
-        from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
+        from core.plugin_catalog import _disabled_ids, bundled_plugin_dirs, discovered_plugin_sources
 
         disabled = _disabled_ids()
         from core.addon_store import available, is_managed
-        from core.plugin_lifecycle import is_available, record_for
+        from core.plugin_lifecycle import is_available, record_for, store_trusted
+        # After the plugin records were damaged, a pack with no record may be one the owner
+        # disabled or revoked: only the packs shipped with VOOL keep offering skills.
+        unrecorded_ok = store_trusted()
+        bundled = set(bundled_plugin_dirs())
         return tuple((pid, path) for pid, path in discovered_plugin_sources()
                      if pid not in disabled and (not is_managed(pid) or available(pid, path))
                      and (not pid.startswith("registry-") or record_for(pid) is not None)
+                     and (record_for(pid) is not None or unrecorded_ok or path in bundled)
                      and (record_for(pid) is None or is_available(pid, root=path)))
     except Exception:
         return ()

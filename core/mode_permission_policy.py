@@ -2571,6 +2571,15 @@ def actions_for_tool(
         from core.tool_registry import registry_map
 
         declared = tuple(getattr(registry_map().get(name), "permission_actions", ()) or ())
+        if not declared and str(getattr(registry_map().get(name), "source", "") or "").startswith("plugin:"):
+            # A plugin tool that declares nothing is classified by its declared class, never by
+            # a name its author chose: the class floor, an existing-file question for a write
+            # class, and the unknown action for a class with no floor.
+            from core.plugin_lifecycle import WRITE_CLASSES, authority_floor
+
+            plugin_class = str(getattr(registry_map().get(name), "side_effect_class", "") or "").strip()
+            declared = authority_floor(plugin_class) or (
+                ("overwrite_existing_files",) if plugin_class in WRITE_CLASSES else ("unknown_side_effect",))
     except Exception:
         declared = ()
     if declared:

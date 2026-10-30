@@ -5,6 +5,7 @@ import json
 import secrets
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -158,3 +159,46 @@ def test_bundled_python_name_cannot_mount_an_unrelated_host_program(package):
     path.write_text(json.dumps(raw))
     result = plugin_tools.execute_plugin_contract(admit(package), {})
     assert result.ok and result.observation["owner_key_visible"] is False
+
+
+def test_manifest_arguments_never_open_a_folder_the_sandbox_hides(package):
+    foreign = package.parent / "private-folder"
+    foreign.mkdir()
+    (foreign / "owner-key").write_text(secrets.token_urlsafe(32))
+    tool_package(package, '''import json,sys
+from pathlib import Path
+json.load(sys.stdin)
+try: visible=bool((Path(sys.argv[1])/"owner-key").read_text())
+except OSError: visible=False
+print(json.dumps({"text":"probe complete","observation":{"owner_key_visible":visible}}))
+''')
+    path = package / ".codex-plugin/plugin.json"
+    raw = json.loads(path.read_text())
+    raw["vool"]["tools"][0]["handler"]["args"] = [str(foreign)]
+    path.write_text(json.dumps(raw))
+    result = plugin_tools.execute_plugin_contract(admit(package), {})
+    assert result.ok, result.error
+    assert result.observation["owner_key_visible"] is False
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the Linux sandbox's own mount layout")
+def test_linux_sandbox_hides_vool_state_that_lives_outside_the_home(tmp_path, monkeypatch):
+    from core import runtime_state_protection
+    from core.plugin_executor import ConfinementUnavailableError, confined_argv
+    from sandbox import job_runner
+
+    state = tmp_path / "opt-vool" / "data"
+    state.mkdir(parents=True)
+    (state / "memory.db").write_text("owner memory")
+    # Stand-in for a profile at /opt/vool: outside every tree the sandbox already hides.
+    monkeypatch.setattr(job_runner, "_private_read_roots", lambda: (Path.home().resolve(),))
+    monkeypatch.setattr(runtime_state_protection, "protected_state_roots", lambda: (state,))
+    try:
+        argv, _label = confined_argv([sys.executable, "-c", f"""
+try: print(open({str(state / 'memory.db')!r}).read())
+except OSError: print("hidden")
+"""], writable_roots=(), working_directory=tmp_path / "opt-vool")
+    except ConfinementUnavailableError:
+        pytest.skip("no Linux sandbox on this host")
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=30, check=False)
+    assert result.stdout.strip() == "hidden", (result.stdout, result.stderr)

@@ -7,10 +7,9 @@ from core import addon_store
 from core.addon_security import AddonError
 
 
-def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int, dict]:
-    if client_host not in {"127.0.0.1", "::1", "localhost"}:
-        return 403, {"error": "owner_local_required", "message": "Use the local VOOL app to manage add-ons."}
-    lower = {str(k).lower(): str(v) for k, v in headers.items()}
+def same_origin_json_refusal(headers: dict) -> tuple[int, dict] | None:
+    """A JSON request from this app's own page, or the refusal. Shared by every add-on and plugin door."""
+    lower = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
     if "application/json" not in lower.get("content-type", "").lower():
         return 415, {"error": "json_required", "message": "A JSON request is required."}
     origin = lower.get("origin", "")
@@ -19,6 +18,14 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         return 403, {"error": "cross_origin", "message": "Cross-origin add-on changes are refused."}
     if lower.get("sec-fetch-site") == "cross-site":
         return 403, {"error": "cross_origin", "message": "Cross-site add-on changes are refused."}
+    return None
+
+
+def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int, dict]:
+    if client_host not in {"127.0.0.1", "::1", "localhost"}:
+        return 403, {"error": "owner_local_required", "message": "Use the local VOOL app to manage add-ons."}
+    if refusal := same_origin_json_refusal(headers):
+        return refusal
     action = body.get("action")
     fields = {
         "save_key": {"action", "value"}, "remove_key": {"action"}, "test_key": {"action"},

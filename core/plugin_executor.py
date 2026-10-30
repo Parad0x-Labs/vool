@@ -239,6 +239,7 @@ def _kernel_confinement_prefix(
     proxy_port: int = 0,
     isolate_process_tree: bool = False,
     private_environment: bool = False,
+    argument_reads: bool = True,
 ) -> list[str] | None:
     """Wrap *argv* in the host's kernel confinement, or None when no backend can enforce it.
 
@@ -275,7 +276,8 @@ def _kernel_confinement_prefix(
             writable_roots=roots,
             allow_network_egress=False,
             network_isolation_mode="auto",
-            read_roots=(*default_read_roots(), *_program_read_roots(list(argv)), anchor, *readable_roots),
+            read_roots=(*default_read_roots(), *_program_read_roots(list(argv) if argument_reads else list(argv)[:1]),
+                        anchor, *readable_roots),
         )
     )
     if allow_network:
@@ -300,12 +302,16 @@ def confined_argv(
     proxy_port: int = 0,
     isolate_process_tree: bool = False,
     private_environment: bool = False,
+    argument_reads: bool = True,
 ) -> tuple[list[str], str]:
     """The argv to launch and a label naming how it is confined.
 
     ``mode="auto"`` (default) raises `ConfinementUnavailableError` when the host cannot enforce
     confinement; ``mode="heuristic_only"`` is the explicit opt-in that runs the bare argv in that
     case and labels the result so nothing downstream can mistake it for a confined run.
+
+    ``argument_reads=False`` is for arguments a package chose itself: only the program becomes
+    readable, so a path in a manifest's ``args`` never reopens a folder the sandbox hides.
     """
 
     clean_mode = str(mode or "auto").strip().lower()
@@ -321,7 +327,7 @@ def confined_argv(
         bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
         proxy_port=proxy_port, isolate_process_tree=isolate_process_tree,
-        private_environment=private_environment,
+        private_environment=private_environment, argument_reads=argument_reads,
     )
     from core.plugin_container import ContainerCommand
 
@@ -450,6 +456,7 @@ def run_plugin_tool(
                             *((Path(scratch_dir).resolve(),) if scratch_dir else ())),
             proxy_port=proxy_port,
             isolate_process_tree=isolate_process_tree,
+            argument_reads=False,
         )
     except ConfinementUnavailableError as exc:
         return PluginToolResult(

@@ -247,13 +247,19 @@ class MCPStdioClient:
                 proxy_port=self.proxy_port,
                 isolate_process_tree=self.immutable_package,
                 private_environment=self.private_environment,
+                argument_reads=not self.immutable_package,
             )
         except ConfinementUnavailableError as exc:
             raise MCPError(f"{self.name}: refusing to start unconfined ({exc})") from exc
         self._confined_command = argv
+        from core.plugin_container import ContainerCommand
+
+        # The isolated runtime takes keys on the child's input, never in a host process's
+        # environment, where any same-user program on a Mac could read them.
+        private_input = isinstance(argv, ContainerCommand)
         full_env = build_child_env(
             env_allowlist=tuple(self.env_allowlist or ()),
-            secrets=dict(self.env or {}),
+            secrets={} if private_input else dict(self.env or {}),
             scratch_dir=self.scratch_dir or str(work_dir),
         )
         if self.immutable_package:
@@ -273,6 +279,13 @@ class MCPStdioClient:
         )
         if self.call:
             self.call.own(self.close)
+        if private_input:
+            try:
+                self._proc.stdin.write(ContainerCommand.private_input_line(self.env))
+                self._proc.stdin.flush()
+            except (OSError, ValueError) as exc:
+                self.close()
+                raise MCPError(f"{self.name}: the server stopped before it started") from exc
         self._reader = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader.start()
         try:

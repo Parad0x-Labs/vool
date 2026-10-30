@@ -58,10 +58,16 @@ plugin's slots, owner paid model keys or wallet signing, cap, approval or receip
 Its output stays untrusted. Changed bytes withdraw consent; disable stops calls. Unsupported
 confinement refuses execution. See [Plugin authoring](plugin-authoring.md) for runtime limits.
 
+If VOOL cannot read its plugin records, packs it has no record for stop offering skills, apart
+from those shipped with VOOL, and the damaged file is kept beside the new one. If it cannot read
+your on and off choices, every plugin counts as off until you turn one on again.
+
 ## Local API and transport
 
 `GET /api/addons` reads inventory. Mutations at `POST /api/addons` require owner-local access,
-JSON, same-origin browser requests and action-specific fields. Public source downloads use
+JSON, same-origin browser requests and action-specific fields. The plugin on/off and lifecycle
+doors (`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) apply the same JSON and
+same-origin rule. Public source downloads use
 exact revisions and bounded verified blobs. Native services require declared public HTTPS hosts,
 validate TLS, pin resolved public addresses, refuse redirects, bound responses and stop when
 the plugin is disabled.

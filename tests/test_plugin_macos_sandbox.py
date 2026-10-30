@@ -114,3 +114,34 @@ print(json.dumps({"text":json.dumps({"direct":direct_ok,"undeclared":answer.spli
     seen = json.loads(result.text)
     assert seen["direct"] is False, "the sandbox must refuse every destination but the private proxy"
     assert seen["undeclared"].startswith("HTTP/1.1 403")
+
+
+def test_plugin_code_cannot_read_another_programs_starting_environment_on_macos(package):
+    import subprocess
+
+    marker = "VOOL_SIBLING_" + secrets.token_hex(8)
+    sibling = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
+                               env={"PATH": "/usr/bin:/bin", marker: secrets.token_urlsafe(32)}, start_new_session=True)
+    probe = '''import ctypes,json,sys
+def read(pid):
+ libc=ctypes.CDLL(None,use_errno=True);mib=(ctypes.c_int*3)(1,49,pid)
+ length=ctypes.c_size_t(262144);buffer=ctypes.create_string_buffer(length.value)
+ code=libc.sysctl(mib,3,buffer,ctypes.byref(length),None,0)
+ return buffer.raw[:length.value] if code==0 else b""
+'''
+    try:
+        # The same read outside the sandbox sees the sibling's environment, so the probe is sound.
+        unconfined = {}
+        exec(probe, unconfined)
+        assert marker.encode() in unconfined["read"](sibling.pid)
+        tool_package(package, probe + '''payload=json.load(sys.stdin)
+data=read(int(payload["arguments"]["text"]))
+print(json.dumps({"text":"probe complete","observation":{"visible":MARKER.encode() in data}}))
+'''.replace("MARKER", repr(marker)))
+        result = plugin_tools.execute_plugin_contract(admit(package), {"text": str(sibling.pid)})
+        assert result.ok, result.error
+        assert result.confinement == "kernel:sandbox-exec"
+        assert result.observation["visible"] is False
+    finally:
+        sibling.terminate()
+        sibling.wait(timeout=5)

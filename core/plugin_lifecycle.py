@@ -177,13 +177,27 @@ def _read_store() -> dict[str, Any]:
     rows = payload.get("plugins")
     if not isinstance(rows, dict):
         return {"schema": SCHEMA, "plugins": {}, "unreadable": True}
-    return {"schema": SCHEMA, "plugins": rows}
+    lost = str(payload.get("records_lost_at") or "")
+    return {"schema": SCHEMA, "plugins": rows, **({"records_lost_at": lost} if lost else {})}
 
 
-def _write_store(rows: dict[str, Any]) -> None:
+def store_trusted() -> bool:
+    """Whether every record this device ever wrote is still here.
+
+    After a damaged store, a pack with no record may be one the owner disabled or revoked, so
+    it is not treated as a never-installed pack again.
+    """
+
+    store = _read_store()
+    return not store.get("unreadable") and not store.get("records_lost_at")
+
+
+def _write_store(rows: dict[str, Any], *, records_lost_at: str = "") -> None:
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"schema": SCHEMA, "updated": _utcnow(), "plugins": rows}
+    if records_lost_at:
+        payload["records_lost_at"] = records_lost_at
     handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".plugin_lifecycle-", suffix=".json")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
@@ -210,9 +224,16 @@ def _load(plugin_id: str) -> PluginRecord | None:
 def _save(record: PluginRecord) -> PluginRecord:
     with _lock:
         store = _read_store()
+        lost = str(store.get("records_lost_at") or "")
+        if store.get("unreadable"):
+            # Keep the damaged file for recovery, and remember that records were lost.
+            lost = _utcnow()
+            with contextlib.suppress(OSError):
+                path = store_path()
+                os.replace(path, path.with_name(f"{path.stem}.damaged-{lost.replace(':', '')}{path.suffix}"))
         rows = dict(store["plugins"])
         rows[record.plugin_id] = record.to_dict()
-        _write_store(rows)
+        _write_store(rows, records_lost_at=lost)
     return record
 
 
@@ -347,6 +368,11 @@ def _unresolved(dependencies: list[str]) -> list[str]:
 
 
 def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecord:
+    previous = _load(plugin_id)
+    if (previous is not None and previous.source.startswith("registry:") and previous.stage != STAGE_UNINSTALLED
+            and str(source) != previous.source):
+        # Installing over it from elsewhere would drop the registry's revocation check.
+        raise LifecycleError(f"{plugin_id}: installed from the plugin registry; uninstall it before installing it from elsewhere")
     record = inspect(plugin_id, root=root)
     if record.unresolved_dependencies:
         raise LifecycleError(

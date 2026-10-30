@@ -71,7 +71,8 @@ connection tests and model-list refreshes are explicit actions.
 
 Disable removes tools and stops running calls. Uninstall disables first, removes owned files
 and scratch, defaults to deleting saved keys, and retains history. Updates and re-installs
-require a new review and start disabled. UsePod and Eyebrow reference plugins live under
+require a new review and start disabled. An update from another repository or publisher
+does not keep the saved keys. UsePod and Eyebrow reference plugins live under
 `examples/plugins/`; they are examples maintained with VOOL, not service endorsements.
 Older saved keys are kept. Add-ons explains how to reuse them after explicitly installing
 and enabling the reference. Previous UsePod model pins fall back to an already chosen
@@ -125,8 +126,9 @@ not certify behavior, attest arbitrary code downloaded or loaded from outside th
 distribution, broker every internal effect or replace native wallet approval.
 
 On macOS, plugin code runs in the macOS sandbox. Keys reach a handler only over its private
-input, never its environment, because any program of the same user can read another
-program's starting environment on a Mac. A connection server that needs a key in its
+input, never its environment, because any program of the same user that runs outside the
+sandbox can read another program's starting environment on a Mac. The sandbox refuses that
+read to plugin code. A connection server that needs a key in its
 environment runs only in the optional isolated Linux runtime, which you provision yourself;
 VOOL never starts a VM or downloads an image. Without it, that plugin stays off and says why.
 Linux uses bwrap, including a private process namespace and `/proc`.

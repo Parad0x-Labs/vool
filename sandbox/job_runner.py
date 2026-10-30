@@ -182,7 +182,8 @@ def _seatbelt_baseline(*, deny_network: bool) -> str:
     and LaunchServices lookups, preference reads through cfprefsd, and hard-link creation (a
     job could link an outside file into its workspace and then write through it).
 
-    Processes may only signal and inspect processes inside the same sandbox. File READS stay
+    Processes may only signal and inspect processes inside the same sandbox, and may not read
+    another process's arguments or starting environment through sysctl. File READS stay
     open here and are narrowed by the layers `_macos_confined_profile` appends, which is the
     same read model as before; file WRITES are denied here and re-granted per root there.
     """
@@ -199,6 +200,9 @@ def _seatbelt_baseline(*, deny_network: bool) -> str:
         "(allow process-info* (target same-sandbox))"
         "(allow signal (target same-sandbox))"
         "(allow sysctl-read)"
+        # Another process's arguments and starting environment (KERN_PROCARGS/KERN_PROCARGS2)
+        # are not covered by the same-sandbox process-info rule above, so they are named here.
+        '(deny sysctl-read (sysctl-name-prefix "kern.procargs"))'
         "(allow file-ioctl)"
         "(allow pseudo-tty)"
         "(allow ipc-posix-sem)"
@@ -948,6 +952,31 @@ class JobRunner:
                 cmd += ["--tmpfs", str(resolved_secret), "--remount-ro", str(resolved_secret)]
             else:
                 cmd += ["--ro-bind", "/dev/null", str(resolved_secret)]
+        # This runtime's own state stays hidden wherever it lives, as on macOS
+        # (core.runtime_state_protection): a profile outside the home, /tmp and /Volumes is
+        # otherwise readable through the read-only root. A writable root inside it stays the
+        # job's workspace, and a tree already behind a private tmpfs needs nothing more.
+        try:
+            from core.runtime_state_protection import protected_state_roots
+
+            state_roots = protected_state_roots()
+        except Exception:
+            state_roots = ()
+        hidden_roots = tuple(Path(root).resolve() for root in private_roots)
+        for state in state_roots:
+            try:
+                resolved_state = Path(state).resolve()
+                if not resolved_state.is_dir():
+                    continue
+            except OSError:
+                continue
+            if any(resolved_state == root or resolved_state.is_relative_to(root) for root in hidden_roots) and not any(
+                resolved_state == bound or resolved_state.is_relative_to(bound) for bound in rebound
+            ):
+                continue
+            if any(bound == resolved_state or bound.is_relative_to(resolved_state) for bound in write_binds):
+                continue
+            cmd += ["--tmpfs", str(resolved_state), "--remount-ro", str(resolved_state)]
         # Mountpoint parents created inside the private tmpfs trees are otherwise
         # writable. A child could report an unauthorized write there even though
         # the file disappears with its namespace. Freeze those trees after all
