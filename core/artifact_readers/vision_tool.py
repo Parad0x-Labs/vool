@@ -309,11 +309,11 @@ def _run(args: list[str], *, scratch: Path, fmt: str, timeout: int = SUBPROCESS_
             )
         # The decoder's last line is its own verdict; earlier lines are framework log noise.
         verdict = detail.splitlines()[-1].strip()
-        raise ReaderFailed(f"The {fmt} decoder failed: {verdict}", code="decoder_failed", fmt=fmt)
+        raise ReaderFailed(f"Reading this {fmt} failed: {verdict}", code="decoder_failed", fmt=fmt)
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace") or "{}")
     except ValueError as exc:
-        raise ReaderFailed(f"The {fmt} decoder produced output this runtime could not read.", code="decoder_bad_output", fmt=fmt) from exc
+        raise ReaderFailed(f"The {fmt} reader produced output this runtime could not read.", code="decoder_bad_output", fmt=fmt) from exc
     return payload if isinstance(payload, dict) else {}
 
 

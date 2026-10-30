@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "प्रति संदेश अधिकतम {n} अनुलग्नक — {count} नहीं जोड़े गए।",
     "attach.limit_no_paste": "प्रति संदेश अधिकतम {n} अनुलग्नक — पेस्ट किया गया टेक्स्ट नहीं जोड़ा गया।",
     "attach.read_failed": "{name} को टेक्स्ट के रूप में नहीं पढ़ा जा सका।",
+    "attach.read_blocked_security": "इस कंप्यूटर की सुरक्षा सेटिंग्स की वजह से VOOL इस फ़ाइल को सुरक्षित रूप से नहीं खोल पाया, इसलिए उसे नहीं पढ़ा गया। आप इसका टेक्स्ट पेस्ट कर सकते हैं।",
     "attach.preview_title": "इस दस्तावेज़ की शुरुआत बिल्कुल वैसे ही दिखाएँ जैसे पेस्ट की गई थी",
     "attach.preview": "पूर्वावलोकन",
     "attach.remove_aria": "{name} हटाएँ",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

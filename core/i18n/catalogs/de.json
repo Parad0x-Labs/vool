@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Bis zu {n} Anhänge pro Nachricht — {count} nicht hinzugefügt.",
     "attach.limit_no_paste": "Bis zu {n} Anhänge pro Nachricht — der eingefügte Text wurde nicht hinzugefügt.",
     "attach.read_failed": "{name} ließ sich nicht als Text lesen.",
+    "attach.read_blocked_security": "Die Sicherheitseinstellungen dieses Computers lassen VOOL diese Datei nicht sicher öffnen, deshalb wurde sie nicht gelesen. Du kannst ihren Text stattdessen einfügen.",
     "attach.preview_title": "Den Anfang dieses Dokuments genau wie eingefügt zeigen",
     "attach.preview": "Vorschau",
     "attach.remove_aria": "{name} entfernen",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
     "settings.row.hide_name_on_screen.effect": "Wirkt sofort."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -161,7 +161,7 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
     """Run the fallback parser confined, and translate its typed outcome back into ours."""
     if not _pypdf_importable():
         raise ReaderUnavailable(
-            "No PDF decoder is available on this machine, so the PDF was not read.",
+            "This computer is missing what VOOL needs to read PDFs, so the PDF was not read.",
             code="pdf_decoder_unavailable",
             remediation="Paste the text from the PDF into your message instead.",
             fmt="pdf",
@@ -171,7 +171,7 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
     interpreter = sys.executable
     if not interpreter or not os.path.isabs(interpreter):
         raise ReaderUnavailable(
-            "No usable interpreter was found to run the PDF fallback decoder; the PDF was not read.",
+            "The piece VOOL needs to read PDFs could not be started, so the PDF was not read.",
             code="pdf_decoder_unavailable",
             fmt="pdf",
         )
@@ -191,14 +191,14 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
     )
     if result.returncode != 0:
         raise ReaderUnavailable(
-            "The PDF fallback decoder could not run; the PDF was not read.",
+            "The piece that reads PDFs could not run, so the PDF was not read.",
             code="pdf_decoder_unavailable",
             fmt="pdf",
         )
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace").strip().splitlines()[-1])
     except (ValueError, IndexError) as exc:
-        raise ReaderRefused("The PDF could not be read by the fallback decoder.", code="pdf_unreadable", fmt="pdf") from exc
+        raise ReaderRefused("This PDF could not be read.", code="pdf_unreadable", fmt="pdf") from exc
     error = str(payload.get("error") or "")
     if error == "password_protected":
         raise ReaderRefused(

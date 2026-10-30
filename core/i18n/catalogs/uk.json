@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "До {n} вкладень на повідомлення — {count} не додано.",
     "attach.limit_no_paste": "До {n} вкладень на повідомлення — вставлений текст не додано.",
     "attach.read_failed": "Не вдалося прочитати {name} як текст.",
+    "attach.read_blocked_security": "Налаштування безпеки цього комп’ютера не дозволяють VOOL безпечно відкрити цей файл, тому його не було прочитано. Замість цього ви можете вставити його текст.",
     "attach.preview_title": "Показати початок цього документа точно як вставлено",
     "attach.preview": "Перегляд",
     "attach.remove_aria": "Видалити {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
     "settings.row.hide_name_on_screen.effect": "Діє негайно."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

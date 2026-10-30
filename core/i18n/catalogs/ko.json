@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "메시지당 최대 {n}개의 첨부 파일 — {count}개가 추가되지 않았습니다.",
     "attach.limit_no_paste": "메시지당 최대 {n}개의 첨부 파일 — 붙여넣은 텍스트는 추가되지 않았습니다.",
     "attach.read_failed": "{name}을(를) 텍스트로 읽을 수 없습니다.",
+    "attach.read_blocked_security": "이 컴퓨터의 보안 설정 때문에 VOOL이 이 파일을 안전하게 열 수 없어 읽지 못했습니다. 대신 텍스트를 붙여넣을 수 있습니다.",
     "attach.preview_title": "이 문서의 시작 부분을 붙여넣은 그대로 보여 줍니다",
     "attach.preview": "미리보기",
     "attach.remove_aria": "{name} 제거",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

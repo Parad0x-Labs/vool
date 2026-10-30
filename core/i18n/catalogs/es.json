@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Hasta {n} adjuntos por mensaje — {count} no se añadieron.",
     "attach.limit_no_paste": "Hasta {n} adjuntos por mensaje — el texto pegado no se añadió.",
     "attach.read_failed": "{name} no se pudo leer como texto.",
+    "attach.read_blocked_security": "La configuración de seguridad de este equipo impide que VOOL abra este archivo con seguridad, así que no se leyó. Puedes pegar su texto en su lugar.",
     "attach.preview_title": "Mostrar el inicio de este documento tal como se pegó",
     "attach.preview": "Vista previa",
     "attach.remove_aria": "Quitar {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

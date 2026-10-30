@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Do {n} załączników na wiadomość — nie dodano {count}.",
     "attach.limit_no_paste": "Do {n} załączników na wiadomość — wklejony tekst nie został dodany.",
     "attach.read_failed": "Nie udało się odczytać {name} jako tekstu.",
+    "attach.read_blocked_security": "Ustawienia zabezpieczeń tego komputera nie pozwalają VOOLowi bezpiecznie otworzyć tego pliku, dlatego nie został on przeczytany. Zamiast tego możesz wkleić jego tekst.",
     "attach.preview_title": "Pokazuje początek tego dokumentu dokładnie tak, jak wklejono",
     "attach.preview": "Podgląd",
     "attach.remove_aria": "Usuń {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
     "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

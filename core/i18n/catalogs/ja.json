@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "1メッセージの添付は最大{n}件です。{count}件は追加されませんでした。",
     "attach.limit_no_paste": "1メッセージの添付は最大{n}件です。貼り付けたテキストは追加されませんでした。",
     "attach.read_failed": "{name}をテキストとして読み取れませんでした。",
+    "attach.read_blocked_security": "このコンピュータのセキュリティ設定により、VOOLはこのファイルを安全に開けないため、読み取られませんでした。代わりにテキストを貼り付けてください。",
     "attach.preview_title": "このドキュメントの冒頭を貼り付けたまま正確に表示します",
     "attach.preview": "プレビュー",
     "attach.remove_aria": "{name}を削除",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

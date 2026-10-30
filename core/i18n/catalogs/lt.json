@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Iki {n} priedų vienam pranešimui — {count} nepridėta.",
     "attach.limit_no_paste": "Iki {n} priedų vienam pranešimui — įdėtas tekstas nebuvo pridėtas.",
     "attach.read_failed": "{name} nepavyko perskaityti kaip teksto.",
+    "attach.read_blocked_security": "Šio kompiuterio saugos nustatymai neleidžia VOOL saugiai atidaryti šio failo, todėl jis nebuvo perskaitytas. Vietoj to galite įklijuoti jo tekstą.",
     "attach.preview_title": "Rodyti šio dokumento pradžią tiksliai kaip įdėtą",
     "attach.preview": "Peržiūra",
     "attach.remove_aria": "Pašalinti {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

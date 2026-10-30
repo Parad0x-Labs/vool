@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Tối đa {n} tệp đính kèm mỗi tin nhắn — {count} cái không được thêm.",
     "attach.limit_no_paste": "Tối đa {n} tệp đính kèm mỗi tin nhắn — văn bản đã dán không được thêm.",
     "attach.read_failed": "Không thể đọc {name} dưới dạng văn bản.",
+    "attach.read_blocked_security": "Cài đặt bảo mật của máy tính này khiến VOOL không thể mở tệp này một cách an toàn, nên tệp đã không được đọc. Bạn có thể dán văn bản của tệp thay thế.",
     "attach.preview_title": "Hiện phần đầu của tài liệu này đúng như khi dán",
     "attach.preview": "Xem trước",
     "attach.remove_aria": "Xóa {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
     "settings.row.hide_name_on_screen.effect": "Áp dụng ngay."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

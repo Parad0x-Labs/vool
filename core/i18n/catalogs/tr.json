@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "Mesaj başına en fazla {n} ek — {count} eklenmedi.",
     "attach.limit_no_paste": "Mesaj başına en fazla {n} ek — yapıştırılan metin eklenmedi.",
     "attach.read_failed": "{name} metin olarak okunamadı.",
+    "attach.read_blocked_security": "Bu bilgisayarın güvenlik ayarları VOOL'un bu dosyayı güvenle açmasını engellediği için dosya okunmadı. Bunun yerine metnini yapıştırabilirsiniz.",
     "attach.preview_title": "Bu belgenin başlangıcını yapıştırıldığı gibi göster",
     "attach.preview": "Önizleme",
     "attach.remove_aria": "{name} öğesini kaldır",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
     "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

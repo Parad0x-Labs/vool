@@ -327,7 +327,7 @@ def read(
             label = _LIBARCHIVE_FORMATS[kind]
             if not _bsdtar_available():
                 raise ReaderUnavailable(
-                    f"{name} is a {label} archive and this machine has no {label} decoder, so it was not read.",
+                    f"{name} is a {label} archive and this computer is missing what VOOL needs to read it, so it was not read.",
                     code=f"{kind}_decoder_unavailable",
                     remediation=f"Attach a ZIP archive instead, or install a {label}-capable libarchive build.",
                     fmt=kind,

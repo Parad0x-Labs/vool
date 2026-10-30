@@ -1594,8 +1594,8 @@ def read_xls(data: bytes, *, name: str = "workbook.xls") -> ReaderResult:
     xlrd = _import_xrd()
     if xlrd is None:
         raise ReaderUnavailable(
-            f"{name} is a legacy Excel (.xls) file, and this machine is missing the pinned "
-            f"decoder for that format (xlrd==2.0.2), so it was not read.",
+            f"{name} is a legacy Excel (.xls) file, and this computer is missing the piece "
+            f"VOOL needs to read it (xlrd==2.0.2), so it was not read.",
             code="xls_decoder_unavailable",
             remediation="Install the pinned lane dependency xlrd==2.0.2, or save the file as .xlsx and attach it again.",
             fmt="xls",

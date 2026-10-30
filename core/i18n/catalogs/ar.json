@@ -2021,6 +2021,7 @@
     "attach.limit_some_not_added": "حتى {n} مرفقًا لكل رسالة — لم يُضَف {count}.",
     "attach.limit_no_paste": "حتى {n} مرفقًا لكل رسالة — لم تُضَف النصوص الملصقة.",
     "attach.read_failed": "تعذّرت قراءة {name} كنص.",
+    "attach.read_blocked_security": "توقف إعدادات الأمان في هذا الحاسوب فتح هذا الملف بأمان داخل VOOL، لذلك لم تتم قراءته. يمكنك لصق نصّه بدلًا من ذلك.",
     "attach.preview_title": "إظهار بداية هذا المستند تمامًا كما أُلصق",
     "attach.preview": "معاينة",
     "attach.remove_aria": "إزالة {name}",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "d55b1bc1b513e2f68fadb7c965467426b109311dd0e85948770998f62be18814",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

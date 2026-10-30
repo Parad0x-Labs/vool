@@ -492,6 +492,7 @@
     "attach.outcome_sent": "read by the model",
     "attach.pasted_text": "pasted text",
     "attach.read_failed": "{name} could not be read as text.",
+    "attach.read_blocked_security": "This computer's security settings stop VOOL from opening this file safely, so it wasn't read. You can paste its text instead.",
     "attach.preview_title": "Show the beginning of this document exactly as pasted",
     "attach.preview": "Preview",
     "attach.remove_aria": "Remove {name}",
