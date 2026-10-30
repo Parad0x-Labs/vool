@@ -3468,7 +3468,7 @@
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais."
   },
-  "source_catalog_sha256": "e93fe9426d1e9071b9424cc01da748258a1df0d553c10a5e47a1704761d6e95d",
+  "source_catalog_sha256": "6adf70d555574c3497b886dab57687dc21a542b76d44f12541594db55a8029f7",
   "generator": {
     "approval_everyday_words_addendum": "126 keys translated by the lane authors (approval-words-2)",
     "engine": "GLM-5.3 (ZCode idle translation agent)",

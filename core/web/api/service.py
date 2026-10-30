@@ -1362,7 +1362,9 @@ def _dispatch_get(
         return apply_runtime_headers(
             html_response(
                 200,
-                render_null_browser_html(),
+                # The page speaks the person's UI language: same precedence as every page
+                # render (?ui_locale= > the picker's cookie > en). Display only.
+                render_null_browser_html(locale=resolve_page_locale(query, headers)),
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,
                     "X-Vool-Workstation-Surface": "web0-browser",
