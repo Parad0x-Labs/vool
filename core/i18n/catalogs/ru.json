@@ -2890,7 +2890,7 @@
     "settings.row_saving": "Сохранение…",
     "settings.row_unavailable": "Не удалось загрузить это прямо сейчас. Попробуйте ещё раз."
   },
-  "source_catalog_sha256": "d3ad6f0f94fa239d6ed9bc156aa7d682653d904f2fc0a116faa7b01324079d87",
+  "source_catalog_sha256": "0a1c385c284a83fceddcf8d7d0a1c07352a9237ee92d30835961462cd5b41ae2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
