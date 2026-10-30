@@ -208,10 +208,23 @@ def _score(query: _Ask, ask: _Ask, idf: dict[str, float], vocab: frozenset[str])
 # Word overlap only finds asks phrased like an example. When the local embedding model VOOL already
 # provisions for memory (core.embedding_service, nomic-embed-text through Ollama) answers, each ask
 # is also compared by meaning. A cosine is mapped onto the word score's 0..1 scale so one set of
-# thresholds serves both; SEM_ZERO and SEM_ONE are calibrated on real asks (DESIGN M4), not here.
-# The example vectors build once per index in the background: until they are ready, and whenever
-# the embedder is down (the hash fallback is not a meaning space), matching is word overlap alone.
-SEM_ZERO = 0.55
+# thresholds serves both. The example vectors build once per index in the background: until they
+# are ready, and whenever the embedder is down (the hash fallback is not a meaning space), matching
+# is word overlap alone.
+#
+# The band puts RELEASE_SCORE (0.50) at cosine 0.70, chosen from
+# `python -m tools.tool_card_calibrate` on the tool-use dev asks (2026-10-30, nomic-embed-text,
+# 39 cards; asks that would be released by meaning, per kind):
+#
+#     cosine   needs_tool   no_tool   missing_connection
+#     0.75     15/26        2/12      2/2
+#     0.70     18/26        4/12      2/2
+#     0.65     21/26        7/12      2/2
+#
+# 0.70 is the knee: above it each step buys more needs-a-tool asks than no-tool asks it hands tools
+# to; below it the cost catches up. The old band (0.55, 0.90) released at 0.725. Released is only
+# offered: the model still decides, and a no-tool ask handed tools is measured separately.
+SEM_ZERO = 0.50
 SEM_ONE = 0.90
 
 _vectors_lock = threading.Lock()
