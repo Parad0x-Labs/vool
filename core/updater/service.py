@@ -220,8 +220,9 @@ class UpdateCheckService:
                 if previous.fault_code in _SKIP_AFTER_FAULTS:
                     # The newest version tried or seen that is above this copy: an update can fail before
                     # its journal names a target, and high water has not moved since the failure.
-                    version = _newest_above(self.installed_version, _last_attempted_version(self._paths),
-                                            str((self.high_water.load(self.channel) or {}).get("version") or ""))
+                    version = _newest_above(self.installed_version, _last_attempted_version(self._paths)) or (
+                        _newest_above(self.installed_version,
+                                      str((self.high_water.load(self.channel) or {}).get("version") or "")))
                 skip = {"version": version, "failure_at": previous.updated_at} if version else {}
                 if skip:
                     self.skipped.save(self.channel, skip)
@@ -235,7 +236,9 @@ class UpdateCheckService:
                 self.status.publish(UpdatePhase.CHECKING)  # the failure stays on screen (and on disk) while checking
 
             def keep_previous() -> None:
-                if previous is not None:
+                # Only when nothing else (a rollback pressed meanwhile) has written the status since.
+                current = self.status.load()
+                if previous is not None and current is not None and current.updated_at == previous.updated_at:
                     self.status.save(previous)
             try:
                 raw = self._fetch(self.manifest_url)
