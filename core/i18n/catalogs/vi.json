@@ -772,6 +772,7 @@
     "attach.pasted_text": "văn bản dán vào",
     "attach.preview": "Xem trước",
     "attach.preview_title": "Hiện phần đầu của tài liệu này đúng như khi dán",
+    "attach.read_blocked_security": "Cài đặt bảo mật của máy tính này khiến VOOL không thể mở tệp này một cách an toàn, nên tệp đã không được đọc. Bạn có thể dán văn bản của tệp thay thế.",
     "attach.read_failed": "Không thể đọc {name} dưới dạng văn bản.",
     "attach.remove_aria": "Xóa {name}",
     "attach.remove_title": "Gỡ tệp đính kèm này",

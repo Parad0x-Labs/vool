@@ -521,7 +521,7 @@ def _supervise(
             if now >= deadline:
                 _kill_group(process)
                 raise ReaderFailed(
-                    f"The {fmt or 'file'} decoder was stopped at its time limit without finishing; the file was not read.",
+                    f"Reading this {fmt or 'file'} ran out of time before finishing, so the file was not read.",
                     code="decoder_timeout",
                     remediation="The file is larger or more complex than this reader's time budget allows.",
                     fmt=fmt,
@@ -566,7 +566,7 @@ def _supervise(
         _kill_group(process)
         which = "output" if overflowed == 1 else "diagnostics"
         raise ReaderRefused(
-            f"The {fmt or 'file'} decoder produced more {which} than the "
+            f"Reading this {fmt or 'file'} produced more {which} than the "
             f"{max(1, caps[overflowed] // (1024 * 1024))} MB limit allows and was stopped; the file was not read.",
             code="decoder_output_too_large",
             remediation="The file appears designed to exhaust the reader rather than to be read.",
@@ -591,7 +591,7 @@ def run_confined(
     executable = str(argv[0])
     if not os.path.isabs(executable) or not os.access(executable, os.X_OK):
         raise ReaderFailed(
-            f"The decoder {executable!r} is not an executable absolute path.",
+            f"The reader program {executable!r} is not an executable absolute path.",
             code="decoder_not_executable",
             fmt=fmt,
         )
@@ -634,7 +634,7 @@ def run_confined(
             start_new_session=True,  # its own process group, so the whole tree can be killed
         )
     except OSError as exc:
-        raise ReaderFailed(f"The {fmt or 'file'} decoder could not be started ({exc}).", code="decoder_start_failed", fmt=fmt) from exc
+        raise ReaderFailed(f"Reading this {fmt or 'file'} could not be started ({exc}).", code="decoder_start_failed", fmt=fmt) from exc
 
     deadline = time.monotonic() + timeout
     try:
@@ -644,7 +644,7 @@ def run_confined(
         except subprocess.TimeoutExpired:
             _kill_group(process)
             raise ReaderFailed(
-                f"The {fmt or 'file'} decoder did not exit within its time limit; the file was not read.",
+                f"Reading this {fmt or 'file'} did not finish in time, so the file was not read.",
                 code="decoder_timeout",
                 fmt=fmt,
             ) from None
@@ -661,9 +661,9 @@ def run_confined(
         budget.check(fmt)
     if process.returncode is not None and process.returncode < 0:
         raise ReaderFailed(
-            f"The {fmt or 'file'} decoder was killed by signal {-process.returncode}; the file was not read.",
+            f"Reading this {fmt or 'file'} was stopped partway; the file was not read.",
             code="decoder_killed",
-            remediation="The file exceeded the decoder's CPU or file-size ceiling, or the decoder faulted on it.",
+            remediation="The file is larger or more complex than this reader's limits allow.",
             fmt=fmt,
         )
     return SandboxResult(int(process.returncode or 0), stdout, stderr, True)

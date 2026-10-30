@@ -772,6 +772,7 @@
     "attach.pasted_text": "texte collé",
     "attach.preview": "Aperçu",
     "attach.preview_title": "Afficher le début de ce document exactement comme il a été collé",
+    "attach.read_blocked_security": "Les réglages de sécurité de cet ordinateur empêchent VOOL d’ouvrir ce fichier en toute sécurité, il n’a donc pas été lu. Vous pouvez coller son texte à la place.",
     "attach.read_failed": "{name} n’a pas pu être lu comme texte.",
     "attach.remove_aria": "Retirer {name}",
     "attach.remove_title": "Retirer cette pièce jointe",

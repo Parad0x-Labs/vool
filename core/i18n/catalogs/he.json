@@ -772,6 +772,7 @@
     "attach.pasted_text": "טקסט מודבק",
     "attach.preview": "תצוגה מקדימה",
     "attach.preview_title": "הצגת תחילת המסמך הזה בדיוק כפי שהודבק",
+    "attach.read_blocked_security": "הגדרות האבטחה של המחשב הזה מונעות מ-VOOL לפתוח את הקובץ הזה בבטחה, ולכן הוא לא נקרא. באפשרותך להדביק את הטקסט שלו במקום זאת.",
     "attach.read_failed": "לא ניתן היה לקרוא את {name} כטקסט.",
     "attach.remove_aria": "הסרת {name}",
     "attach.remove_title": "הסרת הקובץ המצורף הזה",

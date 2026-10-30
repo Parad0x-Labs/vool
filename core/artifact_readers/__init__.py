@@ -128,7 +128,7 @@ REGISTRY: tuple[ReaderSpec, ...] = (
         extensions=(".pdf",),
         sniff=pdf.sniff,
         read=pdf.read,
-        requires=("a PDF decoder (PDFKit or pypdf)",),
+        requires=("a PDF reader (PDFKit or pypdf)",),
         availability=_pdf_available,
         unit_kind=UNIT_PAGE,
         notes="Native text where the PDF has a text layer; rendered-page OCR where it does not.",
@@ -203,7 +203,7 @@ REGISTRY: tuple[ReaderSpec, ...] = (
         extensions=(".xls",),
         sniff=documents.sniff_xls,
         read=documents.read_xls,
-        requires=("the pinned xlrd decoder (xlrd==2.0.2)",),
+        requires=("the pinned xlrd reader (xlrd==2.0.2)",),
         availability=_xls_available,
         unit_kind=UNIT_SHEET,
         notes="Read in process by the pinned pure-Python xlrd. Formulas marked with their cached values; macros reported, never run.",
@@ -351,7 +351,7 @@ def read(data: bytes, *, name: str = "", extension: str = "", **kwargs: Any) -> 
                 fmt=spec.fmt,
             )
         raise ReaderUnavailable(
-            f"{name or 'That file'} is {spec.label}, and this machine is missing {' and '.join(spec.requires) or 'its decoder'}, so it was not read.",
+            f"{name or 'That file'} is {spec.label}, and this computer is missing what VOOL needs to read it, so it was not read.",
             code=f"{spec.fmt}_decoder_unavailable",
             remediation=f"Install {' and '.join(spec.requires)} to read {spec.label} attachments.",
             fmt=spec.fmt,

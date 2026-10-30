@@ -772,6 +772,7 @@
     "attach.pasted_text": "貼り付けたテキスト",
     "attach.preview": "プレビュー",
     "attach.preview_title": "このドキュメントの冒頭を貼り付けたまま正確に表示します",
+    "attach.read_blocked_security": "このコンピュータのセキュリティ設定により、VOOLはこのファイルを安全に開けないため、読み取られませんでした。代わりにテキストを貼り付けてください。",
     "attach.read_failed": "{name}をテキストとして読み取れませんでした。",
     "attach.remove_aria": "{name}を削除",
     "attach.remove_title": "この添付ファイルを削除",

@@ -772,6 +772,7 @@
     "attach.pasted_text": "wklejony tekst",
     "attach.preview": "Podgląd",
     "attach.preview_title": "Pokazuje początek tego dokumentu dokładnie tak, jak wklejono",
+    "attach.read_blocked_security": "Ustawienia zabezpieczeń tego komputera nie pozwalają VOOLowi bezpiecznie otworzyć tego pliku, dlatego nie został on przeczytany. Zamiast tego możesz wkleić jego tekst.",
     "attach.read_failed": "Nie udało się odczytać {name} jako tekstu.",
     "attach.remove_aria": "Usuń {name}",
     "attach.remove_title": "Usuń ten załącznik",

@@ -772,6 +772,7 @@
     "attach.pasted_text": "yapıştırılan metin",
     "attach.preview": "Önizleme",
     "attach.preview_title": "Bu belgenin başlangıcını yapıştırıldığı gibi göster",
+    "attach.read_blocked_security": "Bu bilgisayarın güvenlik ayarları VOOL'un bu dosyayı güvenle açmasını engellediği için dosya okunmadı. Bunun yerine metnini yapıştırabilirsiniz.",
     "attach.read_failed": "{name} metin olarak okunamadı.",
     "attach.remove_aria": "{name} öğesini kaldır",
     "attach.remove_title": "Bu eki kaldır",

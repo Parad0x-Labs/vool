@@ -772,6 +772,7 @@
     "attach.pasted_text": "įklijuotas tekstas",
     "attach.preview": "Peržiūra",
     "attach.preview_title": "Rodyti šio dokumento pradžią tiksliai kaip įdėtą",
+    "attach.read_blocked_security": "Šio kompiuterio saugos nustatymai neleidžia VOOL saugiai atidaryti šio failo, todėl jis nebuvo perskaitytas. Vietoj to galite įklijuoti jo tekstą.",
     "attach.read_failed": "{name} nepavyko perskaityti kaip teksto.",
     "attach.remove_aria": "Pašalinti {name}",
     "attach.remove_title": "Pašalinti šį priedą",

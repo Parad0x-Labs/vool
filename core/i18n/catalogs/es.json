@@ -772,6 +772,7 @@
     "attach.pasted_text": "texto pegado",
     "attach.preview": "Vista previa",
     "attach.preview_title": "Mostrar el inicio de este documento tal como se pegó",
+    "attach.read_blocked_security": "La configuración de seguridad de este equipo impide que VOOL abra este archivo con seguridad, así que no se leyó. Puedes pegar su texto en su lugar.",
     "attach.read_failed": "{name} no se pudo leer como texto.",
     "attach.remove_aria": "Quitar {name}",
     "attach.remove_title": "Quitar este adjunto",

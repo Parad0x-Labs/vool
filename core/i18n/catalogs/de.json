@@ -772,6 +772,7 @@
     "attach.pasted_text": "eingefügter Text",
     "attach.preview": "Vorschau",
     "attach.preview_title": "Den Anfang dieses Dokuments genau wie eingefügt zeigen",
+    "attach.read_blocked_security": "Die Sicherheitseinstellungen dieses Computers lassen VOOL diese Datei nicht sicher öffnen, deshalb wurde sie nicht gelesen. Du kannst ihren Text stattdessen einfügen.",
     "attach.read_failed": "{name} ließ sich nicht als Text lesen.",
     "attach.remove_aria": "{name} entfernen",
     "attach.remove_title": "Diesen Anhang entfernen",

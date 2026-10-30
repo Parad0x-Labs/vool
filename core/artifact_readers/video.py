@@ -117,7 +117,7 @@ def _require_tools() -> tuple[str, str]:
     ffmpeg, ffprobe = ffmpeg_path(), ffprobe_path()
     if not ffmpeg or not ffprobe:
         raise ReaderUnavailable(
-            "This machine has no video decoder, so the video was not read.",
+            "This computer is missing what VOOL needs to read videos, so the video was not read.",
             code="video_decoder_unavailable",
             remediation="Install ffmpeg to enable reading video attachments.",
             fmt="video",

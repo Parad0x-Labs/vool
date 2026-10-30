@@ -772,6 +772,7 @@
     "attach.pasted_text": "texto colado",
     "attach.preview": "Visualização",
     "attach.preview_title": "Mostrar o início deste documento exatamente como foi colado",
+    "attach.read_blocked_security": "As configurações de segurança deste computador impedem que o VOOL abra este arquivo com segurança, por isso ele não foi lido. Você pode colar o texto dele.",
     "attach.read_failed": "Não foi possível ler {name} como texto.",
     "attach.remove_aria": "Remover {name}",
     "attach.remove_title": "Remover este anexo",

@@ -772,6 +772,7 @@
     "attach.pasted_text": "粘贴的文本",
     "attach.preview": "预览",
     "attach.preview_title": "按粘贴原样显示此文档的开头",
+    "attach.read_blocked_security": "这台电脑的安全设置使 VOOL 无法安全地打开此文件，因此未读取它。你可以改为粘贴它的文本。",
     "attach.read_failed": "无法将{name}作为文本读取。",
     "attach.remove_aria": "移除{name}",
     "attach.remove_title": "移除此附件",

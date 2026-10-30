@@ -772,6 +772,7 @@
     "attach.pasted_text": "نص ملصوق",
     "attach.preview": "معاينة",
     "attach.preview_title": "إظهار بداية هذا المستند تمامًا كما أُلصق",
+    "attach.read_blocked_security": "توقف إعدادات الأمان في هذا الحاسوب فتح هذا الملف بأمان داخل VOOL، لذلك لم تتم قراءته. يمكنك لصق نصّه بدلًا من ذلك.",
     "attach.read_failed": "تعذّرت قراءة {name} كنص.",
     "attach.remove_aria": "إزالة {name}",
     "attach.remove_title": "إزالة هذا المرفق",
