@@ -2721,13 +2721,47 @@ def _csv_files_under_home_places(matches: list[str], words: tuple[str, ...]) -> 
             continue
         if any(real.startswith(root + os.sep) for root in roots if os.path.isdir(root)):
             under.append(path)
+    return _csv_named_first(under, words), under
+
+
+def _csv_named_first(paths: list[str], words: tuple[str, ...]) -> list[str]:
+    """The paths whose file NAME carries one of the ask's words, or all of them when none does."""
     stems = [word.lower()[:-1] if len(word) > 4 and word.lower().endswith("s") and not word.lower().endswith("ss")
              else word.lower() for word in words]
     named = [
-        path for path in under
+        path for path in paths
         if any(token.startswith(stem) for token in re.findall(r"[0-9a-z]+", os.path.basename(path).lower()) for stem in stems)
     ]
-    return named or under, under
+    return named or paths
+
+
+def _csv_files_in_phone_folders(folders: tuple[str, ...], source_context: dict | None) -> tuple[list[str], Any]:
+    """The ``.csv`` files directly inside the folders a phone is held to, and the first refusal.
+
+    A machine-wide csv search cannot be held to a folder, so such a phone is refused it; each
+    chosen folder is listed through the same fenced tool instead. A csv that is a link out of
+    its folder is not in the folder and is skipped.
+    """
+    found: list[str] = []
+    refusal = None
+    for folder in folders:
+        listed = execute_authorized_runtime_tool(
+            "machine.list_directory", {"path": folder, "limit": 200}, source_context=dict(source_context or {})
+        )
+        if listed is None:
+            continue
+        if not getattr(listed, "ok", False):
+            refusal = refusal or listed
+            continue
+        root = os.path.realpath(folder)
+        for entry in (getattr(listed, "details", None) or {}).get("entries") or []:
+            name = str(entry.get("name") or "")
+            if entry.get("type") != "file" or not name.lower().endswith(".csv"):
+                continue
+            path = os.path.join(root, name)
+            if os.path.realpath(path).startswith(root + os.sep):
+                found.append(path)
+    return found, refusal
 
 
 def answer_spreadsheet_question(question: Any, *, source_context: dict | None) -> Any:
@@ -2740,19 +2774,31 @@ def answer_spreadsheet_question(question: Any, *, source_context: dict | None) -
     the file, the rows and the rule, so the person can check every number. Read-only: nothing is
     advised, nothing is changed. ``None`` when no tool ran, so the turn continues as before.
     """
+    from core.request_trust import remote_turn_folders, turn_is_remote
     from core.runtime_execution_tools import RuntimeExecutionResult
 
-    found = execute_authorized_runtime_tool(
-        "machine.find_file", {"name": ".csv"}, source_context=dict(source_context or {})
-    )
-    if found is None:
-        return None
-    if not getattr(found, "ok", False):
-        return found  # the refusal (a phone without computer rights) or the miss says why
-    everywhere = list((getattr(found, "details", None) or {}).get("matches") or [])
-    matches, under_places = _csv_files_under_home_places(everywhere, tuple(question.file_words))
+    folders = remote_turn_folders(source_context) if turn_is_remote(source_context) else None
+    if folders:
+        # A phone held to chosen folders: the csv files in those folders, nothing else.
+        in_folders, refusal = _csv_files_in_phone_folders(folders, source_context)
+        if not in_folders and refusal is not None:
+            return refusal
+        everywhere, under_places = in_folders, in_folders
+        matches = _csv_named_first(in_folders, tuple(question.file_words))
+        searched = "the folders this phone can use"
+    else:
+        found = execute_authorized_runtime_tool(
+            "machine.find_file", {"name": ".csv"}, source_context=dict(source_context or {})
+        )
+        if found is None:
+            return None
+        if not getattr(found, "ok", False):
+            return found  # the refusal (a phone without computer rights) or the miss says why
+        everywhere = list((getattr(found, "details", None) or {}).get("matches") or [])
+        matches, under_places = _csv_files_under_home_places(everywhere, tuple(question.file_words))
+        searched = "Desktop, Downloads or Documents"
     if not matches:
-        lines = ["No CSV file found in Desktop, Downloads or Documents."]
+        lines = [f"No CSV file found in {searched}."]
         elsewhere = [
             path for path in everywhere
             if path.lower().endswith(".csv") and path not in under_places

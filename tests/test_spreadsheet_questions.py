@@ -455,13 +455,15 @@ def test_no_csv_anywhere_is_said_plainly(pc_home):
     assert "132.47" not in reply
 
 
-def _phone_store(monkeypatch, *, granted: bool):
+def _phone_store(monkeypatch, *, granted: bool, file_scope: dict | None = None):
     """A paired phone whose device record lives in the store the rights check reads live."""
     record = {
         "device_id": "phone:abc", "status": "active", "kind": "phone", "sealed_protocol": True,
         "rules": {"computer_tools": granted, "paid_services": False},
         "right_expiry": {"computer_tools": time.time() + 3600},
     }
+    if file_scope is not None:
+        record["file_scope"] = file_scope
 
     class _Store:
         def device(self, device_id):
@@ -503,3 +505,29 @@ def test_a_phone_without_the_right_gets_the_stock_refusal(monkeypatch, tmp_path)
     # The turn is told where the right is turned on; no file was read, so no total exists.
     assert "Use tools on my computer" in reply, reply
     assert "132.47" not in reply, reply
+
+
+def _documents_only(monkeypatch, root):
+    _phone_store(monkeypatch, granted=True,
+                 file_scope={"mode": "folders", "folders": [str((root / "Documents").resolve())]})
+
+
+def test_a_phone_held_to_chosen_folders_totals_the_csv_in_them(monkeypatch, tmp_path):
+    root = _fake_home(monkeypatch, tmp_path)
+    _documents_only(monkeypatch, root)
+    (root / "Documents" / "bank_export.csv").write_text(CSV_DEBIT_CREDIT, encoding="utf-8")
+    reply = _ask(_FakeAgent(), F17_ASK, source_context=_phone_turn())["response"]
+    assert "bank_export.csv" in reply and "132.47" in reply, reply
+
+
+def test_a_phone_held_to_chosen_folders_never_totals_a_csv_outside_them(monkeypatch, tmp_path):
+    # The csv is in Downloads, and a link to it sits in Documents; the phone may only use Documents.
+    root = _fake_home(monkeypatch, tmp_path)
+    _documents_only(monkeypatch, root)
+    (root / "Downloads" / "bank_export.csv").write_text(CSV_DEBIT_CREDIT, encoding="utf-8")
+    (root / "Documents" / "bank_link.csv").symlink_to(root / "Downloads" / "bank_export.csv")
+    result = _ask(_FakeAgent(), F17_ASK, source_context=_phone_turn())
+    reply = (result or {}).get("response", "")
+    assert "132.47" not in reply, reply
+    assert "GROCERY MARKET" not in reply, reply
+    assert "No CSV file found in the folders this phone can use" in reply, reply
