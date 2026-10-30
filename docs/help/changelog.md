@@ -14,38 +14,39 @@ Fixes people will notice:
 
 * **Ask about a web page, get its words.** "Summarise this page" and "what does this link say" are answered from the page's readable text, never from its underlying code. A page that refuses to load says so plainly, instead of talking about logging in.
 * **Email, step by step.** Adding an email account comes with guides for Gmail, iCloud and Yahoo, each with the steps for its app password. An Outlook address is told plainly that it cannot be added yet.
-* **Skills, tidied.** Skills that overlapped were cut and merged. Each skill you see can be turned on or off.
+* **Skills, tidied.** Skills that overlapped were merged, and each skill's On/Off button now says which skill it is.
 * "Read notes.txt in my Documents" now reads that file. Desktop and Downloads work the same way, and only when the file is really there.
-* Name a project in a coding chat — "plan.py in the garden planner project" — and VOOL works in that project's folder. It never guesses, and a chat that already belongs to a project stays there.
-* Reload the page while VOOL is answering and the chat is still there, together with the message you sent while it answered.
-* An approval you have not answered yet survives a reload, a second tab and a reopened chat, Allow button and all. The error that could appear right after VOOL carried out an approved action by itself is gone too.
+* Name a project in a chat — "plan.py in the garden planner project" — and VOOL works in that project's folder. It never guesses, and a chat that already belongs to a project stays there. Private chats do not keep the project.
+* Reload the page while VOOL is answering: the chat and your waiting message stay, and VOOL shows it is still working.
+* An approval you have not answered yet survives a reload, a second tab and a reopened chat. If it was asked from another device, VOOL tells you where to answer it.
+* Fixed an error some connected apps could hit after VOOL changed a file in Auto mode.
 * "List my reminders" now answers from every chat. Private chats keep their reminders to themselves.
 * "Cancel that one" cancels the reminder you set most recently in that chat.
 * "What did I ask you first?" now recalls the right message.
 * Lead-ins like "quick one" are no longer taken as part of the request.
-* Asking for help gets a shorter answer.
+* Typing "help" gets a shorter answer (in English for now).
 * A reminder set with a date lands on the day you meant.
 * Asking about your inbox when no email account is connected gets a plain answer that says so.
 * After a restart, the chat list says it is loading instead of looking empty.
-* The label showing which model will answer settles on the right name once the model has finished getting ready.
+* Build info shows the right local model name once the model is ready.
 * Settings use plainer words in all 17 languages, such as "Daily cloud use guide" and "word pieces".
-* Settings say "On this computer" where they used to say "On my Mac", on every computer.
-* VOOL keeps running even when this computer denies it a look at the folder where models are kept.
+* The first-run setup says "On this computer" everywhere, where it used to say "On my Mac".
+* VOOL no longer stops when it isn't allowed to open the folder where models are kept.
 
 Safer:
 
 * **Web lookups off means off.** With the Web lookups switch off, nothing goes online for a lookup: weather, prices, rates, web searches, page reads and downloads are refused before any connection is made, and the reply says where the switch is.
 * When you ask VOOL to find a folder, it searches your own folders. Other drives are searched only when you ask for them.
-* The docs say only what VOOL has. Offline means your chats and your files; live facts such as weather are looked up online only while Web lookups is on (it is off on a fresh install), and never in Local Only.
+* The docs say only what VOOL has. Your chats and files stay on this computer. Live facts such as weather go online only while Web lookups is on (Settings > Privacy & Permissions), and it is off on a fresh install.
 
 Linux:
 
-* **VOOL reads PDFs on Linux.** It happens inside a closed-off reading space; where the system's security setup blocks that space, VOOL says so plainly.
+* **VOOL reads PDFs on Linux.** It happens inside a closed-off reading space. Where the system's security setup blocks that space, VOOL tells you the PDF was not read.
 * Removing VOOL stops a running VOOL first, keeps your data and tells you where it was kept.
 
 Phone:
 
-* **A phone companion.** VOOL now has a phone companion, so you can use VOOL from your phone. The Settings page fits a phone screen.
+* **Phone companion (preview).** The phone app is not available to download yet. The Settings page already fits a phone screen.
 * The finish-setup hint appears only on a new, empty chat.
 
 ## 0.7.5-beta — 2026-10-27
