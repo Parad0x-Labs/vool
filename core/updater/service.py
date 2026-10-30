@@ -12,6 +12,7 @@ press. The flow it launches re-verifies and re-decides everything anyway.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -22,19 +23,64 @@ from pathlib import Path
 from core.updater.decision import UpdateDecision, UpdateDecisionReason, decide_update
 from core.updater.download import fetch_manifest_bytes
 from core.updater.manifest import ManifestVerification, VerifiedManifest, parse_and_verify_manifest
-from core.updater.state import HighWaterStore, UpdaterPaths
-from core.updater.status import StatusStore, UpdatePhase
+from core.updater.state import HighWaterStore, UpdaterPaths, _atomic_write_json, _read_json
+from core.updater.status import StatusStore, UpdateFault, UpdatePhase
 from core.updater.transaction import (
     DestructiveWorkResolution,
     ExternalHelper,
     FlowResult,
     Step,
     UpdateFlow,
+    UpdateJournal,
     recover_interrupted_update,
 )
 from core.updater.trust import TrustedPublishers
+from core.updater.versions import parse_semver
 
 logger = logging.getLogger("vool.updater.service")
+
+# Faults that mean the new version itself did not work (or the person undid it). After one, scheduled checks go on
+# but never offer that version again; a newer one is offered. Other faults (a download that stopped, no disk space,
+# work in progress, ...) keep waiting for a pressed Check, and a failed rollback always needs a person.
+_SKIP_AFTER_FAULTS = frozenset(f.value for f in (
+    UpdateFault.INSTALL_FAILED, UpdateFault.MIGRATION_FAILED, UpdateFault.HEALTH_CHECK_FAILED,
+    UpdateFault.VERIFICATION_FAILED, UpdateFault.MANUAL_ROLLBACK, UpdateFault.UNEXPECTED,
+))
+
+
+def _last_attempted_version(paths: UpdaterPaths) -> str:
+    """The target version of the newest update this copy decided to install, from its journals."""
+    newest_ts, version = -1.0, ""
+    try:
+        directories = list(paths.transactions.iterdir())
+    except OSError:
+        return ""
+    for directory in directories:
+        for entry in UpdateJournal(directory).entries() if directory.is_dir() else ():
+            if entry["step"] is Step.DECIDED and float(entry.get("ts") or 0) > newest_ts:
+                newest_ts, version = float(entry.get("ts") or 0), str(entry.get("target_version") or "")
+    return version
+
+
+class SkippedVersionStore:
+    """`{channel: {version, failure_at}}`: the version scheduled checks never offer again after it failed."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+
+    def load(self, channel: str) -> dict:
+        data = _read_json(self.path)
+        entry = data.get(str(channel)) if isinstance(data, dict) else None
+        return dict(entry) if isinstance(entry, dict) else {}
+
+    def save(self, channel: str, entry: dict | None) -> None:
+        data = _read_json(self.path)
+        data = data if isinstance(data, dict) else {}
+        if entry:
+            data[str(channel)] = entry
+        else:
+            data.pop(str(channel), None)
+        _atomic_write_json(self.path, data)
 
 DEFAULT_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 
@@ -102,6 +148,8 @@ class UpdateCheckService:
         paths = UpdaterPaths.for_data_dir(self.data_dir)
         self.status = status_store or StatusStore(paths.status_file)
         self.high_water = high_water or HighWaterStore(paths.high_water_file)
+        self._paths = paths
+        self.skipped = SkippedVersionStore(paths.root / "skipped_version.json")
         self._fetch = fetch or (lambda url: fetch_manifest_bytes(url))
         self._clock = clock
         self._sleep = sleeper
@@ -145,21 +193,35 @@ class UpdateCheckService:
             if not self._check_allowed():
                 return CheckOutcome(False, "an update is already in progress")
             previous = self.status.load()
-            # After a failed or undone update, scheduled checks go on but never offer the version that failed
-            # (the newest one this copy has seen); a newer one is offered. A failed rollback still needs a person.
-            failed_version = ""
-            if previous is not None and preserve_failure and previous.fault_code and previous.phase in (
-                    UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK):
-                failed_version = str((self.high_water.load(self.channel) or {}).get("version") or "")
-            if previous is not None and (
-                previous.fault_code == "rollback_failed" or (
-                    preserve_failure and previous.fault_code and not failed_version
-                    and previous.phase in (UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK)
-                )
-            ):
+            failed_state = previous is not None and bool(previous.fault_code) and previous.phase in (
+                UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK)
+            if previous is not None and previous.fault_code == "rollback_failed":
                 self._offer = None
                 return CheckOutcome(False, "the previous update needs attention; recovery status was retained")
-            self.status.publish(UpdatePhase.CHECKING)
+            if not preserve_failure:
+                self.skipped.save(self.channel, None)  # a pressed Check may retry the version that failed
+            skip = self.skipped.load(self.channel) if preserve_failure else {}
+            if preserve_failure and failed_state and skip.get("failure_at") != previous.updated_at:
+                # First scheduled check after this failure: remember which version failed, once.
+                version = ""
+                if previous.fault_code in _SKIP_AFTER_FAULTS:
+                    version = _last_attempted_version(self._paths) or str(
+                        (self.high_water.load(self.channel) or {}).get("version") or "")
+                skip = {"version": version, "failure_at": previous.updated_at} if version else {}
+                if skip:
+                    self.skipped.save(self.channel, skip)
+            skip_semver = None
+            with contextlib.suppress(ValueError, TypeError):
+                skip_semver = parse_semver(str(skip.get("version") or "")) if skip else None
+            if preserve_failure and failed_state and skip_semver is None:
+                self._offer = None
+                return CheckOutcome(False, "the previous update needs attention; recovery status was retained")
+            if skip_semver is None:
+                self.status.publish(UpdatePhase.CHECKING)  # the failure stays on screen (and on disk) while checking
+
+            def keep_previous() -> None:
+                if previous is not None:
+                    self.status.save(previous)
             try:
                 raw = self._fetch(self.manifest_url)
             except Exception as exc:
@@ -177,15 +239,15 @@ class UpdateCheckService:
                 # Verified-refused manifests still leave a trail, but no offer.
                 logger.info("manifest refused: %s", verification.reason.value)
                 self._offer = None
-                if failed_version:  # a refused feed never hides what happened to the failed update
-                    self.status.save(previous)
+                if skip_semver is not None:  # a refused feed never hides what happened to the failed update
+                    keep_previous()
                     return CheckOutcome(False, verification.reason.value, verification=verification)
                 self.status.publish(UpdatePhase.FAILED, detail=verification.plain_message)
                 return CheckOutcome(False, verification.reason.value, verification=verification)
             manifest = verification.manifest
-            if failed_version and manifest.version == failed_version:
+            if skip_semver is not None and manifest.semver <= skip_semver:
                 self._offer = None
-                self.status.save(previous)
+                keep_previous()
                 return CheckOutcome(False, "the version that failed to update is not offered again",
                                     verification=verification)
 
@@ -208,10 +270,12 @@ class UpdateCheckService:
                     installed_version=self.installed_version,
                 )
                 self.status.publish(UpdatePhase.READY, version=manifest.version)
+                if skip:
+                    self.skipped.save(self.channel, None)
             else:
                 self._offer = None
-                if failed_version:  # only a newer offer replaces what happened to the failed update
-                    self.status.save(previous)
+                if skip_semver is not None:  # only a newer offer replaces what happened to the failed update
+                    keep_previous()
                 elif decision.reason is UpdateDecisionReason.UP_TO_DATE:
                     self.status.publish(UpdatePhase.UP_TO_DATE)
                 else:
