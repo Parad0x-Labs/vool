@@ -6,6 +6,26 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.6-beta — 2026-10-30
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.6-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta).
+A small update for finding your files.
+
+**New**
+* **Find a file by name or description.** "Find the photo called day 4" or "where is my tax letter" looks for a file, not a folder, and matches everyday spellings such as Day_4.png or day-4.jpg.
+* **Hide my name on screen.** A switch in Settings masks your name and your home folder on screen (chat, Settings and notifications). Nothing changes on disk or in memory. Off by default.
+
+**Fixes**
+* Folder and file searches start in your home folder and on plugged-in drives, never in system folders, and finish in a second or two.
+* Hidden folders (names starting with a dot) are left out of searches unless you name one.
+* Linux: chats no longer treat VOOL's own install folder as your workspace.
+
+**Updating**
+* **From 0.7.5:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+* **From 0.7.4 or 0.7.3 on a Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.6 and install it over your current version. Your chats and settings stay in your profile.
+
 ## 0.7.5-beta — 2026-10-27
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

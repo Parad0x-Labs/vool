@@ -13,7 +13,7 @@ OpenRouter account.
 One-click **Connect** / **Disconnect** for OpenRouter is planned for 0.8, not released yet.
 {% endhint %}
 
-In 0.7.5: create a key in your OpenRouter account, then paste it under **Settings → API Keys**.
+In 0.7.6: create a key in your OpenRouter account, paste it under **Settings → API Keys** and press **Save key**.
 It is stored in the macOS Keychain (on Linux and Windows, in an encrypted vault in your profile).
 
 ## What the callback page will do (planned for 0.8, not released yet)

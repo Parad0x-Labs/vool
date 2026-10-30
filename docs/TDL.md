@@ -1,6 +1,6 @@
 # TDL — MASTER BUILD ORDER (the canonical VOOL queue)
 
-> **Design document, mostly not built.** Only what the README and [release status](trust/release-status.md) list is released in 0.7.5. Everything else here is planned for 0.8 or later, not released yet.
+> **Design document, mostly not built.** Only what the README and [release status](trust/release-status.md) list is released in 0.7.6. Everything else here is planned for 0.8 or later, not released yet.
 
 
 Supersedes the previous technical-debt ledger (2026-03→07) that lived in this file —
