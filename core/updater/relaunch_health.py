@@ -11,6 +11,7 @@ update flow (core/updater/transaction.py).
 """
 from __future__ import annotations
 
+import subprocess
 import time
 
 STOP_BOUND_SECONDS = 90.0            # stop grace for a process a flow must remove from the app seat
@@ -43,7 +44,12 @@ def await_relaunch_health(
         health = probe(timeout=1.0, expected_version=expected_version)
         if health.ok:
             return health
-        state = observe()
+        try:
+            state = observe()
+        except (OSError, subprocess.SubprocessError):
+            # A slow or failing process listing on a loaded machine says nothing about the new
+            # version: keep waiting inside the same bounds rather than rolling a good update back.
+            state = "starting"
         if state == "unknown":
             # This launch is not observable (supervisor-owned); fall back to the
             # plain bounded probe so the wait stays the documented health window.

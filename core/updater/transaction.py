@@ -317,6 +317,11 @@ class UpdateFlow:
         # shutdown_app() IS the swap vehicle and must never run here.
         try:
             if getattr(self.helper, "performs_swap", False):
+                # The swap script may still be waiting for a slow app to close: stopped first, so it
+                # cannot see the app gone and swap the new version in under this rollback.
+                stop_script = getattr(self.helper, "stop_swap_script", None)
+                if callable(stop_script) and not stop_script(timeout=10.0):
+                    raise RuntimeError("the update helper could not be stopped for rollback")
                 stop = getattr(self.helper, "stop_running_app", None)
                 if not callable(stop) or stop(timeout=10.0) is False:
                     raise RuntimeError("the new app could not be stopped for rollback")
@@ -676,11 +681,15 @@ class UpdateFlow:
             if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._fail_and_rollback("the app did not stop in time", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED, {"delegated": True})
-            # The script does the swap; journal the deterministic prior location so
-            # rollback and startup recovery agree with it byte-for-byte.
-            self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             self._publish(UpdatePhase.RESTARTING, version=manifest.version)
             outcome, detail = self.helper.wait_for_result(timeout=max(self.health_timeout, 60.0))
+            # SWAPPED is journaled only once the script's own rename put the previous app aside
+            # (the deterministic prior location, so rollback and startup recovery agree with it).
+            # A refused swap (a locked app, a permission error) moved nothing: the rollback then
+            # puts the data back and starts the old app again, instead of hunting a backup that
+            # never existed and leaving the app stopped.
+            if outcome or expected_prior.exists():
+                self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             if not outcome:
                 return self._fail_and_rollback(
                     f"the external updater could not finish the swap: {detail}", fault=UpdateFault.INSTALL_FAILED
