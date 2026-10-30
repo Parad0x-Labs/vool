@@ -323,7 +323,8 @@ def _ready_pilot_wallet(journey: Journey) -> str:
     assert status == 200 and ready["setup"]["setup_state"] == "ready", ready
     # the owner's own cap for this pilot: 0.1 SOL plus fees is above the shipped per-transfer default
     status, limits = journey.post("/api/wallet/limits", {"wallet_id": wallet_id, "asset": "SOL", "per_tx_minor": 1_000_000_000,
-                                                         "daily_minor": 5_000_000_000, "per_destination_daily_minor": 2_500_000_000})
+                                                         "daily_minor": 5_000_000_000, "per_destination_daily_minor": 2_500_000_000,
+                                                         "credential": PIN})  # raising a cap is proven with the wallet PIN
     assert status == 200, limits
     return wallet_id
 

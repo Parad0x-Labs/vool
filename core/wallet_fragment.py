@@ -459,9 +459,19 @@ function limitsControls(st){
   var perTx = field('vwLimitPerTx', 'Per transaction', lim.per_tx_minor);
   var daily = field('vwLimitDaily', 'Per day', lim.daily_minor);
   var perDest = field('vwLimitPerDest', 'Per destination per day', lim.per_destination_daily_minor);
+  // Raising a cap asks for the wallet's own PIN or password (a Touch ID wallet asks on this Mac instead); lowering never does.
+  var secretWord = st.approval_method === 'password' ? 'password' : 'PIN';
+  var secret = null;
+  if (st.approval_method === 'pin' || st.approval_method === 'password') {
+    var secretLabel = el('label', null, 'Wallet ' + secretWord + ' (needed only to raise a cap)'); secretLabel.setAttribute('for', 'vwLimitSecret'); box.appendChild(secretLabel);
+    secret = el('input', 'vw-pin'); secret.type = 'password'; secret.id = 'vwLimitSecret'; secret.autocomplete = 'off';
+    secret.setAttribute('aria-label', 'wallet ' + secretWord + ', needed only to raise a cap'); if (secretWord === 'PIN') secret.inputMode = 'numeric';
+    box.appendChild(secret);
+  }
   var save = el('button', 'vw-btn', 'Save spending caps'); save.id = 'vwLimitsSave'; save.type = 'button';
   save.addEventListener('click', function(){
     var body = { wallet_id: st.wallet_id, asset: (asset.value || 'SOL').trim().toUpperCase() };
+    if (secret && secret.value) body.credential = secret.value;
     var bad = false;
     [['per_tx_minor', perTx], ['daily_minor', daily], ['per_destination_daily_minor', perDest]].forEach(function(f){
       var v = String(f[1].value || '').trim(); if (v === '') return;
@@ -470,11 +480,12 @@ function limitsControls(st){
     if (bad) { setMsg('Caps are whole numbers of minor units.', true); return; }
     save.disabled = true;
     postJson('/api/wallet/limits', body).then(function(res){
-      save.disabled = false;
+      save.disabled = false; if (secret) secret.value = '';
+      if (!res.ok && res.data && res.data.fault && res.data.fault.context && res.data.fault.context.reason === 'credential_required') { setMsg('Raising a cap needs your wallet ' + secretWord + '. Type it above and save again.', true); return; }
       if (!res.ok) { setMsg((res.data && (res.data.message || (res.data.fault && res.data.fault.context && res.data.fault.context.remediation) || res.data.error)) || 'Caps not saved.', true); return; }
       setMsg('Spending caps saved.');
       renderStatus();
-    }).catch(function(){ save.disabled = false; setMsg('The caps request did not complete.', true); });
+    }).catch(function(){ save.disabled = false; if (secret) secret.value = ''; setMsg('The caps request did not complete.', true); });
   });
   box.appendChild(save);
   return box;

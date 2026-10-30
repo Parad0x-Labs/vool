@@ -25,7 +25,8 @@ from dataclasses import dataclass
 from core.wallet.store import connection
 
 DAY_SECONDS = 86_400
-#: Conservative defaults for a testnet slice (minor units): per-tx, daily, per-destination-daily.
+#: Conservative defaults on every network, Mainnet included (minor units): per-tx, daily, per-destination-daily.
+#: 0.1 SOL / 10 USDC / 0.01 ETH a payment until the owner raises them with the wallet credential (custody.prove_owner).
 DEFAULT_LIMITS = {
     "SOL": (100_000_000, 500_000_000, 250_000_000),
     "USDC": (10_000_000, 50_000_000, 25_000_000),
@@ -94,6 +95,12 @@ def global_daily_minor() -> int:
         return max(0, int(raw)) if raw else 0
     except ValueError:
         return 0
+
+
+def loosens(current: SpendLimits, wanted: SpendLimits) -> bool:
+    """Whether ``wanted`` lets through anything ``current`` refuses: any one cap raised. Lowering is never gated."""
+    return (int(wanted.per_tx_minor) > int(current.per_tx_minor) or int(wanted.daily_minor) > int(current.daily_minor)
+            or int(wanted.per_destination_daily_minor) > int(current.per_destination_daily_minor))
 
 
 def set_limits(wallet_id: str, asset: str, limits: SpendLimits) -> SpendLimits:
