@@ -142,7 +142,8 @@ def test_slow_broken_previous_start_runs_before_the_verdict(installed):
     reached on launch-time clocks restores the current version while the previous
     version's startup has not run yet — its mutation proof never appears. The verdict
     must wait for the run."""
-    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0)
+    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0,
+                                  raising=False)
     subsystem = _install(installed, health_timeout=3.0, old_spec={'start_sleep': 8, 'broken': True})
     (installed['home'] / 'manual-trigger').touch()
 
@@ -161,7 +162,8 @@ def test_slow_but_healthy_previous_version_completes(installed):
     """A slow machine must not fail a GOOD rollback: the previous version takes
     longer than the health window to boot, then serves. Launch-time clocks call it
     unhealthy and restore the current version; the observed start completes."""
-    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0)
+    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0,
+                                  raising=False)
     subsystem = _install(installed, health_timeout=3.0, old_spec={'start_sleep': 5})
 
     result = run_manual_rollback(subsystem, rollback_candidate(subsystem), 'rollback-slow-ok')
@@ -175,7 +177,8 @@ def test_never_observed_previous_start_stays_bounded(installed):
     """Fair start is bounded: a previous version that never comes up and never exits
     is still failed within its documented start allowance, and the current version is
     restored."""
-    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 2.0)
+    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 2.0,
+                                  raising=False)
     subsystem = _install(installed, health_timeout=3.0, old_spec={'start_sleep': 60})
 
     started = time.monotonic()
@@ -191,7 +194,8 @@ def test_up_but_silent_previous_version_health_window_from_up(installed):
     """The health window is measured from the moment the previous version is actually
     up (it took the app's pidfile seat), not from launch: up-but-silent is failed
     after one health window, well inside the start allowance."""
-    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0)
+    installed['monkeypatch'].setattr(rollback_module, 'RELAUNCH_START_BOUND_SECONDS', 30.0,
+                                  raising=False)
     subsystem = _install(installed, health_timeout=2.0, old_spec={'silent_sleep': 600})
 
     started = time.monotonic()
