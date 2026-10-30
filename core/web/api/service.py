@@ -2942,6 +2942,20 @@ def _dispatch_get(
             payload["turn_active_other"] = chat_slot_held_by_other(session_id, mine)
         return apply_runtime_headers(json_response(200, payload), runtime)
 
+    if normalized_path == "/api/chat/approvals":
+        # This chat's open approval prompts, so the page can offer Allow / Deny after a reload or
+        # for a turn it did not send itself. Owner-local, like the prompt it rebuilds: answering
+        # one still goes through /api/mode resolve_approval and its exact-action check.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.mode_permission_policy import pending_approvals_for_session
+
+        session_id = str((query.get("session") or [""])[0] or "").strip()
+        approvals = pending_approvals_for_session(session_id) if session_id else []
+        return apply_runtime_headers(
+            json_response(200, {"session_id": session_id, "approvals": approvals}), runtime
+        )
+
     if normalized_path == "/api/bug-report/status":
         # Bug-report draft status (owner-local read of the local store).
         from core.bug_report import get_service as _br_service
@@ -8093,7 +8107,20 @@ def _dispatch_post_inner(
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
-        inbound_source_context["cancel_turn_id"] = str(body.get("turn_id") or "").strip()[:80]
+        # A caller that sends no turn id (a script, a bridge, a phone plug) still sends ONE turn, and
+        # its execution record, its approval prompts and this door's final honesty check must all name
+        # it the same way, so the request id this door already minted stands in. Measured on 1cbf433:
+        # with no turn id an Auto write recorded itself under the runtime's own turn id, the final
+        # check read the turn by request id, found no write, and the person got a bare HTTP 500 after
+        # the file was written; a Manual prompt stored with no task could never be allowed.
+        _client_turn = str(body.get("turn_id") or "").strip()[:80]
+        _request_turn = str(request_id or "").strip()
+        if not _client_turn and len(_request_turn) > 80:
+            # A request id may be longer than a turn id holds. Cut short, two ids sharing their
+            # first 80 characters would become ONE task: one's grants, cancel and follow-ups
+            # landing on the other. A digest keeps every distinct id distinct.
+            _request_turn = "rq-" + hashlib.sha256(_request_turn.encode("utf-8")).hexdigest()[:40]
+        inbound_source_context["cancel_turn_id"] = _client_turn or _request_turn
         # A question asked while a task runs in this chat is answered beside it, not after it. The
         # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
         # request for one is honoured only while this chat really has a live task (owner-local).

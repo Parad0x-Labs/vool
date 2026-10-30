@@ -297,6 +297,7 @@ _EXTERNAL: dict[str, str] = {
     # six chat ACTIONS under the same prefix are owned commands (groups/delegated_routes),
     # and a NEW `/api/chat/...` surface appears as LEGACY_UNMIGRATED rather than being
     # absorbed by the wildcard this list replaced.
+    "http:GET:/api/chat/approvals": "chat read feed (open approval prompts)",
     "http:GET:/api/chat/attachments": "chat read feed (staged attachments)",
     "http:GET:/api/chat/attachments/documents": "chat read feed (attached documents)",
     "http:GET:/api/chat/attachments/limits": "chat read feed (attachment limits)",
