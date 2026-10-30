@@ -31,6 +31,7 @@ FOLDER_ASKS = (
     "are there any spreadsheets or pdfs sitting in my Downloads?",
     "what videos have I got in my Movies folder?",
     "how many screenshots are on my desktop?",
+    "what's inside the token-hunter project folder?",
 )
 NOT_A_FOLDER = (
     "Which of PNG, TXT, GIF, and PDF is the format defined by ISO/IEC 15948? List only actual members "

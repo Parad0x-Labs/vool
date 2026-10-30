@@ -1357,6 +1357,12 @@ def _owner_folder_demand(text: str, source_context: dict[str, Any] | None) -> bo
 
         if "files" in owner_live_sources(text):
             return True
+        from core.execution.constants import machine_folder_audit_intent, machine_folder_search_intent
+
+        # "what's in the garden-planner project folder?" (fresh ask fu05): the folder grammar the
+        # folder lanes already answer from names a folder, though not one of the live-source roots.
+        if machine_folder_audit_intent(text) is not None or machine_folder_search_intent(text) is not None:
+            return True
         from core.tool_card_router import releases_lane
 
         return any(m.intent == "machine.list_directory" for m in releases_lane(text, owner_local=True))
