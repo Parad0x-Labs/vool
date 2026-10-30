@@ -410,7 +410,7 @@ def change_approval_method(wallet_id: str, *, new_method: str, new_secret: str =
     if profile.approval_method == APPROVAL_DEVICE:
         kind, material, public_key = _unseal_with_device(wallet_id, reason=f"VOOL: change how wallet {public_key_short(profile.public_key)} approves payments")
     else:
-        kind, material = _unseal_material(wallet_id, current_secret)
+        kind, material = _unseal_counted(wallet_id, current_secret, source_context=source_context)
         public_key = profile.public_key
     try:
         if method == APPROVAL_DEVICE:
@@ -499,8 +499,27 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
         _kind, material, _public_key = _unseal_with_device(wallet_id, reason=f"VOOL: {purpose} for wallet {public_key_short(profile.public_key)}")
         del material
         return
-    _kind, material = _unseal_material(wallet_id, str(credential))
+    _kind, material = _unseal_counted(wallet_id, str(credential), source_context=source_context)
     del material
+
+
+def _unseal_counted(wallet_id: str, secret: str, *, source_context: dict[str, Any] | None) -> tuple[str, bytes]:
+    """:func:`_unseal_material` through the durable unlock throttle a Crypto Pilot wallet's credential uses. The older
+    pocket wallet's seal counts nothing itself, so a door that answers "wrong PIN" for it (raising a cap, changing the
+    approval method) would otherwise be an unlimited PIN oracle for any process on this machine."""
+    from core.wallet import pilot_custody
+
+    pilot_custody._reserve_attempt(wallet_id, source_context=source_context)
+    try:
+        opened = _unseal_material(wallet_id, str(secret or ""))
+    except WalletFault as exc:
+        pilot_custody._settle_attempt(wallet_id, "failure" if exc.code in {"wallet_pin_invalid", "wallet_password_invalid"} else "refund")
+        raise
+    except Exception:
+        pilot_custody._settle_attempt(wallet_id, "refund")
+        raise
+    pilot_custody._settle_attempt(wallet_id, "success")
+    return opened
 
 
 def verify_pin(wallet_id: str, pin: str) -> bool:

@@ -157,3 +157,61 @@ def test_the_red_team_repro_a_5000_sol_payment_stays_over_the_cap(app, fake_devi
     status, _answer = _post(app, {"wallet_id": wallet_id, "asset": "SOL", "per_tx_minor": HUGE, "daily_minor": HUGE, "per_destination_daily_minor": HUGE})
     assert status == 400
     assert not limits.check_limits(wallet_id, "SOL", HUGE, payee).ok
+
+
+# --- independent review 2026-10-30 ----------------------------------------------------------------------
+
+def test_guessing_an_older_pocket_wallets_pin_here_hits_the_durable_throttle(app, fake_device):
+    """The older pocket wallet's seal counts nothing itself; this door must not be a free PIN oracle."""
+    from core.wallet import pilot_custody
+
+    wallet_id = _pocket(pin=PIN)
+    before = _stored(wallet_id)
+    answers = []
+    for guess in range(pilot_custody.WALLET_LOCK_AFTER + 1):
+        status, answer = _post(app, {"wallet_id": wallet_id, "asset": "SOL", "per_tx_minor": HUGE, "credential": f"{guess:06d}"})
+        answers.append(answer["error"])
+    assert answers[-1] == "wallet_unlock_throttled", answers
+    # locked: even the right PIN waits, and nothing was stored
+    status, answer = _post(app, {"wallet_id": wallet_id, "asset": "SOL", "per_tx_minor": HUGE, "credential": PIN})
+    assert answer["error"] == "wallet_unlock_throttled" and _stored(wallet_id) == before
+
+
+def test_a_write_checked_against_a_stale_read_cannot_undo_a_lowered_cap(app, fake_device, monkeypatch):
+    """Read caps, owner lowers one, write the old caps back: against what is stored that write is a raise."""
+    from core.wallet import limits
+
+    wallet_id = _pilot()
+    high = limits.load_limits(wallet_id, "SOL")
+    limits.set_limits(wallet_id, "SOL", limits.SpendLimits(1, 1, 1))  # the owner's emergency lowering
+    monkeypatch.setattr(limits, "load_limits", lambda *_a, **_k: high)  # the door's first read predates it
+    status, answer = _post(app, {"wallet_id": wallet_id, "asset": "SOL"})
+    assert status == 400 and answer["fault"]["context"]["reason"] == "credential_required", answer
+    monkeypatch.undo()
+    assert _stored(wallet_id) == (1, 1, 1)
+
+
+@pytest.mark.parametrize("value", ["abc", 1e400, None, [1]])
+def test_a_cap_that_is_not_a_whole_number_is_a_plain_refusal(app, fake_device, value):
+    wallet_id = _pilot()
+    before = _stored(wallet_id)
+    raw = json.dumps({"wallet_id": wallet_id, "asset": "SOL", "per_tx_minor": value}).replace("Infinity", "1e400")
+    status, _headers, body = asgi_request(app, method="POST", path="/api/wallet/limits", headers=LOOPBACK_NO_ORIGIN, body=raw.encode())
+    assert status == 400 and json.loads(body)["error"] == "limits_invalid", body
+    assert _stored(wallet_id) == before
+
+
+def test_the_approval_method_door_is_no_free_pin_oracle_either(app, fake_device):
+    """Delta review: changing the approval method checked the current PIN with an uncounted unseal."""
+    from core.wallet import pilot_custody
+
+    wallet_id = _pocket(pin=PIN)
+    answers = []
+    for guess in range(pilot_custody.WALLET_LOCK_AFTER + 1):
+        status, _h, raw = asgi_request(app, method="POST", path="/api/wallet/approval-method", headers=LOOPBACK_NO_ORIGIN,
+                                       body=json.dumps({"wallet_id": wallet_id, "method": "pin", "new_pin": "135792", "pin": f"{guess:06d}"}).encode())
+        answers.append(json.loads(raw)["error"])
+    assert answers[-1] == "wallet_unlock_throttled", answers
+    status, _h, raw = asgi_request(app, method="POST", path="/api/wallet/approval-method", headers=LOOPBACK_NO_ORIGIN,
+                                   body=json.dumps({"wallet_id": wallet_id, "method": "pin", "new_pin": "135792", "pin": PIN}).encode())
+    assert json.loads(raw)["error"] == "wallet_unlock_throttled"
