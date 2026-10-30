@@ -1519,14 +1519,14 @@ def model_visible_specs(
         except Exception:
             pass
     # The compact owner catalog (core.owner_tool_catalog): on the owner's own turn served by a
-    # local model, one read tool per owner family seats after the words' own seats, and the
+    # local model, one read tool per owner family seats beside the words' own seats, and the
     # budget widens by exactly what it adds (still under the hard cap).
     catalog_seats: list[str] = []
     if user_text and source_is_owner_local:
         try:
             from core.owner_tool_catalog import owner_catalog_intents
 
-            catalog_seats = [i for i in owner_catalog_intents(user_text, source_context) if i not in explicit]
+            catalog_seats = list(owner_catalog_intents(user_text, source_context))
         except Exception:
             catalog_seats = []
     expansions: tuple[str, ...] = ()
@@ -1592,7 +1592,7 @@ def model_visible_specs(
         # must not evict each other out of the 8-seat default.
         seat_budget += len(seatable)
     if catalog_seats:
-        seat_budget = max(seat_budget, len(_ALWAYS_VISIBLE_ORDER) + len(explicit) + len(catalog_seats))
+        seat_budget = max(seat_budget, len(_ALWAYS_VISIBLE_ORDER) + len({*explicit, *catalog_seats}))
     seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     result_specs: list[dict[str, Any]] = []
@@ -1625,10 +1625,17 @@ def model_visible_specs(
     # -- Step 3: Reserved seats, then explicit intents, then skill seats --
     for intent in _ALWAYS_VISIBLE_ORDER:
         _seat(intent)
+    # The owner catalog seats right after the reserved seats, in its fixed order and with its
+    # short descriptions, so every catalog round opens with the same tool block (a local model
+    # reuses the cached prefix) and the words' own seats follow it.
+    if catalog_seats:
+        from core.owner_tool_catalog import OWNER_CATALOG_DESCRIPTIONS
+
+        for intent in catalog_seats:
+            if _intent_available(intent) and intent in spec_map:
+                spec_map[intent] = {**spec_map[intent], "description": OWNER_CATALOG_DESCRIPTIONS[intent]}
+                _seat(intent)
     for intent in explicit:
-        if _intent_available(intent):
-            _seat(intent)
-    for intent in catalog_seats:
         if _intent_available(intent):
             _seat(intent)
     for intent in skill_seats:

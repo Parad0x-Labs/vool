@@ -23,22 +23,26 @@ from __future__ import annotations
 
 from typing import Any
 
-#: One read tool per owner family, in seating order. Each is read-only; none moves money, sends
-#: anything or changes the machine.
-OWNER_CATALOG: tuple[str, ...] = (
-    "machine.list_directory",
-    "machine.find_file",
-    "machine.read_file",
-    "pdf.extract_text",
-    "machine.disk_usage",
-    "machine.list_processes",
-    "operator.find_notes",
-    "operator.list_reminders",
-    "operator.show_agenda",
-    "contacts.search",
-    "skill.list",
-    "profile.list",
-)
+#: One read tool per owner family, in seating order, each with the short description the local
+#: model reads. Short on purpose: on a CPU every offered character is prefill time paid on every
+#: round (measured 2026-10-30: a 17-tool round with the catalog's full descriptions carried 7.5k
+#: characters of tool definitions). Each is read-only; none moves money, sends anything or
+#: changes the machine.
+OWNER_CATALOG_DESCRIPTIONS: dict[str, str] = {
+    "machine.list_directory": "List a folder on this computer (Desktop, Downloads or Documents).",
+    "machine.find_file": "Find files by name in Desktop, Downloads and Documents.",
+    "machine.read_file": "Read a text file on this computer.",
+    "pdf.extract_text": "Read the text of a PDF file.",
+    "machine.disk_usage": "Free and total disk space.",
+    "machine.list_processes": "Running programs, heaviest first by memory or CPU.",
+    "operator.find_notes": "Search the user's saved notes.",
+    "operator.list_reminders": "List the user's reminders.",
+    "operator.show_agenda": "Show the user's calendar for a period.",
+    "contacts.search": "Find a saved contact by name.",
+    "skill.list": "List the skills installed in VOOL and whether each is on.",
+    "profile.list": "Show what VOOL keeps about the user: name, language, timezone and preferences.",
+}
+OWNER_CATALOG: tuple[str, ...] = tuple(OWNER_CATALOG_DESCRIPTIONS)
 
 #: source-context key caching the local-lane verdict for one turn (one registry read per turn).
 _LOCAL_LANE_KEY = "_owner_catalog_local_lane"
