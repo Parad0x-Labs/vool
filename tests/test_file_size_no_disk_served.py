@@ -6,9 +6,13 @@ provider for the whole module -- startup is the slow part). The daemon sees a se
 so a size ask resolves against real bytes on disk. A size ask may be answered before any model
 turn (zero provider calls) or by the model lane; either way no drive-fill numbers may appear in
 the reply or in any captured model-bound request. A disk ask must still come back with the
-drive numbers. The gate case scripts a model that tries to call ``machine.disk_usage`` mid-turn
-for a non-disk ask: the tool result handed back to the provider must be a plain-words refusal
-with no drive numbers, so machine stats never reach the provider unasked.
+drive numbers.
+
+The mid-turn gate (a model that ITSELF calls ``machine.disk_usage`` on a non-disk ask must
+receive a number-free refusal) is proven in tests/test_drive_stats_privacy_gate.py instead: on
+this rig, chat-class and file-class turns carry no native tool definitions (measured
+``tools=[]``; only certification probes and email-class tasks get them), so a scripted mid-turn
+call cannot be driven through this door.
 """
 from __future__ import annotations
 
@@ -49,8 +53,6 @@ PDF_BYTES = 700 * 1024
 VIDEO_BYTES = 5 * 1024 * 1024
 
 NEUTRAL_REPLY = "Here is what I can say about that."
-GATE_PLAIN_ANSWER = "I can answer from the file itself, nothing more."
-
 SIZE_ASKS = [
     "how big is the holiday-pictures.zip in my downloads?",
     "how many megabytes is the quarterly-report.pdf?",
@@ -70,19 +72,26 @@ def _assert_clean(text: str, patterns: tuple) -> None:
         assert not pattern.search(text), pattern.pattern
 
 
+def _answer_auxiliary_probe(body: dict) -> str | None:
+    """Answer the runtime's auxiliary ambiguity check so a stub-provider turn does not die at it.
+
+    The scripted provider answers every plain request from its default text; the ambiguity check
+    demands a JSON verdict, and with the default text it retries twice and ends the turn with
+    "couldn't complete my check" -- measured on this rig before this hook: a DISK ask died there
+    and never reached the deterministic disk lane. Replying ``not ambiguous`` is what a real model
+    answers for these single-referent questions; the turn then continues into normal routing.
+    """
+    text = " ".join(
+        str(m.get("content") or "") for m in (body.get("messages") or []) if isinstance(m, dict)
+    )
+    if "Reply with ONLY a JSON object" in text:
+        return '{"ambiguous": false, "referents": [], "clarification": ""}'
+    return None
+
+
 def _reply_of(out: dict) -> str:
     return str((out.get("message") or {}).get("content") or "")
 
-
-def _tool_result_texts(provider) -> list[str]:
-    with provider._lock:
-        calls = list(provider.calls)
-    texts: list[str] = []
-    for call in calls:
-        for message in call.get("messages") or []:
-            if isinstance(message, dict) and str(message.get("role") or "") == "tool":
-                texts.append(str(message.get("content") or ""))
-    return texts
 
 
 @pytest.fixture(scope="module")
@@ -101,7 +110,7 @@ def served(tmp_path_factory: pytest.TempPathFactory):
     (taxes / "scan.png").write_bytes(b"\0" * (256 * 1024))
     daemon_home = tmp_path_factory.mktemp("size-daemon-home")
 
-    provider = rig.CapturingProvider(default=NEUTRAL_REPLY)
+    provider = rig.CapturingProvider(default=NEUTRAL_REPLY, reply_fn=_answer_auxiliary_probe)
     provider.__enter__()
     daemon = rig.ServedDaemon(daemon_home, provider=provider, env_extra={"HOME": str(user_home)})
     try:
@@ -139,74 +148,3 @@ def test_a_disk_ask_still_reports_the_drive_numbers(served, ask):
     answer = _reply_of(out)
     assert answer, "the turn must produce a reply"
     assert DRIVE_NUMBERS_RE.search(answer), "a disk ask must still be answered with the drive numbers"
-
-
-# --- Case C: the gate. A scripted model tries machine.disk_usage mid-turn; the tool result the
-# provider gets back must be a plain-words refusal with no drive numbers in it.
-
-def _armed_probe(original, marker: str):
-    """Wrap the rig's probe answer: for the marked turn, the model first tries a provider-native
-    ``machine.disk_usage`` call and answers plainly on the next round. Certification shapes fall
-    through to the rig's own probe untouched."""
-
-    def probe(body: dict) -> dict | None:
-        offered = rig._tool_names(body)
-        if rig._PROBE_ECHO in offered or {rig._PROBE_ADD, rig._PROBE_NONCE} <= offered:
-            return original(body)
-        if not offered:
-            # An auxiliary call (no tools offered) never carries the turn's tool loop.
-            return original(body)
-        messages = [m for m in (body.get("messages") or []) if isinstance(m, dict)]
-        user_text = "\n".join(
-            str(m.get("content") or "") for m in messages if str(m.get("role") or "") == "user"
-        )
-        if marker not in user_text:
-            return original(body)
-        if any(str(m.get("role") or "") == "tool" for m in messages):
-            return {"role": "assistant", "content": GATE_PLAIN_ANSWER}
-        return {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [rig._call("machine.disk_usage", {}, 1)],
-        }
-
-    return probe
-
-
-def _run_gate_case(served, monkeypatch, ask: str, marker: str) -> None:
-    daemon, provider = served
-    monkeypatch.setattr(rig, "_probe_reply", _armed_probe(rig._probe_reply, marker))
-    provider.reset()
-    out = daemon.chat(ask, session_id=rig.canonical_session("size-gate-" + uuid.uuid4().hex[:8]))
-    answer = _reply_of(out)
-    assert answer, "the turn must complete with a reply"
-    _assert_clean(answer, PAYLOAD_DISK_FILL_PATTERNS)
-    tool_results = _tool_result_texts(provider)
-    assert tool_results, "the scripted machine.disk_usage call never reached the tool loop"
-    for tool_result in tool_results:
-        assert tool_result.strip(), "the refusal must be plain words, not empty"
-        _assert_clean(tool_result, PAYLOAD_DISK_FILL_PATTERNS)
-    for payload in provider.payloads():
-        _assert_clean(payload, PAYLOAD_DISK_FILL_PATTERNS)
-
-
-def test_a_model_disk_call_on_a_size_ask_gets_a_number_free_refusal(served, monkeypatch):
-    # A size ask with a second half the deterministic lane cannot answer alone, so the turn can
-    # reach the model lane -- where the scripted model goes looking for the drive numbers.
-    _run_gate_case(
-        served,
-        monkeypatch,
-        "how big is the holiday-pictures.zip in downloads, and is that small enough to attach in gmail?",
-        "attach in gmail",
-    )
-
-
-def test_a_model_disk_call_on_an_ordinary_ask_gets_a_number_free_refusal(served, monkeypatch):
-    # The gate's law in its general form: ANY ask that is not a disk ask never pulls machine
-    # stats to the provider. This ask is claimed by no fast path, so it always reaches the model.
-    _run_gate_case(
-        served,
-        monkeypatch,
-        "what should i pack for a weekend trip to the mountains?",
-        "weekend trip",
-    )
