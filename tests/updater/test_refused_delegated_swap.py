@@ -174,3 +174,82 @@ def test_stopping_the_real_swap_script_while_it_waits_means_it_never_swaps(tmp_p
     finally:
         if slow_app.poll() is None:
             slow_app.kill()
+
+
+def _fake_app(root, body: str):
+    launcher = root / "Contents/Resources/launcher.sh"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text("#!/bin/bash\n" + body + "\n")
+    return launcher
+
+
+def _running(pid: int) -> bool:
+    from core.updater import macos
+
+    return not macos._pid_has_exited(pid)
+
+
+def test_a_rollback_stops_the_new_version_the_script_started_before_it_wrote_its_pidfile(tmp_path):
+    """Org-credit review N1: the script relaunches the new version and exits; a version still starting
+    (no pidfile yet) was left running behind the restore and later took over the old version's seat."""
+    import subprocess
+    import time
+    from pathlib import Path
+
+    from core.updater import macos
+
+    app, staged = tmp_path / "VOOL.app", tmp_path / "staged.app"
+    _fake_app(app, "exit 0")
+    _fake_app(staged, "while :; do sleep 0.2; done  # a new version still starting, no pidfile")
+    old_app = subprocess.Popen(["sleep", "0.1"])
+    old_app.wait()
+    script = Path(macos.__file__).resolve().parents[2] / "installer/update/mac_update_helper.sh"
+    launcher = app.resolve() / "Contents/Resources/launcher.sh"
+    helper = macos.ExternalScriptHelper(script=script, app_path=app, target_pid=lambda: old_app.pid,
+                                        result_path=tmp_path / "result.json", relaunch_cmd=f"bash {launcher}")
+    helper.prepare(txid="t1", staged_bundle=staged)
+    helper.shutdown_app()
+    ok, _ = helper.wait_for_result(timeout=15.0)
+    assert ok
+    helper.process.wait(timeout=10)
+    deadline, started = time.monotonic() + 10, []
+    while not started and time.monotonic() < deadline:
+        started = helper._script_group_app_pids()
+        time.sleep(0.1)
+    assert started, "the new version the script started was not found"
+    try:
+        assert helper.stop_swap_script(timeout=5.0)
+        assert helper.stop_running_app(timeout=5.0)
+        assert not any(_running(pid) for pid in started)
+    finally:
+        for pid in started:
+            if _running(pid):
+                macos.os.kill(pid, macos.signal.SIGKILL)
+
+
+def test_an_app_that_ignores_the_request_to_quit_is_ended_so_the_rollback_can_finish(tmp_path):
+    """Org-credit review N2: an app that would not close ended in "rollback failed" with the old version
+    left on migrated data. Only a process proven to be this app is ended."""
+    import subprocess
+    import time
+
+    from core.updater import macos
+
+    app = tmp_path / "VOOL.app"
+    launcher = _fake_app(app, "trap '' TERM\nwhile :; do sleep 0.2; done")
+    stubborn = subprocess.Popen(["bash", str(launcher.resolve())], start_new_session=True)
+    stranger = subprocess.Popen(["bash", "-c", "trap '' TERM; while :; do sleep 0.2; done"], start_new_session=True)
+    time.sleep(0.5)
+    try:
+        helper = macos.ExternalScriptHelper(script=launcher, app_path=app, target_pid=lambda: stubborn.pid,
+                                            result_path=tmp_path / "result.json")
+        assert helper.stop_running_app(timeout=1.0)
+        assert stubborn.wait(timeout=5) == -9
+        other = macos.ExternalScriptHelper(script=launcher, app_path=app, target_pid=lambda: stranger.pid,
+                                           result_path=tmp_path / "result.json")
+        assert not other.stop_running_app(timeout=1.0)  # not this app: asked to quit, never ended
+        assert stranger.poll() is None
+    finally:
+        for process in (stubborn, stranger):
+            if process.poll() is None:
+                process.kill()

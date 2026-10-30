@@ -428,6 +428,35 @@ def test_a_failed_rollback_blocks_every_check_even_with_nothing_recorded(tmp_pat
     assert service.status.load().fault_code == "rollback_failed"
 
 
+def test_a_failure_before_the_update_named_its_target_still_skips_the_offered_version(tmp_path):
+    from core.updater.state import UpdaterPaths
+    from core.updater.status import UpdateFault
+    from core.updater.transaction import Step, UpdateJournal
+
+    private, public = generate_publisher_keypair()
+    offered, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: manifest_bytes(offered))
+    UpdateJournal(UpdaterPaths.for_data_dir(tmp_path).transaction_dir("tx-070")).append(
+        Step.DECIDED, {"target_version": "0.7.0", "installed_version": "0.6.9"})  # the update that installed 0.7.0
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.FAILED, detail="refused download", fault=UpdateFault("verification_failed"))
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.current_offer() is None and service.status.load().fault_code == "verification_failed"
+
+
+def test_a_skip_left_from_an_earlier_failure_does_not_hide_normal_checks(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    service.check_once(preserve_failure=True)  # the skip is stored
+    service.status.publish(UpdatePhase.UP_TO_DATE)  # e.g. startup recovery finished something else
+    service.check_once(preserve_failure=True)
+    assert service.status.load().phase is not UpdatePhase.UP_TO_DATE  # a real check ran and published
+
+
 def test_a_failed_update_with_no_known_version_keeps_waiting_for_a_pressed_check(tmp_path):
     from core.updater.status import UpdateFault
 

@@ -324,7 +324,7 @@ class UpdateFlow:
                     raise RuntimeError("the update helper could not be stopped for rollback")
                 stop = getattr(self.helper, "stop_running_app", None)
                 if not callable(stop) or stop(timeout=10.0) is False:
-                    raise RuntimeError("the new app could not be stopped for rollback")
+                    raise RuntimeError("the app could not be stopped for rollback")
             else:
                 self.helper.shutdown_app()
                 if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
@@ -958,7 +958,10 @@ def recover_interrupted_update(
             fault=UpdateFault.HEALTH_CHECK_FAILED,
         )
         results.append(
-            RecoveryResult(txid, "rolled_back", "new version unhealthy after crash", prior_path=prior if prior and prior.exists() else None)
+            RecoveryResult(txid, "rolled_back",
+                           "new version unhealthy after crash" if journal.has(Step.SWAPPED)
+                           else "update stopped before the new version was put in place",
+                           prior_path=prior if prior and prior.exists() else None)
         )
     return results
 
