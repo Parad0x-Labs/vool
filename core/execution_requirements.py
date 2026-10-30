@@ -37,6 +37,7 @@ retrieved from the web whatever words surround it.
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -1582,7 +1583,11 @@ def email_not_connected_reply(text: str, source_context: dict[str, Any] | None =
             return None
         from core.tool_demand_signals import mailbox_retrieval_intents, owner_live_sources
 
-        asks_mail = "mail" in owner_live_sources(str(text or "")) or bool(mailbox_retrieval_intents(str(text or "")))
+        asks_mail = (
+            "mail" in owner_live_sources(str(text or ""))
+            or bool(mailbox_retrieval_intents(str(text or "")))
+            or owner_source_ask_in_other_language(str(text or "")) == "mail"
+        )
         if not asks_mail:
             return None
         from core.action_claim_gate import _mail_connected, no_action_reply, reply_language
@@ -1593,6 +1598,96 @@ def email_not_connected_reply(text: str, source_context: dict[str, Any] | None =
             ["mail"],
             connected=lambda name: False if name == "mail" else None,
             forms={"mail": {"read"}},
+            language=reply_language(str(text or "")),
+        )
+    except Exception:
+        return None
+
+
+# The owner's mail or calendar asked about in another language. The recognizers above read
+# English; measured 2026-10-30 on qwen3:8b (dev mc-07), "ar gavau šiandien laišką iš banko?" (did I
+# get a letter from the bank today?) reached the model with no account connected and was answered
+# "no letter from the bank today" -- a check that never ran. Three parts must all hold: a mail or
+# calendar noun, the speaker's own words (my / did I get / do I have), and no how-to opener (a
+# question about HOW to write a letter is knowledge). Lithuanian, French, Spanish, German, Russian,
+# Polish, Portuguese and Italian; stems, because these languages inflect the noun.
+_OTHER_LANGUAGE_MAIL_RE = re.compile(
+    r"(?:\blai[šs]k|\bel\.?\s*pa[šs]t|\bpa[šs]t(?:as|e|ą|o)\b|\bgautuos"
+    r"|\bcourriel|\bbo[îi]te\s+(?:de\s+r[ée]ception|mail)|\bcorreo|\bbandeja\s+de\s+entrada"
+    r"|\bposteingang|\bpostfach|\bписьм|\bпочт|\bимейл|\bящик|\bpoczt|\bskrzyn[kc]"
+    r"|\bcorreio|\bcaixa\s+de\s+entrada|\bposta\s+in\s+arrivo"
+    r"|\be-?mail(?:s|e|i|a|u|ą|y|em|om|ów)?\b|\bmail(?:s|e|i|a|u|ą|y|em|om|ów)?\b)",
+    re.IGNORECASE,
+)
+_OTHER_LANGUAGE_CALENDAR_RE = re.compile(
+    r"(?:\bkalendor|\bsusitikim|\bcalendrier|\bagenda\b|\brendez-vous|\bcalendario|\bcita(?:s)?\b"
+    r"|\bkalender|\btermin(?:e)?\b|\bкалендар|\bвстреч|\bkalendarz|\bspotkani|\breuni[óo]n)",
+    re.IGNORECASE,
+)
+_OTHER_LANGUAGE_OWNER_RE = re.compile(
+    r"(?:\bmano\b|\bgavau\b|\bturiu\b|\bman\b|\bar\s+\w+(?:au|iu)\b"
+    r"|\bmes\b|\bmon\b|\bma\b|\bj['’]ai\b|\bai-je\b|\bsuis-je\b"
+    r"|\bmis?\b|\btengo\b|\bhe\s+recibido\b|\brecib[ií]\b|\bme\s+(?:lleg|escrib)|\bestoy\b"
+    r"|\bmeine?[nmrs]?\b|\bhabe\s+ich\b|\bhab\s+ich\b|\bbin\s+ich\b|\bmir\b"
+    r"|\bмне\b|\bмо[йяеию]\b|\bмоих\b|\bу\s+меня\b|\bя\b|\bполучил|\bпришл"
+    r"|\bmój\b|\bmoj(?:a|e|ą|ej|ego|ich|im)\b|\bmam\b|\bdosta[łl]|\bprzysz[łl]|\bjestem\b"
+    r"|\bmeus?\b|\bminhas?\b|\btenho\b|\brecebi\b|\bmiei\b|\bmio\b|\bmia\b|\bho\b)",
+    re.IGNORECASE,
+)
+_OTHER_LANGUAGE_HOW_TO_RE = re.compile(
+    r"^\s*(?:kaip|comment|c[óo]mo|como|wie|как|jak|come)\b", re.IGNORECASE
+)
+#: Drafting a letter is writing, not reading a mailbox (the English recognizer's same rule).
+_OTHER_LANGUAGE_DRAFT_RE = re.compile(
+    r"(?:\bpara[šs]yk|\bra[šs]yk|\b[ée]cris\b|\b[ée]crire\b|\br[ée]dige|\bescribe\b|\bredacta"
+    r"|\bschreib\b|\bschreibe\b|\bverfass|\bformulier|\bнапиши|\bсоставь|\bnapisz\b|\bzredaguj"
+    r"|\bescreve\b|\bredige\b|\bscrivi\b)",
+    re.IGNORECASE,
+)
+#: Calendar writes keep their own lane (approval, the local .ics draft): only reads answer here.
+_OTHER_LANGUAGE_CALENDAR_WRITE_RE = re.compile(
+    r"(?:\bpridėk|\bįrašyk|\bajoute|\bajouter|\bmets\b|\ba[ñn]ade|\bpon\b|\bagrega|\btrage?\b"
+    r"|\beintragen|\bf[üu]ge?\b|\bдобав|\bзапиши|\bперенес|\bdodaj|\bwpisz|\bprzenie[śs]"
+    r"|\bmova\b|\bmueve\b|\bverschieb|\bdéplace|\badiciona|\baggiungi|\bsposta)",
+    re.IGNORECASE,
+)
+
+
+def owner_source_ask_in_other_language(text: str) -> str:
+    """'mail' or 'calendar' when the owner asks about their own mail or calendar in a language the
+    English recognizers do not read, else ''. Calendar is reported for reads only."""
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned or _OTHER_LANGUAGE_HOW_TO_RE.search(cleaned):
+        return ""
+    if not _OTHER_LANGUAGE_OWNER_RE.search(cleaned):
+        return ""
+    if _OTHER_LANGUAGE_MAIL_RE.search(cleaned):
+        return "" if _OTHER_LANGUAGE_DRAFT_RE.search(cleaned) else "mail"
+    if _OTHER_LANGUAGE_CALENDAR_RE.search(cleaned) and not _OTHER_LANGUAGE_CALENDAR_WRITE_RE.search(cleaned):
+        return "calendar"
+    return ""
+
+
+def calendar_not_connected_reply(text: str, source_context: dict[str, Any] | None = None) -> str | None:
+    """The plain answer for an owner's calendar read in another language with no calendar
+    connected, else None. Same law as ``email_not_connected_reply``: owner-local turns only, and an
+    unknown connection state leaves the turn alone. English asks keep their calendar lanes."""
+    if not isinstance(source_context, dict) or not source_context:
+        return None
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return None
+        if owner_source_ask_in_other_language(str(text or "")) != "calendar":
+            return None
+        from core.action_claim_gate import _calendar_connected, no_action_reply, reply_language
+
+        if _calendar_connected() is not False:
+            return None
+        return no_action_reply(
+            ["calendar"],
+            connected=lambda name: False if name == "calendar" else None,
             language=reply_language(str(text or "")),
         )
     except Exception:

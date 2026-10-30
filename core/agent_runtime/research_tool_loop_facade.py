@@ -1165,9 +1165,22 @@ class ResearchToolLoopFacadeMixin:
             return None
         # The owner asks about their mailbox and no email account is connected: that fact is the
         # whole answer, given before any model can answer the question from its weights.
-        from core.execution_requirements import email_not_connected_reply
+        from core.execution_requirements import calendar_not_connected_reply, email_not_connected_reply
 
         mail_reply = email_not_connected_reply(effective_input, source_context)
+        calendar_reply = None if mail_reply else calendar_not_connected_reply(effective_input, source_context)
+        if calendar_reply:
+            return {
+                "response": calendar_reply,
+                "confidence": 1.0,
+                "success": False,
+                "status": "source_not_connected",
+                "mode": "tool_failed",
+                "task_outcome": "blocked",
+                "details": {"source": "calendar", "connected": False, "executed": False},
+                "learned_plan": None,
+                "workflow_summary": "- calendar ask with no calendar connected; answered from that fact, no model call",
+            }
         if mail_reply:
             return {
                 "response": mail_reply,
