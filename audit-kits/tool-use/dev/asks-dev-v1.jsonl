@@ -1,0 +1,81 @@
+{"id": "dev-nt-01", "kind": "needs_tool", "turns": ["whats in my downloads folder"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-02", "kind": "needs_tool", "turns": ["is there a todo file on my desktop? what does it say"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-03", "kind": "needs_tool", "turns": ["find my grandmas pancake recipe somewhere in documents"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-04", "kind": "needs_tool", "turns": ["how much space is left on my disk"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-05", "kind": "needs_tool", "turns": ["which are the biggest files in my Documents"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-06", "kind": "needs_tool", "turns": ["open the Q3 report draft and tell me the first couple of lines"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-07", "kind": "needs_tool", "turns": ["is there a folder called garden-planner? whats inside it"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-08", "kind": "needs_tool", "turns": ["list the screenshots on my desktop pls"], "expect": {"tool_any": ["files", "images"]}}
+{"id": "dev-nt-09", "kind": "needs_tool", "turns": ["what did i download this week?", "ok and which one of those is the biggest"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-10", "kind": "needs_tool", "turns": ["read me my flat viewing notes, the file on the desktop"], "expect": {"tool_any": ["files", "notes"]}}
+{"id": "dev-nt-11", "kind": "needs_tool", "turns": ["where did i put my receipts for taxes"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-12", "kind": "needs_tool", "turns": ["show me whats in the Projects folder"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-13", "kind": "needs_tool", "turns": ["kas yra mano Downloads aplanke?"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-14", "kind": "needs_tool", "turns": ["¿cuánto espacio libre me queda en el disco?"], "expect": {"tool_any": ["files"]}}
+{"id": "dev-nt-15", "kind": "needs_tool", "turns": ["whats the total on invoice_4471.pdf in my downloads"], "expect": {"tool_any": ["pdf"]}}
+{"id": "dev-nt-16", "kind": "needs_tool", "turns": ["read my boarding pass pdf, what time is the flight"], "expect": {"tool_any": ["pdf"]}}
+{"id": "dev-nt-17", "kind": "needs_tool", "turns": ["summarise my CV pdf in 3 bullets"], "expect": {"tool_any": ["pdf"]}}
+{"id": "dev-nt-18", "kind": "needs_tool", "turns": ["what does my 2025 tax return pdf say i owe"], "expect": {"tool_any": ["pdf"]}}
+{"id": "dev-nt-19", "kind": "needs_tool", "turns": ["lê o meu CV em PDF e diz-me qual foi o meu último emprego"], "expect": {"tool_any": ["pdf"]}}
+{"id": "dev-nt-20", "kind": "needs_tool", "turns": ["whats in the photo cat_on_sofa.png"], "expect": {"tool_any": ["images"]}}
+{"id": "dev-nt-21", "kind": "needs_tool", "turns": ["describe the pics in my lisbon holiday folder"], "expect": {"tool_any": ["images"]}}
+{"id": "dev-nt-22", "kind": "needs_tool", "turns": ["how many photos do i have in Pictures"], "expect": {"tool_any": ["images", "files"]}}
+{"id": "dev-nt-23", "kind": "needs_tool", "turns": ["look at IMG_4021.jpg in downloads and tell me what it shows"], "expect": {"tool_any": ["images"]}}
+{"id": "dev-nt-24", "kind": "needs_tool", "turns": ["was ist auf dem Bild mia_birthday.jpg zu sehen?"], "expect": {"tool_any": ["images"]}}
+{"id": "dev-nt-25", "kind": "needs_tool", "turns": ["save a note: call the plumber about the kitchen sink on monday"], "expect": {"tool_any": ["notes"]}}
+{"id": "dev-nt-26", "kind": "needs_tool", "turns": ["do i have any notes about the warehouse audit?"], "expect": {"tool_any": ["notes", "files"]}}
+{"id": "dev-nt-27", "kind": "needs_tool", "turns": ["jot down a note that Mia wants a blue bike for her birthday"], "expect": {"tool_any": ["notes"]}}
+{"id": "dev-nt-28", "kind": "needs_tool", "turns": ["show me my notes"], "expect": {"tool_any": ["notes"]}}
+{"id": "dev-nt-29", "kind": "needs_tool", "turns": ["remember for me that the car insurance renews nov 3, put it in my notes", "what notes have i got now?"], "expect": {"tool_any": ["notes", "reminders"]}}
+{"id": "dev-nt-30", "kind": "needs_tool", "turns": ["guarda una nota: comprar pilas para el mando de la tele"], "expect": {"tool_any": ["notes"]}}
+{"id": "dev-nt-31", "kind": "needs_tool", "turns": ["remind me to call the dentist tomorrow at 10"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-32", "kind": "needs_tool", "turns": ["set a reminder for friday 6pm to take the bins out"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-33", "kind": "needs_tool", "turns": ["what reminders do i have"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-34", "kind": "needs_tool", "turns": ["remind me in 20 min to check the oven"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-35", "kind": "needs_tool", "turns": ["priminki man rytoj 9 val. nupirkti dovaną Mijai"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-36", "kind": "needs_tool", "turns": ["any reminders coming up this week?"], "expect": {"tool_any": ["reminders"]}}
+{"id": "dev-nt-37", "kind": "needs_tool", "turns": ["whats eating my cpu right now"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-38", "kind": "needs_tool", "turns": ["my computer feels slow, check the memory usage"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-39", "kind": "needs_tool", "turns": ["is ollama running on this machine?"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-40", "kind": "needs_tool", "turns": ["list the top processes by memory"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-41", "kind": "needs_tool", "turns": ["how much ram does this computer have"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-42", "kind": "needs_tool", "turns": ["mon ordi rame, qu'est-ce qui utilise le plus de mémoire ?"], "expect": {"tool_any": ["processes"]}}
+{"id": "dev-nt-43", "kind": "needs_tool", "turns": ["what language are you set to reply in?"], "expect": {"tool_any": ["settings"]}}
+{"id": "dev-nt-44", "kind": "needs_tool", "turns": ["which model is selected in your settings right now"], "expect": {"tool_any": ["settings"]}}
+{"id": "dev-nt-45", "kind": "needs_tool", "turns": ["switch your replies to Lithuanian please"], "expect": {"tool_any": ["settings"]}}
+{"id": "dev-nt-46", "kind": "needs_tool", "turns": ["show me my profile settings"], "expect": {"tool_any": ["settings"]}}
+{"id": "dev-nt-47", "kind": "needs_tool", "turns": ["what skills do you have installed"], "expect": {"tool_any": ["skills"]}}
+{"id": "dev-nt-48", "kind": "needs_tool", "turns": ["is there a skill for reading pdfs turned on?"], "expect": {"tool_any": ["skills"]}}
+{"id": "dev-nt-49", "kind": "needs_tool", "turns": ["which of your skills are switched off"], "expect": {"tool_any": ["skills"]}}
+{"id": "dev-nt-50", "kind": "needs_tool", "turns": ["whats Tomas's phone number in my contacts"], "expect": {"tool_any": ["contacts"]}}
+{"id": "dev-nt-51", "kind": "needs_tool", "turns": ["find Ana in my contacts"], "expect": {"tool_any": ["contacts"]}}
+{"id": "dev-mc-01", "kind": "missing_connection", "topic": "mail", "turns": ["any new emails from my bank?"], "expect": {}}
+{"id": "dev-mc-02", "kind": "missing_connection", "topic": "mail", "turns": ["check my inbox pls"], "expect": {}}
+{"id": "dev-mc-03", "kind": "missing_connection", "topic": "mail", "turns": ["send an email to tomas saying the audit moved to nov 4"], "expect": {}}
+{"id": "dev-mc-04", "kind": "missing_connection", "topic": "mail", "turns": ["did the landlord reply to my email about the flat?"], "expect": {}}
+{"id": "dev-mc-05", "kind": "missing_connection", "topic": "mail", "turns": ["draft a reply to the last email from work and send it"], "expect": {}}
+{"id": "dev-mc-06", "kind": "missing_connection", "topic": "mail", "turns": ["how many unread mails do i have"], "expect": {}}
+{"id": "dev-mc-07", "kind": "missing_connection", "topic": "mail", "turns": ["ar gavau šiandien laišką iš banko?"], "expect": {}}
+{"id": "dev-mc-08", "kind": "missing_connection", "topic": "mail", "turns": ["forward the invoice email to my accountant"], "expect": {}}
+{"id": "dev-mc-09", "kind": "missing_connection", "topic": "calendar", "turns": ["whats on my calendar tomorrow"], "expect": {}}
+{"id": "dev-mc-10", "kind": "missing_connection", "topic": "calendar", "turns": ["am i free thursday afternoon?"], "expect": {}}
+{"id": "dev-mc-11", "kind": "missing_connection", "topic": "calendar", "turns": ["add a dentist appointment to my calendar next tuesday at 3pm"], "expect": {}}
+{"id": "dev-mc-12", "kind": "missing_connection", "topic": "calendar", "turns": ["what meetings do i have this week"], "expect": {}}
+{"id": "dev-mc-13", "kind": "missing_connection", "topic": "calendar", "turns": ["move my 2pm meeting to 4"], "expect": {}}
+{"id": "dev-mc-14", "kind": "missing_connection", "topic": "calendar", "turns": ["¿tengo algo en el calendario el viernes?"], "expect": {}}
+{"id": "dev-mc-15", "kind": "missing_connection", "topic": "calendar", "turns": ["put lunch with Mia on saturday at 1 in my calendar", "did it save?"], "expect": {}}
+{"id": "dev-nk-01", "kind": "no_tool", "turns": ["how long should a soft boiled egg cook"], "expect": {}}
+{"id": "dev-nk-02", "kind": "no_tool", "turns": ["whats the capital of australia"], "expect": {}}
+{"id": "dev-nk-03", "kind": "no_tool", "turns": ["explain what a CSV file is"], "expect": {}}
+{"id": "dev-nk-04", "kind": "no_tool", "turns": ["give me a good name for a grey cat"], "expect": {}}
+{"id": "dev-nk-05", "kind": "no_tool", "turns": ["how many grams in a cup of flour"], "expect": {}}
+{"id": "dev-nk-06", "kind": "no_tool", "turns": ["what does HEIC mean as a file format"], "expect": {}}
+{"id": "dev-nk-07", "kind": "no_tool", "turns": ["write a short birthday message for my niece"], "expect": {}}
+{"id": "dev-nk-08", "kind": "no_tool", "turns": ["is it better to rent or buy a flat, in short"], "expect": {}}
+{"id": "dev-nk-09", "kind": "no_tool", "turns": ["what is the difference between RAM and disk storage"], "expect": {}}
+{"id": "dev-nk-10", "kind": "no_tool", "turns": ["translate 'good morning' into portuguese"], "expect": {}}
+{"id": "dev-nk-11", "kind": "no_tool", "turns": ["kiek kilometrų nuo Vilniaus iki Lisabonos?"], "expect": {}}
+{"id": "dev-nk-12", "kind": "no_tool", "turns": ["wie viele Tage hat der November?"], "expect": {}}
+{"id": "dev-nk-13", "kind": "no_tool", "turns": ["tips for staying focused when working from home"], "expect": {}}
+{"id": "dev-nk-14", "kind": "no_tool", "turns": ["whats a reminder app good for compared to a calendar"], "expect": {}}
+{"id": "dev-nk-15", "kind": "no_tool", "turns": ["how do i take a screenshot on a mac"], "expect": {}}
