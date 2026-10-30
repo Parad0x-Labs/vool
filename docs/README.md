@@ -8,8 +8,8 @@ VOOL is a desktop AI assistant. It installs as an application on your computer a
 run AI models locally on that machine, or connect to a cloud AI provider using your own
 API key. It keeps a readable record of every action it takes.
 
-It is free. With a local model, your chats and files need no internet connection; asking for
-live facts such as weather or prices can still fetch them from public web services. There are
+It is free. With a local model, your chats and files need no internet connection; live facts
+such as weather or prices come from public web services only while Web lookups is on. There are
 downloads for Macs (Apple Silicon and Intel) and Linux x86_64; Windows is experimental and
 installs from source.
 
@@ -31,8 +31,8 @@ handles your files, your memory, and your keys.
 * **A desktop application.** It installs on your computer — not a browser tab, not a
   hosted service.
 * **Works offline for chats and files.** With a local model selected, your chats and files need
-  no internet connection. Asking for live facts such as weather or prices can still fetch them
-  from public web services, even with Web lookups off; Local Only mode blocks those.
+  no internet connection. Asking for live facts such as weather or prices fetches them from
+  public web services unless you turn off Web lookups or turn on Local Only.
 * **Local by default.** With a local model selected, prompts and files are processed
   on your machine.
 * **Model-agnostic.** Local runtimes and cloud providers are both selectable. You supply
