@@ -807,7 +807,7 @@ class EmailConversation:
 
 def _leftover_processes(pid: int, port: int) -> list[str]:
     """Processes still in the daemon's process group or naming its port (never this process)."""
-    listing = subprocess.run(["ps", "-axo", "pid=,pgid=,command="], capture_output=True, text=True, check=False).stdout
+    listing = subprocess.run(["ps", "-axwwo", "pid=,pgid=,command="], capture_output=True, text=True, check=False).stdout
     own = os.getpid()
     leftovers = []
     for line in listing.splitlines():

@@ -211,8 +211,8 @@ class SessionHandle:
 
         try:
             out = subprocess.run(
-                ["/bin/ps", "-axo", "pid=,command="] if sys.platform == "darwin"
-                else ["ps", "-axo", "pid=,command="],
+                ["/bin/ps", "-axwwo", "pid=,command="] if sys.platform == "darwin"
+                else ["ps", "-axwwo", "pid=,command="],
                 capture_output=True, text=True, timeout=10).stdout
         except Exception:
             return 0
