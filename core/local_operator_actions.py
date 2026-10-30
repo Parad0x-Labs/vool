@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from dataclasses import replace as dataclass_replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -492,6 +493,8 @@ def _handle_cancel_reminder(
     task_id: str,
     session_id: str,
 ) -> OperatorActionResult:
+    if str(getattr(intent, "referent", "") or ""):
+        return _handle_cancel_referent(intent, task_id=task_id, session_id=session_id)
     return operator_handlers.handle_cancel_reminder(
         intent,
         task_id=task_id,
@@ -500,6 +503,74 @@ def _handle_cancel_reminder(
         list_reminders_fn=_list_reminders,
         cancel_reminder_fn=_cancel_reminder,
         audit_log_fn=audit_logger.log,
+    )
+
+
+def _handle_cancel_referent(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+) -> OperatorActionResult:
+    """Resolve a pointer-only cancel ("cancel that one") against what this chat actually holds.
+
+    The pointer means the last thing waiting: the most recently created still-pending reminder in
+    this chat, else the newest still-waiting queued message. Either way the REAL cancel runs and
+    the reply is its real result; when this chat holds nothing to point at, the reply says so
+    instead of claiming a cancel that did not happen. The turn's own message cannot be a
+    candidate: a dispatched turn has claimed its queue row (it is in flight, not pending), and a
+    reminder row only exists once a scheduling turn created it.
+    """
+    rows = _list_reminders(session_id=session_id, include_delivered=False)
+    pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+    if pending:
+        latest = max(
+            pending,
+            key=lambda row: (str(row.get("created_at") or ""), str(row.get("due_at_utc") or "")),
+        )
+        resolved = dataclass_replace(intent, action_id=str(latest.get("reminder_id")), referent=None)
+        return operator_handlers.handle_cancel_reminder(
+            resolved,
+            task_id=task_id,
+            session_id=session_id,
+            load_reminder_fn=_load_reminder,
+            list_reminders_fn=_list_reminders,
+            cancel_reminder_fn=_cancel_reminder,
+            audit_log_fn=audit_logger.log,
+        )
+    from core import runtime_continuity
+
+    waiting = runtime_continuity.list_queued_messages(session_id, statuses=("pending",))
+    if waiting:
+        newest = waiting[-1]  # rows come back in send order; the last one is the newest
+        queue_item_id = str(newest.get("queue_item_id") or "")
+        preview = str((newest.get("payload") or {}).get("text") or "").strip()
+        cancelled = runtime_continuity.cancel_queue_item(queue_item_id, session_id=session_id)
+        audit_logger.log(
+            "operator_action_cancel_queued_message",
+            target_id=task_id,
+            target_type="task",
+            details={"queue_item_id": queue_item_id, "outcome": "cancelled" if cancelled else "not_cancellable"},
+        )
+        if cancelled:
+            shown = f" '{preview[:80]}'" if preview else ""
+            return OperatorActionResult(
+                ok=True,
+                status="executed",
+                response_text=f"Cancelled the queued message{shown}. It will not be sent.",
+                details={"kind": "cancel_queued_message", "queue_item_id": queue_item_id, "cancelled": True},
+            )
+        return OperatorActionResult(
+            ok=False,
+            status="failed",
+            response_text="That message was already on its way out, so I could not stop it there.",
+            details={"kind": "cancel_queued_message", "queue_item_id": queue_item_id, "cancelled": False},
+        )
+    return OperatorActionResult(
+        ok=False,
+        status="invalid_request",
+        response_text="I couldn't find a reminder to cancel in this chat.",
+        details={"kind": "cancel_reminder", "referent": str(intent.referent), "resolved": False},
     )
 
 

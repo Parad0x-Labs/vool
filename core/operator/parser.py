@@ -83,6 +83,26 @@ _CANCEL_CALENDAR_RE = re.compile(
 _MOVE_CALENDAR_RE = re.compile(
     r"\b(?:move|push|shift|reschedule|resched|change)\b[^\n!?.!]*\b(?:calendar|meeting|event|series|draft)\b", re.IGNORECASE
 )
+# A bare cancel whose words name no object, only a pointer back at the last thing: "cancel that
+# one", "actually cancel that", "call it off", "cancel the last one". The clause carries no noun,
+# so no noun-bearing lane above can own it; without this recognizer it fell through to the model,
+# which replied "the reminder is canceled" while the stored row stayed scheduled (audit R07,
+# 2026-10-29). The dispatch resolves the pointer against this chat's own rows and reports the
+# real outcome. The match is anchored to a WHOLE clause and the anaphor may be followed only by
+# politeness, so "cancel that flight" / "cancel that meeting" keep their own lanes (or none).
+_CANCEL_ANAPHOR = r"(?:that\s+one|this\s+one|the\s+last\s+one|the\s+previous\s+one|the\s+latest\s+one|that|this|it|them|those)"
+_CANCEL_LEAD = (
+    r"(?:\s*(?:hey|ok|okay|so|and|but|please|just|simply|really|actually|sorry|hmm|wait|no|nope|yeah|yes|"
+    r"never\s*mind|nevermind|on\s+second\s+thought|forget\s+it|can\s+you|could\s+you|would\s+you|will\s+you|"
+    r"i\s+want\s+to|i\s+need\s+to|i'?d\s+like\s+to|i\s+would\s+like\s+to))*\s*"
+)
+_CANCEL_TAIL = r"(?:\s*(?:please|now|then|instead|thanks|thank\s+you|will\s+you|would\s+you|could\s+you|for\s+me))*\s*[.!]?\s*$"
+_BARE_CANCEL_REFERENT_RE = re.compile(
+    (r"^" + _CANCEL_LEAD + r"(?:cancel|scrub)\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+" + _CANCEL_ANAPHOR + r"\s+off" + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+off\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL),
+    re.IGNORECASE,
+)
 # The provider-backed availability lane: the request asks what is free/busy on a day or
 # calendar. Checked with the draft-calendar kinds above so "cancel the event" still wins,
 # but before the storage/process families and before _SCHEDULE_HINTS.
@@ -333,13 +353,42 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
 
     Measured 2026-10-06 on 9adff83 with pack 2 applied: it was parsed as a reminder to schedule and
-    answered "I could not read a date or time in that." A recollection that names a time is still a
-    reminder ("remind me tomorrow at 9 what I said about the rent").
+    answered "I could not read a date or time in that." A recollection that names a time is still
+    a reminder ("remind me tomorrow at 9 what I said about the rent").
     """
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
 
     return conversation_recall_remainder(words) is not None and not time_expression_spans(words, word_dates=False)
+
+
+# A clause that is only discourse around the pointer ("never mind", "no wait", "yes"): it
+# carries no request of its own, so it does not stop the pointer clause from owning the turn.
+_POINTER_DISCOURSE_CLAUSE = re.compile(
+    r"^(?:(?:yes|yeah|yep|no|nope|ok|okay|please|thanks|thank\s+you|sorry|hey|wait|hmm|so|and|but|"
+    r"never\s*mind|nevermind|forget\s+it|on\s+second\s+thought|i\s+changed\s+my\s+mind|actually|just)"
+    r"(?:\s+(?:yes|no|wait|ok|okay|please|actually|sorry|hmm|hey|so))*?)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _bare_cancel_referent(words: str) -> bool:
+    """Whether the request is a whole clause that only cancels the last thing it points at.
+
+    The pointer clause must be the request's ONLY content clause: a request that also carries
+    words of its own ('yes, delete my apple note "Tax receipts 2025", cancel that') keeps its
+    own lane, where the trailing pointer withholds the approval instead of eating the request.
+    Discourse clauses ("never mind", "no wait") are not content. The pointer clause itself is
+    matched anchored, so a cancel that names a thing ("cancel that meeting draft") keeps its
+    noun lane.
+    """
+    content: list[str] = []
+    for clause in re.split(r"[,;.!?\n]+", str(words or "")):
+        cleaned = clause.strip()
+        if not cleaned or _POINTER_DISCOURSE_CLAUSE.match(cleaned):
+            continue
+        content.append(cleaned)
+    return len(content) == 1 and bool(_BARE_CANCEL_REFERENT_RE.match(content[0]))
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
@@ -388,6 +437,11 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
         if _MOVE_CALENDAR_RE.search(words):
             calendar_id, title = _calendar_target(text)
             return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+
+    # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
+    # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
+    if _bare_cancel_referent(words):
+        return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
 
         # --- Provider-backed calendar reads and proposals. Availability first: "check
         # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
