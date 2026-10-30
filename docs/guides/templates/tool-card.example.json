@@ -1,0 +1,14 @@
+{
+  "use_when": "The person wants to know the tide times or the tide height at a place, today or on a date they name.",
+  "examples": [
+    "what time is high tide today",
+    "when is low tide at the harbour tomorrow",
+    "tide times for saturday please",
+    "a que hora sube la marea",
+    "is the tide going out right now"
+  ],
+  "not_for": [
+    "how do tides work",
+    "what causes high tide"
+  ]
+}
