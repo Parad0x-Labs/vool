@@ -123,7 +123,7 @@ with no model call:
   when they are rare across all cards (a stem every card uses, like *find*, counts for almost
   nothing; *tide* counts for a lot). Character trigrams add robustness for typos and word forms
   the stemmer misses.
-* Common words of the other app languages (German *welche*, Spanish *cuándo*, French *quel*,
+* Common words of the other app languages (German *welche*, Spanish *dónde*, French *quel*,
   …) are dropped, and the three safe folder names in any language become one word — so a
   listing ask in German meets the listing card's examples.
 * A `not_for` ask that fits the turn at least as well as the best example vetoes the card.
