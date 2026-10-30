@@ -29,6 +29,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from core.updater import relaunch_health
 from core.updater.platforms import BundleVerification, SwapOutcome
 
 logger = logging.getLogger("vool.updater.macos")
@@ -426,7 +427,9 @@ class ExternalScriptHelper:
             "--txid",
             str(self._txid),
             "--wait-seconds",
-            "60",
+            # The script waits as long as the flow does (relaunch_health.STOP_BOUND_SECONDS): a
+            # shorter wait gave up on an app that was still closing while the flow went on.
+            str(int(relaunch_health.STOP_BOUND_SECONDS)),
             "--result",
             str(self.result_path),
         ]
@@ -467,19 +470,30 @@ class ExternalScriptHelper:
         would run the FULL external swap (it is the swap vehicle, not a stop), which
         during rollback re-swaps the just-restored prior for the rejected bundle —
         measured in the final-p1 journey."""
+        # A version this helper relaunched that has not taken the pidfile yet is stopped too (as in
+        # MacProcessHelper.shutdown_app): left running it finishes starting behind a restore.
+        launched = self._launch_process
+        if launched is not None and launched.poll() is None and launched.pid != os.getpid():
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(launched.pid, signal.SIGTERM)  # its own session (start_new_session)
         pid = self._pid()
-        if pid <= 0 or pid == os.getpid():
-            return True
-        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-            os.kill(pid, signal.SIGTERM)
+        if pid > 0 and pid != os.getpid():
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.kill(pid, signal.SIGTERM)
+        else:
+            pid = 0
+
+        def stopped() -> bool:
+            return (pid == 0 or _pid_has_exited(pid)) and (launched is None or launched.poll() is not None)
+
         import time
 
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
-            if _pid_has_exited(pid):
+            if stopped():
                 return True
             time.sleep(self.poll_interval)
-        return _pid_has_exited(pid)
+        return stopped()
 
     def relaunch(self, app_path: Path) -> bool:
         # In the success path the SCRIPT relaunches (--relaunch-cmd) and the flow

@@ -77,6 +77,7 @@ def test_long_install_path_app_is_recognised_and_really_stopped(tmp_path, narrow
         _stop(process)
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the Linux package helper reads /proc")
 def test_package_version_server_is_recognised(tmp_path, narrow_terminal):
     app_root = tmp_path / ("VOOL package install " * 4).strip()
     version_app = app_root / "versions" / "0.7.6" / "app"
