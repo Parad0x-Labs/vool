@@ -52,3 +52,4 @@
   error there too (environment); 2 were new reds from find-before-read (a missing path outside the home lost
   machine.read_file's own refusal), fixed in cd904b2c. -k re-running on cd904b2c; push and the 81-ask dev run follow.
 - 21:53Z: dev run on cd904b2c: 4/81 asks done. needs_tool family tool 3/4; missing_connection reply says not connected (auto, not yet read) 0/0, any tool 0; no_tool no tool 0/0; timeouts 0; median 54 s/turn, max 489.6 s. Scorer counts only; reader verdicts come at the end.
+- 22:08Z: dev run on cd904b2c: 6/81 asks done. needs_tool family tool 5/6; missing_connection reply says not connected (auto, not yet read) 0/0, any tool 0; no_tool no tool 0/0; timeouts 1; median 238 s/turn, max 600.1 s. Scorer counts only; reader verdicts come at the end.
