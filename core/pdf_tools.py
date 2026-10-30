@@ -24,6 +24,7 @@ reads as "this PDF is blank".
 from __future__ import annotations
 
 import json
+import platform
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -182,6 +183,37 @@ def _assemble(result: dict[str, Any], *, path: Path, source: str) -> dict[str, A
     }
 
 
+def _uses_pdfkit() -> bool:
+    return platform.system() == "Darwin"
+
+
+def _extract_portable(path: Path, max_pages: int) -> dict[str, Any]:
+    """Off macOS there is no PDFKit: the reader lane's pypdf fallback, run in its sandbox."""
+    from core.artifact_readers import pdf as pdf_reader
+    from core.artifact_readers._sandbox import Scratch, extraction_budget, require_confinement
+    from core.artifact_readers._types import ReaderError
+
+    try:
+        require_confinement("pdf")  # says what to install, before "no decoder" could hide why
+        with Scratch("vool-pdf-") as scratch, extraction_budget(scratch=scratch.path):
+            source = scratch.path / "input.pdf"
+            source.write_bytes(path.read_bytes())
+            payload = pdf_reader._text_layer_pypdf(source, max_pages=max_pages or _MAX_PAGES, scratch=scratch.path)
+    except ReaderError as exc:
+        status = "missing_dependency" if getattr(exc, "code", "") in {"confinement_unavailable", "pdf_decoder_unavailable"} else "error"
+        reason = " ".join(part for part in (str(exc), str(getattr(exc, "remediation", "") or "")) if part)
+        return {"status": status, "reason": reason}
+    except OSError as exc:
+        return {"status": "error", "reason": f"the PDF could not be copied for reading ({exc.strerror or exc})"}
+    pages = list(payload.get("pages") or [])
+    return {
+        "status": "ok",
+        "pages_total": int(payload.get("page_count") or 0),
+        "pages_read": len(pages),
+        "page_text": [str(page.get("text") or "") for page in pages],
+    }
+
+
 def extract_text(path: str, *, max_pages: int = 0, timeout: float = _DEFAULT_TIMEOUT) -> dict[str, Any]:
     """The text layer a PDF already carries. Empty text means a scanned page, not a blank one."""
 
@@ -189,8 +221,11 @@ def extract_text(path: str, *, max_pages: int = 0, timeout: float = _DEFAULT_TIM
     if problem is not None:
         return {**problem, "path": str(path), "source": "pdfkit", "text": "", "characters": 0}
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
-    result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(bounded)], timeout=timeout)
-    assembled = _assemble(result, path=resolved, source="pdfkit")
+    if _uses_pdfkit():
+        result, source = _run_helper(_EXTRACT_HELPER, [str(resolved), str(bounded)], timeout=timeout), "pdfkit"
+    else:
+        result, source = _extract_portable(resolved, bounded), "pypdf"
+    assembled = _assemble(result, path=resolved, source=source)
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.
     page_bodies = [str(part or "") for part in list(result.get("page_text") or [])]
