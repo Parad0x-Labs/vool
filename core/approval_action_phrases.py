@@ -289,10 +289,12 @@ def localized_approval_ask(
     target = localized_target_words(intent, locale, arguments)
     if target:
         lead = _catalog_text(
-            locale, "approval.ask_wants_named", "VOOL wants to {action} {target}",
+            locale, "approval.ask_wants_named", "VOOL wants to {action} {target}.",
             action=words, target=target,
         )
     else:
-        lead = _catalog_text(locale, "approval.ask_wants", "VOOL wants to {action}", action=words)
+        lead = _catalog_text(locale, "approval.ask_wants", "VOOL wants to {action}.", action=words)
     tail = _catalog_text(locale, "approval.needs_first", "This needs your approval first.")
-    return f"{lead}. {tail}"
+    # The sentences carry their own terminal punctuation in each locale's catalog values
+    # ("。" in Japanese, "." elsewhere), so they join with a space, not an ASCII ". ".
+    return f"{lead} {tail}"
