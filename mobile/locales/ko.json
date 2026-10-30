@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "이 채팅에 사진 한 장을 추가합니다. 보내기를 누르기 전에는 메시지가 전송되지 않습니다.",
+  "NSMicrophoneUsageDescription": "컴퓨터에서 글로 변환할 짧은 메모를 녹음하세요. 보내기 전에 텍스트를 검토하세요.",
+  "NSLocationWhenInUseUsageDescription": "검토할 수 있도록 현재 위치를 메시지 입력란에 추가합니다. 백그라운드 위치는 사용하지 않습니다.",
+  "NSFaceIDUsageDescription": "VOOL 잠금 해제",
+  "NSCameraUsageDescription": "연결 QR 스캔. 사진 촬영."
+}

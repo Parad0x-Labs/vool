@@ -1,29 +1,47 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import {errorText, tr} from "../i18n/index.ts";
+import {chatUpdatedText, messageTimeText, stepTimeText} from "../i18n/time.ts";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import PhoneAbilities from "./PhoneAbilities.tsx";
+import FromComputer from "./FromComputer.tsx";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
+import { outboxFor, type QueuedTurn } from "../protocol/outbox.ts";
+import { randomBytes, toHex } from "../protocol/sha256.ts";
 
 interface Props {
   client: MobileCompanionClient;
   onRevoked: () => void | Promise<void>;
+  initialChatId?: string | null;
 }
 
 /** View chats, send messages, attach a photo or file. */
-export default function ChatsScreen({ client, onRevoked }: Props) {
+export default function ChatsScreen({ client, onRevoked, initialChatId }: Props) {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState<QueuedTurn[]>([]);
+  const [search, setSearch] = useState("");
+  const [notice, setNotice] = useState("");
+  const [progress, setProgress] = useState("");
+  const [progressAt, setProgressAt] = useState("");
+  // The message whose time is showing (tap or hold it); a second tap or four seconds hides it.
+  const [timeShown, setTimeShown] = useState<number | null>(null);
+  const [proof, setProof] = useState("");
+  const [filesKey, setFilesKey] = useState(0);
+  const hadHistory = useRef(false);
+  const activeRef = useRef(activeChat);
+  activeRef.current = activeChat;
 
   const guard = useCallback(
     (exc: unknown) => {
       if (exc instanceof CompanionError && (exc.code === "device_revoked" || exc.code === "signature_invalid")) {
-        Alert.alert("Device unpaired", "This device was revoked on the desktop.", [
-          { text: "OK", onPress: () => void onRevoked() },
+        Alert.alert(tr("Unpaired"), tr("This phone is unpaired. Pair it again on your computer."), [
+          { text: tr("OK"), onPress: () => void onRevoked() },
         ]);
         return true;
       }
@@ -34,95 +52,131 @@ export default function ChatsScreen({ client, onRevoked }: Props) {
 
   const refreshChats = useCallback(async () => {
     try {
-      setChats(await client.listChats());
+      setChats(await client.listChats(search));
+      hadHistory.current = true;
+      setNotice("");
     } catch (exc) {
-      if (!guard(exc)) setChats([]);
+      if (exc instanceof CompanionError && exc.code === "phone_right_off_or_expired") {
+        setChats([]);
+        if (hadHistory.current) {setMessages([]);setActiveChat(null);setProof("");}
+        hadHistory.current = false;
+      }
+      if (!guard(exc)) setNotice(exc instanceof CompanionError && exc.code === "phone_right_off_or_expired"
+        ? tr("Change this phone’s permissions on your computer.")
+        : tr("Can't reach your computer. Your saved messages will wait here."));
     }
-  }, [client, guard]);
+  }, [client, guard, search]);
+
+  const outbox = useMemo(() => outboxFor(client), [client]);
+  const refreshRef = useRef(refreshChats);
+  refreshRef.current = refreshChats;
+  useEffect(() => outbox.subscribe(setQueued,
+    (result, turn) => {
+      if (activeRef.current === result.chat_id) {
+        setMessages(previous => [...previous, {role: "user", content: turn.text}, {role: "assistant", content: result.reply, ts: new Date().toISOString()}]);
+        void client.chatHistory(result.chat_id).then(setMessages).catch(() => {});
+        if (result.commit?.request_id) void client.turnProof(result.chat_id, result.commit.request_id)
+          .then(value => setProof(value.state)).catch(() => setProof(""));
+      }
+      void refreshRef.current();
+      setFilesKey(key => key + 1);
+    }), [client, outbox]);
+
+  useEffect(() => {
+    void outbox.load().catch(error => setNotice(errorText(error)));
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") void outbox.flush().catch(error => setNotice(errorText(error)));
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [outbox]);
+
+  useEffect(() => {
+    if (!busy) {setProgress(""); setProgressAt(""); return;}
+    let after = 0;
+    const timer = setInterval(() => {
+      if (!outbox.activeKey) return;
+      void client.turnProgress(outbox.activeKey, after).then(value => {
+        after = value.next_after;
+        const last = value.events[value.events.length - 1];
+        if (last?.message) {setProgress(last.message); setProgressAt(typeof last.created_at === "string" ? last.created_at : "");}
+      }).catch(() => {});
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [busy, client, outbox]);
 
   useEffect(() => {
     void refreshChats();
   }, [refreshChats]);
 
+  useEffect(() => {
+    if (timeShown === null) return;
+    const timer = setTimeout(() => setTimeShown(null), 4000);
+    return () => clearTimeout(timer);
+  }, [timeShown]);
+
   const openChat = useCallback(
     async (chatId: string) => {
-      setActiveChat(chatId);
+      setActiveChat(chatId); activeRef.current=chatId;
+      setMessages([]); setProof(""); setTimeShown(null);
       try {
-        setMessages(await client.chatHistory(chatId));
+        const history=await client.chatHistory(chatId);
+        if (activeRef.current === chatId) setMessages(history);
       } catch (exc) {
         if (guard(exc)) return;
-        setMessages([]);
+        setNotice(tr("Couldn't load this chat. Try again when your computer is reachable."));
       }
     },
     [client, guard],
   );
 
-  const attachPhoto = useCallback(async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        quality: 0.6,            // downscale/compress BEFORE upload — the
-        allowsMultipleSelection: false, // companion upload ceiling is 3 MiB
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      const chatId = activeChat ?? (await client.prepareChat()).chat_id;
-      setActiveChat(chatId);
-      // Read the (compressed) bytes and upload through the typed staging door.
-      const response = await fetch(asset.uri);
-      const buf = new Uint8Array(await response.arrayBuffer());
-      const kind = asset.type === "image" ? "photo" : "file";
-      const mediaType = asset.mimeType || (kind === "photo" ? "image/jpeg" : "application/octet-stream");
-      const name = asset.fileName || (kind === "photo" ? "photo.jpg" : "attachment.bin");
-      const record = await client.uploadAttachment(chatId, name, buf, { kind: kind as "photo" | "file", mediaType });
-      setAttachmentIds((prev) => [...prev, record.id]);
-    } catch (exc) {
-      if (!guard(exc)) Alert.alert("Attachment failed", String((exc as Error).message || exc));
-    }
-  }, [activeChat, client, guard]);
+  useEffect(() => {if (initialChatId) void openChat(initialChatId);}, [initialChatId, openChat]);
 
   const send = useCallback(async () => {
     const text = draft.trim();
     if (!text && attachmentIds.length === 0) return;
     setBusy(true);
     try {
-      const result = await client.sendMessage(activeChat, text || "(attachment)", attachmentIds);
-      setActiveChat(result.chat_id);
+      const turn = await outbox.enqueue(activeChat, text || "(attachment)", attachmentIds);
+      setActiveChat(turn.chatId);
+      activeRef.current = turn.chatId;
       setDraft("");
       setAttachmentIds([]);
-      setMessages(await client.chatHistory(result.chat_id));
-      void refreshChats();
+      await outbox.flush();
     } catch (exc) {
-      if (!guard(exc)) Alert.alert("Send failed", String((exc as Error).message || exc));
+      if (!guard(exc)) Alert.alert(tr("The request could not finish."), errorText(exc));
     } finally {
       setBusy(false);
     }
-  }, [activeChat, attachmentIds, client, draft, guard, refreshChats]);
+  }, [activeChat, attachmentIds, draft, guard, outbox]);
 
-  if (chats === null) {
+  if (chats === null && !notice) {
     return <ActivityIndicator style={styles.center} color="#7d8794" />;
   }
 
   if (!activeChat) {
     return (
       <View>
+        <TextInput style={styles.draftInput} placeholder={tr("Search recent chats")} placeholderTextColor="#5b6570"
+          value={search} onChangeText={setSearch} />
+        {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
+        {queued.length ? <Text style={styles.pendingAttachments}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
+        <FromComputer client={client} refreshKey={filesKey} />
         <Pressable
           style={styles.newChat}
-          onPress={async () => {
-            const { chat_id } = await client.prepareChat();
-            setActiveChat(chat_id);
+          onPress={() => {
+            setActiveChat("mob-" + toHex(randomBytes(10)));
             setMessages([]);
           }}
         >
-          <Text style={styles.newChatText}>+ New chat</Text>
+          <Text style={styles.newChatText}>{tr("New chat")}</Text>
         </Pressable>
-        {chats.map((chat) => (
+        {(chats || []).map((chat) => (
           <Pressable key={chat.chat_id} style={styles.chatRow} onPress={() => void openChat(chat.chat_id)}>
             <Text style={styles.chatTitle} numberOfLines={1}>
               {chat.title || chat.chat_id}
             </Text>
             <Text style={styles.chatMeta}>
-              {chat.turn_count ?? 0} turns · {chat.updated_at || ""}
+              {tr("Turns: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
             </Text>
           </Pressable>
         ))}
@@ -133,38 +187,60 @@ export default function ChatsScreen({ client, onRevoked }: Props) {
   return (
     <View style={styles.thread}>
       <Pressable onPress={() => setActiveChat(null)}>
-        <Text style={styles.back}>‹ All chats</Text>
+        <Text style={styles.back}>{tr("Chats")}</Text>
       </Pressable>
+      {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
+      <FromComputer client={client} refreshKey={filesKey} />
       <ScrollView style={styles.messages}>
         {messages.map((m, i) => (
-          <View key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}>
+          <Pressable key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}
+            onPress={() => setTimeShown(shown => shown === i ? null : i)}
+            onLongPress={() => setTimeShown(i)}>
             <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
             {m.attachments?.map((a) => (
               <Text key={a.id} style={styles.attachmentTag}>
-                📎 {a.name} ({a.kind})
+                {a.name}
               </Text>
             ))}
             {m.answer_state ? <Text style={styles.answerState}>{m.answer_state}</Text> : null}
-          </View>
+            {timeShown === i && messageTimeText(m.ts) ? <Text style={styles.messageTime}>{messageTimeText(m.ts)}</Text> : null}
+          </Pressable>
         ))}
       </ScrollView>
+      {queued.filter(turn => turn.chatId === activeChat).map(turn => (
+        <View key={turn.key}>
+          <Text style={styles.pendingAttachments}>
+            {turn.state === "blocked" ? errorText({message:turn.reason}) : tr("Saved on this phone. Waiting for your computer.")}
+          </Text>
+          {turn.state === "blocked" ? <View>
+            <Pressable onPress={()=>{void outbox.retryBlocked(turn.key).catch(error=>setNotice(errorText(error)));}}><Text style={styles.back}>{tr("Retry")}</Text></Pressable>
+            <Pressable onPress={() => void outbox.removeBlocked(turn.key)}><Text style={styles.back}>{tr("Discard")}</Text></Pressable>
+          </View> : null}
+        </View>
+      ))}
+      {progress ? <Text style={styles.pendingAttachments}>{stepTimeText(progressAt) ? stepTimeText(progressAt) + " · " : ""}{progress}</Text> : null}
+      {proof ? <Text style={styles.pendingAttachments}>{proof === "VERIFIED" ? tr("Activity verified") : tr("Activity recorded")}</Text> : null}
+      {busy ? <Pressable onPress={() => {
+        if (outbox.activeKey) void client.cancelTurn(outbox.activeKey).then(value =>
+          setNotice(value.state === "cancelled" ? tr("Stop requested.") : tr("This turn is no longer running."))
+        ).catch(() => setNotice(tr("Could not complete this. Check your computer.")));
+      }}><Text style={styles.back}>{tr("Stop")}</Text></Pressable> : null}
       {attachmentIds.length > 0 ? (
-        <Text style={styles.pendingAttachments}>{attachmentIds.length} attachment(s) staged</Text>
+        <Text style={styles.pendingAttachments}>{tr("Attachments ready: {count}", {count: attachmentIds.length})}</Text>
       ) : null}
+      <PhoneAbilities client={client} chatId={activeChat} attachmentCount={attachmentIds.length} onChat={setActiveChat}
+        onAttachment={id=>setAttachmentIds(previous=>[...previous,id])} onDraft={text=>setDraft(previous=>previous ? previous+"\n"+text : text)} />
       <View style={styles.composer}>
-        <Pressable style={styles.attachButton} onPress={() => void attachPhoto()}>
-          <Text style={styles.attachButtonText}>📎</Text>
-        </Pressable>
         <TextInput
           style={styles.draftInput}
-          placeholder="Message your desktop…"
+          placeholder={tr("Message your desktop…")}
           placeholderTextColor="#5b6570"
           value={draft}
           onChangeText={setDraft}
           multiline
         />
         <Pressable style={styles.sendButton} onPress={() => void send()} disabled={busy}>
-          {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.sendButtonText}>Send</Text>}
+          {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.sendButtonText}>{tr("Send")}</Text>}
         </Pressable>
       </View>
     </View>
@@ -187,6 +263,7 @@ const styles = StyleSheet.create({
   userText: { color: "#f4f6f9" },
   agentText: { color: "#d3d9e0" },
   attachmentTag: { color: "#aeb9c4", fontSize: 12, marginTop: 6 },
+  messageTime: { color: "#aeb9c4", fontSize: 11, marginTop: 6 },
   answerState: { color: "#8fa0b2", fontSize: 10, marginTop: 6, textTransform: "uppercase" },
   pendingAttachments: { color: "#8fa0b2", fontSize: 12, paddingVertical: 6 },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: 8 },

@@ -524,7 +524,13 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
 #: a courtesy word counts only at the very end of the text; a clause word counts only after punctuation or a dash,
 #: or after a head of two or more content words; and a head that keeps no content word is no target at all
 #: (measured: "Forget my Thanks Giving plans" stripped to "my" and the keyword path removed every entry with "my").
-_FORGET_COURTESY_TAIL_RE = re.compile(r"^(?P<head>.+?)[\s,;:!?.]*\b(?:thanks|thank\s+you|please|pls|lol)[\s.!?]*$", re.IGNORECASE)
+#: "would you" / "can you" / "for me" at the end are how people ask, not words they stored (measured 2026-10-28 on
+#: qwen3:8b, PC and phone alike: "forget the coffee thing would you" searched for "the coffee thing would you").
+_FORGET_COURTESY_TAIL_RE = re.compile(
+    r"^(?P<head>.+?)[\s,;:!?.]*\b(?:thanks|thank\s+you|please|pls|plz|lol|ok(?:ay)?"
+    r"|(?:would|could|will|can)\s+you(?:\s+please)?|for\s+me)[\s.!?]*$",
+    re.IGNORECASE,
+)
 _FORGET_CLAUSE_WORDS = (r"(?:it(?:" + _FORGET_APOSTROPHE + r"s|\s+is|\s+was)|that(?:" + _FORGET_APOSTROPHE + r"s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since"
                         r"|as\s+it)")
 _FORGET_CLAUSE_AFTER_PUNCT_RE = re.compile(r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*)" + _FORGET_CLAUSE_WORDS + r"\b.*$",
@@ -642,6 +648,11 @@ def _normalize_forget_target(raw_target: str) -> str:
     match = _FORGET_TARGET_RE.fullmatch(target)
     if match:
         target = match.group("value")
+    # "the coffee thing" / "that gym stuff" names a topic, and the stored words hold the topic, never "thing":
+    # "I take my coffee with no sugar" was not found by "the coffee thing" (measured 2026-10-28).
+    topic = _FORGET_TOPIC_THING_RE.fullmatch(target)
+    if topic and _forget_content_words(topic.group("topic")):
+        target = topic.group("topic")
     target = re.sub(
         r"\s+from\s+(?:this|the\s+current)\s+chat$",
         "",
@@ -650,6 +661,11 @@ def _normalize_forget_target(raw_target: str) -> str:
     )
     return target.strip(" .,!?")
 
+
+_FORGET_TOPIC_THING_RE = re.compile(
+    r"(?:about\s+)?(?:the|that|this|my)\s+(?:(?:old|previous|whole)\s+)?(?P<topic>[\w'\-]+(?:\s+[\w'\-]+){0,2}?)\s+(?:thing|stuff|business)",
+    re.IGNORECASE,
+)
 
 _FORGET_DESCRIPTION_FILLER = frozenset({"the", "my", "old", "previous", "exact"})
 

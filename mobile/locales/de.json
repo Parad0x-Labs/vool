@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Füge diesem Chat ein Foto hinzu. Erst wenn du auf Senden tippst, wird eine Nachricht gesendet.",
+  "NSMicrophoneUsageDescription": "Nimm eine kurze Notiz auf, die dein Computer in Text umwandelt. Prüfe den Text vor dem Senden.",
+  "NSLocationWhenInUseUsageDescription": "Füge deinen aktuellen Standort zur Prüfung ins Nachrichtenfeld ein. Keine Standortnutzung im Hintergrund.",
+  "NSFaceIDUsageDescription": "VOOL entsperren",
+  "NSCameraUsageDescription": "Kopplungs-QR-Code scannen. Foto aufnehmen."
+}

@@ -510,6 +510,9 @@ def test_exactly_the_three_relay_daemon_scopes_are_wired_durable():
                 wired.append(f"{path}:{name}")
     assert sorted(wired) == sorted(
         [
+            "core/mobile_companion/bot_runtime.py:mobile.bot.telegram",
+            "core/mobile_companion/bot_runtime.py:mobile.bot.discord",
+            "core/mobile_companion/relay.py:mobile.relay",
             "relay/bridge_workers/discord_bridge.py:relay.discord",
             "relay/bridge_workers/telegram_bridge.py:relay.telegram",
             "relay/bridge_workers/telegram_chat_bridge.py:relay.telegram_chat",

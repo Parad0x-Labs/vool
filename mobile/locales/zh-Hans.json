@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "向此聊天添加一张照片。点按“发送”前不会发送消息。",
+  "NSMicrophoneUsageDescription": "录制一条简短语音，由电脑转成文字。发送前请检查文字。",
+  "NSLocationWhenInUseUsageDescription": "将当前位置添加到消息框中以供检查。不在后台使用位置信息。",
+  "NSFaceIDUsageDescription": "解锁 VOOL",
+  "NSCameraUsageDescription": "扫描配对二维码. 拍照."
+}

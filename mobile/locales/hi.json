@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "इस चैट में एक फ़ोटो जोड़ें। भेजें पर टैप करने तक कोई संदेश नहीं भेजा जाएगा।",
+  "NSMicrophoneUsageDescription": "एक छोटा नोट रिकॉर्ड करें जिसे कंप्यूटर लिखित रूप में बदलेगा। भेजने से पहले पाठ की समीक्षा करें।",
+  "NSLocationWhenInUseUsageDescription": "समीक्षा के लिए अपनी मौजूदा जगह संदेश बॉक्स में जोड़ें। पृष्ठभूमि में स्थान का उपयोग नहीं होता।",
+  "NSFaceIDUsageDescription": "VOOL अनलॉक करें",
+  "NSCameraUsageDescription": "पेयरिंग QR स्कैन करें. फ़ोटो लें."
+}

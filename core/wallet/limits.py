@@ -160,17 +160,39 @@ def is_frozen() -> bool:
         return _frozen(conn)
 
 
-def set_frozen(frozen: bool) -> bool:
-    """Flip the panic freeze; returns the PRIOR state."""
+def set_frozen(frozen: bool, *, require_pin: bool = False, wallet_id: str = "", credential: str | None = None) -> bool:
+    """Flip the freeze; a phone/Settings freeze retains a durable PIN requirement."""
+    from core.wallet import pilot_custody
+    from core.wallet.errors import WalletFault
     from core.wallet.store import utcnow
 
+    protection_key = "spend_freeze_requires_pin"
+    verified = False
+    if not frozen:
+        with connection() as conn:
+            row = conn.execute("SELECT value FROM wallet_controls WHERE key=?", (protection_key,)).fetchone()
+            protected = bool(row and row[0] == "1")
+        if protected or require_pin:
+            if not wallet_id or credential is None:
+                raise WalletFault("wallet_approval_rejected", context={"reason": "freeze_requires_wallet_pin"})
+            # Credential refusals write their own durable throttle; prove outside our writer.
+            pilot_custody.prove_credential(wallet_id, credential, source_context={"surface": "mobile_settings"})
+            verified = True
     with connection() as conn:
+        _begin_immediate(conn)
+        row = conn.execute("SELECT value FROM wallet_controls WHERE key=?", (protection_key,)).fetchone()
+        protected = bool(row and row[0] == "1")
+        if not frozen and protected and not verified:
+            raise WalletFault("wallet_approval_rejected", context={"reason": "freeze_requires_wallet_pin"})
         before = _frozen(conn)
-        conn.execute("INSERT INTO wallet_controls (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", (_FREEZE_KEY, "1" if frozen else "0", utcnow()))
+        for key, value in (
+            (_FREEZE_KEY, "1" if frozen else "0"),
+            (protection_key, "1" if frozen and (require_pin or protected) else "0"),
+        ):
+            conn.execute("INSERT INTO wallet_controls (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", (key,value,utcnow()))
         if before != bool(frozen):
             from core.wallet import controls
 
-            # a signed transfer that has not been sent sees every freeze change, including one that was undone
             controls.bump(conn, "freeze")
     return before
 

@@ -603,10 +603,10 @@ def build_pinned_paid_turn_scope(
     """Return a paid-helper scope only for an exact owner-local manual paid pin."""
     from core.agent_runtime.audit_routing import MANUAL, resolve_routing_mode, select_audit_manifests
     from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
-    from core.request_trust import request_is_owner_local
+    from core.request_trust import turn_may_spend_owner_keys
 
     routing = resolve_routing_mode(source_context)
-    if routing.mode != MANUAL or not request_is_owner_local(source_context):
+    if routing.mode != MANUAL or not turn_may_spend_owner_keys(source_context):
         return None
     manifests, _reason = select_audit_manifests(agent, source_context, routing)
     if len(manifests) != 1:
@@ -659,9 +659,12 @@ def _prioritize_planner_residency(manifests: list[Any]) -> list[Any]:
         truth = hydrate_capability_truth_with_benchmarks(
             tuple(provider_capability_truth_for_manifest(item) for item in candidates)
         )
+        from core.final_answer_authorship import unready_local_model_names
+
         prioritized = prioritize_daily_residency_capabilities(
             truth,
             default_model_tag=_planner_default_model_tag(),
+            unready_local_models=unready_local_model_names(candidates),
         )
     except Exception:
         return candidates

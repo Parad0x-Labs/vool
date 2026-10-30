@@ -2220,6 +2220,25 @@ class VoolAgent(
             checkpoint_source_context["external_evidence"] = bounded_evidence_items(
                 checkpoint_source_context.get("external_evidence")
             )
+        # Who is asking is THIS turn's, never the checkpoint's: a later turn that resumes a phone's
+        # checkpoint must not inherit that phone's rights (core.request_trust.remote_turn_has_grant).
+        from core.request_trust import (
+            HTTP_INGRESS_KEY,
+            OWNER_LOCAL_KEY,
+            REMOTE_DEVICE_KEY,
+            RESUME_GRANT_KEYS,
+            turn_is_remote,
+        )
+
+        # A turn from another device inherits none of the stored grants (push or forge
+        # authorizations, context grants, a paid reservation) from the turn it resumes.
+        _resume_trust_keys = (REMOTE_DEVICE_KEY, OWNER_LOCAL_KEY, HTTP_INGRESS_KEY) + (
+            RESUME_GRANT_KEYS if turn_is_remote(runtime_source_context) else ())
+        for _trust_key in _resume_trust_keys:
+            if _trust_key in runtime_source_context:
+                checkpoint_source_context[_trust_key] = runtime_source_context[_trust_key]
+            else:
+                checkpoint_source_context.pop(_trust_key, None)
         # Tell the live-turn registry which durable checkpoint this worker is executing. That is what
         # lets the stale sweep tell a turn that is quiet but ALIVE from one whose process is gone --
         # without it, a long background turn that spends 15 minutes inside a single model call gets

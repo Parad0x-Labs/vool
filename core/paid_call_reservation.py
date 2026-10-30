@@ -214,7 +214,7 @@ def reserve_owner_pick_paid_call(
     caller-supplied ``authorized_paid_call`` is never read, here or by the caller.
     """
     from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
-    from core.request_trust import request_is_owner_local
+    from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
 
     def _refuse(reason: str) -> None:
         if denial is not None:
@@ -223,8 +223,9 @@ def reserve_owner_pick_paid_call(
 
     if manifest is None:
         return _refuse("no_explicit_paid_pick")
-    # Only the owner's own local session may spend the owner's key.
-    if not request_is_owner_local(source_context):
+    # Only the owner's own local session, or a paired phone the owner gave "paid services" on the
+    # computer, may spend the owner's key. The spend caps below apply to both.
+    if not turn_may_spend_owner_keys(source_context):
         return _refuse("not_owner_local")
     # A free lane needs no reservation and must not consume the paid cap.
     if provider_cost_class(manifest) != "paid_cloud" or is_verified_free_cloud_manifest(manifest):
@@ -246,7 +247,27 @@ def reserve_owner_pick_paid_call(
     # (empty model_call_id), and the lane's real cap is the operator's money grant. Unrelated
     # paid providers keep this legacy path and its limits unchanged.
     if str(getattr(manifest, "provider_id", "") or "").startswith("usepod"):
+        # A UsePod lane can pay per call from the wallet (x402): that is money, not a model key,
+        # so it stays the owner's own session's even for a phone with "paid services".
+        if not request_is_owner_local(source_context):
+            return _refuse("not_owner_local")
         return _authorize_money_law_pick(manifest, task=task, denial=denial)
+
+    # A paired phone's calls are booked to that phone, and its own monthly cloud limit (set on the
+    # computer) is checked in the same transaction as the computer's caps.
+    spender, spender_monthly_usd = "", None
+    if not request_is_owner_local(source_context):
+        from core.request_trust import remote_turn_device
+
+        device = remote_turn_device(source_context)
+        if device is None:
+            return _refuse("not_owner_local")
+        spender = f"phone:{device['device_id']}"
+        limit = device.get("cloud_monthly_usd")
+        if limit is not None:
+            if type(limit) not in (int, float) or not limit > 0:
+                return _refuse("device_monthly_spend_cap_exceeded")
+            spender_monthly_usd = float(limit)
 
     context = source_context or {}
     task_id = str(getattr(task, "task_id", "") or context.get("task_id") or "").strip()
@@ -290,6 +311,8 @@ def reserve_owner_pick_paid_call(
             task_id=task_id,
             model_id=model_id,
             local_model_id=str(context.get("local_model_id") or "local"),
+            spender=spender,
+            spender_monthly_usd=spender_monthly_usd,
         )
     except PermissionError as exc:
         # A ledger cap (per-call / per-task / daily / monthly USD) refused the reservation. The
@@ -315,7 +338,15 @@ def reserve_owner_pick_paid_call(
     return authorization
 
 
-def _authorize(*, context: dict[str, Any], task_id: str, model_id: str, local_model_id: str) -> Any | None:
+def _authorize(
+    *,
+    context: dict[str, Any],
+    task_id: str,
+    model_id: str,
+    local_model_id: str,
+    spender: str = "",
+    spender_monthly_usd: float | None = None,
+) -> Any | None:
     from core import cloud_escalation_policy
     from core.model_escalation_policy import EscalationReason, PaidModelMode, PaidModelPolicy
     from core.model_handoff_capsule import build_model_handoff_capsule
@@ -329,7 +360,7 @@ def _authorize(*, context: dict[str, Any], task_id: str, model_id: str, local_mo
     subtask_id = str(context.get("subtask_id") or "").strip() or f"owner_explicit_model_pick:{uuid.uuid4().hex[:16]}"
     session_id = str(context.get("runtime_session_id") or context.get("session_id") or "local").strip() or "local"
 
-    limits = spend_limits()
+    limits = replace(spend_limits(), spender=spender, spender_monthly_usd=spender_monthly_usd)
     hard_cap_usd = _reservation_ceiling_usd(
         provider_id=str(context.get("paid_call_provider_id") or ""),
         model_id=model_id,

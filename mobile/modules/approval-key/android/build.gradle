@@ -1,0 +1,10 @@
+apply plugin: 'com.android.library'
+group = 'systems.vool'
+version = '0.1.0'
+def expoModulesCorePlugin = new File(project(':expo-modules-core').projectDir.absolutePath, 'ExpoModulesCorePlugin.gradle')
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useDefaultAndroidSdkVersions()
+android { namespace 'systems.vool.approval' }
+dependencies { implementation 'androidx.biometric:biometric:1.1.0' }

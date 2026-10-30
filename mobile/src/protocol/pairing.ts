@@ -18,31 +18,52 @@ export interface ParsedPairingUri {
   expiresAtEpoch: number;
 }
 
+// React Native's URL is a stub: hostname, port and searchParams THROW on a phone ("not implemented"),
+// while Node's full URL made every test pass. Measured on Android 2026-10-27: every pairing QR read
+// as "not a pairing code" and the scanner kept scanning in silence. So this parses the string itself.
+const PAIRING_URI_RE = /^vool-pair:\/\/([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::(\d{1,5}))?\/?\?([^#]*)$/i;
+
+export function queryParams(query: string): Map<string, string> {
+  const params = new Map<string, string>();
+  for (const pair of query.split("&")) {
+    if (!pair) continue;
+    const index = pair.indexOf("=");
+    const key = index < 0 ? pair : pair.slice(0, index);
+    const value = index < 0 ? "" : pair.slice(index + 1);
+    try {
+      const name = decodeURIComponent(key.replace(/\+/g, " "));
+      if (!params.has(name)) params.set(name, decodeURIComponent(value.replace(/\+/g, " ")));
+    } catch {
+      // a malformed escape leaves that one parameter out
+    }
+  }
+  return params;
+}
+
 export function parsePairingUri(uri: string): ParsedPairingUri | null {
   const text = String(uri || "").trim();
-  if (!text.toLowerCase().startsWith("vool-pair://")) return null;
-  try {
-    const url = new URL(text);
-    const fp = (url.searchParams.get("fp") || "").toLowerCase();
-    const pid = url.searchParams.get("pid") || "";
-    const code = url.searchParams.get("code") || "";
-    const exp = Number(url.searchParams.get("exp") || "");
-    if (!fp || !pid || !code) return null;
-    if (!/^[0-9a-f]{64}$/.test(fp)) return null;
-    if (!/^pair_[0-9a-f]+$/.test(pid)) return null;
-    if (!/^[A-HJKMNP-Z2-9]{8}$/.test(code)) return null;
-    if (!Number.isFinite(exp) || exp <= 0) return null;
-    return {
-      host: url.hostname,
-      port: url.port ? Number(url.port) : null,
-      desktopFingerprint: fp,
-      pairingId: pid,
-      code,
-      expiresAtEpoch: Math.floor(exp),
-    };
-  } catch {
-    return null;
-  }
+  const match = PAIRING_URI_RE.exec(text);
+  if (!match) return null;
+  const params = queryParams(match[3]);
+  const fp = (params.get("fp") || "").toLowerCase();
+  const pid = params.get("pid") || "";
+  const code = params.get("code") || "";
+  const exp = Number(params.get("exp") || "");
+  const port = match[2] ? Number(match[2]) : null;
+  if (!fp || !pid || !code) return null;
+  if (!/^[0-9a-f]{64}$/.test(fp)) return null;
+  if (!/^pair_[0-9a-f]+$/.test(pid)) return null;
+  if (!/^[A-HJKMNP-Z2-9]{8}$/.test(code)) return null;
+  if (!Number.isFinite(exp) || exp <= 0) return null;
+  if (port !== null && (port < 1 || port > 65535)) return null;
+  return {
+    host: match[1].toLowerCase(),
+    port,
+    desktopFingerprint: fp,
+    pairingId: pid,
+    code,
+    expiresAtEpoch: Math.floor(exp),
+  };
 }
 
 /** A QR payload is usable only while unexpired; tampering with any pinned

@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Adicione uma fotografia a esta conversa. Nenhuma mensagem é enviada até tocar em Enviar.",
+  "NSMicrophoneUsageDescription": "Grave uma nota curta para o computador transcrever. Reveja o texto antes de enviar.",
+  "NSLocationWhenInUseUsageDescription": "Adicione a localização atual à caixa de mensagem para a rever. Não se usa localização em segundo plano.",
+  "NSFaceIDUsageDescription": "Desbloquear VOOL",
+  "NSCameraUsageDescription": "Ler QR de associação. Tirar fotografia."
+}

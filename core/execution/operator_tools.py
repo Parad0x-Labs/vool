@@ -23,7 +23,7 @@ def execute_operator_tool(
     # Remote-turn fence (core.request_trust.remote_turn_tool_refusal): the local operator lane acts
     # on this computer (processes, disk, files, notes, calendar, reminders), so a turn the server
     # stamped as not the owner's own session is refused here, before anything runs.
-    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+    from core.request_trust import remote_turn_refusal_text, remote_turn_tool_refusal
 
     _remote_refusal = remote_turn_tool_refusal(f"operator.{operator_kind}", source_context)
     if _remote_refusal:
@@ -32,7 +32,7 @@ def execute_operator_tool(
         dispatch = OperatorActionResult(
             ok=False,
             status=_remote_refusal,
-            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            response_text=remote_turn_refusal_text(f"operator.{operator_kind}", source_context),
             details={"kind": operator_kind, "executed": False, "reason": _remote_refusal},
         )
     else:

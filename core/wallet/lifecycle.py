@@ -376,6 +376,9 @@ class PaymentLifecycle:
         """The panic freeze is a brake on every door that can release a spend-authorising
         signature or a broadcast — not only on new claims. Checked immediately before the
         effect; the hold and the signing request stay exactly as they were."""
+        from core.mobile_companion.payments import execution_guard
+
+        execution_guard(proposal)
         if limits.is_frozen():
             raise self._fault("wallet_limit_exceeded", proposal, limit="frozen", reason=f"panic_freeze_blocks_{door}")
 
@@ -589,6 +592,9 @@ class PaymentLifecycle:
         claimed = None
         with connection() as conn:
             limits._begin_immediate(conn)
+            from core.mobile_companion.payments import execution_guard
+
+            execution_guard(proposal, conn=conn, fee_minor=fee_minor)
             # read under the claim's write lock: a channel turned off while the owner was asked holds nothing
             self._require_channel_on(proposal, conn=conn)
             try:
@@ -1118,6 +1124,9 @@ class PaymentLifecycle:
         now = time.time()
         with connection() as conn:
             limits._begin_immediate(conn)
+            from core.mobile_companion.payments import execution_guard
+
+            execution_guard(proposal, conn=conn, fee_minor=_reserved_fee_for(fields))
             if limits._frozen(conn):
                 raise self._fault("wallet_limit_exceeded", proposal, limit="frozen", reason="panic_freeze_blocks_pilot_approval")
             active = environment._active(conn)
@@ -2800,10 +2809,20 @@ def evm_binding_for(proposal_id: str) -> dict[str, Any] | None:
 
 
 def _reserved_fee_for(view: dict[str, Any]) -> int:
-    """Every non-sponsored maximum fee: sponsored gas is reported truthfully as zero."""
-    if view.get("sponsored_gas"):
-        return 0
-    return _minor(view.get("max_facilitator_fee_minor")) + _minor(view.get("max_network_fee_minor"))
+    """Reserve the quoted maximum, never interpret unavailable fees as free."""
+    from core.wallet.errors import WalletFault
+
+    if "fee_max_minor" in view:
+        values = [view["fee_max_minor"]]
+    elif "max_facilitator_fee_minor" in view and "max_network_fee_minor" in view:
+        values = [view["max_facilitator_fee_minor"], view["max_network_fee_minor"]]
+    elif view.get("sponsored_gas") is True:
+        values = [0]
+    else:
+        values = [None]
+    if any(type(value) is not int or value < 0 for value in values):
+        raise WalletFault("wallet_quote_unavailable", context={"reason": "maximum_fee_unknown"})
+    return sum(values)
 
 
 #: A claimed payment still waiting on signing requests that are all expired (never consumed): nothing was dispatched

@@ -108,7 +108,7 @@ from core.raw_output_contract import (
     raw_output_contract_guidance,
     raw_output_retry_instruction,
 )
-from core.request_trust import request_is_owner_local
+from core.request_trust import request_is_owner_local, turn_may_spend_owner_keys
 from core.response_constraints import (
     check_response_constraint,
     compress_short_coordinate_phrase,
@@ -1170,7 +1170,7 @@ def _inject_free_cloud_requirements(
     # further down where a partially-built cloud request already exists.
     if turn_is_local_only(context):
         return source_context
-    if not request_is_owner_local(context):
+    if not turn_may_spend_owner_keys(context):
         return source_context
     try:
         from core.cloud_provider_contract import CloudTaskRequirements, PrivacyClass
@@ -1218,7 +1218,7 @@ class MemoryFirstRouter:
         from core.cloud_routing import CloudRouteMode
         from core.cloud_tool_call_contract import build_cloud_tool_definitions
         from core.output_validator import validate_provider_output
-        from core.request_trust import request_is_owner_local
+        from core.request_trust import turn_may_spend_owner_keys
 
         context = source_context or {}
         policy = cloud_escalation_policy.load_policy()
@@ -1231,7 +1231,7 @@ class MemoryFirstRouter:
         skipped = (
             "free_cloud_disabled" if not policy.free_cloud_enabled
             else "turn_local_only" if turn_is_local_only(context)
-            else "not_owner_local" if not request_is_owner_local(context)
+            else "not_owner_local" if not turn_may_spend_owner_keys(context)
             else "no_cloud_task_requirements" if not isinstance(requirements, CloudTaskRequirements)
             else "invalid_privacy_grant" if (grant is not None and not isinstance(grant, CloudPrivacyGrant))
             else ""
@@ -5814,6 +5814,9 @@ class MemoryFirstRouter:
             eagle3_active=_eagle3_active,
             default_model_tag=_cached_default_model_tag(),
             resident_model_tags=_recent_resident_model_tags(),
+            # The model the person made ready goes first: a local model the call fence would
+            # refuse is never the primary while a ready one is ranked (it stays a fallback).
+            unready_local_models=_unready_local_models(ranked_manifests),
         )
         autopilot_plan = autopilot.to_dict()
         emergency_rejected = False
@@ -6821,6 +6824,14 @@ class MemoryFirstRouter:
                     if manifest.provider_id not in attempted:
                         attempted.append(manifest.provider_id)
                     failover_used = True
+                    # This model WAS called and its reply was unusable. Recorded now, because when
+                    # the next candidate is one the fence refuses, the turn's refusal otherwise named
+                    # that refused model ("qwen2.5:7b isn't ready") instead of the ready model that
+                    # replied badly (cloud re-audit Oct 29, mailweb:E07).
+                    with contextlib.suppress(Exception):
+                        from core.final_answer_authorship import record_authorship_attempts
+
+                        record_authorship_attempts(source_context, [manifest.provider_id])
                     _emit_model_routing_event(
                         source_context,
                         "model_lane_contract_failed",
@@ -8254,6 +8265,15 @@ def _local_remote_race_pair(ranked_manifests: list[Any]) -> tuple[Any, Any] | No
     if local_manifest.provider_id == remote_manifest.provider_id:
         return None
     return local_manifest, remote_manifest
+
+
+def _unready_local_models(ranked_manifests: list[Any]) -> frozenset[str]:
+    try:
+        from core.final_answer_authorship import unready_local_model_names
+
+        return unready_local_model_names(ranked_manifests)
+    except Exception:
+        return frozenset()
 
 
 def _can_prioritize_autopilot_selection(

@@ -1732,6 +1732,15 @@ function openSheet(p, cardControls, cardResult, opener){
       var reviewBox = document.getElementById('vwSheetReview');
       if (reviewBox) reviewBox.appendChild(el('div', 'vw-sheet-note vw-sheet-warning', f.recipient_warning));
     }
+    if (f.mobile_review) {
+      var mobileBox = document.getElementById('vwSheetReview');
+      reviewLine(mobileBox, 'mobile_origin', WT('wallet.mobile.origin', 'Proposed from your phone or chat app. Approval stays on this computer.'), 'muted');
+      (f.mobile_review.warnings || []).forEach(function(code) {
+        var text = code === 'new_payee' ? WT('wallet.mobile.new_payee', 'New payee: check the full address with the recipient.') : WT('wallet.mobile.unusual_amount', 'Unusual amount: check this amount before approving.');
+        var warning = el('div', 'vw-review-warning', text);
+        warning.setAttribute('data-warning', code); warning.setAttribute('role', 'alert'); mobileBox.appendChild(warning);
+      });
+    }
     var details = renderDetailsToggle();
     sheetRow(details, 'value_note', 'Funds', f.value_note);
     identRow(details, 'from', 'From', f.from_address, {prefix: f.from_label ? f.from_label + ' · ' : ''});

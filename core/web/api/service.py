@@ -595,7 +595,9 @@ def runtime_model_status_response(
             "deterministic": True,
             "requested_model": selected,
         }
-    default_model = str(runtime.runtime_model_tag or "").strip() or "unknown"
+    from core.local_model_readiness import model_in_use
+
+    default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
     lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
@@ -669,7 +671,9 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines.append(f"- Build: `{build}`" + (" (uncommitted changes)" if bool(stamp.get("dirty")) else ""))
     if commit:
         lines.append(f"- Commit: `{commit}`")
-    model = str(runtime.runtime_model_tag or "").strip()
+    from core.local_model_readiness import model_in_use
+
+    model = model_in_use(str(runtime.runtime_model_tag or "").strip())
     if model:
         lines.append(f"- Local model: `{model}`")
     return {
@@ -1147,7 +1151,7 @@ def _dispatch_get(
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_get
 
-        return handle_mobile_companion_get(normalized_path, query, runtime=runtime, model_name=model_name, client_host=client_host)
+        return handle_mobile_companion_get(normalized_path, query, runtime=runtime, model_name=model_name, client_host=client_host, headers=headers)
     if normalized_path.startswith("/api/zcash/"):
         from core.zcash.page import handle_zcash_get
 
@@ -2146,6 +2150,7 @@ def _dispatch_get(
         # invisible to every other surface -- this listing is what makes it addressable at all.
         from core.local_compute_budget import apple_silicon_build_notice
         from core.local_model_policy import resolve_local_model_policy
+        from core.local_model_readiness import plain_readiness, recommended_local_model
         from core.local_model_tool_certification import certification_status
         from core.model_registry import ModelRegistry
         from core.web.api.runtime import installed_ollama_model_inventory, is_text_generation_ollama_model
@@ -2168,11 +2173,12 @@ def _dispatch_get(
                     "registered": manifest is not None,
                     "enabled": bool(getattr(manifest, "enabled", False)),
                 }
+                entry["readiness"] = plain_readiness(None)
                 if manifest is not None:
                     with contextlib.suppress(Exception):
-                        entry["certification_state"] = str(
-                            certification_status(manifest).get("state") or "unknown"
-                        )
+                        _status = certification_status(manifest)
+                        entry["certification_state"] = str(_status.get("state") or "unknown")
+                        entry["readiness"] = plain_readiness(_status)
                 models.append(entry)
         return apply_runtime_headers(
             json_response(
@@ -2181,9 +2187,18 @@ def _dispatch_get(
                     "models": models,
                     "local_models_disabled": bool(policy.local_models_disabled),
                     "apple_silicon_notice": apple_silicon_build_notice(),
+                    "recommended": None if policy.local_models_disabled else recommended_local_model(),
                 },
             ),
             runtime,
+        )
+
+    if normalized_path == "/api/models/local/pull":
+        # Live progress of a recommended-model download Settings started; reads memory only.
+        from core.local_model_readiness import pull_status
+
+        return apply_runtime_headers(
+            json_response(200, pull_status(str((query.get("model_name") or [""])[0] or ""))), runtime
         )
 
     if normalized_path == "/api/oauth/status":
@@ -3305,8 +3320,10 @@ def dispatch_post(
     # ---- Command registry projection (owner command centre): the one dispatch ----
     if normalized_path == "/api/commands/dispatch":
         from core.command_registry.api import handle_commands_dispatch
+        from core.mobile_companion.runtime_context import runtime_scope
 
-        status, payload = handle_commands_dispatch(body, client_host=client_host, headers=headers)
+        with runtime_scope(runtime):
+            status, payload = handle_commands_dispatch(body, client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(status, payload), runtime)
     # ---- Signed-updater operations (2026-09-01 amendment): one authority, two presses.
     if normalized_path == "/api/update/check":
@@ -4644,6 +4661,9 @@ def _dispatch_post_inner(
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_post
 
+        if not is_loopback_host(client_host):
+            return json_response(403, {"ok": False, "code": "companion_listener_required",
+                                       "error": "Use the paired phone connection."})
         return handle_mobile_companion_post(
             normalized_path,
             body,
@@ -4719,7 +4739,57 @@ def _dispatch_post_inner(
                 ),
                 runtime,
             )
+        from core.local_model_readiness import plain_readiness
+
+        result = {**result, "readiness": plain_readiness(result)}
         return apply_runtime_headers(json_response(200, result), runtime)
+
+    if normalized_path == "/api/models/local/pull":
+        # One-click download of a model VOOL recommends, started by the person's own button.
+        # Same guard suite as registration; limited to the recommended tags and to an Ollama on
+        # this machine. The model still has to pass its check before it may answer.
+        from core.web.api.runtime import host_header_allowed
+
+        def _pull_header(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ctype = _pull_header("content-type").lower()
+        if ctype and "json" not in ctype:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _pull_header("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(
+                json_response(403, {"error": "local models can only be downloaded from your own local session"}),
+                runtime,
+            )
+        unknown = set(body.keys()) - {"model_name"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        from urllib.parse import urlparse
+
+        from core.local_model_policy import resolve_local_model_policy
+        from core.local_model_readiness import is_recommended_tag, start_recommended_pull
+        from core.web.api.runtime import ollama_base_url
+
+        model_name = str(body.get("model_name") or "").strip()
+        if not is_recommended_tag(model_name):
+            return apply_runtime_headers(
+                json_response(400, {"error": "only a recommended model can be downloaded here"}), runtime
+            )
+        if resolve_local_model_policy().local_models_disabled:
+            return apply_runtime_headers(
+                json_response(409, {"error": "local models are disabled by policy on this runtime"}), runtime
+            )
+        if not is_loopback_host(str(urlparse(ollama_base_url()).hostname or "")):
+            return apply_runtime_headers(
+                json_response(409, {"error": "downloads go only to an Ollama on this computer"}), runtime
+            )
+        return apply_runtime_headers(json_response(202, start_recommended_pull(model_name)), runtime)
 
     if normalized_path == "/api/models/local/register":
         # The write side of the local-model door: register ONE installed Ollama model as a lane
@@ -8133,6 +8203,11 @@ def _dispatch_post_inner(
         from core.request_trust import TURN_AUTHOR_KEY, turn_author_from_request
 
         source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
+        # A paired phone's turn names its device (server-stamped, never from the body) so the phone's
+        # rights on the computer decide what its tools may do (core.request_trust.remote_turn_has_grant).
+        from core.request_trust import stamp_remote_device
+
+        stamp_remote_device(source_context)
         source_context["chat_id"] = context_namespace.chat_id
         # The page's app language, server-read from its cookie (never a body field): a reply VOOL
         # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).

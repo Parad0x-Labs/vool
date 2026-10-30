@@ -34,6 +34,7 @@ REFUSAL_LEADS = (
     "I couldn't get a usable model response",
     "I couldn't get a live model response",
     "I can't publish this answer",
+    "I couldn\u2019t answer this one.",
     "I can't publish an answer",
     "I couldn't produce a normal chat response",
     "model synthesis failed",

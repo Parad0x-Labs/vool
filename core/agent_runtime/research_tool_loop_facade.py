@@ -26,7 +26,7 @@ from core.mode_permission_policy import (
 )
 from core.model_output_guard import claims_pending_tool, foreign_markers, is_ungrounded
 from core.remote_fetch_policy import explicit_remote_fetch_disabled
-from core.request_trust import turn_is_remote
+from core.request_trust import REMOTE_GRANT_PAID, remote_turn_lacks
 from core.retrieval_constraints import analyze_retrieval_request_authority
 from core.retrieval_observability import begin_web_retrieval, finish_web_retrieval
 from core.semantic import reach as semantic_reach
@@ -444,7 +444,7 @@ class ResearchToolLoopFacadeMixin:
         if not isinstance(source_context, dict) or not turn_has_provider_search(source_context):
             return False
         source_context.pop(PROVIDER_SEARCH_RECEIPT_KEY, None)
-        if turn_is_remote(source_context):
+        if remote_turn_lacks(source_context, REMOTE_GRANT_PAID):
             return False
         if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
             return False
@@ -481,7 +481,7 @@ class ResearchToolLoopFacadeMixin:
         interpretation: Any,
         source_context: dict[str, object] | None,
     ) -> list[dict[str, Any]]:
-        if turn_is_remote(source_context):
+        if remote_turn_lacks(source_context, REMOTE_GRANT_PAID):
             return []
         if not policy_engine.allow_web_fallback():
             return []
@@ -618,7 +618,7 @@ class ResearchToolLoopFacadeMixin:
         source_context: dict[str, object] | None,
         skip_for_local_answer: bool = False,
     ) -> AdaptiveResearchResult:
-        if turn_is_remote(source_context):
+        if remote_turn_lacks(source_context, REMOTE_GRANT_PAID):
             return AdaptiveResearchResult(enabled=False, reason="owner_local_required", strategy="not_allowed")
         from core.agent_runtime.intent_claims import (
             ActionPolicy,

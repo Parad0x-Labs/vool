@@ -139,7 +139,7 @@ def test_with_a_local_model_running_the_certification_refusal_is_unchanged(home,
         fake.close()
     assert text.startswith(UNCERTIFIED_AUTHOR_NOTICE_LEAD), text
     assert NO_MODEL_NOTICE_LEAD not in text
-    assert "run the local model tool certification" in text
+    assert "press Use this model" in text
 
 
 def test_the_refusal_speaks_the_turn_language_and_every_language_is_recognised(home) -> None:

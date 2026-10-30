@@ -66,6 +66,10 @@ export interface CompanionError {
 export type CompanionResponse<T> = CompanionOk<T> | CompanionError;
 
 export interface DeviceInfo {
+  rules?: Record<string, boolean>;
+  right_expiry?: Record<string, number>;
+  payment_cap?: {wallet_id: string; network: string; asset: string};
+  payment_cap_display?: {per_payment: string; daily: string; asset: string};
   device_id: string;
   name: string;
   platform: string;
@@ -94,11 +98,24 @@ export interface ChatMessage {
 }
 
 export interface SendResult {
+  pending?: boolean;
+  turn_id?: string;
   chat_id: string;
   reply: string;
   done_reason: string | null;
   commit: { type?: string; request_id?: string };
   model: string | null;
+}
+
+/** A file the computer sent to this phone ("send day4.jpg to my phone"); kept 24 hours. */
+export interface SentFile {
+  id: string;
+  name: string;
+  media_type: string;
+  size_bytes: number;
+  sha256: string;
+  sent_at: number;
+  expires_at: number;
 }
 
 export interface AttachmentRecord {
@@ -129,6 +146,8 @@ export interface PendingApproval {
   diff_preview: string | null;
   raised_at: number | string | null;
   expires_at: number | string | null;
+  /** True when this phone's own turn asked for it and the phone may answer it here. */
+  phone_may_answer?: boolean;
 }
 
 export interface ApprovalRecord {
@@ -171,17 +190,31 @@ export interface TurnProof {
 }
 
 export interface NotificationEvent {
+  security_notice?: string;
+  os_notification_allowed?: boolean;
   seq?: number;
   event_type: string;
   message?: string;
   turn_key?: string;
   session_id?: string;
   mobile_kind: "completion" | "failure" | "info";
+  /** When the computer wrote the event (ISO, UTC); a step's time on the phone. */
+  created_at?: string;
   [key: string]: unknown;
 }
 
 export interface PollResult {
+  badge?: number;
+  attention?: boolean;
+  gate?: boolean;
   events: NotificationEvent[];
   next_after: number;
   session: string;
+}
+
+export interface NotificationPreferences {
+  preset: string;
+  types: Record<string, {enabled: boolean; details: boolean}>;
+  quiet: {enabled: boolean; start: string; end: string; offset_minutes: number;
+    approvals_through: boolean; payments_through: boolean};
 }

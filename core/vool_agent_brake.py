@@ -85,7 +85,7 @@ def _response(text: str, *, intent: str, success: bool = True) -> dict[str, Any]
     }
 
 
-def _set_frozen(frozen: bool, wallet_fn: Callable[[], Any] | None) -> bool:
+def _set_frozen(frozen: bool, wallet_fn: Callable[[], Any] | None, *, require_pin: bool = False) -> bool:
     """Flip and persist the panic-freeze flag. Returns the PRIOR frozen state.
 
     Raises on any failure to load/persist so the caller never reports a freeze that
@@ -97,7 +97,7 @@ def _set_frozen(frozen: bool, wallet_fn: Callable[[], Any] | None) -> bool:
     from core.wallet_spend_policy_store import set_frozen_mirrored
 
     wallet = wallet_fn() if wallet_fn is not None else None
-    return set_frozen_mirrored(bool(frozen), wallet=wallet)
+    return set_frozen_mirrored(bool(frozen), wallet=wallet, require_pin=require_pin)
 
 
 def _default_stopall() -> bool:
@@ -166,7 +166,9 @@ def maybe_handle_agent_brake(
 
     if _STOP_RE.match(text):
         try:
-            was_frozen = _set_frozen(True, wallet_fn)
+            # A freeze typed from a phone, relay or bot keeps the wallet PIN needed to undo it,
+            # like the phone's Freeze button.
+            was_frozen = _set_frozen(True, wallet_fn, require_pin=not owner_local)
         except Exception as exc:
             return _response(
                 "I could not freeze the wallet just now, so spending is NOT stopped: "
@@ -174,6 +176,12 @@ def maybe_handle_agent_brake(
                 "from a terminal.",
                 intent="agent_brake_stop",
                 success=False,
+            )
+        if not owner_local:
+            return _response(
+                "Spending is frozen. No payment can go through. Unfreeze it in VOOL Settings on "
+                "your computer with your wallet PIN.",
+                intent="agent_brake_stop",
             )
         if was_frozen:
             return _response(
@@ -218,8 +226,23 @@ def maybe_handle_agent_brake(
                 intent="agent_brake_start",
                 success=False,
             )
+        from core.wallet.errors import WalletFault
+
         try:
             was_frozen = _set_frozen(False, wallet_fn)
+        except WalletFault as exc:
+            if (exc.context or {}).get("reason") != "freeze_requires_wallet_pin":
+                return _response(
+                    "I could not change the freeze state just now. Your payment setting is unchanged. "
+                    "Check the wallet in Settings on this computer.",
+                    intent="agent_brake_start", success=False,
+                )
+            return _response(
+                "Spending was frozen from your phone or Settings, so it stays frozen. Unfreeze it "
+                "in VOOL Settings on this computer with your wallet PIN.",
+                intent="agent_brake_start",
+                success=False,
+            )
         except Exception as exc:
             return _response(
                 "I could not change the freeze state just now: "

@@ -193,7 +193,7 @@ def test_a_blocked_lane_with_no_runtime_support_still_refuses(harness, tmp_path)
         "Some composed text.", turn_id=_TURN_ID
     )
     assert payload.get("publication") == "refused", payload
-    assert "not certified to author" in published
+    assert "isn\u2019t ready to answer for VOOL yet" in published
 
 
 def test_record_runtime_support_is_raise_only_and_claims_no_author(harness, tmp_path):

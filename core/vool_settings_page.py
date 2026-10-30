@@ -553,10 +553,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="local_models",
                     help=(
-                        "Models installed in Ollama on this machine. Registering one adds it as a "
-                        "lane VOOL can route to; certifying it runs the sealed tool probe that "
-                        "decides whether it may write final answers. Nothing is downloaded and "
-                        "nobody is contacted — this reads your local Ollama only."
+                        "Models on this computer. Press Use this model and VOOL quietly checks that "
+                        "it can answer for you. Nothing is downloaded unless you press Download."
                     ),
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
@@ -942,6 +940,22 @@ def _settings_groups() -> list[dict]:
             ],
         },
         {
+            "id": "phone",
+            "icon": "",
+            "title": "Phone and chat apps",
+            "blurb": "Connect to your own computer. You decide what each device may do.",
+            "rows": [
+                _row(
+                    id="phone_access",
+                    label="Use VOOL from my phone",
+                    kind="custom", widget="phone_access",
+                    help="Off by default. Choose your home or private network, then pair your phone. Turning this off closes phone access.",
+                    read={"url": "/api/mobile/settings"},
+                    keywords="phone mobile companion network pair revoke telegram discord",
+                ),
+            ],
+        },
+        {
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
@@ -1081,6 +1095,24 @@ html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; overflow:hidden; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
 
+.phone-device {border-top:1px solid var(--line); margin-top:22px; padding-top:18px;}
+.phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
+.phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
+.phone-cap {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,180px); align-items:center; gap:12px; margin:10px 0;}
+.phone-settings-panel, .phone-device, .phone-rights > *, .phone-cap > * {min-width:0;}
+.phone-settings-panel input.inp, .phone-settings-panel select.inp {box-sizing:border-box; width:100%; min-width:0; max-width:100%;}
+.phone-expiry {display:grid; min-width:0;}
+.phone-actions {display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.phone-quick {display:grid; gap:12px; margin:14px 0;}
+.phone-quick-group {border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:grid; gap:8px; min-width:0;}
+.phone-quick-lead {font-weight:600;}
+.phone-quick textarea {width:100%; box-sizing:border-box; resize:vertical;}
+.phone-quick > .btn.primary {justify-self:start; min-width:140px;}
+.phone-advanced {margin-top:10px;}
+.phone-advanced > summary {cursor:pointer;}
+.phone-unfreeze {display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+.phone-settings-panel > .inp {margin:10px 0;}
+@media(max-width:650px) {.phone-rights{grid-template-columns:1fr}.phone-cap{grid-template-columns:1fr}}
 /* ---- sidebar ---- */
 #side { flex:0 0 248px; width:248px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 /* App-language control: top-left, above everything else in the nav. Compact (globe + the
@@ -1903,6 +1935,7 @@ function renderWidget(row, host) {
   if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
+  if (w === 'phone_access') return widgetPhoneAccess(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -3515,10 +3548,10 @@ function widgetProviderGuide(host) {
 }
 
 /* --- Local models: the Ollama inventory on THIS machine, its registration state here, and the
-   sealed tool-certification verdict per lane. Every action stays on this machine: registering
-   writes a local manifest row, certifying runs the observe-only probe. A model that is not
-   certified cannot author final answers -- that is the runtime's law, and this widget shows it
-   rather than hiding it. */
+   sealed tool-certification verdict per lane, shown as one plain readiness word. Every action
+   stays on this machine except the Download button: registering writes a local manifest row,
+   certifying runs the observe-only probe. A model that is not certified cannot author final
+   answers -- that is the runtime's law, and this widget says so in plain words. */
 // ---- Models & Providers redesign: overview, provider detail, guided setup, review sheet ----
 // Layout from the reviewed design (the 2026-09-16 models-and-providers design review); every action
 // goes through the authority that already owns it: pin /api/cloud/model, price limits
@@ -3731,10 +3764,11 @@ function widgetModelsOverview(stack) {
     /* "ready" is earned from the real local listing, never assumed: a fresh install with no local
        model is told so, and where to go instead. */
     const localModels = (reads.local && reads.local.models) || [];
-    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.length);
+    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.some(m => m.readiness === 'ready'));
     const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
       : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
       : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
+      : localModels.length ? T('settings.models.local_pick', 'A model is on this computer. Open it and press Use this model to start.')
       : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
     cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
@@ -3763,9 +3797,9 @@ function mpDrawDetail(root, reads, st, redraw) {
   return mpDrawLocal(body, reads);
 }
 function mpDrawLocal(body) {
-  body.appendChild(el('div', 'row-label', 'Local models'));
-  body.appendChild(el('div', null, 'Local models answer on this machine with no network and no per-token cost. Registering and certifying stay where they always lived.'));
-  const btn = el('button', 'btn', 'Open local model controls'); btn.type = 'button';
+  body.appendChild(el('div', 'row-label', T('settings.row.local_models.label', 'Local models')));
+  body.appendChild(el('div', null, T('settings.local_models.mp_intro', 'Local models answer on this computer, with no internet and no cost per message.')));
+  const btn = el('button', 'btn', T('settings.local_models.mp_open', 'Choose a local model')); btn.type = 'button';
   btn.addEventListener('click', () => mpOpenRow('local_models'));
   body.appendChild(btn);
 }
@@ -3994,75 +4028,153 @@ async function mpDrawGuided(body, reads, st, redraw) {
 }
 
 function widgetLocalModels(stack) {
+  /* One action per model: "Use this model" adds it here and checks it quietly. The check is the
+     same tool certification as before (POST /api/model-tool-certification/run), and the server's
+     final-answer authority still refuses a model that did not pass it; only the words changed.
+     The server turns each verdict into one plain `readiness`, so the page never shows probe
+     states or failure codes. When a model is not a good fit, the person gets a way forward: the
+     model VOOL recommends (used, or downloaded with one click) or a cloud model. */
   const body = el('div', 'stack');
   stack.appendChild(body);
-  const draw = async (note) => {
-    body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading your local Ollama…'));
-    let data;
+  const LM = (k, f, p) => tfmt('settings.local_models.' + k, f, p);
+  let data = null, busy = '', outcome = null, pull = null;
+  const post = async (url, payload) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    return j;
+  };
+  const stateText = (r) => r === 'ready' ? LM('state.ready', 'Ready')
+    : r === 'checking' ? LM('state.checking', 'Checking…')
+    : r === 'not_suitable' ? LM('state.not_suitable', 'Not a good fit')
+    : r === 'check_unfinished' ? LM('state.check_unfinished', 'Check didn’t finish')
+    : r === 'needs_recheck' ? LM('state.needs_recheck', 'Needs a quick check')
+    : LM('state.not_checked', 'Not set up yet');
+  const load = async () => {
     try { data = await getJSON('/api/models/local'); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { data = null; }
+  };
+  const useModel = async (m) => {
+    if (busy) return;
+    busy = m.model_name; outcome = null; render();
+    let kind = 'check_unfinished';
+    try {
+      if (!m.registered) await post('/api/models/local/register', { model_name: m.model_name });
+      const j = await post('/api/model-tool-certification/run', { provider_name: 'ollama-local', model_name: m.model_name, timeout_seconds: 150 });
+      kind = String(j.readiness || 'check_unfinished');
+    } catch (e) { kind = 'check_unfinished'; }
+    busy = ''; outcome = { model: m.model_name, kind };
+    await load(); render();
+    announce(outcomeText(outcome));
+  };
+  const outcomeText = (o) => o.kind === 'ready'
+    ? LM('result.ready', '{model} is ready. VOOL will answer with it on this computer.', { model: o.model })
+    : o.kind === 'not_suitable'
+      ? LM('result.not_suitable', '{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it.', { model: o.model })
+      : LM('result.unfinished', 'VOOL couldn’t finish checking {model}. Make sure Ollama is open, then try again. A slow computer may need a second try.', { model: o.model });
+  const announce = (text) => { const live = document.getElementById('live'); if (live) live.textContent = text; };
+  const pollPull = async () => {
+    if (!pull || !body.isConnected) return;
+    let st = null;
+    try { st = await getJSON('/api/models/local/pull?model_name=' + encodeURIComponent(pull.model)); } catch (e) { st = null; }
+    if (!pull) return;
+    const status = st ? String(st.status || '') : 'failed';
+    if (status === 'ready') {
+      const name = pull.model; pull = null;
+      await load();
+      const m = ((data && data.models) || []).find(x => x.model_name === name);
+      if (m) { useModel(m); return; }
+      outcome = { model: name, kind: 'check_unfinished' }; render(); return;
+    }
+    if (status === 'failed' || status === 'idle' || status === 'skipped') { pull.failed = true; render(); return; }
+    pull.percent = Number(st.percent || 0); render();
+    setTimeout(pollPull, 1500);
+  };
+  const startPull = async (rec) => {
+    pull = { model: rec.model_name, percent: 0, failed: false }; outcome = null; render();
+    try { await post('/api/models/local/pull', { model_name: rec.model_name }); }
+    catch (e) { pull.failed = true; render(); return; }
+    setTimeout(pollPull, 800);
+  };
+  const ways = (models) => {
+    const wrap = el('div', 'stack');
+    if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
+    const line = el('div', 'inline');
+    const rec = data && data.recommended;
+    if (pull) {
+      wrap.appendChild(el('div', pull.failed ? 'state failed' : 'state loading', pull.failed
+        ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: pull.model })
+        : (pull.percent ? LM('download.progress', 'Downloading {model}… {percent}%', { model: pull.model, percent: pull.percent })
+          : LM('download.starting', 'Starting the download of {model}…', { model: pull.model }))));
+    }
+    if (rec && rec.model_name) {
+      const have = models.find(x => x.model_name === rec.model_name);
+      if (have && have.readiness !== 'ready' && have.readiness !== 'not_suitable') {
+        const b = el('button', 'btn primary', LM('suggest.use', 'Use {model}', { model: rec.model_name })); b.type = 'button';
+        b.disabled = !!busy;
+        b.addEventListener('click', () => useModel(have));
+        line.appendChild(b);
+      } else if (!have && (!pull || pull.failed)) {
+        const b = el('button', 'btn primary', LM('suggest.download', 'Download {model} ({gb} GB)', { model: rec.model_name, gb: rec.download_gb }));
+        b.type = 'button'; b.disabled = !!busy;
+        b.addEventListener('click', () => startPull(rec));
+        line.appendChild(b);
+      }
+    }
+    const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
+    cloud.addEventListener('click', () => mpOpenRow('model_pin'));
+    line.appendChild(cloud);
+    wrap.appendChild(line);
+    return wrap;
+  };
+  const render = () => {
     body.textContent = '';
+    if (!data) {
+      body.appendChild(el('div', 'empty', LM('unavailable', 'VOOL can’t see the models on this computer right now. Make sure Ollama is open, then reopen Settings.')));
+      return;
+    }
     if (data.local_models_disabled) {
-      body.appendChild(el('div', 'empty', 'Local models are disabled by policy on this runtime.'));
+      body.appendChild(el('div', 'empty', LM('disabled', 'Local models are turned off on this computer.')));
       return;
     }
     if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
-      const cmd = el('div', 'inline');
-      cmd.appendChild(el('span', 'subtle', T('settings.models.terminal', 'For people comfortable with a terminal:')));
-      cmd.appendChild(el('code', 'mono', 'ollama pull qwen3:8b'));
-      body.appendChild(cmd);
+      body.appendChild(ways(models));
       return;
     }
-    const certLabel = (s) => s === 'verified' ? 'certified author' : (s === 'degraded' || s === 'incompatible' || s === 'stale') ? 'probe ' + s : s === 'probing' ? 'probing…' : 'not certified';
     for (const m of models) {
       const rowEl = el('div', 'stack profile-item');
       const head = el('div', 'inline');
+      const working = busy === m.model_name;
+      const readiness = working ? 'checking' : String(m.readiness || 'not_checked');
       head.appendChild(el('span', 'profile-value', m.model_name));
-      head.appendChild(el('span', 'subtle', m.size_gb ? String(m.size_gb) + ' GB' : 'size unknown'));
-      const state = !m.registered ? 'installed, not registered'
-        : (m.certification_state === 'verified' ? 'registered · certified author'
-          : m.certification_state ? 'registered · ' + certLabel(m.certification_state) : 'registered');
-      head.appendChild(el('span', 'subtle', state));
-      if (!m.registered) {
-        const b = el('button', 'btn', 'Register'); b.type = 'button';
-        b.addEventListener('click', async () => {
-          b.disabled = true; b.textContent = 'Registering…';
-          try {
-            const r = await fetch('/api/models/local/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model_name: m.model_name }) });
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
-            await draw('Registered ' + m.model_name + '. Run the certification to see if it may author answers.');
-          } catch (e) { b.disabled = false; b.textContent = 'Register'; body.appendChild(el('div', 'state failed', 'Not registered — ' + (e && e.message ? e.message : e))); }
-        });
-        head.appendChild(b);
-      } else if (m.certification_state !== 'verified') {
-        const b = el('button', 'btn', m.certification_state ? 'Re-run certification' : 'Certify'); b.type = 'button';
-        b.addEventListener('click', async () => {
-          b.disabled = true; b.textContent = 'Running the sealed probe…';
-          try {
-            const r = await fetch('/api/model-tool-certification/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: 'ollama-local', model_name: m.model_name, timeout_seconds: 150 }) });
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
-            const st = String(j.state || 'unknown');
-            const failed = Object.values(j.stages || {}).filter(s => s && s.state === 'failed').map(s => s.failure_code || 'failed');
-            await draw(st === 'verified'
-              ? m.model_name + ' passed every sealed stage — it is a certified author now.'
-              : m.model_name + ' did not certify (' + st + (failed.length ? ': ' + failed.join(', ') : '') + ').');
-          } catch (e) { b.disabled = false; b.textContent = 'Certify'; body.appendChild(el('div', 'state failed', 'Certification did not run — ' + (e && e.message ? e.message : e))); }
-        });
+      if (m.size_gb) head.appendChild(el('span', 'subtle', String(m.size_gb) + ' GB'));
+      head.appendChild(el('span', readiness === 'ready' ? 'state saved' : 'subtle', stateText(readiness)));
+      /* No button on a model that is not a good fit (a re-run fails the same way; the ways forward
+         are listed below), and none while THIS page is checking it. A check left "checking" by a
+         stopped VOOL still gets Try again, so the row is never a dead end. */
+      if (readiness !== 'ready' && readiness !== 'not_suitable' && !working) {
+        const again = readiness === 'check_unfinished' || readiness === 'checking';
+        const b = el('button', again ? 'btn' : 'btn primary', again ? LM('try_again', 'Try again') : LM('use', 'Use this model')); b.type = 'button';
+        b.disabled = !!busy;
+        b.addEventListener('click', () => useModel(m));
         head.appendChild(b);
       }
       rowEl.appendChild(head);
+      if (working) rowEl.appendChild(el('div', 'state loading', LM('checking_note', 'Checking {model}. This can take a minute or two.', { model: m.model_name })));
+      if (outcome && outcome.model === m.model_name && !working) {
+        rowEl.appendChild(el('div', outcome.kind === 'ready' ? 'state saved' : 'state failed', outcomeText(outcome)));
+      }
       body.appendChild(rowEl);
     }
-    if (note) body.appendChild(el('div', 'state saved', note));
-    body.appendChild(el('div', 'subtle', 'Certification is a sealed local probe (synthetic tools, no workspace, no credentials). A model that fails it can still route and call tools; it just cannot write a final answer.'));
+    const anyReady = models.some(m => m.readiness === 'ready');
+    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models));
+    body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
   };
-  draw();
+  body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));
+  load().then(render);
 }
 
 /* --- Model: the authoritative pin, read locally. The provider's catalogue is NOT fetched until
@@ -5154,6 +5266,270 @@ function widgetAutomaticChecks(stack) {
     noteKey: 'settings.row.automatic_checks.local_only_note',
     retryKey: 'settings.row.automatic_checks.retry_note',
   });
+}
+
+let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
+const phoneBotPairing = {};
+/* Set when the pairing page hands over a phone that was just paired: its setup opens first. */
+let setupFor = (()=>{try{return new URLSearchParams(location.search).get('phone_setup') || '';}catch(_){return '';}})();
+const phonePrepared = {};
+function redrawPhoneSettings() {
+  const host = phoneSettingsNode && phoneSettingsNode.parentElement;
+  if (host) {phoneSettingsNode=null; host.replaceChildren(); widgetPhoneAccess(host);}
+}
+function widgetPhoneAccess(host) {
+  const url = '/api/mobile/settings';
+  const src = state.sources[url];
+  const language = document.documentElement.lang;
+  if (src && phoneSettingsNode && phoneSettingsReady && phoneSettingsLanguage === language) {host.appendChild(phoneSettingsNode);return;}
+  const stack = el('div', 'phone-settings-panel'); host.appendChild(stack);
+  phoneSettingsNode=stack; phoneSettingsReady=!!src && !state.sourceErr[url]; phoneSettingsLanguage=language;
+  if (!src || state.sourceErr[url]) {
+    stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return;
+  }
+  const network = el('select', 'inp');
+  network.setAttribute('aria-label', T('phone.network', 'Network address'));
+  const addresses = [...new Set([src.address, ...(src.addresses || [])].filter(Boolean))];
+  addresses.forEach(a => { const option = el('option', '', a); option.value = a; network.appendChild(option); });
+  if (src.address) network.value = src.address;
+  network.disabled = !!src.enabled;
+  stack.appendChild(network);
+  const line = el('div', 'inline');
+  const toggle = el('button', 'sw'); toggle.type = 'button'; toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-label', T('settings.row.phone_access.label', 'Use VOOL from my phone'));
+  toggle.setAttribute('aria-checked', src.enabled ? 'true' : 'false'); line.appendChild(toggle);
+  const pair = el('button', 'btn', T('phone.pair', 'Pair a phone')); pair.type = 'button'; pair.disabled = !src.running;
+  line.appendChild(pair); stack.appendChild(line);
+  const note = el('div', 'state idle'); note.setAttribute('role', 'status'); stack.appendChild(note);
+  toggle.onclick = async () => {
+    toggle.disabled = true;
+    try {
+      const wanted = !src.enabled;
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:wanted,address:network.value})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error();
+      const back = await getJSON(url);
+      if (back.enabled !== wanted) throw new Error();
+      state.sources[url] = back; redrawPhoneSettings();
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); toggle.disabled = false; }
+  };
+  const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; stack.appendChild(refresh);
+  refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){note.textContent=e.message;refresh.disabled=false;}};
+  const frozen = el('button', 'btn', src.frozen ? T('phone.unfreeze', 'Unfreeze payments') : T('phone.freeze', 'Freeze payments'));
+  frozen.type = 'button'; stack.appendChild(frozen);
+  const accounts = (src.wallet_accounts || []).filter(a => a.seal_policy === 'pilot-v3' && a.setup_state === 'ready');
+  function accountSelect(value) {
+    const select = el('select', 'inp'); select.setAttribute('aria-label', T('phone.account', 'Wallet account'));
+    accounts.forEach(a => {const option = el('option', '', (a.label || a.display_network || a.network) + ' · ' + (a.native_asset || '')); option.value = a.wallet_id; select.appendChild(option);});
+    if (value) select.value = value;
+    return select;
+  }
+  async function save(body) {
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'));
+    state.sources[url] = await getJSON(url); redrawPhoneSettings();
+  }
+  const chatApps=el('details','phone-bot-connect'); stack.appendChild(chatApps);
+  chatApps.appendChild(el('summary','',T('phone.bot_connect','Connect chat app')));
+  chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
+  const botPlatform=el('select','inp'); ['Telegram','Discord'].forEach(name=>{const option=el('option','',name);option.value=name.toLowerCase();botPlatform.appendChild(option);});chatApps.appendChild(botPlatform);
+  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot token'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
+  const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));const dmLink=el('input','inp');dmLabel.appendChild(dmLink);chatApps.appendChild(dmLabel);dmLabel.hidden=true;
+  botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
+  const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
+  connectBot.onclick=async()=>{const token=botToken.value;botToken.value='';connectBot.disabled=true;try {
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+    phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
+  }catch(e){note.textContent=e.message;connectBot.disabled=false;}};
+  const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
+  relayForm.appendChild(el('summary','',T('phone.relay_title','Use my relay')));
+  relayForm.appendChild(el('p','help',T('phone.relay_help','Your own relay forwards encrypted messages. It sees connection times and device identifiers. Pair at home first.')));
+  function relayInput(key, fallback, value, secret) {
+    const label=el('label','phone-cap',T(key,fallback)); const input=el('input','inp');
+    input.type=secret?'password':'text'; input.autocomplete='off'; input.value=value || ''; label.appendChild(input); relayForm.appendChild(label); return input;
+  }
+  const relayAddress=relayInput('phone.relay_address','Relay address',src.relay_endpoint);
+  const relayRoom=relayInput('phone.relay_room','Room code',src.relay_room);
+  const relayToken=relayInput('phone.relay_token','PC connection token','',true);
+  const relayEnable=el('button','btn',T('phone.relay_enable','Connect relay')); relayEnable.type='button';
+  relayEnable.disabled=!(src.devices || []).some(d=>d.status==='active'); relayForm.appendChild(relayEnable);
+  relayEnable.onclick=()=>{const token=relayToken.value; relayToken.value=''; relayEnable.disabled=true;
+    save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=e.message;relayEnable.disabled=false;});};
+  if (src.mode==='relay') relayForm.appendChild(el('p','help',T('phone.relay_phone','Phone connection address')+': '+src.relay_endpoint+'/rooms/'+src.relay_room));
+  frozen.onclick = () => {
+    if (!src.frozen) {frozen.disabled = true; save({operation:'freeze'}).catch(e => {note.textContent=e.message; frozen.disabled=false;}); return;}
+    const form = el('div', 'phone-unfreeze'); const account = accountSelect(); const credential = el('input', 'inp');
+    credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential', 'Wallet PIN or password');
+    const button = el('button','btn',T('phone.unfreeze','Unfreeze payments')); button.type='button'; form.append(account, credential, button); stack.appendChild(form);
+    button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=e.message;button.disabled=false;});};
+  };
+  const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice',
+    computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
+  const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
+    task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
+    desktop_inbox:'New desktop inbox item',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model offer',model_market:'Model update',market_watch:'Market watch'};
+  function botNotices(row,device) {
+    const choices=JSON.parse(JSON.stringify(device.notification_preferences));
+    const section=el('fieldset','phone-bot-notifications');section.appendChild(el('legend','',T('phone.right.alerts','Alerts')));row.appendChild(section);
+    const preset=el('select','inp');preset.setAttribute('aria-label',T('phone.right.alerts','Alerts'));
+    ['everything','important','off','custom'].forEach(value=>{const option=el('option','',T('phone.event.preset_'+value,{everything:'Everything',important:'Important only',off:'Off',custom:'Custom'}[value]));option.value=value;preset.appendChild(option);});
+    preset.value=choices.preset;section.appendChild(preset);
+    const boxes={};Object.entries(choices.types).forEach(([kind,value])=>{
+      const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=value.enabled;box.dataset.notificationType=kind;boxes[kind]=box;
+      line.append(box,document.createTextNode(' '+T('phone.event.'+kind,noticeNames[kind]||kind)));section.appendChild(line);box.onchange=()=>{preset.value='custom';};
+    });
+    preset.onchange=()=>{const configured=src.notification_presets[preset.value];if(configured)Object.entries(boxes).forEach(([kind,box])=>{box.checked=configured.types[kind].enabled;});};
+    function quietSwitch(key,label) {const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=choices.quiet[key];line.append(box,document.createTextNode(' '+T('phone.event.'+label[0],label[1])));section.appendChild(line);return box;}
+    const quiet=quietSwitch('enabled',['quiet','Quiet hours']);
+    function quietTime(key,label) {const line=el('label','phone-expiry',T('phone.event.quiet_'+key,label));const input=el('input','inp');input.type='time';input.value=choices.quiet[key];line.appendChild(input);section.appendChild(line);return input;}
+    const start=quietTime('start','Quiet hours start'),end=quietTime('end','Quiet hours end');
+    const approvals=quietSwitch('approvals_through',['approvals_through','Allow approvals through']);
+    const payments=quietSwitch('payments_through',['payments_through','Allow payments through']);
+    const button=el('button','btn',T('notif.save','Save'));button.type='button';section.appendChild(button);
+    button.onclick=async()=>{
+      const preferences={quiet:{enabled:quiet.checked,start:start.value,end:end.value,offset_minutes:-new Date().getTimezoneOffset(),approvals_through:approvals.checked,payments_through:payments.checked}};
+      if(preset.value==='custom')preferences.types=Object.fromEntries(Object.entries(boxes).map(([kind,box])=>[kind,{enabled:box.checked}]));else preferences.preset=preset.value;
+      section.disabled=true;try {
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+        device.notification_preferences=j.preferences;section.remove();botNotices(row,device);
+      }catch(e){note.textContent=e.message;section.disabled=false;}
+    };
+  }
+  /* Quick setup: models, files, payments, then Done. Saved through the same device_rules door as Advanced. */
+  function phoneQuickSetup(device) {
+    const rules=device.rules || {}, until=device.right_expiry || {};
+    const on=name=>!!rules[name] && !(until[name] && until[name]*1000<=Date.now());
+    const box=el('div','phone-quick');
+    if(setupFor===device.device_id) box.appendChild(el('p','phone-quick-lead',T('phone.setup.connected','Your phone is connected. Choose what it may do, then press Done.')));
+    let groupCount=0;
+    function group(title,choices,current) {
+      const set=el('fieldset','phone-quick-group'); set.appendChild(el('legend','',title)); box.appendChild(set);
+      const name='phone-quick-'+device.device_id+'-'+(groupCount++); const radios={};
+      choices.forEach(([value,label])=>{const line=el('label','phone-right');const radio=el('input');radio.type='radio';radio.name=name;radio.value=value;radio.checked=value===current;radios[value]=radio;line.append(radio,document.createTextNode(' '+label));set.appendChild(line);});
+      return {set,radios,value:()=>Object.keys(radios).find(k=>radios[k].checked)};
+    }
+    function field(set,label,input,wide) {const line=el('label',wide?'phone-expiry':'phone-cap',label);line.appendChild(input);set.appendChild(line);return line;}
+    const models=group(T('phone.setup.models','Online lookups'),[['local',T('phone.setup.models_local','Off')],['cloud',T('phone.setup.models_cloud','Look things up online')]],on('paid_services')?'cloud':'local');
+    models.set.appendChild(el('p','help',T('phone.setup.models_help','Lookups use free web sources only. Your paid models and keys are only used from the computer itself.')));
+    const scope=device.file_scope || {};
+    const files=group(T('phone.setup.files','Files'),[['none',T('phone.setup.files_none','None')],['folders',T('phone.setup.files_folders','Only the folders I choose')],['all',T('phone.setup.files_all','Everything on this computer')]],
+      !on('computer_tools')?'none':(scope.mode==='folders'?'folders':'all'));
+    const folders=el('textarea','inp');folders.rows=3;folders.value=(scope.folders || []).join('\n');folders.placeholder='~/Documents';
+    folders.setAttribute('aria-label',T('phone.setup.folders','Folders, one per line'));
+    const folderLine=field(files.set,T('phone.setup.folders','Folders, one per line'),folders,true);
+    const quickAdd=el('div','phone-actions');['~/Documents','~/Desktop','~/Downloads'].forEach(path=>{const add=el('button','btn',path);add.type='button';add.onclick=()=>{const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.includes(path))list.push(path);folders.value=list.join('\n');};quickAdd.appendChild(add);});
+    files.set.appendChild(quickAdd);
+    files.set.appendChild(el('p','help',T('phone.setup.files_help','Only the folders I choose: the phone can open and change files there, and nothing else. Everything: files, apps, commands and your accounts on this computer.')));
+    const pays=group(T('phone.setup.payments','Payments'),[['off',T('phone.setup.payments_off','Off')],['on',T('phone.setup.payments_on','On, with limits')]],on('payment_propose')?'on':'off');
+    const payBox=el('div','phone-quick-pay');pays.set.appendChild(payBox);
+    const payAccount=accountSelect((device.payment_cap || {}).wallet_id);payBox.appendChild(payAccount);
+    const cap=device.payment_cap_display || {};
+    function amountInput(label,value){const input=el('input','inp');input.inputMode='decimal';input.value=value || '';field(payBox,label,input);return input;}
+    const per=amountInput(T('phone.per_payment','Per-payment maximum'),cap.per_payment), daily=amountInput(T('phone.per_day','Daily maximum'),cap.daily);
+    const pin=el('input','inp');pin.type='password';pin.autocomplete='off';pin.placeholder=T('phone.credential','Wallet PIN or password');payBox.appendChild(pin);
+    payBox.appendChild(el('p','help',T('phone.setup.payments_help','Payments start in the phone’s Wallet tab and are approved on this computer. Your wallet PIN confirms the limits.')));
+    function sync(){folderLine.hidden=quickAdd.hidden=files.value()!=='folders';payBox.hidden=pays.value()!=='on';}
+    [models,files,pays].forEach(g=>Object.values(g.radios).forEach(r=>r.addEventListener('change',sync)));sync();
+    box.appendChild(el('p','help',T('phone.setup.basics','Chat, chat history, attachments and alerts are switched on with Done. Change any single permission under Advanced.')));
+    const prepared=phonePrepared[device.device_id];
+    if(prepared){
+      const report=el('div','phone-quick-ready');report.setAttribute('role','status');box.appendChild(report);
+      if(prepared.checking)report.appendChild(el('p','help',T('phone.setup.checking','Checking the folders. If your Mac asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.')));
+      else if(prepared.failed)report.appendChild(el('p','help',T('phone.setup.check_failed','VOOL could not check the folders. Press Done again to retry.')));
+      else {
+        const waiting=(prepared.folders || []).filter(f=>f.state!=='ready');
+        report.appendChild(el('p','help',waiting.length?T('phone.setup.not_ready','These folders are not open to VOOL yet. Allow VOOL in System Settings, Privacy & Security, Files and Folders, then press Done again:'):T('phone.setup.ready','Saved. Your phone is ready.')));
+        waiting.forEach(f=>report.appendChild(el('p','help',f.folder)));
+      }
+    }
+    const done=el('button','btn primary',T('phone.setup.done','Done'));done.type='button';box.appendChild(done);
+    const say=el('div','state idle');say.setAttribute('role','status');box.appendChild(say);
+    done.onclick=()=>{
+      say.textContent='';
+      const payOn=pays.value()==='on', cloud=models.value()==='cloud', fileChoice=files.value();
+      const body={operation:'device_rules',device_id:device.device_id,expected_permission_revision:device.permission_revision || 0,
+        rules:{chat:true,history:true,attachments:true,alerts:true,paid_services:cloud,computer_tools:fileChoice!=='none',payment_propose:payOn,wallet_view:payOn || on('wallet_view')}};
+      if(fileChoice==='all')body.file_scope={mode:'all'};
+      if(fileChoice==='folders'){const list=folders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.length){say.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}body.file_scope={mode:'folders',folders:list};}
+      if(payOn && (!on('payment_propose') || per.value!==(cap.per_payment || '') || daily.value!==(cap.daily || '') || payAccount.value!==((device.payment_cap || {}).wallet_id || '') || pin.value)){
+        const selected=accounts.find(a=>a.wallet_id===payAccount.value);if(!selected){say.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=pin.value;body.payment_cap_human={wallet_id:payAccount.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      pin.value='';done.disabled=true;
+      save(body).then(async()=>{
+        setupFor='';
+        if(fileChoice==='none')return;
+        phonePrepared[device.device_id]={checking:true};redrawPhoneSettings();
+        try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'prepare_folders',device_id:device.device_id})});const j=await r.json();
+          phonePrepared[device.device_id]=r.ok&&j.ok?{folders:j.folders}:{failed:true};}catch(_){phonePrepared[device.device_id]={failed:true};}
+        redrawPhoneSettings();
+      }).catch(e=>{say.textContent=e.message;done.disabled=false;});
+    };
+    return box;
+  }
+  (src.devices || []).forEach(device => {
+    const row=el('section','phone-device'); row.dataset.device=device.device_id;
+    const isBot=device.kind==='bot';
+    row.appendChild(el('h3','',device.name || T('phone.device','Phone')));
+    row.appendChild(el('p','help', T('phone.paired','Paired') + ': ' + (device.paired_at ? new Date(device.paired_at).toLocaleString() : '') + ' · ' + T('phone.last_seen','Last seen') + ': ' + (device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '')));
+    if (device.status !== 'active') {row.appendChild(el('p','help',T('phone.unpaired','Unpaired'))); stack.appendChild(row); return;}
+    /* A phone opens on the three plain choices; every single right stays under Advanced. */
+    const holder=isBot?row:el('details','phone-advanced');
+    if(!isBot){row.appendChild(phoneQuickSetup(device));holder.appendChild(el('summary','',T('phone.setup.advanced','Advanced')));row.appendChild(holder);}
+    const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
+    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to this bot in a private conversation within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
+    const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
+      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
+      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
+      /* An expired right shows as off, so saving anything else never sends it back on. */
+      const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());
+      box.dataset.right=name; box.disabled=name==='tool_approval' || name==='payment_approve'; boxes[name]=box;
+      line.append(box, document.createTextNode(' '+T('phone.right.'+name,label))); rightsGrid.appendChild(line);
+      const expiry=el('input','inp');expiry.type='datetime-local';expiry.setAttribute('aria-label',T('phone.right_expiry','Expires')+' · '+T('phone.right.'+name,label));
+      const epoch=(device.right_expiry || {})[name];if(epoch)expiry.value=new Date(epoch*1000-new Date(epoch*1000).getTimezoneOffset()*60000).toISOString().slice(0,16);
+      expiry.dataset.initial=expiry.value;
+      expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
+    });
+    if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
+    holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
+    if(isBot)botNotices(row,device);
+    const account=accountSelect((device.payment_cap || {}).wallet_id); holder.appendChild(account);
+    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); holder.appendChild(line); return input;}
+    const cap=device.payment_cap_display || {};
+    const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
+    const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
+    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s native asset. Both limits must be lower than the wallet’s limits.')));
+    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); holder.appendChild(credential);
+    const saveActions=el('div','phone-actions'); holder.appendChild(saveActions);
+    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);
+    const actions=el('div','phone-actions'); row.appendChild(actions);
+    saveButton.onclick=()=> {
+      const rules=Object.fromEntries(Object.entries(boxes).map(([k,v])=>[k,v.checked]));
+      const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
+      const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
+      if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
+      if (rules.payment_propose) {
+        const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {note.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      credential.value=''; saveButton.disabled=true;
+      save(body).catch(e=>{note.textContent=e.message;saveButton.disabled=false;});
+    };
+    const revoke=el('button','btn',isBot?T('phone.bot_disconnect','Disconnect chat app'):T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);
+    revoke.onclick=async()=>{revoke.disabled=true;try {const r=await fetch(isBot?url:'/api/mobile/devices/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isBot?{operation:'bot_disconnect',platform:device.platform}:{device_id:device.device_id})});if(!r.ok)throw new Error();delete phoneBotPairing[device.platform];state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(_){note.textContent=T('settings.switch.no_answer','Not saved — VOOL did not answer.');revoke.disabled=false;}};
+    stack.appendChild(row);
+    if(setupFor===device.device_id) setTimeout(()=>row.scrollIntoView({block:'start'}),0);
+  });
+  pair.onclick = async () => {
+    pair.disabled = true;
+    try {
+      const r = await fetch('/api/mobile/pairing/start', {method:'POST', headers:{'Content-Type':'application/json'},body:'{}'});
+      const j = await r.json(); if (!r.ok || !j.pairing_page) throw new Error();
+      window.open(j.pairing_page, '_blank', 'noopener');
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    finally { pair.disabled = !src.running; }
+  };
 }
 
 function widgetAnswerLanguage(stack) {
