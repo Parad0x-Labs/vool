@@ -13770,7 +13770,7 @@ function showPermBar(chatId, ev) {
   owner.goalApproval = null;
   // Painting the single permission bar is display work: only the chat on screen may drive it.
   if (!permBarEl || !isDisplayed(chatId)) return;
-  permMsgEl.textContent = a.action || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
+  permMsgEl.textContent = (a.action_plain || a.action) || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
   const resources = Array.isArray(a.affected_resources) && a.affected_resources.length ? a.affected_resources.join(', ') : pageT('permissions.no_path_reported', 'No specific path reported');
   const effects = a.expected_side_effects || pageT('permissions.side_effect_undescribed', 'Side effect not described');
   permMetaEl.textContent = pageTF('permissions.meta_line', 'Affects: {resources} · Side effects: {effects} · {reversibility}', { resources: resources, effects: effects, reversibility: (a.reversible ? pageT('permissions.reversible', 'Reversible') : pageT('permissions.may_not_reversible', 'May not be reversible')) });
@@ -13778,7 +13778,7 @@ function showPermBar(chatId, ev) {
   // The folded details speak plain words: the server's action line names the action (never a
   // bare dotted tool id), and a task id is bookkeeping a person cannot act on, so it is not
   // rendered here at all.
-  if (a.action) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + a.action);
+  if (a.action) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + (a.action_plain || a.action));
   if (Array.isArray(a.planned_actions) && a.planned_actions.length > 1) {
     detailBits.push(pageTF('permissions.planned_header', 'Planned changes in this request ({count}):', { count: a.planned_actions.length }));
     a.planned_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });

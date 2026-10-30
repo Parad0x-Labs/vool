@@ -742,7 +742,7 @@ def pending_approval_record(session_id: str, approval_id: str, *, include_approv
 #: The fields of a pending approval a chat page may show: the same prompt the turn stream carries
 #: when it asks, never the fingerprint, mode or grant bookkeeping behind it.
 _PROMPT_FIELDS = (
-    "approval_id", "task_id", "intent", "action", "command", "affected_resources",
+    "approval_id", "task_id", "intent", "action", "action_plain", "command", "affected_resources",
     "expected_side_effects", "reversible", "scope_options", "one_time", "edit_batch",
     "diff_preview", "expires_at", "planned_actions", "planned_action_count", "excluded_actions",
     "planned_action_label", "request_text",
@@ -3722,11 +3722,19 @@ def _new_approval_request(
         if command_line
         else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
     )
+    # The plain-words name of the same action, from the tool's own contract, so a page can read
+    # the ask without the dotted id the exact `action` line still carries (pinned by an existing
+    # test). A command card names the exact line that will run, so it has no second name; a tool
+    # without a contract keeps "" and the page falls back to `action`.
+    from core.runtime_tool_contracts import plain_action_phrase
+
+    action_plain = "" if command_line else plain_action_phrase(display_intent)
     request = {
         "approval_id": token,
         "task_id": task_id,
         "intent": intent,
         "action": action_text,
+        "action_plain": action_plain,
         **({"command": command_line} if command_line else {}),
         "affected_resources": _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": _approval_effect_summary(actions),

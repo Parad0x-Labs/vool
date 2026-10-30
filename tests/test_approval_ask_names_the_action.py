@@ -198,3 +198,45 @@ def test_every_locale_carries_the_new_permissions_keys_translated() -> None:
         for key in NEW_KEYS:
             assert key in data["messages"], f"{path.stem}: {key}"
             assert data["messages"][key] != en["messages"][key], f"{path.stem}: {key} copied English"
+
+
+# ---- 5. the payload carries the plain name beside the exact id-bearing action line ----------------
+#
+# The exact `action` line still carries the dotted id (an existing test pins that wording, so it
+# stays until its owner okays the edit). The payload also carries the plain name of the same
+# action, and the page reads THAT first -- what the person reads carries no id.
+
+
+def _approval_request(intent: str, arguments: dict[str, object]) -> dict:
+    from core.mode_permission_policy import PermissionEffect, decide_tool_call
+
+    set_active_mode(SID, "manual", project_id="", client_turn_id="turn-plain")
+    context = {"runtime_session_id": SID, "operating_mode": "manual", "workspace_root": "/tmp"}
+    decision = decide_tool_call(
+        intent=intent, arguments=arguments, task_id="turn-plain", source_context=context
+    )
+    assert decision.effect is PermissionEffect.REQUIRE_APPROVAL, decision
+    return dict(decision.approval_request or {})
+
+
+def test_the_approval_payload_carries_a_plain_name_for_the_page() -> None:
+    request = _approval_request("machine.ensure_directory", {"path": "~/Desktop/Reports"})
+    # The exact line keeps its id (pinned by an existing test); the plain name rides beside it.
+    assert "machine.ensure_directory" in str(request.get("action") or "")
+    plain = str(request.get("action_plain") or "")
+    assert plain and not TOOL_ID.search(plain), request
+    assert "directory" in plain.lower(), plain
+
+
+def test_a_command_approval_has_no_second_name_and_an_unknown_tool_keeps_it_empty() -> None:
+    command = _approval_request("sandbox.run_command", {"command": "python check.py"})
+    assert command.get("command") == "python check.py", command
+    assert command.get("action_plain") == "", command  # the exact command line IS the name
+    unknown = _approval_request("acme.magic_widget", {"deck": "q4"})
+    assert unknown.get("action_plain") == "", unknown  # no invented names for tools without a contract
+
+
+def test_the_page_prefers_the_plain_name_where_the_person_reads() -> None:
+    assert "a.action_plain || a.action) || ev.summary" in PAGE_SOURCE, "permission bar main line"
+    detail = PAGE_SOURCE.split("const detailBits = [];", 1)[1].split("permDetailEl.textContent", 1)[0]
+    assert "(a.action_plain || a.action))" in detail, "folded details tool line"
