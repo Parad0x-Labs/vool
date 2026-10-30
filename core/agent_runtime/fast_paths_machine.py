@@ -460,10 +460,11 @@ def looks_like_supported_machine_read_request(user_input: str) -> bool:
         # A path the user typed out is the most specific thing in the sentence, so this lane stands
         # down and the general machine/workspace tools handle the real target.
         return False
-    asks_for_directory = any(
-        _contains_phrase(normalized, marker)
-        for marker in ("desktop", "downloads", "documents", "docs")
-    )
+    from core.safe_folder_names import names_a_root
+
+    # One table for the three folders in every app language (core.safe_folder_names); words that
+    # are English words too ("bureau", "pulpit") stay out of this English-verb gate.
+    asks_for_directory = names_a_root(normalized, english_homographs=False)
     asks_for_listing = any(
         _contains_phrase(normalized, marker)
         for marker in (
@@ -1322,10 +1323,14 @@ def _explicit_safe_machine_root_label(lowered: str) -> str:
 
 
 def _resolve_safe_machine_root_directory(*, folder: str, root_label: str) -> Path | None:
+    from core.safe_folder_names import ROOT_KEYS, safe_root_dir, safe_root_paths
+
     home = Path.home()
-    root_options = [home / "Desktop", home / "Downloads", home / "Documents"]
+    # The roots where this disk keeps them (core.safe_folder_names): ~/Schreibtisch on a German
+    # Linux desktop, ~/Desktop on a Mac.
+    root_options = list(safe_root_paths(home))
     if root_label:
-        root = home / root_label
+        root = safe_root_dir(root_label.lower(), home) if root_label.lower() in ROOT_KEYS else home / root_label
         if not folder:
             return root
         if root.exists():
@@ -1348,7 +1353,7 @@ def _resolve_safe_machine_root_directory(*, folder: str, root_label: str) -> Pat
     if len(matches) == 1:
         return matches[0]
     for match in matches:
-        if match.parent.name == "Desktop":
+        if match.parent == root_options[0]:
             return match
     return None
 

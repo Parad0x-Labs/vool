@@ -1416,6 +1416,15 @@ def _extract_safe_machine_directory_listing(text: str) -> dict[str, Any] | None:
             path = "~/Downloads"
         elif "documents" in lowered or "docs" in lowered:
             path = "~/Documents"
+        else:
+            # The same three folders named in another app language (core.safe_folder_names). The
+            # path argument is the person's own word, so the listing names the folder as they did;
+            # the executor resolves it to that root wherever this disk keeps it.
+            from core.safe_folder_names import root_mentions
+
+            mention = next(iter(root_mentions(text, english_homographs=False)), None)
+            if mention is not None:
+                path = mention.said
         from_word_fallback = bool(path)
     if not path:
         return None

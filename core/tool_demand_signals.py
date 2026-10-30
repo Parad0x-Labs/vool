@@ -1992,6 +1992,14 @@ def owner_live_sources(text: str) -> tuple[str, ...]:
         for source in found:
             if source not in sources:
                 sources.append(source)
+    if "files" not in sources and "notes" not in sources:
+        from core.safe_folder_names import asks_about_a_root
+
+        # The reads above are English. The files on one of the three roots, asked in any app
+        # language ("die Dateien im Download-Ordner", "pliki na pulpicie", "桌面上的文件"), are the
+        # same live source, read from the one folder table the tools resolve the folder by.
+        if asks_about_a_root(eligible, need_noun=True):
+            sources.append("files")
     return tuple(sources)
 
 

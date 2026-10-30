@@ -97,10 +97,45 @@ def _fold(text: str) -> str:
     return re.sub(r"['’]", "", plain)
 
 
+# Function words of the other app languages. The shared stemmer (core.plugin_skills) knows only
+# English ones, so "welche ... sind" counted as two content words: "Welche Dateien sind auf dem
+# Desktop" shared welch/dateien/sind with find_largest's "welche Dateien sind am größten" and
+# matched it at 0.62, while the listing card it meant shared nothing. A question word, an article
+# or a pronoun says nothing about which tool an ask needs. Accents are already folded off here.
+_OTHER_LANGUAGE_FUNCTION_WORDS = frozenset(
+    {
+        # de
+        "welche", "welcher", "welches", "welchen", "was", "wo", "wie", "sind", "ist", "bin", "habe",
+        "hast", "hat", "haben", "ich", "du", "mir", "mich", "mein", "meine", "meinem", "meinen",
+        "meiner", "dein", "deine", "die", "der", "das", "dem", "den", "des", "ein", "eine", "einem",
+        "einen", "einer", "auf", "im", "am", "zu", "zum", "zur", "mit", "von", "vom", "und", "oder",
+        "es", "gibt", "bitte", "mal", "da", "dort",
+        # es / pt
+        "que", "cual", "cuales", "donde", "hay", "mis", "el", "la", "los", "las", "una", "en", "del",
+        "al", "me", "tengo", "son", "esta", "estan", "por", "para", "con", "quais", "qual",
+        "tenho", "meu", "minha", "meus", "minhas", "os", "um", "uma", "no", "na", "nos", "nas", "em",
+        "do", "ou",
+        # fr
+        "quel", "quels", "quelle", "quelles", "qu", "est", "sont", "ai", "mon", "ma", "mes", "le",
+        "les", "une", "sur", "dans", "et", "il", "moi", "je", "ya",
+        # pl / lt / tr / vi
+        "jakie", "jaki", "co", "mam", "moj", "moim", "moje", "jest", "sa", "kokie", "koks", "kas",
+        "yra", "mano", "ant", "ir", "hangi", "ne", "var", "benim", "bende", "ve", "mi", "bir",
+        "nhung", "gi", "cua", "toi", "trong", "tren", "nao",
+    }
+)
+
+
 def _stems(text: str) -> list[str]:
     from core.plugin_skills import _content_stems
+    from core.safe_folder_names import canonical_folder_words
 
-    return _content_stems(_fold(text))
+    # The three safe folders in any app language become one word ("Schreibtisch", "pulpicie",
+    # "桌面" -> "desktop"), from the same table the tools resolve the folder by, so a listing ask
+    # in German meets the listing card's "desktop" examples instead of nothing.
+    folded = _fold(canonical_folder_words(text))
+    words = " ".join(w for w in re.split(r"[^a-z0-9]+", folded) if w and w not in _OTHER_LANGUAGE_FUNCTION_WORDS)
+    return _content_stems(words)
 
 
 def _grams(stems: list[str]) -> frozenset[str]:

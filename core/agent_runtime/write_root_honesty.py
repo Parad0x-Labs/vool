@@ -114,8 +114,6 @@ _USER_OWN_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 
-_SAFE_MACHINE_ROOT_NAMES = ("Desktop", "Downloads", "Documents")
-
 
 def _clean_path(candidate: str) -> str:
     return str(candidate or "").strip().rstrip(".,;:!?)").strip()
@@ -158,12 +156,12 @@ def allowed_write_roots(source_context: dict[str, object] | None) -> list[Path]:
     if workspace:
         with contextlib.suppress(Exception):
             roots.append(Path(workspace).expanduser().resolve())
-    home = Path.home()
-    for name in _SAFE_MACHINE_ROOT_NAMES:
-        try:
-            roots.append((home / name).resolve())
-        except Exception:
-            continue
+    # The same three roots the machine tools write into (core.safe_folder_names), so a Linux
+    # desktop whose Desktop is ~/Schreibtisch is judged against that folder, not an English one.
+    with contextlib.suppress(Exception):
+        from core.safe_folder_names import safe_root_paths
+
+        roots.extend(safe_root_paths(Path.home()))
     return roots
 
 

@@ -1357,6 +1357,13 @@ def _owner_folder_demand(text: str, source_context: dict[str, Any] | None) -> bo
 
         if "files" in owner_live_sources(text):
             return True
+        from core.safe_folder_names import asks_about_a_root
+
+        # The English live-source recognizer above reads English only. A question naming one of
+        # the three roots in any app language ("was liegt im Download-Ordner?", "co mam na
+        # pulpicie?") is the same demand, from the same one table the tools resolve the folder by.
+        if asks_about_a_root(text):
+            return True
         from core.execution.constants import machine_folder_audit_intent, machine_folder_search_intent
 
         # "what's in the garden-planner project folder?" (fresh ask fu05): the folder grammar the

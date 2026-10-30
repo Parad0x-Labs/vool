@@ -87,7 +87,9 @@ def _claim_list_directory(text: str) -> IntentClaim | None:
     # Mirrors the directory-listing combo in looks_like_supported_machine_read_request: a known
     # user directory + a listing verb phrase.
     padded = _padded(text)
-    has_directory = any(f" {name} " in padded for name in ("desktop", "downloads", "documents", "docs"))
+    from core.safe_folder_names import names_a_root
+
+    has_directory = names_a_root(padded, english_homographs=False)
     listing_phrases = (
         " list ", " show ", " what are ", " what's on ", " what is on ",
         " contents of ", " what do we have on ", " tell me what ", " can you see ",

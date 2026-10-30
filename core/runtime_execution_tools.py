@@ -161,7 +161,6 @@ _WORKSPACE_CONTENT_QUESTION_RE = re.compile(
     re.IGNORECASE,
 )
 _FILE_LINE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+):(?P<line>\d+)")
-_SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
 
 
 @dataclass
@@ -4773,8 +4772,12 @@ def _home_relative_label(path: Path) -> str:
 
 
 def _safe_machine_roots() -> tuple[Path, ...]:
-    home = _machine_home().resolve()
-    return tuple((home / name).resolve() for name in _SAFE_MACHINE_DIRECTORY_NAMES)
+    # The three roots come from one table (core.safe_folder_names): English folder names on macOS
+    # and Windows, the xdg-user-dirs folders on Linux ("~/Schreibtisch" on a German desktop), and
+    # never more than those three, each strictly inside home.
+    from core.safe_folder_names import safe_root_paths
+
+    return safe_root_paths(_machine_home().resolve())
 
 
 def _machine_home() -> Path:
@@ -4813,21 +4816,15 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
     raw = str(raw_path or "").strip()
     if not raw:
         return _safe_machine_roots()[0]
-    lowered = raw.lower().strip()
-    alias_map = {
-        "desktop": "Desktop",
-        "my desktop": "Desktop",
-        "~/desktop": "Desktop",
-        "downloads": "Downloads",
-        "my downloads": "Downloads",
-        "~/downloads": "Downloads",
-        "documents": "Documents",
-        "my documents": "Documents",
-        "~/documents": "Documents",
-        "docs": "Documents",
-    }
-    if lowered in alias_map:
-        return (_machine_home() / alias_map[lowered]).resolve()
+    # A bare folder name, in any app language ("desktop", "my documents", "Schreibtisch",
+    # "~/Pobrane"), means that root wherever it is on this disk. The model writes the folder the
+    # way the person said it; before this, "~/Schreibtisch" on a Mac resolved to a folder that is
+    # not a root and was refused.
+    from core.safe_folder_names import root_key_for_alias, safe_root_dir
+
+    alias_key = root_key_for_alias(raw)
+    if alias_key:
+        return safe_root_dir(alias_key, _machine_home().resolve())
     candidate = _expand_machine_user(raw)
     if not candidate.is_absolute():
         candidate = (_machine_home() / candidate).resolve()
@@ -5210,6 +5207,19 @@ def _sibling_projects_to_hide(target: Path, *, workspace_root: Path) -> set[str]
     return hidden
 
 
+def _spoken_root_label(raw_path: Any, target: Path) -> str:
+    """How a listing names its folder: the person's own word for a root given in another language
+    ("Schreibtisch", "Pulpit", "桌面"), else the home-relative path. Never a full path."""
+    from core.safe_folder_names import root_key_for_alias, root_mentions
+
+    raw = " ".join(str(raw_path or "").split())
+    if raw and root_key_for_alias(raw):
+        mention = root_mentions(raw)
+        if mention and not mention[0].english:
+            return mention[0].said
+    return _home_relative_label(target)
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5232,6 +5242,9 @@ def _list_machine_directory(
                 ),
             },
         )
+    # The folder is named the way the person said it: "Schreibtisch" stays "Schreibtisch" in the
+    # reply, even where the disk folder is ~/Desktop.
+    shown = _spoken_root_label(arguments.get("path"), target)
     if target.is_file():
         # "does not exist" about a file that plainly does exist is the worst thing this tool can
         # say. Measured on the deployed build 2026-07-30: "show me whats in
@@ -5263,7 +5276,7 @@ def _list_machine_directory(
             handled=True,
             ok=False,
             status="not_found",
-            response_text=f"Local directory `{_home_relative_label(target)}` does not exist.",
+            response_text=f"Local directory `{shown}` does not exist.",
             details={
                 "path": _home_relative_label(target),
                 "observation": _tool_observation(
@@ -5313,7 +5326,7 @@ def _list_machine_directory(
             handled=True,
             ok=True,
             status="no_results",
-            response_text=f"No visible {noun} matched in `{_home_relative_label(target)}`.{hidden_note}",
+            response_text=f"No visible {noun} matched in `{shown}`.{hidden_note}",
             details={
                 "path": _home_relative_label(target),
                 "count": 0,
@@ -5356,7 +5369,7 @@ def _list_machine_directory(
             handled=True,
             ok=True,
             status="executed",
-            response_text=f"`{_home_relative_label(target)}` holds {counted} {noun}{detail}.{hidden_note}",
+            response_text=f"`{shown}` holds {counted} {noun}{detail}.{hidden_note}",
             details={
                 "path": _home_relative_label(target),
                 "count": counted,
@@ -5376,7 +5389,7 @@ def _list_machine_directory(
                 ),
             },
         )
-    lines = [f"{label} under `{_home_relative_label(target)}`:"]
+    lines = [f"{label} under `{shown}`:"]
     for entry in entries:
         suffix = "/" if entry["type"] == "directory" else ""
         lines.append(f"- {entry['name']}{suffix}")
