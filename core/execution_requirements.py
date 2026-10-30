@@ -362,7 +362,7 @@ def _tool_card_toolsets(text: str, source_context: dict[str, Any] | None = None)
 
     The same gates as the owner live-source arm: owner-local turns only, and the matcher is the one
     the offer seats from (`model_visible_specs`), so the lane release and the offer cannot
-    disagree. Off unless the ``tools.card_routing`` policy flag is on. A plugin tool's card works
+    disagree. On unless the ``tools.card_routing`` policy flag is off. A plugin tool's card works
     here the moment the plugin is registered; no recognizer in this module knows any tool.
     """
     if not isinstance(source_context, dict) or not source_context:

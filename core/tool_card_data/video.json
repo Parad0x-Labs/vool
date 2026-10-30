@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "video.generate": {
+    "use_when": "The person wants a new video clip created from a description of a scene or shot, using their configured video generation service.",
+    "examples": [
+      "make a video of a golden retriever surfing at sunset",
+      "Can you generate a 5 second clip of a rainy neon street in Tokyo?",
+      "create a short video: astronaut walking on mars, cinematic, slow pan",
+      "i need a video of waves crashing on rocks pls",
+      "generate vid of a dragon flying over a medieval castle",
+      "Please produce a short animated clip of a paper boat floating down a stream",
+      "make me a clip of a cat dancing in a kitchen lol",
+      "time-lapse video of clouds rolling over mountains, 4k",
+      "could you use my replicate account to generate a video of a futuristic city at night",
+      "genrate a vidio of a snowy forest with a fox running through",
+      "Genera un video de un astronauta caminando por la playa al atardecer",
+      "Crée-moi une courte vidéo d'un chat qui joue du piano dans un salon",
+      "Erstelle ein Video von einem Segelboot im Sturm, filmisch",
+      "Sukurk trumpą vaizdo įrašą, kuriame drakonas skrenda virš kalnų"
+    ],
+    "not_for": [
+      "How do I write a good prompt for AI video?",
+      "Write a script for a 30 second ad about my bakery",
+      "What's the best video generation service for beginners?",
+      "Trim the first 10 seconds off my vacation video",
+      "Summarize this YouTube video for me",
+      "I love watching cooking videos in the evening"
+    ]
+  }
+}

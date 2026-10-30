@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "sell.quote": {
+    "use_when": "The person wants to know how much a listed capability or add-on would cost, and wants only a price, without buying or being charged.",
+    "examples": [
+      "How much does the image upscaling feature cost?",
+      "what's the price for voice transcription",
+      "Could you tell me what it would cost to add the translation service?",
+      "price check on the pdf summarizer pls",
+      "How much would 10 hours of video rendering run me?",
+      "whats the rate for cloud backup",
+      "I'd like to know the price of the premium search capability before I decide.",
+      "cost of OCR?",
+      "Hey, can you tell me how much the email sorting add-on is per month?",
+      "how much for the data export thingy, jsut checking dont buy it",
+      "¿Cuánto cuesta el servicio de transcripción de voz?",
+      "Quel est le prix de la fonction de traduction de documents ?",
+      "Was kostet die Funktion zur Bildhochskalierung?",
+      "Kiek kainuotų balso transkripcijos paslauga?"
+    ],
+    "not_for": [
+      "How do I decide whether a paid plan is worth it?",
+      "Write a short ad text for our pricing page",
+      "Why are subscription prices going up everywhere?",
+      "Please buy the premium search add-on for me now",
+      "Explain how dynamic pricing works",
+      "lol my wallet is crying after all this shopping"
+    ]
+  }
+}

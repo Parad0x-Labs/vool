@@ -1,0 +1,138 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "wallet.spend": {
+    "use_when": "The person wants to actually send or pay crypto, such as SOL, lamports or a token, from the assistant's own funds to a specific address, and is ready to confirm the payment.",
+    "examples": [
+      "Send 0.25 SOL to the address I just pasted",
+      "pay 500000 lamports to this address",
+      "Transfer 2 SOL to my cold storage address, I confirm",
+      "Could you please send 10 USDC to Maria's address from my agent funds?",
+      "ok go ahead and spend 0.01 SOL on that invoice address",
+      "yo send 1 sol to my other acct",
+      "pay the freelancer 0.3 SOL now pls",
+      "send 5000000 lamprots to this addr",
+      "Tip the streamer 0.05 SOL",
+      "approve and send the 1.5 SOL payment to the address above",
+      "Envía 0,2 SOL a esta dirección, por favor",
+      "Envoie 0,5 SOL à cette adresse s'il te plaît",
+      "Überweise 1 SOL an diese Adresse",
+      "Nusiųsk 0,3 SOL į šį adresą"
+    ],
+    "not_for": [
+      "How do I send SOL to someone safely?",
+      "What is a lamport?",
+      "Write a message asking my landlord if he accepts crypto payments",
+      "Explain how Solana transaction fees work",
+      "What's the price of SOL today?",
+      "I wish I could afford to spend more on crypto lol"
+    ]
+  },
+  "wallet.status": {
+    "use_when": "The person wants to check the current state of their crypto wallet, such as its network, address, spending limits, pending approvals, or most recent transaction receipt.",
+    "examples": [
+      "show my wallet status",
+      "what's my wallet address?",
+      "any pending approvals on my wallet?",
+      "which network is my wallet on right now",
+      "what are my spending limits",
+      "can you show me the last receipt",
+      "wallet status pls",
+      "is my wallet self-custody or custodial?",
+      "whats waiting for my approval in the wallet",
+      "check my wallet real quick, anything pending?",
+      "¿Cuál es el estado de mi cartera y mis límites de gasto?",
+      "Peux-tu me montrer la dernière quittance de mon portefeuille ?",
+      "Zeig mir bitte den Status meiner Wallet und die offenen Freigaben.",
+      "Parodyk mano piniginės būseną ir išlaidų limitus."
+    ],
+    "not_for": [
+      "how do I set up a crypto wallet?",
+      "explain the difference between custodial and self-custody wallets",
+      "write a tweet about my new wallet",
+      "send 0.5 ETH from my wallet to Alex",
+      "what is a public key and how does it work?",
+      "show me my private key or seed phrase"
+    ]
+  },
+  "wallet.propose": {
+    "use_when": "The person wants to pay or send crypto to a specific address and have it queued for their own approval, giving an amount, a coin and a destination.",
+    "examples": [
+      "send 0.05 ETH to 0x9fE2a41c on base",
+      "Pay 25 USDC to 7xKpQm2 on solana",
+      "can you please transfer 100 usdc to my landlord's wallet 0x1234abcd",
+      "propose a payment of 0.2 SOL to the address I just pasted",
+      "send 12 bucks in usdc to bob's wallet, memo: pizza",
+      "pay 500 USDC on ethereum to 0xDeaDbeef for the invoice",
+      "sned 3 bnb to 0x77c0 from my main wallet",
+      "Please set up a transfer of 1.5 ETH to my cold wallet so I can approve it",
+      "transfer 40 usdc on base to 0xBEEF1 memo rent",
+      "send 250000 lamports to 7xKpQm2",
+      "Envía 30 USDC a esta dirección en Solana: 7xKpQm2",
+      "Envoie 0,05 ETH à l'adresse 0x9fE2a41c sur Base s'il te plaît",
+      "Schick 20 USDC an diese Adresse auf Arbitrum: 0x4b1c9a",
+      "Išsiųsk 15 USDC į šį adresą Base tinkle: 0x8d2f31"
+    ],
+    "not_for": [
+      "How do I send crypto to someone safely?",
+      "What's the difference between Base and Arbitrum?",
+      "Write a message asking my friend to send me 50 USDC",
+      "What is my wallet balance right now?",
+      "Approve the pending payment for me",
+      "Why are Ethereum gas fees so high today?"
+    ]
+  },
+  "wallet.simulate": {
+    "use_when": "The person has an existing payment proposal and wants to re-check what fee it would cost and whether it would succeed, without signing or sending anything.",
+    "examples": [
+      "re-run the simulation for proposal 4821 and tell me the fee",
+      "check what the fee would be on proposal prop_17 before I approve it",
+      "will payment proposal 233 go through? do a dry run",
+      "rerun the test on my pending payment prop_0092 pls",
+      "how much is the fee gonna be for proposal 58",
+      "can you recheck proposal abc123, did the outcome change",
+      "dry run proposal 9 again, prices moved a bit",
+      "Hey, could you please double-check the fee and result of payment proposal 7731 without sending anything?",
+      "proposl 412 would it fail? rerun check",
+      "what would happen if i went ahead with proposal prop_55, just checking, dont send",
+      "Vuelve a simular la propuesta de pago 318 y dime la comisión",
+      "Peux-tu refaire la simulation de la proposition de paiement 62 ? Je veux voir les frais.",
+      "Simuliere den Zahlungsvorschlag 145 noch mal und zeig mir die Gebühr",
+      "Pakartok mokėjimo pasiūlymo 207 simuliaciją ir pasakyk, koks bus mokestis"
+    ],
+    "not_for": [
+      "how do payment proposals work in general?",
+      "explain why network fees go up when the chain is busy",
+      "write a short email telling my partner the payment is delayed",
+      "approve and send proposal 4821 now",
+      "create a new payment proposal for 50 USDC to my landlord",
+      "ugh I'm so tired of waiting on that payment lol"
+    ]
+  },
+  "wallet.payment_status": {
+    "use_when": "The person wants to know what happened to a specific payment they asked to make: still waiting for approval, confirmed (with its transaction signature), rejected, or failed.",
+    "examples": [
+      "did my payment go through?",
+      "check status of proposal prop_8f3a21",
+      "is the transfer I asked for still waiting for approval",
+      "what happened with payment proposal 4412? was it rejected or what",
+      "Could you please tell me whether proposal pr_20931 has been confirmed?",
+      "any update on the payment i sent to the landlord, id prop_77b2",
+      "did that paymnet fail",
+      "give me the transaction signature for proposal prop_c90d",
+      "payment pending still?? proposal id a1b2c3",
+      "Hi, I'd like to know if my payment proposal got approved yet, thanks",
+      "¿Ya se confirmó el pago de la propuesta prop_5531?",
+      "Mon paiement prop_19ac est-il toujours en attente d'approbation ?",
+      "Wurde die Zahlung mit der Vorschlags-ID prop_88de abgelehnt?",
+      "Ar mano mokėjimas prop_3d71 jau patvirtintas?"
+    ],
+    "not_for": [
+      "how do I approve a payment proposal in a wallet app",
+      "what is a transaction signature?",
+      "write an email to my landlord saying I already paid the rent",
+      "send 0.5 SOL to my friend",
+      "why do blockchain transactions sometimes fail",
+      "I hate waiting for payments to clear lol"
+    ]
+  }
+}

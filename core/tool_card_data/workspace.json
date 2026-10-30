@@ -1,0 +1,459 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "workspace.list_tree": {
+    "use_when": "The person wants to see what files and folders are in their current project folder, or inside a particular subfolder, to get an overview or find something.",
+    "examples": [
+      "show me all the files in my project",
+      "what folders do I have here?",
+      "list the directory tree",
+      "can you show me whats inside the src folder",
+      "give me an overview of how this project is laid out",
+      "ls the docs folder pls",
+      "just show the first 50 files",
+      "what files are in here",
+      "Please display the folder structure so I can find my notes.",
+      "wat files r in the current folder, cant find my budget sheet",
+      "muéstrame todos los archivos y carpetas del proyecto",
+      "Affiche-moi l'arborescence des fichiers s'il te plaît",
+      "Zeig mir bitte, welche Dateien in diesem Ordner liegen",
+      "Parodyk man visų aplanko failų sąrašą"
+    ],
+    "not_for": [
+      "How do I organize my project folders better?",
+      "Explain what a directory tree is",
+      "Write a short poem about messy folders",
+      "What's the command to list files in Linux?",
+      "my desktop is such a mess lol",
+      "Open README.md and show me what's written in it"
+    ]
+  },
+  "workspace.list_files": {
+    "use_when": "The person wants to see which files or folders exist in their current project folder, or find files by name, extension or location.",
+    "examples": [
+      "what files are in my project folder",
+      "show me all the pdfs in here",
+      "ls",
+      "can you list everything in the src directory?",
+      "whats in the docs folder",
+      "Please show me the first 20 files in the downloads folder",
+      "list all .py files",
+      "which fiels do i have in this folder",
+      "show me what's inside the images directory, please",
+      "any csv files in here?",
+      "¿Qué archivos hay en la carpeta del proyecto?",
+      "Montre-moi la liste des fichiers dans ce dossier",
+      "Zeig mir alle Dateien im Ordner src",
+      "Parodyk, kokie failai yra šiame aplanke"
+    ],
+    "not_for": [
+      "how do I list files in a folder using the terminal",
+      "write a short poem about files and folders",
+      "what is the difference between a file and a directory",
+      "open README.md and tell me what it says",
+      "delete all the old files in the temp folder",
+      "my desk is buried in paper files, I really need to get organized"
+    ]
+  },
+  "workspace.search_text": {
+    "use_when": "The person wants to find which of their files contain a certain word, phrase, or piece of code, and see the file names and line numbers where it appears.",
+    "examples": [
+      "find every file that mentions TODO",
+      "which of my notes say 'invoice 2291'?",
+      "grep for password_hash in my project folder",
+      "where did i write down the wifi password",
+      "can u look thru my code for 'getUserName' and show line numbers",
+      "Could you please check which documents contain the phrase 'quarterly budget'?",
+      "find where i defined calculate_total",
+      "search the src folder only for 'deprecated' in .py files",
+      "who mentions refund in my txt files",
+      "look for 'meeting notes' in my markdown files, top 5 results",
+      "Busca en mis archivos dónde menciono la palabra 'presupuesto'",
+      "Cherche dans mes fichiers le mot 'facture' et dis-moi les lignes",
+      "Durchsuche meine Dateien nach 'Passwort' und zeig mir die Zeilen",
+      "Surask visuose mano failuose frazę 'sutarties pabaiga'"
+    ],
+    "not_for": [
+      "how do I use grep to search text in files?",
+      "write a short poem about searching for lost files",
+      "what is a regular expression?",
+      "explain the best way to organize my project folders",
+      "I can never find anything lol, any tips for staying organized?",
+      "list all the files in my documents folder"
+    ]
+  },
+  "workspace.symbol_search": {
+    "use_when": "The person wants to find where a function, class, or variable is defined or used in the code files of their project folder.",
+    "examples": [
+      "where is parseConfig defined",
+      "find all usages of UserSession in my project",
+      "can you show me where handleSubmit gets called?",
+      "look up the definition of calc_total in src",
+      "whr is fetchUser used, only in the .ts files",
+      "Please find where the class OrderManager is declared",
+      "grep for references to MAX_RETRIES",
+      "which files reference render_chart",
+      "find def load_settings",
+      "hey, could you locate every place that uses isValidEmail in the utils folder pls",
+      "¿Dónde se define la función calcularImpuesto en mi proyecto?",
+      "Trouve où la classe PaymentGateway est utilisée dans mon code",
+      "Wo wird die Funktion ladeEinstellungen definiert und aufgerufen?",
+      "Surask, kur projekte naudojamas kintamasis vartotojoId"
+    ],
+    "not_for": [
+      "How do I rename a function safely in Python?",
+      "Explain what a class is in object oriented programming",
+      "Write a docstring for my parseConfig function",
+      "What's the difference between a symbol and a string in Ruby?",
+      "Rename getUser to fetchUser everywhere in my code"
+    ]
+  },
+  "workspace.read_file": {
+    "use_when": "The person wants to see the contents of a file on their computer, all of it or a range of lines, for example to check code, notes, a config or a log.",
+    "examples": [
+      "show me what's in notes.txt",
+      "open README.md please",
+      "can you read src/main.py starting at line 120",
+      "whats on lines 40 to 80 of config/settings.yaml",
+      "print todo.md exactly as it is, no changes",
+      "read the first 200 lines of server.log",
+      "pls show me the contents of my budget.csv",
+      "cat package.json",
+      "i need to see utils/helpers.js with line numbers",
+      "let me look at the meeting notes in docs/meeting-2024-05.md",
+      "Muéstrame el contenido de notas.txt",
+      "Peux-tu ouvrir config.yaml et me montrer son contenu ?",
+      "Zeig mir bitte den Inhalt von main.py ab Zeile 50",
+      "Parodyk, kas yra faile ataskaita.txt"
+    ],
+    "not_for": [
+      "how do I read a file in Python?",
+      "write a short README for my project",
+      "what is a CSV file and when would I use one",
+      "explain what the line number in a stack trace means",
+      "I love reading, any good book recommendations?",
+      "what's the difference between .txt and .md files"
+    ]
+  },
+  "workspace.ensure_directory": {
+    "use_when": "The person wants a new folder or directory created inside their current project or working area so they can organize files.",
+    "examples": [
+      "make a new folder called invoices",
+      "create a directory named assets/images",
+      "can you please add a folder for 2024 receipts in my project",
+      "new folder: drafts",
+      "mkdir src/components",
+      "set up a folder structure for my thesis, start with a chapters folder",
+      "pls creat a folder named backups",
+      "I need an empty directory called tmp_data to dump files into",
+      "add a subfolder called screenshots inside docs",
+      "make me a folder for the client photos",
+      "Crea una carpeta nueva llamada presupuestos",
+      "Peux-tu créer un dossier nommé photos_vacances ?",
+      "Erstelle bitte einen neuen Ordner namens Rechnungen",
+      "Sukurk naują aplanką pavadinimu nuotraukos"
+    ],
+    "not_for": [
+      "how do I organize my folders better?",
+      "what is the difference between a folder and a directory?",
+      "write a short guide on naming conventions for project folders",
+      "delete the folder called old_stuff",
+      "what does the mkdir command do in Linux?",
+      "I'm so tired of my messy desktop folders lol"
+    ]
+  },
+  "workspace.write_file": {
+    "use_when": "The person wants text or code saved into a file on their computer, either creating a new file or replacing the full contents of an existing one.",
+    "examples": [
+      "save this text to notes/todo.txt",
+      "Please write 'Hello world' into hello.txt",
+      "overwrite settings.ini with the lines I just pasted",
+      "create a file called ideas.md and put my list of ideas in it",
+      "can you replace the contents of readme.md with the new version below",
+      "put this in a new file named budget2024.csv",
+      "wirte the summary into summary.txt pls",
+      "save the script you just made as backup.sh",
+      "Could you please update draft.txt so it contains the paragraph I gave you?",
+      "dump that output into log_output.txt",
+      "Guarda este texto en un archivo llamado notas.txt",
+      "Écris ce texte dans le fichier liste_courses.txt s'il te plaît",
+      "Speichere das bitte in einer Datei namens protokoll.txt",
+      "Išsaugok šį tekstą faile pastabos.txt"
+    ],
+    "not_for": [
+      "how do I write a file in Python?",
+      "what's the difference between .txt and .md files?",
+      "write me a short poem about autumn",
+      "show me what's in notes.txt",
+      "what is a SHA-256 hash and how does it work?",
+      "I love keeping my files organized, it's so satisfying"
+    ]
+  },
+  "workspace.replace_in_file": {
+    "use_when": "The person wants to change specific existing text inside a file they already have, such as fixing a typo, renaming a word, or updating a value.",
+    "examples": [
+      "In notes.txt change \"meeting at 3\" to \"meeting at 4\"",
+      "replace all instances of foo with bar in utils.py",
+      "pls swap the old email in contact.md for info@example.com",
+      "fix the typo \"recieve\" -> \"receive\" in README.md",
+      "change the port from 8080 to 3000 in config.yaml",
+      "in todo.txt rename \"buy milk\" to \"buy oat milk\"",
+      "update the version in package.json from 1.2.0 to 1.3.0",
+      "can you replace every \"colour\" with \"color\" in draft.txt",
+      "chnage Dear Sir to Dear Madam in letter.txt",
+      "swap localhost for 192.168.1.20 in settings.ini",
+      "Cambia \"hola\" por \"buenas\" en saludo.txt",
+      "Remplace toutes les occurrences de \"chat\" par \"chien\" dans histoire.txt",
+      "Ersetze in config.ini den Wert debug=true durch debug=false",
+      "Pakeisk faile sarasas.txt žodį \"pienas\" į \"kefyras\""
+    ],
+    "not_for": [
+      "how do I use find and replace in vim?",
+      "write me a short paragraph about why typos matter",
+      "what's the difference between sed and awk?",
+      "show me what's inside notes.txt",
+      "create a new file called todo.txt",
+      "ugh I always have to replace my keyboard because of typos lol"
+    ]
+  },
+  "workspace.apply_unified_diff": {
+    "use_when": "The person has a unified diff or patch, pasted or described, and wants its changes applied to the files in their current project, with the option to roll it back.",
+    "examples": [
+      "apply this diff to my project",
+      "Can you apply the patch I just pasted?",
+      "pls apply this unified diff, and let me undo it if it breaks",
+      "here's a patch from my colleague, put it into the code please",
+      "apply these changes to main.py: --- a/main.py +++ b/main.py @@ -1,3 +1,3 @@",
+      "run this patch on my files",
+      "could u patch my repo with the diff below",
+      "Apply the following git diff and keep a way to roll it back",
+      "merge this diff into my folder thx",
+      "i got a .patch from a reviewer, can you apply it",
+      "Aplica este parche a mi proyecto, por favor",
+      "Peux-tu appliquer ce diff à mes fichiers ?",
+      "Wende bitte diesen Patch auf meinen Code an",
+      "Pritaikyk šį pataisymą (diff) mano projekto failams"
+    ],
+    "not_for": [
+      "How do I create a patch file with git?",
+      "Explain what a unified diff is",
+      "Write a commit message for my changes",
+      "What's the difference between git merge and git rebase?",
+      "My friend says I should patch up my sleep schedule lol"
+    ]
+  },
+  "workspace.identity": {
+    "use_when": "The person wants to know which project or folder VOOL is currently working in, including its location, whether it is a git repository, or how big it is at the top level.",
+    "examples": [
+      "which project am I in right now?",
+      "what folder is active",
+      "where am i working currently",
+      "Can you tell me the full path of the current project?",
+      "is this folder a git repo",
+      "how many files are in the top level of this folder?",
+      "what's the name of the project we're in",
+      "which directory are you looking at rn",
+      "Could you please tell me where my current workspace is located?",
+      "wich folder is open atm",
+      "¿En qué carpeta estamos trabajando ahora mismo?",
+      "Dans quel projet suis-je actuellement ?",
+      "In welchem Ordner arbeiten wir gerade?",
+      "Kuriame aplanke dabar dirbame?"
+    ],
+    "not_for": [
+      "list all the files in this folder",
+      "how do I turn a folder into a git repository?",
+      "explain what a git repository is",
+      "write a short README describing my project",
+      "what's the best way to organize project folders?",
+      "I love working on this project, it's so much fun"
+    ]
+  },
+  "workspace.git_status": {
+    "use_when": "The person wants to see the current state of their git repository, such as which files are modified, staged, untracked, or what branch they are on.",
+    "examples": [
+      "what's the git status",
+      "show me what files I've changed",
+      "git status pls",
+      "which files are staged right now?",
+      "can you check if I have uncommitted changes in this project",
+      "whats modified in the repo",
+      "any untracked files in the src folder?",
+      "am I on a clean working tree",
+      "Could you please tell me which branch I'm on and what has changed?",
+      "check git status in the backend subfolder",
+      "what did i touch since the last commit",
+      "¿Qué archivos he modificado en este repositorio?",
+      "Peux-tu me montrer l'état git de mon projet ?",
+      "Zeig mir bitte, welche Dateien im Repo geändert wurden",
+      "Kokie failai šiame projekte pakeisti prieš commit'ą?"
+    ],
+    "not_for": [
+      "how do I undo my last git commit",
+      "explain the difference between git merge and git rebase",
+      "write a commit message for my login bug fix",
+      "what is git and why do developers use it",
+      "I'm so tired of git conflicts lol"
+    ]
+  },
+  "workspace.git_diff": {
+    "use_when": "The person wants to see what they have changed in their code project, such as uncommitted or staged edits, either overall or for one file or folder.",
+    "examples": [
+      "show me what I've changed so far",
+      "what changes have i made in this repo",
+      "can you show the uncommitted changes in src/app.py",
+      "diff of my staged changes please",
+      "whats different since the last commit",
+      "show me the changes in the folder ~/projects/blog",
+      "what did i modify rn",
+      "show staged diff only",
+      "Could you please show me which lines I edited in README.md?",
+      "before i commit, lemme see everything that changed",
+      "Muéstrame qué cambios he hecho en el proyecto desde el último commit",
+      "Montre-moi les modifications non commitées dans ce dépôt",
+      "Zeig mir bitte, was ich seit dem letzten Commit geändert habe",
+      "Parodyk, ką pakeičiau šiame projekte nuo paskutinio commit"
+    ],
+    "not_for": [
+      "how do I undo my last commit",
+      "explain what a diff is and how to read one",
+      "write me a nice commit message about a login fix",
+      "what's the difference between merge and rebase",
+      "how do I compare two branches on GitHub?",
+      "I love how version control keeps my history, so cool"
+    ]
+  },
+  "workspace.git_summary": {
+    "use_when": "The person wants a quick factual snapshot of their current code repository: how many branches exist, which commit they're on, and how much they've committed recently, day by day.",
+    "examples": [
+      "what's the state of my repo right now",
+      "how many branches do I have in this project",
+      "show me my commit activity for the last few days",
+      "which commit am I on rn",
+      "give me a git summary pls",
+      "have I been committing much this week?",
+      "Could you please tell me what HEAD is pointing at and how many local branches there are",
+      "recent commits by day for this folder",
+      "whats my latest commit and branch count",
+      "summarise git activity in ~/code/myapp",
+      "¿Cuántas ramas tengo en este repositorio y cuál es el último commit?",
+      "Montre-moi mon activité de commits des derniers jours",
+      "Wie viele Branches habe ich und auf welchem Commit stehe ich gerade?",
+      "Parodyk, kiek šakų turiu šiame projekte ir kokie paskutiniai commit'ai"
+    ],
+    "not_for": [
+      "how do I delete a git branch",
+      "what is the difference between merge and rebase",
+      "write a commit message for my login fix",
+      "explain what git is to a beginner",
+      "I love git, it saves me so much time",
+      "undo my last commit"
+    ]
+  },
+  "workspace.rollback_last_change": {
+    "use_when": "The person wants to undo the most recent change VOOL just made to their files or workspace in the current session, because it was wrong, unwanted, or broke something.",
+    "examples": [
+      "undo that last change",
+      "revert what you just did to my files",
+      "Can you please roll back the last edit? That wasn't what I wanted.",
+      "go back to how it was before",
+      "undo it",
+      "that broke everything, put the files back like they were",
+      "oops, not that one. rollbak the last change pls",
+      "Please undo the last modification you made in my workspace.",
+      "take back whatever you just changed",
+      "i didnt want that edit, revert it",
+      "Deshaz el último cambio que hiciste en mis archivos, por favor.",
+      "Annule la dernière modification que tu viens de faire.",
+      "Mach bitte die letzte Änderung rückgängig.",
+      "Atšauk paskutinį pakeitimą, kurį ką tik padarei."
+    ],
+    "not_for": [
+      "How do I undo changes in git?",
+      "Write a short note explaining what a rollback is.",
+      "What's the difference between revert and reset?",
+      "Undo my typing in this message, I made a mistake in the sentence.",
+      "Which files did you change earlier today?",
+      "I wish I could undo this whole terrible week, lol"
+    ]
+  },
+  "workspace.run_tests": {
+    "use_when": "The person wants their project's automated tests run, either the whole suite or a specific test command, to check whether their code still passes.",
+    "examples": [
+      "run the tests",
+      "can you run my test suite and tell me if anything fails",
+      "pls run pytest in the backend folder",
+      "do the tests still pass after my change?",
+      "run npm test",
+      "check if all tests are green",
+      "run only the tests in tests/test_login.py",
+      "kick off the unit tests real quick",
+      "could you please run the test suite for this project",
+      "run teh tests and show me whats broken",
+      "ejecuta las pruebas del proyecto y dime si fallan",
+      "peux-tu lancer les tests du projet ?",
+      "Führe bitte die Tests aus und sag mir, ob alles durchläuft",
+      "paleisk projekto testus ir pasakyk, ar jie praeina"
+    ],
+    "not_for": [
+      "how do I write a good unit test in Python?",
+      "what is the difference between unit tests and integration tests?",
+      "write me a test case for my login function",
+      "explain why my tests might be flaky",
+      "I hate Mondays, tests at school are the worst"
+    ]
+  },
+  "workspace.run_lint": {
+    "use_when": "The person wants their project's code checked for style problems, warnings or errors by running the linter or a specific lint command, optionally in a given folder.",
+    "examples": [
+      "check my code for style problems",
+      "any errors in my project? run the checks",
+      "can you run eslint on the src folder",
+      "pls see if my code passes the style rules",
+      "run the style checker",
+      "did i break any formatting rules before i commit",
+      "run the style check inside the frontend folder",
+      "check my python files with ruff",
+      "Is my code clean? Please run the code quality check",
+      "chek if my code has warnings",
+      "Revisa mi código a ver si tiene errores de estilo",
+      "Peux-tu vérifier si mon code respecte les règles de style ?",
+      "Prüf bitte meinen Code auf Stilfehler",
+      "Patikrink, ar mano kode nėra stiliaus klaidų"
+    ],
+    "not_for": [
+      "how do I set up eslint in a new project",
+      "what is a linter and why do people use it",
+      "write me a short blog post about code quality tools",
+      "explain what this warning means: unused variable",
+      "which is better, prettier or eslint?",
+      "I hate it when my code has warnings haha"
+    ]
+  },
+  "workspace.run_formatter": {
+    "use_when": "The person wants to check whether the code in their project follows the formatting rules, or asks to automatically reformat the files to fix style problems.",
+    "examples": [
+      "check if my code is formatted properly",
+      "is my project formatted correctly?",
+      "format all my files please",
+      "fix the formatting in this project",
+      "any style issues in my code? just check, dont change anything",
+      "pls autoformat the code",
+      "clean up code formatting in ~/projects/blog",
+      "check formatting without changing any files",
+      "apply formatting to the src folder",
+      "tidy up the code style before i commit",
+      "¿Puedes comprobar si el formato de mi código es correcto?",
+      "Peux-tu reformater automatiquement tout le code du projet ?",
+      "Bitte prüfe, ob mein Code richtig formatiert ist",
+      "Sutvarkyk mano projekto kodo formatavimą"
+    ],
+    "not_for": [
+      "how do I set up auto-formatting in VS Code?",
+      "what's the difference between tabs and spaces?",
+      "write me a poem about clean code",
+      "explain what a code formatter does",
+      "format this paragraph as a bulleted list",
+      "how do I format a USB drive?"
+    ]
+  }
+}
