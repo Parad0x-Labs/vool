@@ -270,3 +270,43 @@ def test_recall_advice_and_offers_are_not_save_claims(reply: str) -> None:
     from core.action_claim_gate import action_claims
 
     assert action_claims(reply) == []
+
+
+# -- (c) a reply built from a real folder read carries that read's receipt -----------------------
+
+
+def _session_events(session: str) -> list[dict]:
+    from core.runtime_continuity import list_runtime_session_events
+
+    return list_runtime_session_events(session, limit=200)
+
+
+def test_a_folder_overview_answer_logs_its_folder_read(tmp_path, monkeypatch) -> None:
+    import uuid
+
+    from apps.vool_agent import VoolAgent
+    from core.agent_runtime.fast_paths_machine import maybe_handle_direct_machine_read_request
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    folder = tmp_path / "Desktop" / "reports"
+    folder.mkdir(parents=True)
+    (folder / "README.md").write_text("# Reports\n", encoding="utf-8")
+    (folder / "q3.csv").write_text("a,b\n", encoding="utf-8")
+    session = f"openclaw:{uuid.uuid4().hex[:20]}"
+    context = {**OWNER, "session_id": session, "runtime_session_id": session}
+
+    result = maybe_handle_direct_machine_read_request(
+        VoolAgent(backend_name="test-backend", device="cards-use"),
+        "what's in my reports folder",
+        session_id=session,
+        source_surface="api",
+        source_context=context,
+    )
+
+    assert result is not None and "q3.csv" in result["response"]
+    assert result["mode"] == "tool_executed"
+    assert [r["tool_name"] for r in result["tool_receipts"]] == ["machine.list_directory"]
+    executed = [e for e in _session_events(session) if e.get("event_type") == "tool_executed"]
+    assert [e.get("tool_name") for e in executed] == ["machine.list_directory"]
+    assert any(o.get("intent") == "machine.list_directory" for o in context.get("runtime_tool_observations") or [])
+

@@ -1968,6 +1968,20 @@ def maybe_handle_folder_overview_request(
     ).strip()
     project_bound = bool(str((source_context or {}).get("project_id") or "").strip())
     response = build_folder_overview(workspace_root, project_bound=project_bound)
+    if workspace_root and Path(workspace_root).expanduser().is_dir():
+        # The overview is a real read of the folder: it carries that read's receipt.
+        from core.agent_runtime.fast_paths_machine import folder_read_fast_path_result
+
+        return folder_read_fast_path_result(
+            agent,
+            user_input=user_input,
+            session_id=session_id,
+            source_context=source_context,
+            intent="workspace.list_files",
+            path=workspace_root,
+            response=response,
+            reason="folder_overview_fast_path",
+        )
     return agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,

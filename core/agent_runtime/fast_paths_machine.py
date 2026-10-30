@@ -5,6 +5,7 @@ import os
 import re
 from collections import OrderedDict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib import request as urllib_request
 
@@ -730,6 +731,54 @@ def _machine_tool_fast_path_result(
         }
     ]
     return result
+
+
+def folder_read_fast_path_result(
+    agent: Any,
+    *,
+    user_input: str,
+    session_id: str,
+    source_context: dict[str, object] | None,
+    intent: str,
+    path: str,
+    response: str,
+    reason: str,
+) -> dict[str, Any]:
+    """A reply composed from a real read of one of the owner's folders, with that read's receipt.
+
+    The folder-overview lanes list a directory and read its README in-process
+    (`core.folder_overview.build_folder_overview`) and used to answer through the bare
+    `_fast_path_result`: the reply listed real folder contents while the turn recorded no tool at
+    all, so Activity, the claim gates and the audit saw a turn that read nothing (tool-use kit,
+    2026-10-29, class (c)). The read goes through the same receipt path as every machine read.
+    """
+    from core.execution.models import _tool_observation
+
+    execution = SimpleNamespace(
+        ok=True,
+        status="executed",
+        response_text=response,
+        details={
+            "observation": _tool_observation(
+                intent=intent,
+                tool_surface="local_folder_read",
+                ok=True,
+                status="executed",
+                path=path,
+                read_only=True,
+                response_preview=str(response or "")[:4000],
+            ),
+        },
+    )
+    return _machine_tool_fast_path_result(
+        agent,
+        user_input=user_input,
+        session_id=session_id,
+        source_context=source_context,
+        intent=intent,
+        execution=execution,
+        reason=reason,
+    )
 
 
 def maybe_handle_direct_machine_write_request(
@@ -1881,12 +1930,14 @@ def maybe_handle_direct_machine_read_request(
         if resolved_path:
             from core.folder_overview import build_folder_overview
 
-            return agent._fast_path_result(
-                session_id=session_id,
+            return folder_read_fast_path_result(
+                agent,
                 user_input=user_input,
-                response=build_folder_overview(resolved_path),
-                confidence=0.96,
+                session_id=session_id,
                 source_context=source_context,
+                intent="machine.list_directory",
+                path=str(resolved_path),
+                response=build_folder_overview(resolved_path),
                 reason="folder_audit_fast_path",
             )
     # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
