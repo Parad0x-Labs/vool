@@ -59,3 +59,46 @@ def test_a_refused_swap_ends_the_update_with_the_old_app_running(harness):
     assert recovered == []  # nothing left to recover: the next start is not stopped again
     assert later.stops == 0
 
+
+def test_the_swap_script_waits_as_long_as_the_flow_for_the_app_to_close(tmp_path, monkeypatch):
+    """F1: the flow waits STOP_BOUND_SECONDS for the app to close; the script it starts must not
+    give up sooner, or an app closing slowly (60-90 s on a busy Mac) is stopped but never swapped."""
+    from core.updater import macos, relaunch_health
+
+    started = []
+
+    class Spawned:
+        pid = 0
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(macos.subprocess, "Popen", lambda command, **kwargs: (started.append(command), Spawned())[1])
+    script = tmp_path / "mac_update_helper.sh"
+    script.write_text("#!/bin/bash\n")
+    helper = macos.ExternalScriptHelper(script=script, app_path=tmp_path / "VOOL.app", target_pid=0,
+                                        result_path=tmp_path / "result.json")
+    helper.prepare(txid="t1", staged_bundle=tmp_path / "staged")
+    helper.shutdown_app()
+
+    command = started[0]
+    wait = float(command[command.index("--wait-seconds") + 1])
+    assert wait >= relaunch_health.STOP_BOUND_SECONDS
+
+
+def test_the_mac_helper_stops_a_version_it_relaunched_that_never_took_the_pidfile(tmp_path):
+    """F3: a rollback's stop on the Mac helper read only the pidfile, so a relaunched version still
+    starting (no pidfile yet) kept running behind the restore."""
+    from core.updater import macos
+
+    helper = macos.ExternalScriptHelper(script=tmp_path / "unused.sh", app_path=tmp_path / "VOOL.app",
+                                        target_pid=0, result_path=tmp_path / "result.json",
+                                        relaunch_cmd="sleep 60")
+    assert helper.relaunch(tmp_path / "VOOL.app")
+    launched = helper._launch_process
+    try:
+        assert helper.stop_running_app(timeout=5.0)
+        assert launched.poll() is not None
+    finally:
+        if launched.poll() is None:
+            launched.kill()
