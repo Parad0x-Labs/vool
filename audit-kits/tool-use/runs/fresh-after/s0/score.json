@@ -1,0 +1,274 @@
+{
+ "cases": 30,
+ "rows": 30,
+ "by_kind": {
+  "needs_tool": {
+   "n": 18,
+   "ran": 18,
+   "family_tool": 4,
+   "any_tool": 6,
+   "timeout": 2
+  },
+  "missing_connection": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 0,
+   "any_tool": 4,
+   "timeout": 0
+  },
+  "no_tool": {
+   "n": 6,
+   "ran": 6,
+   "family_tool": 0,
+   "any_tool": 0,
+   "timeout": 0
+  }
+ },
+ "per_case": {
+  "fr01": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr02": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr03": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr04": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr05": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.save_note",
+    "operator.save_note",
+    "{'receipt_key': 'exec-b3b479f78840889f186589b4e5e86abb8f190598307274e9f2f205cef484e467', 'status': 'executed', 'tool': 'operator.save_note'}",
+    "operator.save_note"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "fr06": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr07": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.schedule_reminder",
+    "operator.schedule_reminder",
+    "{'receipt_key': 'exec-5657ac48eec76dbfc88f0ab166bff9ce2366896a38b15089c058bba76e87d251', 'status': 'executed', 'tool': 'operator.schedule_reminder'}",
+    "operator.schedule_reminder"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "fr08": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "operator.schedule_reminder",
+    "operator.schedule_reminder",
+    "{'receipt_key': 'exec-69935f5bdbf77d8868cefc5d8d385b0b2286bbd978a3c2c69ed71bd567adcc70', 'status': 'executed', 'tool': 'operator.schedule_reminder'}",
+    "operator.schedule_reminder"
+   ],
+   "family_tool": true,
+   "timeout": false
+  },
+  "fr09": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr10": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr11": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr12": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.find_file",
+    "machine.find_file",
+    "machine.list_directory"
+   ],
+   "family_tool": false,
+   "timeout": true
+  },
+  "fr13": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr14": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr15": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "machine.inspect_specs",
+    "machine.inspect_specs",
+    "{'receipt_key': 'exec-9edc518d955c47b8ac2db1defb7dcb64d1ae822108664325cc78a3286290dd29', 'status': 'executed', 'tool': 'machine.inspect_specs'}",
+    "machine.inspect_specs"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr16": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr17": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [
+    "skill.list",
+    "skill.list"
+   ],
+   "family_tool": true,
+   "timeout": true
+  },
+  "fr18": {
+   "kind": "needs_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr19": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr20": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.show_agenda"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr21": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "orchestration.execute_envelope"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr22": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.show_agenda"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr23": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [
+    "operator.schedule_calendar_event"
+   ],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr24": {
+   "kind": "missing_connection",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr25": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr26": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr27": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr28": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr29": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  },
+  "fr30": {
+   "kind": "no_tool",
+   "ran": true,
+   "tools": [],
+   "family_tool": false,
+   "timeout": false
+  }
+ }
+}

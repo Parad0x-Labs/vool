@@ -1,0 +1,59 @@
+{
+ "asks": 30,
+ "embedder": "ollama:nomic-embed-text",
+ "cards": 39,
+ "words": {
+  "0.42": {
+   "missing_connection": "5/6",
+   "needs_tool": "12/18",
+   "no_tool": "1/6"
+  },
+  "0.50": {
+   "missing_connection": "4/6",
+   "needs_tool": "10/18",
+   "no_tool": "0/6"
+  },
+  "0.60": {
+   "missing_connection": "2/6",
+   "needs_tool": "7/18",
+   "no_tool": "0/6"
+  },
+  "0.75": {
+   "missing_connection": "0/6",
+   "needs_tool": "4/18",
+   "no_tool": "0/6"
+  }
+ },
+ "meaning_cosine": {
+  "0.60": {
+   "missing_connection": "6/6",
+   "needs_tool": "17/18",
+   "no_tool": "3/6"
+  },
+  "0.65": {
+   "missing_connection": "6/6",
+   "needs_tool": "15/18",
+   "no_tool": "2/6"
+  },
+  "0.70": {
+   "missing_connection": "5/6",
+   "needs_tool": "12/18",
+   "no_tool": "1/6"
+  },
+  "0.75": {
+   "missing_connection": "5/6",
+   "needs_tool": "8/18",
+   "no_tool": "0/6"
+  },
+  "0.80": {
+   "missing_connection": "4/6",
+   "needs_tool": "4/18",
+   "no_tool": "0/6"
+  },
+  "0.85": {
+   "missing_connection": "2/6",
+   "needs_tool": "1/18",
+   "no_tool": "0/6"
+  }
+ }
+}
