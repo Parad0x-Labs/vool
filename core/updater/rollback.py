@@ -10,6 +10,13 @@ import time
 from pathlib import Path
 
 from core.updater.migrations import SCHEMA_STATE_NAME
+from core.updater.relaunch_health import (
+    RELAUNCH_START_BOUND_SECONDS,
+    await_relaunch_health,
+)
+from core.updater.relaunch_health import (
+    STOP_BOUND_SECONDS as _STOP_BOUND_SECONDS,
+)
 from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import _atomic_write_json, _read_json
 from core.updater.status import UpdateFault, UpdatePhase
@@ -17,6 +24,12 @@ from core.updater.transaction import Step, UpdateJournal
 from core.updater.versions import parse_semver
 
 TERMINAL = frozenset({'completed', 'restored', 'aborted', 'rollback_failed'})
+
+# The rollback's verdicts are observations of the app, never clock arithmetic measured
+# from launch time: a slow machine must not fail a rollback (or "restore" one) before
+# the relaunched version actually got to run. The bounds live in core/updater/relaunch_health.py
+# (shared with the forward update flow); they stay finite so a genuinely dead runtime
+# cannot hang the rollback, and they document the whole allowance.
 
 
 def _compatible_schema(data_dir: Path, previous: str) -> bool:
@@ -132,12 +145,25 @@ def _finish(subsystem, path: Path, state: dict) -> dict:
 
 def _stop(helper) -> None:
     if getattr(helper, 'performs_swap', False):
-        if not helper.stop_running_app(timeout=30):
+        if not helper.stop_running_app(timeout=_STOP_BOUND_SECONDS):
             raise ValueError('the runtime did not stop')
     else:
         helper.shutdown_app()
-        if not helper.wait_until_stopped(timeout=30):
+        if not helper.wait_until_stopped(timeout=_STOP_BOUND_SECONDS):
             raise ValueError('the runtime did not stop')
+
+
+def _await_relaunch_health(subsystem, helper, *, expected_version: str):
+    """See core/updater/relaunch_health.py — the shared fair-start verdict. The start
+    bound is read from THIS module at call time so the documented allowance stays
+    one name here (tests and callers rebind it in one place)."""
+    return await_relaunch_health(
+        subsystem._make_probe(),
+        helper,
+        health_timeout=subsystem.health_timeout,
+        expected_version=expected_version,
+        start_bound=RELAUNCH_START_BOUND_SECONDS,
+    )
 
 
 def _restore_current(subsystem, path: Path, state: dict) -> dict:
@@ -156,7 +182,7 @@ def _restore_current(subsystem, path: Path, state: dict) -> dict:
         restore_runtime(subsystem.data_dir, path.parent / 'current-data')
     if not helper.relaunch(Path(subsystem.feed.app_path)):
         raise ValueError('current version could not restart')
-    health = subsystem._make_probe()(timeout=subsystem.health_timeout, expected_version=state['current_identity'])
+    health = _await_relaunch_health(subsystem, helper, expected_version=state['current_identity'])
     if not health.ok:
         raise ValueError('current version did not return healthy')
     _save(path, state, 'restored')
@@ -215,7 +241,7 @@ def run_manual_rollback(subsystem, candidate: dict, txid: str) -> dict:
         _save(path, state, 'swapped')
         if not helper.relaunch(Path(subsystem.feed.app_path)):
             raise ValueError('previous version could not restart')
-        health = subsystem._make_probe()(timeout=subsystem.health_timeout, expected_version=candidate['identity'])
+        health = _await_relaunch_health(subsystem, helper, expected_version=candidate['identity'])
         if not health.ok:
             raise ValueError('previous version did not return healthy')
         _save(path, state, 'healthy')
@@ -249,8 +275,8 @@ def recover_manual_rollbacks(subsystem) -> dict:
                     helper = subsystem._make_helper()
                     _stop(helper)
                     if helper.relaunch(Path(subsystem.feed.app_path)):
-                        health = subsystem._make_probe()(timeout=subsystem.health_timeout,
-                                                         expected_version=state['candidate']['identity'])
+                        health = _await_relaunch_health(subsystem, helper,
+                                                        expected_version=state['candidate']['identity'])
                 if health.ok:
                     results.append(_finish(subsystem, path, state))
                     continue
