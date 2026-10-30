@@ -114,6 +114,14 @@ cd vool
 bash Install_And_Run_VOOL.sh
 ```
 
+Removing that source install: `bash installer/uninstall_vool_local.sh` from the
+checkout stops a running VOOL first — only processes proven to belong to that
+install — and removes nothing if it cannot stop it. It keeps your chats and
+settings in `~/.vool_runtime` and says so when it finishes; a fresh install
+finds them there again. Run it again with `--remove-data` to delete them too; it
+asks once, and `--yes` skips the question for scripts. Ollama's own models
+folder is never deleted.
+
 
 ## Linux x86_64 tarball
 

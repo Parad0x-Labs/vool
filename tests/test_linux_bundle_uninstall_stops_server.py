@@ -291,3 +291,26 @@ def test_uninstall_sh_parses_and_passes_arguments_through():
     exec_lines = [line.strip() for line in script.read_text().splitlines() if "install_bundle.py" in line]
     assert exec_lines, "uninstall.sh must run install_bundle.py"
     assert all('"$@"' in line for line in exec_lines)
+
+
+def test_uninstall_stops_a_server_under_a_long_install_path(package, tmp_path):
+    # A deep home pushes the whole command line past 200 characters: ps(1) folds
+    # long argument lists unless asked not to, which once hid the server arg and
+    # let the removal proceed under a live server.
+    home = (tmp_path / ("deep install folder " + "x" * 190)).resolve()
+    home.mkdir()
+    installer.install(package, home)
+    runtime_home = home / ".vool_runtime"
+    root, _, _ = installer.layout(home)
+    assert len(str(root / "versions" / SHA / "app")) > 200
+    port = free_ephemeral_port()
+    process = start_stand_in_server(home, runtime_home, port)
+    try:
+        wait_until_port_answers_500(port)
+        installer.uninstall(home, prompt=decline)
+        assert process.poll() is not None
+        assert_port_refuses_connections(port)
+    finally:
+        stop_process(process)
+    assert not (root / "versions").exists()
+    assert runtime_home.is_dir()

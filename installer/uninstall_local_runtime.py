@@ -32,11 +32,11 @@ from pathlib import Path
 if __package__ in (None, ""):  # run as a script by the uninstaller, not -m
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from installer.bundle.linux.install_bundle import (  # noqa: E402
+from installer.bundle.linux.install_bundle import (
     CANNOT_STOP_MESSAGE,
+    KILL_WAIT_SECONDS,
     PIDFILE_RELATIVE,
     TERM_WAIT_SECONDS,
-    KILL_WAIT_SECONDS,
     _pid_has_exited,
     _wait_until_exited,
     process_cwd,
