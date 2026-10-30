@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from core.updater.macos import MacProcessHelper
+from core.updater.macos import MacProcessHelper, _process_command
 from core.updater.platforms import BundleVerification, SwapOutcome
 from installer.self_update import backup_and_swap, compute_preserve_names, looks_like_vool_release, rollback_swap
 
@@ -251,9 +251,8 @@ class LinuxBundleHelper(MacProcessHelper):
             return 0
         if pid <= 1:
             return 0
-        command = subprocess.run(["ps", "-p", str(pid), "-o", "args="], capture_output=True, text=True,
-                                 timeout=5, check=False)
-        if command.returncode or "-m apps.vool_api_server" not in command.stdout:
+        command = _process_command(pid)
+        if command is None or "-m apps.vool_api_server" not in command:
             return 0
         try:
             cwd = Path(f"/proc/{pid}/cwd").resolve()

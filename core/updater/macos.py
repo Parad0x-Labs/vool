@@ -217,16 +217,24 @@ def _pid_has_exited(pid: int) -> bool:
         return False
 
 
+def _process_command(pid: int) -> str | None:
+    """The full command line of one pid, or None when it is not running.
+
+    `-ww` keeps ps from clipping `args` to $COLUMNS (procps honours it even when the output is a pipe),
+    so an install path longer than a terminal line is still seen in full."""
+    process = subprocess.run(['ps', '-ww', '-p', str(pid), '-o', 'args='], capture_output=True,
+                             text=True, timeout=5, check=False)
+    return None if process.returncode else process.stdout.strip()
+
+
 def _pid_belongs_to_app(pid: int, app_path: Path) -> bool:
     """Inspect this recorded PID only; a reused number is never ownership proof."""
     if pid <= 1:
         return False
     root = Path(app_path).resolve()
-    process = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True,
-                             text=True, timeout=5, check=False)
-    if process.returncode:
+    command = _process_command(pid)
+    if command is None:
         return False
-    command = process.stdout.strip()
     native = root / 'Contents/MacOS/VOOL'
     shell = root / 'Contents/Resources/launcher.sh'
     if command.startswith(str(native)) or any(command.startswith(prefix + str(shell))
