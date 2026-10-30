@@ -10,7 +10,10 @@
 # never moves money. The ask file is encrypted so builders can't read it; the passphrase comes with the run prompt.
 set -euo pipefail
 LABEL=$1; REF=$2; IDX=$3; COUNT=$4
-: "${ASKS_PASS:?set ASKS_PASS to the passphrase from the run prompt}"
+: "${ASKS_FILE:=}"
+# ASKS_FILE=<plain jsonl> runs a measurer's own unpublished asks instead of the encrypted frozen set (no passphrase);
+# the raw rows are then kept in the clear next to the score.
+[ -n "$ASKS_FILE" ] || : "${ASKS_PASS:?set ASKS_PASS to the passphrase from the run prompt, or ASKS_FILE}"
 KIT=$(cd "$(dirname "$0")" && pwd)
 W=/tmp/tooluse-box
 REPO=$W/vool
@@ -56,9 +59,13 @@ fi
 log "models: $("$W/ollama/bin/ollama" list | tail -n +2 | awk '{print $1}' | tr '\n' ' ')"
 
 # 4. this shard's cases (every COUNT-th line from IDX) and a fresh fake home per label
-ASKS="$W/asks-v1.jsonl"
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$KIT/asks-v1.jsonl.enc" -out "$ASKS" -pass env:ASKS_PASS
-(cd "$W" && sha256sum -c "$KIT/asks-v1.sha256")
+if [ -n "$ASKS_FILE" ]; then
+  ASKS=$ASKS_FILE
+else
+  ASKS="$W/asks-v1.jsonl"
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$KIT/asks-v1.jsonl.enc" -out "$ASKS" -pass env:ASKS_PASS
+  (cd "$W" && sha256sum -c "$KIT/asks-v1.sha256")
+fi
 SHARD_FILE="$W/cases-$LABEL-$IDX.jsonl"
 awk -v i="$IDX" -v n="$COUNT" '(NR-1) % n == i' "$ASKS" > "$SHARD_FILE"
 [ -d "$W/fakehome-$LABEL" ] || cp -r "$KIT/fakehome" "$W/fakehome-$LABEL"
@@ -83,6 +90,10 @@ log "done $LABEL shard $IDX: $(wc -l < "$OUT/raw.jsonl") rows"
 
 # 6. results: numbers in the clear, raw rows (which quote the asks) encrypted
 "$W/venv/bin/python" -I "$KIT/score.py" "$SHARD_FILE" "$OUT/raw.jsonl" > "$DEST/score.json"
-tar -C "$OUT" -czf - raw.jsonl stdout.log model_ready.json 2>/dev/null \
-  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -out "$DEST/raw.tgz.enc" -pass env:ASKS_PASS
+if [ -n "$ASKS_FILE" ]; then
+  tar -C "$OUT" -czf "$DEST/raw.tgz" raw.jsonl stdout.log model_ready.json 2>/dev/null || true
+else
+  tar -C "$OUT" -czf - raw.jsonl stdout.log model_ready.json 2>/dev/null \
+    | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -out "$DEST/raw.tgz.enc" -pass env:ASKS_PASS
+fi
 log "results in $DEST"
