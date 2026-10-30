@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -3307,6 +3308,70 @@ def _code_task_contracts(*, write_enabled: bool) -> list[RuntimeToolContract]:
 
 def runtime_tool_contract_map() -> dict[str, RuntimeToolContract]:
     return {contract.intent: contract for contract in runtime_tool_contracts()}
+
+
+# ---- The plain-words name of what a tool does, for approval asks --------------------------------
+#
+# An approval ask a person reads must never lead with a raw dotted tool id
+# ("machine.ensure_directory needs your approval..."). The phrase below is derived from the
+# tool's OWN contract description, so it stays true to what the tool does without a second,
+# drifting catalogue of pretty names; and a tool WITHOUT a builtin contract (a plugin, an MCP
+# tool, anything unknown) returns "" so every caller shows its one general fallback sentence --
+# by construction, never by enumerating third-party names, and never the tool's id.
+
+_GENERAL_APPROVAL_ASK = "This request needs your approval first."
+_GENERAL_ACTION_LABEL = "Run this request"
+# Anything shaped like a dotted tool id (machine.ensure_directory, web.fetch) is scrubbed from
+# the derived clause: a person reads words, not identifiers.
+_DOTTED_ID_RE = re.compile(r"\b[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_.]*")
+# The description's leading clause is the action in plain words; the tail after any of these
+# markers is detail (lists, schema talk, caveats) that does not belong in the ask's first line.
+_CLAUSE_CUT_MARKERS = (" such as", " e.g.", ", ", "; ", " (", ":", "`", " -- ", " - ", " plus ")
+
+
+def plain_action_phrase(intent: str) -> str:
+    """What the tool DOES, in plain words a person reads, from the tool's own contract.
+
+    Empty when the intent has no builtin contract: the caller then uses its general fallback,
+    so a third-party tool can neither leak its dotted id into a sentence nor be given a name
+    the contract never made.
+    """
+    try:
+        contract = runtime_tool_contract_map().get(str(intent or "").strip().lower())
+    except Exception:
+        return ""
+    description = " ".join(str(getattr(contract, "description", "") or "").split())
+    if not description:
+        return ""
+    cut = len(description)
+    for marker in _CLAUSE_CUT_MARKERS:
+        idx = description.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    dot = description.find(".")
+    if dot != -1:
+        cut = min(cut, dot)
+    clause = description[:cut].strip().rstrip(",;:").strip()
+    # No dotted ids, no backticked schema words, in anything a person reads.
+    clause = _DOTTED_ID_RE.sub(" ", clause).replace("`", " ")
+    clause = " ".join(clause.split())
+    if len(clause.split(" ")) < 2 or len(clause) > 160:
+        return ""
+    return clause
+
+
+def plain_approval_ask(intent: str) -> str:
+    """The leading sentence of the approval ask: the plain action, then the ask itself."""
+    phrase = plain_action_phrase(intent)
+    if not phrase:
+        return _GENERAL_APPROVAL_ASK
+    return f"{phrase}. This needs your approval first."
+
+
+def plain_action_label(intent: str) -> str:
+    """The approval card's action line: the plain action, or a general phrase for a tool
+    without a builtin contract. Never the tool's dotted id."""
+    return plain_action_phrase(intent) or _GENERAL_ACTION_LABEL
 
 
 _X_UNSUPPORTED = "X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on."
