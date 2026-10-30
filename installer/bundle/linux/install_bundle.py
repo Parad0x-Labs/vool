@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import hashlib
 import os
 import re
@@ -22,6 +21,8 @@ PIDFILE_RELATIVE = Path("data/vool_api.pid")
 STOP_POLL_SECONDS = 0.2
 TERM_WAIT_SECONDS = 10.0
 KILL_WAIT_SECONDS = 10.0
+CANNOT_STOP_MESSAGE = ("VOOL is still running and could not be stopped, so nothing was removed. "
+                       "Close VOOL and run this uninstall again.")
 
 
 def safe_directory(path: Path) -> None:
@@ -199,13 +200,20 @@ def process_cwd(pid: int) -> Path | None:
 
 
 def _pid_has_exited(pid: int) -> bool:
-    """Gone from the kernel, or a zombie the parent has not reaped yet."""
+    """Gone from the kernel, or a zombie the parent has not reaped yet.
+
+    PermissionError from signal 0 means the process exists but is not ours to
+    signal: that is ALIVE, never exited — treating it as gone would remove the
+    package around a live server.
+    """
     if pid <= 0:
         return True
     try:
         os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError:
         return True
+    except PermissionError:
+        return False
     try:
         out = subprocess.run(["ps", "-p", str(pid), "-o", "stat="],
                              capture_output=True, text=True, timeout=5, check=False)
@@ -272,16 +280,23 @@ def stop_running_server(home: Path, root: Path, *, term_wait: float = TERM_WAIT_
     pid = owned_server_pid(home, root)
     if pid <= 0:
         return True, None
-    with contextlib.suppress(OSError):  # may have exited between the check and the signal
+    try:
         os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass  # exited between the check and the signal
+    except PermissionError:
+        return False, CANNOT_STOP_MESSAGE
     if _wait_until_exited(pid, term_wait):
         return True, None
-    with contextlib.suppress(OSError):
+    try:
         os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        return False, CANNOT_STOP_MESSAGE
     if _wait_until_exited(pid, kill_wait):
         return True, None
-    return False, ("VOOL is still running and could not be stopped, so nothing was removed. "
-                   "Close VOOL and run this uninstall again.")
+    return False, CANNOT_STOP_MESSAGE
 
 
 def _report_kept_data(home: Path) -> None:
