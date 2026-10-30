@@ -46,7 +46,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from core.memory.carriers import _RUNTIME_MADE_RE, ROW_IDENTITIES, _scope, fold_forget_text, text_carries
+from core.memory.carriers import _RUNTIME_MADE_RE, ROW_IDENTITIES, _scope, carries, fold_forget_text, text_carries
 
 _LOG = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ _KEPT_PLACES = {
     STORE_UPDATE_BACKUPS: "an update backup",
     STORE_LOG_FILES: "a log file",
     STORE_AGENT_TEAM: "this chat's agent team files",
-    STORE_UNDO_COPIES: "the undo copies of a file VOOL changed",
+    STORE_UNDO_COPIES: "the undo record of a file VOOL changed",
 }
 
 _SQLITE_SUFFIXES = (".db", ".sqlite", ".sqlite3")
@@ -73,6 +73,8 @@ _SCOPE_COLUMNS = ("origin_chat_id", "session_id", "chat_id", "chat_scope", "orig
 _FULL_TEXT_RE = re.compile(r"\busing\s+fts[345]\b", re.IGNORECASE)
 #: a full-text table that indexes another table's rows (``content='notes'``): rebuilt from that table, never written
 _EXTERNAL_CONTENT_RE = re.compile(r"\bcontent\s*=\s*['\"]?[A-Za-z_]", re.IGNORECASE)
+#: a full-text table that keeps no text of its own (``content=''``): only its index can be asked
+_CONTENTLESS_RE = re.compile(r"\bcontent\s*=\s*(?:''|\"\")", re.IGNORECASE)
 #: The folders of a backup that hold the profile's own files.
 _BACKUP_PAYLOADS = frozenset({"runtime-snapshot", "current-data", "config-snapshot", "migration-snapshots"})
 #: The updater's own record of a backup, beside the profile's files: never scrubbed.
@@ -170,7 +172,7 @@ def _forget_files(store: str, listed: Callable[[], list[Path]], token: str, chat
             if _may_carry(path, token):
                 removed += _scrub_file(path, token, chat_id, in_place=in_place)
         except Exception as exc:
-            _LOG.warning("forget: a %s copy could not be changed: %s", store, type(exc).__name__)
+            _LOG.warning("forget: a %s copy could not be changed: %s %s", store, type(exc).__name__, exc)
             kept = True
     _record_erasure_store(erasures, store, "kept" if kept else "verified", removed)
 
@@ -208,11 +210,26 @@ def _scrub_file(path: Path, token: str, chat_id: str, *, in_place: bool) -> int:
     if path.suffix.lower() in _SQLITE_SUFFIXES and _is_sqlite(path):
         return _scrub_sqlite(path, token, chat_id)
     raw = path.read_bytes()
+    main = Path(re.sub(r"-(?:wal|shm|journal)$", "", str(path)))
+    if main != path and main.exists() and _is_sqlite(main):
+        # a database's side file: the database pass above folded a live write-ahead log into the file; one that is
+        # left beside a copy the database does not read is stale pages, and is emptied
+        if path.name.endswith("-shm") or not text_carries(raw.decode("utf-8", "replace"), token):
+            return 0
+        _rewrite(path, b"", in_place=in_place)
+        return 1
     if "cas_chunks" in path.parts:
-        # a content-addressed chunk is named by its bytes: it cannot be edited, and the live forget removes it
+        # a content-addressed chunk is named by its bytes and cannot be edited; the live forget removes it. In a
+        # backup it is emptied, not removed: the backup's index lists it, and a restore needs every listed file
         if text_carries(raw.decode("utf-8", "replace"), token):
-            path.unlink()
+            _rewrite(path, b"", in_place=in_place)
             return 1
+        return 0
+    if "blackbox" in path.parts:
+        # the undo journal is chained and sealed entry by entry: an edited copy would make every undo refuse after a
+        # restore, so a copy that holds the words is said, never rewritten
+        if text_carries(raw.decode("utf-8", "replace"), token):
+            raise _Unchangeable(path.name)
         return 0
     packed = path.suffix.lower() == ".gz"
     text = _decoded_text(gzip.decompress(raw) if packed else raw)
@@ -275,6 +292,9 @@ def _scrubbed_json(value: Any, token: str, chat_id: str, key: Any = None) -> tup
         kept: dict[Any, Any] = {}
         count = 0
         for name, item in value.items():
+            if isinstance(name, str) and text_carries(name, token):
+                count += 1  # a key that is the words goes with its value
+                continue
             kept[name], nested = _scrubbed_json(item, token, chat_id, name)
             count += nested
         if count:
@@ -364,6 +384,8 @@ def _sqlite_carriers(conn: sqlite3.Connection, token: str, chat_id: str
                      ) -> list[tuple[str, list[str], tuple[Any, ...], dict[str, Any]]]:
     """(table, key columns, row key, {column: scrubbed value}) for each row of this chat (or of no chat) with a
     field that carries the words."""
+    from core.memory.run_history import _DIGEST_KEY_RE
+
     tables, _full_text = _tables(conn)
     found = []
     for table in tables:
@@ -403,9 +425,27 @@ def _sqlite_carriers(conn: sqlite3.Connection, token: str, chat_id: str
                 if count:
                     changes[name] = new
             if changes:
+                for name, value in zip(names, row[1:], strict=True):
+                    if name not in changes and isinstance(value, str) and value and _DIGEST_KEY_RE.search(name.casefold()):
+                        changes[name] = ""  # an unsalted digest of the words gives them back by trial
                 key = (row[0],) if keys == ["rowid"] else tuple(row[1 + names.index(name)] for name in keys)
                 found.append((table, keys, key, changes))
     return found
+
+
+def _index_only_carries(conn: sqlite3.Connection, full_text: dict[str, str], token: str) -> bool:
+    """A full-text table that keeps no text of its own (``content=''``) cannot be rewritten row by row; its index is
+    asked for the words instead. One that still finds them is said, not reported as forgotten."""
+    phrase = '"' + " ".join(re.findall(r"[^\W_]+", fold_forget_text(token))) + '"'
+    for name, definition in full_text.items():
+        if not _CONTENTLESS_RE.search(definition):
+            continue
+        try:
+            if conn.execute(f"SELECT 1 FROM {_quoted(name)} WHERE {_quoted(name)} MATCH ? LIMIT 1", (phrase,)).fetchone():
+                return True
+        except sqlite3.Error:
+            return True
+    return False
 
 
 def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
@@ -413,9 +453,15 @@ def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
     try:
         conn.execute("PRAGMA secure_delete = ON")
         found = _sqlite_carriers(conn, token, chat_id)
-        if not found:
-            return 0
         _tables_list, full_text = _tables(conn)
+        if not found:
+            # no row of this chat holds the words, but the bytes do (the file passed the byte read): an old deleted
+            # row's cells or another chat's row. VACUUM drops the former; the latter stays, as it does live
+            conn.execute("VACUUM")
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            if _index_only_carries(conn, full_text, token):
+                raise _Unchangeable(path.name)
+            return 0
         for table, keys, key, changes in found:
             where = " AND ".join(f"{_quoted(name)} IS ?" for name in keys)
             assignments = ", ".join(f"{_quoted(name)} = ?" for name in changes)
@@ -427,7 +473,7 @@ def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
                 with conn:
                     conn.execute(f"DELETE FROM {_quoted(table)} WHERE {where}", key)
         for name, definition in full_text.items():
-            if _EXTERNAL_CONTENT_RE.search(definition) and "fts5" in definition.casefold():
+            if _EXTERNAL_CONTENT_RE.search(definition):
                 conn.execute(f"INSERT INTO {_quoted(name)}({_quoted(name)}) VALUES('rebuild')")
             conn.execute(f"INSERT INTO {_quoted(name)}({_quoted(name)}) VALUES('optimize')")
         conn.commit()
@@ -435,7 +481,7 @@ def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
         # from its live rows only, and the full-text merge above drops the deleted words from the index
         conn.execute("VACUUM")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        if _sqlite_carriers(conn, token, chat_id):
+        if _sqlite_carriers(conn, token, chat_id) or _index_only_carries(conn, full_text, token):
             raise _Unchangeable(path.name)
         return len(found)
     finally:
@@ -443,6 +489,11 @@ def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
 
 
 # ── the file undo copies ─────────────────────────────────────────────────────
+
+
+def _journal_words(entry: dict[str, Any]) -> dict[str, Any]:
+    """An undo journal entry's own words: the paths it names. Its ids, digests and times are the runtime's."""
+    return {key: entry.get(key) for key in ("path", "paths", "root") if entry.get(key)}
 
 
 def _forget_undo_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
@@ -463,6 +514,10 @@ def _forget_undo_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -
         store = default_store()
         dropped = store.forget_copies(carrying, sessions={chat_id, ""})
         left = store.copies_carrying(carrying, sessions={chat_id, ""})
+        # the journal stays (it is the evidence, chained and sealed); an entry of this chat that names the words
+        # (a file path) is said
+        left = bool(left) or any(str(entry.get("session_id") or "") in {chat_id, ""}
+                                 and carries(_journal_words(entry), token) for entry in store.entries())
     except Exception as exc:
         _LOG.warning("forget: the file undo copies could not be erased: %s", type(exc).__name__)
         _record_erasure_store(erasures, STORE_UNDO_COPIES, "kept")

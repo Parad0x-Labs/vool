@@ -251,3 +251,46 @@ def test_a_number_forget_leaves_counters_and_ids_alone(isolated_pages):
     stores = _scrub("12")
     assert stores["update_backups"]["status"] == "verified"
     assert json.loads((payload / "turns.jsonl").read_text()) == {"created_at": "2026-10-12T10:00:00Z", "elapsed_ms": 12, "step_count": 12, "text": ""}
+
+
+def test_a_backup_with_a_chunk_and_an_undo_journal_still_restores_and_says_what_it_kept(isolated_pages, tmp_path):
+    """Delta review of 130b4b0e: removing a content chunk from a backup made restore_runtime fail (the backup's index
+    lists it), and blanking a path in the backup's sealed undo journal made every undo refuse after a restore. The
+    chunk is emptied; the journal is never rewritten and is said."""
+    from core.updater.snapshot import restore_runtime
+
+    chunk = _data() / "cas_chunks" / "ab" / "cd" / ("abcd" + "0" * 60)
+    chunk.parent.mkdir(parents=True)
+    chunk.write_text("order bread at the Flourstone Bakehouse")
+    journal = _data() / "blackbox" / "journal.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({"seq": 1, "path": "notes/Flourstone Bakehouse.txt", "mac": "x"}) + "\n")
+    _remember(isolated_pages, "chunk-forget", "my sister's bakery is called Flourstone Bakehouse.")
+    backup = _backup()
+    journal.unlink()  # the live journal is not what this test is about
+
+    handled, reply = command(isolated_pages, "chunk-forget", f"Forget {CANARY}.")
+
+    assert handled and reply.startswith("Forget applied"), reply
+    assert reply.endswith("and in an update backup, which could not be changed."), reply
+    copied = backup / "data" / "blackbox" / "journal.jsonl"
+    assert _holding(backup) == ["data/blackbox/journal.jsonl"] and json.loads(copied.read_text())["mac"] == "x"
+    restored = tmp_path / "restored-home" / "data"
+    restored.mkdir(parents=True)
+    restore_runtime(restored, backup)
+
+
+def test_a_key_that_is_the_words_and_a_text_index_with_no_text_of_its_own(isolated_pages):
+    payload = _data() / "update_v2" / "transactions" / "tx-k" / "runtime-snapshot" / "data"
+    payload.mkdir(parents=True)
+    (payload / "labels.json").write_text(json.dumps({"Flourstone Bakehouse": "bread", "harbor": "lantern"}))
+    conn = sqlite3.connect(payload / "index.db")
+    conn.execute("CREATE VIRTUAL TABLE words USING fts5(body, content='')")
+    conn.execute("INSERT INTO words(rowid, body) VALUES (1, 'order at the Flourstone Bakehouse')")
+    conn.commit()
+    conn.close()
+
+    stores = _scrub(CANARY)
+
+    assert json.loads((payload / "labels.json").read_text()) == {"harbor": "lantern"}
+    assert stores["update_backups"]["status"] == "kept", stores  # the index alone holds the words: said, not hidden
