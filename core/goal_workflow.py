@@ -538,6 +538,15 @@ def completed_step_count(plan: dict[str, Any]) -> tuple[int, int]:
 # Public projection (the ONE shape the card, the commands and Activity share)
 # ---------------------------------------------------------------------------
 
+def goal_eta_seconds(state: str, elapsed: float, done: int, total: int) -> float | None:
+    """Time left for a running goal, from its own pace so far: the working time per completed
+    step times the steps still to go. Unknown (None) until a step has completed, and whenever the
+    goal is not running -- a paused, blocked or waiting goal has no pace to project."""
+    if state != "running" or done < 1 or total <= done or elapsed <= 0:
+        return None
+    return round(elapsed / done * (total - done), 1)
+
+
 def goal_public_view(goal: dict[str, Any]) -> dict[str, Any]:
     """The compact canonical goal state served to the card and the registry commands.
 
@@ -586,6 +595,7 @@ def goal_public_view(goal: dict[str, Any]) -> dict[str, Any]:
         "ended_at": float(goal.get("ended_at") or 0.0),
         "paused": bool(goal.get("paused_at")) and str(goal.get("state")) == "paused",
         "elapsed_seconds": round(elapsed, 3),
+        "eta_seconds": goal_eta_seconds(str(goal.get("state") or ""), elapsed, done, total),
         "reason": str(goal.get("last_reason") or ""),
     }
 

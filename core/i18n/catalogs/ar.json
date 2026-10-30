@@ -2611,6 +2611,7 @@
     "goal.state_failed": "فشل",
     "goal.state_cancelled": "أُلغي",
     "goal.elapsed_label": "الوقت المنقضي",
+    "goal.eta_left": "متبقٍ حوالي {time}",
     "goal.paused_note": "متوقف مؤقتًا",
     "goal.completed_group": "مكتمل",
     "goal.pause": "إيقاف مؤقت",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

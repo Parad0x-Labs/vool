@@ -2611,6 +2611,7 @@
     "goal.state_failed": "विफल",
     "goal.state_cancelled": "रद्द",
     "goal.elapsed_label": "बीता समय",
+    "goal.eta_left": "लगभग {time} बाकी",
     "goal.paused_note": "रुका हुआ",
     "goal.completed_group": "पूर्ण",
     "goal.pause": "रोकें",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

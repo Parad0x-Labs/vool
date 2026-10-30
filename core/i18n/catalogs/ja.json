@@ -2611,6 +2611,7 @@
     "goal.state_failed": "失敗",
     "goal.state_cancelled": "キャンセル済み",
     "goal.elapsed_label": "経過時間",
+    "goal.eta_left": "残り約{time}",
     "goal.paused_note": "一時停止中",
     "goal.completed_group": "完了",
     "goal.pause": "一時停止",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

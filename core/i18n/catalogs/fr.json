@@ -2611,6 +2611,7 @@
     "goal.state_failed": "Échoué",
     "goal.state_cancelled": "Annulé",
     "goal.elapsed_label": "Écoulé",
+    "goal.eta_left": "Encore environ {time}",
     "goal.paused_note": "en pause",
     "goal.completed_group": "terminé",
     "goal.pause": "Suspendre",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

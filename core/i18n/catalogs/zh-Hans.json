@@ -2611,6 +2611,7 @@
     "goal.state_failed": "已失败",
     "goal.state_cancelled": "已取消",
     "goal.elapsed_label": "已用时",
+    "goal.eta_left": "大约还剩 {time}",
     "goal.paused_note": "已暂停",
     "goal.completed_group": "已完成",
     "goal.pause": "暂停",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
     "settings.row.hide_name_on_screen.effect": "立即生效。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

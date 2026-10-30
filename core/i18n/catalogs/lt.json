@@ -2611,6 +2611,7 @@
     "goal.state_failed": "Nepavyko",
     "goal.state_cancelled": "Atšaukta",
     "goal.elapsed_label": "Praėjęs laikas",
+    "goal.eta_left": "Liko apie {time}",
     "goal.paused_note": "pristabdyta",
     "goal.completed_group": "baigta",
     "goal.pause": "Pristabdyti",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

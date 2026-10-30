@@ -2801,6 +2801,7 @@
     "goal.state_failed": "Failed",
     "goal.state_cancelled": "Cancelled",
     "goal.elapsed_label": "Elapsed",
+    "goal.eta_left": "About {time} left",
     "goal.paused_note": "paused",
     "goal.completed_group": "completed",
     "goal.pause": "Pause",

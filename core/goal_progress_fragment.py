@@ -30,6 +30,8 @@ def render_goal_progress_fragment() -> str:
   .vgc-head:focus-visible{outline:2px solid var(--vgc-accent);outline-offset:-2px}
   .vgc-title{font-weight:600;font-size:13px}
   .vgc-elapsed{color:var(--vgc-dim);font-variant-numeric:tabular-nums;font-size:12px}
+  .vgc-eta{color:var(--vgc-dim);font-size:12px;white-space:nowrap}
+  .vgc-eta:empty{display:none}
   .vgc-state{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--vgc-border);white-space:nowrap}
   .vgc-state.is-running{background:rgba(48,209,88,.18);color:var(--vgc-ok)}
   .vgc-state.is-completed{background:rgba(48,209,88,.18);color:var(--vgc-ok)}
@@ -73,6 +75,7 @@ def render_goal_progress_fragment() -> str:
   <button type="button" class="vgc-head" id="vgcHead" aria-expanded="false" aria-controls="vgcBody">
     <span class="vgc-title">Goal</span>
     <span class="vgc-elapsed" id="vgcElapsed" aria-label="Elapsed time"></span>
+    <span class="vgc-eta" id="vgcEta"></span>
     <span class="vgc-count" id="vgcCount"></span>
     <span class="vgc-state" id="vgcState"></span>
     <span class="vgc-caret" aria-hidden="true">&#9660;</span>
@@ -110,6 +113,25 @@ def render_goal_progress_fragment() -> str:
     return h > 0 ? h+':'+mm+':'+ss : m+':'+ss;
   }
   function $(id){ return document.getElementById(id); }
+  // Time left, shown by default once a job looks long (10 minutes or more all told). The estimate
+  // is the server's (eta_seconds: the goal's own pace per completed step); between polls it only
+  // counts down. Unknown until a step has finished, and never shown for a paused or waiting goal.
+  var ETA_SHOW_FROM_SECONDS = 600;
+  function fmtEtaTime(sec){
+    var loc; try { loc = (window.VOOL_I18N && window.VOOL_I18N.tag) || undefined; } catch(e){}
+    var min = Math.max(1, Math.round(sec / 60));
+    try {
+      if (min < 60) return new Intl.NumberFormat(loc, {style:'unit', unit:'minute', unitDisplay:'short'}).format(min);
+      return new Intl.NumberFormat(loc, {style:'unit', unit:'hour', unitDisplay:'short', maximumFractionDigits:1}).format(min / 60);
+    } catch(e){ return min < 60 ? min + ' min' : (Math.round(min / 6) / 10) + ' h'; }
+  }
+  function paintEta(elapsedNow){
+    var node = $('vgcEta'); if (!node) return;
+    var left = (view && view.eta_seconds != null && view.state === 'running' && !view.paused)
+      ? Math.max(0, Number(view.eta_seconds) - Math.max(0, elapsedNow - (view.elapsed_seconds || 0))) : null;
+    if (left == null || !isFinite(left) || left < 30 || elapsedNow + left < ETA_SHOW_FROM_SECONDS){ node.textContent = ''; return; }
+    node.textContent = t('goal.eta_left', 'About {time} left').replace('{time}', fmtEtaTime(left));
+  }
   function stateLabel(state){
     var labels = {queued:t('goal.state_queued','Queued'), planning:t('goal.state_planning','Planning'),
       running:t('goal.state_running','Running'), waiting_approval:t('goal.state_waiting','Waiting for approval'),
@@ -222,16 +244,19 @@ def render_goal_progress_fragment() -> str:
       // Frozen truth between polls: show the server-derived elapsed value as-is.
       var e0 = fmtElapsed(view.elapsed_seconds);
       $('vgcElapsed').textContent = e0;
+      paintEta(view.elapsed_seconds || 0);
       return;
     }
     // Live interpolation of the server-derived elapsed value between bounded polls. The
     // server value stays the authority; every poll overwrites the interpolation.
     view._tickBase = view.elapsed_seconds; view._tickAt = Date.now();
+    paintEta(view.elapsed_seconds || 0);
     elapsedTimer = setInterval(function(){
       if (!view || view.paused) return;
       var eff = (view._tickBase||0) + Math.max(0, (Date.now() - (view._tickAt||Date.now()))/1000);
       var e = fmtElapsed(eff);
       $('vgcElapsed').textContent = e;
+      paintEta(eff);
       $('vgcFootElapsed').textContent = t('goal.elapsed_label','Elapsed') + ' ' + e + (view.paused ? ' \u00b7 ' + t('goal.paused_note','paused') : '');
     }, 1000);
   }

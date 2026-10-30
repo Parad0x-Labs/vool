@@ -894,42 +894,18 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
    button used to compete for the same line and spill out of the card (QA-050-006/007/008). */
 .tc-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; }
 /* VOOL Core footprint -- fixed, so the card never reflows as the indicator changes state. */
-/* The working mark: VOOL's official hand-drawn mark (V over oo over the L-smile), traced as one
-   inline SVG and brought to life with CSS alone. The resting markup IS the complete static mark:
-   every path draws plainly (dash gaps live only inside keyframes) and the particle/burst circles
-   sit at opacity:0 -- so `animation: none` (reduced motion, or a terminal card) shows the finished
-   logo instantly, and removing the card removes the animation with it. No timers, no rAF. */
-.tc-mark { flex:0 0 auto; width:56px; height:56px; color:var(--accent); }
-.tc-mark path { fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; }
-.tc-mark .tc-p, .tc-mark .tc-b { fill:currentColor; opacity:0; }
-.tc-mark .tc-b { transform-box: fill-box; transform-origin: center; }
-.tc-mark .tc-life { transform-box: view-box; transform-origin: 50% 55%; }
-/* One shared 3.4s clock drives every layer, so the staging is structural: V sketches and resolves,
-   then both O's, then the L, the finished mark holds, then it implodes inward and the cycle
-   restarts. pathLength=100 on every stroke lets one dash recipe serve all four parts. */
-.tc-mark .tc-v    { animation: tcDrawV  3.4s linear infinite; }
-.tc-mark .tc-ol   { animation: tcDrawOl 3.4s linear infinite; }
-.tc-mark .tc-or   { animation: tcDrawOr 3.4s linear infinite; }
-.tc-mark .tc-l    { animation: tcDrawL  3.4s linear infinite; }
-.tc-mark .tc-pv   { animation: tcDustV  3.4s linear infinite; }
-.tc-mark .tc-po   { animation: tcDustO  3.4s linear infinite; }
-.tc-mark .tc-pl   { animation: tcDustL  3.4s linear infinite; }
-.tc-mark .tc-life { animation: tcLife   3.4s linear infinite; }
-.tc-mark .tc-b    { animation: tcBurst  3.4s linear infinite; }
-@keyframes tcDrawV  { 0%,2% { stroke-dasharray:100 100; stroke-dashoffset:100; } 17%,100% { stroke-dasharray:100 100; stroke-dashoffset:0; } }
-@keyframes tcDrawOl { 0%,22% { stroke-dasharray:100 100; stroke-dashoffset:100; } 38%,100% { stroke-dasharray:100 100; stroke-dashoffset:0; } }
-@keyframes tcDrawOr { 0%,22% { stroke-dasharray:100 100; stroke-dashoffset:100; } 38%,100% { stroke-dasharray:100 100; stroke-dashoffset:0; } }
-@keyframes tcDrawL  { 0%,44% { stroke-dasharray:100 100; stroke-dashoffset:100; } 58%,100% { stroke-dasharray:100 100; stroke-dashoffset:0; } }
-/* Sketch dust: each circle starts scattered on its own --dx/--dy and converges onto its stroke as
-   that stroke resolves, then goes dark. The scatter offsets are inline per-circle custom props. */
-@keyframes tcDustV { 0% { opacity:0; transform:translate(var(--dx,0px),var(--dy,0px)); } 3% { opacity:.85; } 10%,100% { opacity:0; transform:translate(0,0); } }
-@keyframes tcDustO { 0%,20% { opacity:0; transform:translate(var(--dx,0px),var(--dy,0px)); } 24% { opacity:.85; } 31%,100% { opacity:0; transform:translate(0,0); } }
-@keyframes tcDustL { 0%,42% { opacity:0; transform:translate(var(--dx,0px),var(--dy,0px)); } 46% { opacity:.85; } 53%,100% { opacity:0; transform:translate(0,0); } }
-/* The full mark holds complete from 58% to 83%, then implodes into a compact burst of particles
-   that fades, leaving a short empty beat before the sketch restarts. */
-@keyframes tcLife  { 0%,83% { opacity:1; transform:none; } 95%,100% { opacity:0; transform:scale(.18); } }
-@keyframes tcBurst { 0%,84% { opacity:0; transform:scale(.4); } 89% { opacity:.8; } 96%,100% { opacity:0; transform:scale(1); } }
-/* Truthful lifecycle: waiting for approval freezes the mark mid-sketch (it is not working);
+/* The working mark: VOOL's logo on a tiny black LED panel (core/working_mark.py). Every bulb is
+   drawn dim; the bulbs of the mark switch on one after another -- the V, both eyes together, the
+   L-smile -- hold while the eyes blink, go dark, and restart, all on one shared clock. The resting
+   markup IS the finished lit mark, so `animation: none` (reduced motion, a finished card) shows the
+   complete logo instantly. 36px: the owner asked for it 30-40% smaller than the old 56px. */
+.tc-mark { flex:0 0 auto; width:36px; height:36px; color:var(--accent); --tc-flash:#fff8e6; }
+.tc-mark .tc-panel { fill:#0b0c0e; stroke:rgba(255,255,255,.08); stroke-width:1; }
+.tc-mark .tc-off { fill:#fff; opacity:.075; }
+.tc-mark .tc-on { fill:currentColor; animation-duration:4s; animation-timing-function:linear; animation-iteration-count:infinite; }
+.task-card:not(.done):not(.failed):not(.cancelled) .tc-mark .tc-lit { filter:drop-shadow(0 0 1.6px currentColor); }
+/*__VOOL_WORKING_MARK_CSS__*/
+/* Truthful lifecycle: waiting for approval freezes the mark mid-light-up (it is not working);
    a terminal card and reduced motion both fall back to the complete static mark. */
 .tc-hold .tc-mark * { animation-play-state: paused !important; }
 .task-card.perm .tc-mark * { animation-play-state: paused !important; }
@@ -940,10 +916,29 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
    button or squeezed to a sliver against it. */
 .tc-badges { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px; flex:0 1 auto; min-width:0; max-width:100%; margin-left:auto; }
 .tc-badges:empty { display:none; }
-.tc-title { display:flex; align-items:center; gap:7px; font-weight:600; font-size:13px; }
-/* Static colour cue only now -- the Core itself carries the motion, so the old pulsing ring here
-   would just be a second, redundant "loading" animation next to a shape already breathing. */
-.tc-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); }
+.tc-title { display:flex; align-items:center; gap:7px; font-weight:600; font-size:13px; min-width:0; }
+/* "Vooling for 12s  >": the title is the toggle for the turn's details (elapsed, tokens, recent
+   steps), collapsed by default so the running turn reads as three calm lines. */
+.tc-toggle { display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:100%; background:transparent; border:none; padding:0; color:var(--ink); font:inherit; font-weight:600; cursor:pointer; text-align:start; }
+.tc-toggle:hover .tc-chev, .tc-toggle:focus-visible .tc-chev { color:var(--ink); }
+.tc-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+.tc-titletext { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.tc-for { flex:0 0 auto; color:var(--muted); font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.tc-for:empty { display:none; }
+.tc-chev { flex:0 0 auto; color:var(--muted); transition:transform .15s ease; }
+.tc-toggle[aria-expanded="true"] .tc-chev { transform:rotate(90deg); }
+.tc-line { display:flex; align-items:flex-start; gap:7px; min-width:0; color:var(--muted); font-size:12px; }
+.tc-line > .vi { margin-top:3px; }
+.tc-line .tc-stage { flex:1 1 auto; min-width:0; }
+.tc-groups { display:flex; flex-direction:column; gap:3px; }
+.tc-groups:empty { display:none; }
+.tc-group { display:flex; align-items:center; font-size:12px; color:var(--muted); min-width:0; }
+.tc-group.vi::before { margin-inline-end:7px; }
+.tc-group.live::before { animation:wkPulse 1.4s ease-in-out infinite; }
+@keyframes wkPulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+@media (prefers-reduced-motion: reduce) { .tc-group.live::before { animation:none; } .tc-chev { transition:none; } }
+.tc-details { display:flex; flex-direction:column; gap:6px; }
+.tc-details[hidden] { display:none; }
 /* A long-running job writes long stage strings. One clipped line hid the end of every one of them;
    two wrapped lines fit the sentence and still bound the card's height. */
 /* A running turn's status obeys the same rule as the composer label: one line, ellipsis, exact
@@ -992,6 +987,9 @@ body.vool-offline .tc-report { display:none; }
 .task-card.done .tc-head, .task-card.done .tc-meta, .task-card.done .tc-last,
 .task-card.failed .tc-head, .task-card.failed .tc-meta, .task-card.failed .tc-last,
 .task-card.cancelled .tc-head, .task-card.cancelled .tc-meta, .task-card.cancelled .tc-last { display:none; }
+.task-card.done .tc-line, .task-card.done .tc-groups, .task-card.done .tc-details,
+.task-card.failed .tc-line, .task-card.failed .tc-groups, .task-card.failed .tc-details,
+.task-card.cancelled .tc-line, .task-card.cancelled .tc-groups, .task-card.cancelled .tc-details { display:none; }
 
 /* ---- Execution panel (right) ---- */
 #xpanel { flex:0 0 340px; width:340px; max-width:100%; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
@@ -5539,6 +5537,9 @@ function startRunTimers(run) {
     if (run.ended) return;
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
     run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
+    paintWorkingClock(run);
+    const word = run.status === 'running' ? workingWord(run) : '';
+    if (word && run.refs.title.textContent !== word) run.refs.title.textContent = word;
   }, 1000);
   // Poll the runtime ledger so the Activity panel shows the real timeline (scope, classify, model,
   // tools, timeouts, terminal), scoped to this turn. Only while the panel is open AND this run's
@@ -5737,43 +5738,9 @@ function paintRunState(run) {
   if (run.assistantMsgEl && run.endedAt) setMsgTime(run.assistantMsgEl, run.endedAt);
 }
 
-// The VOOL mark, hand-traced from the approved logo: bold V on top, small O left, larger O right,
-// L-shaped smile below -- proportions, tilts and stroke weights follow the source. Every stroke
-// carries pathLength="100" so the CSS draw-in uses one dash recipe; the resting markup is the
-// complete static mark (no dash attributes; particles and the implode burst start at opacity 0).
-// Inline SVG only: no canvas, no images, no libraries -- sharp at any display scale.
-const TC_MARK_SVG = '<svg class="tc-mark" viewBox="0 0 80 100" width="56" height="56" aria-hidden="true" focusable="false">'
-  + '<g class="tc-life">'
-  + '<path class="tc-v" pathLength="100" stroke-width="6.8" d="M3.6 8.2 C13.5 20.5 25.5 34.5 35.4 44 C45.5 33 57.5 16 68.4 0.8"/>'
-  + '<path class="tc-ol" pathLength="100" stroke-width="3.6" d="M13.2 47.6 C20.9 47.2 27 53.6 26.9 61.4 C26.8 69.2 20.4 75.3 13.5 75 C6.4 74.7 0.4 68.6 0.5 61.2 C0.6 53.9 6.4 48 13.2 47.6 Z"/>'
-  + '<path class="tc-or" pathLength="100" stroke-width="4" d="M56.6 37.2 C66.4 36.6 74.6 45.4 74.5 56.4 C74.4 67.4 66.2 76 56.4 75.6 C46.6 75.2 39.2 66.4 39.3 55.8 C39.4 45.6 47 37.8 56.6 37.2 Z"/>'
-  + '<path class="tc-l" pathLength="100" stroke-width="4.8" d="M13.6 97.6 Q46 90.5 78.2 83 L79 68.6"/>'
-  + '<circle class="tc-p tc-pv" cx="5" cy="8" r="1.9" style="--dx:-12px;--dy:-9px"/>'
-  + '<circle class="tc-p tc-pv" cx="21" cy="25" r="1.6" style="--dx:9px;--dy:-12px"/>'
-  + '<circle class="tc-p tc-pv" cx="35" cy="43" r="2.1" style="--dx:-7px;--dy:12px"/>'
-  + '<circle class="tc-p tc-pv" cx="50" cy="29" r="1.6" style="--dx:11px;--dy:8px"/>'
-  + '<circle class="tc-p tc-pv" cx="67" cy="2" r="1.9" style="--dx:6px;--dy:-11px"/>'
-  + '<circle class="tc-p tc-po" cx="13.4" cy="47.5" r="1.7" style="--dx:10px;--dy:-8px"/>'
-  + '<circle class="tc-p tc-po" cx="26.9" cy="61" r="2" style="--dx:-11px;--dy:-6px"/>'
-  + '<circle class="tc-p tc-po" cx="13.4" cy="74.9" r="1.7" style="--dx:-8px;--dy:10px"/>'
-  + '<circle class="tc-p tc-po" cx="0.8" cy="61.5" r="2" style="--dx:9px;--dy:11px"/>'
-  + '<circle class="tc-p tc-po" cx="23.5" cy="51.5" r="1.5" style="--dx:7px;--dy:12px"/>'
-  + '<circle class="tc-p tc-po" cx="56.6" cy="37.4" r="1.8" style="--dx:-9px;--dy:-11px"/>'
-  + '<circle class="tc-p tc-po" cx="74.4" cy="56.4" r="2" style="--dx:11px;--dy:-7px"/>'
-  + '<circle class="tc-p tc-po" cx="56.4" cy="75.4" r="1.7" style="--dx:8px;--dy:12px"/>'
-  + '<circle class="tc-p tc-po" cx="39.5" cy="55.8" r="2" style="--dx:-12px;--dy:6px"/>'
-  + '<circle class="tc-p tc-po" cx="69" cy="44" r="1.5" style="--dx:6px;--dy:13px"/>'
-  + '<circle class="tc-p tc-pl" cx="13.6" cy="97.6" r="1.8" style="--dx:-8px;--dy:10px"/>'
-  + '<circle class="tc-p tc-pl" cx="46" cy="90.7" r="1.6" style="--dx:6px;--dy:-12px"/>'
-  + '<circle class="tc-p tc-pl" cx="78.2" cy="83" r="2" style="--dx:12px;--dy:6px"/>'
-  + '<circle class="tc-p tc-pl" cx="78.7" cy="76" r="1.6" style="--dx:-10px;--dy:-9px"/>'
-  + '<circle class="tc-p tc-pl" cx="60" cy="87" r="1.8" style="--dx:7px;--dy:13px"/>'
-  + '<circle class="tc-b" cx="40" cy="52" r="2.2"/>'
-  + '<circle class="tc-b" cx="47" cy="49" r="1.7"/>'
-  + '<circle class="tc-b" cx="44" cy="60" r="1.9"/>'
-  + '<circle class="tc-b" cx="37" cy="58" r="1.6"/>'
-  + '<circle class="tc-b" cx="50" cy="56" r="1.5"/>'
-  + '</g></svg>';
+// The VOOL mark on its LED panel, built once by core/working_mark.py: inline SVG only -- no
+// canvas, no images, no libraries -- sharp at any display scale.
+const TC_MARK_SVG = /*__VOOL_WORKING_MARK_SVG__*/'';
 
 // Builds this run's status card on `host`. Pure DOM: no timers, no state. Callers decide whether
 // this run's chat is on screen -- attachRunDom for a re-open, runTurn for a fresh turn.
@@ -5787,19 +5754,22 @@ function buildCard(run, host) {
   card.innerHTML = ''
     + '<div class="tc-head">'
     + TC_MARK_SVG
-    + '<div class="tc-headtext"><div class="tc-title"><span class="tc-dot"></span> <span class="tc-titletext">VOOL is working</span></div><div class="tc-stage"></div></div>'
-    + '<span class="tc-badges"><span class="tc-mode"></span><span class="tc-model"></span></span>'
+    + '<div class="tc-headtext"><div class="tc-title"><button type="button" class="tc-toggle" aria-expanded="false">'
+    + '<span class="tc-titletext">VOOL is working</span><span class="tc-for"></span><span class="tc-chev vi" data-ico="chevron" aria-hidden="true"></span></button></div></div>'
+    + '<span class="tc-badges"><span class="tc-mode"></span><span class="tc-model"></span><span class="tc-cost"></span></span>'
     + '<button type="button" class="tc-stop" title="Stop this turn — cancels the running task on your machine and stops the answer.">Stop</button>'
     + '</div>'
-    + '<div class="tc-meta"><span class="tc-elapsed"></span><span class="tc-tokens"></span><span class="tc-steps"></span><span class="tc-cost"></span></div>'
-    + '<div class="tc-recent"></div><div class="tc-last"></div><div class="tc-summary"></div>'
+    + '<div class="tc-line"><span class="vi" data-ico="idea" aria-hidden="true"></span><div class="tc-stage"></div></div>'
+    + '<div class="tc-groups"></div>'
+    + '<div class="tc-details" hidden><div class="tc-meta"><span class="tc-elapsed"></span><span class="tc-tokens"></span><span class="tc-steps"></span></div>'
+    + '<div class="tc-recent"></div><div class="tc-last"></div></div><div class="tc-summary"></div>'
     + '<div class="tc-actions"><button type="button" class="tc-view">View activity</button></div>'
     + '<span class="sr-only"></span>';
   // One container per turn: append the status card INTO the assistant message (host), not as a
   // separate sibling in the log. So the answer + its live status/collapsed metadata are one block.
   (host || logEl).appendChild(card);
   const q = (sel) => card.querySelector(sel);
-  const refs = { card, mark: q('.tc-mark'), title: q('.tc-titletext'), stage: q('.tc-stage'), mode: q('.tc-mode'), model: q('.tc-model'), recent: q('.tc-recent'),
+  const refs = { card, mark: q('.tc-mark'), title: q('.tc-titletext'), clock: q('.tc-for'), toggle: q('.tc-toggle'), details: q('.tc-details'), groups: q('.tc-groups'), stage: q('.tc-stage'), mode: q('.tc-mode'), model: q('.tc-model'), recent: q('.tc-recent'),
     stop: q('.tc-stop'), elapsed: q('.tc-elapsed'), tokens: q('.tc-tokens'), steps: q('.tc-steps'), cost: q('.tc-cost'), last: q('.tc-last'),
     summary: q('.tc-summary'), view: q('.tc-view'), sr: q('.sr-only') };
   // The stopping look: the button says so and cannot be pressed again, and the mark holds. Kept
@@ -5885,6 +5855,10 @@ function buildCard(run, host) {
     } catch (e) { settle('unknown'); }
   });
   refs.view.addEventListener('click', openPanel);
+  // The details stay as the person left them for this turn, across a re-built card too.
+  const showDetails = () => { refs.details.hidden = !run.detailsOpen; refs.toggle.setAttribute('aria-expanded', run.detailsOpen ? 'true' : 'false'); };
+  refs.toggle.addEventListener('click', () => { run.detailsOpen = !run.detailsOpen; showDetails(); });
+  showDetails();
   run.card = card; run.refs = refs;
   if (run.permission || run.pricePaused) card.classList.add('tc-hold');   // re-built mid-approval: the mark holds, it is not working
   if (run.ended) refs.stop.style.display = 'none';   // a re-hung terminal card has nothing to stop
@@ -5901,6 +5875,35 @@ function humanActivityState(run) {
   if (run.permission) return pageT('run.stage_waiting_approval', 'Waiting for approval');
   const stage = String(run.stage || '').trim();
   return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
+}
+// The playful title while a turn genuinely works (core/working_words.py). English UI only; never
+// while VOOL waits on the person (approval, price), reviews its answer, or is stopping -- those
+// keep their plain words. A turn opens on "Vooling", then moves to a new word every few seconds.
+const WORKING_WORDS = /*__VOOL_WORKING_WORDS__*/[];
+const WORKING_WORD_MS = 3200;
+function workingWord(run) {
+  if (!WORKING_WORDS.length || !run || run.ended || run.status !== 'running') return '';
+  if (run.permission || run.pricePaused || run.verifying || run.stopRequested) return '';
+  let tag = '';
+  try { tag = String((window.VOOL_I18N && window.VOOL_I18N.tag) || ''); } catch (e) {}
+  if (tag && !/^en\b/i.test(tag)) return '';
+  const slot = Math.floor(Math.max(0, Date.now() - run.start) / WORKING_WORD_MS);
+  if (!slot) return WORKING_WORDS[0];
+  if (run.wordSeed == null) run.wordSeed = Math.floor(Math.random() * WORKING_WORDS.length);
+  return WORKING_WORDS[(run.wordSeed + slot) % WORKING_WORDS.length];
+}
+// "for 12s" beside a playful word, "· 12s" beside a plain state; nothing once the turn has ended.
+function paintWorkingClock(run) {
+  const r = run.refs; if (!r || !r.clock) return;
+  if (run.ended) { r.clock.textContent = ''; return; }
+  const t = fmtElapsed(Date.now() - run.start);
+  r.clock.textContent = (workingWord(run) ? 'for ' : '· ') + t;
+}
+// The step rows under the summary line, repainted only when they change.
+function paintStepGroups(run) {
+  const r = run.refs; if (!r || !r.groups) return;
+  const html = stepGroupsHtml(run.steps);
+  if (r.groups.innerHTML !== html) r.groups.innerHTML = html;
 }
 function recordedModelProvider(model) {
   if (!model) return '';
@@ -5992,7 +5995,14 @@ function renderCard(run) {
   r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
-  if (run.status === 'running') r.title.textContent = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
+  if (run.status === 'running') {
+    const plain = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
+    const word = workingWord(run);
+    r.title.textContent = word || plain;
+    r.title.title = word ? plain : '';   // the plain state stays one hover away
+  }
+  paintWorkingClock(run);
+  paintStepGroups(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
   r.sr.textContent = (run.permission ? pageT('run.sr_waiting', 'Waiting for approval. ') : '') + (run.action || run.stage || '');
 }
@@ -6176,6 +6186,8 @@ function paintFinishedCard(run) {
   r.stop.style.display = 'none';
   const title = kind === 'completed' ? pageT('run.status_completed', 'Completed') : (kind === 'cancelled' ? pageT('run.status_stopped', 'Stopped') : (kind === 'awaiting_approval' ? pageT('run.status_waiting', 'Waiting for your approval') : pageT('run.failed_safely_label', 'Failed safely')));
   r.title.textContent = title;
+  r.title.title = '';
+  if (r.clock) r.clock.textContent = '';
   r.stage.textContent = run.endSummary || title;
   r.elapsed.innerHTML = '<b>' + fmtElapsed((run.endedAtMs || (run.endedAtMs = Date.now())) - run.start) + '</b> ' + pageT('run.total_word', 'total');
   // The Proof Chip for a turn that just finished (or re-opened after finishing off screen),
@@ -7658,18 +7670,36 @@ function activityRollupText(tree) {
 function activityWorkLogSummary(tree) {
   return pageTF('activity.worklog', 'Work log · {n, plural, one {{n} action} other {{n} actions}}', { n: tree.totalActions });
 }
+const STEP_STAGE_BUCKET = { Running: 'commands', Testing: 'tests', Reading: 'reads', Editing: 'edits', Searching: 'searches' };
 function stepsRollupText(steps) {
   if (!steps || !steps.length) return '';
-  const STAGE_BUCKET = { Running: 'commands', Testing: 'tests', Reading: 'reads', Editing: 'edits', Searching: 'searches' };
   const counts = {}, order = [];
   for (const s of steps) {
-    const key = STAGE_BUCKET[s.stage] || 'tools';
+    const key = STEP_STAGE_BUCKET[s.stage] || 'tools';
     if (counts[key] == null) { counts[key] = 0; order.push(key); }
     counts[key] += 1;
   }
   const parts = order.map((key) => (ACTIVITY_ROLLUP_PHRASE[key] || ((n) => pageTF('activity.rollup.actions', '{n, plural, one {{n} action} other {{n} actions}}', { n: n })))(counts[key]));
   const text = parts.join(', ');
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+// The running card's step rows ("Ran 3 searches", "Read 2 files"): one row per kind of step, in the
+// order the kinds first appeared, each with its line icon. A row whose kind still has a step in
+// flight pulses its icon; the words are the same counted phrases the finished summary uses.
+const STEP_BUCKET_ICON = { commands: 'run', tests: 'test', reads: 'read', edits: 'edit', searches: 'search', tools: 'tool' };
+function stepGroupsHtml(steps) {
+  const counts = {}, live = {}, order = [];
+  for (const s of steps || []) {
+    const key = STEP_STAGE_BUCKET[s.stage] || 'tools';
+    if (counts[key] == null) { counts[key] = 0; order.push(key); }
+    counts[key] += 1;
+    if (s.status !== 'completed' && s.status !== 'failed') live[key] = true;
+  }
+  return order.map((key) => {
+    const text = (ACTIVITY_ROLLUP_PHRASE[key] || ACTIVITY_ROLLUP_PHRASE.tools)(counts[key]);
+    return '<div class="tc-group vi' + (live[key] ? ' live' : '') + '" data-ico="' + STEP_BUCKET_ICON[key] + '">'
+      + esc(text.charAt(0).toUpperCase() + text.slice(1)) + '</div>';
+  }).join('');
 }
 
 // Opening the price review from a refusal row only OPENS the gate: the operator edits and
@@ -14711,11 +14741,14 @@ def _no_model_leads_js() -> str:
 
 def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
+    import json
     from base64 import b64encode
     from pathlib import Path
 
     from core.i18n.catalog import catalog_for
     from core.i18n.locales import get_locale
+    from core.working_mark import mark_css, mark_svg
+    from core.working_words import working_words_json
 
     logo = Path(__file__).with_name("assets") / "vool-logo-dark.png"
     logo_uri = "data:image/png;base64," + b64encode(logo.read_bytes()).decode("ascii")
@@ -14730,6 +14763,9 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
         _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
+        .replace("/*__VOOL_WORKING_WORDS__*/[]", working_words_json(), 1)
+        .replace("/*__VOOL_WORKING_MARK_CSS__*/", mark_css(), 1)
+        .replace("/*__VOOL_WORKING_MARK_SVG__*/''", json.dumps(mark_svg()), 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )
     # The UI locale rides the same deterministic i18n authority the Settings selector drives

@@ -2611,6 +2611,7 @@
     "goal.state_failed": "Falhou",
     "goal.state_cancelled": "Cancelado",
     "goal.elapsed_label": "Decorrido",
+    "goal.eta_left": "Faltam cerca de {time}",
     "goal.paused_note": "pausado",
     "goal.completed_group": "concluído",
     "goal.pause": "Pausar",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
     "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

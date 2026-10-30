@@ -2611,6 +2611,7 @@
     "goal.state_failed": "Fallido",
     "goal.state_cancelled": "Cancelado",
     "goal.elapsed_label": "Transcurrido",
+    "goal.eta_left": "Quedan unos {time}",
     "goal.paused_note": "en pausa",
     "goal.completed_group": "completado",
     "goal.pause": "Pausar",
@@ -2853,7 +2854,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "fd9754d1fa03debe048a128c0a1cdd4b2d2c0ebe53857f34669a44e0d5756da4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

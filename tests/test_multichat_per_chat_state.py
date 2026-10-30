@@ -141,6 +141,7 @@ globalThis.pageT = (_key, fallback) => fallback;
 globalThis.fmtElapsed = () => '0s';
 globalThis.fmtUsd = () => '';
 globalThis.stepsRollupText = (steps) => String(steps.length);
+globalThis.stepGroupsHtml = (steps) => String(steps.length);
 globalThis.setMsgTime = (el, ts) => { if (el) el.attrs['data-ts'] = ts; };
 globalThis.renderCard = (run) => { CALLS.renderCard++; if (typeof __realRenderCard === 'function') __realRenderCard(run); };
 globalThis.renderPanel = () => { CALLS.renderPanel++; };
