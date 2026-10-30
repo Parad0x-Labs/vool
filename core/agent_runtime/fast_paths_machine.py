@@ -1690,7 +1690,12 @@ def maybe_handle_direct_machine_read_request(
     # here, deterministically, is what keeps drive numbers off that path entirely: the ask is
     # about one thing, the answer states that thing's size, and a miss fails closed in plain
     # words rather than widening to the machine.
-    size_answer = size_answer_for_ask(user_input)
+    from core.request_trust import turn_is_remote
+
+    # The size lane measures and searches as the owner (a typed path is stat'ed, a folder walked, a name found
+    # across the home folders), so a turn from a phone or a chat app never takes it: such a turn goes on to the
+    # model lane, where every tool passes the remote-turn fence and the phone's folder limit.
+    size_answer = None if turn_is_remote(source_context) else size_answer_for_ask(user_input)
     if size_answer is not None:
         return agent._fast_path_result(
             session_id=session_id,

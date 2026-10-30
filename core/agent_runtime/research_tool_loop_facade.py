@@ -128,6 +128,14 @@ _MACHINE_DRIVE_STAT_INTENTS = frozenset(
 )
 
 
+# A file name with its extension, or a file/folder noun: "how much space does report.pdf take up on my
+# computer" names ONE thing on the computer, and "on my computer" is where it lives, not what is asked about.
+_NAMES_ONE_THING_RE = re.compile(
+    r"\b[\w-]+\.[A-Za-z0-9]{1,5}\b|\b(?:file|files|folder|folders|directory|directories|zip|photo|photos|video|videos)\b",
+    re.IGNORECASE,
+)
+
+
 def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
     """Refuse a model-initiated drive-stats read for an ask that is not about the drives.
 
@@ -160,7 +168,8 @@ def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
         return None
     if _DISK_STRONG_RE.search(text):
         return None
-    if _DISK_SPACE_CUE_RE.search(text) and _STORAGE_HOST_ANCHOR_RE.search(text):
+    if (_DISK_SPACE_CUE_RE.search(text) and _STORAGE_HOST_ANCHOR_RE.search(text)
+            and not _NAMES_ONE_THING_RE.search(text)):
         return None
     message = (
         "That reading is about the whole computer's drives, and this question wasn't about "

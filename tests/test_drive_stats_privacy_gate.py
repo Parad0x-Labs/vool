@@ -37,6 +37,9 @@ NON_DISK_ASKS = [
     "summarize the notes from last weeks meeting",
     "read the file notes.txt in documents and tell me what it says",
     "does the iso fit on a dvd",
+    # independent review 2026-10-30: "on my computer" says where the one thing lives, not that the drives are asked about
+    "how much space does report.pdf take up on my computer",
+    "how much space do my photos take on my computer",
 ]
 
 # Asks whose own words ARE the disk question: these keep their drive numbers (the deterministic
@@ -53,6 +56,8 @@ DISK_ASKS = [
     "is the ssd nearly full yet",
     "how many gigabytes are free on my drive",
     "show me the disk space",
+    "how much free space is on this computer",
+    "do I have enough free space on my computer to download a 4GB file",
 ]
 
 # A number about the machine's drives, in either the reply or a tool result: a bare "12.0 MB"
