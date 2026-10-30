@@ -1648,9 +1648,20 @@ def execute_grounded_turn(
         # contract, the same law the render seam already applies for the price and
         # temperature kinds). Never weaker than before: nothing separable surviving
         # means the whole-answer notice, exactly as before.
+        from core.bootstrap_context import admitted_capsule_evidence_text
         from core.model_output_guard import replace_unobserved_live_claims
 
-        _split = replace_unobserved_live_claims(response, user_turn_text=effective_input)
+        # The memory the turn carried exempts the user's OWN figures (number + unit or
+        # currency stated there) at every level of the split, exactly as this seam's own
+        # recognition exempts them in the whole-text trigger -- see the memory-figure
+        # section in core.model_output_guard (measured 2026-10-30, org-credit job 3).
+        _split = replace_unobserved_live_claims(
+            response,
+            user_turn_text=effective_input,
+            evidence_text=admitted_capsule_evidence_text(
+                source_context or {}, str(session_id or "")
+            ),
+        )
         if _split != response:
             response = _split
         else:
