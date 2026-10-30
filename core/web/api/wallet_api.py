@@ -361,10 +361,15 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             wallet_id = _wallet_id(body)
             custody.require_wallet(wallet_id, source_context=source_context)
             current = limits.load_limits(wallet_id, str(body.get("asset") or "SOL"))
-            updated = limits.set_limits(wallet_id, str(body.get("asset") or "SOL"), limits.SpendLimits(
+            wanted = limits.SpendLimits(
                 per_tx_minor=int(body.get("per_tx_minor", current.per_tx_minor)), daily_minor=int(body.get("daily_minor", current.daily_minor)),
                 per_destination_daily_minor=int(body.get("per_destination_daily_minor", current.per_destination_daily_minor)),
-            ))
+            )
+            if limits.loosens(current, wanted):
+                # raising a cap needs the wallet's own approval credential: loopback alone is any process on this machine
+                custody.prove_owner(wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
+                                    purpose="raise a spending cap", source_context=source_context)
+            updated = limits.set_limits(wallet_id, str(body.get("asset") or "SOL"), wanted)
             return _ok({"limits": updated.to_dict()})
         if path == "/api/wallet/dna-fees/policy":
             # the trusted Settings door for the collection threshold (the rate and the treasury are not settable here or

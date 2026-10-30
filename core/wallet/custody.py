@@ -474,6 +474,35 @@ def verify_secret(wallet_id: str, secret: str) -> bool:
     return hmac.compare_digest(expected, _pin_key(str(secret or ""), base64.b64decode(row[1])))
 
 
+def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_context: dict[str, Any] | None = None) -> None:
+    """Prove the person at this computer holds this wallet's approval credential before a change that loosens its
+    protection (raising a spending cap). Raises the wallet's typed fault when it is not proven; returns nothing.
+
+    Loopback is not the owner: any process on this machine can reach the wallet doors, and the per-launch capability
+    (``core.wallet.caller_binding``) is unbound unless a native host configured it. A key VOOL holds is therefore only
+    loosened against the same secret a payment approval needs: a Crypto Pilot wallet through its durable unlock
+    throttle, an older pocket wallet by opening its seal, a device-approval wallet by Touch ID or the Mac password.
+    A watch-only wallet cannot pay, and an external-signer wallet's every payment is signed in the owner's own wallet
+    app; VOOL holds no credential for either, so neither is asked for one here."""
+    profile = require_wallet(wallet_id, source_context=source_context)
+    if profile.mode != MODE_POCKET_SEALED:
+        return
+    if profile.approval_method != APPROVAL_DEVICE and not str(credential or ""):
+        code = "wallet_password_invalid" if profile.approval_method == APPROVAL_PASSWORD else "wallet_pin_invalid"
+        raise wallet_fault(code, authority=AUTHORITY, context={"wallet_id": wallet_id, "reason": "credential_required", "purpose": purpose}, source_context=source_context)
+    if seal_policy(wallet_id) == PILOT_SEAL_POLICY:
+        from core.wallet import pilot_custody
+
+        pilot_custody.prove_credential(wallet_id, str(credential or ""), source_context=source_context)
+        return
+    if profile.approval_method == APPROVAL_DEVICE:
+        _kind, material, _public_key = _unseal_with_device(wallet_id, reason=f"VOOL: {purpose} for wallet {public_key_short(profile.public_key)}")
+        del material
+        return
+    _kind, material = _unseal_material(wallet_id, str(credential))
+    del material
+
+
 def verify_pin(wallet_id: str, pin: str) -> bool:
     return verify_secret(wallet_id, pin)
 
