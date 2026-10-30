@@ -378,7 +378,7 @@ class UpdateFlow:
             Step.ROLLED_BACK,
             detail=detail,
             txid=self._txid,
-            prior_path=prior if prior.exists() else None,
+            prior_path=prior if prior is not None and prior.exists() else None,
             receipt_path=receipt,
         )
 
