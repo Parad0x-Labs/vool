@@ -369,6 +369,9 @@ _FUZZY_PROTECT = {
     "project", "projects", "product", "products", "protect", "protects",
     "connect", "correct", "collect", "subject", "object", "select",
     "please",
+    # "looking for a movie file i saved called wedding highlights" reached the file search as "a move
+    # file" and was dropped as a MOVE (measured on the Mac 2026-10-28).
+    "movie",
     # Every entry below was measured, not guessed: each one is a word that `_fuzzy_domain_match`
     # would otherwise REWRITE. Found by running the matcher over a 900-word English list.
     #

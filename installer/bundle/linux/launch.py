@@ -24,6 +24,9 @@ def main() -> int:
         parser.error("port must be between 1 and 65535")
     root = Path(__file__).resolve().parent
     os.chdir(root / "app")
+    # The install's app/ is VOOL's source, never the person's workspace: name it the way the Mac app
+    # does, so chats work under the VOOL home and never read or size up VOOL's own files.
+    os.environ["VOOL_PROJECT_ROOT"] = str(root / "app")
     # Prevent host Python environment leakage, while retaining explicit product settings.
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)

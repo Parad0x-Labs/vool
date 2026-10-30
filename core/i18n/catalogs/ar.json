@@ -2848,14 +2848,18 @@
     "live.up": "أعلى",
     "live.upload": "رفع",
     "settings.row.live_browser.help": "راجع كل إجراء قبل تنفيذه. برامج الصفحات معطلة. استخدم المحفظة للدفع.",
-    "settings.row.live_browser.label": "المتصفح"
+    "settings.row.live_browser.label": "المتصفح",
+    "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
+    "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
+    "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
+  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
