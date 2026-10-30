@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Настройки сервера",
     "emailadd.servers_filled": "Заполнено для {provider}. Меняйте их, только если ваша почтовая служба просит об этом.",
     "emailadd.service.other": "Другая почта",
-    "emailadd.smtp_host": "Сервер исходящей почты (SMTP), необязательно",
-    "emailadd.smtp_note": "Без сервера исходящей почты VOOL сможет читать этот ящик, но не отправлять из него.",
-    "emailadd.smtp_port": "Порт сервера исходящей почты",
-    "emailadd.smtp_security": "Защита исходящего соединения",
     "emailadd.source.chat": "выбран для этого чата",
     "emailadd.source.global": "ваш ящик по умолчанию",
     "emailadd.source.legacy_default": "используется, потому что называется «default»",
     "emailadd.source.only_account": "единственный ящик",
     "emailadd.source.other": "выбран другим способом",
+    "emailadd.smtp_host": "Сервер исходящей почты (SMTP), необязательно",
+    "emailadd.smtp_note": "Без сервера исходящей почты VOOL сможет читать этот ящик, но не отправлять из него.",
+    "emailadd.smtp_port": "Порт сервера исходящей почты",
+    "emailadd.smtp_security": "Защита исходящего соединения",
     "emailadd.steps.gmail": "Gmail нужен пароль приложения, а не ваш обычный пароль. Включите двухэтапную аутентификацию в аккаунте Google, откройте «Пароли приложений», создайте пароль с именем VOOL и вставьте его ниже.",
     "emailadd.steps.icloud": "iCloud Mail нужен пароль для приложения. Войдите в свой Apple Account, откройте «Вход и безопасность», выберите «Пароли приложений», создайте пароль с именем VOOL и вставьте его ниже.",
     "emailadd.steps.yahoo": "Yahoo Mail нужен пароль приложения. Откройте «Безопасность аккаунта» в аккаунте Yahoo, выберите «Создать пароль приложения», назовите его VOOL и вставьте ниже.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (бывший Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Cài đặt máy chủ",
     "emailadd.servers_filled": "Đã điền cho {provider}. Chỉ thay đổi khi dịch vụ email của bạn yêu cầu.",
     "emailadd.service.other": "Dịch vụ email khác",
-    "emailadd.smtp_host": "Máy chủ thư đi (SMTP), không bắt buộc",
-    "emailadd.smtp_note": "Không có máy chủ thư đi, VOOL có thể đọc hộp thư này nhưng không gửi được từ đó.",
-    "emailadd.smtp_port": "Cổng máy chủ thư đi",
-    "emailadd.smtp_security": "Bảo mật kết nối thư đi",
     "emailadd.source.chat": "được chọn cho cuộc trò chuyện này",
     "emailadd.source.global": "tài khoản mặc định của bạn",
     "emailadd.source.legacy_default": "được dùng vì có tên “default”",
     "emailadd.source.only_account": "tài khoản duy nhất",
     "emailadd.source.other": "được chọn theo cách khác",
+    "emailadd.smtp_host": "Máy chủ thư đi (SMTP), không bắt buộc",
+    "emailadd.smtp_note": "Không có máy chủ thư đi, VOOL có thể đọc hộp thư này nhưng không gửi được từ đó.",
+    "emailadd.smtp_port": "Cổng máy chủ thư đi",
+    "emailadd.smtp_security": "Bảo mật kết nối thư đi",
     "emailadd.steps.gmail": "Gmail cần mật khẩu ứng dụng, không phải mật khẩu thường của bạn. Bật Xác minh 2 bước trong Tài khoản Google, mở Mật khẩu ứng dụng, tạo một mật khẩu tên VOOL rồi dán vào bên dưới.",
     "emailadd.steps.icloud": "iCloud Mail cần mật khẩu dành riêng cho ứng dụng. Đăng nhập Tài khoản Apple, mở Đăng nhập và bảo mật, chọn Mật khẩu dành riêng cho ứng dụng, tạo một mật khẩu tên VOOL rồi dán vào bên dưới.",
     "emailadd.steps.yahoo": "Yahoo Mail cần mật khẩu ứng dụng. Mở Bảo mật tài khoản trong tài khoản Yahoo, chọn Tạo mật khẩu ứng dụng, đặt tên là VOOL rồi dán vào bên dưới.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (trước đây là Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

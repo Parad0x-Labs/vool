@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Ajustes del servidor",
     "emailadd.servers_filled": "Rellenado para {provider}. Cámbialos solo si tu servicio de correo te lo indica.",
     "emailadd.service.other": "Otro servicio de correo",
-    "emailadd.smtp_host": "Servidor de correo saliente (SMTP), opcional",
-    "emailadd.smtp_note": "Sin servidor saliente, VOOL puede leer este buzón pero no enviar desde él.",
-    "emailadd.smtp_port": "Puerto del servidor saliente",
-    "emailadd.smtp_security": "Seguridad de la conexión saliente",
     "emailadd.source.chat": "elegida para este chat",
     "emailadd.source.global": "tu cuenta predeterminada",
     "emailadd.source.legacy_default": "se usa porque se llama «default»",
     "emailadd.source.only_account": "la única cuenta",
     "emailadd.source.other": "elegida de otra manera",
+    "emailadd.smtp_host": "Servidor de correo saliente (SMTP), opcional",
+    "emailadd.smtp_note": "Sin servidor saliente, VOOL puede leer este buzón pero no enviar desde él.",
+    "emailadd.smtp_port": "Puerto del servidor saliente",
+    "emailadd.smtp_security": "Seguridad de la conexión saliente",
     "emailadd.steps.gmail": "Gmail necesita una contraseña de aplicación, no tu contraseña habitual. Activa la verificación en dos pasos en tu cuenta de Google, abre Contraseñas de aplicaciones, crea una llamada VOOL y pégala abajo.",
     "emailadd.steps.icloud": "iCloud Mail necesita una contraseña específica de app. Inicia sesión en tu cuenta de Apple, abre Inicio de sesión y seguridad, elige Contraseñas específicas de apps, crea una llamada VOOL y pégala abajo.",
     "emailadd.steps.yahoo": "Yahoo Mail necesita una contraseña de aplicación. Abre Seguridad de la cuenta en tu cuenta de Yahoo, elige Generar contraseña de aplicación, llámala VOOL y pégala abajo.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (antes Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

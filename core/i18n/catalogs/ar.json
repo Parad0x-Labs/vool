@@ -1147,15 +1147,15 @@
     "emailadd.servers": "إعدادات الخادم",
     "emailadd.servers_filled": "تمّ ملؤها لـ {provider}. لا تغيّرها إلا إذا طلبت منك خدمة بريدك ذلك.",
     "emailadd.service.other": "بريد آخر",
-    "emailadd.smtp_host": "خادم البريد الصادر (SMTP)، اختياري",
-    "emailadd.smtp_note": "من دون خادم بريد صادر يستطيع VOOL قراءة هذا الصندوق لكنه لا يستطيع الإرسال منه.",
-    "emailadd.smtp_port": "منفذ خادم البريد الصادر",
-    "emailadd.smtp_security": "أمان اتصال البريد الصادر",
     "emailadd.source.chat": "مختار لهذه المحادثة",
     "emailadd.source.global": "اختيارك الافتراضي",
     "emailadd.source.legacy_default": "يُستخدم لأن اسمه «default»",
     "emailadd.source.only_account": "الحساب الوحيد",
     "emailadd.source.other": "مختار بطريقة أخرى",
+    "emailadd.smtp_host": "خادم البريد الصادر (SMTP)، اختياري",
+    "emailadd.smtp_note": "من دون خادم بريد صادر يستطيع VOOL قراءة هذا الصندوق لكنه لا يستطيع الإرسال منه.",
+    "emailadd.smtp_port": "منفذ خادم البريد الصادر",
+    "emailadd.smtp_security": "أمان اتصال البريد الصادر",
     "emailadd.steps.gmail": "يحتاج Gmail إلى كلمة مرور للتطبيق، لا إلى كلمة مرورك المعتادة. فعّل التحقق بخطوتين في حساب Google، ثم افتح كلمات مرور التطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
     "emailadd.steps.icloud": "يحتاج iCloud Mail إلى كلمة سر خاصة بالتطبيق. سجّل الدخول إلى حساب Apple، وافتح تسجيل الدخول والأمان، واختر كلمات السر الخاصة بالتطبيقات، وأنشئ واحدة باسم VOOL والصقها أدناه.",
     "emailadd.steps.yahoo": "يحتاج Yahoo Mail إلى كلمة مرور للتطبيق. افتح أمان الحساب في حساب Yahoo، واختر إنشاء كلمة مرور للتطبيق، وسمّها VOOL والصقها أدناه.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (Twitter سابقًا)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

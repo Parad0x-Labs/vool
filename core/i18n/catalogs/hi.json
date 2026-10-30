@@ -1147,15 +1147,15 @@
     "emailadd.servers": "सर्वर सेटिंग्स",
     "emailadd.servers_filled": "{provider} के लिए भरा गया। इन्हें सिर्फ़ तब बदलें जब आपकी ईमेल सेवा कहे।",
     "emailadd.service.other": "दूसरा ईमेल",
-    "emailadd.smtp_host": "जाने वाले मेल का सर्वर (SMTP), वैकल्पिक",
-    "emailadd.smtp_note": "जाने वाले सर्वर के बिना VOOL इस मेलबॉक्स को पढ़ सकता है, पर इससे भेज नहीं सकता।",
-    "emailadd.smtp_port": "जाने वाले सर्वर का पोर्ट",
-    "emailadd.smtp_security": "जाने वाले कनेक्शन की सुरक्षा",
     "emailadd.source.chat": "इस चैट के लिए चुना गया",
     "emailadd.source.global": "आपका डिफ़ॉल्ट खाता",
     "emailadd.source.legacy_default": "इस्तेमाल हो रहा है क्योंकि इसका नाम “default” है",
     "emailadd.source.only_account": "एकमात्र खाता",
     "emailadd.source.other": "किसी और तरीके से चुना गया",
+    "emailadd.smtp_host": "जाने वाले मेल का सर्वर (SMTP), वैकल्पिक",
+    "emailadd.smtp_note": "जाने वाले सर्वर के बिना VOOL इस मेलबॉक्स को पढ़ सकता है, पर इससे भेज नहीं सकता।",
+    "emailadd.smtp_port": "जाने वाले सर्वर का पोर्ट",
+    "emailadd.smtp_security": "जाने वाले कनेक्शन की सुरक्षा",
     "emailadd.steps.gmail": "Gmail को आपके सामान्य पासवर्ड की जगह ऐप पासवर्ड चाहिए। अपने Google खाते में 2-चरणीय सत्यापन चालू करें, फिर ऐप पासवर्ड खोलें, VOOL नाम से एक बनाएँ और नीचे चिपकाएँ।",
     "emailadd.steps.icloud": "iCloud Mail को ऐप-विशिष्ट पासवर्ड चाहिए। अपने Apple खाते में साइन इन करें, साइन-इन और सुरक्षा खोलें, ऐप-विशिष्ट पासवर्ड चुनें, VOOL नाम से एक बनाएँ और नीचे चिपकाएँ।",
     "emailadd.steps.yahoo": "Yahoo Mail को ऐप पासवर्ड चाहिए। अपने Yahoo खाते में खाता सुरक्षा खोलें, ऐप पासवर्ड बनाएँ चुनें, उसका नाम VOOL रखें और नीचे चिपकाएँ।",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (पहले Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

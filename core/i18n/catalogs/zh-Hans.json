@@ -1147,15 +1147,15 @@
     "emailadd.servers": "服务器设置",
     "emailadd.servers_filled": "已为 {provider} 填写。只有在你的电子邮件服务要求时才更改。",
     "emailadd.service.other": "其他邮箱",
-    "emailadd.smtp_host": "发件服务器（SMTP），可选",
-    "emailadd.smtp_note": "没有发件服务器时，VOOL 可以读取这个邮箱，但不能用它发信。",
-    "emailadd.smtp_port": "发件服务器端口",
-    "emailadd.smtp_security": "发件连接安全",
     "emailadd.source.chat": "为本次聊天所选",
     "emailadd.source.global": "你的默认账户",
     "emailadd.source.legacy_default": "因名为“default”而被使用",
     "emailadd.source.only_account": "唯一的账户",
     "emailadd.source.other": "通过其他方式选择",
+    "emailadd.smtp_host": "发件服务器（SMTP），可选",
+    "emailadd.smtp_note": "没有发件服务器时，VOOL 可以读取这个邮箱，但不能用它发信。",
+    "emailadd.smtp_port": "发件服务器端口",
+    "emailadd.smtp_security": "发件连接安全",
     "emailadd.steps.gmail": "Gmail 需要应用专用密码，而不是你平时的密码。在 Google 账号中开启两步验证，然后打开“应用专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
     "emailadd.steps.icloud": "iCloud 邮件需要 App 专用密码。登录你的 Apple 账户，打开“登录与安全”，选择“App 专用密码”，创建一个名为 VOOL 的密码，再粘贴到下方。",
     "emailadd.steps.yahoo": "Yahoo 邮箱需要应用密码。在 Yahoo 账号中打开“账号安全”，选择“生成应用密码”，命名为 VOOL，再粘贴到下方。",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X(原 Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

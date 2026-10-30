@@ -1147,15 +1147,15 @@
     "emailadd.servers": "서버 설정",
     "emailadd.servers_filled": "{provider}용으로 채워졌습니다. 이메일 서비스에서 지시할 때만 변경하세요.",
     "emailadd.service.other": "기타 이메일",
-    "emailadd.smtp_host": "보내는 메일 서버 (SMTP), 선택 사항",
-    "emailadd.smtp_note": "보내는 서버가 없으면 VOOL은 이 메일함을 읽을 수 있지만 여기서 보낼 수는 없습니다.",
-    "emailadd.smtp_port": "보내는 서버 포트",
-    "emailadd.smtp_security": "보내는 연결 보안",
     "emailadd.source.chat": "이 채팅에서 선택함",
     "emailadd.source.global": "기본 계정",
     "emailadd.source.legacy_default": "이름이 ‘default’라서 사용함",
     "emailadd.source.only_account": "유일한 계정",
     "emailadd.source.other": "다른 방법으로 선택함",
+    "emailadd.smtp_host": "보내는 메일 서버 (SMTP), 선택 사항",
+    "emailadd.smtp_note": "보내는 서버가 없으면 VOOL은 이 메일함을 읽을 수 있지만 여기서 보낼 수는 없습니다.",
+    "emailadd.smtp_port": "보내는 서버 포트",
+    "emailadd.smtp_security": "보내는 연결 보안",
     "emailadd.steps.gmail": "Gmail은 평소 비밀번호가 아니라 앱 비밀번호가 필요합니다. Google 계정에서 2단계 인증을 켠 다음 앱 비밀번호를 열고 VOOL이라는 이름으로 만들어 아래에 붙여 넣으세요.",
     "emailadd.steps.icloud": "iCloud Mail은 앱 암호가 필요합니다. Apple 계정에 로그인하여 로그인 및 보안을 열고 앱 암호를 선택한 다음 VOOL이라는 이름으로 만들어 아래에 붙여 넣으세요.",
     "emailadd.steps.yahoo": "Yahoo Mail은 앱 비밀번호가 필요합니다. Yahoo 계정에서 계정 보안을 열고 앱 비밀번호 생성을 선택해 이름을 VOOL로 정한 뒤 아래에 붙여 넣으세요.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (구 Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

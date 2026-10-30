@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Definições do servidor",
     "emailadd.servers_filled": "Preenchido para {provider}. Só os mude se o seu serviço de e-mail o indicar.",
     "emailadd.service.other": "Outro serviço de e-mail",
-    "emailadd.smtp_host": "Servidor de saída de e-mail (SMTP), opcional",
-    "emailadd.smtp_note": "Sem servidor de saída, o VOOL pode ler esta caixa de correio, mas não enviar a partir dela.",
-    "emailadd.smtp_port": "Porta do servidor de saída",
-    "emailadd.smtp_security": "Segurança da conexão de saída",
     "emailadd.source.chat": "escolhida para esta conversa",
     "emailadd.source.global": "a sua conta padrão",
     "emailadd.source.legacy_default": "usada porque se chama “default”",
     "emailadd.source.only_account": "a única conta",
     "emailadd.source.other": "escolhida de outra forma",
+    "emailadd.smtp_host": "Servidor de saída de e-mail (SMTP), opcional",
+    "emailadd.smtp_note": "Sem servidor de saída, o VOOL pode ler esta caixa de correio, mas não enviar a partir dela.",
+    "emailadd.smtp_port": "Porta do servidor de saída",
+    "emailadd.smtp_security": "Segurança da conexão de saída",
     "emailadd.steps.gmail": "O Gmail precisa de uma senha de app, não da sua senha habitual. Ative a verificação em duas etapas na sua Conta Google, abra Senhas de app, crie uma chamada VOOL e cole-a abaixo.",
     "emailadd.steps.icloud": "O iCloud Mail precisa de uma senha específica de app. Inicie sessão na sua Conta Apple, abra Início de sessão e segurança, escolha Senhas específicas de apps, crie uma chamada VOOL e cole-a abaixo.",
     "emailadd.steps.yahoo": "O Yahoo Mail precisa de uma senha de app. Abra a Segurança da conta na sua conta Yahoo, escolha Gerar senha de app, chame-lhe VOOL e cole-a abaixo.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (antigo Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

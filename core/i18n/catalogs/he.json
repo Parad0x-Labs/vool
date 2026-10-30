@@ -1147,15 +1147,15 @@
     "emailadd.servers": "הגדרות שרת",
     "emailadd.servers_filled": "מולא עבור {provider}. שנו אותם רק אם שירות האימייל שלכם אומר לכם לעשות זאת.",
     "emailadd.service.other": "אימייל אחר",
-    "emailadd.smtp_host": "שרת דואר יוצא (SMTP), לא חובה",
-    "emailadd.smtp_note": "בלי שרת דואר יוצא, VOOL יכול לקרוא את תיבת הדואר הזו אבל לא לשלוח ממנה.",
-    "emailadd.smtp_port": "פורט שרת הדואר היוצא",
-    "emailadd.smtp_security": "אבטחת החיבור היוצא",
     "emailadd.source.chat": "נבחר לצ׳אט הזה",
     "emailadd.source.global": "ברירת המחדל שלך",
     "emailadd.source.legacy_default": "בשימוש כי שמו „default”",
     "emailadd.source.only_account": "החשבון היחיד",
     "emailadd.source.other": "נבחר בדרך אחרת",
+    "emailadd.smtp_host": "שרת דואר יוצא (SMTP), לא חובה",
+    "emailadd.smtp_note": "בלי שרת דואר יוצא, VOOL יכול לקרוא את תיבת הדואר הזו אבל לא לשלוח ממנה.",
+    "emailadd.smtp_port": "פורט שרת הדואר היוצא",
+    "emailadd.smtp_security": "אבטחת החיבור היוצא",
     "emailadd.steps.gmail": "Gmail דורש סיסמה לאפליקציה, לא את הסיסמה הרגילה שלכם. הפעילו אימות דו-שלבי בחשבון Google, פתחו את סיסמאות לאפליקציות, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
     "emailadd.steps.icloud": "iCloud Mail דורש סיסמה ייעודית ליישום. התחברו לחשבון Apple, פתחו את התחברות ואבטחה, בחרו סיסמאות ייעודיות ליישומים, צרו סיסמה בשם VOOL והדביקו אותה למטה.",
     "emailadd.steps.yahoo": "Yahoo Mail דורש סיסמה לאפליקציה. פתחו את אבטחת החשבון בחשבון Yahoo, בחרו ביצירת סיסמה לאפליקציה, קראו לה VOOL והדביקו אותה למטה.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (לשעבר Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

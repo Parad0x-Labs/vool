@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Налаштування сервера",
     "emailadd.servers_filled": "Заповнено для {provider}. Змінюйте їх, лише якщо ваша служба електронної пошти просить про це.",
     "emailadd.service.other": "Інша пошта",
-    "emailadd.smtp_host": "Сервер вихідної пошти (SMTP), необов'язково",
-    "emailadd.smtp_note": "Без сервера вихідної пошти VOOL зможе читати цю скриньку, але не надсилати з неї.",
-    "emailadd.smtp_port": "Порт сервера вихідної пошти",
-    "emailadd.smtp_security": "Захист вихідного з'єднання",
     "emailadd.source.chat": "обрана для цього чату",
     "emailadd.source.global": "ваша скринька за замовчуванням",
     "emailadd.source.legacy_default": "використовується, бо називається «default»",
     "emailadd.source.only_account": "єдина скринька",
     "emailadd.source.other": "обрана іншим способом",
+    "emailadd.smtp_host": "Сервер вихідної пошти (SMTP), необов'язково",
+    "emailadd.smtp_note": "Без сервера вихідної пошти VOOL зможе читати цю скриньку, але не надсилати з неї.",
+    "emailadd.smtp_port": "Порт сервера вихідної пошти",
+    "emailadd.smtp_security": "Захист вихідного з'єднання",
     "emailadd.steps.gmail": "Gmail потрібен пароль застосунку, а не ваш звичайний пароль. Увімкніть двоетапну перевірку в обліковому записі Google, відкрийте «Паролі застосунків», створіть пароль з назвою VOOL і вставте його нижче.",
     "emailadd.steps.icloud": "iCloud Mail потрібен пароль для програми. Увійдіть в Apple Account, відкрийте «Вхід і безпека», виберіть «Паролі для програм», створіть пароль з назвою VOOL і вставте його нижче.",
     "emailadd.steps.yahoo": "Yahoo Mail потрібен пароль застосунку. Відкрийте «Безпека облікового запису» в Yahoo, виберіть «Створити пароль застосунку», назвіть його VOOL і вставте нижче.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (колишній Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

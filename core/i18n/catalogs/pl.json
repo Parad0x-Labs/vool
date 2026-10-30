@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Ustawienia serwera",
     "emailadd.servers_filled": "Wypełniono dla {provider}. Zmieniaj je tylko, jeśli Twoja usługa e-mail każe to zrobić.",
     "emailadd.service.other": "Inny e-mail",
-    "emailadd.smtp_host": "Serwer poczty wychodzącej (SMTP), opcjonalnie",
-    "emailadd.smtp_note": "Bez serwera wychodzącego VOOL może czytać tę skrzynkę, ale nie może z niej wysyłać.",
-    "emailadd.smtp_port": "Port serwera wychodzącego",
-    "emailadd.smtp_security": "Zabezpieczenie połączenia wychodzącego",
     "emailadd.source.chat": "wybrane dla tego czatu",
     "emailadd.source.global": "Twoje domyślne konto",
     "emailadd.source.legacy_default": "używane, bo nazywa się „default”",
     "emailadd.source.only_account": "to jedyne konto",
     "emailadd.source.other": "wybrane w inny sposób",
+    "emailadd.smtp_host": "Serwer poczty wychodzącej (SMTP), opcjonalnie",
+    "emailadd.smtp_note": "Bez serwera wychodzącego VOOL może czytać tę skrzynkę, ale nie może z niej wysyłać.",
+    "emailadd.smtp_port": "Port serwera wychodzącego",
+    "emailadd.smtp_security": "Zabezpieczenie połączenia wychodzącego",
     "emailadd.steps.gmail": "Gmail wymaga hasła do aplikacji, a nie zwykłego hasła. Włącz weryfikację dwuetapową na koncie Google, otwórz Hasła do aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
     "emailadd.steps.icloud": "iCloud Mail wymaga hasła dla aplikacji. Zaloguj się na konto Apple, otwórz Logowanie i bezpieczeństwo, wybierz Hasła dla aplikacji, utwórz hasło o nazwie VOOL i wklej je poniżej.",
     "emailadd.steps.yahoo": "Yahoo Mail wymaga hasła do aplikacji. Otwórz Zabezpieczenia konta w swoim koncie Yahoo, wybierz Wygeneruj hasło do aplikacji, nazwij je VOOL i wklej poniżej.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (dawniej Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

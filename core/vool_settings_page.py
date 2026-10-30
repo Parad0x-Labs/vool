@@ -4109,7 +4109,7 @@ function widgetLocalModels(stack) {
   const post = async (url, payload) => {
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    if (!r.ok || j.ok === false) { console.warn('local model request refused:', r.status, (j && j.error) || ''); throw new Error(T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.")); }
     return j;
   };
   const stateText = (r) => r === 'ready' ? LM('state.ready', 'Ready')

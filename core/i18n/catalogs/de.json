@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Servereinstellungen",
     "emailadd.servers_filled": "Für {provider} ausgefüllt. Ändern Sie sie nur, wenn Ihr E-Mail-Dienst es verlangt.",
     "emailadd.service.other": "Anderer E-Mail-Dienst",
-    "emailadd.smtp_host": "Server für ausgehende E-Mails (SMTP), optional",
-    "emailadd.smtp_note": "Ohne Ausgangsserver kann VOOL dieses Postfach lesen, aber nicht daraus senden.",
-    "emailadd.smtp_port": "Port des Ausgangsservers",
-    "emailadd.smtp_security": "Sicherheit der ausgehenden Verbindung",
     "emailadd.source.chat": "für diesen Chat gewählt",
     "emailadd.source.global": "dein Standard",
     "emailadd.source.legacy_default": "wird verwendet, weil es „default“ heißt",
     "emailadd.source.only_account": "das einzige Konto",
     "emailadd.source.other": "auf andere Weise gewählt",
+    "emailadd.smtp_host": "Server für ausgehende E-Mails (SMTP), optional",
+    "emailadd.smtp_note": "Ohne Ausgangsserver kann VOOL dieses Postfach lesen, aber nicht daraus senden.",
+    "emailadd.smtp_port": "Port des Ausgangsservers",
+    "emailadd.smtp_security": "Sicherheit der ausgehenden Verbindung",
     "emailadd.steps.gmail": "Gmail braucht ein App-Passwort, nicht Ihr übliches Passwort. Aktivieren Sie die Bestätigung in zwei Schritten in Ihrem Google-Konto, öffnen Sie dann App-Passwörter, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
     "emailadd.steps.icloud": "iCloud Mail braucht ein app-spezifisches Passwort. Melden Sie sich bei Ihrem Apple Account an, öffnen Sie „Anmeldung und Sicherheit“, wählen Sie „App-spezifische Passwörter“, erstellen Sie eines namens VOOL und fügen Sie es unten ein.",
     "emailadd.steps.yahoo": "Yahoo Mail braucht ein App-Passwort. Öffnen Sie die Kontosicherheit in Ihrem Yahoo-Konto, wählen Sie „App-Passwort generieren“, nennen Sie es VOOL und fügen Sie es unten ein.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (ehemals Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }

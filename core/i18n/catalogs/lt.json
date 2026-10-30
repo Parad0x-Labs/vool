@@ -1147,15 +1147,15 @@
     "emailadd.servers": "Serverio nustatymai",
     "emailadd.servers_filled": "Užpildyta skirta {provider}. Keiskite tik jei jūsų el. pašto paslauga nurodo tai daryti.",
     "emailadd.service.other": "Kitas el. paštas",
-    "emailadd.smtp_host": "Siunčiamų laiškų serveris (SMTP), nebūtina",
-    "emailadd.smtp_note": "Be siunčiamų laiškų serverio VOOL gali skaityti šią pašto dėžutę, bet negali iš jos siųsti.",
-    "emailadd.smtp_port": "Siunčiamų laiškų serverio prievadas",
-    "emailadd.smtp_security": "Siunčiamo ryšio sauga",
     "emailadd.source.chat": "pasirinkta šiam pokalbiui",
     "emailadd.source.global": "jūsų numatytoji paskyra",
     "emailadd.source.legacy_default": "naudojama, nes pavadinta „default“",
     "emailadd.source.only_account": "vienintelė paskyra",
     "emailadd.source.other": "pasirinkta kitu būdu",
+    "emailadd.smtp_host": "Siunčiamų laiškų serveris (SMTP), nebūtina",
+    "emailadd.smtp_note": "Be siunčiamų laiškų serverio VOOL gali skaityti šią pašto dėžutę, bet negali iš jos siųsti.",
+    "emailadd.smtp_port": "Siunčiamų laiškų serverio prievadas",
+    "emailadd.smtp_security": "Siunčiamo ryšio sauga",
     "emailadd.steps.gmail": "Gmail reikia programos slaptažodžio, o ne įprasto slaptažodžio. Savo Google paskyroje įjunkite patvirtinimą dviem veiksmais, atidarykite Programų slaptažodžius, sukurkite slaptažodį pavadinimu VOOL ir įklijuokite jį žemiau.",
     "emailadd.steps.icloud": "iCloud Mail reikia programai skirto slaptažodžio. Prisijunkite prie Apple paskyros, atidarykite Prisijungimas ir sauga, pasirinkite Programoms skirti slaptažodžiai, sukurkite slaptažodį pavadinimu VOOL ir įklijuokite jį žemiau.",
     "emailadd.steps.yahoo": "Yahoo Mail reikia programos slaptažodžio. Savo Yahoo paskyroje atidarykite Paskyros saugą, pasirinkite Generuoti programos slaptažodį, pavadinkite jį VOOL ir įklijuokite žemiau.",
@@ -3337,5 +3337,5 @@
     "xsetup.title": "X (buvęs Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "2e68de35fd0018cbbfd02e53015d2f8c06c990c5011ae75634b89519d3194723"
+  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
 }
