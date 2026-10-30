@@ -143,10 +143,10 @@ __VOOL_PALETTE_CSS__
     <!-- The standing row shows plain words only: the name the person typed, and whether the
          site takes payments. Raw ledger values (owner prefix, tx id, endpoint URL) sit behind
          the Details toggle; what the server records or pays is untouched. -->
-    <span><span class="k" data-i18n="web0.status.site">Site</span> <b id="s-name">-</b></span>
+    <span><span class="k" data-i18n="web0.status.site">Site name</span> <b id="s-name">-</b></span>
     <span id="s-pays" style="display:none" data-i18n="web0.status.pays">Takes payments</span>
     <details id="s-details">
-      <summary data-i18n="web0.status.details">Details</summary>
+      <summary data-i18n="web0.status.details">See details</summary>
       <div class="s-rows">
         <span><span class="k" data-i18n="web0.status.owner">Owner:</span> <b id="s-owner">-</b></span>
         <span><span class="k" data-i18n="web0.status.tx">Stored copy:</span> <b id="s-tx">-</b></span>
