@@ -290,6 +290,14 @@ class MacProcessHelper:
         import os
         import signal
 
+        # A version this helper relaunched that has not taken the pidfile yet is still ours to stop:
+        # left running, it finishes starting after a rollback and takes the seat and the data back.
+        launched = self._launch_process
+        if launched is not None and launched.poll() is None and launched.pid != os.getpid():
+            try:
+                os.killpg(launched.pid, signal.SIGTERM)  # its own session (start_new_session)
+            except (ProcessLookupError, PermissionError) as exc:
+                logger.warning("helper shutdown could not signal launched pid %s: %s", launched.pid, exc)
         pid = self._read_pid()
         if pid <= 0 or pid == os.getpid():
             return
@@ -298,15 +306,19 @@ class MacProcessHelper:
         except (ProcessLookupError, PermissionError) as exc:
             logger.warning("helper shutdown could not signal pid %s: %s", pid, exc)
 
+    def _stopped(self) -> bool:
+        launched = self._launch_process
+        return _pid_has_exited(self._read_pid()) and (launched is None or launched.poll() is not None)
+
     def wait_until_stopped(self, *, timeout: float) -> bool:
         import time
 
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
-            if _pid_has_exited(self._read_pid()):
+            if self._stopped():
                 return True
             time.sleep(self.poll_interval)
-        return _pid_has_exited(self._read_pid())
+        return self._stopped()
 
     def relaunch(self, app_path: Path) -> bool:
         command = self.relaunch_cmd or ["open", "-n", str(app_path)]
