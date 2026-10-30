@@ -201,6 +201,10 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "header.lane_local",
         "header.update_chip",
         "header.update_pop_aria",
+        # the Settings drawer toggle (settings-phone-linux-words-20261029): "Menu" is the
+        # genuinely correct word in the locales that keep it (fr/pt/vi), the same single-word
+        # homograph class as header.model_label above.
+        "settings.nav.menu",
         "header.update_popover_title",
         "mode.auto",
         "mode.js.auto",

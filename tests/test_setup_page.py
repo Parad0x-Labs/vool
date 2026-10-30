@@ -142,7 +142,11 @@ def test_the_chat_bottom_checklist_is_gone_and_one_line_remains() -> None:
     line = line[: line.index("</div>")]
     assert "hidden" in line.split(">", 1)[0], "the line starts hidden; the derived state shows it"
     assert 'id="setupLineOpen"' in line and 'id="setupLineHide"' in line
-    assert "line.hidden = !show;" in html and "const show = !!(d && d.show_chat_line);" in html
+    assert "const show = !!(d && d.show_chat_line);" in html
+    # The line belongs to a NEW, EMPTY chat only (settings-phone-linux-words-20261029): the
+    # state's verdict alone no longer paints it, the eligibility gate does.
+    assert "line.hidden = !show;" not in html
+    assert "setupLineReflect();" in html and "function setupLineEligible()" in html
     # Dismissing is the one persisted choice, through the one prefs door.
     assert "JSON.stringify({ setup_dismissed: true })" in html
     # Opening mirrors Settings: native bridge, named window, the same frame overlay.
