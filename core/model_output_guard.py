@@ -1450,8 +1450,107 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 _LIVE_CLAIM_WINDOW = 120
 
 
+# --- Memory-stated figures: the user's own numbers are observed values -------------------------
+#
+# Measured 2026-10-30 (org-credit job 3, fresh 100-question memory run on 411efdb2): five
+# answers about figures the user themselves stated in earlier chats -- "What's my current
+# salary?" against a memory that says "my $98,000 salary", a raise history, a snack budget --
+# were replaced whole by the unverified-live-value notice, or had it spliced mid-answer,
+# because every currency figure bound to a currentness anchor read as an unobserved live
+# price.  A figure the user stated is recorded fact, not a market reading: the answer stands.
+#
+# The exemption is decided by the EVIDENCE TEXT the turn carried (the admitted capsule), and
+# only by it: a figure is exempt when the SAME number AND unit/currency is stated there --
+# "$98,000" in the reply against "my $98,000 salary" in the memory, across notations ("GBP
+# 90,000" == "£90,000").  A figure the memory does not state keeps the notice (the made-up
+# salary, the Bitcoin quote, the invented FX rate), and no question keyword is consulted:
+# "salary" nowhere enters the decision, so a live price that HAPPENS to sit in a salary
+# question stays guarded.  This mirrors `user_turn_text` one level up: the user's current
+# turn is exempt at L1495; the user's recorded statements are exempt here.  Dated memory
+# still never becomes an observation channel for `turn_ran_observations` or
+# `turn_has_current_evidence`; this is a value-for-value stand-down, narrower than a channel.
+
+#: Currency tokens the price kind reads, canonicalised to lowercase ISO codes -- the same
+#: formal standard `_LIVE_CURRENCY_CODE` cites.  "cents" stays its own unit: 42 cents is not
+#: 0.42 dollars, and no conversion is attempted (a currency conversion needs a live rate).
+_MEMORY_FIGURE_CURRENCY: dict[str, str] = {
+    "$": "usd", "€": "eur", "£": "gbp", "¥": "jpy",
+    **{code.lower(): code.lower() for code in
+       ("USD", "EUR", "GBP", "JPY", "CHF", "SEK", "NOK", "DKK", "PLN",
+        "CZK", "HUF", "CAD", "AUD", "NZD", "CNY", "INR")},
+    "dollar": "usd", "dollars": "usd", "euro": "eur", "euros": "eur",
+    "pound": "gbp", "pounds": "gbp", "cent": "cents", "cents": "cents",
+}
+#: Spoken scale words between a number and its unit ("90 thousand dollars"), so the
+#: memory-figure key of "90 thousand dollars" is (90000, "usd"), not (90, "usd").
+_MEMORY_FIGURE_SCALE: dict[str, float] = {
+    "thousand": 1e3, "million": 1e6, "billion": 1e9, "trillion": 1e12,
+}
+#: Unit spellings folded onto one key so a reading and its record match across notation:
+#: "22°C" and "22 C" are the same temperature, "68 percent" and "68%" the same fraction.
+_MEMORY_FIGURE_UNIT_FOLD: dict[str, str] = {
+    "celsius": "c", "fahrenheit": "f", "kelvin": "k", "°c": "c", "°f": "f",
+    "percent": "%",
+}
+_MEMORY_FIGURE_NUMBER_RE = re.compile(r"\d[\d,._]*(?!\S*[€£¥])")
+
+
+def _memory_figure_keys(text: str) -> frozenset[tuple[float, str]]:
+    """Every ``(number, unit-or-currency)`` figure a text states, from the same value
+    vocabulary the live kinds read: the price and temperature shapes plus the prose-safe
+    measured values (``90 thousand dollars`` scales, ``12,400 tonnes`` does not).
+
+    A number alone is not a figure and yields nothing: the unit/currency IS the figure's
+    identity, which is what keeps "98,000 miles" from exempting "$98,000".
+    """
+
+    body = str(text or "")
+    keys: set[tuple[float, str]] = set()
+    for pattern in (_LIVE_PRICE_RE, _LIVE_TEMPERATURE_RE, _MEASURED_QUANTITY_RE):
+        for match in pattern.finditer(body):
+            chunk = match.group(0)
+            currency = ""
+            for token in ("$", "€", "£", "¥"):
+                if token in chunk:
+                    currency = _MEMORY_FIGURE_CURRENCY[token]
+                    chunk = chunk.replace(token, " ")
+                    break
+            number_match = _MEMORY_FIGURE_NUMBER_RE.search(chunk)
+            if number_match is None:
+                continue
+            try:
+                number = float(number_match.group(0).replace(",", "").rstrip("."))
+            except ValueError:
+                continue
+            tail = chunk[number_match.end():].strip().lower().split()
+            head = chunk[: number_match.start()].strip().lower().split()
+            if not currency:
+                # "42 EUR" / "98,000 dollars" carry the currency right of the number,
+                # "EUR 42" left of it; a scale word may sit between number and unit.
+                if len(tail) >= 2 and tail[0] in _MEMORY_FIGURE_SCALE \
+                        and tail[1] in _MEMORY_FIGURE_CURRENCY:
+                    number *= _MEMORY_FIGURE_SCALE[tail[0]]
+                    currency = _MEMORY_FIGURE_CURRENCY[tail[1]]
+                elif tail and tail[0] in _MEMORY_FIGURE_CURRENCY:
+                    currency = _MEMORY_FIGURE_CURRENCY[tail[0]]
+                elif head and head[-1] in _MEMORY_FIGURE_CURRENCY:
+                    currency = _MEMORY_FIGURE_CURRENCY[head[-1]]
+            if currency:
+                keys.add((round(number, 6), currency))
+                continue
+            if tail and tail[0] in _MEMORY_FIGURE_SCALE:
+                number *= _MEMORY_FIGURE_SCALE[tail[0]]
+                tail = tail[1:]
+            if tail:
+                unit = _MEMORY_FIGURE_UNIT_FOLD.get(tail[0].strip("°"), tail[0].strip("°"))
+                keys.add((round(number, 6), unit))
+            elif "%" in chunk:
+                keys.add((round(number, 6), "%"))
+    return frozenset(keys)
+
+
 def unobserved_live_value_claims(
-    text: str, *, user_turn_text: str = ""
+    text: str, *, user_turn_text: str = "", evidence_text: str = ""
 ) -> tuple[str, ...]:
     """The kinds of time-anchored live values this reply states, in a stable order.
 
@@ -1469,6 +1568,15 @@ def unobserved_live_value_claims(
     retention, not invention. Values whose prose-safe measured-value string appears in the
     user's own words are skipped; kinds with NO surviving match drop out. Dated memory and
     hydrated history are not exempt channels -- only this turn's user text.
+
+    ``evidence_text`` is the memory/evidence the turn carried (the admitted capsule).
+    A FIGURE the user stated in it -- same number AND unit/currency, notation-insensitive
+    ("GBP 90,000" == "£90,000") -- is a value the user observed about themselves: salary,
+    offer, budget, a price they paid. Each such match is skipped exactly like a
+    user-turn echo, and a kind whose every match is memory-stated drops out. A figure the
+    evidence does not state is untouched: the notice's premise ("any specific numbers I
+    gave would be invented") is true for it, and no question keyword is consulted -- see
+    the memory-figure section above.
     """
 
     body = _INLINE_CODE_RE.sub(" ", _FENCED_CODE_RE.sub(" ", str(text or "")))
@@ -1493,6 +1601,7 @@ def unobserved_live_value_claims(
         return ()
 
     exempt_exact = set(prose_safe_measured_value_matches(user_turn_text))
+    memory_figures = _memory_figure_keys(evidence_text) if evidence_text else frozenset()
     found: list[str] = []
     for kind, pattern in _LIVE_VALUE_KINDS:
         for match in pattern.finditer(body):
@@ -1514,6 +1623,8 @@ def unobserved_live_value_claims(
                     match_text, user_turn_text
                 ):
                     continue
+            if memory_figures and _memory_figure_keys(match.group(0)) & memory_figures:
+                continue
             if kind not in found:
                 found.append(kind)
             break
@@ -1757,7 +1868,9 @@ def _attribution_only(sentence: str) -> bool:
     return not unobserved_live_value_claims(stripped)
 
 
-def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> str:
+def replace_unobserved_live_claims(
+    text: str, *, user_turn_text: str = "", evidence_text: str = ""
+) -> str:
     """Withdraw the sentences that assert unobserved live values, keep the rest.
 
     Until this existed, one current-anchored value replaced the WHOLE answer: a
@@ -1784,17 +1897,25 @@ def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> st
     ``user_turn_text`` carries the current turn's user message through to the
     sentence-level recognitions: a value the user stated this turn is exempt at
     every level of the split, exactly as it is in the whole-text trigger.
+    ``evidence_text`` carries the memory/evidence the turn held the same way:
+    a figure the user stated in it is exempt at every level of the split.
     """
 
     body = str(text or "")
-    kinds = unobserved_live_value_claims(body, user_turn_text=user_turn_text)
+    kinds = unobserved_live_value_claims(
+        body, user_turn_text=user_turn_text, evidence_text=evidence_text
+    )
     if not kinds:
         return body
     sentences = [part for part in _SENTENCE_SPLIT_RE.split(body) if part.strip()]
     if len(sentences) <= 1:
         return unverified_live_value_notice(kinds)
     convicted = [
-        bool(unobserved_live_value_claims(sentence, user_turn_text=user_turn_text))
+        bool(
+            unobserved_live_value_claims(
+                sentence, user_turn_text=user_turn_text, evidence_text=evidence_text
+            )
+        )
         for sentence in sentences
     ]
     # An attribution-only fragment adjacent to a convicted sentence is part of
@@ -1811,7 +1932,7 @@ def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> st
     for sentence, is_convicted in zip(sentences, convicted, strict=False):
         if is_convicted:
             for kind in unobserved_live_value_claims(
-                sentence, user_turn_text=user_turn_text
+                sentence, user_turn_text=user_turn_text, evidence_text=evidence_text
             ):
                 if kind not in convicted_kinds:
                     convicted_kinds.append(kind)
