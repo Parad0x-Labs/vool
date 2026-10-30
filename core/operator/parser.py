@@ -704,8 +704,11 @@ def _note_query(text: str) -> str | None:
         str(text or ""), re.IGNORECASE,
     )
     if match:
+        from .notes import notes_search_topic
+
         terms = _TITLE_TRAILER_RE.sub("", match.group(1).strip())
-        return re.sub(r"^(?:the|my|a|an)\s+", "", terms, flags=re.IGNORECASE).strip() or None
+        # The same reading as the model's own query argument: "notes on anything at all" names no topic.
+        return notes_search_topic(terms) or None
     return None
 
 

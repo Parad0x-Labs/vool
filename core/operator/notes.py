@@ -668,20 +668,71 @@ def named_action_reference(text: str) -> tuple[str, str] | None:
     return match.group("action") or match.group("action2") or "", raw[match.end():].strip()
 
 
+# The words of an ASK about notes, as opposed to its topic. A notes search requires every term it
+# is given, so each of these left in the query is a term no note holds: the model called
+# `operator.find_notes` with {"query": "any notes"} for a "have I got any notes" ask and the reply
+# was "No notes ... match 'any notes'" over a home that had a note in it. Dropping one of these can
+# only widen a search (fewer required terms), never hide a note that matched before.
+_NOTES_ASK_WORDS = frozenset(
+    {
+        # the note nouns and how they are kept
+        "note", "notes", "noted", "saved", "stored", "kept", "written", "jotted", "existing", "notebook",
+        "save", "store", "keep", "write", "wrote", "make", "made", "take", "took", "jot",
+        # quantifiers, articles, possessives
+        "any", "all", "some", "every", "anything", "something", "a", "an", "the", "my", "mine", "your",
+        "our", "these", "those", "this", "that", "of", "single", "one", "ones", "few", "many", "much",
+        # the asking frame
+        "do", "does", "did", "i", "i've", "ive", "we", "me", "you", "have", "has", "had", "got",
+        "is", "are", "was", "were", "there", "there's", "theres", "can", "could", "would", "will",
+        "please", "pls", "plz", "find", "search", "searching", "look", "looking", "up", "through",
+        "show", "list", "see", "display", "open", "read", "check", "pull", "tell", "give", "get",
+        "what", "what's", "whats", "which", "where", "where's", "how", "count", "if", "whether",
+        "even", "still", "already", "yet", "ever", "at", "in", "on", "for", "about", "with",
+        "containing", "contain", "contains", "matching", "match", "mentioning", "mention",
+        "mentions", "regarding", "re", "around", "from", "to", "and", "or", "here", "anywhere",
+        "now", "right", "currently", "so", "far", "thanks", "thank", "just", "quick", "quickly",
+        "hey", "hi", "ok", "okay", "um", "workspace", "app", "vool", "lately", "recently", "recent",
+        "latest", "newest", "last", "summarize", "summarise", "recap",
+    }
+)
+_NOTES_QUOTED_RE = re.compile(r'["\u201c]([^"\u201d]{2,})["\u201d]')
+
+
+def notes_search_topic(words: str) -> str:
+    """The topic a notes ask searches for, with the ask itself taken off ("" = no topic: list).
+
+    "have I got any notes saved?" -> "", "any notes on the dentist?" -> "dentist", "notes about
+    the boiler service" -> "boiler service". A quoted topic is kept exactly as quoted. Read only."""
+
+    text = " ".join(str(words or "").split())
+    quoted = _NOTES_QUOTED_RE.search(text)
+    if quoted:
+        return quoted.group(1).strip()
+    kept = []
+    for raw in re.split(r"\s+", text):
+        word = raw.strip(" \t?!.,;:()[]{}").replace("\u2019", "'")
+        if word and word.casefold() not in _NOTES_ASK_WORDS:
+            kept.append(word)
+    return " ".join(kept)
+
+
 def find_notes_query(intent: OperatorActionIntent) -> str:
-    """What a notes search looks for: the parsed query, or the request with its leading 'find my notes about' removed.
+    """What a notes search looks for: the topic of the parsed query or of the request ("" lists the notes).
 
     A request that names no terms ("show me my notes", "can you list all my notes?") lists every note: it used to
-    search for its own words (audit N10)."""
-    if intent.target_label:
-        return intent.target_label
-    rest = re.sub(
-        r"^\W*(?:(?:please|pls|can\s+you|could\s+you|would\s+you|will\s+you)\s+)*"
-        r"(?:find|search(?:\s+through)?|show|list|see|display|open|read)\s+(?:me\s+)?(?:all\s+(?:of\s+)?)?(?:my\s+|the\s+)?"
-        r"(?:saved\s+)?notes?\b\s*(?:(?:about|on|for|containing|matching|with)\b\s*)?",
-        "", str(intent.raw_text or ""), flags=re.IGNORECASE,
-    )
-    return re.sub(r"(?:(?:^|\s+)(?:please|pls|thanks|for\s+me|now)|[\s?!.]+)+$", "", rest, flags=re.IGNORECASE).strip()
+    search for its own words (audit N10). The model's own `query` argument is read the same way, since it is
+    usually the request's words ("any notes")."""
+    return notes_search_topic(intent.target_label or intent.raw_text or "")
+
+
+_NEWEST_NOTES_SHOWN = 10
+
+
+def _note_recency(row: dict[str, Any]) -> float:
+    try:
+        return Path(str(row.get("note_path") or "")).stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def handle_find_notes(
@@ -694,11 +745,19 @@ def handle_find_notes(
     del session_id
     query = find_notes_query(intent)
     if not query:
-        rows = search_notes(query="")
-        lines = [f"Notes in this workspace ({len(rows)}):"] if rows else ["There are no notes in this workspace yet."]
-        for row in rows:
+        # No topic: the newest notes first, and how many there are in all.
+        rows = sorted(search_notes(query=""), key=_note_recency, reverse=True)
+        total = len(rows)
+        shown = rows[:_NEWEST_NOTES_SHOWN]
+        if not rows:
+            lines = ["There are no notes in this workspace yet."]
+        else:
+            lines = [f"Notes in this workspace ({total})" + (f", newest {len(shown)} first:" if total > len(shown) else ", newest first:")]
+        for row in shown:
             lines.append(f"- {row['title']} [{row['note_path']}]" + (f" (event {row['linked_event_uid'][:8]})" if row["linked_event_uid"] else ""))
-        return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"count": len(rows), "notes": rows})
+        if total > len(shown):
+            lines.append(f"…and {total - len(shown)} older.")
+        return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"count": total, "notes": shown})
     rows = search_notes(query=query)
     audit_log_fn(
         "operator_action_find_notes",
