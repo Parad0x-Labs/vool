@@ -190,3 +190,24 @@ def test_turning_on_asks_even_when_it_already_looks_on(app, stored_environment):
     assert status == 200, answer
     status, answer = _post(app, "/api/wallet/channels", {"channel": channel, "on": True})
     assert _needs_pin(status, answer), answer
+
+
+def test_a_touch_id_first_wallet_this_machine_cannot_ask_never_locks_the_owner_out(app, stored_environment):
+    """Delta review of d7c53300: with the owner's first wallet set to Touch ID and no device authentication on this
+    machine (another Mac, a restore), that wallet could never prove anyone and these settings were out of reach for
+    good. Such a wallet is passed over for the owner's next wallet."""
+    from core.wallet import custody, device_auth
+
+    touch = FakeDeviceAuthority()
+    device_auth.set_device_authority_for_tests(touch)
+    custody.create_pocket_wallet(acknowledged_warning=True, confirmation_phrase=custody.POCKET_CONFIRMATION_PHRASE,
+                                 approval_method=custody.APPROVAL_DEVICE, network=DEVNET)
+    owner = _pilot()
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet"})
+    assert status == 200 and touch.prompts, answer  # on this Mac the first wallet's Touch ID is what is asked
+    assert _post(app, "/api/wallet/environment", {"environment": "testnet"})[0] == 200
+    device_auth.set_device_authority_for_tests(FakeDeviceAuthority(available=False))
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet"})
+    assert _needs_pin(status, answer) and answer["fault"]["context"]["wallet_id"] == owner, answer
+    status, answer = _post(app, "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
+    assert status == 200 and stored_environment.active_environment().environment == "mainnet", answer
