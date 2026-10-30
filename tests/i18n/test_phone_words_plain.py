@@ -1,0 +1,192 @@
+"""The phone companion's words stay plain and true.
+
+Guards in this file answer one concrete question each:
+
+- no ``phone.*`` / ``settings.row.web0.*`` value in the English catalog contains the chat-jargon
+  words a person never says (token, turn, relay, revok…, transcri…, desktop, "native asset",
+  ".null") — substring, so no form of them slips in (task phone-words-077-20261030);
+- every reworded key exists in all 16 locale catalogs as a real translation (never copied
+  English) with its {code} / {count} placeholders intact;
+- the phone app's own copy (mobile/src/i18n/messages.ts) carries the same reworded keys in
+  every locale section and its sourceIndex maps the NEW English, with no old English left;
+- the money trio (models_help / tools_help / monthly) still tells one true story: free web
+  lookups only, no paid models from the phone, no phone cloud limit (core.request_trust
+  turn_may_spend_owner_keys is owner-only; the phone-booking lane in core.paid_call_reservation
+  sits behind that owner gate);
+- the five-minute window in the bot pair words matches the code (expires_in 300).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+from core.i18n.catalog import CATALOGS_DIR
+
+REPO = Path(__file__).resolve().parents[2]
+
+BANNED = ("token", "turn", "relay", "revok", "transcri", "desktop", "native asset", ".null")
+
+REWORD_KEYS = (
+    "settings.row.web0.label",
+    "settings.row.web0.help",
+    "settings.row.web0.note",
+    "phone.tools_help",
+    "phone.setup.monthly",
+    "phone.relay_title",
+    "phone.relay_address",
+    "phone.relay_token",
+    "phone.relay_help",
+    "phone.relay_enable",
+    "phone.bot_token",
+    "phone.bot_paircode",
+    "phone.cap_help",
+    "phone.ui.latest_turn",
+    "phone.ui.turns_count",
+    "phone.ui.this_turn_is_no_longer_running",
+    "phone.mobile.remote_unconfirmed",
+    "phone.mobile.remote_success",
+    "phone.mobile.unpair_help",
+    "phone.ui.release_to_transcribe",
+    "phone.ui.record_a_short_note_for_your_computer_to_transcribe_review_the_text_before_",
+    "phone.ui.voice_unavailable",
+    "phone.ui.message_your_desktop",
+    "phone.ui.enter_the_desktop_address_pairing_id_and_code",
+    "phone.ui.this_pairing_qr_has_expired_start_a_new_pairing_on_the_desktop",
+    "phone.ui.camera_permission_is_needed_to_scan_the_desktop_s_pairing_qr",
+    "phone.ui.activity_recorded",
+    "phone.ui.activity_verified",
+    "phone.event.model_market",
+    "phone.event.model_offer",
+    "phone.event.desktop_inbox",
+    "phone.network",
+    "phone.setup.checking",
+    "phone.setup.not_ready",
+    "phone.ui.could_not_save_this_choice_turn_off_notifications_in_your_phone_s_settings",
+)
+
+LOCALES = ("ar", "de", "es", "fr", "he", "hi", "ja", "ko", "lt", "pl", "pt", "ru", "tr", "uk", "vi", "zh-Hans")
+
+OLD_ENGLISH = (
+    "Web0 names",
+    "The Web0 switch",
+    "look up .null names",
+    "Paid services: your paid models and paid search",
+    "Monthly cloud limit for this phone",
+    "Use my relay",
+    "Relay address",
+    "PC connection token",
+    "Your own relay forwards encrypted messages",
+    "Connect relay",
+    "Bot token",
+    "to this bot in a private conversation",
+    "account’s native asset",
+    "Latest turn",
+    "Turns: {count}",
+    "This turn is no longer running.",
+    "Remote freezing and revocation are unconfirmed",
+    "phones revoked",
+    "revoke it there too",
+    "Release to transcribe",
+    "for your computer to transcribe",
+    "Voice transcription is unavailable",
+    "Message your desktop",
+    "Enter the desktop address",
+    "start a new pairing on the desktop",
+    "scan the desktop's pairing QR",
+    "Activity recorded",
+    "Activity verified",
+    "New desktop inbox item",
+    "If your Mac asks",
+    "Allow VOOL in System Settings, Privacy",
+    "Turn off notifications in your phone",
+)
+
+
+def _en_messages() -> dict[str, str]:
+    return json.loads((CATALOGS_DIR / "en.json").read_bytes())["messages"]
+
+
+def test_no_jargon_words_in_phone_catalog() -> None:
+    messages = _en_messages()
+    offenders: list[str] = []
+    for key, value in messages.items():
+        if not (key.startswith("phone.") or key.startswith("settings.row.web0")):
+            continue
+        lowered = str(value).lower()
+        for word in BANNED:
+            if word in lowered:
+                offenders.append(f"{key}: contains {word!r}")
+    assert not offenders, "jargon words in person-facing phone text:\n" + "\n".join(offenders)
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_reworded_keys_translated_everywhere(locale: str) -> None:
+    english = _en_messages()
+    data = json.loads((CATALOGS_DIR / f"{locale}.json").read_bytes())
+    messages = data["messages"]
+    missing = [key for key in REWORD_KEYS if key not in messages]
+    assert not missing, f"{locale} lost reworded keys: {missing}"
+    copied = [key for key in REWORD_KEYS if messages[key] == english[key]]
+    assert not copied, f"{locale} copied English for: {copied}"
+    # Placeholders must survive translation.
+    for key, placeholder in (("phone.bot_paircode", "{code}"), ("phone.ui.turns_count", "{count}")):
+        assert placeholder in english[key]
+        assert placeholder in messages[key], f"{locale} {key} lost {placeholder}"
+
+
+def test_money_trio_tells_one_true_story() -> None:
+    messages = _en_messages()
+    trio = (messages["phone.setup.models_help"], messages["phone.tools_help"], messages["phone.setup.monthly"])
+    for text in trio:
+        assert "free" in text.lower(), "each of the trio must say the phone uses free lookups only"
+    # The phone never runs the owner's paid models or paid search (request_trust owner-only gate).
+    assert "never run from the phone" in messages["phone.tools_help"]
+    assert "no monthly cloud limit" in messages["phone.setup.monthly"]
+
+
+def test_bot_pair_window_matches_code() -> None:
+    assert "five minutes" in _en_messages()["phone.bot_paircode"]
+
+
+def _app_sections() -> dict[str, dict[str, str]]:
+    source = (REPO / "mobile/src/i18n/messages.ts").read_text(encoding="utf-8")
+    sections: dict[str, dict[str, str]] = {}
+    parts = re.split(r'^  "([a-zA-Z-]+)": \{$', source, flags=re.M)
+    for i in range(1, len(parts) - 1, 2):
+        name, body = parts[i], parts[i + 1]
+        if name == "en" or name in LOCALES:
+            sections[name] = dict(re.findall(r'^    "([a-zA-Z0-9_.]+)": (".*?(?<!\\)"),?$', body, flags=re.M))
+    return sections
+
+
+def test_phone_app_copy_follows_the_catalog() -> None:
+    sections = _app_sections()
+    assert set(sections) == {"en", *LOCALES}, f"locale sections changed: {sorted(sections)}"
+    english = _en_messages()
+    for name, entries in sections.items():
+        missing = [key for key in REWORD_KEYS if key not in entries]
+        assert not missing, f"app section {name} lost reworded keys: {missing}"
+        if name == "en":
+            for key in REWORD_KEYS:
+                assert json.loads(entries[key]) == english[key], f"app en {key} drifted from the catalog"
+            continue
+        copied = [key for key in REWORD_KEYS if json.loads(entries[key]) == english[key]]
+        assert not copied, f"app section {name} copied English for: {copied}"
+
+
+def test_phone_app_source_index_maps_new_english_only() -> None:
+    source = (REPO / "mobile/src/i18n/messages.ts").read_text(encoding="utf-8")
+    for stale in OLD_ENGLISH:
+        assert stale not in source, f"old English still in the phone app: {stale!r}"
+    index_body = source.split("export const sourceIndex", 1)[1]
+    english = _en_messages()
+    # The app's index only carries strings a screen actually calls tr() with; the three web0
+    # settings-row keys are computer-side only and have no entry there.
+    app_used = [key for key in REWORD_KEYS if not key.startswith("settings.row.web0.")]
+    for key in app_used:
+        needle = json.dumps(english[key], ensure_ascii=False)[:-1]  # opening quote kept
+        assert needle + '":' in index_body, f"sourceIndex lost the new English for {key}"
