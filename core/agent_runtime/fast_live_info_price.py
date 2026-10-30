@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from core.agent_runtime.fast_live_info_rendering import first_live_quote
+from core.agent_runtime.filler_words import DISCOURSE_MARKER_TOKENS
 from core.followup_subject_continuity import correction_reopens_the_market_lane
 from core.retrieval_constraints import analyze_retrieval_constraints
 
@@ -195,14 +196,17 @@ def recover_price_lookup_query(
     return ""
 
 
-# Generic price/question/function words that do NOT constitute a topic of the turn's own.
+# Generic price/question/function words that do NOT constitute a topic of the turn's own:
+# the price lane's own vocabulary UNION the ONE shared filler/discourse-marker tokens
+# (core.agent_runtime.filler_words.DISCOURSE_MARKER_TOKENS) -- one vocabulary, no private
+# filler copy. "way" stays local: it is price-generic here through "by the way" phrasing,
+# but on its own it is not a discourse marker.
 _PRICE_GENERIC_TOKENS = frozenset({
     "price", "cost", "worth", "value", "rate", "market", "cap", "trading", "how", "much",
     "what", "whats", "hows", "are", "the", "for", "its", "that", "this", "these", "those",
-    "now", "today", "current", "currently", "latest", "recent", "tell", "give", "show", "and",
-    "right", "help", "about", "going", "down", "maybe", "please", "pls", "you", "know", "mean",
-    "meant", "btw", "way", "just", "still", "again",
-})
+    "now", "today", "current", "currently", "latest", "recent", "tell", "give", "show",
+    "right", "help", "about", "going", "down", "maybe", "you", "know", "way",
+}) | DISCOURSE_MARKER_TOKENS
 
 
 def _has_own_topic_noun(text: str) -> bool:
