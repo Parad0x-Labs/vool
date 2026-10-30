@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import os
 import re
@@ -227,6 +228,8 @@ def owned_server_pid(home: Path, root: Path) -> int:
         return 0
     if pid <= 1 or pid == os.getpid():
         return 0
+    if _pid_has_exited(pid):
+        return 0  # already gone, or an unreaped zombie: nothing to stop
     try:
         command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
                                  capture_output=True, text=True, timeout=5, check=False)
@@ -269,16 +272,12 @@ def stop_running_server(home: Path, root: Path, *, term_wait: float = TERM_WAIT_
     pid = owned_server_pid(home, root)
     if pid <= 0:
         return True, None
-    try:
+    with contextlib.suppress(OSError):  # may have exited between the check and the signal
         os.kill(pid, signal.SIGTERM)
-    except OSError:
-        pass  # exited between the check and the signal
     if _wait_until_exited(pid, term_wait):
         return True, None
-    try:
+    with contextlib.suppress(OSError):
         os.kill(pid, signal.SIGKILL)
-    except OSError:
-        pass
     if _wait_until_exited(pid, kill_wait):
         return True, None
     return False, ("VOOL is still running and could not be stopped, so nothing was removed. "
