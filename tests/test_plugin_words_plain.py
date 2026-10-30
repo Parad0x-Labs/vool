@@ -26,6 +26,16 @@ BANNED_WORDS = (
 )
 _WORD = re.compile(r"\b(" + "|".join(BANNED_WORDS) + r")\b", re.IGNORECASE)
 
+# TASK law: a released test that pins words wins — those words stay and the key
+# is listed here with the pinning evidence. Anything NOT listed must scan clean.
+PINNED_BY_RELEASED_TESTS = {
+    # "authority" — test_plugin_money_wall.py:26 and :37
+    # (test_money_permissions_are_refused_for_current_and_legacy_packages)
+    "addons.plugin_message_96b8e638a59d": (
+        "Plugins cannot request wallet, payment, signing, approval, cap, "
+        "budget or receipt authority."),
+}
+
 RAISING_MODULES = (
     "plugin_manager", "plugin_manifest", "plugin_package", "release_channel",
     "addon_store", "plugin_services", "plugin_scanners", "plugin_network",
@@ -50,6 +60,11 @@ def test_no_developer_words_in_plugin_catalog_english() -> None:
     messages = _en_messages()
     offenders: dict[str, list[str]] = {}
     for key in _plugin_keys(messages):
+        if key in PINNED_BY_RELEASED_TESTS:
+            assert messages[key] == PINNED_BY_RELEASED_TESTS[key], (
+                f"{key} is exempt for pinned words; if its words changed the "
+                "released pin moved — update the exemption, not the test")
+            continue
         hits = sorted({m.group(0).lower() for m in _WORD.finditer(messages[key])})
         if hits:
             offenders[key] = hits

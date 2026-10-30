@@ -24,7 +24,7 @@ def credential_env_name(name: str) -> None:
         raise ValueError("A plugin credential environment name must be text.")
     if (name in _RESERVED_ENV or name.startswith(("VOOL_", "NULLA_", "PYTHON", "LD_", "DYLD_", "NODE_", "RUBY"))
             or re.match(r"^(OPENAI|ANTHROPIC|OPENROUTER|GROQ|GEMINI|GOOGLE|MISTRAL|DEEPSEEK|CLOUDFLARE|USEPOD)_", name)):
-        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
+        raise ValueError("A plugin may not ask for owner model keys, and it can't change settings for other programs. It was not installed.")
 
 
 def _text(limit=500):
@@ -128,7 +128,7 @@ def permission_wall(actions):
     if not isinstance(actions, (list, tuple)) or any(not isinstance(item, str) for item in actions):
         raise ValueError("Permission actions must be a list of names.")
     if any(item in PAID or MONEY.search(re.sub(r"([a-z])([A-Z])", r"\1_\2", item)) for item in actions):
-        raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
+        raise ValueError("Plugins cannot request wallet, payment, signing, approval, cap, budget or receipt authority.")
 
 
 def _flags(value):
@@ -155,7 +155,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     permission_wall(raw.get("permissions", []))
     for binding in raw.get("credential_bindings", []):
         if not isinstance(binding, str) or binding.startswith(("llm.cloud.", "wallet.", "signing.", "owner.")):
-            raise ValueError("Plugins can't use your wallet or your own model keys, or approve actions for you.")
+            raise ValueError("A plugin can't hold credentials that belong to you or to another plugin.")
         if str(binding).startswith("plugin.") and not str(binding).startswith("plugin." + raw["name"] + "."):
             raise ValueError("A plugin cannot reference another plugin's credentials.")
     extension = raw.get("vool", {})
@@ -183,7 +183,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     credentials = extension["credentials"]
     env = [row["env"] for row in credentials.values()]
     if len(set(env)) != len(env):
-        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
+        raise ValueError("Each service key needs its own name. It was not installed.")
     for row in credentials.values():
         credential_env_name(row["env"])
         https_url(row["help_url"])
@@ -217,7 +217,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
             if handler.get("server") not in servers or not handler.get("tool"):
                 raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
             if MONEY.search(handler["tool"]):
-                raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix: it may not offer money tools. It was not installed.")
             if "trust" in tool:
                 permission_wall(tool["trust"]["permission_actions"])
                 if tool["trust"]["side_effect_class"] in PAID:

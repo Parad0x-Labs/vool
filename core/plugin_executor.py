@@ -78,8 +78,8 @@ def process_isolation_refusal(*, private_environment: bool = False) -> str:
             from core.plugin_container import available
 
             if not available():
-                return ("On a Mac, this plugin's key can't be kept private from other programs, so it stays off "
-                        "here. Plugins that need no key still work.")
+                return ("This plugin gets its key in a way this Mac cannot keep private from other programs, "
+                        "so it stays off here. Plugins that need no key still work.")
         elif not kernel_confinement_available():
             return ("Plugins that run their own programs are off on this computer, because it can't keep them "
                     "walled off from your saved keys. Plugins that only connect a service still work.")
