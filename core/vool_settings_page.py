@@ -418,7 +418,7 @@ def _settings_groups() -> list[dict]:
         {
             "id": "keys",
             "icon": "⚿",
-            "title": "API Keys",
+            "title": "Your keys",
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
@@ -1362,7 +1362,7 @@ function urlsForGroup(groupId) {
 async function ensureGroupSources(groupId, force) {
   const urls = urlsForGroup(groupId).filter(u => force || (state.sources[u] === undefined && state.sourceErr[u] === undefined));
   if (!urls.length) return;
-  urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'loading', 'Loading…')); });
+  urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'loading', T('settings.row_loading', 'Loading…'))); });
   await Promise.all(urls.map(readSource));
   urls.forEach(u => { ALL_ROWS.filter(r => r.read && r.read.url === u).forEach(r => setState(r.id, 'idle', '')); });
 }
@@ -1374,12 +1374,12 @@ async function readSource(url) {
   try {
     const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
     const j = await r.json().catch(() => null);
-    if (!r.ok) { state.sourceErr[url] = (j && (j.error || j.detail)) || ('HTTP ' + r.status); return false; }
+    if (!r.ok) { console.warn('settings read failed:', url, r.status, j); state.sourceErr[url] = T('settings.not_responding', "VOOL isn\u2019t responding right now."); return false; }
     state.sources[url] = j || {};
     delete state.sourceErr[url];
     return true;
   } catch (e) {
-    state.sourceErr[url] = "VOOL isn\u2019t responding right now.";
+    state.sourceErr[url] = T('settings.not_responding', "VOOL isn\u2019t responding right now.");
     return false;
   }
 }
@@ -1419,7 +1419,7 @@ function paintState(rowId) {
   node.className = 'state ' + st.status;
   node.textContent = st.message;
   if (st.status === 'failed') {
-    const b = el('button', 'retry', 'Retry');
+    const b = el('button', 'retry', T('settings.retry', 'Retry'));
     b.type = 'button';
     b.addEventListener('click', () => {
       const row = ALL_ROWS.find(r => r.id === rowId);
@@ -1444,7 +1444,7 @@ async function commit(row, rawValue) {
   const superseded = () => seq !== st.seq;
   st.dirty = value;
   st.pending = true;
-  setState(row.id, 'saving', 'Saving…');
+  setState(row.id, 'saving', T('settings.row_saving', 'Saving…'));
   let r, j;
   /* A server that stopped answering (frozen, not closed) would leave "Saving…" up for ever. */
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1477,7 +1477,8 @@ async function commit(row, rawValue) {
   st.pending = false;
   const refused = !r.ok || (j && (j.error || j.ok === false));
   if (refused) {
-    const why = (j && (j.error || j.detail)) ? String(j.error || j.detail) : ('refused with HTTP ' + r.status);
+    console.warn('settings save refused for ' + row.id + ':', j && (j.error || j.detail), r.status);
+    const why = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again.");
     snapBackToggle(row, st, value);
     setState(row.id, 'failed', 'Not saved — ' + why);
     live(row.label + ': not saved. ' + why);
@@ -1497,15 +1498,15 @@ async function commit(row, rawValue) {
     /* The authority normalises and clamps on write; when it lands on a different value than the
        one asked for, say so and show what it actually holds instead of a green tick. */
     st.dirty = undefined;
-    if (typeof stored === 'string' && !stored.trim()) setState(row.id, 'saved', 'Cleared');
+    if (typeof stored === 'string' && !stored.trim()) setState(row.id, 'saved', T('settings.row_cleared', 'Cleared'));
     else if (typeof stored === 'number') setState(row.id, 'stale', 'That value is outside what VOOL accepts here, so it saved ' + stored.toLocaleString() + ' instead.');
-    else setState(row.id, 'stale', 'VOOL stored ' + JSON.stringify(stored) + ' instead.');
+    else { console.warn('settings stored a different value for ' + row.id + ':', stored); setState(row.id, 'stale', 'VOOL stored ' + JSON.stringify(stored) + ' instead.'); }
     live(row.label + ': VOOL stored a different value.');
     renderPane();
     return;
   }
   st.dirty = undefined;
-  setState(row.id, 'saved', typeof value === 'string' && !value.trim() ? 'Cleared' : 'Saved');
+  setState(row.id, 'saved', typeof value === 'string' && !value.trim() ? T('settings.row_cleared', 'Cleared') : T('settings.row_saved', 'Saved'));
   live(row.label + ' saved.');
   setTimeout(() => { if (rowState(row.id).status === 'saved') setState(row.id, 'idle', ''); }, 2600);
 }
@@ -1706,7 +1707,8 @@ function control(row) {
 
   if (row.kind === 'note') { /* nothing to control */ }
   else if (unavailable) {
-    wrap.appendChild(el('span', 'subtle', 'Unavailable — ' + state.sourceErr[row.read.url]));
+    console.warn('settings read failed for ' + row.id + ':', state.sourceErr[row.read.url]);
+    wrap.appendChild(el('span', 'subtle', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again.")));
   }
   else if (row.kind === 'toggle') {
     const b = el('button', 'sw');
@@ -1921,9 +1923,9 @@ const widgetCache = {};
 async function getJSON(url) {
   let r;
   try { r = await fetch(url, { headers: { 'Accept': 'application/json' } }); }
-  catch (e) { throw new Error("VOOL isn\u2019t responding right now."); }
+  catch (e) { throw new Error(T('settings.not_responding', "VOOL isn\u2019t responding right now.")); }
   const j = await r.json().catch(() => null);
-  if (!r.ok) throw new Error((j && (j.error || j.detail)) || ('HTTP ' + r.status));
+  if (!r.ok) { console.warn('settings read failed:', url, r.status, j); throw new Error(T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again.")); }
   return j || {};
 }
 
@@ -2111,7 +2113,7 @@ function widgetBundleExport(stack) {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       say(d.encrypted ? 'Saved as ' + a.download + ': a signed, encrypted bundle (' + countWords(d.counts.turns, 'turn', 'turns') + ').' : 'Saved as ' + a.download + ': signed but NOT encrypted (' + countWords(d.counts.turns, 'turn', 'turns') + ').', !d.encrypted);
       renderPreview();
-    } catch (e) { say('Export failed: ' + (e && e.message ? e.message : e), true); }
+    } catch (e) { console.warn('export failed:', e); say(T('settings.export_failed', "Couldn\u2019t export this chat. Try again."), true); }
     exportBtn.disabled = false;
   });
   syncEnc();
@@ -2186,7 +2188,7 @@ function widgetBundleImport(stack) {
       renderImportPreview(d);
       importBtn.disabled = false; foreignRow.hidden = !needsConfirm; openBtn.hidden = true;
       say(needsConfirm ? 'This file comes from a computer VOOL does not know. Tick the box below to import it anyway, marked as not trusted.' : 'Preview ready. Check it, then choose Import.', needsConfirm);
-    } catch (e) { say('Preview failed: ' + (e && e.message ? e.message : e), true); }
+    } catch (e) { console.warn('preview failed:', e); say(T('settings.preview_failed', "Couldn\u2019t preview this file. Try again."), true); }
   });
   importBtn.addEventListener('click', async () => {
     if (!stagedPath) { say('Preview a file first.', true); return; }
@@ -2200,7 +2202,7 @@ function widgetBundleImport(stack) {
       openBtn.hidden = !restoredId; openBtn.dataset.session = restoredId;
       say('Imported ' + countWords((d.counts || {}).turns || 0, 'turn', 'turns') + (d.collision ? ' as a separate copy (the original was already here).' : '.') +
           (d.trust && d.trust.trusted === false ? ' It is marked as not trusted because it came from a computer VOOL does not know.' : '') + ' The restored chat is at the top of your chat list.');
-    } catch (e) { say('Import failed: ' + (e && e.message ? e.message : e), true); importBtn.disabled = false; }
+    } catch (e) { console.warn('import failed:', e); say(T('settings.import_failed', "Couldn\u2019t import this chat. Try again."), true); importBtn.disabled = false; }
   });
   /* The chat surface has no session deep link and this is not the chat window, so the most this page
      can do is bring VOOL forward: the restored chat sits at the top of its list, named as above. */
@@ -2278,7 +2280,7 @@ function setupRestoreControl() {
   const b = el('button', 'btn', 'Show the setup checklist again'); b.type = 'button'; b.id = 'setupRestore';
   const st = el('span', 'state idle');
   b.addEventListener('click', async () => {
-    b.disabled = true; st.className = 'state saving'; st.textContent = 'Saving…';
+    b.disabled = true; st.className = 'state saving'; st.textContent = T('settings.row_saving', 'Saving…');
     try {
       const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: false }) });
       const j = await r.json().catch(() => null);
@@ -2290,7 +2292,7 @@ function setupRestoreControl() {
       }
       state.notice = '';
       go('setup');
-    } catch (e) { b.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
+    } catch (e) { b.disabled = false; st.className = 'state failed'; console.warn('setup checklist restore failed:', e); st.textContent = T('settings.row_not_saved', "Couldn\u2019t save that just now. Try again."); }
   });
   line.appendChild(b); line.appendChild(st);
   return line;
@@ -2298,7 +2300,7 @@ function setupRestoreControl() {
 function widgetSetupProgress(stack) {
   const src = state.sources[SETUP_STATE_URL];
   const err = state.sourceErr[SETUP_STATE_URL];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const head = el('div', 'row-label');
   head.id = 'setupCount';
@@ -2362,7 +2364,7 @@ function widgetSetupProgress(stack) {
 function widgetScamSchool(stack) {
   const src = state.sources['/api/wallet/safety'];
   const err = state.sourceErr['/api/wallet/safety'];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const rule = el('div', 'scam-rule'); rule.setAttribute('role', 'note'); rule.textContent = src.golden_rule || '';
   stack.appendChild(rule);
@@ -2569,7 +2571,7 @@ function widgetUpdates(stack) {
       if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));
       await readSource('/api/update/status');
       widgetUpdates(stack);
-    } catch (e) { status.textContent = String(e.message || e); check.disabled = false; }
+      } catch (e) { console.warn('update check failed:', e); status.textContent = T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'); check.disabled = false; }
   });
   stack.appendChild(check);
   if (unavailable && src && (src.unavailable_plain || src.message)) {
@@ -2590,7 +2592,7 @@ function widgetUpdates(stack) {
         const result = await response.json();
         if (!response.ok) throw new Error(result.detail || result.message || 'Rollback could not start');
         await readSource('/api/update/status'); widgetUpdates(stack);
-      } catch (e) { status.textContent = String(e.message || e); rollback.disabled = false; }
+      } catch (e) { console.warn('rollback failed:', e); status.textContent = T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'); rollback.disabled = false; }
     });
     stack.appendChild(rollback);
     stack.appendChild(el('div', 'subtle', T('update.rollback_keeps_data', 'Keeps your current chats, memory, keys and settings')));
@@ -2600,7 +2602,7 @@ function widgetUpdates(stack) {
 function widgetBuild(stack) {
   const src = state.sources['/api/runtime/version'];
   const err = state.sourceErr['/api/runtime/version'];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   /* One readable line first; the full field list (what a problem report needs) is folded
      under Technical details and still copied whole by "Copy build info". */
@@ -2641,7 +2643,7 @@ function widgetUsage(stack) {
     body.appendChild(el('div', 'empty', T('settings.usage.reading', 'Reading usage…')));
     let data;
     try { data = await getJSON('/api/runtime/usage' + (active ? '?range=' + active : '')); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.usage.unreadable', 'Usage could not be read.') + ' ' + e.message)); return; }
+    catch (e) { console.warn('usage read failed:', e); body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.usage.unreadable', 'Usage could not be read.'))); return; }
     body.textContent = '';
     const dl = el('dl', 'kv');
     const line = (label, bucket, extra) => {
@@ -2723,7 +2725,7 @@ function widgetKeys(stack) {
   const src = state.sources['/api/settings/credentials'];
   const err = state.sourceErr['/api/settings/credentials'];
   const list = el('div', 'stack');
-  if (err) list.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err })));
+  if (err) { console.warn('settings read failed:', err); list.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); }
   else if (!src) list.appendChild(el('div', 'empty', 'Loading…'));
   else {
     const creds = src.credentials || src.items || [];
@@ -2786,7 +2788,7 @@ function widgetKeys(stack) {
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
             st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
-          } catch (e) { st.textContent = tfmt('keys.test_failed', 'Test failed: {error}', { error: (e && e.message ? e.message : e) }); }
+          } catch (e) { console.warn(e); st.textContent = tfmt('keys.test_failed', 'Test failed: {error}', { error: (e && e.message ? e.message : e) }); }
           testBtn.disabled = false;
         });
         const rm = el('button', 'btn danger', T('keys.remove', 'Remove')); rm.type = 'button';
@@ -2799,7 +2801,7 @@ function widgetKeys(stack) {
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
             renderPane();
-          } catch (e) { rm.disabled = false; st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
+          } catch (e) { rm.disabled = false; console.warn(e); st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
         });
         /* A market-data key was verified when it was saved; its use is the check after that (a refusal
            drops back to keyless prices), so the row offers Remove only. */
@@ -2975,7 +2977,7 @@ function widgetKeys(stack) {
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { useAnyway.disabled = false; }
   });
   const saveVerified = async () => {
@@ -3043,7 +3045,7 @@ function widgetKeys(stack) {
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { save.disabled = false; }
   };
   save.addEventListener('click', saveVerified);
@@ -3091,7 +3093,7 @@ function widgetKeys(stack) {
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    } catch (e) { console.warn(e); setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { later.disabled = false; }
   });
   /* A retry that did not promote the key, in words: the key stays saved and unused either way. */
@@ -3109,8 +3111,10 @@ function widgetKeys(stack) {
      no translation can blur one outcome into another (a rejected key never becomes "FAILED", an
      unjudged key never becomes rejected). */
   function verifyOutcomeMessage(label, j) {
-    const http = j.http_status ? ' (HTTP ' + j.http_status + (j.provider_error_code ? ', ' + j.provider_error_code : '') + ')' : '';
-    const p = { label: label, http: http };
+    /* The status and provider codes are diagnosis, not words for the person: the sentence
+       stands on the outcome alone, and the codes go to the console. */
+    if (j.http_status || j.provider_error_code) console.warn('key check ' + String(j.outcome || '') + ':', j.http_status || '', j.provider_error_code || '');
+    const p = { label: label, http: '' };
     switch (String(j.outcome || '')) {
       case 'invalid': return tfmt('keys.outcome.invalid', '{label} rejected this key{http}. Check that you copied all of it and that it is a {label} key. Nothing was stored.', p);
       case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid. Nothing was stored.', p);
@@ -3139,8 +3143,9 @@ function widgetKeys(stack) {
     if (state === 'ok') return tfmt('keys.test.ok', 'Connection verified — {label} accepted your key.', { label: label });
     if (state === 'untested' && j.checked_at) return tfmt('keys.test.unconfirmable', '{label} is reachable, but it lists its models without a key, so it cannot confirm yours. Your first message will.', { label: label });
     const reason = state === 'failed' ? String(j.detail || '') : state;
-    const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
-    const p = { label: label, http: http };
+    /* As above: the status code is diagnosis for the console, never part of the sentence. */
+    if (j.http_status) console.warn('key test state ' + state + ':', j.http_status);
+    const p = { label: label, http: '' };
     // A 401 is the provider saying it did not accept the key; only a plain 403 leaves the key unjudged.
     if (reason === 'unauthorized' && Number(j.http_status) === 401) return tfmt('keys.test.invalid', '{label} rejected the key{http}. Check it again, or replace it.', p);
     if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid.', p);
@@ -3197,7 +3202,7 @@ function widgetKeys(stack) {
     quarantine.textContent = '';
     let q;
     try { q = await getJSON('/api/intake/quarantine/list'); }
-    catch (e) { quarantine.appendChild(el('div', 'subtle', tfmt('keys.quarantine_unavailable', 'Saved-for-later list unavailable — {error}', { error: (e && e.message ? e.message : e) }))); return; }
+    catch (e) { console.warn(e); quarantine.appendChild(el('div', 'subtle', tfmt('keys.quarantine_unavailable', 'Saved-for-later list unavailable — {error}', { error: (e && e.message ? e.message : e) }))); return; }
     const rows = (q && (q.quarantined || (q.data && q.data.quarantined))) || [];
     if (!rows.length) return;
     quarantine.appendChild(el('div', 'row-label', T('keys.quarantine_title', 'Saved for later (unverified)')));
@@ -3219,7 +3224,7 @@ function widgetKeys(stack) {
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
           if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
           else qst.textContent = quarantineOutcome(row.provider_label || row.provider_id, String(j.outcome || ''));
-        } catch (e) { qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
+        } catch (e) { console.warn(e); qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
       });
       const del = el('button', 'btn danger key-quarantine-delete', T('keys.delete', 'Delete')); del.type = 'button'; del.dataset.provider = row.provider_id;
       del.addEventListener('click', async () => {
@@ -3230,7 +3235,7 @@ function widgetKeys(stack) {
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
           await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane();
-        } catch (e) { qst.textContent = tfmt('keys.not_deleted', 'Not deleted — {error}', { error: (e && e.message ? e.message : e) }); del.disabled = false; }
+        } catch (e) { console.warn(e); qst.textContent = tfmt('keys.not_deleted', 'Not deleted — {error}', { error: (e && e.message ? e.message : e) }); del.disabled = false; }
       });
       line.appendChild(retry); line.appendChild(del); line.appendChild(qst);
       quarantine.appendChild(line);
@@ -3478,7 +3483,7 @@ function widgetXActivity(host) {
     });
     host.appendChild(el('h4', 'row-label', T('xact.usage_title', 'X usage this month')));
     if (usage.ok === false) {
-      host.appendChild(el('p', 'subtle', usage.message || T('xact.unavailable', 'Could not load your X activity right now.')));
+      console.warn('x activity message:', usage.message); host.appendChild(el('p', 'subtle', usage.message || T('xact.unavailable', 'Could not load your X activity right now.')));
       host.appendChild(el('p', 'subtle', T('xact.reset_note', 'X still counts on its side. Check your X developer account if you are close to your limit.')));
       const row = el('div', 'inline'); const reset = el('button', 'btn', T('xact.reset', 'Start counting from zero')); reset.type = 'button';
       reset.addEventListener('click', async () => {
@@ -3700,7 +3705,7 @@ function mpOpenSheet({ title, facts, steps, primaryLabel, onClose }) {
       stepState[i] = 'run'; drawSteps();
       let outcome;
       try { outcome = await steps[i].run(); }
-      catch (e) { outcome = { ok: false, error: e && e.message ? e.message : 'failed' }; }
+      catch (e) { console.warn(e); outcome = { ok: false, error: e && e.message ? e.message : 'failed' }; }
       if (!outcome || !outcome.ok) {
         stepState[i] = 'failed'; drawSteps();
         const kept = steps.slice(0, i).filter((s, j) => stepState[j] === 'done').map((s) => s.label);
@@ -3816,7 +3821,7 @@ function widgetModelsOverview(stack) {
       : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
       : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
       : localModels.length ? T('settings.models.local_pick', 'A model is on this computer. Open it and press Use this model to start.')
-      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
+      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in Your keys to use an online model.');
     cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
     // card sends the operator to the detail with the saved approval, never through guided again
@@ -4261,7 +4266,7 @@ async function autoFallbackControl(body, openrouterCatalogue) {
       confirmed = now; fbSel.value = now;
       if (now !== wanted) st.textContent = 'VOOL stored ' + now + ' instead.';
       else st.textContent = now === 'auto' ? 'Auto falls back to the best verified free model.' : 'Auto falls back to ' + now + '. Used only by VOOL Auto; never paid.';
-    } catch (e) { fbSel.value = confirmed; st.textContent = 'Not changed — ' + (e && e.message ? e.message : e); }
+    } catch (e) { fbSel.value = confirmed; console.warn(e); st.textContent = 'Not changed — ' + (e && e.message ? e.message : e); }
     fbSel.disabled = false;
   });
   line.appendChild(lab); line.appendChild(fbSel); line.appendChild(st);
@@ -4293,7 +4298,7 @@ function widgetModel(stack) {
     body.appendChild(el('div', 'empty', 'Reading model settings…'));
     let m;
     try { m = await getJSON('/api/cloud/model'); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { console.warn('settings read failed:', e); body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
     if (revision !== drawRevision) return;
     body.textContent = '';
     const dl = el('dl', 'kv');
@@ -4329,8 +4334,8 @@ function widgetModel(stack) {
     if (!provider) {
       /* Nothing to pick yet: say what makes this row useful, with the way there. */
       const line = el('div', 'inline');
-      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in API Keys to choose a model here.')));
-      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to API Keys')); jump.type = 'button';
+      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in Your keys to choose a model here.')));
+      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to Your keys')); jump.type = 'button';
       jump.addEventListener('click', () => { location.hash = '#keys'; });
       line.appendChild(jump);
       body.appendChild(line);
@@ -4356,7 +4361,7 @@ function widgetModel(stack) {
       if (revision !== drawRevision) return;
       if (catalogue.provider !== provider) throw new Error('Provider catalogue identity mismatch');
       models = (catalogue.models || []).filter(x => x && x.id && (!x.provider || x.provider === provider));
-    } catch (e) { count.textContent = 'Model list unavailable — ' + e.message; pinBtn.disabled = true; }
+    } catch (e) { console.warn(e); count.textContent = 'Model list unavailable — ' + e.message; pinBtn.disabled = true; }
     function renderMatches() {
       const previous = sel.value;
       sel.textContent = '';
@@ -4398,7 +4403,7 @@ function widgetModel(stack) {
         }
         if (!r.ok || (j && j.ok === false)) throw new Error((j && (j.error || j.code)) || ('HTTP ' + r.status));
         await draw(clearing ? 'Pin cleared — VOOL chooses.' : 'Pinned for every conversation.');
-      } catch (e) { pst.textContent = 'Not pinned — ' + (e && e.message ? e.message : e); pinBtn.disabled = false; }
+      } catch (e) { console.warn(e); pst.textContent = 'Not pinned — ' + (e && e.message ? e.message : e); pinBtn.disabled = false; }
     });
     if (note) pst.textContent = note;   /* the message survives the redraw that shows the new pin */
     body.appendChild(sel); pick.appendChild(pinBtn); body.appendChild(pick); body.appendChild(pst);
@@ -4415,7 +4420,7 @@ function widgetModel(stack) {
       discBox.textContent = '';
       discBox.appendChild(el('summary', null, 'Provider details'));
       let d;
-      try { d = await getJSON('/api/discovery'); } catch (e) { discBox.appendChild(el('div', 'subtle', 'Discovery state unavailable — ' + (e && e.message ? e.message : e))); return; }
+      try { d = await getJSON('/api/discovery'); } catch (e) { console.warn(e); discBox.appendChild(el('div', 'subtle', 'Discovery state unavailable — ' + (e && e.message ? e.message : e))); return; }
       const entry = (d.providers || {})[provider];
       const refBtn = el('button', 'btn model-discovery-refresh', 'Refresh from ' + provider); refBtn.type = 'button';
       const rst = el('span', 'subtle model-discovery-state', '');
@@ -4429,7 +4434,7 @@ function widgetModel(stack) {
             ? 'Refreshed ' + (j.observed_at || '') + ' — the key was re-verified and the list re-observed.'
             : 'Not refreshed — ' + (j.last_refresh_status || 'unknown') + '. The key was not judged unless the reason says so.';
           drawDiscovery();
-        } catch (e) { rst.textContent = 'Refresh failed — ' + (e && e.message ? e.message : e); }
+        } catch (e) { console.warn(e); rst.textContent = 'Refresh failed — ' + (e && e.message ? e.message : e); }
         refBtn.disabled = false;
       });
       const head = el('div', 'inline'); head.appendChild(refBtn); head.appendChild(rst); discBox.appendChild(head);
@@ -4514,7 +4519,7 @@ function widgetUsePod(stack) {
     body.appendChild(el('div', 'empty', 'Reading the UsePod caches…'));
     let d;
     try { d = await getJSON(USEPOD_DISCOVERY_URL); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { console.warn('settings read failed:', e); body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
     body.textContent = '';
 
     /* -- how calls are paid: two distinct ways, never one blurred "UsePod". A funded token spends the UsePod account's
@@ -4550,7 +4555,7 @@ function widgetUsePod(stack) {
     const tokenCard = el('div', 'stack profile-item usepod-pay-mode');
     tokenCard.setAttribute('data-mode', 'prepaid_token');
     tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? inUse(tokenReady) : '')));
-    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (API Keys → UsePod).')));
+    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (Your keys → UsePod).')));
     if (payLane.transport_mode === 'x402') {
       const useToken = el('button', 'btn usepod-use-prepaid', 'Pay with the funded token'); useToken.type = 'button';
       useToken.addEventListener('click', () => useLane('prepaid_token', useToken));
@@ -4595,7 +4600,7 @@ function widgetUsePod(stack) {
     const cred = d.credential || {};
     if (!cred.configured) {
       body.appendChild(el('div', 'subtle',
-        'No UsePod token stored. Save one under API Keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
+        'No UsePod token stored. Save one under Your keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
     } else {
       const kv = el('dl', 'kv');
       const stateText = { configured_not_verified_here: 'stored, not verified in this view (Test asks UsePod once)', token_or_origin_unusable: 'stored, but the token or origin is not usable as configured' }[cred.state] || cred.state;
@@ -4824,7 +4829,7 @@ function widgetUsePod(stack) {
             if (!r.ok) say('failed', 'Approval not recorded — ' + (j.error || 'HTTP ' + r.status) + '.');
             await draw();
             } catch (e) {
-              say('failed', 'Could not finish this approval. Checking its saved state — ' + e.message);
+              console.warn(e); say('failed', 'Could not finish this approval. Checking its saved state — ' + e.message);
               await draw();
             } finally { resolving = false; allowBtn.disabled = false; denyBtn.disabled = false; }
           };
@@ -4969,7 +4974,7 @@ function widgetUsePod(stack) {
         }
         unresolvedBox.appendChild(row);
       });
-    }).catch(e => { unresolvedBox.appendChild(el('div', 'subtle', 'Unavailable — ' + e.message)); });
+    }).catch(e => { console.warn('settings read failed:', e); unresolvedBox.appendChild(el('div', 'subtle', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); });
 
     /* -- money state: what has actually been reserved, settled or held unknown, from the
        owner-local money projection. A read; it grants nothing. */
@@ -5582,7 +5587,7 @@ function widgetPhoneAccess(host) {
 function widgetAnswerLanguage(stack) {
   const src = state.sources['/api/profile'];
   const err = state.sourceErr['/api/profile'];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
 
   const items = (src.items || []).filter(i => i.category === 'language' && i.status !== 'deleted');
@@ -5643,7 +5648,7 @@ function widgetAnswerLanguage(stack) {
       }
       widgetCache.answerLanguageNote = 'Saved';
       renderPane();
-    } catch (e) { fail('Not saved — ' + profileWords(e.message)); }
+    } catch (e) { console.warn(e); fail('Not saved — ' + profileWords(e.message)); }
   });
 
   clear.addEventListener('click', async () => {
@@ -5657,7 +5662,7 @@ function widgetAnswerLanguage(stack) {
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || (j.change && j.change.report))) || ('HTTP ' + r.status));
       await refresh();
-    } catch (e) { fail('Not cleared — ' + e.message); }
+    } catch (e) { console.warn(e); fail('Not cleared — ' + e.message); }
   });
 
   /* What is actually in force, stated rather than implied. */
@@ -5949,7 +5954,7 @@ function widgetEmailAccounts(stack) {
   stack.appendChild(body);
   stack.appendChild(addRow);
   stack.appendChild(status);
-  if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/accounts'); renderPane(); };
@@ -6060,7 +6065,7 @@ function widgetEmailRecovery(stack) {
   const status = el('div', 'state idle'); status.id = 'emailRecoveryStatus'; status.setAttribute('role', 'status');
   stack.appendChild(body);
   stack.appendChild(status);
-  if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (err) { console.warn('settings read failed:', err); body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/recovery'); renderPane(); };
@@ -6182,7 +6187,7 @@ function widgetProfile(stack) {
     body.appendChild(el('div', 'empty', T('settings.profile.reading', 'Reading what VOOL remembers…')));
     let p;
     try { p = await getJSON('/api/profile'); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { console.warn('settings read failed:', e); body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.row_unavailable', "Couldn\u2019t load this right now. Try again."))); return; }
     current = p;
     /* The answer-language row in General reads the same profile from the page cache: keep it current,
        so a pause or an edit made here is seen there without a reload. */
@@ -6214,7 +6219,7 @@ function widgetProfile(stack) {
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         say('Saved as a file: ' + a.download + '. It holds what VOOL remembers, never a key or password.');
-      } catch (e) { say('Could not export — ' + e.message, true); }
+      } catch (e) { console.warn(e); say('Could not export — ' + e.message, true); }
       exp.disabled = false;
     });
     /* The exported document stays folded away; it is there to look at on request, and closes again. */
@@ -6262,7 +6267,7 @@ function widgetProfile(stack) {
         if (!r.ok || (j && j.error)) throw new Error(profileWords((j && j.error) || ('HTTP ' + r.status)));
         widgetCache.profileNote = value ? tfmt('settings.profile.name_saved', 'Saved. VOOL will call you {name}.', { name: value }) : T('settings.profile.name_cleared', 'Name cleared.');
         await draw();
-      } catch (e) { save.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
+      } catch (e) { save.disabled = false; st.className = 'state failed'; console.warn(e); st.textContent = 'Not saved — ' + e.message; }
     };
     save.addEventListener('click', send);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
