@@ -1385,7 +1385,10 @@ def _locate_read_target(
     try:
         if candidate.exists():
             return arguments, None
-    except OSError:
+        # Only a guess about the owner's own home is searched for; any other path (/private/tmp,
+        # another disk) keeps the reading tool's own answer, a refusal included.
+        Path(os.path.abspath(candidate)).relative_to(_machine_home().resolve())
+    except (OSError, ValueError):
         return arguments, None
     requested = candidate.name
     if not requested:

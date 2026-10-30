@@ -85,3 +85,9 @@ def test_an_existing_path_is_left_to_the_reading_tool(home) -> None:
     result = execute_runtime_tool("machine.read_file", {"path": str(home / "Pictures" / "cat_on_sofa.png")})
     assert not result.ok and result.status == "not_allowed"
     assert "located_from" not in (result.details or {})
+
+
+def test_a_missing_path_outside_the_home_keeps_the_readers_refusal(home) -> None:
+    result = execute_runtime_tool("machine.read_file", {"path": "/private/tmp/vool-secret.txt"})
+    assert not result.ok and result.status == "not_allowed"
+    assert "vool-secret.txt" in result.response_text
