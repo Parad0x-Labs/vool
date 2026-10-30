@@ -743,6 +743,7 @@ def folder_read_fast_path_result(
     path: str,
     response: str,
     reason: str,
+    confidence: float,
 ) -> dict[str, Any]:
     """A reply composed from a real read of one of the owner's folders, with that read's receipt.
 
@@ -750,53 +751,59 @@ def folder_read_fast_path_result(
     (`core.folder_overview.build_folder_overview`) and used to answer through the bare
     `_fast_path_result`: the reply listed real folder contents while the turn recorded no tool at
     all, so Activity, the claim gates and the audit saw a turn that read nothing (tool-use kit,
-    2026-10-29, class (c)). The read goes through the same receipt path as every machine read.
+    2026-10-29, class (c)). The answer is still made by the same `_fast_path_result` call; the
+    read is recorded beside it the way every machine read is (typed tool events, the turn's
+    observation, a tool receipt on the result).
     """
     from core.execution.models import _tool_observation
 
-    execution = SimpleNamespace(
+    observation = _tool_observation(
+        intent=intent,
+        tool_surface="local_folder_read",
         ok=True,
         status="executed",
-        response_text=response,
-        details={
-            "observation": _tool_observation(
-                intent=intent,
-                tool_surface="local_folder_read",
-                ok=True,
-                status="executed",
-                path=path,
-                read_only=True,
-                response_preview=str(response or "")[:4000],
-            ),
-        },
+        path=path,
+        read_only=True,
+        response_preview=str(response or "")[:4000],
     )
-    if not hasattr(agent, "_emit_runtime_event"):
-        # A caller that hands this lane only `_fast_path_result` (it answered with nothing else
-        # before) still gets the read recorded, by the one emitter every runtime event passes
-        # through and where an execution becomes a fact.
-        agent = _WithRuntimeEvents(agent)
-    return _machine_tool_fast_path_result(
-        agent,
-        user_input=user_input,
-        session_id=session_id,
-        source_context=source_context,
-        intent=intent,
-        execution=execution,
-        reason=reason,
-    )
-
-
-class _WithRuntimeEvents:
-    def __init__(self, agent: Any) -> None:
-        self._agent = agent
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._agent, name)
-
-    def _emit_runtime_event(self, source_context: Any, *, event_type: str, message: str, **details: Any) -> None:
+    emit = getattr(agent, "_emit_runtime_event", None)
+    if emit is None:
+        # A caller with no event surface of its own: the one emitter every runtime event passes
+        # through, where an execution becomes a fact.
         from core.runtime_task_events import emit_runtime_event
 
-        emit_runtime_event(source_context, event_type=event_type, message=message, details=details)
+        def emit(context: Any, *, event_type: str, message: str, **details: Any) -> None:
+            emit_runtime_event(context, event_type=event_type, message=message, details=details)
+
+    summary = _machine_step_summary(SimpleNamespace(response_text=response), intent)
+    emit(source_context, event_type="tool_selected", message=f"Running {intent}", tool_name=intent,
+         summary=f"Running {intent}")
+    emit(source_context, event_type="tool_executed", message=summary, tool_name=intent, summary=summary,
+         observation=observation)
+    if isinstance(source_context, dict):
+        recorded = [dict(item) for item in list(source_context.get("runtime_tool_observations") or []) if isinstance(item, dict)]
+        recorded.append(dict(observation))
+        source_context["runtime_tool_observations"] = recorded[-12:]
+    result = agent._fast_path_result(
+        session_id=session_id,
+        user_input=user_input,
+        response=response,
+        confidence=confidence,
+        source_context=source_context,
+        reason=reason,
+    )
+    if isinstance(result, dict):
+        result["mode"] = "tool_executed"
+        result["tool_receipts"] = [
+            {
+                "tool_name": intent,
+                "mode": "tool_executed",
+                "status": "executed",
+                "execution": {"executed": True, "ok": True, "status": "executed"},
+                "observation": observation,
+            }
+        ]
+    return result
 
 
 def maybe_handle_direct_machine_write_request(
@@ -1957,6 +1964,7 @@ def maybe_handle_direct_machine_read_request(
                 path=str(resolved_path),
                 response=build_folder_overview(resolved_path),
                 reason="folder_audit_fast_path",
+                confidence=0.96,
             )
     # A FILE asked for by name ("a picture named daily 4 in Downloads") is found as a file, before the
     # folder search below can read "Downloads folder" as the thing being looked for.

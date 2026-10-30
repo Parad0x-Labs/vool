@@ -1981,6 +1981,7 @@ def maybe_handle_folder_overview_request(
             path=workspace_root,
             response=response,
             reason="folder_overview_fast_path",
+            confidence=0.97,
         )
     return agent._fast_path_result(
         session_id=session_id,
