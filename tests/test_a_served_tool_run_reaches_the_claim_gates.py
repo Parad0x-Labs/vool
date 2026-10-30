@@ -10,7 +10,8 @@ a reply a real tool run backed.
 
 Driven here over a real socket: `apps.vool_api_server` in its own process and VOOL_HOME, a
 contact seeded in that home's store, and an Ollama-dialect stub that calls `contacts__search`
-and then answers. Everything between the request and the reply is production code. The guard
+(runtime dispatch) or `operator__find_notes` (the operator lane of `tool_intent_executor`, which
+named no tool in the ledger at all) and then answers. Everything between the request and the reply is production code. The guard
 both ways: the same claims with no tool run are still corrected.
 
 Each test boots a daemon (~15-30 s).
@@ -34,6 +35,11 @@ NUMBER = "+44 7700 900123"
 REPLY = f"I checked your contacts: Priya's phone number is {NUMBER}.\n\nTool: contacts.search\nquery: Priya"
 NOT_LOOKED = "I haven't looked in your contacts"
 SEARCH_CALL = {"id": "call-1", "type": "function", "function": {"name": "contacts__search", "arguments": {"query": "Priya"}}}
+# `operator.find_notes` runs on the operator lane of `tool_intent_executor`, not the runtime dispatch.
+NOTES_ASK = "check my notes, did I write anything down about the dentist?"
+NOTES_REPLY = "I checked your notes and there's nothing about the dentist in them."
+NOTES_CALL = {"id": "call-1", "type": "function", "function": {"name": "operator__find_notes", "arguments": {"query": "dentist"}}}
+NOTES_NOT_LOOKED = "I haven't looked through your notes"
 
 _SEED = SEED_MANIFEST + '''
 from tests._authorship_certification import certify_for_authorship
@@ -67,9 +73,9 @@ def _executed(home: Path) -> list[str]:
     return [str(json.loads(row[0] or "{}").get("tool_name") or "") for row in rows]
 
 
-def _served(tmp_path: Path, *, calls_the_tool: bool):
-    """A daemon whose model calls `contacts__search` on its first tool round (or never) and
-    otherwise says REPLY; the ambiguity preflight is told the question is not ambiguous."""
+def _served(tmp_path: Path, *, tool_call: dict[str, Any] | None, reply: str):
+    """A daemon whose model makes `tool_call` on its first tool round (none when None) and
+    otherwise says `reply`; the ambiguity preflight is told the question is not ambiguous."""
 
     from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
 
@@ -81,12 +87,12 @@ def _served(tmp_path: Path, *, calls_the_tool: bool):
             return json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
         if body.get("tools"):
             tool_rounds.append(1)
-            if calls_the_tool and len(tool_rounds) == 1:
-                return SEARCH_CALL
-        return REPLY
+            if tool_call is not None and len(tool_rounds) == 1:
+                return tool_call
+        return reply
 
     home = tmp_path / "home"
-    provider = ScriptedProvider({MODEL: REPLY}, reply_fn=reply_fn)
+    provider = ScriptedProvider({MODEL: reply}, reply_fn=reply_fn)
     daemon = ServedDaemon(
         home,
         env_extra={
@@ -104,8 +110,8 @@ def _served(tmp_path: Path, *, calls_the_tool: bool):
 def served_turn(tmp_path: Path):
     started: list[tuple[ScriptedProvider, ServedDaemon]] = []
 
-    def start(*, calls_the_tool: bool) -> tuple[Path, ScriptedProvider, ServedDaemon]:
-        home, provider, daemon = _served(tmp_path / ("tool" if calls_the_tool else "no-tool"), calls_the_tool=calls_the_tool)
+    def start(*, tool_call: dict[str, Any] | None, reply: str = REPLY) -> tuple[Path, ScriptedProvider, ServedDaemon]:
+        home, provider, daemon = _served(tmp_path / f"daemon-{len(started)}", tool_call=tool_call, reply=reply)
         provider.__enter__()
         started.append((provider, daemon))
         try:
@@ -124,7 +130,7 @@ def served_turn(tmp_path: Path):
 
 @pytest.mark.parametrize("lane", ["buffered", "streamed"])
 def test_a_contacts_lookup_that_ran_keeps_its_answer(served_turn, lane: str) -> None:
-    home, provider, daemon = served_turn(calls_the_tool=True)
+    home, provider, daemon = served_turn(tool_call=SEARCH_CALL)
     session = f"served-c01-{lane}"
     chat = daemon.chat if lane == "buffered" else daemon.chat_stream
     text = _committed_text(chat(ASK, session_id=session, model=MODEL, mode="auto"))
@@ -138,7 +144,7 @@ def test_a_contacts_lookup_that_ran_keeps_its_answer(served_turn, lane: str) -> 
 
 @pytest.mark.parametrize("lane", ["buffered", "streamed"])
 def test_a_contacts_claim_with_no_tool_run_is_still_corrected(served_turn, lane: str) -> None:
-    home, provider, daemon = served_turn(calls_the_tool=False)
+    home, provider, daemon = served_turn(tool_call=None)
     session = f"served-c01-none-{lane}"
     chat = daemon.chat if lane == "buffered" else daemon.chat_stream
     text = _committed_text(chat(ASK, session_id=session, model=MODEL, mode="auto"))
@@ -147,3 +153,22 @@ def test_a_contacts_claim_with_no_tool_run_is_still_corrected(served_turn, lane:
     assert any(call["tools"] for call in provider.calls), "the model was never offered a tool"
     assert "I checked your contacts" not in text, text
     assert NOT_LOOKED in text, text
+
+
+def test_a_notes_search_that_ran_on_the_operator_lane_keeps_its_answer(served_turn) -> None:
+    home, provider, daemon = served_turn(tool_call=NOTES_CALL, reply=NOTES_REPLY)
+    text = _committed_text(daemon.chat(NOTES_ASK, session_id="served-c01-notes", model=MODEL, mode="auto"))
+
+    assert _executed(home) == ["operator.find_notes"], (text, provider.calls[-4:])
+    assert NOTES_NOT_LOOKED not in text, text
+    assert NOTES_REPLY in text, text
+
+
+def test_a_notes_claim_with_no_tool_run_is_still_corrected(served_turn) -> None:
+    home, provider, daemon = served_turn(tool_call=None, reply=NOTES_REPLY)
+    text = _committed_text(daemon.chat(NOTES_ASK, session_id="served-c01-notes-none", model=MODEL, mode="auto"))
+
+    assert _executed(home) == [], text
+    assert any(call["tools"] for call in provider.calls), "the model was never offered a tool"
+    assert "I checked your notes" not in text, text
+    assert NOTES_NOT_LOOKED in text, text
