@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Mở trang mật khẩu ứng dụng",
     "emailadd.microsoft_not_yet": "Hiện chưa thể thêm địa chỉ Outlook, Hotmail và Live tại đây. Microsoft chỉ cho ứng dụng khác truy cập qua cách đăng nhập riêng của họ, mà VOOL chưa có.",
     "emailadd.service.other": "Dịch vụ email khác",
+    "emailadd.source.chat": "được chọn cho cuộc trò chuyện này",
+    "emailadd.source.global": "tài khoản mặc định của bạn",
+    "emailadd.source.legacy_default": "được dùng vì có tên “default”",
+    "emailadd.source.only_account": "tài khoản duy nhất",
+    "emailadd.source.other": "được chọn theo cách khác",
     "emailadd.use_default": "Dùng làm mặc định",
     "emailadd.default_choosing": "Đang chọn {account} làm mặc định…",
     "emailadd.default_not_chosen": "Chưa chọn — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "không đọc được dạng tài khoản",
     "email.state.unknown": "Tài khoản này đang ở trạng thái mà VOOL không nhận ra."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

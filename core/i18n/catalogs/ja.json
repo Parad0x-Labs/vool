@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "アプリ パスワードのページを開く",
     "emailadd.microsoft_not_yet": "Outlook、Hotmail、Live のアドレスはまだここで追加できません。Microsoft は他のアプリに独自のサインインでしか接続を許可しておらず、VOOL はまだそれに対応していません。",
     "emailadd.service.other": "その他のメール",
+    "emailadd.source.chat": "このチャット用に選択",
+    "emailadd.source.global": "デフォルトのアカウント",
+    "emailadd.source.legacy_default": "「default」という名前のため使用",
+    "emailadd.source.only_account": "唯一のアカウント",
+    "emailadd.source.other": "別の方法で選択",
     "emailadd.use_default": "デフォルトにする",
     "emailadd.default_choosing": "{account} をデフォルトに選んでいます…",
     "emailadd.default_not_chosen": "選ばれませんでした — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "アカウントとして読み取れませんでした",
     "email.state.unknown": "このアカウントは VOOL が認識しない状態になっています。"
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Uygulama şifresi sayfasını aç",
     "emailadd.microsoft_not_yet": "Outlook, Hotmail ve Live adresleri henüz buradan eklenemiyor. Microsoft diğer uygulamalara yalnızca kendi oturum açma yöntemiyle izin veriyor ve VOOL'da bu henüz yok.",
     "emailadd.service.other": "Diğer e-posta",
+    "emailadd.source.chat": "bu sohbet için seçildi",
+    "emailadd.source.global": "varsayılan hesabınız",
+    "emailadd.source.legacy_default": "adı “default” olduğu için kullanılıyor",
+    "emailadd.source.only_account": "tek hesap",
+    "emailadd.source.other": "başka bir şekilde seçildi",
     "emailadd.use_default": "Varsayılan yap",
     "emailadd.default_choosing": "{account} varsayılan olarak seçiliyor…",
     "emailadd.default_not_chosen": "Seçilmedi — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "hesap olarak okunamadı",
     "email.state.unknown": "Bu hesap, VOOL'un tanımadığı bir durumda."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

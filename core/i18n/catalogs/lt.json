@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Atidaryti programų slaptažodžių puslapį",
     "emailadd.microsoft_not_yet": "Outlook, Hotmail ir Live adresų čia dar negalima pridėti. Microsoft kitas programas įleidžia tik per savo prisijungimą, o VOOL jo dar neturi.",
     "emailadd.service.other": "Kitas el. paštas",
+    "emailadd.source.chat": "pasirinkta šiam pokalbiui",
+    "emailadd.source.global": "jūsų numatytoji paskyra",
+    "emailadd.source.legacy_default": "naudojama, nes pavadinta „default“",
+    "emailadd.source.only_account": "vienintelė paskyra",
+    "emailadd.source.other": "pasirinkta kitu būdu",
     "emailadd.use_default": "Naudoti kaip numatytąjį",
     "emailadd.default_choosing": "Renkamas {account} kaip numatytasis…",
     "emailadd.default_not_chosen": "Neišrinkta — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "nepavyko perskaityti kaip paskyros",
     "email.state.unknown": "Ši paskyra yra būsenos, kurios VOOL neatpažįsta."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

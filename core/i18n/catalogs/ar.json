@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "افتح صفحة كلمات مرور التطبيقات",
     "emailadd.microsoft_not_yet": "لا يمكن إضافة عناوين Outlook وHotmail وLive هنا بعد. لا تسمح Microsoft للتطبيقات الأخرى بالدخول إلا عبر تسجيل الدخول الخاص بها، وهو غير متوفر في VOOL بعد.",
     "emailadd.service.other": "بريد آخر",
+    "emailadd.source.chat": "مختار لهذه المحادثة",
+    "emailadd.source.global": "اختيارك الافتراضي",
+    "emailadd.source.legacy_default": "يُستخدم لأن اسمه «default»",
+    "emailadd.source.only_account": "الحساب الوحيد",
+    "emailadd.source.other": "مختار بطريقة أخرى",
     "emailadd.use_default": "اجعله الافتراضي",
     "emailadd.default_choosing": "جارٍ اختيار {account} كحساب افتراضي…",
     "emailadd.default_not_chosen": "لم يُختر — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "تعذّرت قراءته كحساب",
     "email.state.unknown": "هذا الحساب في حالة لا يعرفها VOOL."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

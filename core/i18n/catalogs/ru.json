@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Открыть страницу паролей приложений",
     "emailadd.microsoft_not_yet": "Адреса Outlook, Hotmail и Live пока нельзя добавить здесь. Microsoft пускает другие приложения только через свой вход, а в VOOL его пока нет.",
     "emailadd.service.other": "Другая почта",
+    "emailadd.source.chat": "выбран для этого чата",
+    "emailadd.source.global": "ваш ящик по умолчанию",
+    "emailadd.source.legacy_default": "используется, потому что называется «default»",
+    "emailadd.source.only_account": "единственный ящик",
+    "emailadd.source.other": "выбран другим способом",
     "emailadd.use_default": "Сделать основной",
     "emailadd.default_choosing": "Выбирается {account} как основная…",
     "emailadd.default_not_chosen": "Не выбрано — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "не удалось прочитать как учётную запись",
     "email.state.unknown": "Эта учётная запись в состоянии, которое VOOL не распознаёт."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Abrir a página de senhas de app",
     "emailadd.microsoft_not_yet": "Ainda não é possível adicionar aqui endereços do Outlook, Hotmail ou Live. A Microsoft só deixa outras apps entrar com o seu próprio início de sessão, que o VOOL ainda não tem.",
     "emailadd.service.other": "Outro serviço de e-mail",
+    "emailadd.source.chat": "escolhida para esta conversa",
+    "emailadd.source.global": "a sua conta padrão",
+    "emailadd.source.legacy_default": "usada porque se chama “default”",
+    "emailadd.source.only_account": "a única conta",
+    "emailadd.source.other": "escolhida de outra forma",
     "emailadd.use_default": "Usar como padrão",
     "emailadd.default_choosing": "A escolher {account} como padrão…",
     "emailadd.default_not_chosen": "Não escolhido — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "não pôde ser lido como conta",
     "email.state.unknown": "Esta conta está num estado que a VOOL não reconhece."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

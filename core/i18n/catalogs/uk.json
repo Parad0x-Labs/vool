@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "Відкрити сторінку паролів застосунків",
     "emailadd.microsoft_not_yet": "Адреси Outlook, Hotmail і Live поки не можна додати тут. Microsoft пускає інші застосунки лише через власний вхід, а у VOOL його ще немає.",
     "emailadd.service.other": "Інша пошта",
+    "emailadd.source.chat": "обрана для цього чату",
+    "emailadd.source.global": "ваша скринька за замовчуванням",
+    "emailadd.source.legacy_default": "використовується, бо називається «default»",
+    "emailadd.source.only_account": "єдина скринька",
+    "emailadd.source.other": "обрана іншим способом",
     "emailadd.use_default": "Зробити основною",
     "emailadd.default_choosing": "Вибирається {account} як основна…",
     "emailadd.default_not_chosen": "Не вибрано — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "не вдалося прочитати як обліковий запис",
     "email.state.unknown": "Цей обліковий запис у стані, який VOOL не розпізнає."
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }

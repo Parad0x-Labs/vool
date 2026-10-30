@@ -2863,6 +2863,11 @@
     "emailadd.steps_link": "打开应用密码页面",
     "emailadd.microsoft_not_yet": "目前还无法在这里添加 Outlook、Hotmail 和 Live 地址。Microsoft 只允许其他应用通过它自己的登录方式接入，而 VOOL 还不支持。",
     "emailadd.service.other": "其他邮箱",
+    "emailadd.source.chat": "为本次聊天所选",
+    "emailadd.source.global": "你的默认账户",
+    "emailadd.source.legacy_default": "因名为“default”而被使用",
+    "emailadd.source.only_account": "唯一的账户",
+    "emailadd.source.other": "通过其他方式选择",
     "emailadd.use_default": "设为默认",
     "emailadd.default_choosing": "正在将 {account} 设为默认…",
     "emailadd.default_not_chosen": "未选择 — {reason}",
@@ -2877,7 +2882,7 @@
     "email.state.unreadable": "无法作为账户读取",
     "email.state.unknown": "此账户处于 VOOL 无法识别的状态。"
   },
-  "source_catalog_sha256": "6389156b2f78b4508d836992ee7513a15edf55e62bf78fec7f6cb446b1aa605f",
+  "source_catalog_sha256": "8e37b3f82e2e3d5f658c32fb49e856efc323e66a8408d969274a8f9e4e346c96",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -2886,6 +2891,7 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "email_provider_presets_addendum": "10 keys translated by the lane author (single writer)",
-    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)"
+    "email_rows_plain_words_addendum": "23 keys translated by the lane author (single writer)",
+    "email_source_words_addendum": "5 keys translated by the lane author (single writer)"
   }
 }
