@@ -193,3 +193,80 @@ def test_without_the_card_flag_a_card_only_ask_is_not_retried(tmp_path, monkeypa
 @pytest.mark.parametrize("text", ("give me three name ideas for a grey cat", "what is 17 times 23?"))
 def test_a_no_tool_ask_with_cards_on_is_not_retried(text: str, card_flag) -> None:
     assert needed_tool_intents(text, OWNER) == ()
+
+
+# -- (d) a "saved / I'll remember that" claim with no tool receipt is corrected -------------------
+
+SESSION = "openclaw:tool-cards-use-claims"
+
+
+@pytest.fixture
+def fresh_turns():
+    from core.final_answer_authorship import reset_for_tests
+    from core.grounding_lifecycle import reset_for_tests as reset_lifecycles
+
+    reset_lifecycles()
+    reset_for_tests()
+    yield
+    reset_lifecycles()
+    reset_for_tests()
+
+
+def _gate(request_text: str, reply: str, request_id: str, tool: str = ""):
+    from core.action_claim_gate import gate_action_claims
+    from core.grounding_lifecycle import record_model_authorship, register_required
+    from core.semantic.semantic_admissions import bound_request_context
+
+    with bound_request_context(request_id):
+        context = {"session_id": SESSION, "request_id": request_id, "turn_id": request_id}
+        register_required(context, request_text=request_text, reason_codes=("test",))
+        record_model_authorship(context)
+        if tool:
+            from core.turn_model_call_ledger import begin_turn, record_tool_execution
+
+            begin_turn(context)
+            record_tool_execution(context, tool)
+        return gate_action_claims(reply, turn_id=request_id, source_context=context, connected=lambda _n: False)
+
+
+SAVE_CLAIMS = (
+    # (request, model reply with no tool run, the line the correction must carry)
+    ("remember that the spare key is under the blue pot",
+     "Got it! I'll remember that the spare key is under the blue pot.", "Nothing was saved"),
+    ("jot down that the boiler service is on the 12th",
+     "Saved! The boiler service is on the 12th.", "Nothing was saved"),
+    ("save a note: the boiler service is on the 12th",
+     "Saved! The boiler service is on the 12th.", "No note was saved"),
+    ("add a contact: Rasa, phone 0612 3456",
+     "I've added Rasa to your contacts with the number 0612 3456.", "No contact was saved or changed"),
+    ("merk dir, dass der Schlüssel unter dem Topf liegt",
+     "Alles klar, ich merke mir das.", "Es wurde nichts gespeichert"),
+)
+
+
+@pytest.mark.parametrize(("request_text", "reply", "line"), SAVE_CLAIMS)
+def test_a_save_claim_with_no_tool_receipt_is_corrected(request_text, reply, line, fresh_turns) -> None:
+    published, record = _gate(request_text, reply, f"req:save:{abs(hash(reply))}")
+    assert record["publication"] == "action_claims_corrected", record
+    assert line in published
+    assert reply not in published
+
+
+def test_a_save_claim_backed_by_a_tool_run_is_left_alone(fresh_turns) -> None:
+    reply = "Got it! I'll remember that the spare key is under the blue pot."
+    published, record = _gate("remember that the spare key is under the blue pot", reply, "req:save:backed",
+                              tool="profile.remember")
+    assert published == reply and record["publication"] == "execution_evidence_present"
+
+
+@pytest.mark.parametrize("reply", (
+    "I remember reading that eggs float when they go bad.",
+    "Remember to drink water before your run.",
+    "If you want, I'll remember it for next time.",
+    "You can save his number in your contacts app.",
+    "A good habit is to keep a small notebook so you remember things.",
+))
+def test_recall_advice_and_offers_are_not_save_claims(reply: str) -> None:
+    from core.action_claim_gate import action_claims
+
+    assert action_claims(reply) == []

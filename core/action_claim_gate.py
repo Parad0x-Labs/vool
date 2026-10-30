@@ -100,6 +100,14 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"\b(?:skills?|comp[ée]tences?|habilidad(?:es)?|f[äa]higkeit(?:en)?)\b", re.I),
     ),
     (
+        "contacts",
+        re.compile(
+            r"\b(?:contacts?(?: list)?|address book|phone ?book|contactos?|kontakte?|kontaktliste"
+            r"|carnet d" + _A + r"adresses|r[ée]pertoire|agenda de contactos)\b",
+            re.I,
+        ),
+    ),
+    (
         "model",
         re.compile(
             r"\b(?:(?:local|cloud|ai|language|chat|default|smaller|larger|bigger|faster|slower|small|large|other) model|gpt-[\w.]+|qwen[\w.:]*|llama[\w.:]*|ollama"
@@ -118,9 +126,34 @@ _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    (
+        # A promise to keep something for later, said with no tool: "I'll remember that", "I've
+        # stored it", "Saved!". Named only when no other source is (see `_sources_of`), so "I've
+        # saved a note" stays a notes claim.
+        "memory",
+        re.compile(
+            r"\b(?:remember(?:ed)?|memori[sz]ed?|in mind|stored|saved|made a note|noted (?:that|this|it|down)"
+            r"|je m" + _A + r"en souviendrai|je (?:le |la )?retiens|enregistr[ée]e?|lo recordar[ée]|me acordar[ée]"
+            r"|lo guard[ée]|ich merke (?:es )?mir|gemerkt|gespeichert)\b",
+            re.I,
+        ),
+    ),
 )
 
 # ---- claim forms -------------------------------------------------------------------------------
+# Keeping something for later. The present "I remember ..." is recall, not a promise, so a bare
+# "I" takes only the done forms.
+_MEMORY_CLAIM = re.compile(
+    r"\b(?:i" + _A + r"ll|i will|i" + _A + r"m going to|i am going to)\s+(?:(?:also|now|definitely|surely)\s+)*"
+    r"(?:remember|memori[sz]e|store|keep (?:that|this|it|those|these) in mind|make a note)\b"
+    r"|\b(?:i" + _A + r"ve|i have|i)\s+(?:(?:also|now|just|already)\s+)*"
+    r"(?:remembered|memori[sz]ed|stored|saved|made a note|noted (?:that|this|it|down))\b"
+    r"|^(?:saved|stored|remembered|memori[sz]ed)\b"
+    r"|\bje m" + _A + r"en souviendrai\b|\bje (?:le |la |l" + _A + r")?(?:retiens|garde en m[ée]moire)\b"
+    r"|\b(?:lo|la) recordar[ée]\b|\bme acordar[ée]\b|\b(?:lo|la) guard[ée]\b"
+    r"|\bich merke (?:es |das )?mir\b|\bich habe (?:es |das |mir das )?(?:mir )?gemerkt\b",
+    re.I,
+)
 _DONE_PARTICIPLES = (
     r"sent|emailed|texted|tweeted|messaged|posted|added|put|scheduled|rescheduled|booked|set(?: up)?|saved|noted"
     r"|created|moved|updated|changed|cancel+ed|deleted|removed|forwarded|archived|cleaned(?: up)?|started"
@@ -305,6 +338,9 @@ _LEAD_FILLER = re.compile(
     re.I,
 )
 _CODE_REPLY_SOURCES = frozenset({"settings", "skills", "model", "files"})
+# Where a "Saved!" could have gone, when the request names it; any other word in the request
+# ("the boiler service") is the thing kept, not the place.
+_KEEPING_SOURCES = frozenset({"notes", "contacts", "reminders", "calendar"})
 
 
 _ABBREVIATION = re.compile(r"\b(Dr|Mr|Mrs|Ms|St|vs)\.", re.I)
@@ -325,6 +361,8 @@ def _claim_form(sentence: str) -> str:
         return "action"
     if not body:
         return ""
+    if _MEMORY_CLAIM.search(body):
+        return "action"
     if _FIRST_PERSON_ACTION.search(body) or _PASSIVE_DONE.search(body) or _NOUN_DONE.search(body):
         return "action"
     if _SUBJECTLESS_DONE.search(body):
@@ -344,6 +382,8 @@ def _claim_form(sentence: str) -> str:
 
 def _sources_of(sentence: str, form: str) -> list[str]:
     found = [name for name, words in _SOURCES if words.search(sentence)]
+    if "memory" in found and len(found) > 1:
+        found.remove("memory")
     if not found and form == "read" and _FREE_SLOT.search(_LEAD_FILLER.sub("", sentence).strip()):
         found = ["calendar"]
     if not found and form == "action" and _DONE_MARK.search(sentence):
@@ -468,6 +508,9 @@ _LINES: dict[str, dict[str, str]] = {
         "reminders_read": "I haven't checked your reminders. Ask me to list them and I'll look.",
         "notes_read": "I haven't looked through your notes. Ask me to search your notes and I'll look.",
         "device_read": "I haven't checked your other machine.",
+        "contacts": "No contact was saved or changed. Ask me again and I'll use your contacts.",
+        "contacts_read": "I haven't looked in your contacts. Ask me to look them up and I'll check.",
+        "memory": "Nothing was saved: no tool stored it. Ask me to save it as a note and I'll keep it.",
         "generic": "Nothing was done yet: no tool ran for this request. Ask again and I'll do it with the right tool.",
     },
     "fr": {
@@ -490,6 +533,9 @@ _LINES: dict[str, dict[str, str]] = {
         "reminders_read": "Je n'ai pas consulté vos rappels. Demandez-moi de les lister et je regarderai.",
         "notes_read": "Je n'ai pas parcouru vos notes. Demandez-moi de chercher dans vos notes et je regarderai.",
         "device_read": "Je n'ai pas vérifié votre autre machine.",
+        "contacts": "Aucun contact n'a été enregistré ni modifié. Redemandez et j'utiliserai vos contacts.",
+        "contacts_read": "Je n'ai pas consulté vos contacts. Demandez-moi de les chercher et je vérifierai.",
+        "memory": "Rien n'a été enregistré : aucun outil ne l'a conservé. Demandez-moi de l'enregistrer comme note et je le garderai.",
         "generic": "Rien n'a encore été fait : aucun outil n'a été utilisé pour cette demande. Redemandez et je le ferai avec le bon outil.",
     },
     "es": {
@@ -512,6 +558,9 @@ _LINES: dict[str, dict[str, str]] = {
         "reminders_read": "No he revisado tus recordatorios. Pídeme que los liste y lo miraré.",
         "notes_read": "No he revisado tus notas. Pídeme que busque en tus notas y lo miraré.",
         "device_read": "No he revisado tu otra máquina.",
+        "contacts": "No se ha guardado ni cambiado ningún contacto. Vuelve a pedirlo y usaré tus contactos.",
+        "contacts_read": "No he mirado tus contactos. Pídeme que los busque y lo comprobaré.",
+        "memory": "No se ha guardado nada: ninguna herramienta lo almacenó. Pídeme que lo guarde como nota y lo conservaré.",
         "generic": "Todavía no se ha hecho nada: no se usó ninguna herramienta para esta petición. Vuelve a pedirlo y lo haré con la herramienta adecuada.",
     },
     "de": {
@@ -534,6 +583,9 @@ _LINES: dict[str, dict[str, str]] = {
         "reminders_read": "Ich habe deine Erinnerungen nicht geprüft. Bitte mich, sie aufzulisten, und ich sehe nach.",
         "notes_read": "Ich habe deine Notizen nicht durchgesehen. Bitte mich, deine Notizen zu durchsuchen, und ich sehe nach.",
         "device_read": "Ich habe dein anderes Gerät nicht geprüft.",
+        "contacts": "Es wurde kein Kontakt gespeichert oder geändert. Frag noch einmal, und ich nutze deine Kontakte.",
+        "contacts_read": "Ich habe deine Kontakte nicht durchgesehen. Bitte mich, sie nachzuschlagen, und ich sehe nach.",
+        "memory": "Es wurde nichts gespeichert: Kein Werkzeug hat es abgelegt. Bitte mich, es als Notiz zu speichern, und ich behalte es.",
         "generic": "Es wurde noch nichts gemacht: Für diese Anfrage lief kein Werkzeug. Frag noch einmal, und ich mache es mit dem richtigen Werkzeug.",
     },
 }
@@ -737,12 +789,16 @@ def gate_action_claims(
         pass
     if _any_execution(turn_id, source_context):
         return text, {"action_claims": sources, "publication": "execution_evidence_present"}
-    if "generic" in sources and request:
-        # "✅ Sent" names nothing; the request says what it was about.
-        from_request = [name for name, words in _SOURCES if words.search(request)]
-        if from_request:
-            claims = [(c[0], c[1], from_request[0] if c[2] == "generic" else c[2]) for c in claims]
-            sources = list(dict.fromkeys(c[2] for c in claims))
+    if ("generic" in sources or "memory" in sources) and request:
+        # "✅ Sent" names nothing, and "Saved!" names only that something was kept; the request
+        # says what it was about ("save a note: ...", "add a contact: ...").
+        from_request = [name for name, words in _SOURCES if words.search(request) and name != "memory"]
+        keeps = [name for name in from_request if name in _KEEPING_SOURCES]
+        claims = [
+            (c[0], c[1], (from_request[0] if from_request and c[2] == "generic" else keeps[0] if keeps and c[2] == "memory" else c[2]))
+            for c in claims
+        ]
+        sources = list(dict.fromkeys(c[2] for c in claims))
     if any(source != "generic" for source in sources):
         # "Done! I set a timer." -- the named source carries the line; no extra generic one.
         claims = [(c[0], c[1], next(s for s in sources if s != "generic") if c[2] == "generic" else c[2]) for c in claims]
