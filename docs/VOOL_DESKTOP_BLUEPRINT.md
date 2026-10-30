@@ -1,6 +1,6 @@
 # VOOL Local Desktop
 
-> **Design document, mostly not built.** Only what the README and [release status](trust/release-status.md) list is released in 0.7.5. Everything else here is planned for 0.8 or later, not released yet.
+> **Design document, mostly not built.** Only what the README and [release status](trust/release-status.md) list is released in 0.7.6. Everything else here is planned for 0.8 or later, not released yet.
 
 ## Complete Product, UX, Architecture, Security, Plugin, Testing, and Delivery Blueprint
 
