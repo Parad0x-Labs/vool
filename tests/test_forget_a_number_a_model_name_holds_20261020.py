@@ -13,6 +13,7 @@ from pathlib import Path
 
 import tests.test_private_chat_served_workflow as served_workflow
 from core.memory.carriers import carries
+from core.memory.copies import FORGET_LIST_NOTE
 from core.memory.run_history import _unclassified_payload
 from tests._blackbox_served_rig import ServedDaemon, run_in_home
 from tests._served_sufficiency_provider import SEED
@@ -69,9 +70,9 @@ def test_served_forget_of_the_number_in_the_models_name_is_applied(tmp_path, mon
 
             assert "Locked in" in _stream(daemon, "Remember that my locker is 12.", chat)[0]
             forgot, _ = _stream(daemon, "Forget 12.", chat)
-            assert forgot == "Forget applied. Removed 1 memory entry.", forgot
+            assert forgot == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, forgot
 
             # The chat is not left half-forgotten: the next fact is kept and the next forget applies.
             assert "Locked in" in _stream(daemon, "Remember that my gate code is 61.", chat)[0]
             again, _ = _stream(daemon, "Forget 61.", chat)
-            assert again == "Forget applied. Removed 1 memory entry.", again
+            assert again == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, again

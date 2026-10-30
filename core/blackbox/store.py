@@ -18,7 +18,7 @@ from __future__ import annotations
 import contextlib
 import os
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -321,6 +321,48 @@ class BlackboxStore:
                 }
             )
             return {"pruned_turn_ids": pruned_ids, "blobs_deleted": deleted, "bytes_freed": freed}
+
+    # -- forget --------------------------------------------------------------------------------
+    def copies_carrying(self, carries: Callable[[bytes], bool], *, sessions: set[str]) -> list[str]:
+        """The turns of ``sessions`` whose undo copies hold what ``carries`` finds (a chat forget's words).
+        A copy another chat's turn also refers to stays that turn's."""
+        entries = self.entries()
+        turns = self.turn_index(entries)
+        found: set[str] = set()
+        for blob, owners in self._blob_references(entries).items():
+            eligible = {turn for turn in owners if turn in turns and not turns[turn].pruned and turns[turn].sessions <= sessions}
+            if eligible and self.blobs.has(blob) and carries(self.blobs.get(blob)):
+                found |= eligible
+        return sorted(found)
+
+    def forget_copies(self, carries: Callable[[bytes], bool], *, sessions: set[str]) -> int:
+        """Drop the undo copies of the turns ``copies_carrying`` names and SAY SO in the journal, as retention
+        does: the journal entries stay, the turns are marked pruned and refuse restoration afterwards."""
+        with self.exclusive():
+            turn_ids = self.copies_carrying(carries, sessions=sessions)
+            if not turn_ids:
+                return 0
+            entries = self.entries()
+            pruned = set(turn_ids) | {t.turn_id for t in self.turn_index(entries).values() if t.pruned}
+            deleted = 0
+            freed = 0
+            for blob, owners in self._blob_references(entries).items():
+                if owners and owners <= pruned and self.blobs.has(blob):
+                    with contextlib.suppress(OSError):
+                        freed += self.blobs.path_for(blob).stat().st_size
+                    if self.blobs.delete(blob):
+                        deleted += 1
+            self.append(
+                {
+                    "schema": "blackbox_effect_v1",
+                    "kind": "retention_pruned",
+                    "turn_ids": turn_ids,
+                    "blobs_deleted": deleted,
+                    "bytes_freed": freed,
+                    "policy": {"forget": True},
+                }
+            )
+            return deleted
 
     def maybe_auto_prune(self) -> dict[str, Any] | None:
         """Bounded retention without an operator: every N effects, enforce the configured
