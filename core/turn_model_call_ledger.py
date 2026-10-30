@@ -189,6 +189,23 @@ def begin_turn(source_context: dict[str, Any] | None) -> str:
     return ledger_id
 
 
+def carry_turn_ledger(source: dict[str, Any] | None, destination: dict[str, Any] | None) -> None:
+    """Stamp ``destination`` with the ledger ``source`` was opened under.
+
+    The served runtime opens the ledger on its own copy of the transport's context, and the
+    transport then finalizes with the context it holds. Without the stamp on that context the
+    claim gates read no ledger, so a turn that ran `contacts.search` read as one that ran
+    nothing and its answer was replaced with "I haven't looked in your contacts".
+    """
+    if not isinstance(source, dict) or not isinstance(destination, dict) or destination is source:
+        return
+    ledger_id = str(source.get(LEDGER_ID_KEY) or "").strip()
+    if not ledger_id:
+        return
+    destination[LEDGER_ID_KEY] = ledger_id
+    destination[LEDGER_TURN_KEY] = source.get(LEDGER_TURN_KEY, "")
+
+
 def _ledger(source_context: dict[str, Any] | None) -> _TurnLedger | None:
     """This turn's ledger, or None when the caller never opened one. Callers hold `_LOCK`."""
     ledger_id = str((source_context or {}).get(LEDGER_ID_KEY) or "").strip()
@@ -752,6 +769,7 @@ __all__ = [
     "ProviderCallAlreadyTerminalized",
     "ProviderCallAlreadyTerminalizedError",
     "begin_turn",
+    "carry_turn_ledger",
     "fail_pending_provider_calls",
     "record_presentation_selection",
     "record_provider_call",
