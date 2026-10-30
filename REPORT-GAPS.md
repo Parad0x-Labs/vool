@@ -205,86 +205,86 @@ BASE numbers for the new files come from the checks per fix above, not from this
 | `tests/pa_beta_gate/test_served_calendar_notes_workflows.py` | 3 passed | 3 passed | c9bc2c2 |
 | `tests/pa_beta_gate/test_served_notes_folder_scope_routing.py` | 26 passed | 26 passed | c9bc2c2 |
 | `tests/pa_beta_gate/test_served_notes_scope_between_requests.py` | 15 passed | 15 passed | c9bc2c2 |
-| `tests/pa_beta_gate/test_served_notes_scope_reading.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v5_notes_delivery_operations.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v6_native_notes_outcome_certainty.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v6_notes_journal_semantics.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v7_notes_receipt_identity.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v7_notes_receipt_restart.py` | not run | not run |  |
-| `tests/pa_beta_gate/test_v7_served_notes_receipt_identity.py` | not run | not run |  |
-| `tests/test_a_named_pdf_reaches_the_pdf_tools.py` | not run | not run |  |
-| `tests/test_bound_attachment_pdf_routing.py` | not run | not run |  |
-| `tests/test_pdf_scanned_multipage.py` | not run | not run |  |
-| `tests/effect_budget/test_door_command_machine.py` | 3 failed, 3 passed | not run |  |
-| `tests/foundation/test_r9c_fetch_gate.py` | 2 passed | not run |  |
-| `tests/gauntlet/test_contract_map_golden.py` | 5 passed | not run |  |
-| `tests/gauntlet/test_memory_and_needle.py` | 22 passed | not run |  |
-| `tests/pa_beta_gate/test_calendar_notes_intent_parsing.py` | 40 passed | not run |  |
-| `tests/pa_beta_gate/test_served_notes_precedence_residuals.py` | 54 passed, 3 xfailed | not run |  |
-| `tests/pa_beta_gate/test_v5_ingress_ownership_units.py` | 21 passed | not run |  |
-| `tests/pa_beta_gate/test_v5_request_words_not_path_words.py` | 15 passed | not run |  |
-| `tests/test_a_file_can_be_found_by_name.py` | 10 passed | not run |  |
-| `tests/test_a_hardware_word_is_not_a_hardware_question.py` | 57 passed | not run |  |
-| `tests/test_a_machine_clause_binds_the_machine_capability.py` | 7 passed, 4 warnings | not run |  |
-| `tests/test_a_machine_clause_is_visible_to_the_arbitration.py` | 6 passed | not run |  |
-| `tests/test_a_near_miss_never_guesses_a_machine_read.py` | 51 passed | not run |  |
-| `tests/test_a_specs_word_is_not_a_specs_question.py` | 38 passed | not run |  |
-| `tests/test_a_topic_word_is_not_a_runtime_question.py` | 42 passed | not run |  |
-| `tests/test_a_typo_still_reaches_the_tool.py` | 128 passed | not run |  |
-| `tests/test_a_url_is_not_a_local_file_path.py` | 52 passed | not run |  |
-| `tests/test_archive_counts_files_not_folders.py` | 2 passed, 1 skipped | not run |  |
-| `tests/test_audit_machine_tools.py` | 3 passed | not run |  |
-| `tests/test_bare_machine_specs_reaches_the_tool.py` | 39 passed | not run |  |
-| `tests/test_bound_attachment_display_arbitration.py` | 11 passed | not run |  |
-| `tests/test_build_lane_qa_gauntlet.py` | 63 passed | not run |  |
-| `tests/test_chat_mutation_endpoints_owner_local.py` | 7 passed | not run |  |
-| `tests/test_effect_gate_a1.py` | 17 passed | not run |  |
-| `tests/test_email_revision5_corrections.py` | 1 failed, 84 passed | not run |  |
-| `tests/test_expand_family_offer_order.py` | 5 passed | not run |  |
-| `tests/test_expansion_drain_is_owner_local.py` | 3 passed | not run |  |
-| `tests/test_expansion_seats_the_family_in_full.py` | 1 failed, 3 passed | not run |  |
-| `tests/test_explicit_no_action_policy.py` | 12 passed | not run |  |
-| `tests/test_fast_path_gate_parity.py` | 26 passed | not run |  |
-| `tests/test_find_named_file.py` | 120 passed | not run |  |
-| `tests/test_folder_audit.py` | 6 passed | not run |  |
-| `tests/test_folder_overview.py` | 11 passed | not run |  |
-| `tests/test_general_knowledge_is_not_a_workspace_read.py` | 62 passed | not run |  |
-| `tests/test_history_machine_request_targets.py` | 6 passed | not run |  |
-| `tests/test_history_reported_instruction_boundaries.py` | 12 passed | not run |  |
-| `tests/test_history_request_clause_limits.py` | 6 passed | not run |  |
-| `tests/test_history_requested_action_grammar.py` | 76 passed | not run |  |
-| `tests/test_intent_arbiter_dispatch.py` | 10 passed | not run |  |
-| `tests/test_intent_claims.py` | 5 passed | not run |  |
-| `tests/test_live_data_coverage_note.py` | 12 passed | not run |  |
-| `tests/test_machine_fast_path_events.py` | 5 passed | not run |  |
-| `tests/test_machine_find_folder_paths.py` | 11 passed | not run |  |
-| `tests/test_machine_find_folder_phrasings.py` | 23 passed | not run |  |
-| `tests/test_machine_followup_routing.py` | 7 passed | not run |  |
-| `tests/test_machine_list_directory_phrasings.py` | 67 passed | not run |  |
-| `tests/test_machine_question_fast_paths.py` | 39 passed | not run |  |
-| `tests/test_machine_read_file_phrasings.py` | 27 passed | not run |  |
-| `tests/test_machine_read_memory.py` | 4 passed | not run |  |
-| `tests/test_machine_result_agent_contract.py` | 5 passed | not run |  |
-| `tests/test_machine_tools.py` | 25 passed | not run |  |
-| `tests/test_machine_tools_adversarial.py` | 6 passed | not run |  |
-| `tests/test_media_editor_is_owner_local.py` | 5 passed | not run |  |
-| `tests/test_named_file_build_reaches_the_builder.py` | 67 passed | not run |  |
-| `tests/test_note_tool_calls_reach_their_handlers.py` | 5 passed | not run |  |
-| `tests/test_note_tool_calls_served.py` | 15 errors | not run |  |
-| `tests/test_notes_scope_reader.py` | 71 passed | not run |  |
-| `tests/test_openclaw_tooling_context.py` | 1 failed, 142 passed | not run |  |
-| `tests/test_operator_wording_seats_owner_local.py` | 140 passed | not run |  |
-| `tests/test_paid_gate_owner_local_hardening.py` | 2 passed | not run |  |
-| `tests/test_path_beats_keyword_routing.py` | 34 passed | not run |  |
-| `tests/test_pdf_and_skill_tools.py` | 27 passed, 6 skipped | not run |  |
-| `tests/test_planner_named_folder_listing.py` | 20 passed | not run |  |
-| `tests/test_remote_turn_research_requires_the_owner.py` | 9 passed | not run |  |
-| `tests/test_remote_turn_tool_fence.py` | 25 passed, 8 warnings | not run |  |
-| `tests/test_request_after_plain_statement_grammar.py` | 29 passed | not run |  |
-| `tests/test_routing_reliability_acceptance.py` | 100 passed, 19 warnings | not run |  |
-| `tests/test_save_and_picture_routing_20261029.py` | 70 passed | not run |  |
-| `tests/test_served_remote_turn_refusals.py` | 5 passed | not run |  |
-| `tests/test_simple_file_write_routing.py` | 68 passed, 3 warnings | not run |  |
+| `tests/pa_beta_gate/test_served_notes_scope_reading.py` | 72 passed | 72 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v5_notes_delivery_operations.py` | 17 passed, 1 skipped | 17 passed, 1 skipped | c9bc2c2 |
+| `tests/pa_beta_gate/test_v6_native_notes_outcome_certainty.py` | 24 passed | 24 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v6_notes_journal_semantics.py` | 19 passed | 19 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v7_notes_receipt_identity.py` | 25 passed | 25 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v7_notes_receipt_restart.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v7_served_notes_receipt_identity.py` | 2 passed | 2 passed | c9bc2c2 |
+| `tests/test_a_named_pdf_reaches_the_pdf_tools.py` | 12 passed, 21 skipped | 12 passed, 21 skipped | c9bc2c2 |
+| `tests/test_bound_attachment_pdf_routing.py` | 4 passed | 4 passed | c9bc2c2 |
+| `tests/test_pdf_scanned_multipage.py` | 7 passed, 1 skipped | 7 passed, 1 skipped | c9bc2c2 |
+| `tests/effect_budget/test_door_command_machine.py` | 3 failed, 3 passed | 3 failed, 3 passed | c9bc2c2 |
+| `tests/foundation/test_r9c_fetch_gate.py` | 2 passed | 2 passed | c9bc2c2 |
+| `tests/gauntlet/test_contract_map_golden.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/gauntlet/test_memory_and_needle.py` | 22 passed | 22 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_calendar_notes_intent_parsing.py` | 40 passed | 40 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_served_notes_precedence_residuals.py` | 54 passed, 3 xfailed | 54 passed, 3 xfailed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v5_ingress_ownership_units.py` | 21 passed | 21 passed | c9bc2c2 |
+| `tests/pa_beta_gate/test_v5_request_words_not_path_words.py` | 15 passed | 15 passed | c9bc2c2 |
+| `tests/test_a_file_can_be_found_by_name.py` | 10 passed | 10 passed | c9bc2c2 |
+| `tests/test_a_hardware_word_is_not_a_hardware_question.py` | 57 passed | 57 passed | c9bc2c2 |
+| `tests/test_a_machine_clause_binds_the_machine_capability.py` | 7 passed, 4 warnings | 7 passed, 4 warnings | c9bc2c2 |
+| `tests/test_a_machine_clause_is_visible_to_the_arbitration.py` | 6 passed | 6 passed | c9bc2c2 |
+| `tests/test_a_near_miss_never_guesses_a_machine_read.py` | 51 passed | 51 passed | c9bc2c2 |
+| `tests/test_a_specs_word_is_not_a_specs_question.py` | 38 passed | 38 passed | c9bc2c2 |
+| `tests/test_a_topic_word_is_not_a_runtime_question.py` | 42 passed | 42 passed | c9bc2c2 |
+| `tests/test_a_typo_still_reaches_the_tool.py` | 128 passed | 128 passed | c9bc2c2 |
+| `tests/test_a_url_is_not_a_local_file_path.py` | 52 passed | 52 passed | c9bc2c2 |
+| `tests/test_archive_counts_files_not_folders.py` | 2 passed, 1 skipped | 2 passed, 1 skipped | c9bc2c2 |
+| `tests/test_audit_machine_tools.py` | 3 passed | 3 passed | c9bc2c2 |
+| `tests/test_bare_machine_specs_reaches_the_tool.py` | 39 passed | 39 passed | c9bc2c2 |
+| `tests/test_bound_attachment_display_arbitration.py` | 11 passed | 11 passed | c9bc2c2 |
+| `tests/test_build_lane_qa_gauntlet.py` | 63 passed | 63 passed | c9bc2c2 |
+| `tests/test_chat_mutation_endpoints_owner_local.py` | 7 passed | 7 passed | c9bc2c2 |
+| `tests/test_effect_gate_a1.py` | 17 passed | 17 passed | c9bc2c2 |
+| `tests/test_email_revision5_corrections.py` | 1 failed, 84 passed | 1 failed, 84 passed | c9bc2c2 |
+| `tests/test_expand_family_offer_order.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_expansion_drain_is_owner_local.py` | 3 passed | 3 passed | c9bc2c2 |
+| `tests/test_expansion_seats_the_family_in_full.py` | 1 failed, 3 passed | 1 failed, 3 passed | c9bc2c2 |
+| `tests/test_explicit_no_action_policy.py` | 12 passed | 12 passed | c9bc2c2 |
+| `tests/test_fast_path_gate_parity.py` | 26 passed | 26 passed | c9bc2c2 |
+| `tests/test_find_named_file.py` | 120 passed | 120 passed | c9bc2c2 |
+| `tests/test_folder_audit.py` | 6 passed | 6 passed | c9bc2c2 |
+| `tests/test_folder_overview.py` | 11 passed | 11 passed | c9bc2c2 |
+| `tests/test_general_knowledge_is_not_a_workspace_read.py` | 62 passed | 62 passed | c9bc2c2 |
+| `tests/test_history_machine_request_targets.py` | 6 passed | 6 passed | c9bc2c2 |
+| `tests/test_history_reported_instruction_boundaries.py` | 12 passed | 12 passed | c9bc2c2 |
+| `tests/test_history_request_clause_limits.py` | 6 passed | 6 passed | c9bc2c2 |
+| `tests/test_history_requested_action_grammar.py` | 76 passed | 76 passed | c9bc2c2 |
+| `tests/test_intent_arbiter_dispatch.py` | 10 passed | 10 passed | c9bc2c2 |
+| `tests/test_intent_claims.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_live_data_coverage_note.py` | 12 passed | 12 passed | c9bc2c2 |
+| `tests/test_machine_fast_path_events.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_machine_find_folder_paths.py` | 11 passed | 11 passed | c9bc2c2 |
+| `tests/test_machine_find_folder_phrasings.py` | 23 passed | 23 passed | c9bc2c2 |
+| `tests/test_machine_followup_routing.py` | 7 passed | 7 passed | c9bc2c2 |
+| `tests/test_machine_list_directory_phrasings.py` | 67 passed | 67 passed | c9bc2c2 |
+| `tests/test_machine_question_fast_paths.py` | 39 passed | 39 passed | c9bc2c2 |
+| `tests/test_machine_read_file_phrasings.py` | 27 passed | 27 passed | c9bc2c2 |
+| `tests/test_machine_read_memory.py` | 4 passed | 4 passed | c9bc2c2 |
+| `tests/test_machine_result_agent_contract.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_machine_tools.py` | 25 passed | 25 passed | c9bc2c2 |
+| `tests/test_machine_tools_adversarial.py` | 6 passed | 6 passed | c9bc2c2 |
+| `tests/test_media_editor_is_owner_local.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_named_file_build_reaches_the_builder.py` | 67 passed | 67 passed | c9bc2c2 |
+| `tests/test_note_tool_calls_reach_their_handlers.py` | 5 passed | 5 passed | c9bc2c2 |
+| `tests/test_note_tool_calls_served.py` | 15 errors | 15 errors | 825c2ec |
+| `tests/test_notes_scope_reader.py` | 71 passed | 71 passed | 825c2ec |
+| `tests/test_openclaw_tooling_context.py` | 1 failed, 142 passed | 1 failed, 142 passed | 825c2ec |
+| `tests/test_operator_wording_seats_owner_local.py` | 140 passed | 140 passed | 825c2ec |
+| `tests/test_paid_gate_owner_local_hardening.py` | 2 passed | 2 passed | 825c2ec |
+| `tests/test_path_beats_keyword_routing.py` | 34 passed | 34 passed | 825c2ec |
+| `tests/test_pdf_and_skill_tools.py` | 27 passed, 6 skipped | 27 passed, 6 skipped | 825c2ec |
+| `tests/test_planner_named_folder_listing.py` | 20 passed | 20 passed | 825c2ec |
+| `tests/test_remote_turn_research_requires_the_owner.py` | 9 passed | 9 passed | 825c2ec |
+| `tests/test_remote_turn_tool_fence.py` | 25 passed, 8 warnings | 25 passed, 8 warnings | 825c2ec |
+| `tests/test_request_after_plain_statement_grammar.py` | 29 passed | 29 passed | 825c2ec |
+| `tests/test_routing_reliability_acceptance.py` | 100 passed, 19 warnings | 100 passed, 19 warnings | 825c2ec |
+| `tests/test_save_and_picture_routing_20261029.py` | 70 passed | 70 passed | 825c2ec |
+| `tests/test_served_remote_turn_refusals.py` | 5 passed | 5 passed | 825c2ec |
+| `tests/test_simple_file_write_routing.py` | 68 passed, 3 warnings | 68 passed, 3 warnings | 825c2ec |
 | `tests/test_skill_narrowing_keeps_wording_and_expanded_seats.py` | 2 passed | 2 passed | 825c2ec |
 | `tests/test_the_download_lane_is_gated_like_the_read_lane.py` | 11 passed | 11 passed | 825c2ec |
 | `tests/test_the_download_lane_refuses_internal_addresses.py` | 13 passed | 13 passed | 825c2ec |
@@ -296,40 +296,31 @@ BASE numbers for the new files come from the checks per fix above, not from this
 | `tests/test_toolsmith_project_bound_reads.py` | 46 passed | 46 passed | 825c2ec |
 | `tests/test_toolsmith_write_root_path_extraction.py` | 51 passed | 51 passed | 825c2ec |
 | `tests/test_turn_isolation.py` | 20 passed | 20 passed | 825c2ec |
-| `tests/test_v050_fast_path_costs_no_speculative_inference.py` | not run | 26 passed | 825c2ec |
-| `tests/test_v2_pack_root_cause_repairs.py` | not run | 20 passed | 825c2ec |
+| `tests/test_v050_fast_path_costs_no_speculative_inference.py` | 26 passed | 26 passed | 825c2ec |
+| `tests/test_v2_pack_root_cause_repairs.py` | 20 passed | 20 passed | 825c2ec |
 | `tests/test_wording_seats_need_an_ask_and_the_owners_own_object.py` | 11 failed, 210 passed | 11 failed, 210 passed | 825c2ec |
-| `tests/test_workspace_read_binding.py` | not run | 24 passed | 825c2ec |
-| `tests/test_workspace_read_is_auditable_in_activity.py` | not run | 4 passed, 1 skipped | 825c2ec |
-| `tests/test_workspace_read_probe_recursion.py` | not run | 9 passed | 825c2ec |
-| `tests/test_writing_a_command_is_not_running_one.py` | not run | 36 passed | 825c2ec |
-| `tests/test_writing_a_note_for_someone_is_not_saving_one.py` | not run | 53 passed | 825c2ec |
+| `tests/test_workspace_read_binding.py` | 24 passed | 24 passed | 825c2ec |
+| `tests/test_workspace_read_is_auditable_in_activity.py` | 4 passed, 1 skipped | 4 passed, 1 skipped | 825c2ec |
+| `tests/test_workspace_read_probe_recursion.py` | 9 passed | 9 passed | 825c2ec |
+| `tests/test_writing_a_command_is_not_running_one.py` | 36 passed | 36 passed | 825c2ec |
+| `tests/test_writing_a_note_for_someone_is_not_saving_one.py` | 53 passed | 53 passed | 825c2ec |
 
-Files run on both sides: 19. BASE passed/failed/skipped [530, 11, 2], HEAD [530, 11, 2].
+Files run on both sides: 106. BASE passed/failed/skipped [3081, 32, 33], HEAD [3081, 32, 33].
 New failures on HEAD (not failing on BASE): none
 Failures fixed on HEAD: none
-Same failures on both: 11
+Same failures on both: 17
 
-**Denominator:** 19 of 109 files ran on both sides when the time budget ran out:
-- 530 passed, 11 failed and 2 skipped on BASE; the same on HEAD.
-- 0 new failures on HEAD.
-- The 11 failures are in `test_wording_seats_need_an_ask_and_the_owners_own_object`. The same 11
-  fail on BASE (calendar wording asks), so they are not new.
+**Denominator: all 106 existing files ran on both sides.**
+- BASE and HEAD both: 3081 passed, 32 failed or errored, 33 skipped.
+- 0 new failures on HEAD and 0 fixed. The same failures appear on both sides:
+  - `test_wording_seats_need_an_ask_and_the_owners_own_object` 11 (calendar wording)
+  - `test_door_command_machine` 3
+  - `test_openclaw_tooling_context` 1
+  - `test_email_revision5_corrections` 1
+  - `test_expansion_seats_the_family_in_full` 1
+  - `test_note_tool_calls_served` 15 errors (its served-daemon rig does not start in this
+    container)
+- The 3 new files show "not run" on BASE. Their BASE numbers are in the per-fix sections above.
 
-Failures seen on BASE in files that HEAD (`c9bc2c2`/`825c2ec`) did not reach in time (not a
-comparison):
-- `test_door_command_machine` 3
-- `test_openclaw_tooling_context` 1
-- `test_email_revision5_corrections` 1
-- `test_expansion_seats_the_family_in_full` 1
-- `test_note_tool_calls_served` 15 errors (its served-daemon rig does not start in this container)
-
-An earlier HEAD run on fix 1 alone (`bfd2ed2`, stopped once the final head replaced it) finished
-55 of the 89 related files. All 55 matched BASE apart from timing, including the same failures
-in `test_door_command_machine` (3), `test_email_revision5_corrections` (1) and
-`test_expansion_seats_the_family_in_full` (1). That run reached neither `test_openclaw_tooling_context`
-nor `test_note_tool_calls_served`.
-
-No existing test was skipped, loosened or deleted. A file marked "not run" was not reached before
-the time budget ran out: a pass for it is unknown, not assumed. CI (verify, ten shards, macOS) has
+No existing test was skipped, loosened or deleted. CI (verify, ten shards, macOS) has
 not run on this head.
