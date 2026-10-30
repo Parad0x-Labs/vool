@@ -29,8 +29,11 @@ _LABEL_RE = re.compile(
     r"^\s*(?P<label>title|heading|headline|name|word|phrase|sentence|line)\s*:\s*(?P<body>\S.*)$",
     re.IGNORECASE,
 )
+# "Earlier" can describe a book, film, or outside person just as easily as this transcript.
+# The pronoun lookahead is case-mixed on purpose: a first-person "I" is capitalised mid-
+# sentence ("what did I ask you first") and must never read as a third-party name.
 _NAMED_EXTERNAL_ACTOR_RE = re.compile(
-    r"\b(?:did|does|has)\s+(?!(?:i|we|you)\b)[A-Z][A-Za-z'-]*"
+    r"\b(?:did|does|has)\s+(?![Ii]\b|[Ww]e\b|[Yy]ou\b)[A-Z][A-Za-z'-]*"
     r"(?:\s+[A-Z][A-Za-z'-]*){0,2}\b"
 )
 _TYPO_WORDS = {
@@ -78,6 +81,46 @@ _DOMAIN_NUMBER_BOUND_RE = re.compile(
     r"(?P<modifier>[a-z][a-z'’-]*)\s+(?P<head>numbers?|values?)\b",
     re.IGNORECASE,
 )
+
+# Order-of-asking recall ("what did I ask you first"): the person names their OWN place in
+# this chat's message order. Every alternative requires first-person deixis (I/we/my/our)
+# or an explicit this-chat anchor, so "the first question on the quiz" and "my first
+# question is how do I start a fresh chat" (introducing, not recalling) stay out. The
+# gap between verb and "first" blocks "to", which keeps "what did I ask you to do first"
+# (an ordering of ACTIONS, not of asks) on its own lane.
+_FIRST_OWN_ORDER_RE = re.compile(
+    r"\b(?:my|our)\s+first\s+(?:question|thing|message|ask|request)\b"
+    r"|\bfirst\s+(?:question|thing|message|ask|request)\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)\b"
+    r"|\bwhat\s+(?:did|have)\s+(?:i|we)\s+first\s+(?:ask|say|type|write|send|message|request)\b"
+    r"|\bwhat\s+(?:did|have)\s+(?:i|we)\s+(?:ask|say|type|write|send|message|request)"
+    r"(?:\s+(?!to\b)\w+){0,3}?\s+first\b"
+    r"|\bremind\s+me\s+(?:of\s+)?(?:what\s+)?(?:i|we)\s+(?:asked|said|typed|wrote|sent)"
+    r"[^.!?]{0,40}\bfirst\b"
+    r"|\bwhat\s+(?:was|is|were)\s+(?:the\s+)?first\s+(?:question|thing|message|ask|request)\b"
+    r"[^.!?]{0,40}\b(?:in|of|from)\s+this\s+(?:chat|conversation)\b",
+    re.IGNORECASE,
+)
+# "Before that" / "the one before": the message BEFORE the last one referenced. The bare
+# follow-up forms are anchored to the whole message so prose mentioning "the one before
+# the shelf" never gains transcript authority.
+_PREV_OWN_ORDER_RE = re.compile(
+    r"\bwhat\s+(?:did|have)\s+(?:i|we)\s+(?:ask|say|type|write|send|message|request)(?:ed)?"
+    r"(?:\s+(?!to\b)\w+){0,2}?\s+before\s+(?:that|this|it)\b(?!\s+\w)"
+    r"|\bremind\s+me\s+what\s+(?:i|we)\s+(?:asked|said)\s+before\s+(?:that|this|it)\b(?!\s+\w)"
+    r"|\b(?:what|how)\s+about\s+the\s+one\s+before\b"
+    r"|^\s*(?:and\s+|so\s+|then\s+|ok(?:ay)?[,.]?\s+)*"
+    r"(?:the\s+)?one\s+before(?:\s+(?:that|this|it))?\s*[?.]?\s*$"
+    r"|^\s*(?:and\s+|so\s+|then\s+|ok(?:ay)?[,.]?\s+)*before\s+that\s*[?.]?\s*$",
+    re.IGNORECASE,
+)
+# Our own quote replies double as the anchor the NEXT "before that" turn resolves against.
+_OWN_QUOTE_RE = re.compile(
+    r"(?:Your first question in this chat was|Before that, you asked):\s*\"(.*)\"\s*$"
+)
+# Full-chat read for order questions: the interesting row is the OLDEST, so the limit is
+# the whole chat rather than a window. The log walk is bounded by the file itself, and
+# this read happens only on an order-of-asking ask.
+_ORDER_READ_LIMIT = 1000
 
 
 @dataclass(frozen=True)
@@ -159,6 +202,157 @@ def _completed_visible_exchanges(
                 exchanges.append(exchange)
             pending_user = ""
     return tuple(exchanges)
+
+
+def _same_ask(first: str, second: str) -> bool:
+    return " ".join(str(first or "").lower().split()) == " ".join(str(second or "").lower().split())
+
+
+def _ordering_recall_kind(text: str) -> str:
+    """"first_question" / "previous_question" when the ask names the user's own order in THIS chat."""
+    if _FIRST_OWN_ORDER_RE.search(str(text or "")):
+        return "first_question"
+    if _PREV_OWN_ORDER_RE.search(str(text or "")):
+        return "previous_question"
+    return ""
+
+
+def _persisted_chat_rows(session_id: str) -> tuple[list[tuple[str, str]], bool]:
+    """This chat's persisted (user, assistant) rows, oldest first.
+
+    The row of the live turn is written at the response-commit boundary, so during the
+    turn the store holds only prior asks. Greeting rows carry no user text and drop out
+    here. ``ok`` is False only when the store could not be read at all — an empty list
+    with ``ok=True`` is a genuinely fresh chat.
+    """
+    normalized = str(session_id or "").strip()
+    if not normalized:
+        return [], False
+    try:
+        from core.persistent_memory import recent_conversation_events
+
+        events = recent_conversation_events(normalized, limit=_ORDER_READ_LIMIT)
+    except Exception:
+        return [], False
+    rows: list[tuple[str, str]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        user_text = str(event.get("user") or "").strip()
+        if user_text:
+            rows.append((user_text, str(event.get("assistant") or "").strip()))
+    return rows, True
+
+
+def _visible_chat_rows(source_context: dict[str, object] | None, *, current_ask: str) -> list[tuple[str, str]]:
+    """The current chat's own visible rows, minus the current ask itself.
+
+    The caller's copy of this turn is the final user row when no assistant reply follows
+    it; trailing rows equal to the ask cover a re-sent turn. Only this chat's transcript
+    is ever in ``conversation_history`` — no other chat is reachable from here.
+    """
+    history = [
+        item
+        for item in list((source_context or {}).get("conversation_history") or [])
+        if isinstance(item, dict)
+    ]
+    rows: list[tuple[str, str]] = []
+    for item in history:
+        role = str(item.get("role") or "").strip().lower()
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            rows.append((content, ""))
+        elif role == "assistant" and rows:
+            user_text, _ = rows[-1]
+            rows[-1] = (user_text, content)
+    if rows and history and str(history[-1].get("role") or "").strip().lower() == "user":
+        rows.pop()
+    while rows and _same_ask(rows[-1][0], current_ask):
+        rows.pop()
+    return rows
+
+
+def _ordering_question_answer(
+    ordering_kind: str,
+    rows: list[tuple[str, str]],
+) -> tuple[str, bool]:
+    """The message the ask names, from this chat's ordered user messages."""
+    messages = [user_text for user_text, _assistant in rows]
+    if ordering_kind == "first_question":
+        if not messages:
+            return "This is the first thing you've asked in this chat.", False
+        return f'Your first question in this chat was: "{messages[0]}"', True
+    assistant_texts = [assistant for _user, assistant in reversed(rows) if assistant]
+    anchor_index = len(messages) - 1
+    for assistant_text in assistant_texts:
+        for line in reversed(str(assistant_text).splitlines()):
+            quoted = _OWN_QUOTE_RE.search(line.strip())
+            if quoted is None:
+                continue
+            for index, message in enumerate(messages):
+                if _same_ask(message, quoted.group(1)):
+                    anchor_index = index
+                    break
+            else:
+                continue
+            break
+        else:
+            continue
+        break
+    if anchor_index <= 0:
+        return "You hadn't asked anything before that in this chat.", False
+    return f'Before that, you asked: "{messages[anchor_index - 1]}"', True
+
+
+def _question_order_recall(
+    user_input: str,
+    *,
+    ordering_kind: str,
+    session_id: str,
+    source_context: dict[str, object] | None,
+) -> TranscriptRecall | None:
+    """Answer an order-of-asking question from this chat's own persisted messages.
+
+    Persisted rows are the authority; the visible transcript is the fallback for a chat
+    the store cannot hold (a chat private from its first message persists nothing) or an
+    unreadable store with rows still on screen. Never another chat, never memory beyond
+    this chat's own transcript. When neither source can be read, the lane declines rather
+    than guess at an order it never saw.
+    """
+    context = dict(source_context or {})
+    if session_id:
+        context.setdefault("chat_id", session_id)
+    rows, store_ok = _persisted_chat_rows(session_id)
+    if not rows:
+        rows = _visible_chat_rows(source_context, current_ask=user_input)
+    if not rows:
+        visible_history = list((source_context or {}).get("conversation_history") or [])
+        if visible_history and not _authorize_transcript_payload(visible_history, context):
+            return _withheld_transcript_recall(ordering_kind)
+        if not store_ok:
+            # An unreadable store cannot prove the chat is empty; decline instead of
+            # asserting "first thing" over rows this lane never saw.
+            return None
+        response, found = _ordering_question_answer(ordering_kind, [])
+        return gate_transcript_recall(TranscriptRecall(
+            response=response,
+            recall_kind=ordering_kind,
+            found=found,
+            route_reason="authoritative_empty_chat_question_order",
+            source_exchanges=(),
+        ), source_context=context)
+    if not _authorize_transcript_payload(rows, context):
+        return _withheld_transcript_recall(ordering_kind)
+    response, found = _ordering_question_answer(ordering_kind, rows)
+    return gate_transcript_recall(TranscriptRecall(
+        response=response,
+        recall_kind=ordering_kind,
+        found=found,
+        route_reason="authoritative_persisted_question_order",
+        source_exchanges=tuple((user_text, "") for user_text, _assistant in rows),
+    ), source_context=context)
 
 
 def _response_entries(text: str) -> dict[int, str]:
@@ -312,6 +506,7 @@ def same_chat_transcript_recall_fast_path(
     *,
     source_surface: str,
     source_context: dict[str, object] | None,
+    session_id: str = "",
 ) -> TranscriptRecall | None:
     """Recall a typed value from completed visible exchanges without a provider or tool.
 
@@ -319,6 +514,9 @@ def same_chat_transcript_recall_fast_path(
     is re-evaluated but returned only when the visible reply contained that result; text is copied
     from a labelled answer part or from the response to a matching typed request. A typed request
     with no matching value returns a proved visible absence instead of asking a model to guess.
+    Order-of-asking questions ("what did I ask you first") read this chat's persisted user
+    messages directly — order is a fact of the transcript, not something a context window
+    reliably keeps.
     """
 
     if source_surface not in {"channel", "openclaw", "api"}:
@@ -330,6 +528,14 @@ def same_chat_transcript_recall_fast_path(
     # turning a stale local title into a purported answer about the outside subject.
     if _NAMED_EXTERNAL_ACTOR_RE.search(str(user_input or "")):
         return None
+    ordering_kind = _ordering_recall_kind(user_input)
+    if ordering_kind:
+        return _question_order_recall(
+            user_input,
+            ordering_kind=ordering_kind,
+            session_id=session_id,
+            source_context=source_context,
+        )
     exchanges = _completed_visible_exchanges(source_context)
     if not exchanges:
         if not _authorize_transcript_payload((source_context or {}).get("conversation_history"), source_context):

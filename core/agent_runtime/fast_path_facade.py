@@ -69,11 +69,13 @@ class FastPathFacadeMixin:
         *,
         source_surface: str,
         source_context: dict[str, object] | None,
+        session_id: str = "",
     ) -> object | None:
         return agent_fast_paths.same_chat_transcript_recall_fast_path(
             user_input,
             source_surface=source_surface,
             source_context=source_context,
+            session_id=session_id,
         )
 
     def _action_history_honesty_fast_path(
