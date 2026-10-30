@@ -519,7 +519,8 @@ def _handle_cancel_referent(
     The pointer means the last thing waiting: the most recently created still-pending reminder in
     this chat, else the newest still-waiting queued message. Either way the REAL cancel runs and
     the reply is its real result; when this chat holds nothing to point at, the reply says so
-    instead of claiming a cancel that did not happen. The turn's own message cannot be a
+    and asks which thing was meant, instead of claiming a cancel that did not happen or ending
+    the request as a failure. The turn's own message cannot be a
     candidate: a dispatched turn has claimed its queue row (it is in flight, not pending), and a
     reminder row only exists once a scheduling turn created it.
     """
@@ -568,11 +569,23 @@ def _handle_cancel_referent(
             response_text="That message was already on its way out, so I could not stop it there.",
             details={"kind": "cancel_queued_message", "queue_item_id": queue_item_id, "cancelled": False},
         )
+    # Nothing to point at is a question, not a failure: the person meant SOME thing by the
+    # pointer, so ask which one instead of ending the request. Routed as the operator lane's
+    # own ask-back shape (the Notes delete ask uses the same status), so a served turn asks
+    # plainly and the next reply can name the thing to cancel.
     return OperatorActionResult(
         ok=False,
-        status="invalid_request",
-        response_text="I couldn't find a reminder to cancel in this chat.",
-        details={"kind": "cancel_reminder", "referent": str(intent.referent), "resolved": False},
+        status="approval_required",
+        response_text=(
+            "I couldn't find a reminder to cancel in this chat, and no message is waiting to be "
+            "sent. What would you like me to cancel?"
+        ),
+        details={
+            "kind": "cancel_reminder",
+            "referent": str(intent.referent),
+            "resolved": False,
+            "requires_user_answer": True,
+        },
     )
 
 
