@@ -900,7 +900,7 @@ def send_draft(
             receipt = {
                 "outcome": result.status,
                 "message": result.message,
-                "message_id": str(result.details.get("message_id") or message_id),
+                "message_id": email_tools.normalize_message_id(result.details.get("message_id")) or message_id,
                 "reserved_message_id": message_id,
                 "to": list(canonical.get("to") or []),
                 "subject": str(canonical.get("subject") or ""),
