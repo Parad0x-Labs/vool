@@ -135,30 +135,45 @@ def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
     drive-stats tool and the turn's own ask is not a disk/storage/free-space question, else None so
     the call proceeds normally. ``machine_diagnostics_intent`` is the same authority that routes
     deterministic disk asks, so a genuine "how much space is left" turn still reads the drives --
-    only the UNASKED-FOR numbers are held back. The refusal text is what the model receives as the
-    tool result, so it is written to be safe if the model repeats it to the person verbatim.
+    only the UNASKED-FOR numbers are held back. The classifier demands question SHAPE, so a
+    storage ask phrased as a noun phrase ("free space on my computer") would fall through it and
+    then be refused here -- wrongly. The allow-rule therefore also honours the phrase tables the
+    classifier itself is built on: a STRONG storage phrase ("disk space", "drive space"), or a
+    space-family cue alongside this-host anchoring (a storage device, a data unit, the
+    computer/machine itself), is an ask about the drives whatever shape the sentence takes. A
+    size-of-a-thing ask ("how much space does the taxes folder take") names a THING, not this
+    host, and stays refused. The refusal text is what the model receives as the tool result, so
+    it is written to be safe if the model repeats it to the person verbatim.
     """
-    from core.execution.constants import machine_diagnostics_intent
+    from core.execution.constants import (
+        _DISK_SPACE_CUE_RE,
+        _DISK_STRONG_RE,
+        _STORAGE_HOST_ANCHOR_RE,
+        machine_diagnostics_intent,
+    )
     from core.execution.models import ToolIntentExecution
 
     if intent not in _MACHINE_DRIVE_STAT_INTENTS:
         return None
-    if machine_diagnostics_intent(effective_input) == "machine.disk_usage":
+    text = str(effective_input or "")
+    if machine_diagnostics_intent(text) == "machine.disk_usage":
         return None
+    if _DISK_STRONG_RE.search(text):
+        return None
+    if _DISK_SPACE_CUE_RE.search(text) and _STORAGE_HOST_ANCHOR_RE.search(text):
+        return None
+    message = (
+        "That reading is about the whole computer's drives, and this question wasn't about "
+        "them, so those numbers are left out. Answer from what the question is actually about."
+    )
     return ToolIntentExecution(
         handled=True,
         ok=False,
         status="drive_stats_not_asked_for",
         mode="refused",
         tool_name=intent,
-        response_text=(
-            "That reading is about the whole computer's drives, and this question wasn't about "
-            "them, so those numbers are left out. Answer from what the question is actually about."
-        ),
-        user_safe_response_text=(
-            "That reading is about the whole computer's drives, and this question wasn't about "
-            "them, so those numbers are left out."
-        ),
+        response_text=message,
+        user_safe_response_text=message,
         details={"executed": False, "reason": "drive_stats_not_asked_for"},
     )
 
