@@ -676,11 +676,15 @@ class UpdateFlow:
             if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._fail_and_rollback("the app did not stop in time", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED, {"delegated": True})
-            # The script does the swap; journal the deterministic prior location so
-            # rollback and startup recovery agree with it byte-for-byte.
-            self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             self._publish(UpdatePhase.RESTARTING, version=manifest.version)
             outcome, detail = self.helper.wait_for_result(timeout=max(self.health_timeout, 60.0))
+            # SWAPPED is journaled only once the script's own rename put the previous app aside
+            # (the deterministic prior location, so rollback and startup recovery agree with it).
+            # A refused swap (a locked app, a permission error) moved nothing: the rollback then
+            # puts the data back and starts the old app again, instead of hunting a backup that
+            # never existed and leaving the app stopped.
+            if outcome or expected_prior.exists():
+                self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             if not outcome:
                 return self._fail_and_rollback(
                     f"the external updater could not finish the swap: {detail}", fault=UpdateFault.INSTALL_FAILED
