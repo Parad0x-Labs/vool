@@ -3161,6 +3161,5 @@
     "xsetup.step3": "Step 3 · Confirm",
     "xsetup.title": "X (Twitter)"
   },
-  "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": null
+  "schema": "vool.i18n.catalog.v1"
 }
