@@ -86,7 +86,7 @@ def destination(url: str, hosts: list[str] | tuple[str, ...]) -> tuple[str, str]
     try:
         parsed = https_url(url, hosts)
     except (ValueError, TypeError):
-        raise NetworkRefused("The plugin tried to reach a host outside its declared HTTPS access.") from None
+        raise NetworkRefused("The plugin tried to reach a website it didn't list. VOOL stopped it.") from None
     return parsed.hostname, (parsed.path or "/") + (("?" + parsed.query) if parsed.query else "")
 
 
@@ -109,7 +109,7 @@ def public_addresses(host: str, *, timeout: float = 5) -> tuple[tuple, ...]:
     try:
         host_name(host)
     except (ValueError, TypeError):
-        raise NetworkRefused("The plugin destination is not a public HTTPS host.") from None
+        raise NetworkRefused("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.") from None
     answer = queue.Queue(maxsize=1)
 
     def resolve():
@@ -122,15 +122,15 @@ def public_addresses(host: str, *, timeout: float = 5) -> tuple[tuple, ...]:
     try:
         addresses = answer.get(timeout=min(10, max(0.1, timeout)))
     except queue.Empty:
-        raise NetworkRefused("The plugin service address took too long to resolve. No connection was made.") from None
+        raise NetworkRefused("The plugin's website took too long to answer.") from None
     if addresses is None:
-        raise NetworkRefused("The plugin service address could not be resolved.") from None
+        raise NetworkRefused("VOOL couldn't find the plugin's website.") from None
 
     def public(row):
         return is_public_address(ipaddress.ip_address(row[4][0]))
 
     if not addresses or any(not public(row) for row in addresses):
-        raise NetworkRefused("The plugin service resolved to a private or local address. The connection was refused.")
+        raise NetworkRefused("The plugin tried to reach a device on your own network, so VOOL blocked it.")
     return tuple(addresses)
 
 
@@ -272,7 +272,7 @@ class EgressProxy:
         try:
             self.server = Server(("127.0.0.1", 0), Handler)
         except OSError:
-            raise NetworkRefused("The plugin's private network connection could not start. Network access remains off.") from None
+            raise NetworkRefused("VOOL couldn't set up the plugin's connection to your own network. Network access stays off.") from None
         # The IPv6 loopback listener only serves clients that resolve localhost to ::1; a
         # machine without IPv6 loopback still has the IPv4 proxy the environment points at.
         self.server6, self.thread6 = None, None

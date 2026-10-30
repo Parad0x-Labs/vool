@@ -14,14 +14,14 @@ from core.plugin_services import ServiceRefused, declaration, native_request, sa
 def _rows(payload) -> list[dict]:
     rows = payload.get("data", payload.get("models")) if isinstance(payload, dict) else payload
     if not isinstance(rows, list) or len(rows) > 2048:
-        raise ServiceRefused("The service did not return a bounded model list. Nothing was registered.")
+        raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.")
     result = []
     for row in rows:
         if not isinstance(row, dict):
-            raise ServiceRefused("The service model list contains an invalid entry.")
+            raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.")
         identity = row.get("id")
         if not isinstance(identity, str) or not identity.strip() or len(identity) > 256 or any(ord(c) < 32 for c in identity):
-            raise ServiceRefused("The service model list contains an invalid model identity.")
+            raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.")
         pricing = row.get("pricing", {})
         public_prices = {}
         if isinstance(pricing, dict):
@@ -39,11 +39,11 @@ def _rows(payload) -> list[dict]:
         if (not isinstance(parameters, list) or len(parameters) > 64
                 or any(not isinstance(item, str) or not item or len(item) > 64
                        or not all(c.isascii() and (c.isalnum() or c == "_") for c in item) for item in parameters)):
-            raise ServiceRefused("The service model list contains an invalid entry.")
+            raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.")
         result.append({"id": identity, "name": str(row.get("name") or identity)[:256],
                        "reported_pricing": public_prices, "context_length": context, "supported_parameters": parameters})
     if not result or len({row["id"] for row in result}) != len(result):
-        raise ServiceRefused("The service model list is empty or contains duplicate identities.")
+        raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.")
     return safe_data(result)
 
 
@@ -55,14 +55,13 @@ def refresh_models(plugin_id: str) -> dict:
     record, plugin = declaration(plugin_id, "model_provider")
     spec = plugin.vool["model_provider"]
     if money_governed(spec["base_url"]):
-        raise ServiceRefused("This service is paid from a balance VOOL spends only with your wallet approvals, "
-                             "so its models are not added as a plain provider. Your saved key is used through those approvals.")
+        raise ServiceRefused("This service is paid from your wallet balance, so VOOL uses it only with your approval each time.")
     response = native_request(plugin_id, "model_provider", "GET", spec["base_url"].rstrip("/") + spec["model_list_path"],
                               expected_approval=record.approval_digest)
     try:
         rows = _rows(response.json())
     except (ValueError, TypeError):
-        raise ServiceRefused("The service returned an unreadable model list. Nothing was registered.") from None
+        raise ServiceRefused("The service sent a model list VOOL can't use. Nothing was added.") from None
     finally:
         response.close()
     if spec["pricing_source"] != "models":
@@ -107,7 +106,7 @@ def refresh_models(plugin_id: str) -> dict:
         with contextlib.suppress(OSError):
             os.unlink(name)
     return {"ok": True, "models": rows, "provider_ids": registered,
-            "message": "Model list refreshed. Published prices are service reports; the normal spending checks still apply."}
+            "message": "Prices come from the service. Your spending limits still apply."}
 
 
 def filter_manifests(manifests):
@@ -206,10 +205,10 @@ def require_legacy_x402():
 
     record, plugin = declaration("vool-plugin-usepod", "model_provider")
     if not is_first_party(record):
-        raise ServiceRefused("Enable the matching provider plugin with x402 support before using this payment lane.")
+        raise ServiceRefused("This service needs a plugin that can pay for it. Switch that plugin on first.")
     spec = plugin.vool["model_provider"]
     saved_origin = legacy_origin().rstrip("/")
     if (spec.get("x402") is not True
             or spec["base_url"].rstrip("/") not in {CONFIG.base_url.rstrip("/"), saved_origin}):
-        raise ServiceRefused("Enable the matching provider plugin with x402 support before using this payment lane.")
+        raise ServiceRefused("This service needs a plugin that can pay for it. Switch that plugin on first.")
     return record, plugin

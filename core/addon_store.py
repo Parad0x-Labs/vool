@@ -98,18 +98,18 @@ def _read(path: Path) -> dict:
 
 def _entry(identifier: str) -> dict:
     identifier = _safe_component(identifier, r"github-[a-f0-9]{24}|" + _COMPONENT_ID,
-                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
+                                 "addon_unknown", "This add-on isn't in VOOL's list.", 404)
     if re.fullmatch(r"github-[a-f0-9]{24}", identifier):
         path = _lookup("discovered", identifier)
         if path is not None:
             value = _read(path)
             if value.get("id") != identifier:
-                raise AddonError("review_untrusted", "The saved source identity changed. Inspect it again.")
+                raise AddonError("review_untrusted", "Where this add-on comes from has changed. Check it again.")
             return value
     for entry in CATALOG:
         if entry["id"] == identifier:
             return dict(entry)
-    raise AddonError("addon_unknown", "This add-on is not in the curated catalogue.", 404)
+    raise AddonError("addon_unknown", "This add-on isn't in VOOL's list.", 404)
 
 
 def _entries() -> list[dict]:
@@ -150,7 +150,7 @@ def assert_reviewed(plugin_id: str, pack: Path) -> None:
     # The initial format has no executable/resource files. Refuse additions outside its contract.
     allowed = {".codex-plugin/plugin.json", "skills/" + record["entry"]["skill_name"] + "/SKILL.md", "LICENSE.txt"}
     if any(p.is_symlink() or (p.is_file() and p.relative_to(pack).as_posix() not in allowed) for p in pack.rglob("*")):
-        raise AddonError("addon_changed", "Files were added outside the reviewed standalone skill. A new review is required.")
+        raise AddonError("addon_changed", "Files changed after the check. Check it again.")
     if hashlib.sha256((pack / "LICENSE.txt").read_bytes()).hexdigest() != record["entry"]["license_sha256"]:
         raise AddonError("addon_changed", "The add-on’s licence file changed after review.")
 
@@ -202,7 +202,7 @@ def reviewed_skill(plugin_id: str, pack: Path):
 
 def _local_report_path(identifier: str, *, create: bool = False) -> Path:
     identifier = _safe_component(identifier, _LOCAL_REPORT_ID.pattern,
-                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
+                                 "addon_unknown", "This add-on isn't in VOOL's list.", 404)
     found = _lookup("local-reports", identifier)
     if found is not None:
         return found
@@ -326,7 +326,7 @@ def _download(entry: dict, filename: str, expected: str) -> bytes:
     except AddonError:
         raise
     except Exception:
-        raise AddonError("addon_download_failed", "Could not download the pinned public add-on. Nothing was installed.", 502) from None
+        raise AddonError("addon_download_failed", "Couldn't download this add-on. Nothing was installed.", 502) from None
     if hashlib.sha256(data).hexdigest() != expected:
         raise AddonError("addon_source_changed", "Downloaded contents do not match the reviewed catalogue version. Nothing was installed.")
     return data
@@ -365,15 +365,15 @@ def prepare(identifier: str, *, approved: bool) -> dict:
 
 
 def _stage(review_id: str) -> Path:
-    review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "Invalid review identity.")
+    review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "That check can't be found. Start the check again.")
     pending = _root() / "pending"
     if pending.is_dir():
         for path in pending.iterdir():
             if path.name == review_id:   # compare only; the path itself comes from the listing
                 if path.is_symlink():
-                    raise AddonError("invalid_review", "Invalid review location.")
+                    raise AddonError("invalid_review", "That check can't be opened. Start the check again.")
                 return path
-    raise AddonError("invalid_review", "Invalid review identity.")
+    raise AddonError("invalid_review", "That check can't be found. Start the check again.")
 
 
 def reject(review_id: str) -> dict:
@@ -412,7 +412,7 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
         for name, digest in (("SKILL.md", "sha256"), ("LICENSE.txt", "license_sha256")):
             path = stage / name
             if path.is_symlink():
-                raise AddonError("addon_changed", "A downloaded file was replaced with a link. Scan the original files again.")
+                raise AddonError("addon_changed", "Files changed after the check. Check it again.")
             content = path.read_bytes()
             if hashlib.sha256(content).hexdigest() != entry[digest]:
                 raise AddonError("addon_changed", "The downloaded files changed after the scan. Scan again.")

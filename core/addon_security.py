@@ -37,11 +37,11 @@ def validate_report(name: str, report: dict) -> dict:
             or not isinstance(report.get("findings"), list)
             or not isinstance(report.get("policy"), dict)
             or not isinstance(report["policy"].get("violations"), list)):
-        raise AddonError("scanner_invalid_report", "The scan did not provide complete inspection evidence. Nothing was enabled.", 502)
+        raise AddonError("scanner_invalid_report", "The safety check came back incomplete, so nothing was turned on. Try the check again.", 502)
     if not any(isinstance(a, dict) and a.get("name") == name and isinstance(a.get("digest"), str) and a["digest"] for a in report["artifacts"]):
-        raise AddonError("scanner_no_coverage", "The report does not identify the submitted skill. Nothing was enabled.", 502)
+        raise AddonError("scanner_no_coverage", "The safety check came back incomplete, so nothing was turned on. Try the check again.", 502)
     if any(not isinstance(f, dict) or not f.get("ruleId") or f.get("severity") not in {"low", "medium", "high", "critical"} for f in report["findings"]):
-        raise AddonError("scanner_invalid_report", "The findings could not be validated. Nothing was enabled.", 502)
+        raise AddonError("scanner_invalid_report", "The safety check came back incomplete, so nothing was turned on. Try the check again.", 502)
     # This is VOOL's default admission rule, not a scanner installation permission.
     # A separate, version-bound owner decision may accept findings; it never alters this report.
     report = dict(report)

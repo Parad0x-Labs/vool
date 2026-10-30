@@ -142,7 +142,7 @@ function render(query){
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
  rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);installedState(card,e);grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
- host.append(node('p',tr('plugin_scope','Directory entries are not endorsements. Compatibility and licence checks come before scanning. Review executable plugins and their access separately in My add-ons → Plugins.'),'addon-meta'));
+ host.append(node('p',tr('plugin_scope','Being listed here doesn't mean VOOL recommends it.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
 }
 function nativeControlNotice(host,value){
@@ -324,7 +324,7 @@ function renderLocalCheck(host,e){
    else if(r.status==='clean')body.append(node('p',tr('local_check_clean','No findings in the local check. This is not a safety guarantee.')));
    else body.append(node('p',tr('local_check_status','Local check status:')+' '+String(r.status||'unknown')+(r.reason?' ('+r.reason+')':'')+' · '+tr('local_check_incomplete','not a clean pass')));
    if(fs.length){const list=node('ul',undefined,'addon-findings');fs.forEach(f=>{const li=node('li');const stanceLabel=f.stance?tr('local_stance_'+f.stance,''):'';const where=f.context?[f.context.section,f.context.block].filter(Boolean).join(' · '):'';li.append(node('strong','VOOL local · '+String(f.severity||'').toUpperCase()+' · '+f.ruleId+' · '+tr('local_confidence','confidence')+' '+f.confidence));if(stanceLabel||where)li.append(node('p',[where,stanceLabel].filter(Boolean).join(' — '),'addon-meta'));li.append(node('span',f.explanation||''),node('small',[f.line?tr('line','Line')+' '+f.line:'',f.snippet||''].filter(Boolean).join(' · ')));const why=node('details');why.append(node('summary',tr('local_why','Why was this flagged?')));(f.limitations||[]).forEach(t=>why.append(node('p',t)));why.append(node('p',tr('local_limits','A finding is not proof of malicious intent. This static check cannot read intent or predict runtime behaviour.'),'addon-meta'));li.append(why);list.append(li);});body.append(list);}
-   body.append(node('p',tr('plugin_local_check_advisory','Advisory only: it does not replace the scanner scan, the installation checks, or your decision.'),'addon-meta'));
+   body.append(node('p',tr('plugin_local_check_advisory','This check is a hint, not a safety promise.'),'addon-meta'));
    const evidence=node('details');evidence.append(node('summary',tr('local_report','View local report')),node('pre',JSON.stringify({scanner:r.scanner,scanner_version:r.scanner_version,ruleset_version:r.ruleset_version,status:r.status,reason:r.reason,source:r.source,findings:r.findings,limitations:r.limitations,duration_ms:r.duration_ms},null,2)));body.append(evidence);
    body.append(button(tr('local_rerun','Run local check again'),()=>action(async()=>{localCheck={id:e.id,data:await post({action:'local_check',id:e.id})};paint(localCheck.data);})));
   }else{
@@ -363,7 +363,7 @@ function riskExplanation(ruleId){
   d.append(node('p',tr('risk_sensitive','This skill refers to files that may contain passwords, API keys or other private information.')),
    node('p',tr('risk_sensitive_worst','Worst case: if VOOL is allowed to read and share those files, secrets could leave your device and someone could use them to access your accounts.')));
  }else{
-  d.append(node('p',tr('plugin_risk_unknown','scanner flagged a possible risk. VOOL has no specific explanation for this finding yet; the report alone cannot tell us what would happen.')),
+  d.append(node('p',tr('plugin_risk_unknown','The scanner flagged a possible risk. VOOL can't explain this finding yet.')),
    node('p',tr('risk_unknown_worst','Depending on the instructions and allowed access, harm could include private data being shared or unwanted changes. Review the finding and source before deciding.')));
  }
  d.append(node('p',tr('risk_limits','A warning is not proof of malicious intent; scanners can make mistakes. Enabling a skill adds instructions, not permissions. Existing permissions still apply.'),'addon-meta'));
@@ -380,14 +380,14 @@ function renderReview(host){
  if(findings.length){const list=node('ul',undefined,'addon-findings');findings.forEach(f=>{const li=node('li');li.append(node('strong',(r.scanner_name||r.service||tr('plugin_scanner_name','Scanner'))+' · '+(f.severity||'').toUpperCase()+' · '+f.ruleId),node('span',f.explanation||f.message||f.description||f.ruleId),node('small',[f.file,f.line?tr('line','Line')+' '+f.line:''].filter(Boolean).join(' · ')),riskExplanation(f.ruleId));list.append(li);});box.append(list);}
  const violations=Array.isArray(r.policy?.violations)?r.policy.violations:[];
  if(!findings.length&&(violations.length||String(r.verdict).toLowerCase()==='fail'))box.append(riskExplanation(''));
- if(violations.length){box.append(node('h3',tr('plugin_eyebrow_policy','Scan policy results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
- box.append(node('p',tr('plugin_eyebrow_engine','Scan engine:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
+ if(violations.length){box.append(node('h3',tr('plugin_eyebrow_policy','Check results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
+ box.append(node('p',tr('plugin_eyebrow_engine','Checked by:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
  // Both scanner summaries sit above the installation decision buttons, so the
  // decision is made with the local findings visible; the local check stays
  // optional and advisory, and neither scanner can hide the other.
  renderLocalCheck(detail,e);
  const gate=node('section',undefined,'addon-review'+(review.vool_check?.status==='blocked'?' blocked':''));
- gate.append(node('h3',tr('vool_checks','VOOL installation checks')),node('p',review.vool_check?.message||review.reason||tr('review_again','Reopen this scan to check its installation status.')),node('p',tr('plugin_separate_decisions','The scanner supplies the scan findings. VOOL checks package compatibility and file integrity, then applies your installation decision.'),'addon-meta'));detail.append(gate);
+ gate.append(node('h3',tr('vool_checks','VOOL installation checks')),node('p',review.vool_check?.message||review.reason||tr('review_again','Reopen this scan to check its installation status.')),node('p',tr('plugin_separate_decisions','The scanner reports what it found. VOOL checks the files, and you decide.'),'addon-meta'));detail.append(gate);
  const acts=node('div',undefined,'addon-actions');gate.append(acts);
  if(review.can_install)acts.append(button(tr('install','Accept and enable'),()=>installDecision(false),'addon-primary'));
  acts.append(button(tr('reject','Reject'),()=>action(async()=>{await post({action:'reject',review_id:review.review_id});review=null;data=await read();})));

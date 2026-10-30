@@ -33,7 +33,7 @@ def _template(value, variables):
 def _field(value, path):
     for name in path.split("."):
         if not isinstance(value, dict) or name not in value:
-            raise AddonError("scanner_invalid_report", "The scanner report is missing required evidence. Nothing was installed.", 502)
+            raise AddonError("scanner_invalid_report", "The safety check came back incomplete, so nothing was installed. Try the check again.", 502)
         value = value[name]
     return value
 
@@ -82,7 +82,7 @@ def scan_skill(name: str, content: str) -> dict:
     payload = _template(spec["input_template"], {"name": name, "content": content})
     value, quota = request_api("/v1/scan", payload, plugin_id=plugin_id)
     if json_schema_lite.validate(value, spec["response_schema"]):
-        raise AddonError("scanner_invalid_report", "The scanner response differs from its reviewed contract. Nothing was installed.", 502)
+        raise AddonError("scanner_invalid_report", "The safety check came back incomplete, so nothing was installed. Try the check again.", 502)
     remote = {key: _field(value, path) for key, path in spec["response_map"].items()}
     remote = validate_report(name, remote)
     digest = hashlib.sha256(content.encode()).hexdigest()

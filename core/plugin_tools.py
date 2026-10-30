@@ -690,7 +690,7 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                     prohibitions = conserved_request_prohibitions(context)
                     if (remote_fetch_forbidden() or context.get("allow_remote_fetch") is False
                             or prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(FAMILY_TOOLS)):
-                        raise NetworkRefused("Network access is off for this turn. The plugin was not connected.")
+                        raise NetworkRefused("Network access is off right now. The plugin was not connected.")
                 # Where the device cannot limit a process to its declared hosts, the tool
                 # still runs, with no network at all, as the consent sheet says.
                 keyed = bool(credentials) and is_mcp
