@@ -91,7 +91,7 @@ def test_settings_switch_in_chromium(desktop, tmp_path):
             page.locator('[data-group="phone"]').click()
             toggle = page.get_by_role("switch", name="Use VOOL from my phone")
             assert toggle.get_attribute("aria-checked") == "false"
-            network = page.get_by_label("Network address")
+            network = page.get_by_label("Computer’s address on your home network")
             assert network.locator("option").count() > 0, "no home/private interface is available"
             toggle.click()
             page.wait_for_function("document.querySelector('[role=switch][aria-label=\"Use VOOL from my phone\"]').getAttribute('aria-checked') === 'true'")

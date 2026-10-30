@@ -51,7 +51,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       setCode(parsed.code);
       setFingerprint(parsed.desktopFingerprint);
       if (!pairingUriIsFresh(parsed)) {
-        setError(tr("This pairing QR has expired — start a new pairing on the desktop."));
+        setError(tr("This pairing QR has expired — start a new pairing on the computer."));
       }
     } else {
       setError(tr("The computer’s identity could not be verified. Check it before pairing again."));
@@ -68,7 +68,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setCode(parsed.code);
     setFingerprint(parsed.desktopFingerprint);
     if (!pairingUriIsFresh(parsed)) {
-      setError(tr("This pairing QR has expired — start a new pairing on the desktop."));
+      setError(tr("This pairing QR has expired — start a new pairing on the computer."));
       return;
     }
     setPairAfterScan(true);
@@ -78,7 +78,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setError("");
     const base = desktopUrl.trim().replace(/\/$/, "").replace(/^vool-pair:\/\//, "http://");
     if (!base || !pairingId.trim() || !code.trim()) {
-      setError(tr("Enter the desktop address, pairing id and code."));
+      setError(tr("Enter the computer address, pairing id and code."));
       return;
     }
     setBusy(true);
@@ -127,7 +127,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     if (!cameraPermission?.granted) {
       const result = await requestCameraPermission();
       if (!result.granted) {
-        setError(tr("Camera permission is needed to scan the desktop's pairing QR."));
+        setError(tr("Camera permission is needed to scan your computer’s pairing QR."));
         return;
       }
     }

@@ -5333,7 +5333,7 @@ function widgetPhoneAccess(host) {
   chatApps.appendChild(el('summary','',T('phone.bot_connect','Connect chat app')));
   chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
   const botPlatform=el('select','inp'); ['Telegram','Discord'].forEach(name=>{const option=el('option','',name);option.value=name.toLowerCase();botPlatform.appendChild(option);});chatApps.appendChild(botPlatform);
-  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot token'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
+  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot key (from Telegram or Discord)'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
   const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));const dmLink=el('input','inp');dmLabel.appendChild(dmLink);chatApps.appendChild(dmLabel);dmLabel.hidden=true;
   botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
   const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
@@ -5342,16 +5342,16 @@ function widgetPhoneAccess(host) {
     phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
   }catch(e){note.textContent=e.message;connectBot.disabled=false;}};
   const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
-  relayForm.appendChild(el('summary','',T('phone.relay_title','Use my relay')));
-  relayForm.appendChild(el('p','help',T('phone.relay_help','Your own relay forwards encrypted messages. It sees connection times and device identifiers. Pair at home first.')));
+  relayForm.appendChild(el('summary','',T('phone.relay_title','Connect away from home (advanced)')));
+  relayForm.appendChild(el('p','help',T('phone.relay_help','Your own server passes encrypted messages between phone and computer. It can see when they connect. Pair at home first.')));
   function relayInput(key, fallback, value, secret) {
     const label=el('label','phone-cap',T(key,fallback)); const input=el('input','inp');
     input.type=secret?'password':'text'; input.autocomplete='off'; input.value=value || ''; label.appendChild(input); relayForm.appendChild(label); return input;
   }
-  const relayAddress=relayInput('phone.relay_address','Relay address',src.relay_endpoint);
+  const relayAddress=relayInput('phone.relay_address','Server address',src.relay_endpoint);
   const relayRoom=relayInput('phone.relay_room','Room code',src.relay_room);
-  const relayToken=relayInput('phone.relay_token','PC connection token','',true);
-  const relayEnable=el('button','btn',T('phone.relay_enable','Connect relay')); relayEnable.type='button';
+  const relayToken=relayInput('phone.relay_token','Computer key','',true);
+  const relayEnable=el('button','btn',T('phone.relay_enable','Connect through my server')); relayEnable.type='button';
   relayEnable.disabled=!(src.devices || []).some(d=>d.status==='active'); relayForm.appendChild(relayEnable);
   relayEnable.onclick=()=>{const token=relayToken.value; relayToken.value=''; relayEnable.disabled=true;
     save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=e.message;relayEnable.disabled=false;});};
@@ -5368,7 +5368,7 @@ function widgetPhoneAccess(host) {
     computer_tools:'Use tools on my computer', paid_services:'Look things up online'};
   const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
     task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
-    desktop_inbox:'New desktop inbox item',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model offer',model_market:'Model update',market_watch:'Market watch'};
+    desktop_inbox:'New item in your computer’s inbox',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model price offer',model_market:'New model available',market_watch:'Market watch'};
   function botNotices(row,device) {
     const choices=JSON.parse(JSON.stringify(device.notification_preferences));
     const section=el('fieldset','phone-bot-notifications');section.appendChild(el('legend','',T('phone.right.alerts','Alerts')));row.appendChild(section);
@@ -5435,11 +5435,11 @@ function widgetPhoneAccess(host) {
     const prepared=phonePrepared[device.device_id];
     if(prepared){
       const report=el('div','phone-quick-ready');report.setAttribute('role','status');box.appendChild(report);
-      if(prepared.checking)report.appendChild(el('p','help',T('phone.setup.checking','Checking the folders. If your Mac asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.')));
+      if(prepared.checking)report.appendChild(el('p','help',T('phone.setup.checking','Checking the folders. If your computer asks whether VOOL may use a folder, press Allow, so your phone never has to wait for it.')));
       else if(prepared.failed)report.appendChild(el('p','help',T('phone.setup.check_failed','VOOL could not check the folders. Press Done again to retry.')));
       else {
         const waiting=(prepared.folders || []).filter(f=>f.state!=='ready');
-        report.appendChild(el('p','help',waiting.length?T('phone.setup.not_ready','These folders are not open to VOOL yet. Allow VOOL in System Settings, Privacy & Security, Files and Folders, then press Done again:'):T('phone.setup.ready','Saved. Your phone is ready.')));
+        report.appendChild(el('p','help',waiting.length?T('phone.setup.not_ready','These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Done again:'):T('phone.setup.ready','Saved. Your phone is ready.')));
         waiting.forEach(f=>report.appendChild(el('p','help',f.folder)));
       }
     }
@@ -5478,7 +5478,7 @@ function widgetPhoneAccess(host) {
     const holder=isBot?row:el('details','phone-advanced');
     if(!isBot){row.appendChild(phoneQuickSetup(device));holder.appendChild(el('summary','',T('phone.setup.advanced','Advanced')));row.appendChild(holder);}
     const rightsGrid=el('div','phone-rights'); holder.appendChild(rightsGrid);
-    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to this bot in a private conversation within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
+    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to your bot in a private chat within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
       if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve','computer_tools','paid_services'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
@@ -5491,7 +5491,7 @@ function widgetPhoneAccess(host) {
       expiry.dataset.initial=expiry.value;
       expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
     });
-    if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Paid services: your paid models and paid search. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
+    if(!isBot)holder.appendChild(el('p','help',T('phone.tools_help','Tools: files, apps, commands and your accounts on this computer. Online lookups: free web sources only — your paid models and paid search never run from the phone. Neither can send money; payments stay in the phone’s Wallet tab. What the phone sets up, like watches or saved files, stays after you switch a right off.')));
     holder.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.setup.approvals','Payments are approved on your computer. Actions your phone asked for can be allowed on the phone.')));
     if(isBot)botNotices(row,device);
     const account=accountSelect((device.payment_cap || {}).wallet_id); holder.appendChild(account);
@@ -5499,7 +5499,7 @@ function widgetPhoneAccess(host) {
     const cap=device.payment_cap_display || {};
     const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
     const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
-    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s native asset. Both limits must be lower than the wallet’s limits.')));
+    holder.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s own currency. Both limits must be lower than your wallet’s limits.')));
     const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); holder.appendChild(credential);
     const saveActions=el('div','phone-actions'); holder.appendChild(saveActions);
     const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; saveActions.appendChild(saveButton);

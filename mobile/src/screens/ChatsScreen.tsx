@@ -176,7 +176,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
               {chat.title || chat.chat_id}
             </Text>
             <Text style={styles.chatMeta}>
-              {tr("Turns: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
+              {tr("Replies: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
             </Text>
           </Pressable>
         ))}
@@ -219,10 +219,10 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
         </View>
       ))}
       {progress ? <Text style={styles.pendingAttachments}>{stepTimeText(progressAt) ? stepTimeText(progressAt) + " · " : ""}{progress}</Text> : null}
-      {proof ? <Text style={styles.pendingAttachments}>{proof === "VERIFIED" ? tr("Activity verified") : tr("Activity recorded")}</Text> : null}
+      {proof ? <Text style={styles.pendingAttachments}>{proof === "VERIFIED" ? tr("Checked") : tr("Saved to history")}</Text> : null}
       {busy ? <Pressable onPress={() => {
         if (outbox.activeKey) void client.cancelTurn(outbox.activeKey).then(value =>
-          setNotice(value.state === "cancelled" ? tr("Stop requested.") : tr("This turn is no longer running."))
+          setNotice(value.state === "cancelled" ? tr("Stop requested.") : tr("This reply has stopped."))
         ).catch(() => setNotice(tr("Could not complete this. Check your computer.")));
       }}><Text style={styles.back}>{tr("Stop")}</Text></Pressable> : null}
       {attachmentIds.length > 0 ? (
@@ -233,7 +233,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
       <View style={styles.composer}>
         <TextInput
           style={styles.draftInput}
-          placeholder={tr("Message your desktop…")}
+          placeholder={tr("Message your computer…")}
           placeholderTextColor="#5b6570"
           value={draft}
           onChangeText={setDraft}

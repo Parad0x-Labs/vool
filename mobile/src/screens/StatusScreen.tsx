@@ -84,7 +84,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
         SAME computer (its pinned fingerprint) may change where this phone connects. */}
     <Pressable style={[styles.proofButton, {marginTop: 8}]} onPress={() => {void (async () => {
       if (!cameraPermission?.granted && !(await requestCameraPermission()).granted) {
-        setError(tr("Camera permission is needed to scan the desktop's pairing QR."));
+        setError(tr("Camera permission is needed to scan your computer’s pairing QR."));
         return;
       }
       setScanning(true);
@@ -140,7 +140,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
       <View style={styles.card}>
         {proof ? (
           <View>
-            <Text style={styles.label}>{tr("Latest turn")}</Text>
+            <Text style={styles.label}>{tr("Latest reply")}</Text>
             <View style={styles.row}>
               <View
                 style={[
@@ -148,7 +148,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
                   proof.state === "VERIFIED" ? styles.pillGreen : proof.state === "RECORDED" ? styles.pillBlue : styles.pillAmber,
                 ]}
               >
-                <Text style={styles.pillText}>{proof.state === "VERIFIED" ? tr("Activity verified") : proof.state === "RECORDED" ? tr("Activity recorded") : tr("not recorded")}</Text>
+                <Text style={styles.pillText}>{proof.state === "VERIFIED" ? tr("Checked") : proof.state === "RECORDED" ? tr("Saved to history") : tr("not recorded")}</Text>
               </View>
             </View>
             <Text style={styles.detail}>
@@ -181,7 +181,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
           onPress={() => {
             Alert.alert(
               tr("Unpair this phone"),
-              tr("Disconnect this phone. If your computer cannot be reached, revoke it there too."),
+              tr("Disconnect this phone. If your computer cannot be reached, unpair it there too."),
               [
                 { text: tr("Cancel"), style: "cancel" },
                 {
@@ -218,8 +218,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
             try {await onRevoked();}
             catch {Alert.alert(tr("Unpair this phone"), tr("Local removal failed. Clear VOOL’s app data in your phone’s settings."));return;}
             Alert.alert(reached ? tr("Unpaired") : tr("Computer not reached"), reached
-              ? tr("Payments were frozen and phones revoked. Unfreeze on your recovered computer.")
-              : tr("This phone forgot its connection. Remote freezing and revocation are unconfirmed. Secure or recover your computer, then freeze payments there."));
+              ? tr("Payments were frozen and your phones were unpaired. Unfreeze on your recovered computer.")
+              : tr("VOOL couldn’t confirm that payments were frozen and your phones unpaired. Get to your computer and freeze payments there."));
           })();}}])}>
           <Text style={styles.unpairButtonText}>{tr("My computer is lost")}</Text>
         </Pressable>

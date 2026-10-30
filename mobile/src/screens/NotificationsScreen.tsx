@@ -7,9 +7,9 @@ import type {NotificationEvent, NotificationPreferences} from "../protocol/model
 const LABELS: Record<string, string> = {
   task_completed: "Task finished", task_failed: "Task failed", task_pending_approval: "VOOL needs an approval",
   task_cancelled: "Task stopped", payment_pending: "Payment waiting for approval", payment_done: "Payment done",
-  payment_refused: "Payment refused or failed", desktop_inbox: "New desktop inbox item", calendar_alert: "Calendar alert",
-  calendar_catch_up: "Missed calendar alerts", reminder: "Reminder", model_offer: "Model offer",
-  model_market: "Model update", market_watch: "Market watch",
+  payment_refused: "Payment refused or failed", desktop_inbox: "New item in your computer’s inbox", calendar_alert: "Calendar alert",
+  calendar_catch_up: "Missed calendar alerts", reminder: "Reminder", model_offer: "Model price offer",
+  model_market: "New model available", market_watch: "Market watch",
 };
 interface Props {client: MobileCompanionClient; onOpen(event: NotificationEvent): void;
   osEnabled?: boolean; enableOs?: () => Promise<boolean>; disableOs?: () => Promise<void>;}
@@ -48,7 +48,7 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
       try {
         if (value) {if (!await enableOs?.()) setNotice(tr("Phone notifications are blocked or unavailable. Check your phone’s settings."));}
         else await disableOs?.();
-      } catch {setNotice(tr("Could not save this choice. Turn off notifications in your phone’s settings."));}
+      } catch {setNotice(tr("Could not save this choice. Switch off notifications in your phone’s settings."));}
     })();})}
     <Text style={styles.note}>{tr("Your phone can mute or delay notifications. This feed keeps the record.")}</Text>
     {!allowed ? <Text style={styles.note}>{tr("Alerts are paused for this phone on your computer.")}</Text> : null}

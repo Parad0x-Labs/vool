@@ -142,7 +142,7 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
         browser=playwright.chromium.launch(executable_path=os.environ['VOOL_TEST_CHROMIUM'])
         try:
             page=browser.new_page(viewport={'width':1280,'height':1050});page.goto(base+'/settings#phone');page.locator('[data-group="phone"]').click()
-            page.locator('.phone-bot-connect summary').click();page.get_by_label('Bot token',exact=True).fill(token)
+            page.locator('.phone-bot-connect summary').click();page.get_by_label('Bot key (from Telegram or Discord)',exact=True).fill(token)
             page.locator('.phone-bot-connect').get_by_role('button',name='Connect chat app',exact=True).click()
             row=page.locator('[data-device="bot:telegram"]');row.wait_for()
             import re

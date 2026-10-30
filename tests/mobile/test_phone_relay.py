@@ -100,16 +100,16 @@ def test_owner_relay_switch_in_real_settings_chromium(desktop,relay,tmp_path):
         try:
             page=browser.new_page(viewport={'width':1280,'height':1000})
             page.goto(desktop[0]+'/settings#phone'); page.locator('[data-group="phone"]').click()
-            page.get_by_text('Use my relay',exact=True).click()
-            page.get_by_label('Relay address',exact=True).fill(endpoint)
+            page.get_by_text('Connect away from home (advanced)',exact=True).click()
+            page.get_by_label('Server address',exact=True).fill(endpoint)
             page.get_by_label('Room code',exact=True).fill(room)
-            page.get_by_label('PC connection token',exact=True).fill(token)
-            page.get_by_role('button',name='Connect relay',exact=True).click()
+            page.get_by_label('Computer key',exact=True).fill(token)
+            page.get_by_role('button',name='Connect through my server',exact=True).click()
             page.wait_for_function("document.querySelector('.phone-relay')?.textContent.includes('Phone connection address')")
             assert desktop[1].phone_listener.server is None
             assert get_credential('mobile.relay.token')==token
             assert token not in page.locator('.phone-settings-panel').inner_text()
-            page.get_by_text('Use my relay',exact=True).click()
+            page.get_by_text('Connect away from home (advanced)',exact=True).click()
             assert endpoint+'/rooms/'+room in page.locator('.phone-relay').inner_text()
             shots=Path(os.environ.get('VOOL_PHONE_SHOTS_DIR') or tmp_path); shots.mkdir(exist_ok=True)
             page.screenshot(path=str(shots/'phone-relay-settings.png'),full_page=True)

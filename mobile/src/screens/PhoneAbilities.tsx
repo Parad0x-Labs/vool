@@ -26,12 +26,12 @@ export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onA
   const armed=useRef(false);
   const current = useRef({chatId,onChat,onAttachment,onDraft});current.current={chatId,onChat,onAttachment,onDraft};
   const alive=useRef(true), epoch=useRef(0);
-  const fail=(error:unknown)=>{if(alive.current)setNote(error instanceof CompanionError && /^(speech_|audio_|dictation_)/.test(error.code) ? tr("Voice transcription is unavailable on your computer. Type your message instead.") : tr("Could not use this ability. Check its permission on your computer and phone."));};
+  const fail=(error:unknown)=>{if(alive.current)setNote(error instanceof CompanionError && /^(speech_|audio_|dictation_)/.test(error.code) ? tr("Voice notes are unavailable on your computer right now. Type your message instead.") : tr("Could not use this ability. Check its permission on your computer and phone."));};
   async function prepareVoice() {
     setNote('');const attempt=epoch.current;
     try {
       await client.checkAbility('microphone');
-      if(!alive.current || !await consent(tr("Hold to talk"),tr("Record a short note for your computer to transcribe. Review the text before sending.")))return;
+      if(!alive.current || !await consent(tr("Hold to talk"),tr("Record a short note; your computer writes it out as text for you to check.")))return;
       const permission=await Audio.requestPermissionsAsync();
       if(alive.current && attempt===epoch.current && permission.granted){armed.current=true;setVoiceReady(true);}
     }catch(error){fail(error);}
@@ -109,6 +109,6 @@ export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onA
     <Pressable disabled={busy || recording || attachmentCount>=4} onPress={()=>void photo(false)}><Text style={ink}>{tr("Choose a photo")}</Text></Pressable>
     <Pressable disabled={busy || recording || attachmentCount>=4} onPress={()=>void photo(true)}><Text style={ink}>{tr("Take a photo")}</Text></Pressable>
     <Pressable disabled={busy} onPress={()=>void location()}><Text style={ink}>{tr("Share location")}</Text></Pressable>
-    {!voiceReady && !recording ? <Pressable disabled={busy} onPress={()=>void prepareVoice()}><Text style={ink}>{tr("Voice note")}</Text></Pressable> : <Pressable disabled={busy} onPressIn={()=>{setNote('');void hold.begin();}} onPressOut={()=>{setBusy(true);void hold.end().finally(()=>{if(alive.current){setVoiceReady(false);setBusy(false);}});}}><Text style={ink}>{recording?tr("Release to transcribe"):tr("Hold to talk")}</Text></Pressable>}
+    {!voiceReady && !recording ? <Pressable disabled={busy} onPress={()=>void prepareVoice()}><Text style={ink}>{tr("Voice note")}</Text></Pressable> : <Pressable disabled={busy} onPressIn={()=>{setNote('');void hold.begin();}} onPressOut={()=>{setBusy(true);void hold.end().finally(()=>{if(alive.current){setVoiceReady(false);setBusy(false);}});}}><Text style={ink}>{recording?tr("Let go and it becomes text"):tr("Hold to talk")}</Text></Pressable>}
   </View>{note?<Text style={ink}>{note}</Text>:null}</View>;
 }
