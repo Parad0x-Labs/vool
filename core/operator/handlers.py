@@ -1107,6 +1107,16 @@ def handle_cancel_reminder(
         list_reminders_fn=list_reminders_fn,
     )
     if target is None:
+        # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
+        # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
+        # way (reminders-everywhere law).
+        if getattr(intent, "action_id", ""):
+            return OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text="I could not find a pending reminder for that unambiguously. Say 'list my reminders', then specify the reminder id.",
+                details={"kind": "cancel_reminder"},
+            )
         rows = list_reminders_fn(session_id=session_id, include_delivered=False)
         pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
         if pending:
