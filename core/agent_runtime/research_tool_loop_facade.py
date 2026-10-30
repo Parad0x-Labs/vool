@@ -113,6 +113,55 @@ _ASKS_FOR_THE_WEB_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The tools whose whole result is machine DRIVE numbers (per-drive free/total/percent, the
+# machine_diagnostics.disk_usage rows). Measured on the benchmark run 2026-10-30: "how big is the
+# holiday photos zip" was answered by a cloud model that had been handed "24.7 GB free of
+# 460.4 GB, 94.6% used" alongside the file question -- numbers about the whole computer, which the
+# person never asked for, from outside the folder the ask was about. A model may still reach for
+# them when a size question has no size tool to answer it; the refusal below is what keeps the
+# machine's own drive state private to the machine unless the ask is ABOUT the drives.
+_MACHINE_DRIVE_STAT_INTENTS = frozenset(
+    {
+        "machine.disk_usage",
+        "operator.inspect_disk_usage",
+    }
+)
+
+
+def _drive_stats_privacy_refusal(intent: str, effective_input: str) -> Any:
+    """Refuse a model-initiated drive-stats read for an ask that is not about the drives.
+
+    Returns a ToolIntentExecution (mode="refused", plain words, no numbers) when ``intent`` is a
+    drive-stats tool and the turn's own ask is not a disk/storage/free-space question, else None so
+    the call proceeds normally. ``machine_diagnostics_intent`` is the same authority that routes
+    deterministic disk asks, so a genuine "how much space is left" turn still reads the drives --
+    only the UNASKED-FOR numbers are held back. The refusal text is what the model receives as the
+    tool result, so it is written to be safe if the model repeats it to the person verbatim.
+    """
+    from core.execution.constants import machine_diagnostics_intent
+    from core.execution.models import ToolIntentExecution
+
+    if intent not in _MACHINE_DRIVE_STAT_INTENTS:
+        return None
+    if machine_diagnostics_intent(effective_input) == "machine.disk_usage":
+        return None
+    return ToolIntentExecution(
+        handled=True,
+        ok=False,
+        status="drive_stats_not_asked_for",
+        mode="refused",
+        tool_name=intent,
+        response_text=(
+            "That reading is about the whole computer's drives, and this question wasn't about "
+            "them, so those numbers are left out. Answer from what the question is actually about."
+        ),
+        user_safe_response_text=(
+            "That reading is about the whole computer's drives, and this question wasn't about "
+            "them, so those numbers are left out."
+        ),
+        details={"executed": False, "reason": "drive_stats_not_asked_for"},
+    )
+
 
 def _semantic_payload_signature(payload: Any) -> str:
     """The identity of a tool call for the duplicate guard: intent + arguments, transport stripped.
@@ -1834,7 +1883,10 @@ class ResearchToolLoopFacadeMixin:
                     status="running",
                 )
 
-            execution = self._execute_tool_intent(
+            # The privacy gate runs BEFORE dispatch, on the ask's own words: a drive-stats read a
+            # model reaches for on a turn that never asked about the drives is refused with plain
+            # words, so the machine's numbers neither run nor ride the conversation back out.
+            execution = _drive_stats_privacy_refusal(tool_name, effective_input) or self._execute_tool_intent(
                 tool_payload,
                 task_id=task.task_id,
                 session_id=session_id,
@@ -2051,7 +2103,11 @@ class ResearchToolLoopFacadeMixin:
                     source_context=loop_source_context,
                 ):
                     break
-                member_execution = self._execute_tool_intent(
+                # Same privacy gate as the head call: a batch member reading drive stats on a
+                # non-drive ask is refused before dispatch, identically.
+                member_execution = _drive_stats_privacy_refusal(
+                    member_intent, effective_input
+                ) or self._execute_tool_intent(
                     member_payload,
                     task_id=task.task_id,
                     session_id=session_id,
