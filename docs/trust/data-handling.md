@@ -6,8 +6,8 @@ description: Exactly what data VOOL sends, when, and to whom. What stays on your
 
 ## The two states
 
-**Local** — the model and your files stay on this computer. Asking for live facts such as
-weather or prices can still fetch them from public web services, even with Web lookups off.
+**Local** — the model and your files stay on this computer. Live facts such as
+weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 
 **Cloud** — the selected context is sent directly to the selected provider.
 
