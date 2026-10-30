@@ -151,3 +151,26 @@ def test_the_flag_turns_it_off(registry, monkeypatch) -> None:
     monkeypatch.setenv("VOOL_OWNER_LOCAL_TOOL_CATALOG", "0")
     assert not owner_catalog_applies(FRESH_NEEDS[0], dict(OWNER))
     assert not set(OWNER_CATALOG) <= set(_offered(FRESH_NEEDS[0], OWNER))
+
+
+@pytest.mark.parametrize("text", [
+    "which of your skills are switched off",
+    "what language are you set to reply in?",
+    "what did i download this week?",
+])
+def test_a_question_about_the_owner_or_vool_is_not_adjudicated_on_a_catalog_turn(text: str, registry) -> None:
+    from core.entity_ambiguity import single_plain_know_question
+
+    registry(LOCAL)
+    assert not single_plain_know_question(text, source_context=dict(OWNER))
+    # Off the catalog (a cloud lane is registered too), the probe keeps its jurisdiction.
+    registry(LOCAL, CLOUD)
+    assert single_plain_know_question(text, source_context=dict(OWNER))
+
+
+@pytest.mark.parametrize("text", ["whats the capital of australia", "how tall is the tower in springfield?"])
+def test_a_world_question_keeps_the_ambiguity_probe_on_a_catalog_turn(text: str, registry) -> None:
+    from core.entity_ambiguity import single_plain_know_question
+
+    registry(LOCAL)
+    assert single_plain_know_question(text, source_context=dict(OWNER))

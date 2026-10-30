@@ -65,6 +65,10 @@ AMBIGUITY_JSON_SCHEMA = {
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+# The question's referent is the speaker or the assistant itself, not an outside entity.
+_SPEAKER_OR_ASSISTANT_RE = re.compile(
+    r"\b(?:i|i'?m|i'?ve|me|my|mine|we|our|us|you|your|yours)\b", re.IGNORECASE
+)
 _MAX_REFERENTS = 4
 
 
@@ -273,6 +277,20 @@ def single_plain_know_question(
             if request_is_owner_local(dict(source_context)) and (
                 owner_live_sources(message) or owner_local_operator_intents(message)
             ):
+                return False
+        except Exception:
+            pass
+    # A question anchored on the speaker or on VOOL ("what did i download this week?", "which of
+    # your skills are switched off") names no outside place, person or thing to adjudicate. On
+    # the owner's turn with the owner catalog (core.owner_tool_catalog) the model holds the tools
+    # that answer it. Measured 2026-10-30 on qwen3:8b (CPU): "which of your skills are switched
+    # off" and "what language are you set to reply in?" each spent two probe calls (142 s), the
+    # probe failed under load, and the turn asked back "tell me which place, person or thing".
+    if source_context is not None and _SPEAKER_OR_ASSISTANT_RE.search(message):
+        try:
+            from core.owner_tool_catalog import owner_catalog_applies
+
+            if owner_catalog_applies(message, dict(source_context)):
                 return False
         except Exception:
             pass

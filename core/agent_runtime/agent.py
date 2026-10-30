@@ -5680,7 +5680,22 @@ class VoolAgent(
                 # (file read + arithmetic + judgement) reads mixed=True and still
                 # declines, so a conductor plan can never swallow a demand the
                 # mixed-demand lane owns.
-                if not demand_coverage(str(raw_input or effective_input)).mixed:
+                # The owner's own turn on a local model has a lane that can run a demand
+                # this plan cannot: the tool loop holding the owner catalog
+                # (core.owner_tool_catalog), where the model reads the owner's files,
+                # notes, reminders and the rest itself. Measured 2026-10-30 on qwen3:8b:
+                # "read me my flat viewing notes, the file on the desktop" planned as two
+                # nodes, the notes node had no operation, and the turn answered "Could
+                # not be answered" while machine.find_file and machine.read_file were one
+                # round away. On such a turn every demand the plan cannot execute is that
+                # lane's, mixed or not.
+                from core.owner_tool_catalog import owner_catalog_applies
+
+                _catalog_lane = owner_catalog_applies(
+                    str(raw_input or effective_input),
+                    turn_context if turn_context is not None else source_context,
+                )
+                if not _catalog_lane and not demand_coverage(str(raw_input or effective_input)).mixed:
                     raise _ConductorHandoffNotApplicableError
 
                 # The EXECUTION grain, not the mint grain: this asks "would another
@@ -5695,7 +5710,7 @@ class VoolAgent(
                         plan,
                         execution_unit_spans(str(raw_input or effective_input)),
                     )
-                    if (owner := registered_lane_for(text))
+                    if (owner := ("owner_tool_catalog" if _catalog_lane else registered_lane_for(text)))
                 ]
             except Exception:
                 # Accounting may never break the lane it accounts for: an
