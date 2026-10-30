@@ -650,7 +650,7 @@
     "cloud.err_4xx": "Request rejected ({code}). ",
     "cloud.err_500": "The service had a problem on its side. This usually passes — try again soon.",
     "cloud.err_502": "The service is having trouble on its side. This usually passes — try again soon.",
-    "cloud.err_503": "The service is down or too busy right now. This usually passes — try again soon.",
+    "cloud.err_503": "The service is down or overloaded right now. This usually passes — try again soon.",
     "cloud.err_5xx": "Provider error ({code}): likely temporary — retry shortly. ",
     "cloud.error": "Cloud error",
     "cloud.failed": "Could not reach the provider — check your internet connection, the key, or the custom base URL. ",

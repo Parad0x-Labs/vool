@@ -2890,7 +2890,7 @@
     "settings.row_saving": "저장하는 중…",
     "settings.row_unavailable": "지금 이 항목을 불러올 수 없습니다. 다시 시도하세요."
   },
-  "source_catalog_sha256": "1a6774f61b545483fda3aac5b645b424efdfb39fb14bb97a1f0ec75446c53fe9",
+  "source_catalog_sha256": "330452a166e4eac3936ebacd623458d3429430c2a684e41b339594fab92ccbae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

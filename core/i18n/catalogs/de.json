@@ -2890,7 +2890,7 @@
     "settings.row_saving": "Wird gespeichert…",
     "settings.row_unavailable": "Das ließ sich gerade nicht laden. Versuche es erneut."
   },
-  "source_catalog_sha256": "1a6774f61b545483fda3aac5b645b424efdfb39fb14bb97a1f0ec75446c53fe9",
+  "source_catalog_sha256": "330452a166e4eac3936ebacd623458d3429430c2a684e41b339594fab92ccbae",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
