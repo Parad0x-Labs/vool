@@ -283,7 +283,10 @@ def journey(args: argparse.Namespace) -> None:
     def serving():
         runtime = health().get("runtime") or {}
         steps = journal_end()
-        if runtime.get("commit_full") != expect or not steps or steps[-1] not in ("finalized", "rolled_back", "aborted"):
+        if steps and steps[-1] == "aborted":
+            # An aborted update leaves the old version serving: report it now, not after the whole timeout.
+            return {"steps": steps, "status": call("/api/update/status")}
+        if runtime.get("commit_full") != expect or not steps or steps[-1] not in ("finalized", "rolled_back"):
             return None
         return {"steps": steps, "status": call("/api/update/status")}
 
