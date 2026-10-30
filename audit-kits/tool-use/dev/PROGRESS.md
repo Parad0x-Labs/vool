@@ -51,3 +51,4 @@
 - 21:12Z: -k on 30c8cb31: 7060 passed, 94 failed, 5 errors. Against cb4852e5 by id: 92 fail there too; the 5 errors
   error there too (environment); 2 were new reds from find-before-read (a missing path outside the home lost
   machine.read_file's own refusal), fixed in cd904b2c. -k re-running on cd904b2c; push and the 81-ask dev run follow.
+- 21:53Z: dev run on cd904b2c: 4/81 asks done. needs_tool family tool 3/4; missing_connection reply says not connected (auto, not yet read) 0/0, any tool 0; no_tool no tool 0/0; timeouts 0; median 54 s/turn, max 489.6 s. Scorer counts only; reader verdicts come at the end.
