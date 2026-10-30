@@ -467,6 +467,10 @@ def fetch_manifest_bytes(url: str, *, timeout: float = 15.0) -> bytes:
 
 
 def _is_policy_refusal(exc: Exception) -> bool:
+    # A host that refuses or drops the connection is a transport failure the next try can resume,
+    # never this app's own veto, even though its text says "Connection refused".
+    if isinstance(exc, ConnectionError) or isinstance(getattr(exc, "reason", None), ConnectionError):
+        return False
     name = type(exc).__name__
     return "Refused" in name or "Veto" in name or "refused" in str(exc).lower() or "veto" in str(exc).lower()
 
