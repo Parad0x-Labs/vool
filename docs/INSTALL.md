@@ -3,31 +3,31 @@
 This is the canonical install and quickstart doc.
 
 The quickest route is the app download from the
-[v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta):
-`VOOL-0.7.5-beta-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.5-beta-macos-x86_64.dmg` for
+[v0.7.6-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta):
+`VOOL-0.7.6-beta-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.6-beta-macos-x86_64.dmg` for
 Intel Macs (both macOS 14 or newer), and the Linux x86_64 tarball described
 [below](#linux-x86_64-tarball). The macOS first-open steps are in
 [Install](getting-started/install.md#first-open-on-a-mac). The rest of this page covers
 source installs and the Linux tarball in detail.
 
-macOS / Linux source installs are pinned to `v0.7.5-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
+macOS / Linux source installs are pinned to `v0.7.6-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
 
 ## Fast Path
 
 macOS / Linux:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.5-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.6-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.6-beta
 ```
 
-To pin another release, change the tag in both the script URL and `--ref`. `--ref` takes a branch name or a release tag (`v0.7.5-beta`), not a commit hash:
+To pin another release, change the tag in both the script URL and `--ref`. `--ref` takes a branch name or a release tag (`v0.7.6-beta`), not a commit hash:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.5-beta --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.6-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.6-beta --install-profile ollama-max && rm -f "$tmp"
 ```
 
-On Windows the same pin is `-Ref v0.7.5-beta`.
+On Windows the same pin is `-Ref v0.7.6-beta`.
 
 Windows PowerShell:
 
@@ -66,9 +66,9 @@ bash Probe_VOOL_Stack.sh
 Force a supported install profile instead of taking the auto recommendation:
 
 ```bash
-bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.6-beta --install-profile local-only
 
-bash bootstrap_vool.sh --ref v0.7.5-beta --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.6-beta --install-profile local-max
 ```
 
 ```powershell
@@ -78,11 +78,11 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile lo
 Safe one-line profile shortcuts for macOS / Linux:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.5-beta --install-profile ollama-only && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.6-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.6-beta --install-profile ollama-only && rm -f "$tmp"
 ```
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.5-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.5-beta --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.6-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.6-beta --install-profile ollama-max && rm -f "$tmp"
 ```
 
 After install, inspect or switch profiles without editing env vars:
@@ -109,7 +109,7 @@ The probe reports:
 Manual local shortcut:
 
 ```bash
-git clone --branch v0.7.5-beta --depth 1 https://github.com/Parad0x-Labs/vool.git
+git clone --branch v0.7.6-beta --depth 1 https://github.com/Parad0x-Labs/vool.git
 cd vool
 bash Install_And_Run_VOOL.sh
 ```
@@ -117,16 +117,16 @@ bash Install_And_Run_VOOL.sh
 
 ## Linux x86_64 tarball
 
-Download `vool-0.7.5-beta-linux-x86_64.tar.gz` and its `.sha256` sidecar from the
-[v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta),
+Download `vool-0.7.6-beta-linux-x86_64.tar.gz` and its `.sha256` sidecar from the
+[v0.7.6-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.6-beta),
 check it, and run the bundled installer:
 
 ```bash
-curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/vool-0.7.5-beta-linux-x86_64.tar.gz
-curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.5-beta/vool-0.7.5-beta-linux-x86_64.tar.gz.sha256
-sha256sum -c vool-0.7.5-beta-linux-x86_64.tar.gz.sha256
-tar -xzf vool-0.7.5-beta-linux-x86_64.tar.gz
-bash vool-0.7.5-beta-linux-x86_64/install.sh
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.6-beta/vool-0.7.6-beta-linux-x86_64.tar.gz
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.6-beta/vool-0.7.6-beta-linux-x86_64.tar.gz.sha256
+sha256sum -c vool-0.7.6-beta-linux-x86_64.tar.gz.sha256
+tar -xzf vool-0.7.6-beta-linux-x86_64.tar.gz
+bash vool-0.7.6-beta-linux-x86_64/install.sh
 ~/.local/bin/vool
 # Server only: ~/.local/bin/vool --headless
 # Remove package: bash ~/.local/share/vool/current/uninstall.sh
