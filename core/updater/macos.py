@@ -34,6 +34,8 @@ from core.updater.platforms import BundleVerification, SwapOutcome
 
 logger = logging.getLogger("vool.updater.macos")
 
+_SCRIPT_WAIT_MARGIN_SECONDS = 15
+
 CommandRunner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 
 
@@ -427,9 +429,10 @@ class ExternalScriptHelper:
             "--txid",
             str(self._txid),
             "--wait-seconds",
-            # The script waits as long as the flow does (relaunch_health.STOP_BOUND_SECONDS): a
-            # shorter wait gave up on an app that was still closing while the flow went on.
-            str(int(relaunch_health.STOP_BOUND_SECONDS)),
+            # The script gives up just before the flow does (relaunch_health.STOP_BOUND_SECONDS):
+            # an app closing slowly ends as a clean "did not exit in time" before any rollback, and
+            # the rollback also stops the script (stop_swap_script) in case it is still waiting.
+            str(int(relaunch_health.STOP_BOUND_SECONDS) - _SCRIPT_WAIT_MARGIN_SECONDS),
             "--result",
             str(self.result_path),
         ]
@@ -463,6 +466,25 @@ class ExternalScriptHelper:
                 return True
             time.sleep(self.poll_interval)
         return _pid_has_exited(self._pid())
+
+    def stop_swap_script(self, *, timeout: float = 10.0) -> bool:
+        """Stop the swap script if it is still running (still waiting for the app to close), so it
+        cannot swap after the flow has decided to roll back. True once it is gone."""
+        process = self.process
+        if process is None or process.poll() is not None:
+            return True
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            os.killpg(process.pid, signal.SIGTERM)  # its own session (start_new_session)
+        try:
+            process.wait(timeout=max(0.0, float(timeout)))
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+            try:
+                process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                return False
+        return True
 
     def stop_running_app(self, *, timeout: float = 10.0) -> bool:
         """Stop whoever CURRENTLY occupies the app seat (fresh pidfile read), without
