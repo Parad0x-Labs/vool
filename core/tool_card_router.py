@@ -306,6 +306,11 @@ def _sem_scaled(cosine: float) -> float:
     return max(0.0, min(1.0, (cosine - lo) / (hi - lo)))
 
 
+def semantic_score(cosine: float) -> float:
+    """The match score a meaning cosine maps to under the current band (for floors set in cosine)."""
+    return _sem_scaled(float(cosine))
+
+
 def match_cards(
     text: str,
     *,
@@ -452,4 +457,5 @@ __all__ = [
     "releases_lane",
     "reset",
     "routed_intents",
+    "semantic_score",
 ]

@@ -341,3 +341,24 @@ def test_find_folder_still_needs_every_named_word(tmp_path, monkeypatch) -> None
     _roots(monkeypatch, tmp_path)
     result = _machine_find_folder({"name": "Lisbon holiday"})
     assert not ((result.details or {}).get("matches") or []), result.response_text
+
+
+def test_only_a_near_certain_meaning_fit_insists_on_the_retry(card_flag, monkeypatch) -> None:
+    # The local embedder is not up under test, so the matcher's meaning arm is fixed here at two
+    # real cosines: 0.82 releases the lane (it is above 0.70) but must not override a prose answer;
+    # 0.90 is a near-certain fit and does.
+    from core.tool_card_router import CardMatch, semantic_score
+    from core.tool_use_retry import RETRY_MEANING_COSINE
+
+    text = "how do you say good morning in Lithuanian?"
+    weak = CardMatch(intent="profile.list", score=round(semantic_score(0.82), 4), example="x", family="profile",
+                     by_meaning=True)
+    monkeypatch.setattr(tool_card_router, "releases_lane", lambda *_a, **_k: (weak,))
+    assert semantic_score(0.82) >= tool_card_router.RELEASE_SCORE > 0
+    assert needed_tool_intents(text, OWNER) == ()
+
+    strong = CardMatch(intent="skill.list", score=round(semantic_score(0.90), 4), example="x", family="skill",
+                       by_meaning=True)
+    monkeypatch.setattr(tool_card_router, "releases_lane", lambda *_a, **_k: (strong,))
+    assert RETRY_MEANING_COSINE <= 0.90
+    assert needed_tool_intents("which skills have I got", OWNER) == ("skill.list",)

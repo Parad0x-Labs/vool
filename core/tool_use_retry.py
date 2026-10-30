@@ -14,6 +14,8 @@ from typing import Any
 
 #: loop source-context key carrying {"intents": [...], "directive": str} for exactly one round.
 TOOL_USE_RETRY_KEY = "tool_use_retry"
+#: A card matched by meaning asks for the retry only at this cosine or above (see needed_tool_intents).
+RETRY_MEANING_COSINE = 0.85
 
 
 def needed_tool_intents(text: str, source_context: dict[str, Any] | None) -> tuple[str, ...]:
@@ -37,9 +39,18 @@ def needed_tool_intents(text: str, source_context: dict[str, Any] | None) -> tup
         # offer to check, "it isn't saved" without looking) were never retried, because this list
         # only knew the hand-written recognizers. Same matcher as the release, so the two cannot
         # disagree.
-        from core.tool_card_router import releases_lane
+        from core.tool_card_router import WORDS_ONLY_RELEASE_SCORE, releases_lane, semantic_score
 
-        intents.extend(m.intent for m in releases_lane(text, owner_local=True))
+        # Only a near-certain card fit insists on a tool: a released lane merely OFFERS one, while
+        # the retry overrides an answer the model already gave. Meaning at cosine >= 0.85 handed
+        # tools to 0 of 12 no-tool dev asks (tools.tool_card_calibrate, 2026-10-30) where the lane
+        # release at 0.70 handed them to 4; words alone already need a near-verbatim fit.
+        floor = semantic_score(RETRY_MEANING_COSINE)
+        intents.extend(
+            m.intent
+            for m in releases_lane(text, owner_local=True)
+            if m.score >= (floor if m.by_meaning else WORDS_ONLY_RELEASE_SCORE)
+        )
     except Exception:
         pass
     return tuple(i for i in dict.fromkeys(intents) if not i.startswith("email."))
