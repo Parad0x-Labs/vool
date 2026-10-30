@@ -230,7 +230,11 @@ def compute_markers(
                 da, db = _line_day(a["line"]), _line_day(b["line"])
                 if da is not None and db is not None and da != db:
                     older, newer = (a, b) if da < db else (b, a)
-                elif kind == "numeric":
+                elif (kind == "numeric"
+                      and ("user" in (a["role"], b["role"]))):
+                    # the direction law's floor: a conflict mark too needs a
+                    # user side — two same-day assistant lines with different
+                    # numbers are different meetings, not a contradiction
                     _set(a["line"], CONFLICT_MARKER)
                     _set(b["line"], CONFLICT_MARKER)
                     continue
@@ -240,9 +244,12 @@ def compute_markers(
                 older, newer = (a, b) if ka < kb else (b, a)
                 ko, kn = (ka, kb) if older is a else (kb, ka)
                 if _same_moment(ko, kn):
-                    # one sitting, no capture order: say both
-                    _set(a["line"], CONFLICT_MARKER)
-                    _set(b["line"], CONFLICT_MARKER)
+                    # one sitting, no capture order: say both — with a user
+                    # side (same floor as above; assistant-vs-assistant
+                    # schedule lines never mark)
+                    if "user" in (a["role"], b["role"]):
+                        _set(a["line"], CONFLICT_MARKER)
+                        _set(b["line"], CONFLICT_MARKER)
                     continue
             # the direction law, on the ORDERED pair: only the user's own
             # later statement carries a chain (an assistant line never
