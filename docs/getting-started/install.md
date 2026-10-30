@@ -17,7 +17,7 @@ See [Release status](../trust/release-status.md) for signing and update details.
 | Disk | 2 GB for the app | 20 GB with local models |
 | macOS | 14 Sonoma, Apple silicon or Intel ([limits](#intel-macs)) | 14 Sonoma or newer, Apple silicon |
 | Windows | 10 (64-bit) | 11 |
-| Linux | glibc 2.31 | Ubuntu 22.04 or newer |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 
 Local models need considerably more memory than the app itself. Sizing guidance is in
 [Run a local model](../guides/local-models.md).
@@ -56,12 +56,13 @@ Download the tarball and its `.sha256` file, check it, then run the bundled inst
 No sudo or system Python is needed. The full steps, the install locations and how to
 uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
 
-From 0.7.5 on, the Linux download updates inside VOOL. The new version is installed next to
+From 0.7.5 on, with **Go online on its own** turned on, the Linux download updates inside
+VOOL. The new version is installed next to
 the old one. If it does not start properly, VOOL switches back by itself.
 
 ### After install
 
-Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine.
+Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once (if a check was already recorded, the button reads **Re-run certification**). It runs a check on your machine; on a computer without a graphics card the first one can take several minutes.
 
 From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings
 live in your profile, outside the app. Crypto features are off by default.
@@ -82,8 +83,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 
 The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.5-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
 
-Installing from source needs Python 3.11 or newer. If none is found, the installer tries
-to set one up. The app downloads include their own Python.
+Installing from source needs Python 3.11 or newer. If none is found, the installer
+downloads one and sets it up. The app downloads include their own Python.
 
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model
@@ -100,8 +101,8 @@ installs the Intel builds of every dependency. Two limits are specific to Intel:
   the installer skips it and LoRA training reports itself unavailable. Chat, memory,
   tools and cloud models are unaffected.
 * **Local models run on the CPU only.** Local model runners have no GPU acceleration for Intel graphics,
-  so local answers are several times slower than on Apple silicon. On an 8 GB Mac, use a
-  cloud model for chat; on 16 GB, the installer's default small local model works but is slow.
+  so local answers are slower than on Apple silicon. On an 8 GB Mac, use a
+  cloud model for chat; on 16 GB, the installer's default local model (a Qwen model) works but is slow.
 
 On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now. Local-model certification allows for slower processors.
 

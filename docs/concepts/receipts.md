@@ -21,4 +21,4 @@ that claim against.
 | `result` | What it returned |
 | `time` | When it ran |
 
-Receipts are stored with the workspace and stay on your machine.
+Receipts are stored in VOOL's data folder on your machine.

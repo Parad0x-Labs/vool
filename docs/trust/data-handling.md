@@ -6,11 +6,13 @@ description: Exactly what data VOOL sends, when, and to whom. What stays on your
 
 ## The two states
 
-**LOCAL** — everything stays on this computer.
+**Local** — the model and your files stay on this computer. Asking for live facts such as
+weather or prices can still fetch them from public web services, even with Web lookups off.
 
-**CLOUD** — the selected context is sent directly to the selected provider.
+**Cloud** — the selected context is sent directly to the selected provider.
 
-The indicator in the interface shows which state is active before you send anything.
+The chat header shows which way the next request runs — for example **AUTO** with
+**Local first** when VOOL Auto answers from this computer.
 
 ## What VOOL does not do
 

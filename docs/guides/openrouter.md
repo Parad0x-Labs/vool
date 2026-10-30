@@ -1,28 +1,22 @@
 ---
-description: How to connect OpenRouter to VOOL so one API key reaches many cloud AI models, and what the authorization page does.
+description: How to add an OpenRouter key to VOOL so one API key reaches many cloud AI models, and what VOOL does with it.
 ---
 
 # Connect OpenRouter
 
-OpenRouter provides access to many providers behind one key. VOOL supports connecting an
-OpenRouter account.
+OpenRouter provides access to many providers behind one key. VOOL supports adding an
+OpenRouter key.
 
-## Connect
+## Add the key
 
-1. Open **Settings → Models → OpenRouter**.
-2. Choose **Connect**. Your browser opens OpenRouter's authorization page.
-3. Approve. The browser returns to VOOL's callback page, which hands the
-   authorization back to the desktop app.
-4. The app completes the exchange **on your machine** and stores the key in your
-   operating system's credential store.
+1. Create a key in your OpenRouter account (openrouter.ai/keys).
+2. Open **Settings → API Keys** and find OpenRouter under **Find a provider**.
+3. Paste the key. It is stored with your computer's own protections — on a Mac in your
+   Keychain (after you allow that once), elsewhere in an encrypted file inside your VOOL
+   profile — and is used to make requests **from your machine directly to OpenRouter**.
 
-## What the callback page does
-
-The callback page is a relay and nothing more. It passes
-the authorization code and state to the desktop app and then clears them from the URL.
-
-It never receives the PKCE verifier, never exchanges the code for a key, never stores a
-key, and carries no analytics or third-party scripts.
+There is no browser sign-in step for OpenRouter in VOOL today: you paste the key
+straight into the app.
 
 ## Billing and attribution
 
@@ -33,7 +27,8 @@ usage may appear in VOOL's public aggregate OpenRouter statistics, but individua
 and identities are not published.
 {% endhint %}
 
-## Disconnect
+## Remove the key
 
-**Settings → Models → OpenRouter → Disconnect** removes the key from the credential
+To remove the OpenRouter key, open **Settings**, choose **API Keys**, find the OpenRouter
+key under **Your keys**, and press **Remove**. This removes the key from the credential
 store. Revoke the key in your OpenRouter account as well if you want it dead server-side.

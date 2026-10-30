@@ -4,20 +4,24 @@ description: What data leaves your computer when you use VOOL, and when. The dif
 
 # Local and cloud
 
-VOOL has two states. The interface always shows which one is active.
+VOOL can answer in two ways: on this computer, or through a cloud provider. The chat
+header shows which way the next request runs — for example **AUTO** with
+**Local first** when VOOL Auto answers from this computer.
 
-## LOCAL
+## Local
 
-Everything stays on this computer. The model runs against a local runtime, files are read
-from disk, and no request is made to a provider.
+The model and your files stay on this computer. The model runs against a local runtime, files
+are read from disk, and no request is made to a provider. Asking for live facts such as weather
+or prices can still fetch them from public web services, even with Web lookups off; Local Only
+mode blocks those.
 
-## CLOUD
+## Cloud
 
 The selected context is sent directly to the provider you selected, from your machine,
 using your key.
 
 "The selected context" means what the app assembled for that request: your prompt, plus
-the files and prior turns the request needs. It is shown before sending.
+the files and prior turns the request needs.
 
 {% hint style="danger" %}
 Cloud mode sends data off your machine. That is the point of cloud mode. VOOL's claim is

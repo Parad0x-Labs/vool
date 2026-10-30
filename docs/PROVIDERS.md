@@ -10,7 +10,8 @@ model chosen for your hardware. Local inference is free and stays on your machin
 
 ## 2. BYOK — your own cloud key
 
-Settings → Providers → add an OpenRouter/OpenAI-compatible key. The key is stored in your
+Open Settings, choose API Keys, and add an OpenRouter/OpenAI-compatible key under
+"Your keys". The key is stored in your
 local credential store (Keychain service `nulla-credentials` — a frozen legacy name; see the
 [upgrade guide](UPGRADE_NULLA_TO_VOOL.md)) and used **only** for the lanes you enable. Payment
 goes straight from you to the provider; VOOL never intermediates.

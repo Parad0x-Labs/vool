@@ -10,7 +10,7 @@ Entries are added as builds go out to testers. Newest first.
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 [v0.7.5-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.5-beta).
-From this version on, VOOL tells you about new versions by itself and installs them with one press, on Mac and on Linux.
+From this version on, with "Go online on its own" on (it is off by default), VOOL tells you about new versions by itself and installs them with one press, on Mac and on Linux.
 
 Updating from 0.7.4 or 0.7.3 (one time only):
 * **Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu. Press Download and update. From 0.7.5 on, the notice comes by itself.

@@ -14,11 +14,12 @@ VOOL keeps its settings, chats, memory and records in one runtime home:
 | Linux tarball and source installs | `~/.vool_runtime` |
 | Windows (experimental, from source) | `%LOCALAPPDATA%\VOOL` |
 
-Setting `VOOL_HOME` before starting VOOL uses that folder instead. Startup logs print the
-home in use.
+Setting `VOOL_HOME` before starting VOOL uses that folder instead. The `vool` command prints
+the home in use.
 
-Keys are **not** stored here. They live in the operating system credential store —
-Keychain on macOS, Credential Manager on Windows, Secret Service on Linux.
+Keys are **not** stored here. On a Mac they are kept in your Mac's Keychain (after you
+allow that once). On Linux and Windows they are kept in an encrypted file inside your VOOL
+profile.
 
 ## Settings
 
@@ -36,4 +37,5 @@ VOOL has no product telemetry setting because it sends no product telemetry.
 ## Resetting
 
 Quit VOOL and move the runtime home aside. Workspace files are untouched; VOOL starts
-again with a fresh profile. Keys in the credential store stay until you remove them there.
+again with a fresh profile. Saved keys stay where they were kept — the Mac Keychain, or the
+encrypted file inside the old profile — until you remove them.

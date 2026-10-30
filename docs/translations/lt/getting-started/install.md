@@ -11,7 +11,7 @@ description: Atsisiųskite ir įdiekite VOOL 0.7.5-beta macOS (Apple silicon arb
 | Atmintis | 8 GB | 16 GB ar daugiau |
 | Diskas | 2 GB programai | 20 GB su vietiniais modeliais |
 | macOS | 14 Sonoma, Apple silicon arba Intel | 14 Sonoma ar naujesnė, Apple silicon |
-| Linux | x86_64, glibc 2.31 | Ubuntu 22.04 arba 24.04 |
+| Linux | Ubuntu 22.04, x86_64 | Ubuntu 24.04 |
 | Windows | Eksperimentinis, tik iš šaltinio kodo | |
 
 ## Atsisiuntimas
@@ -38,7 +38,7 @@ macOS 14 sistemoje taip pat galite spustelėti VOOL laikydami Control ir pasirin
 
 ## Vietiniai modeliai
 
-Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers → Local models** ir vieną kartą paspauskite **Certify**.
+Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers → Local models** ir vieną kartą paspauskite **Certify** (jei patikrinimas jau buvo įrašytas, mygtukas rodo **Re-run certification**). Tai atlieka patikrinimą jūsų kompiuteryje; jei kompiuteryje nėra grafikos plokštės, pirmasis patikrinimas gali užtrukti kelias minutes.
 
 ## Linux
 
@@ -49,6 +49,8 @@ sha256sum -c vool-0.7.5-beta-linux-x86_64.tar.gz.sha256
 tar -xzf vool-0.7.5-beta-linux-x86_64.tar.gz
 bash vool-0.7.5-beta-linux-x86_64/install.sh
 ```
+
+Nuo 0.7.5 versijos, įjungus "Go online on its own", Linux atsisiuntimas atnaujinamas pačioje VOOL. Nauja versija įdiegiama šalia senosios. Jei ji tinkamai nepasileidžia, VOOL savaime grįžta prie ankstesnės versijos.
 
 ## Patikrinkite atsisiuntimą
 

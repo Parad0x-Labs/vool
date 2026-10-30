@@ -6,7 +6,8 @@ description: Languages, accessibility, activity history, receipts, and how model
 
 ## Interface languages
 
-VOOL's interface is available in multiple languages. Language selection is a presentation
+VOOL's interface is available in multiple languages; newer strings may still show in
+English until a translation lands. Language selection is a presentation
 concern only: permission decisions, spending authority and error codes are
 **language-independent by construction** — a translated error message can never widen or
 narrow what the English authority decided.

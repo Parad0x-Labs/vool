@@ -212,7 +212,7 @@ _SPECS: tuple[FaultSpec, ...] = (
         severity=SEVERITY_MEDIUM,
         retry=RETRY_NEVER,
         user_message="That action was not permitted, so nothing was changed.",
-        operator_action="Check the permission policy or approval settings that govern this action.",
+        operator_action="Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’ to change what governs this action.",
         authority="core.runtime_execution_tools",
         security_relevant=True,
     ),
@@ -243,7 +243,7 @@ _SPECS: tuple[FaultSpec, ...] = (
             "That tool is not available right now, so this part was not done. "
             "Enabling it is needed before you retry."
         ),
-        operator_action="Enable the tool for this mode in settings, or choose a different approach.",
+        operator_action="Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’, or choose a different approach.",
         authority="core.runtime_execution_tools",
     ),
     FaultSpec(

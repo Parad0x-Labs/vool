@@ -62,7 +62,7 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 **Linux.** Unpack the tarball and run its installer; no sudo is needed. Full steps are in the [install guide](docs/INSTALL.md#linux-x86_64-tarball).
 
-**Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine.
+**Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a check on your machine; on a computer without a graphics card the first one can take several minutes.
 
 From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. On Linux, or from 0.7.2, 0.7.1 or 0.7.0: download 0.7.5 and install it over your current version. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
@@ -134,7 +134,7 @@ Once your model and workspace are configured, try:
 - **Documents:** “Read these PDFs and summarize the differences with references.”
 - **Memory:** “Remember this project decision so we can pick it up next session.”
 
-These are starting prompts, not fixed demos. Available tools depend on your setup and permissions; task quality depends on the model you choose. Web research requires web access to be enabled.
+These are starting prompts, not fixed demos. Available tools depend on your setup and permissions; task quality depends on the model you choose. Web research requires web access to be enabled. Reading PDFs works on a Mac; on Linux it is not available in this release.
 
 Inspect the local service at [`/healthz`](http://127.0.0.1:11435/healthz), its activity at [`/trace`](http://127.0.0.1:11435/trace), and configured features at [`/api/runtime/capabilities`](http://127.0.0.1:11435/api/runtime/capabilities).
 

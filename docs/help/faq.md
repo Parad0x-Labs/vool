@@ -6,7 +6,9 @@ description: Common questions about VOOL — whether it works offline, where you
 
 ## Does VOOL work offline?
 
-Yes, with a local model. Cloud models need a network connection by definition.
+Yes, with a local model, for your chats and files. Cloud models need a network
+connection by definition. Asking for live facts such as weather or prices can still
+fetch them from public web services, even with Web lookups off.
 
 ## Do I need a cloud key?
 
@@ -14,7 +16,8 @@ No. A local model is enough to use the app.
 
 ## Where is my key stored?
 
-In your operating system's credential store, on your machine. See
+With your computer's own protections, on your machine — on a Mac the Keychain (after you
+allow that once); elsewhere an encrypted file inside your VOOL profile. See
 [Security model](../trust/security.md).
 
 ## Does Parad0x see my prompts?
