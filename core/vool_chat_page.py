@@ -3220,10 +3220,8 @@ let _lastSessions = [];
 // empty -- a VOOL restart made that window read as data loss (fresh-test item 14). One quiet
 // row while the ask is out, a retry row when it failed, and the empty state only after the
 // server itself says there are none.
-let sessionsFirstLoadDone = false;
+let sessionsFirstLoadDone = false;   // synced with sessionsLoaded at the first real answer
 let sessionsLoadFailed = false;
-let sessionsRetryTimer = null;
-let sessionsRetryDelay = 1000;
 function paintSessionsLoadState() {
   sessionsEl.innerHTML = '';
   const row = document.createElement('div');
@@ -3234,14 +3232,8 @@ function paintSessionsLoadState() {
     : pageT('sidebar.loading', 'Loading your chats…');
   sessionsEl.appendChild(row);
 }
-function scheduleSessionsRetry() {
-  if (sessionsRetryTimer || sessionsFirstLoadDone) return;
-  sessionsRetryTimer = setTimeout(function () {
-    sessionsRetryTimer = null;
-    loadSessions();
-  }, sessionsRetryDelay);
-  sessionsRetryDelay = Math.min(15000, sessionsRetryDelay * 2);
-}
+// The retry timer itself is the release scheduleSessionsRetry() below (one timer, one law);
+// the shadowed first-load variant was dropped in the 0.7.7 dry-run merge.
 let _sessionCounts = null;   // true per-group chat counts from the server; the page is capped
 // Across a VOOL restart the daemon rebinds its port and the sessions fetch fails or answers
 // "starting" while the store opens; an answer that is not a real list must never render as
@@ -4297,11 +4289,12 @@ async function loadSessions() {
     // ("starting") must never render as an empty list -- that reads as lost data during a
     // restart. Retry instead; after a first success the last good list simply stays.
     if (!r.ok || !data || data.state === 'starting' || !Array.isArray(data.sessions)) {
-      if (!sessionsLoaded) paintSessionsState('retry');
+      if (!sessionsLoaded) { paintSessionsState('retry'); sessionsLoadFailed = true; }
       scheduleSessionsRetry();
       return;
     }
     sessionsLoaded = true;
+    sessionsFirstLoadDone = true; sessionsLoadFailed = false;
     clearTimeout(sessionsRetryTimer); sessionsRetryTimer = null; sessionsRetryDelayMs = 1000;
     _sessionCounts = (data && typeof data.counts === 'object') ? data.counts : null;
     renderSessions(data.sessions);
@@ -4309,7 +4302,7 @@ async function loadSessions() {
   } catch (e) {
     // The fetch itself threw -- the daemon is rebinding its port across a restart. Same law as
     // above: never a fake-empty list, retry on the growing delay.
-    if (!sessionsLoaded) paintSessionsState('retry');
+    if (!sessionsLoaded) { paintSessionsState('retry'); sessionsLoadFailed = true; }
     scheduleSessionsRetry();
   }
 }
