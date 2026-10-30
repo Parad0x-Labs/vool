@@ -1,6 +1,6 @@
 {
   "NSPhotoLibraryUsageDescription": "Añade una foto a este chat. No se enviará ningún mensaje hasta que pulses Enviar.",
-  "NSMicrophoneUsageDescription": "Graba una nota breve para que tu ordenador la transcriba. Revisa el texto antes de enviarlo.",
+  "NSMicrophoneUsageDescription": "Graba una nota breve; tu ordenador la convierte en texto para que la revises.",
   "NSLocationWhenInUseUsageDescription": "Añade tu ubicación actual al cuadro de mensaje para revisarla. No se usa la ubicación en segundo plano.",
   "NSFaceIDUsageDescription": "Desbloquear VOOL",
   "NSCameraUsageDescription": "Escanear QR de vinculación. Hacer foto."

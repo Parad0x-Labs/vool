@@ -1,6 +1,6 @@
 {
   "NSPhotoLibraryUsageDescription": "Add one photo to this chat. Nothing is sent as a message until you tap Send.",
-  "NSMicrophoneUsageDescription": "Record a short note for your computer to transcribe. Review the text before sending.",
+  "NSMicrophoneUsageDescription": "Record a short note; your computer writes it out as text for you to check.",
   "NSLocationWhenInUseUsageDescription": "Add your current location to the message box for review. No background location is used.",
   "NSFaceIDUsageDescription": "Unlock VOOL",
   "NSCameraUsageDescription": "Scan pairing QR. Take a photo."
