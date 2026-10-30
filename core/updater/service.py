@@ -157,6 +157,12 @@ class UpdateCheckService:
             try:
                 raw = self._fetch(self.manifest_url)
             except Exception as exc:
+                if preserve_failure and previous is not None and previous.phase is not UpdatePhase.CHECKING and (
+                        previous.phase is not UpdatePhase.READY or self._offer is not None):
+                    # A scheduled check that could not reach the release page changes nothing the person sees:
+                    # a verified offer stays ready (Update verifies it again), any other state stays as it was.
+                    self.status.save(previous)
+                    return CheckOutcome(False, f"manifest fetch failed: {exc}")
                 self._offer = None
                 self.status.publish(UpdatePhase.FAILED, detail="update check failed; check your connection")
                 return CheckOutcome(False, f"manifest fetch failed: {exc}")
