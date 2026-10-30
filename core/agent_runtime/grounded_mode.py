@@ -199,6 +199,22 @@ def _is_about_the_assistant(text: str) -> bool:
     return bool(_ABOUT_THE_ASSISTANT_RE.search(str(text or "")))
 
 
+def _records_scoped(text: str) -> bool:
+    """Whether the ask names the user's own notes/records/chats as its source of truth.
+
+    The reading belongs to ``core.execution.constants.records_scoped_ask``, reused rather than
+    restated so this promotion and the widening arms under it cannot disagree about the same
+    ask. Import-defensive like the lookup authorities above: on a consumer that cannot reach
+    the constants the promotion keeps today's reading rather than failing the turn.
+    """
+    try:
+        from core.execution.constants import records_scoped_ask
+
+        return records_scoped_ask(text)
+    except Exception:
+        return False
+
+
 # A request to BUILD software. The freshness words inside such a request ("check the latest chats",
 # "fetch the current weather", "posts today's headlines") specify what the ARTIFACT must do; they
 # are not a request that the runtime look anything up now. Matched on the SHAPE -- an authoring
@@ -510,6 +526,19 @@ def answer_mode_for(request: str) -> AnswerMode:
             # still asks for current world information ("and what is 1000 TRY in EUR right
             # now") keeps its grounding, and the unambiguous arms above (explicit evidence
             # contract, currency, breakdown) never passed through here at all.
+            return AnswerMode.DIRECT
+        # The store an ask names outranks its currency wording. An ask seated on the user's own
+        # kept material ("what's the current balance in my notes?", "what does my journal say
+        # the rent is right now?") promoted here on "current"/"right now", and the GROUNDED
+        # contract then minted a current-information requirement a live retrieval could never
+        # satisfy -- the only store that can hold the answer is the one the ask names (measured
+        # on the records follow-up, 2026-10-29: the reply shipped the current-information
+        # refusal while the records held the reading). The same records-scope recognizer the
+        # two DIRECT widening arms stand down under disarms this promotion, so the turn reads
+        # DIRECT and the records reading answers it. An ask that names the web is never
+        # records-scoped, and an ask that promised evidence, named a currency conversion or
+        # demanded a breakdown was promoted above and keeps its contract.
+        if _records_scoped(text):
             return AnswerMode.DIRECT
         # Currency alone means "go and look" only when the subject is the WORLD. "what is your
         # current mood right now" carries every currency marker and is a question about the
