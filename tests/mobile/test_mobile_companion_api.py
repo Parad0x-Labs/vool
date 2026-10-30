@@ -471,7 +471,13 @@ class TestPairingSurface:
                     runtime=runtime, client_host=PHONE_HOST).status == 403
 
     def test_pairing_page_unknown_session(self, runtime):
-        assert _get("/api/mobile/pairing/page", {"pairing_id": ["pair_nope"]}, runtime=runtime).status == 404
+        r = _get("/api/mobile/pairing/page", {"pairing_id": ["pair_nope"]}, runtime=runtime)
+        assert r.status == 404
+        # An old or bookmarked link opens in a browser: a page in words with a way on, not raw JSON.
+        assert r.content_type.startswith("text/html")
+        html = r.body.decode("utf-8")
+        assert "pairing_unknown" not in html and "no such pairing session" not in html
+        assert '"status": "missing"' in html and "Make a new code" in html
 
 
 # ---------------------------------------------------------------------------
