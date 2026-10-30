@@ -28,7 +28,7 @@
     ]
   },
   "code.task.open": {
-    "use_when": "The person wants VOOL to start working on a concrete coding job in their project, such as fixing a bug, adding a feature, or refactoring code.",
+    "use_when": "The person wants the app to start working on a concrete coding job in their project, such as fixing a bug, adding a feature, or refactoring code.",
     "examples": [
       "fix the bug where the app crashes when I upload an empty file",
       "can you please figure out why my tests keep failing on the checkout page?",
@@ -55,7 +55,7 @@
     ]
   },
   "code.task.step": {
-    "use_when": "The person is working through a code fix with VOOL and wants it to read a project file, run a test or command, check the repo state, or apply the change they already approved.",
+    "use_when": "The person is working through a code fix with the app and wants it to read a project file, run a test or command, check the repo state, or apply the change they already approved.",
     "examples": [
       "run the tests again",
       "open src/app.py and show me what's in it",
@@ -154,7 +154,7 @@
       "Viskas gerai, patvirtinu pakeitimus, galite juos pritaikyti"
     ],
     "not_for": [
-      "How does code review approval work in GitHub?",
+      "How does code review approval work on a code hosting site?",
       "Write a message asking my teammate to approve my pull request",
       "Show me a preview of what you would change first",
       "What's the difference between approving and merging?",
@@ -163,7 +163,7 @@
     ]
   },
   "code.task.cancel": {
-    "use_when": "The person wants to stop a coding job that VOOL started or is running, so that nothing further gets done for it.",
+    "use_when": "The person wants to stop a coding job that the app started or is running, so that nothing further gets done for it.",
     "examples": [
       "Stop the coding job I just started, it's going the wrong way",
       "cancel task 4821",
@@ -264,7 +264,7 @@
     "not_for": [
       "How do I write a good pull request description?",
       "What is a pull request and why do teams use them?",
-      "Open the pull request on GitHub for me",
+      "Open the pull request on the code hosting site for me",
       "Write a blog post about code review best practices",
       "Run the tests again for the fix",
       "lol my PR got 40 comments today"

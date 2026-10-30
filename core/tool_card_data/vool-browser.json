@@ -19,7 +19,7 @@
       "Atidaryk izoliuotą naršyklę be mano slaptažodžių ir eik į lrt.lt"
     ],
     "not_for": [
-      "how do I clear cookies in Chrome?",
+      "how do I clear cookies in my browser?",
       "write a paragraph about why private browsing matters",
       "what is a sandbox in computer security?",
       "which browser is the fastest right now?",
@@ -28,7 +28,7 @@
     ]
   },
   "vool-browser.session.close": {
-    "use_when": "The person has finished with a browsing session VOOL opened for them and wants it shut down and its temporary data cleaned up.",
+    "use_when": "The person has finished with a browsing session the app opened for them and wants it shut down and its temporary data cleaned up.",
     "examples": [
       "close the browser session",
       "ok we're done browsing, shut it down",
@@ -48,7 +48,7 @@
       "Uždaryk naršyklės sesiją, jau baigiau"
     ],
     "not_for": [
-      "how do I close all the tabs in Chrome?",
+      "how do I close all the tabs in my browser?",
       "why does my browser keep using so much memory",
       "write a short paragraph about browser privacy and temporary profiles",
       "open a new browser session and go to the news site",
@@ -105,13 +105,13 @@
       "how do redirects work and why do browsers block some of them?",
       "write a short explanation of what a URL is",
       "what's the best browser for privacy?",
-      "explain how to change the page load timeout in Chrome",
+      "explain how to change the page load timeout in my browser",
       "I was so bored last night I spent hours just surfing the internet lol",
       "draft an email telling my team to visit our website"
     ]
   },
   "vool-browser.inspect": {
-    "use_when": "The person wants VOOL to look at what is currently shown on a page in their open browser session, such as reading its text, a specific element, or the page structure.",
+    "use_when": "The person wants the app to look at what is currently shown on a page in their open browser session, such as reading its text, a specific element, or the page structure.",
     "examples": [
       "what does the page I have open say right now",
       "read the text on this page for me",
@@ -130,10 +130,10 @@
       "get the text from the #checkout-total part of the page"
     ],
     "not_for": [
-      "how do I open developer tools to inspect a page in Chrome?",
+      "how do I open developer tools to inspect a page in my browser?",
       "write me a paragraph about how web browsers render pages",
       "what is the difference between HTML and CSS?",
-      "open google.com and click the first result",
+      "open example.com and click the first result",
       "my browser is so slow today, ugh",
       "give me tips for writing better CSS selectors"
     ]
@@ -166,7 +166,7 @@
     ]
   },
   "vool-browser.type": {
-    "use_when": "The person wants VOOL to type or fill text into a field on a web page that is open in the browser, such as a search box, login field, comment box or form input, optionally submitting it.",
+    "use_when": "The person wants the app to type or fill text into a field on a web page that is open in the browser, such as a search box, login field, comment box or form input, optionally submitting it.",
     "examples": [
       "type 'wireless headphones' into the search box and hit enter",
       "fill in the name field with Anna Test",
@@ -214,7 +214,7 @@
       "how do I write a good test for a login page?",
       "what is the difference between a url and a title tag",
       "write a short text a 404 page could show",
-      "open google.com and click the first result",
+      "open example.com and click the first result",
       "explain how CSS selectors work",
       "ugh my pages never load fast, so annoying"
     ]
@@ -238,7 +238,7 @@
       "Padaryk šio puslapio ekrano nuotrauką ir išsaugok ją"
     ],
     "not_for": [
-      "How do I take a screenshot on my Mac?",
+      "How do I take a screenshot on my computer?",
       "What's the difference between PNG and JPEG for screenshots?",
       "Write a caption for my screenshot of the dashboard",
       "Why do my screenshots look blurry on a big monitor?",
@@ -292,7 +292,7 @@
       "Įkelk šį tekstą kaip pastabos.txt į svetainės formą naršyklėje"
     ],
     "not_for": [
-      "how do I upload a file to Google Drive",
+      "how do I upload a file to my online drive",
       "write me a cover letter that I can upload later",
       "what is the maximum file size for uploads on most websites",
       "explain what base64 encoding is",
@@ -319,7 +319,7 @@
       "Įkelk paruoštus failus į failo laukelį šiame puslapyje."
     ],
     "not_for": [
-      "how do I upload a file to Google Drive?",
+      "how do I upload a file to my online drive?",
       "write a cover letter I can attach to my application",
       "what file types do most websites accept for uploads?",
       "why is my internet so slow when uploading stuff",
@@ -372,7 +372,7 @@
       "Parodyk, kokioms svetainėms naršyklėje suteikti leidimai."
     ],
     "not_for": [
-      "how do I change site permissions in Chrome",
+      "how do I change site permissions in my browser",
       "what is a browser permission and why do sites ask for them",
       "write a short blog post about website privacy settings",
       "allow camera access for this website",
@@ -399,7 +399,7 @@
       "Nutrauk naršyklės sesiją ir ištrink laikiną profilį"
     ],
     "not_for": [
-      "how do I clear cookies in Chrome?",
+      "how do I clear cookies in my browser?",
       "write a short essay about browser privacy",
       "what is a browser profile and why do browsers use them?",
       "open a new browser and go to wikipedia",
@@ -523,7 +523,7 @@
       "finish the purchase on this page, I'll authenticate myself",
       "can you take me to the payment step so i can pay with my phone",
       "everything's in the cart, hand it over to me to pay",
-      "pay for these shoes pls i'll approve it with face id",
+      "pay for these shoes pls i'll approve it with face unlock",
       "ready to buy. show me the pay screen",
       "Could you please get the payment ready so I can complete my purchase with Google Pay?",
       "cart done, now i just need to pay wiht apple pay",
@@ -538,7 +538,7 @@
       "Is Google Pay safer than a credit card?",
       "Add this jacket to my cart",
       "I love shopping online, it's so dangerous for my wallet lol",
-      "What's the best way to set up Apple Pay on my iPhone?"
+      "What's the best way to set up Apple Pay on my phone?"
     ]
   },
   "vool-browser.order.reconcile": {

@@ -76,7 +76,7 @@
       "Atidaryk visą laišką iš banko ir parodyk visą tekstą."
     ],
     "not_for": [
-      "how do I find the Message-ID of an email in Gmail",
+      "how do I find the Message-ID of an email",
       "write a reply to my boss saying I'll be late",
       "what does CC vs BCC mean",
       "search my inbox for emails about taxes",
@@ -117,7 +117,7 @@
       "Looks good, approve the draft",
       "yes that's fine, approved",
       "I'm happy with this version, you can mark it as approved",
-      "approve it",
+      "that final version looks great, mark it approved for me",
       "ok after the changes I approve the new version",
       "Yep aproved, looks perfect",
       "i read version 3 and it's good to go, approve that one",
@@ -183,7 +183,7 @@
       "Ar mano laiškas tikrai išsiųstas? Nesu tikras, ar jis išėjo."
     ],
     "not_for": [
-      "How do I find my Sent folder in Gmail?",
+      "How do I find my Sent folder?",
       "Write an email to my landlord asking about the deposit",
       "Why do emails sometimes fail to send?",
       "Send that draft again right now",

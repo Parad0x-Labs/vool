@@ -11,7 +11,7 @@
       "need to cut some parts out of /home/sam/Videos/talk.mkv",
       "pull up the vacation video on my desktop so I can edit it",
       "Open interview.mp3 for editing but don't touch the original",
-      "lemme trim this gopro clip D:\\footage\\GOPR0231.MP4",
+      "lemme trim this camera clip D:\\footage\\GOPR0231.MP4",
       "opne beach_day.mov in the editor, want to crop it",
       "Abre el video boda.mp4 para editarlo, por favor",
       "Ouvre mon fichier audio entretien.wav pour que je le coupe",
@@ -61,7 +61,7 @@
       "Cut out the part from 1:20 to 1:45 please",
       "split the clip at 00:32",
       "crop the video to just the left half",
-      "make this 9:16 for tiktok",
+      "make this 9:16 for a vertical short video",
       "rotat the clip 180, its upside down",
       "the audio is way too quiet, turn it up by 6 dB",
       "normalize the audio on my podcast episode",
@@ -74,7 +74,7 @@
     ],
     "not_for": [
       "How do I trim a video in general?",
-      "What's the best aspect ratio for YouTube?",
+      "What's the best aspect ratio for online video?",
       "Write a catchy caption for my holiday video",
       "What does audio normalization actually mean?",
       "I love editing videos on weekends lol"
@@ -99,9 +99,9 @@
       "Atšauk paskutinį mano vaizdo projekto pakeitimą"
     ],
     "not_for": [
-      "how do I undo an edit in Premiere Pro?",
+      "how do I undo an edit in my video editor?",
       "write a short blog post about why undo buttons are useful",
-      "what is the keyboard shortcut for undo on a Mac",
+      "what is the keyboard shortcut for undo on my computer",
       "undo my last git commit",
       "I wish I could undo that awkward conversation yesterday",
       "explain the difference between undo and redo in video editors"
@@ -126,7 +126,7 @@
       "Atlik iš naujo veiksmą, kurį ką tik atšaukiau mano vaizdo projekte"
     ],
     "not_for": [
-      "How do I redo an edit in Premiere Pro using the keyboard?",
+      "How do I redo an edit in my video editor using the keyboard?",
       "Undo my last edit on the video project",
       "Write a short poem about redoing things",
       "What is the difference between undo and redo in editing software?",
@@ -139,11 +139,11 @@
     "examples": [
       "ok the edit looks good, render it out as an mp4 to my Desktop",
       "save my finished video project as a new file called final_cut.mp4",
-      "can you please render the project for instagram",
+      "can you please render the project for a social post",
       "make a small version of my video so I can email it",
       "render in high quality pls, put it in Videos/output",
       "im done editing, give me the final video file",
-      "turn my edit into a finished clip for tiktok",
+      "turn my edit into a finished clip for a vertical short-video post",
       "render the timeline to a file",
       "finish up the vid and save it as wedding_highlights.mp4 in high res",
       "could you kindly produce the final render of my project when you have a moment",
@@ -153,7 +153,7 @@
       "Sugeneruok galutinį mano video projekto failą aukšta kokybe"
     ],
     "not_for": [
-      "How do I pick the best video bitrate for YouTube?",
+      "How do I pick the best video bitrate for online video?",
       "Write a caption for my vacation reel",
       "What's the difference between MP4 and MOV?",
       "I love editing videos, it's so relaxing",

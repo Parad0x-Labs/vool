@@ -1,27 +1,27 @@
 {
   "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
   "demo.plan": {
-    "use_when": "The person gives a GitHub repo or documentation/website link and wants a planned demo or explainer video from it, either a subtitled shot list with image prompts or a host-led presentation story.",
+    "use_when": "The person gives a code repository or documentation/website link and wants a planned demo or explainer video from it, either a subtitled shot list with image prompts or a host-led presentation story.",
     "examples": [
-      "make a promo video plan from https://github.com/example/project",
+      "make a promo video plan from https://git.example.com/user/project",
       "Can you turn this docs page into a shot list with subtitles? https://docs.example.com/start",
       "storyboard for my repo readme pls, 30 seconds",
-      "I need image prompts and timing for a slideshow about this github page",
+      "I need image prompts and timing for a slideshow about this repo page",
       "Please create a product presentation video story from our website page, with a woman as the host",
       "turn this readme into a vid script w/ scenes and a presenter talking to camera",
       "plan a 45 second explainer from https://docs.example.com/guide",
       "make a video story for this repo using my saved Spring Launch set",
-      "shotlist for this github link, make the host a friendly man",
+      "shotlist for this repo link, make the host a friendly man",
       "cn u plan a short demo video for this lib, then make the intro punchier",
-      "Hazme un guion de video con escenas a partir de este README de GitHub",
+      "Hazme un guion de video con escenas a partir de este README del repositorio",
       "Peux-tu préparer un storyboard sous-titré à partir de cette page de documentation ?",
-      "Erstelle mir aus dieser GitHub-Seite eine Shotliste für ein kurzes Erklärvideo",
-      "Padaryk vaizdo įrašo planą iš šio GitHub projekto aprašymo, apie 30 sekundžių"
+      "Erstelle mir aus dieser Projektseite eine Shotliste für ein kurzes Erklärvideo",
+      "Padaryk vaizdo įrašo planą iš šio kodo projekto aprašymo, apie 30 sekundžių"
     ],
     "not_for": [
       "How do I write a good README for my open source project?",
-      "What is GitHub and how do pull requests work?",
-      "Write a tweet announcing my new repo",
+      "What is a code repository and how do pull requests work?",
+      "Write a short social post announcing my new repo",
       "Give me tips on making product demo videos look professional",
       "I love watching software launch videos, they're so satisfying lol",
       "Summarize what this library does in two sentences"

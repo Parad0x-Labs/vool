@@ -1,7 +1,7 @@
 {
-  "_about": "Cards for VOOL skills (instructions VOOL follows).",
+  "_about": "Cards for the app's skills (instructions it follows).",
   "skill.list": {
-    "use_when": "The person wants to know which skills VOOL has or has turned on.",
+    "use_when": "The person wants to know which skills the app has or has turned on.",
     "examples": [
       "what skills do you have",
       "list my skills",
@@ -16,7 +16,7 @@
     ]
   },
   "skill.create": {
-    "use_when": "The person wants VOOL to learn a new skill: a saved set of instructions for a kind of task.",
+    "use_when": "The person wants the app to learn a new skill: a saved set of instructions for a kind of task.",
     "examples": [
       "make a skill for writing my weekly report",
       "create a new skill that formats recipes my way",
@@ -36,7 +36,7 @@
       "activate my report skill"
     ],
     "not_for": [
-      "install spotify"
+      "install a new app on my computer"
     ]
   },
   "skill.remove": {
@@ -71,7 +71,7 @@
     "not_for": [
       "how do I write a good skill description?",
       "write me a skill that summarizes my emails",
-      "what is a skill and how does VOOL use them?",
+      "what is a skill and how does the app use them?",
       "explain how skills get ranked",
       "create a new skill file called budget.md",
       "I love building skills, it's such a fun hobby"
@@ -105,7 +105,7 @@
     ]
   },
   "skill.export": {
-    "use_when": "The person has built their own skill or plugin and wants to package it into one zip file to share, back up, or let someone else import into their own VOOL.",
+    "use_when": "The person has built their own skill or plugin and wants to package it into one zip file to share, back up, or let someone else import into their own app.",
     "examples": [
       "export my meeting-notes skill as a zip",
       "Can you package the invoice helper skill so I can send it to my brother?",
@@ -132,7 +132,7 @@
     ]
   },
   "skill.import": {
-    "use_when": "The person has a skill or plugin zip, either attached to the chat or saved on their computer, and wants it brought into VOOL for this chat, this project or everywhere.",
+    "use_when": "The person has a skill or plugin zip, either attached to the chat or saved on their computer, and wants it brought into the app for this chat, this project or everywhere.",
     "examples": [
       "import this skill zip for me",
       "can you add the attached plugin to this chat only",
@@ -143,7 +143,7 @@
       "i downloaded a skill, its in ~/Downloads/meeting-notes.zip, bring it in",
       "take the zip I just attached and stage it for this project",
       "check this zip and import it, only for this conversation",
-      "got a plugin file here, can u set it up for all of VOOL",
+      "got a plugin file here, can u set it up for the whole app",
       "Importa este zip de habilidad solo para este chat, por favor",
       "Peux-tu importer le zip joint pour tout mon projet ?",
       "Bitte importiere die angehängte Plugin-Zip-Datei für alle Chats",
@@ -154,7 +154,7 @@
       "what's the difference between a skill and a plugin?",
       "write a README for my plugin",
       "turn on the skill I imported yesterday",
-      "how do I zip up a folder on Windows?",
+      "how do I zip up a folder on my computer?",
       "plugins are so handy, I love them haha"
     ]
   },
@@ -204,7 +204,7 @@
       "Parodyk, kodėl įgūdis root-cause-repair šiuo metu neprieinamas"
     ],
     "not_for": [
-      "how do I write my own skill for VOOL?",
+      "how do I write my own skill for the app?",
       "explain what root cause analysis means",
       "write a short blog post about automated repair skills",
       "thanks, that repair skill is really handy lol",

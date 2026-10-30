@@ -4,7 +4,7 @@
     "use_when": "The person wants a specific shell command, script, test run, build or file check run inside their project folder and wants to see the output, with no internet access needed.",
     "examples": [
       "run ls -la in my project folder",
-      "can you run the tests with npm test",
+      "can you run the project tests",
       "execute python script.py and show me the output",
       "whats the output of git status",
       "pls run `make build` inside the src folder",
@@ -15,7 +15,7 @@
       "Could you please run \"grep -rn TODO .\" and tell me what turns up?",
       "Ejecuta python main.py y dime qué sale",
       "Lance la commande git log --oneline dans le dossier du projet",
-      "Führe bitte npm test aus und zeig mir das Ergebnis",
+      "Führe bitte die Projekttests aus und zeig mir das Ergebnis",
       "Paleisk komandą ls -la projekto aplanke"
     ],
     "not_for": [
@@ -24,7 +24,7 @@
       "Write me a bash script that backs up my documents",
       "Explain the difference between bash and zsh",
       "I love working in the terminal, it feels so powerful",
-      "Which is better for beginners, Linux or Mac?"
+      "Which operating system is better for beginners?"
     ]
   }
 }

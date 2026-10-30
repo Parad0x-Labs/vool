@@ -21,7 +21,7 @@
     "not_for": [
       "How do I set up a smart price alert strategy for crypto trading?",
       "What is a wallet address and how does it work?",
-      "Write a tweet about my token hitting a new all-time high",
+      "Write a post about my token hitting a new all-time high",
       "What's the current price of ETH right now?",
       "Send 0.5 SOL to my friend's wallet",
       "Explain what a 24h percent move means"
@@ -48,14 +48,14 @@
     "not_for": [
       "how do I set up a watch on a wallet?",
       "explain what a blockchain is",
-      "write a short tweet about keeping an eye on crypto prices",
+      "write a short post about keeping an eye on crypto prices",
       "pause my ETH watch",
       "I love watching movies on weekends",
       "what is the best watch brand to buy?"
     ]
   },
   "watch.remove": {
-    "use_when": "The person wants to stop being notified about a page or address VOOL is monitoring, and asks to delete that monitor by its id or by the address it follows.",
+    "use_when": "The person wants to stop being notified about a page or address the app is monitoring, and asks to delete that monitor by its id or by the address it follows.",
     "examples": [
       "stop tracking https://example.com/pricing",
       "delete watch 7",
@@ -120,7 +120,7 @@
       "i switched internet access back on so get my stopped watch going again",
       "Please re-arm the watch for the apartment listing site, thanks!",
       "pls unpause the one i paused yesterday",
-      "watch on my github releases page died, can u kick it back on",
+      "watch on my releases page died, can u kick it back on",
       "Reactiva la vigilancia de esa página, quedó en pausa.",
       "Relance la surveillance de ma page de prix, elle est en pause.",
       "Setz die Überwachung für die Seite bitte wieder fort.",

@@ -22,7 +22,7 @@
       "How do I organize my project folders better?",
       "Explain what a directory tree is",
       "Write a short poem about messy folders",
-      "What's the command to list files in Linux?",
+      "What's the command to list files?",
       "my desktop is such a mess lol",
       "Open README.md and show me what's written in it"
     ]
@@ -157,7 +157,7 @@
       "what is the difference between a folder and a directory?",
       "write a short guide on naming conventions for project folders",
       "delete the folder called old_stuff",
-      "what does the mkdir command do in Linux?",
+      "what does the mkdir command do?",
       "I'm so tired of my messy desktop folders lol"
     ]
   },
@@ -242,7 +242,7 @@
     ]
   },
   "workspace.identity": {
-    "use_when": "The person wants to know which project or folder VOOL is currently working in, including its location, whether it is a git repository, or how big it is at the top level.",
+    "use_when": "The person wants to know which project or folder the app is currently working in, including its location, whether it is a git repository, or how big it is at the top level.",
     "examples": [
       "which project am I in right now?",
       "what folder is active",
@@ -318,7 +318,7 @@
       "explain what a diff is and how to read one",
       "write me a nice commit message about a login fix",
       "what's the difference between merge and rebase",
-      "how do I compare two branches on GitHub?",
+      "how do I compare two branches on the shared repo host?",
       "I love how version control keeps my history, so cool"
     ]
   },
@@ -350,7 +350,7 @@
     ]
   },
   "workspace.rollback_last_change": {
-    "use_when": "The person wants to undo the most recent change VOOL just made to their files or workspace in the current session, because it was wrong, unwanted, or broke something.",
+    "use_when": "The person wants to undo the most recent change the app just made to their files or workspace in the current session, because it was wrong, unwanted, or broke something.",
     "examples": [
       "undo that last change",
       "revert what you just did to my files",
@@ -383,7 +383,7 @@
       "can you run my test suite and tell me if anything fails",
       "pls run pytest in the backend folder",
       "do the tests still pass after my change?",
-      "run npm test",
+      "run the project tests",
       "check if all tests are green",
       "run only the tests in tests/test_login.py",
       "kick off the unit tests real quick",
@@ -448,7 +448,7 @@
       "Sutvarkyk mano projekto kodo formatavimą"
     ],
     "not_for": [
-      "how do I set up auto-formatting in VS Code?",
+      "how do I set up auto-formatting in my code editor?",
       "what's the difference between tabs and spaces?",
       "write me a poem about clean code",
       "explain what a code formatter does",

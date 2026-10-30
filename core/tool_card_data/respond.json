@@ -1,7 +1,7 @@
 {
   "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
   "respond.direct": {
-    "use_when": "The person asks a question, wants an explanation, ideas, wording help, or just chats, and VOOL can answer from its own knowledge without touching files, apps, the web, or the computer.",
+    "use_when": "The person asks a question, wants an explanation, ideas, wording help, or just chats, and the app can answer from its own knowledge without touching files, apps, the web, or the computer.",
     "examples": [
       "hi, how are you?",
       "explain what a mortgage is in simple terms",

@@ -21,7 +21,7 @@
     "not_for": [
       "how do I read a candlestick chart?",
       "what is a liquidity pool on a DEX?",
-      "write a tweet hyping this token",
+      "write a post hyping this token",
       "run the analysis on the dataset I already saved",
       "send 0.5 SOL to my friend's wallet",
       "lol my token is down again, crypto is brutal"
@@ -55,7 +55,7 @@
     ]
   },
   "market.dataset_delete": {
-    "use_when": "The person wants to permanently remove a market dataset they previously collected, along with its rows, from VOOL's local storage to clean up or free space.",
+    "use_when": "The person wants to permanently remove a market dataset they previously collected, along with its rows, from the app's local storage to clean up or free space.",
     "examples": [
       "delete the dataset I collected yesterday",
       "remove dataset 42 from my saved market data",
@@ -102,7 +102,7 @@
     "not_for": [
       "how do I read a volatility number?",
       "what is a z-score",
-      "write a tweet about this token pumping",
+      "write a post about this token pumping",
       "should I buy this coin now?",
       "collect fresh trades for this token",
       "explain what wallet concentration means for a token"

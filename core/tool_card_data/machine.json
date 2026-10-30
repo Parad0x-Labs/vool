@@ -3,7 +3,7 @@
   "machine.disk_usage": {
     "use_when": "The person wants to know how much free or used space is left on this computer's drives.",
     "examples": [
-      "how much space is left on my mac",
+      "how much space is left on my computer",
       "is my disk nearly full",
       "how many gigabytes free do I have",
       "check my storage",
@@ -15,7 +15,7 @@
       "kiek vietos liko diske"
     ],
     "not_for": [
-      "how do I free up space on a mac",
+      "how do I free up space on my computer",
       "what is the difference between an ssd and a hard drive",
       "should I buy a bigger disk"
     ]
@@ -41,9 +41,9 @@
     "use_when": "The person asks what hardware this computer has: processor, memory, model, operating system version.",
     "examples": [
       "what are my computer's specs",
-      "how much ram does this mac have",
+      "how much ram does this computer have",
       "which processor is in my laptop",
-      "what macos version am I on",
+      "what operating system version am I on",
       "what model is this computer",
       "cuánta memoria tiene mi ordenador",
       "quelle est la configuration de mon ordinateur",
@@ -60,7 +60,7 @@
       "how much battery do I have left",
       "is my laptop charging",
       "how long has my computer been on",
-      "when did this mac last restart",
+      "when did this computer last restart",
       "cuánta batería me queda",
       "il me reste combien de batterie"
     ],
@@ -77,13 +77,13 @@
       "why is my fan so loud, what's using the cpu",
       "show me running programs",
       "is anything heavy running in the background",
-      "what's slowing my mac down",
+      "what's slowing my computer down",
       "qué programas se están ejecutando",
       "quelles applications tournent en ce moment",
       "welche Programme laufen gerade"
     ],
     "not_for": [
-      "how do I close an app on a mac",
+      "how do I close an app on my computer",
       "what does activity monitor do"
     ]
   },
@@ -103,7 +103,7 @@
     ],
     "not_for": [
       "how do I organise my downloads folder",
-      "where does chrome save downloads by default"
+      "where does my browser save downloads by default"
     ]
   },
   "machine.find_file": {
@@ -122,7 +122,7 @@
       "surask mano gyvenimo aprašymą"
     ],
     "not_for": [
-      "how do I search for files on a mac",
+      "how do I search for files on my computer",
       "what is a pdf file"
     ]
   },
@@ -181,12 +181,12 @@
       "mueve la factura a documentos"
     ],
     "not_for": [
-      "how do I rename a file on a mac",
+      "how do I rename a file on my computer",
       "we are moving house next week"
     ]
   },
   "machine.display_inspect": {
-    "use_when": "The person wants to know the resolution, refresh rate, or physical size of the monitors currently connected to their Windows computer.",
+    "use_when": "The person wants to know the resolution, refresh rate, or physical size of the monitors currently connected to their computer.",
     "examples": [
       "what resolution is my screen running at",
       "whats my monitor refresh rate",
@@ -197,7 +197,7 @@
       "check my display settings pls",
       "what res is my screen currently",
       "tell me the resolution of each monitor i have connected",
-      "is my screen really 4k or did windows set it lower",
+      "is my screen really 4k or did the operating system set it lower",
       "¿A qué resolución está funcionando mi pantalla ahora mismo?",
       "Quelle est la fréquence de rafraîchissement de mon écran ?",
       "Welche Auflösung hat mein Monitor gerade?",
@@ -258,7 +258,7 @@
       "Sukurk naują aplanką Dokumentuose pavadinimu Nuotraukos"
     ],
     "not_for": [
-      "how do I make a new folder in Windows?",
+      "how do I make a new folder on my computer?",
       "what's the best way to organize my Documents folder?",
       "write a short poem about my messy desktop",
       "what is a directory in computer science?",

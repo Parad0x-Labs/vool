@@ -27,7 +27,7 @@
       "ajoute pierre à mes contacts"
     ],
     "not_for": [
-      "how do I add a contact on iphone"
+      "how do I add a contact on my phone"
     ]
   },
   "contacts.update": {
@@ -50,7 +50,7 @@
       "borra el contacto de juan"
     ],
     "not_for": [
-      "how do I delete my facebook account"
+      "how do I delete my social media account"
     ]
   },
   "contacts.resolve": {
@@ -60,10 +60,10 @@
       "get me mom's phone number",
       "wallet address for Dave on base",
       "whats jakes personal email",
-      "Can you please look up the Telegram handle I saved for Priya?",
+      "Can you please look up the messaging handle I saved for Priya?",
       "need the solana address for my landlord",
       "which number do i have for the dentist",
-      "find Alex's Signal contact on my personal account",
+      "find Alex's messaging app contact on my personal account",
       "ethereum address for Marcus pls",
       "pull up the saved work phone for Lena",
       "¿Cuál es el número de teléfono de mi hermana?",

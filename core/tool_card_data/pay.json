@@ -1,7 +1,7 @@
 {
   "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
   "pay.x402": {
-    "use_when": "The person wants VOOL to actually pay, with their own wallet, for a paywalled page, data feed or resource that is asking for a small crypto payment.",
+    "use_when": "The person wants the app to actually pay, with their own wallet, for a paywalled page, data feed or resource that is asking for a small crypto payment.",
     "examples": [
       "pay for this paywalled article so I can read it: https://news.example.com/premium/story-42",
       "go ahead and pay the 0.50 USDC to unlock that data feed",

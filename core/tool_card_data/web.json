@@ -1,7 +1,7 @@
 {
   "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
   "web.fetch": {
-    "use_when": "The person gives a specific web page address or link and wants VOOL to open it and read, summarize, or check what is on that page right now.",
+    "use_when": "The person gives a specific web page address or link and wants the app to open it and read, summarize, or check what is on that page right now.",
     "examples": [
       "open https://example.com/pricing and tell me what the plans cost",
       "can you read this link for me? https://news.example.org/story/4821",
@@ -28,13 +28,13 @@
     ]
   },
   "web.search": {
-    "use_when": "The person wants VOOL to look something up online right now, such as current facts, news, prices, reviews, or web pages they don't already have.",
+    "use_when": "The person wants the app to look something up online right now, such as current facts, news, prices, reviews, or web pages they don't already have.",
     "examples": [
       "search the web for best budget laptops 2025",
-      "look up the opening hours of the nearest IKEA",
+      "look up the opening hours of the nearest furniture store",
       "whats the latest news on the Mars rocket launch",
-      "google cheap flights from Vilnius to Rome in May",
-      "can you find reviews for the Sony WH-1000XM5 headphones",
+      "find cheap flights from Vilnius to Rome in May",
+      "can you find reviews for wireless noise cancelling headphones",
       "find me some pages about sourdough starter troubleshooting",
       "pls look online for current price of bitcoin",
       "search for local electricians open on sundays",
@@ -44,10 +44,10 @@
       "cherche sur le web les horaires du train Paris Lyon",
       "suche im Internet nach dem besten Pizzateig Rezept",
       "internete susiieškok naujausias kainas elektromobiliams",
-      "look up top 5 results for how much a used Golf costs"
+      "look up top 5 results for how much a used hatchback costs"
     ],
     "not_for": [
-      "how do I search more effectively on Google?",
+      "how do I search more effectively online?",
       "explain how search engines rank pages",
       "write a short essay about the history of the internet",
       "what is a web browser?",
@@ -58,17 +58,17 @@
   "web.research": {
     "use_when": "The person wants an up-to-date answer to a question that needs checking and comparing several web sources, such as reviews, news, prices, or what current evidence says.",
     "examples": [
-      "what are people saying about the new Framework laptop 16, is it worth it",
+      "what are people saying about the laptop I'm eyeing, is it worth it",
       "can you look up the best budget noise cancelling headphones from a few sources and compare them",
       "find out the current status of the EU AI act and summarize from several sites",
       "dig around online and tell me which electric cars have the longest range under 40k",
       "look into whether magnesium glycinate actually helps sleep, check a few sources pls",
       "whats the latest news on the port strike",
       "need the pros and cons of heat pumps vs gas boilers, check multiple sites",
-      "search the web for reviews of the Kobo Libra Colour and give me the consensus",
+      "search the web for reviews of the e-reader I want to buy and give me the consensus",
       "any recent studies on intermittent fasting? quick scan of a few sources",
       "Could you please gather info from different websites on cheap flights to Lisbon in May?",
-      "Busca en internet las mejores opiniones sobre el iPhone 15 y hazme un resumen",
+      "Busca en internet las mejores opiniones sobre el teléfono que quiero comprar y hazme un resumen",
       "Peux-tu chercher sur le web les avis récents sur les trottinettes électriques pliables ?",
       "Recherchiere bitte im Internet, welche Waschmaschinen 2024 am zuverlässigsten sind",
       "Susirask internete informacijos apie geriausius nešiojamus kompiuterius studentams"
@@ -78,7 +78,7 @@
       "write a short essay about the history of the internet",
       "what is the capital of Australia",
       "explain how search engines rank pages",
-      "lol i spent all night googling cat memes",
+      "lol i spent all night searching for cat memes",
       "open my downloads folder and find the pdf about taxes"
     ]
   },
@@ -103,7 +103,7 @@
     "not_for": [
       "how do I set up a crypto wallet for the first time",
       "explain what a blockchain is in simple terms",
-      "write a tweet announcing my new token launch",
+      "write a social post announcing my new token launch",
       "should I buy Solana or Ethereum right now",
       "send 0.5 ETH to my friend's address",
       "gm, ethereum is wild today lol"

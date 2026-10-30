@@ -85,18 +85,18 @@
     "use_when": "The person wants facts about one or more X (Twitter) accounts, such as bio, followers, post count, account age or verified status, for a username, @handle, profile link or their own account, or wants to find accounts by name or profile words.",
     "examples": [
       "who is @nasa on x",
-      "how many followers does @spotify have",
+      "how many followers does @copperkite have",
       "check my own profile stats please",
-      "pull up https://x.com/openai and tell me their bio",
-      "when was the account @bbcworld created?",
+      "pull up https://x.com/example and tell me their bio",
+      "when was the account @mossgrove created?",
       "is @somebrand verified or a fake",
       "find accounts about vegan baking",
-      "compare followers for @nike and @adidas",
+      "compare followers for @trailfox and @oakheron",
       "whats my follower count rn",
-      "wat is the bio of @natgeo",
+      "wat is the bio of @wildfern",
       "Dime cuántos seguidores tiene @nasa y cuándo se creó la cuenta",
-      "Peux-tu me montrer la bio du compte @lemonde ?",
-      "Wie viele Follower hat @tagesschau auf X?",
+      "Peux-tu me montrer la bio du compte @clairval ?",
+      "Wie viele Follower hat @sternwald auf X?",
       "Parodyk, kiek sekėjų turi @nasa paskyra"
     ],
     "not_for": [
@@ -174,7 +174,7 @@
       "I want to see everyone I follow on Twitter, could you pull up the list?",
       "get the next page of followers",
       "show followrs of my account",
-      "pls list who @bbcnews is following, only the first 20",
+      "pls list who @hillbrook is following, only the first 20",
       "¿Quién me sigue en Twitter? Muéstrame mis seguidores",
       "Montre-moi la liste des comptes que je suis sur X",
       "Zeig mir bitte, wer mir auf Twitter folgt",
@@ -228,7 +228,7 @@
       "how many people are listening to that space",
       "look up space 1YqGoBxPlaceholder",
       "pls find live audio rooms on x about gaming",
-      "spaces by @bbcnews and @cnn, live or scheduled",
+      "spaces by @hillbrook and @loonbay, live or scheduled",
       "whats live in spces about nba tonite",
       "anything happening in spaces rn about the election",
       "¿Hay algún Space en vivo sobre música ahora mismo?",
@@ -354,7 +354,7 @@
     ]
   },
   "x.action.status": {
-    "use_when": "The person wants to know what happened to a post or other X action they asked VOOL to prepare: still waiting for approval, declined, sent (with the link), or failed.",
+    "use_when": "The person wants to know what happened to a post or other X action they asked the app to prepare: still waiting for approval, declined, sent (with the link), or failed.",
     "examples": [
       "did my tweet go out yet?",
       "is my X post still waiting for my approval",

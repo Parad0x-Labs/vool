@@ -1,7 +1,7 @@
 {
   "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
   "capability.expand_family": {
-    "use_when": "The person asks for something that needs a group of abilities VOOL hasn't loaded yet, such as calendar, email, files or reminders, and VOOL has to unlock that group to continue.",
+    "use_when": "The person asks for something that needs a group of abilities the app hasn't loaded yet, such as calendar, email, files or reminders, and it has to unlock that group to continue.",
     "examples": [
       "check my calendar for tomorrow",
       "can you look through my downloads folder for the tax pdf",

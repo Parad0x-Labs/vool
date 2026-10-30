@@ -6,9 +6,9 @@
       "I want to start working on my repo to fix the login bug",
       "open up PR 142 so we can go through it together",
       "can you get set up on this repository, I need to review the latest pull request",
-      "start a review of the pull request on my gitlab project",
+      "start a review of the pull request on my other code host project",
       "lets work on the repo in ~/code/shop, goal is to upgrade dependencies",
-      "get ready to look at github PR #88 for me pls",
+      "get ready to look at PR #88 for me pls",
       "need to clean up the flaky tests in this repo, begin whenever",
       "begin a code review of my open merge request",
       "strat working on my repo i need to fix the readme links",
@@ -19,10 +19,10 @@
       "Noriu peržiūrėti savo repozitorijos pull request'ą, pradėkime"
     ],
     "not_for": [
-      "How do I create a pull request on GitHub?",
+      "How do I create a pull request?",
       "Explain the difference between merge and rebase",
       "Write a commit message for adding dark mode",
-      "What is GitLab and how is it different from GitHub?",
+      "What is a hosted code repo and how is it different from a local one?",
       "I love working on open source repos, it's so fun",
       "Write a README intro for my project"
     ]
@@ -154,7 +154,7 @@
       "Parodyk komentarus po issue numeriu 19"
     ],
     "not_for": [
-      "how do I write a good comment on a GitHub issue?",
+      "how do I write a good comment on a repo issue?",
       "what is an issue tracker used for?",
       "write a polite reply I can post to the bug report",
       "how do I close an issue after merging a fix?",
@@ -182,7 +182,7 @@
     ],
     "not_for": [
       "How do I set up a CI pipeline for my project?",
-      "Write a GitHub Actions YAML file that runs my unit tests",
+      "Write a CI YAML file that runs my unit tests",
       "What does CI/CD stand for?",
       "How can I make my builds run faster?",
       "Show me the CI jobs for the main branch",
@@ -208,7 +208,7 @@
       "Parodyk CI užduoties 2917 žurnalą, nes build'as nepavyko."
     ],
     "not_for": [
-      "How do I read a GitHub Actions log?",
+      "How do I read a CI log?",
       "What does CI/CD stand for?",
       "Write a short blog post about why continuous integration matters",
       "Explain how to speed up my pipeline builds",
@@ -234,7 +234,7 @@
       "Kokius CI artefaktus turi šis mano commit'as?"
     ],
     "not_for": [
-      "how do I download an artifact from GitHub Actions in a script?",
+      "how do I download an artifact from the CI in a script?",
       "explain what CI artifacts are and why teams use them",
       "write a README section describing our build artifacts",
       "how long should a CI system keep artifacts before deleting them?",
@@ -254,7 +254,7 @@
       "Could you trigger another run of the deploy-preview job on the forge?",
       "rerun failed job",
       "retry the integration tests job, network blip killed it",
-      "run the windows build job again plz thx",
+      "run the build job again plz thx",
       "Vuelve a ejecutar el trabajo de CI que falló en mi rama",
       "Peux-tu relancer le job CI qui a échoué sur ma merge request ?",
       "Starte bitte den fehlgeschlagenen CI-Job noch einmal",
@@ -266,7 +266,7 @@
       "Write a commit message for my fix",
       "Why are my CI builds so slow lately?",
       "Ugh, CI is flaky again, I hate it",
-      "Write a short GitHub Actions workflow that runs tests on push"
+      "Write a short CI workflow that runs tests on push"
     ]
   },
   "repo.ci.cancel": {
@@ -288,7 +288,7 @@
       "Sustabdyk tą vykstantį CI darbą, jis užstrigo"
     ],
     "not_for": [
-      "how do I cancel a CI job in GitHub Actions?",
+      "how do I cancel a CI job?",
       "explain what a CI pipeline is",
       "write a message telling my team the build was cancelled",
       "why does my build keep failing?",
@@ -306,7 +306,7 @@
       "log the cause of the CI failure: package.json, jest version is pinned wrong",
       "write down that the test fails due to an off by one in lib/paginate.js line 23",
       "ok we found it, its the import in app/models/user.rb, circular dependency. record it",
-      "save the finding: Dockerfile line 9, apt-get missing -y, from the CI job that failed",
+      "save the finding: build file line 9, apt-get missing -y, from the CI job that failed",
       "pin the blame on tests/test_auth.py line 14 stale fixture, evidence is the pytest run",
       "record root cause src/index.ts typo in env var name",
       "Registra que el fallo viene de src/db.py línea 30, falta cerrar la conexión, según la prueba que corrimos",
@@ -326,10 +326,10 @@
   "repo.step": {
     "use_when": "The person wants something actually done inside their open code project, such as reading a file, running a command, running the tests, or applying a fix they have approved.",
     "examples": [
-      "run the tests",
+      "run all the project tests and show me what fails",
       "can you run the test suite for my project and tell me what fails",
       "pls read src/app/config.py",
-      "run npm install in the repo",
+      "install the repo dependencies",
       "go ahead and apply that fix you proposed",
       "execute the build command and show me the output",
       "show me whats in package.json",
@@ -345,7 +345,7 @@
       "How do I write a unit test in pytest?",
       "What does git rebase actually do?",
       "Write me a README for my project",
-      "Explain the difference between npm and yarn",
+      "Explain the difference between package managers",
       "ugh my tests always fail on Mondays lol",
       "Which programming language should I learn first?"
     ]
@@ -385,7 +385,7 @@
       "mark my bug fix as approved",
       "ok the repair looks good, sign off on it",
       "can you please record a rejection for that patch, it broke the login test",
-      "approve it",
+      "the fix works, record my approval",
       "log my review as approve w/ note: clean fix, no regressions",
       "thumbs down on the repaired code, reject it",
       "im happy with the fix, go ahead and mark it approved",
@@ -398,7 +398,7 @@
     "not_for": [
       "how do I do a good code review?",
       "write a review comment for my coworker's pull request",
-      "what's the difference between approve and request changes on GitHub?",
+      "what's the difference between approve and request changes in code review?",
       "fix the failing test in my project",
       "I loved that movie, my review is five stars",
       "explain what a code review is"
@@ -450,7 +450,7 @@
       "Patvirtinu, galite siųsti pakeitimus į repozitoriją."
     ],
     "not_for": [
-      "How do I push a commit to GitHub?",
+      "How do I push a commit to the shared repo?",
       "What does git push --force do?",
       "Write a commit message for my changes",
       "Explain the difference between push and pull",
@@ -461,7 +461,7 @@
   "repo.push": {
     "use_when": "The person has committed changes in a local code repository and, having approved the plan, wants them sent to the remote so others can see them.",
     "examples": [
-      "push my commits to github",
+      "push my commits to the shared repo",
       "ok go ahead and push it",
       "Yes, I approved the changes, please push them now",
       "push to origin",
@@ -489,7 +489,7 @@
     "use_when": "The person has just pushed commits or a branch and wants proof that the remote server really has the new commit, not just that the push command ran.",
     "examples": [
       "did my push actually go through?",
-      "check that the branch on github matches what I just pushed",
+      "check that the branch on the remote matches what I just pushed",
       "make sure the remote has my latest commit",
       "can you verify the push landed",
       "confirm my changes are really up on the server now",
@@ -504,12 +504,12 @@
       "Patikrink, ar mano push tikrai pasiekė nuotolinę saugyklą"
     ],
     "not_for": [
-      "how do I push my commits to github?",
+      "how do I push my commits to the shared repo?",
       "explain the difference between fetch and pull",
       "write a commit message for my login fix",
       "push my changes to the remote now",
       "what is a git remote?",
-      "I love how fast pushing to GitHub is these days"
+      "I love how fast pushing to the shared repo is these days"
     ]
   },
   "repo.pr.request": {
@@ -546,7 +546,7 @@
       "yes, create the pull request now",
       "Please open the draft pull request for my branch against main",
       "looks good, push it up as a draft PR",
-      "open that PR on github for me",
+      "open that PR on the shared repo for me",
       "ok I approve it, submit the draft pull request",
       "create the draft pr from my feature branch into develop",
       "do it - open the pull request with the title and body you showed me",
@@ -578,7 +578,7 @@
       "Could you update the pull request text so it links the issue I just filed?",
       "rewrite my open PR's description to say we dropped the caching change",
       "fix the title on the PR i opened this morning",
-      "please push this new description to the pull request on GitHub",
+      "please push this new description to the pull request on the shared repo",
       "Actualiza el título de mi pull request para que diga 'Corrige el error de pago'",
       "Peux-tu modifier la description de ma pull request avec le nouveau texte ?",
       "Ändere bitte den Titel meiner offenen Pull-Request auf 'Neue Suchfunktion'",
@@ -599,7 +599,7 @@
     "examples": [
       "post this comment on PR 42: looks good to me, merging after CI passes",
       "Can you leave a comment on that pull request saying I'll fix the typo tonight?",
-      "comment on issue #118 that I can reproduce this on Windows too",
+      "comment on issue #118 that I can reproduce this on my machine too",
       "please reply on the PR with exactly: 'Thanks, addressed in the latest commit.'",
       "add a comment to the open issue telling them the fix is in v2.3",
       "drop a note on the pr that tests r failing bc of the lockfile",
@@ -618,7 +618,7 @@
       "what's the difference between a pull request and an issue?",
       "summarize the comments people left on this pull request",
       "ugh code review comments are the worst lol",
-      "how do I delete a comment on GitHub?"
+      "how do I delete a comment on the shared repo host?"
     ]
   },
   "repo.receipt": {

@@ -1,5 +1,5 @@
 {
-  "_about": "Cards for the owner's notes, calendar and VOOL reminders. Owner-local turns only (core.tool_card_router).",
+  "_about": "Cards for the owner's notes, calendar and reminders. Owner-local turns only (core.tool_card_router).",
   "operator.find_notes": {
     "use_when": "The person wants to find something in the notes they saved.",
     "examples": [
@@ -60,7 +60,7 @@
       "qué notas tengo en la app de notas"
     ],
     "not_for": [
-      "how do I sync apple notes to icloud"
+      "how do I sync apple notes to the cloud"
     ]
   },
   "operator.apple_note_read": {
@@ -88,7 +88,7 @@
       "ką turiu kalendoriuje šiandien"
     ],
     "not_for": [
-      "how do I share my google calendar",
+      "how do I share my online calendar",
       "what day of the week is christmas"
     ]
   },
@@ -132,12 +132,12 @@
       "trag einen Termin am Montag um 10 ein"
     ],
     "not_for": [
-      "how do I add an event in google calendar",
+      "how do I add an event in my online calendar",
       "what's a good schedule for studying"
     ]
   },
   "operator.list_reminders": {
-    "use_when": "The person wants to see the reminders VOOL is holding for them.",
+    "use_when": "The person wants to see the reminders the app is holding for them.",
     "examples": [
       "what reminders do I have",
       "show my reminders",
@@ -147,7 +147,7 @@
       "quels sont mes rappels"
     ],
     "not_for": [
-      "how do reminders work on iphone"
+      "how do reminders work on my phone"
     ]
   },
   "operator.schedule_reminder": {
@@ -169,7 +169,7 @@
     ]
   },
   "operator.cancel_reminder": {
-    "use_when": "The person wants a reminder VOOL is holding cancelled.",
+    "use_when": "The person wants a reminder the app is holding cancelled.",
     "examples": [
       "cancel the reminder about the bins",
       "never mind the dentist reminder",
@@ -181,7 +181,7 @@
     ]
   },
   "operator.list_tools": {
-    "use_when": "The person wants to know what actions or abilities VOOL has available on their computer right now, or asks for the full list of what it can do.",
+    "use_when": "The person wants to know what actions or abilities the app has available on their computer right now, or asks for the full list of what it can do.",
     "examples": [
       "what can you do on my computer?",
       "show me everything you're able to do",
@@ -204,7 +204,7 @@
       "what's the best app for organizing my photos?",
       "explain how plugins work in general",
       "wow you're really useful, thanks!",
-      "what can I do in Excel with macros?"
+      "what can I do in a spreadsheet app with macros?"
     ]
   },
   "operator.inspect_processes": {
@@ -214,7 +214,7 @@
       "show me the running processes",
       "why is my laptop so slow? what's eating all the cpu",
       "list all active processes pls",
-      "is chrome still running in the background",
+      "is my browser still running in the background",
       "whats using all my ram",
       "Could you please check which programs are currently open and running on this machine?",
       "show running tasks",
@@ -226,10 +226,10 @@
       "Parodyk, kokios programos dabar veikia mano kompiuteryje."
     ],
     "not_for": [
-      "how do I kill a frozen program on Windows?",
+      "how do I kill a frozen program on my computer?",
       "explain what a process is in an operating system",
       "write a short essay about how CPUs schedule processes",
-      "what is the best task manager app for Linux?",
+      "what is the best task manager app?",
       "my boss keeps pushing a process change at work, so annoying",
       "give me tips to make my computer run faster"
     ]
@@ -257,7 +257,7 @@
       "explain the difference between a service and a process",
       "write a short blog post about why background services matter",
       "how do I restart a service that keeps crashing",
-      "what is the best way to learn about Linux services",
+      "what is the best way to learn about system services",
       "my phone battery drains fast, is it because of background apps?"
     ]
   },
@@ -307,7 +307,7 @@
       "Ištrink laikinuosius failus iš mano kompiuterio"
     ],
     "not_for": [
-      "how do I find the temp folder on Windows?",
+      "how do I find the temp folder on my computer?",
       "what are temporary files and why does my computer make them?",
       "write a short blog post about cleaning up temp files",
       "is it safe to delete the temp folder or will it break stuff?",
@@ -334,7 +334,7 @@
       "Perkelk failą sutartis.docx iš Atsisiuntimų į aplanką Darbas"
     ],
     "not_for": [
-      "how do I move a file in Linux using the terminal?",
+      "how do I move a file using the terminal?",
       "what's the difference between moving and copying a file?",
       "write a short poem about moving to a new folder",
       "copy report.docx to my USB stick and keep the original",
@@ -448,7 +448,7 @@
       "Write an invitation email for my birthday party",
       "What day of the week is Christmas this year?",
       "I hate how many meetings I have, calendars are the worst",
-      "Explain how Google Calendar recurring events work"
+      "Explain how recurring events work in my online calendar"
     ]
   }
 }

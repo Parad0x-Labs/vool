@@ -1,7 +1,7 @@
 {
-  "_about": "Cards for what VOOL keeps about the owner's own preferences.",
+  "_about": "Cards for what the app keeps about the owner's own preferences.",
   "profile.remember": {
-    "use_when": "The person tells VOOL a lasting preference about themselves to keep, such as their name, language, time zone or how they like answers.",
+    "use_when": "The person tells the app a lasting preference about themselves to keep, such as their name, language, time zone or how they like answers.",
     "examples": [
       "call me Sam from now on",
       "my time zone is Lisbon",
@@ -17,7 +17,7 @@
     ]
   },
   "profile.list": {
-    "use_when": "The person wants to see what VOOL keeps about them.",
+    "use_when": "The person wants to see what the app keeps about them.",
     "examples": [
       "what do you know about me",
       "what have you saved about me",
@@ -29,7 +29,7 @@
     ]
   },
   "profile.forget": {
-    "use_when": "The person wants VOOL to forget something it keeps about them.",
+    "use_when": "The person wants the app to forget something it keeps about them.",
     "examples": [
       "forget my time zone",
       "stop calling me Sam",
