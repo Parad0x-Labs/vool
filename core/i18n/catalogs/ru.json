@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Обновление",
     "header.update_popover_title": "Обновление",
     "header.update_title": "Обновления приложения",
+    "load.unreachable": "Сейчас не удаётся связаться с VOOL, пробуем ещё раз…",
     "mode.auto": "Авто",
     "mode.auto_description": "Обычные чтения, правки, тесты и исправления в проекте могут выполняться автономно. Разрушительные и внешние действия, публикация, расходы, учётные данные и безопасность остаются под защитой.",
     "mode.button_title": "Как VOOL может действовать",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Включите это перед трансляцией или показом экрана. VOOL будет показывать домашнюю папку как ~, а ваше имя и имя компьютера как •••, здесь и на телефоне. Меняется только то, что вы видите: файлы, чаты и всё, что делает VOOL, остаются прежними. Текст, который вы вводите, не скрывается.",
     "settings.row.hide_name_on_screen.effect": "Применяется сразу."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -513,6 +513,7 @@
     "bypass.banner.until_off_title": "Bypass permissions · this chat only · until you turn it off",
     "bypass.banner.until_time": "Until {time}",
     "bypass.banner_active": "Bypass permissions is active.",
+    "load.unreachable": "Can’t reach VOOL right now, trying again…",
     "own_tools.banner": "Model's own tools",
     "own_tools.banner_title": "The model's own tools are on: cloud models you choose don't get VOOL's tools, and some search the web themselves. Auto and local models keep VOOL's tools.",
     "own_tools.end_title": "Turn off the model's own tools",

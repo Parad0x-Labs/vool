@@ -686,6 +686,7 @@
     "header.update_pop_aria": "تحديث",
     "header.update_popover_title": "تحديث",
     "header.update_title": "تحديثات التطبيق",
+    "load.unreachable": "لا يمكن الوصول إلى VOOL الآن، تجري المحاولة مجددًا…",
     "mode.auto": "تلقائي",
     "mode.auto_description": "قد تعمل عمليات القراءة والتحرير والاختبار والتصحيح العادية للمشروع بشكل ذاتي. تبقى الإجراءات المدمرة والخارجية والنشر والمال وبيانات الاعتماد والأمان محمية.",
     "mode.button_title": "كيف يمكن لـ VOOL أن يتصرف",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

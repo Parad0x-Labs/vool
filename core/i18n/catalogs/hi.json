@@ -686,6 +686,7 @@
     "header.update_pop_aria": "अपडेट",
     "header.update_popover_title": "अपडेट",
     "header.update_title": "ऐप अपडेट",
+    "load.unreachable": "अभी VOOL से संपर्क नहीं हो पा रहा है, फिर से कोशिश हो रही है…",
     "mode.auto": "ऑटो",
     "mode.auto_description": "प्रोजेक्ट की सामान्य पढ़, संपादन, परीक्षण और सुधार स्वायत्त रूप से चल सकते हैं। विनाशकारी, बाहरी, प्रकाशन, मौद्रिक, क्रेडेंशियल और सुरक्षा संबंधी क्रियाएँ सुरक्षित रहती हैं।",
     "mode.button_title": "VOOL कैसे काम कर सकता है",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

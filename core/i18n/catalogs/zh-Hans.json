@@ -686,6 +686,7 @@
     "header.update_pop_aria": "更新",
     "header.update_popover_title": "更新",
     "header.update_title": "应用更新",
+    "load.unreachable": "现在无法连接 VOOL，正在重试…",
     "mode.auto": "自动",
     "mode.auto_description": "常规的项目读取、编辑、测试与修正可以自主运行。破坏性、外部、发布、资金、凭据与安全操作仍受保护。",
     "mode.button_title": "VOOL 可以如何行动",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
     "settings.row.hide_name_on_screen.effect": "立即生效。"
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

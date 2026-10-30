@@ -686,6 +686,7 @@
     "header.update_pop_aria": "アップデート",
     "header.update_popover_title": "更新",
     "header.update_title": "アプリの更新",
+    "load.unreachable": "現在VOOLに接続できません。再試行しています…",
     "mode.auto": "自動",
     "mode.auto_description": "通常のプロジェクトの読み取り、編集、テスト、修正は自動で実行される場合があります。破壊的・外部・公開・金銭・資格情報・セキュリティに関わる操作は引き続き保護されます。",
     "mode.button_title": "VOOLがどう振る舞えるか",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

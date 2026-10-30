@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Bản cập nhật",
     "header.update_popover_title": "Cập nhật",
     "header.update_title": "Bản cập nhật ứng dụng",
+    "load.unreachable": "Hiện không kết nối được với VOOL, đang thử lại…",
     "mode.auto": "Tự động",
     "mode.auto_description": "Các thao tác đọc, chỉnh sửa, thử nghiệm và sửa lỗi thông thường của dự án có thể chạy tự động. Các hành động phá hủy, bên ngoài, xuất bản, tiền tệ, thông tin đăng nhập và bảo mật vẫn được bảo vệ.",
     "mode.button_title": "VOOL được phép hành động thế nào",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
     "settings.row.hide_name_on_screen.effect": "Áp dụng ngay."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -686,6 +686,7 @@
     "header.update_pop_aria": "עדכון",
     "header.update_popover_title": "עדכון",
     "header.update_title": "עדכוני אפליקציה",
+    "load.unreachable": "אי אפשר להתחבר ל־VOOL כרגע, מנסה שוב…",
     "mode.auto": "אוטומטי",
     "mode.auto_description": "קריאות, עריכות, בדיקות ותיקונים רגילים של הפרויקט עשויים לרוץ באופן אוטונומי. פעולות הרסניות, חיצוניות, פרסום, כספים, פרטי גישה ואבטחה נשארות מוגנות.",
     "mode.button_title": "כיצד VOOL רשאי לפעול",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
     "settings.row.hide_name_on_screen.effect": "חל מיד."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

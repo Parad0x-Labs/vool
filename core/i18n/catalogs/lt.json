@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Atnaujinimas",
     "header.update_popover_title": "Atnaujinimas",
     "header.update_title": "Programos atnaujinimai",
+    "load.unreachable": "Dabar nepavyksta pasiekti VOOL, bandoma dar kartą…",
     "mode.auto": "Automatinis",
     "mode.auto_description": "Įprasti projekto skaitymai, redagavimai, testai ir pataisymai gali būti atliekami savarankiškai. Destruktyvūs, išoriniai, publikavimo, pinigų, prisijungimo duomenų ir saugos veiksmai lieka apsaugoti.",
     "mode.button_title": "Kaip VOOL gali veikti",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

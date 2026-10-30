@@ -686,6 +686,7 @@
     "header.update_pop_aria": "업데이트",
     "header.update_popover_title": "업데이트",
     "header.update_title": "앱 업데이트",
+    "load.unreachable": "지금 VOOL에 연결할 수 없습니다. 다시 시도하는 중…",
     "mode.auto": "자동",
     "mode.auto_description": "일반적인 프로젝트 읽기, 편집, 테스트, 수정은 자율적으로 실행될 수 있습니다. 파괴적, 외부, 게시, 금전, 자격 증명, 보안 작업은 계속 보호됩니다.",
     "mode.button_title": "VOOL이 어떻게 행동할 수 있는지",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2232,6 +2232,9 @@ function newChatState(chatId) {
     mode: 'manual',
     projectId: '',
     pins: [],
+    // False until a real /api/chat/pins answer set `pins`. The pin panel's "No pinned messages"
+    // row may appear only on that answer -- never from a failed read across a restart.
+    pinsKnown: false,
     stickyModel: '',
     bypassGrant: null,
     approvalToken: '',
@@ -2255,6 +2258,10 @@ function newChatState(chatId) {
     chatLedgerSeen: Object.create(null),
     chatLedgerBusy: false,
     chatLedgerTruncated: false,
+    // True while the chat's event ledger could not be read (fetch threw or answered non-OK) and
+    // nothing has rendered yet: the Activity panel then shows the calm retry row, never its
+    // "no activity" text, which a restart window would otherwise fabricate.
+    ledgerUnreachable: false,
     chatActivityOpen: {},
     recoveredTask: null,
     recoveredActivityOpen: {},
@@ -2998,10 +3005,29 @@ function updatePinCount() {
   const n = view.pins.length; const nEl = b.querySelector('.pin-n'); if (nEl) nEl.textContent = n ? String(n) : '';
   b.classList.toggle('has', n > 0);
 }
+const pinsRetry = makeListRetry(function () { loadPins(); });
 async function loadPins() {
   const chatId = displayedChat, target = chatState(chatId);   // owner bound before the await
-  try { const r = await fetch('/api/chat/pins?session=' + encodeURIComponent(chatId)); target.pins = (await r.json()).pins || []; }
-  catch (e) { target.pins = []; }
+  // Only a real OK answer may set the pin list. A fetch that threw or answered non-OK is an
+  // unknown state -- writing [] there made a reload across a restart say "No pinned messages"
+  // for pins that exist. Before the first answer the panel holds the calm retry row; after a
+  // first answer a later failure keeps the last good pins.
+  const failed = function () {
+    if (target.pinsKnown) return;   // keep the last good list
+    pinsRetry.schedule();
+    const o = document.getElementById('pinOverlay');
+    if (o && !o.hidden) renderPinPanel();
+  };
+  try {
+    const r = await fetch('/api/chat/pins?session=' + encodeURIComponent(chatId));
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d || !Array.isArray(d.pins)) { failed(); }
+    else {
+      target.pins = d.pins; target.pinsKnown = true; pinsRetry.settled();
+      const o = document.getElementById('pinOverlay');
+      if (o && !o.hidden) renderPinPanel();   // a retry that lands repaints the open panel
+    }
+  } catch (e) { failed(); }
   updatePinCount();
 }
 async function togglePin(role, text, btn) {
@@ -3026,11 +3052,12 @@ function pinnedMessageEl(p) {
     return String(t.dataset.raw != null ? t.dataset.raw : t.textContent).trim() === want;
   }) || null;
 }
-function openPinPanel() { const o = document.getElementById('pinOverlay'); if (o) { o.hidden = false; renderPinPanel(); } }
+function openPinPanel() { const o = document.getElementById('pinOverlay'); if (o) { o.hidden = false; if (!view.pinsKnown) loadPins(); renderPinPanel(); } }
 function closePinPanel() { const o = document.getElementById('pinOverlay'); if (o) o.hidden = true; }
 function renderPinPanel() {
   const body = document.getElementById('pinBody'); if (!body) return;
   body.innerHTML = '';
+  if (!view.pinsKnown) { body.appendChild(listRetryRow('pin-empty')); return; }   // unknown, not empty
   if (!view.pins.length) {
     const e = document.createElement('div'); e.className = 'pin-empty';
     e.textContent = pageT('pin.empty', 'No pinned messages in this chat yet. Hover any message and hit Pin.');
@@ -4201,6 +4228,29 @@ function scheduleSessionsRetry() {
   sessionsRetryTimer = setTimeout(loadSessions, sessionsRetryDelayMs);
   sessionsRetryDelayMs = Math.min(Math.round(sessionsRetryDelayMs * 1.6), SESSIONS_RETRY_MAX_MS);
 }
+// The same law, one helper for every other list/panel loader: a fetch that threw or answered
+// anything but a real list is an UNKNOWN state -- it must never render as the surface's empty
+// state, because during a restart that reads as lost data. Each surface owns one of these (one
+// pending timer at most, delay reset by a real answer) and re-runs its own loader on the tick.
+function makeListRetry(reload) {
+  const self = { timer: null, delayMs: 1000 };
+  self.schedule = function () {
+    clearTimeout(self.timer);
+    self.timer = setTimeout(function () { self.timer = null; try { reload(); } catch (e) {} }, self.delayMs);
+    self.delayMs = Math.min(Math.round(self.delayMs * 1.6), SESSIONS_RETRY_MAX_MS);
+  };
+  self.settled = function () { clearTimeout(self.timer); self.timer = null; self.delayMs = 1000; };
+  return self;
+}
+// The one calm row an unknown state paints, in the surface's own empty-row style. No list, no
+// "none yet" -- just that the answer has not landed and the page is asking again.
+function listRetryRow(emptyClass) {
+  const row = document.createElement('div');
+  row.className = emptyClass || 'side-empty';
+  row.setAttribute('role', 'status');
+  row.textContent = pageT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026');
+  return row;
+}
 async function loadSessions() {
   try {
     await refreshProjects();   // server-side project list drives the sidebar grouping
@@ -4323,16 +4373,19 @@ async function openSession(id) {
   if (!view.run && !view.history.length) {
     try {
       const r = await fetch('/api/chat/history?session=' + encodeURIComponent(id));
-      if (r.status >= 500) historyUnreachable = true;
-      const data = await r.json();
+      // Any non-OK answer or unreadable body is not a transcript. Rendering it as an empty chat
+      // would read as lost messages, so it routes to the load-failed state below instead.
+      if (!r.ok) historyUnreachable = true;
+      const data = await r.json().catch(() => null);
+      if (!data) historyUnreachable = true;
       chatState(id).privateChat = !!(data && data.private_chat);
-      if (isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
+      if (data && isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
         if (m.role === 'assistant') {
           const normalized = splitAssistantDisplayContent(m.content, m.display_metadata);
           view.history.push({ ...historyEntryFromServer(m), content: normalized.content, display_metadata: normalized.display_metadata });
         } else view.history.push(historyEntryFromServer(m));
       }
-    } catch (e) { if (isNetworkFailure(e)) historyUnreachable = true; }
+    } catch (e) { historyUnreachable = true; }
   }
   if (!isDisplayed(id)) return;   // the user moved on again while we were fetching
   restoreStagedAttachments(id);   // a draft left unsent in this chat comes back with the chat
@@ -4498,7 +4551,14 @@ async function restoreCurrent() {
   const target = chatState(chatId);
   try {
     const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
-    const data = await r.json();
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data) {
+      // A failed read is not an empty chat: boot across a restart used to fall through to the
+      // greeting here, which read as every chat lost. The load-failed state says what is true,
+      // and the connection watcher re-opens the chat once VOOL answers again.
+      if (isDisplayed(chatId) && !target.run && !target.history.length) showLoadFailed(chatId);
+      return;
+    }
     target.privateChat = !!(data && data.private_chat);
     if (isDisplayed(chatId)) reflectPrivate();
     // The operator may have sent a turn while this snapshot was in flight.
@@ -4511,13 +4571,11 @@ async function restoreCurrent() {
       // One render path for every way a chat reaches the screen, so boot and re-open cannot drift.
       if (isDisplayed(chatId)) renderChat(chatId);
     } else if (isDisplayed(chatId)) {
-      showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      showEmpty();  // a real OK answer with no messages: the greeting, never a blank static screen
       privateReloadNote(target);
     }
   } catch (e) {
-    if (isDisplayed(chatId) && !target.run && !target.history.length) {
-      if (isNetworkFailure(e)) showLoadFailed(chatId); else showEmpty();
-    }
+    if (isDisplayed(chatId) && !target.run && !target.history.length) showLoadFailed(chatId);
   }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat
 }
@@ -8205,6 +8263,9 @@ function scopeNoteHtml() {
 // After a page refresh there's no view.run; rebuild the LAST turn's timeline from the ledger so the
 // Activity panel is never blank when the user looks back at what just happened.
 let activityHistory = [];
+// True once /api/runtime/sessions has really answered. Until then a wide-scope panel has NO
+// answer, and "no activity yet" would be fabricated from a failed fetch.
+let activityHistoryKnown = false;
 let sidebarActivityHistory = [];
 let sidebarLifecycleRequest = null;
 function fetchSidebarLifecycle() {
@@ -8232,8 +8293,12 @@ async function loadActivityHistory() {
   try {
     const data = await fetchRuntimeActivity();
     activityHistory = Array.isArray(data.sessions) ? data.sessions : [];
+    activityHistoryKnown = true;
     target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available) || null;
-  } catch (e) { activityHistory = []; target.recoveredTask = null; }
+  } catch (e) {
+    // A failed read is not "no activity": keep the last good list (and the unknown mark until
+    // a first real answer lands, so the panel never claims an empty it did not read).
+  }
   renderPanel();
   if (isDisplayed(chatId)) paintRecoveryNote(target);
 }
@@ -8387,17 +8452,24 @@ function wireActivityPanelActions() {
     }
   }));
 }
+const ledgerRetry = makeListRetry(function () { loadRecoveredLedger(); });
 async function loadRecoveredLedger() {
   const chatId = displayedChat;           // owner bound before the first await, as above
   const target = chatState(chatId);
   target.recoveredActivityOpen = {};
   try {
-    let cursor = 0, pages = 0, truncated = false;
+    let cursor = 0, pages = 0, truncated = false, readAny = false;
     while (pages < 8) {
       pages++;
       const res = await fetch('/api/runtime/events?session=' + encodeURIComponent(chatId) + '&after=' + cursor + '&limit=200');
-      if (!res.ok) break;
+      if (!res.ok) {
+        // A non-OK answer is not an empty ledger: while nothing has rendered, the panel must say
+        // the state is unknown (see ledgerUnreachable), not "no activity".
+        if (pages === 1 && !target.chatLedger.length) target.ledgerUnreachable = true;
+        break;
+      }
       const d = await res.json();
+      readAny = true;
       const more = d.events || [];
       for (const event of more) appendToChatLedger(target, event);
       if (typeof d.next_after === 'number') cursor = d.next_after;
@@ -8415,6 +8487,8 @@ async function loadRecoveredLedger() {
     let lastTurn = '';
     for (let i = events.length - 1; i >= 0; i--) { if (events[i].client_turn_id) { lastTurn = events[i].client_turn_id; break; } }
     target.recoveredLedger = lastTurn ? events.filter((e) => e.client_turn_id === lastTurn) : events.slice(-40);
+    if (readAny) { target.ledgerUnreachable = false; ledgerRetry.settled(); }
+    else if (target.ledgerUnreachable) ledgerRetry.schedule();
   } catch (e) {
     // Hydration is a merge into immutable runtime-event identity, not a destructive replacement.
     // A transient refresh failure must not erase live events already rendered for this chat.
@@ -8422,6 +8496,7 @@ async function loadRecoveredLedger() {
     let lastTurn = '';
     for (let i = existing.length - 1; i >= 0; i--) { if (existing[i].client_turn_id) { lastTurn = existing[i].client_turn_id; break; } }
     target.recoveredLedger = lastTurn ? existing.filter((event) => event.client_turn_id === lastTurn) : existing.slice(-40);
+    if (!existing.length) { target.ledgerUnreachable = true; ledgerRetry.schedule(); }
   }
 }
 function renderPanel() {
@@ -8433,6 +8508,15 @@ function renderPanel() {
   return renderPanelBody();
 }
 let lastActivityBodySig = '';
+// The panel's one-row fallback when nothing rendered: the calm retry row while the underlying
+// read failed (a failed read is not "no activity"), and the scope's true-empty text only after a
+// real answer. Chat scope reads the chat's own ledger; wider scopes read the runtime session list.
+function panelActivityEmptyRow() {
+  if (panelScope === 'chat' ? !!view.ledgerUnreachable : !activityHistoryKnown) return listRetryRow('xp-empty');
+  const e = document.createElement('div'); e.className = 'xp-empty';
+  e.textContent = emptyScopeText(pageT('panel.kind_activity', 'activity'));
+  return e;
+}
 function renderPanelBody() {
   updateTabCounts();
   if (!document.body.classList.contains('panel-open')) return;
@@ -8449,6 +8533,7 @@ function renderPanelBody() {
       sigRun ? (sigRun.chatId + ':' + sigRun.start) : 'none',
       (view.chatLedger || []).length, (view.recoveredLedger || []).length,
       (view.activityHistory || []).length, (view.scopedEvidence && view.scopedEvidence.sessions ? view.scopedEvidence.sessions.length : 0),
+      !!view.ledgerUnreachable, activityHistoryKnown,
       sigRun ? (sigRun.ledger || []).length : 0, sigRun ? sigRun.steps.length : 0,
       sigRun ? (sigRun.ended ? ('end:' + sigRun.status) : 'live') : '',
       sigRun ? String(sigRun.model || '') : '',
@@ -8484,11 +8569,12 @@ function renderPanelBody() {
       // claimed. It used to be the last turn only.
       restored += renderChatActivity(view, { live: false });
       restored += renderActivityHistoryHtml();
-      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>';
+      body.innerHTML = restored;
+      if (!restored) body.appendChild(panelActivityEmptyRow());
       xpBodyEl.dataset.activityRendered = '1';
       wireActivityPanelActions(); return;
     }
-    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>'; return;
+    body.appendChild(panelActivityEmptyRow()); return;
   }
   let html = '';
   if (panelTab === 'Steps') {
@@ -8689,7 +8775,9 @@ async function renderReceipts(body) {
   if (panelScope !== 'chat') { renderScopedReceipts(body); return; }
   try {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
-    const d = await r.json();
+    const d = await r.json().catch(() => null);
+    // A failed read is not "no receipts": only a real OK answer may show the empty state.
+    if (!r.ok || !d) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; return; }
     const list = d.receipts || [];
     if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
@@ -8712,16 +8800,19 @@ async function renderScopedReceipts(body) {
   const ids = scopeCandidateSessionIds();
   const capped = ids.slice(0, SCOPE_SESSION_CAP);
   const groups = [];
+  let failed = 0;
   for (const sid of capped) {
     try {
       const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(sid));
-      if (!r.ok) continue;
+      if (!r.ok) { failed++; continue; }
       const d = await r.json();
       const list = d.receipts || [];
       if (list.length) groups.push({ session_id: sid, title: chatTitleFor(sid), receipts: list, chain_verified: d.chain_verified });
-    } catch (e) { /* one unreadable chat must not empty the panel */ }
+    } catch (e) { failed++; /* one unreadable chat must not empty the panel */ }
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
+  // Every read failed: that is an unreachable panel, not a scope with no receipts.
+  if (!groups.length && failed && capped.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; return; }
   if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')
@@ -8835,6 +8926,7 @@ async function refreshQueue(forChatId) {
   const chatId = String(forChatId || displayedChat);   // bind the chat before any await
   try {
     const res = await fetch(queueReadUrl(chatId));
+    if (!res.ok) return null;   // a failed read is not an empty queue; the chips stay as they are
     const data = await res.json();
     const items = (data && data.queue) || [];
     noteServerSlot(chatId, data);
@@ -10040,12 +10132,18 @@ function retryAttachment(localId) {
   uploadAttachment(item, cid);
 }
 // What THIS chat staged and never sent, back on the strip after a reload or a chat switch.
+const stagedRetry = makeListRetry(function () { restoreStagedAttachments(displayedChat); });
 async function restoreStagedAttachments(chatId) {
   const cid = String(chatId || '');
   if (!cid) return;
+  // A failed read is not "nothing staged": a draft that silently vanished from the strip reads as
+  // lost, so the read retries quietly on the growing delay. The strip itself only ever paints
+  // real attachments -- no message row belongs under the composer.
   try {
     const r = await fetch('/api/chat/attachments?session=' + encodeURIComponent(cid));
-    const d = await r.json();
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { stagedRetry.schedule(); return; }
+    stagedRetry.settled();
     const bucket = attachBucket(cid);
     const known = new Set(bucket.map((i) => i.id).filter(Boolean));
     ((d && d.attachments) || []).forEach((a) => {
@@ -10058,7 +10156,7 @@ async function restoreStagedAttachments(chatId) {
       });
     });
     if (isDisplayed(cid)) renderAttachStrip();
-  } catch (e) {}
+  } catch (e) { stagedRetry.schedule(); }
 }
 // Re-send the LAST turn of a chat after a failed send: same turn id, same attachments, no second
 // user bubble. The server treats the same turn as the same turn, so nothing is bound twice.
@@ -11033,6 +11131,7 @@ async function refreshCloudStatus(probe) {
   try {
     const selected = selectedCloudProvider();
     const r = await fetch('/api/connections?probe=' + (probe ? '1' : '0') + (selected ? '&provider=' + encodeURIComponent(selected) : ''));
+    if (!r.ok) return;   // a failed answer is not "no key connected"; the pill stays as it is
     const j = await r.json();
     if (selected !== selectedCloudProvider()) return;
     renderConnections(j.connections || []);
@@ -11179,6 +11278,9 @@ async function renderLocalModels() {
   let data;
   try {
     const r = await fetch('/api/tags');
+    // A failed catalogue answer is not "No model on this computer yet": that row claims an
+    // inventory that was never read. Leave the popover as it was; the next open re-asks.
+    if (!r.ok) return;
     data = await r.json();
   } catch (e) { return; }   // fail-soft: leave the popover exactly as it was
   // /api/tags is the runtime's CONFIGURED catalogue: it always names the default tag, marked
@@ -12662,9 +12764,16 @@ function _explainCloudError(state, http, detail) {
 }
 async function renderKeys() {
   const box = document.getElementById('keysList'); if (!box) return;
+  // A failed read is not "no keys": clearing the box there made a stored key vanish (and the
+  // input read as the whole story) while VOOL was restarting. Keep what is on screen; only a
+  // real answer may repaint, and a real empty leaves the input as the whole story.
+  let keys = null;
+  try {
+    const r = await fetch('/api/cloud/keys');
+    if (!r.ok) return;
+    keys = ((await r.json()).keys) || [];
+  } catch (e) { return; }
   box.innerHTML = '';
-  let keys = [];
-  try { keys = (await (await fetch('/api/cloud/keys')).json()).keys || []; } catch (e) {}
   if (!keys.length) { return; }   // nothing stored yet -> the input above is the whole story
   const title = document.createElement('div'); title.className = 'keys-title'; title.textContent = 'Your keys'; box.appendChild(title);
   keys.forEach((k) => {
@@ -12870,6 +12979,7 @@ let councilReachable = null;
 async function refreshCouncilRuns() {
   try {
     const r = await fetch('/api/council/runs');
+    if (!r.ok) throw new Error('unreachable');   // a non-OK answer is "did not answer", not "no run"
     const d = await r.json();
     councilRuns = Array.isArray(d.runs) ? d.runs : [];
     councilReachable = true;
@@ -12998,8 +13108,31 @@ async function openCouncil() {
 }
 const pluginsOverlay = document.getElementById('pluginsOverlay');
 let _pluginCatalog = null;
+let _pluginsLoaded = false;   // a real catalog answer has rendered at least once
 let _pluginMode = 'plugins';   // 'plugins' (powers) | 'skills' (how to use them) — separate panels
+const pluginsRetry = makeListRetry(function () { const s = document.getElementById('pluginsSearch'); readPluginCatalog(s ? s.value : ''); });
 function closePlugins() { if (pluginsOverlay) pluginsOverlay.hidden = true; }
+// One reader for every catalog read (open, rescan, toggle). A fetch that threw or answered
+// non-OK is an unknown state, never "No plugins installed yet" -- that painted a failed read as
+// an empty collection. Before the first real answer the panel holds the calm retry row; after a
+// first answer a later failure keeps the cards on screen.
+async function readPluginCatalog(query) {
+  const body = document.getElementById('pluginsBody');
+  const failed = function () {
+    if (window.VoolAddons && window.VoolAddons.render) return;   // the add-on fragment owns its states
+    if (!_pluginsLoaded) {
+      if (body) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); }
+      pluginsRetry.schedule();
+    }
+  };
+  try {
+    const r = await fetch('/api/plugins');
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { failed(); return; }
+    _pluginCatalog = d; _pluginsLoaded = true; pluginsRetry.settled();
+    renderPluginPanel(_pluginCatalog, query == null ? '' : query);
+  } catch (e) { failed(); }
+}
 async function _openPanel(mode) {
   if (!pluginsOverlay) return;
   _pluginMode = mode;
@@ -13009,13 +13142,13 @@ async function _openPanel(mode) {
   const search = document.getElementById('pluginsSearch');
   if (title) title.textContent = window.VoolAddons ? (window.VOOLT ? window.VOOLT('addons.store_title') : 'Skills & Plugins') : ((mode === 'skills') ? 'Skills' : 'Plugins');
   if (search) { search.value = ''; search.placeholder = (mode === 'skills') ? 'Search skills…' : 'Search plugins…'; }
-  if (body) body.textContent = 'Loading…';
+  if (body && !_pluginsLoaded) body.textContent = 'Loading…';
   try {
     if (window.VoolAddons) { await window.VoolAddons.open(); }
-    else { _pluginCatalog = await (await fetch('/api/plugins')).json(); renderPluginPanel(_pluginCatalog, ''); }
+    else await readPluginCatalog('');
     if (search) search.focus();
   }
-  catch (e) { if (body) body.textContent = 'Could not read the catalog.'; }
+  catch (e) { if (body && !_pluginsLoaded && !(window.VoolAddons && window.VoolAddons.render)) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); } }
 }
 function openPlugins() { return _openPanel('plugins'); }
 function openSkills() { return _openPanel('skills'); }
@@ -13053,11 +13186,8 @@ async function rescanPlugins() {
     const r = await fetch('/api/plugins/rescan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     await r.json();
   } catch (e) { /* the catalog re-read below shows whatever state the server holds */ }
-  try {
-    _pluginCatalog = await (await fetch('/api/plugins')).json();
-    const s = document.getElementById('pluginsSearch');
-    renderPluginPanel(_pluginCatalog, s ? s.value : '');
-  } catch (e) { /* fail-soft */ }
+  const s = document.getElementById('pluginsSearch');
+  await readPluginCatalog(s ? s.value : '');
 }
 
 function renderPlugins(d, query) {
@@ -13172,9 +13302,8 @@ async function togglePlugin(id, enable) {
     });
     const d = await r.json();
     if (d && d.ok) {
-      _pluginCatalog = await (await fetch('/api/plugins')).json();
       const s = document.getElementById('pluginsSearch');
-      renderPluginPanel(_pluginCatalog, s ? s.value : '');
+      await readPluginCatalog(s ? s.value : '');   // a failed re-read keeps the cards as they are
     }
   } catch (e) { /* fail-soft: leave the card as-is */ }
 }
@@ -13182,6 +13311,8 @@ async function togglePlugin(id, enable) {
 // ---- Files panel: everything VOOL generated, across all chats ----
 const filesOverlay = document.getElementById('filesOverlay');
 let _filesData = null;
+let _filesLoaded = false;   // a real /api/files answer has rendered at least once
+const filesRetry = makeListRetry(function () { readFiles(null); });
 function closeFiles() { if (filesOverlay) filesOverlay.hidden = true; }
 async function openFiles() {
   if (!filesOverlay) return;
@@ -13189,7 +13320,7 @@ async function openFiles() {
   const body = document.getElementById('filesBody');
   const search = document.getElementById('filesSearch');
   if (search) search.value = '';
-  if (body) body.textContent = 'Loading…';
+  if (body && !_filesLoaded) body.textContent = 'Loading…';
   // Focus goes to the first control that is showing: the search box, or the close button when
   // there is nothing to search yet (the search bar is hidden while there are no files).
   const focusFirst = () => {
@@ -13197,8 +13328,28 @@ async function openFiles() {
     if (search && !(controls && controls.hidden)) search.focus();
     else { const x = document.getElementById('filesClose'); if (x) x.focus(); }
   };
-  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); focusFirst(); }
-  catch (e) { if (body) body.textContent = isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so your files can\u2019t be listed." : 'Could not read your files.'; focusFirst(); }
+  await readFiles(focusFirst);
+}
+// A failed read is not "Nothing generated yet": before the first real answer the panel holds the
+// calm retry row and asks again on the growing delay; after a first answer a later failure keeps
+// the last good list rather than wiping it.
+async function readFiles(after) {
+  const body = document.getElementById('filesBody');
+  const failed = function () {
+    if (!_filesLoaded) {
+      if (body) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); }
+      filesRetry.schedule();
+    }
+    if (after) after();
+  };
+  try {
+    const r = await fetch('/api/files');
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { failed(); return; }
+    _filesData = d; _filesLoaded = true; filesRetry.settled();
+    renderFiles();
+    if (after) after();
+  } catch (e) { failed(); }
 }
 function _fmtBytes(n) {
   n = Number(n || 0);
@@ -13286,6 +13437,9 @@ async function renderUsage(range) {
   try {
     const q = usageRange === 'all' ? '?per_model=1' : ('?range=' + encodeURIComponent(usageRange) + '&per_model=1');
     const r = await fetch('/api/runtime/usage' + q);
+    // A failed read is not zero usage: route it to the unavailable note, never the zeroed cards
+    // and "No usage recorded" row a restart window would otherwise paint.
+    if (!r.ok) throw new Error('unavailable');
     data = await r.json();
   } catch (e) { usageBodyEl.textContent = 'Usage is unavailable right now.'; return; }
   const free = (data && data.free_local) || {}, freeCloud = (data && data.free_cloud) || {}, paid = (data && data.paid_cloud) || {};

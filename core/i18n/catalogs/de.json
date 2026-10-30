@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Update",
     "header.update_popover_title": "Update",
     "header.update_title": "App-Updates",
+    "load.unreachable": "VOOL ist gerade nicht erreichbar. Es wird erneut versucht…",
     "mode.auto": "Auto",
     "mode.auto_description": "Gewöhnliche Lese-, Bearbeitungs-, Test- und Korrekturarbeiten am Projekt können autonom laufen. Destruktive, externe, veröffentlichende, Zahlungs-, Zugangsdaten- und Sicherheitsaktionen bleiben geschützt.",
     "mode.button_title": "Wie VOOL handeln darf",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
     "settings.row.hide_name_on_screen.effect": "Wirkt sofort."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

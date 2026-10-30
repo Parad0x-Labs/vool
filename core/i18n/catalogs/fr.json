@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Mise à jour",
     "header.update_popover_title": "Mise à jour",
     "header.update_title": "Mises à jour de l'app",
+    "load.unreachable": "VOOL est injoignable pour le moment, nouvelle tentative en cours…",
     "mode.auto": "Auto",
     "mode.auto_description": "Lectures, modifications, tests et corrections ordinaires du projet peuvent s'exécuter de façon autonome. Les actions destructrices, externes, de publication, d'argent, d'identifiants et de sécurité restent protégées.",
     "mode.button_title": "Comment VOOL peut agir",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Actualización",
     "header.update_popover_title": "Actualización",
     "header.update_title": "Actualizaciones de la app",
+    "load.unreachable": "No se puede conectar con VOOL ahora mismo, se está reintentando…",
     "mode.auto": "Auto",
     "mode.auto_description": "Las lecturas, ediciones, pruebas y correcciones ordinarias del proyecto pueden ejecutarse de forma autónoma. Las acciones destructivas, externas, de publicación, de dinero, de credenciales y de seguridad siguen protegidas.",
     "mode.button_title": "Cómo puede actuar VOOL",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

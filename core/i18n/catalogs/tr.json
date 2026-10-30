@@ -686,6 +686,7 @@
     "header.update_pop_aria": "Güncelleme",
     "header.update_popover_title": "Güncelleme",
     "header.update_title": "Uygulama güncellemeleri",
+    "load.unreachable": "VOOL'a şu anda ulaşılamıyor, tekrar deneniyor…",
     "mode.auto": "Otomatik",
     "mode.auto_description": "Sıradan proje okuma, düzenleme, test ve düzeltmeler otonom çalışabilir. Yıkıcı, harici, yayınlama, para, kimlik bilgisi ve güvenlik eylemleri koruma altında kalır.",
     "mode.button_title": "VOOL nasıl davranabilir",
@@ -2855,7 +2856,7 @@
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
     "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "facd3c17e63bec5d67aaedcb19c11487830c0b05e3cf61ced4341772d8598fd8",
+  "source_catalog_sha256": "56c9ca0e5104714b58f0e8eebd717d9782d64d8d6fea02b0f5534fda1f486ba4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
