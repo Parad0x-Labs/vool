@@ -271,8 +271,16 @@ def _header_with_reference_day(header: str) -> str:
     # from today, but a relative phrase inside a record counts from that record's own stated date.
     # The earlier "never from a record's stated date" collapsed the two. No number or duration word
     # appears here, so the sentence can never stand as evidence for a time claim.
+    # v08x (2026-10-30): the updated-fact answering rule, one sentence beside the records it
+    # governs (DEV-30: the newest value rode the evidence 16/20 while the reader voiced the older
+    # one or both — nothing said which value is current). Reads the markers
+    # core.updated_fact_marking writes; a capsule with no markers spends the sentence once and
+    # loses nothing to it (the header's cost is reserved before packing, see the pack seam).
     return (f"{text} Today is {today}: a question's how-long-ago counts back from this date; a relative "
-            "phrase inside a record counts from that record's own stated date.")
+            "phrase inside a record counts from that record's own stated date. "
+            "Answer changed facts with the newest value (marked [current value]); [superseded] "
+            "marks older values (history questions only); [conflicting records] disagree with "
+            "no clear later one — give both.")
 #: Hard ceiling for coverage-driven chunk selection in the distiller
 #: fallback lane. Selection stops at query-term coverage or the char budget;
 #: the ceiling only bounds pathological queries, it is not the operative
@@ -13265,6 +13273,26 @@ def _capsule_v2_inject_retrieved(
             render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
         else:
             render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
+    # v08x (2026-10-30): updated-fact marking, after every lane has delivered.
+    # The capsule already carries a changed fact's newest value beside the older
+    # ones (DEV-30 probe: 16/20 newest present, 15/20 older dated beside it) and
+    # nothing told the reader which one is current (0/20 marked). Same-subject
+    # value chains among the DELIVERED lines get suffix markers — newest
+    # [current value], older [superseded], unorderable conflicts
+    # [conflicting records] (core.updated_fact_marking; the header instruction
+    # gained the answering rule, see _header_with_reference_day). Suffixes keep
+    # every delivered-line containment check whole; no record is added or
+    # dropped, so the forget laws and the absence gate are untouched.
+    try:
+        from core.updated_fact_marking import mark_updated_fact_lines
+
+        render_block = mark_updated_fact_lines(
+            render_block,
+            receipts=[dict(r) for r in evidence_receipts if r.get("delivered")],
+            lane_records=[(occ, line) for occ, line in lane_rendered],
+        )
+    except Exception:
+        LOGGER.debug("updated-fact marking failed", exc_info=True)
     if revoked_now and render_block:
         # the block as the reader receives it, its own headers aside: a revoked token that survives (split between two
         # adjacent records) means no memory rides this turn
