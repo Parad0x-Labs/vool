@@ -1220,46 +1220,18 @@ def _squeezed_word_match(squeezed_needle: str, lowered_name: str) -> bool:
     return any("".join(words[index:]).startswith(squeezed_needle) for index in range(len(words)))
 
 
-def _machine_find_file(
-    arguments: dict[str, Any], *, workspace_root: Path | None = None
-) -> RuntimeExecutionResult:
-    """Find a FILE by name under the safe machine roots.
-
-    This capability did not exist. `machine.find_folder` matches directories only,
-    `workspace.list_files` can match files but is confined to the bound project, and
-    `workspace.read_file` stats a single path. So "find vool_agent.py on my Desktop" — a request
-    `find(1)` answers in 44 milliseconds — had no lane that could answer it, and the runtime told an
-    operator the file did not exist while three copies sat on their Desktop.
-
-    Deliberately the same BFS as `_machine_find_folder`: same safe roots, same skip list, same
-    depth/time/match ceilings, and the same `(st_dev, st_ino)` identity check that stops macOS
-    firmlinks reporting one file twice. Matching is case-insensitive and substring, because the
-    operator who typed `Vool_agent.PY` meant the file that is on disk as `vool_agent.py`.
-
-    ANVIL F3, 2026-08-07: this walk never descends into another project's directory (checked via
-    `_is_other_git_project`, the same policy `machine.list_directory` applies to what it NAMES) --
-    a chat bound to project-a could otherwise `machine.find_file` its way to a file living inside
-    project-b even though `list_directory` no longer names project-b at all. `machine.read_file`
-    needs no change: it was never the leak, and an EXPLICIT path to project-b typed by the user
-    still reads exactly as before -- only implicit, by-name discovery is scoped here.
-    """
-    name = str(arguments.get("name") or "").strip()
-    if not name:
-        return RuntimeExecutionResult(
-            handled=True, ok=False, status="invalid_arguments",
-            response_text="Tell me the file name to look for.",
-            details={},
-        )
+def _walk_safe_roots_for_files(
+    name: str, *, workspace_root: Path | None = None
+) -> tuple[list[str], list[Any], int, bool] | None:
+    """The `machine.find_file` walk: (matches, roots searched, folders scanned, timed out), or None
+    when no safe root is readable. Shared with the read-only readers' guessed-path lookup, so a
+    reader looks a file up by exactly the rules a find does."""
     needle = name.lower()
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
     squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
     roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
     if not roots:
-        return RuntimeExecutionResult(
-            handled=True, ok=False, status="unavailable",
-            response_text="None of the searchable local folders are readable right now.",
-            details={},
-        )
+        return None
 
     import time as _time
     from collections import deque
@@ -1317,6 +1289,48 @@ def _machine_find_file(
                             break
         except OSError:
             continue
+
+    return matches, roots, scanned_dirs, timed_out
+
+
+def _machine_find_file(
+    arguments: dict[str, Any], *, workspace_root: Path | None = None
+) -> RuntimeExecutionResult:
+    """Find a FILE by name under the safe machine roots.
+
+    This capability did not exist. `machine.find_folder` matches directories only,
+    `workspace.list_files` can match files but is confined to the bound project, and
+    `workspace.read_file` stats a single path. So "find vool_agent.py on my Desktop" — a request
+    `find(1)` answers in 44 milliseconds — had no lane that could answer it, and the runtime told an
+    operator the file did not exist while three copies sat on their Desktop.
+
+    Deliberately the same BFS as `_machine_find_folder`: same safe roots, same skip list, same
+    depth/time/match ceilings, and the same `(st_dev, st_ino)` identity check that stops macOS
+    firmlinks reporting one file twice. Matching is case-insensitive and substring, because the
+    operator who typed `Vool_agent.PY` meant the file that is on disk as `vool_agent.py`.
+
+    ANVIL F3, 2026-08-07: this walk never descends into another project's directory (checked via
+    `_is_other_git_project`, the same policy `machine.list_directory` applies to what it NAMES) --
+    a chat bound to project-a could otherwise `machine.find_file` its way to a file living inside
+    project-b even though `list_directory` no longer names project-b at all. `machine.read_file`
+    needs no change: it was never the leak, and an EXPLICIT path to project-b typed by the user
+    still reads exactly as before -- only implicit, by-name discovery is scoped here.
+    """
+    name = str(arguments.get("name") or "").strip()
+    if not name:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status="invalid_arguments",
+            response_text="Tell me the file name to look for.",
+            details={},
+        )
+    walked = _walk_safe_roots_for_files(name, workspace_root=workspace_root)
+    if walked is None:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status="unavailable",
+            response_text="None of the searchable local folders are readable right now.",
+            details={},
+        )
+    matches, roots, scanned_dirs, timed_out = walked
 
     scope = ", ".join(_home_relative_label(Path(root)) for root in roots)
     observation = _tool_observation(
@@ -3210,6 +3224,129 @@ def _file_boundary_fault(
         pass
 
 
+#: The read-only readers that look a missing file up by name before saying it is not there.
+_GUESSED_PATH_READERS = frozenset({"pdf.extract_text", "pdf.ocr", "machine.read_file", "workspace.read_file"})
+_GUESSED_PATH_CHOICES = 5
+
+
+def _reader_target_exists(intent: str, raw: str, *, workspace_root: Path) -> bool:
+    """Whether the path names something on disk the way this reader resolves it (exists = read as before)."""
+
+    try:
+        if intent == "workspace.read_file":
+            return _resolve_workspace_path(raw, workspace_root=workspace_root).exists()
+        if intent == "machine.read_file":
+            candidate = _expand_machine_user(raw)
+            return (candidate if candidate.is_absolute() else _machine_home() / candidate).exists()
+        return Path(raw).expanduser().exists()
+    except Exception:
+        return True  # a path the reader itself refuses (an escape, a protected place): its refusal stands
+
+
+def _run_guessed_path_reader(intent: str, arguments: dict[str, Any], *, workspace_root: Path) -> RuntimeExecutionResult:
+    if intent == "pdf.extract_text":
+        return _pdf_extract_text(arguments)
+    if intent == "pdf.ocr":
+        return _pdf_ocr(arguments)
+    if intent == "workspace.read_file":
+        return _read_file(arguments, workspace_root=workspace_root)
+    return _read_machine_file(arguments)
+
+
+def _guessed_path_lookup(
+    intent: str,
+    arguments: dict[str, Any],
+    *,
+    workspace_root: Path,
+    source_context: dict[str, Any] | None,
+) -> RuntimeExecutionResult | None:
+    """A read-only reader handed a path that is not there looks the file up first, by name.
+
+    The model guesses paths: `pdf.extract_text` was called on `workspace/<name>.pdf` for a file that
+    sat in ~/Downloads under a longer name, and the reply was "no file at ...". Now the guessed
+    name's words go through the `machine.find_file` walk (the same safe roots, skip list, ceilings
+    and other-project rule), under the same remote-turn fence. One match is read and named; several
+    are listed (up to five) and the person is asked which; none says where it looked. A match whose
+    real location is outside the roots (a symlink out) is never read. Returns None when the path
+    exists or names no file, so the reader runs exactly as before.
+    """
+
+    raw = str(arguments.get("path") or "").strip()
+    if not raw or _reader_target_exists(intent, raw, workspace_root=workspace_root):
+        return None
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+    refusal = remote_turn_tool_refusal("machine.find_file", source_context)
+    if refusal:
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status=refusal, response_text=REMOTE_TURN_REFUSAL_TEXT,
+            details={"reason": refusal, "executed": False, "observation": _tool_observation(
+                intent=intent, tool_surface="owner_local_gate", ok=False, status=refusal, reason=refusal)},
+        )
+    guessed = Path(raw.replace("\\", "/")).name
+    stem, suffix = Path(guessed).stem, Path(guessed).suffix.lower()
+    if intent.startswith("pdf.") and not suffix:
+        suffix = ".pdf"
+    words = " ".join(w for w in re.split(r"[^0-9A-Za-z]+", stem) if w)
+    if not words:
+        return None
+    walked = _walk_safe_roots_for_files(words, workspace_root=workspace_root)
+    roots = list(walked[1]) if walked else [root for root in _safe_machine_roots()]
+    found: list[Path] = []
+    for match in (walked[0] if walked else []):
+        path = Path(match)
+        if suffix and path.suffix.lower() != suffix:
+            continue
+        try:
+            real = path.resolve(strict=True)
+        except OSError:
+            continue
+        if not real.is_file() or not any(real == r or Path(r) in real.parents for r in _safe_machine_roots()):
+            continue  # a link out of the roots is not a file in them
+        if real not in found:
+            found.append(real)
+    where = ", ".join(_home_relative_label(Path(root)) for root in roots)
+    observation = dict(intent=intent, tool_surface="machine", guessed_path=guessed, looked_in=where,
+                       match_count=len(found))
+    if not found:
+        # The reader answers as it always did, and the reply adds where else it looked.
+        result = _run_guessed_path_reader(intent, arguments, workspace_root=workspace_root)
+        if result.ok:
+            return result
+        expanded = str(Path(raw).expanduser())
+        result.response_text = (
+            str(result.response_text or "").replace(expanded, raw)
+            + f"\nI also looked for a file like `{guessed}` in {where} and found none."
+        )
+        result.details = {**dict(result.details or {}), "guessed_path": guessed, "looked_in": where}
+        return result
+    if len(found) > 1:
+        shown = [_home_relative_label(path) for path in found[:_GUESSED_PATH_CHOICES]]
+        lines = [f"There is no `{guessed}`, but I found {len(found)} files like it. Which one should I read?"]
+        lines.extend(f"- {label}" for label in shown)
+        if len(found) > len(shown):
+            lines.append(f"…and {len(found) - len(shown)} more; tell me more of the name to narrow it.")
+        return RuntimeExecutionResult(
+            handled=True, ok=False, status="ambiguous_path", response_text="\n".join(lines),
+            details={"guessed_path": guessed, "candidates": shown, "observation": _tool_observation(
+                ok=False, status="ambiguous_path", candidates=shown, **observation)},
+        )
+    target = found[0]
+    label = _home_relative_label(target)
+    # The file was found in a safe root, so a text read goes to the safe-root reader (the workspace
+    # reader is confined to the project and would refuse a file in ~/Downloads).
+    reader = "machine.read_file" if intent == "workspace.read_file" else intent
+    result = _run_guessed_path_reader(reader, {**arguments, "path": str(target)}, workspace_root=workspace_root)
+    result.response_text = (
+        f"There is no `{guessed}`; I found `{label}` and read that.\n\n"
+        + str(result.response_text or "").replace(str(target), label)
+    )
+    details = dict(result.details or {})
+    details.update(guessed_path=guessed, found_path=label)
+    result.details = details
+    return result
+
+
 def _dispatch_runtime_tool(
     intent: str,
     arguments: dict[str, Any],
@@ -3390,7 +3527,12 @@ def _dispatch_runtime_tool(
     from core.turn_model_call_ledger import record_tool_execution
 
     record_tool_execution(source_context, intent)
-
+    if intent in _GUESSED_PATH_READERS:
+        looked_up = _guessed_path_lookup(
+            intent, arguments, workspace_root=workspace_root, source_context=source_context
+        )
+        if looked_up is not None:
+            return looked_up
 
     def _covered(fn):
         # Blackbox coverage for every LOCAL-mutating dispatch below that is not already wrapped
