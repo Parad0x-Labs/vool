@@ -238,15 +238,17 @@ function setMsg(text, isErr){ if (!msgEl) return; msgEl.textContent = text || ''
 // A wallet-wide setting that loosens what can be paid (Mainnet, a payment channel or a pay-per-answer service on, the fee
 // threshold) needs the wallet PIN or password, as raising a cap does (a Touch ID wallet asks on this Mac instead). When the
 // door asks for it, one box under the message line takes it, the request goes again with it, and the box clears either way.
+var pendingProof = null;
 function postOwnerProved(path, body, anchor){
   return postJson(path, body).then(function(res){
     var fault = res && res.data && res.data.fault;
     var at = anchor || msgEl;
     if (res.ok || !fault || !fault.context || fault.context.reason !== 'credential_required' || !at || !at.parentNode) return res;
     var word = (res.data.error === 'wallet_password_invalid') ? 'password' : 'PIN';
-    var old = document.getElementById('vwOwnerProof'); if (old) old.remove();
+    // a second ask while one box is open closes the first as cancelled, so its control is not left waiting
+    if (pendingProof) pendingProof();
     var box = el('div', 'vw-form'); box.id = 'vwOwnerProof';
-    var named = fault.context.wallet_label ? ' of ' + fault.context.wallet_label : '';
+    var named = ' of ' + (fault.context.wallet_label || 'your first wallet');
     var label = el('label', null, 'This change needs the ' + word + named); label.setAttribute('for', 'vwOwnerProofSecret'); box.appendChild(label);
     var input = el('input', 'vw-pin'); input.type = 'password'; input.id = 'vwOwnerProofSecret'; input.autocomplete = 'off';
     input.setAttribute('aria-label', 'wallet ' + word); if (word === 'PIN') input.inputMode = 'numeric'; box.appendChild(input);
@@ -255,15 +257,19 @@ function postOwnerProved(path, body, anchor){
     at.parentNode.insertBefore(box, at.nextSibling);
     input.focus();
     return new Promise(function(resolve){
+      var settled = false;
       function done(result){
+        if (settled) return; settled = true; pendingProof = null;
         input.value = ''; box.remove();
         var e = result && result.data && result.data.error;
         if (e === 'wallet_pin_invalid' || e === 'wallet_password_invalid' || e === 'wallet_unlock_throttled') result.data.message = (e === 'wallet_unlock_throttled' ? 'Too many wrong tries: the wallet is locked for a while.' : 'That ' + word + ' was not right.') + ' Nothing was changed.';
         resolve(result);
       }
+      pendingProof = function(){ done({ ok: false, status: 0, data: { message: 'Nothing was changed.' } }); };
+      input.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); ok.click(); } });
       cancel.addEventListener('click', function(){ done({ ok: false, status: 0, data: { message: 'Nothing was changed.' } }); });
       ok.addEventListener('click', function(){
-        var again = {}; Object.keys(body || {}).forEach(function(k){ again[k] = body[k]; }); again.credential = input.value; if (fault.context.wallet_id) again.wallet_id = fault.context.wallet_id;
+        var again = {}; Object.keys(body || {}).forEach(function(k){ again[k] = body[k]; }); again.credential = input.value;
         ok.disabled = true;
         postJson(path, again).then(done).catch(function(){ done({ ok: false, status: 0, data: { message: 'The request did not complete.' } }); });
       });

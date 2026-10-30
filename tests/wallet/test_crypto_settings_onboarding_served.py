@@ -322,9 +322,9 @@ def test_fresh_profile_settings_onboarding_solana_then_evm_with_every_control(se
             page.locator('input[name="vwCxEnv"][value="mainnet"]').check()
         # going back to Mainnet with a wallet that can pay asks for that wallet's PIN or password once, then switches
         page.wait_for_selector("#vwOwnerProof", state="visible", timeout=10_000)
-        # the wallet that proves the owner here was set up with a password: the box says so and takes it
-        assert "password" in page.locator("#vwOwnerProof label").text_content()
-        page.locator("#vwOwnerProofSecret").fill(PASSWORD)
+        # the owner's first wallet (Solana Devnet, set up with a PIN) is the one asked for, never a newer one
+        assert "PIN" in page.locator("#vwOwnerProof label").text_content()
+        page.locator("#vwOwnerProofSecret").fill(PIN)
         with page.expect_response(lambda r: r.url.endswith("/api/wallet/environment")):
             page.locator("#vwOwnerProofOk").click()
         page.wait_for_function("document.getElementById('vwCxEnvState') && document.getElementById('vwCxEnvState').textContent.indexOf('Mainnet') >= 0", timeout=10_000)
