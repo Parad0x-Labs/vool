@@ -3337,9 +3337,10 @@ def _guessed_path_lookup(
     # reader is confined to the project and would refuse a file in ~/Downloads).
     reader = "machine.read_file" if intent == "workspace.read_file" else intent
     result = _run_guessed_path_reader(reader, {**arguments, "path": str(target)}, workspace_root=workspace_root)
+    # Only a read that happened is called one: a found PDF the backend cannot open says so.
+    found_line = f"I found `{label}` and read that." if result.ok else f"I found `{label}`, but could not read it."
     result.response_text = (
-        f"There is no `{guessed}`; I found `{label}` and read that.\n\n"
-        + str(result.response_text or "").replace(str(target), label)
+        f"There is no `{guessed}`; {found_line}\n\n" + str(result.response_text or "").replace(str(target), label)
     )
     details = dict(result.details or {})
     details.update(guessed_path=guessed, found_path=label)

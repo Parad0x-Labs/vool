@@ -103,6 +103,8 @@ def test_a_guessed_pdf_path_points_the_reader_at_the_real_file(intent: str, gues
     assert "I found `~/Downloads/Car-Insurance-Policy-2026.pdf`" in execution.response_text, execution.response_text
     assert (execution.details or {}).get("found_path") == "~/Downloads/Car-Insurance-Policy-2026.pdf"
     assert str(home) not in execution.response_text
+    # Whether this box's PDF backend can open it is not this fix's; the reply claims only what happened.
+    assert ("and read that" in execution.response_text) == bool(execution.ok)
 
 
 def test_several_matches_are_listed_and_the_person_is_asked(home: Path) -> None:
