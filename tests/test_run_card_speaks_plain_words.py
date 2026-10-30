@@ -252,7 +252,7 @@ def _panel(locale: str) -> dict:
 def test_the_panel_chrome_speaks_each_shipped_language(locale: str) -> None:
     en, data = _panel("en"), _panel(locale)
     # English reads exactly as it always has.
-    assert en["tabs"] == ["Steps", "Activity", "Changes", "Files", "Event log", "Tests", "Council"]
+    assert en["tabs"] == ["Steps", "Activity", "Changes", "Files", "History", "Tests", "Council"]
     assert en["scopes"] == ["Current chat", "Current project", "All activity"]
     assert en["note"] == "Showing only this chat’s evidence."
     assert en["copyTitle"] == "Copy Activity (this chat)"

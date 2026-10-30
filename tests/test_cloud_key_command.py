@@ -51,13 +51,13 @@ def test_remote_surface_cannot_set_the_key(store):
 
 def test_bare_command_explains_both_routes(store):
     reply = maybe_handle_cloud_key_command("cloud key", owner_local=True)
-    assert "cloud key <your-key>" in reply and "Settings" in reply
+    assert "cloud key followed by your key" in reply and "Settings" in reply
     assert store == {}
 
 
 def test_short_value_is_rejected_and_not_stored(store):
     reply = maybe_handle_cloud_key_command("cloud key abc", owner_local=True)
-    assert "complete API key" in reply
+    assert "whole API key" in reply
     assert store == {}
 
 
@@ -100,7 +100,7 @@ def test_storing_a_key_activates_the_lane_without_a_restart(store, monkeypatch):
     )
     reply = maybe_handle_cloud_key_command(f"cloud key {FAKE_KEY}", owner_local=True)
     assert activated, "storing the key must trigger provider registration"
-    assert "live now" in reply
+    assert "works right now" in reply
 
 
 def test_forgetting_the_key_retires_the_lane(store, monkeypatch):

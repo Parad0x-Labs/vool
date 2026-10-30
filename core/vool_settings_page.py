@@ -781,7 +781,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="daily_token_budget",
-                    label="Daily cloud token budget",
+                    label="Daily cloud use guide",
                     help=(
                         "A daily amount VOOL is told about, not a cut-off it enforces: nothing "
                         "stops an answer when it is reached, and the usage below is not compared "
@@ -800,7 +800,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="usage",
-                    label="Token usage",
+                    label="Usage",
                     kind="custom",
                     widget="usage",
                     help="How much each model was used: free on this computer, or paid online.",
@@ -2603,8 +2603,8 @@ function widgetUsage(stack) {
       dl.appendChild(el('dt', null, label));
       const t = (bucket.total_tokens || 0).toLocaleString();
       const n = bucket.responses || 0;
-      dl.appendChild(el('dd', null, (n === 1 ? tfmt('settings.usage.tokens_one', '{tokens} tokens over 1 answer', { tokens: t })
-        : tfmt('settings.usage.tokens_many', '{tokens} tokens over {count} answers', { tokens: t, count: n })) + (extra || '')));
+      dl.appendChild(el('dd', null, (n === 1 ? tfmt('settings.usage.tokens_one', '{tokens} word pieces over 1 answer', { tokens: t })
+        : tfmt('settings.usage.tokens_many', '{tokens} word pieces over {count} answers', { tokens: t, count: n })) + (extra || '')));
     };
     line(T('settings.usage.free_local', 'Free, on this computer'), data.free_local);
     line(T('settings.usage.free_online', 'Free, online'), data.free_cloud);
@@ -4191,7 +4191,7 @@ async function autoFallbackControl(body, openrouterCatalogue) {
   let cat = openrouterCatalogue;
   if (!cat) { try { cat = await getJSON('/api/cloud/models?provider=openrouter'); } catch (e) { cat = null; } }
   const line = el('div', 'inline');
-  const lab = el('label', null, 'Auto fallback'); lab.htmlFor = 'autoFallbackSelect';
+  const lab = el('label', null, 'Auto backup'); lab.htmlFor = 'autoFallbackSelect';
   const fbSel = el('select', 'inp auto-fallback'); fbSel.id = 'autoFallbackSelect';
   fbSel.setAttribute('aria-label', 'Free model VOOL Auto falls back to');
   const best = el('option', null, 'Best verified free — VOOL chooses'); best.value = 'auto'; fbSel.appendChild(best);

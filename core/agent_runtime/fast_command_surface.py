@@ -254,11 +254,10 @@ def _cloud_status_text(cep: Any, policy: Any, *, prefix: str = "") -> str:
     # Readiness: an ask/auto policy does nothing without a cloud key to spend.
     if policy.mode != cep.MODE_OFF and not _cloud_key_configured():
         lines.append(
-            "Note: no cloud key is configured yet, so nothing will burst to cloud. Give me your "
-            "OpenRouter key with `cloud key <your-key>` — I seal it in the encrypted credential "
-            "store on this machine and mask it out of the chat log (you can also open Settings, "
-            "choose API Keys, and under 'Your keys' paste the key, pick the provider, and press "
-            "'Save key')."
+            "Note: no cloud key is set yet, so nothing will use the cloud. Give me your "
+            "OpenRouter key by typing cloud key followed by the key — I keep it locked and "
+            "safe on this computer and hide it from the chat history. You can also open "
+            "Settings, choose API Keys, and save the key there."
         )
     try:
         from core import policy_engine
@@ -318,12 +317,10 @@ def maybe_handle_cloud_key_command(user_input: str, *, owner_local: bool = False
     if not arg:
         state = "A cloud key is already set." if _any_key() else "No cloud key is set yet."
         return (
-            f"{state} You can hand it to me right here — paste `cloud key <your-key>` and I seal it "
-            "in the encrypted credential store on this machine, then mask it out of the chat log. "
-            "I detect the provider from the key; if it is ambiguous, add the provider after it "
-            "(e.g. `cloud key sk-... openai`). You can also paste it into the Cloud field in "
-            "Settings if you prefer. It stays on this machine and is only ever sent to the provider "
-            "on a cloud burst you allow. `cloud key forget` removes it."
+            f"{state} You can give it to me right here — type cloud key followed by your key and "
+            "I keep it locked and safe on this computer, and hide it from the chat history. "
+            "You can also open Settings, choose API Keys, and save the key there. "
+            "Type cloud key forget to remove it."
         )
 
     if arg.lower() in _CLOUD_KEY_FORGET_WORDS:
@@ -366,8 +363,9 @@ def maybe_handle_cloud_key_command(user_input: str, *, owner_local: bool = False
     # Too short to be any provider's key: say that (the historical message) and store nothing.
     if len(secret) < 16:
         return (
-            "That does not look like a complete API key, so I did not store anything. Paste the "
-            "whole key as `cloud key <your-key>` (an OpenRouter key starts with `sk-or-`, others vary)."
+            "That does not look like a whole API key, so I did not save anything. Send the whole "
+            "key by typing cloud key followed by the key (an OpenRouter key starts with sk-or-, "
+            "others vary)."
         )
     # Unrecognized prefix: NEVER store under a guessed default slot (credential intelligence
     # P0, 2026-09-02). A key sealed into the wrong provider's slot authenticates forever
@@ -450,8 +448,8 @@ def _seal_cloud_key(secret: str, provider_id: str = "openrouter") -> str:
 
     if len(secret) < 16:
         return (
-            "That does not look like a complete API key, so I did not store anything. Paste the "
-            "whole key as `cloud key <your-key>` (an OpenRouter key starts with `sk-or-`, others vary)."
+            "That does not look like a whole API key, so I did not save anything. Send the whole "
+            "key by typing cloud key followed by the key (an OpenRouter key starts with sk-or-, others vary)."
         )
     try:
         credential_store.store_credential(slot, secret, label=label)
@@ -486,14 +484,14 @@ def _seal_cloud_key(secret: str, provider_id: str = "openrouter") -> str:
         pass
     # Register the burst lane NOW — provider registration otherwise happens at boot, and a key
     # stored mid-session would silently do nothing until the next restart.
-    lane_note = "The cloud lane is registered and will take effect after a restart."
+    lane_note = "The cloud connection is saved and will work after a restart."
     try:
         from core.cloud_runtime import bump_cloud_broker_epoch
         from core.runtime_provider_defaults import activate_provider_byok, retire_nonactive_provider_lanes
 
         bump_cloud_broker_epoch()  # the free/paid escalation broker must see the new key
         if activate_provider_byok(provider_id):
-            lane_note = "The cloud lane is live now."
+            lane_note = "The cloud connection works right now."
         # One active provider (v1): retire any other provider's still-enabled BYOK lane so a burst
         # can never route to the provider the user just switched away from.
         retire_nonactive_provider_lanes(provider_id)
@@ -1011,7 +1009,7 @@ def _search_models_text(query: str) -> str:
         return f"No OpenRouter model matches “{query.strip()}”. Try a shorter/different name, or `cloud models` for the free list."
     lines = [f"Models matching “{query.strip()}” (live OpenRouter catalog):"]
     lines += [f"- `{m.model_id}` — {'free' if model_is_free(m) else 'paid'}" for m in hits]
-    lines.append("Switch with `cloud model <id>` (copy the full id).")
+    lines.append("Switch by typing cloud model followed by the model's full name from the list.")
     return "\n".join(lines)
 
 
@@ -1635,8 +1633,8 @@ def maybe_handle_connection_test_intent(user_input: str, *, owner_local: bool = 
         except Exception:
             model, mode = "", ""
         response = (
-            f"Connection verified — OpenRouter accepted your key just now (HTTP {result.get('http_status')}). "
-            f"Cloud model: `{model}`, bursting `{mode}`."
+            f"Connection works — OpenRouter accepted your key just now. "
+            f"Cloud model: {model}. Cloud use: {mode}."
         )
     elif result.get("detail") == "unauthorized":
         response = (
@@ -1721,14 +1719,14 @@ def maybe_handle_openrouter_intent(
         )
     policy = cep.load_policy()
     model = policy.model or default_openrouter_model_name()
-    shown = "auto (best free chat + coding)" if model == "auto" else f"`{model}`"
+    shown = "auto (best free chat + coding)" if model == "auto" else f"{model}"
     mode_note = (
-        f"bursting is `{policy.mode}`" if policy.mode != cep.MODE_OFF else "bursting is OFF — turn it on with `cloud ask` or `cloud auto`"
+        f"cloud use is {policy.mode}" if policy.mode != cep.MODE_OFF else "cloud use is off — turn it on with cloud ask or cloud auto"
     )
     return (
-        f"Already connected: your OpenRouter key is sealed in the credential store, the lane uses "
-        f"{shown}, and {mode_note}. Useful controls: `cloud status`, `cloud models` (live free "
-        "list), `cloud model <id>` or `cloud model auto`, `cloud key forget`."
+        f"Already connected: your OpenRouter key is locked safe, the cloud uses "
+        f"{shown}, and {mode_note}. Useful controls: cloud status, cloud models (live free "
+        "list), cloud model followed by a name, or cloud key forget."
     )
 
 

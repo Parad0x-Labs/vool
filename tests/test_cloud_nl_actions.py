@@ -196,7 +196,7 @@ def test_confirm_connection_green_on_200(monkeypatch):
     _fake_probe_door(monkeypatch, status=200)
     ccs.reset_probe_rate_limit_for_tests()
     action = maybe_handle_connection_test_intent("test the openrouter connection", owner_local=True)
-    assert action["success"] is True and "Connection verified" in action["response"]
+    assert action["success"] is True and "Connection works" in action["response"]
 
 
 def test_confirm_connection_red_on_401(monkeypatch):

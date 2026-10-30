@@ -527,7 +527,7 @@ def test_the_reserve_tracks_the_send_button_becoming_queue(session) -> None:
             }"""
     )
     assert result["idle"]["label"] == "Send"
-    assert result["busy"]["label"] == "Queue"
+    assert result["busy"]["label"] == "Wait and send"
     assert result["busy"]["send"] > result["idle"]["send"], "precondition: Queue is wider than Send"
     assert result["busy"]["tail"] != result["idle"]["tail"], "the reserve did not follow the button"
     _assert_no_new_problems(page, mark)

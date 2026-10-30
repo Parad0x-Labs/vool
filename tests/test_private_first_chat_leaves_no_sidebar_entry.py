@@ -312,7 +312,7 @@ def test_the_page_shows_a_private_first_chat_as_private_only_until_reload(tmp_pa
     def wait_answers(page, count: int) -> None:
         page.wait_for_function(
             "n => document.querySelectorAll('#log .msg.assistant:not(.pending)').length >= n "
-            "&& !document.querySelector('#send').textContent.includes('Queue')",
+            "&& !document.querySelector('#send').textContent.includes('Wait and send')",
             arg=count, timeout=180_000)
         page.wait_for_timeout(400)
 
