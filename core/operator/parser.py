@@ -438,11 +438,6 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             calendar_id, title = _calendar_target(text)
             return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
 
-    # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
-    # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
-    if _bare_cancel_referent(words):
-        return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
-
         # --- Provider-backed calendar reads and proposals. Availability first: "check
         # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
         # with the scheduling family so "remind me to take notes" is still a reminder (the
@@ -462,6 +457,11 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             destination_path=_calendar_name(text),
             raw_text=text,
         )
+    # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
+    # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
+    if _bare_cancel_referent(words):
+        return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
+
     if _APPLE_NOTE_READ_IN_APP_RE.search(words):
         return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     if _APPLE_NOTE_LIST_RE.search(words):
