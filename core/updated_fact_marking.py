@@ -52,7 +52,22 @@ CURRENT_MARKER = "[current value]"
 SUPERSEDED_MARKER = "[superseded]"
 CONFLICT_MARKER = "[conflicting records]"
 
-_RECORD_LINE_RE = re.compile(r"^- (?:user|assistant) said\b")
+#: the header's answering rule, ONE source for header and post-marking upgrade
+_RULE_SENTENCE = (
+    "Answer changed facts with the newest value (marked [current value]); "
+    "[superseded] marks older values (history questions only); [conflicting records] "
+    "disagree with no clear later one — give both."
+)
+
+
+def updated_fact_rule_sentence() -> str:
+    """The answering rule the header states beside the markers it names.
+
+    Kept short on purpose: it rides the header line after packing, so every
+    token is spent from the delivered block (DEV-30 measured the cost)."""
+    return _RULE_SENTENCE
+
+_RECORD_LINE_RE = re.compile(r"^- (?:\[(\d{4}-\d{2}-\d{2})\] )?(?:user|assistant) said\b")
 _DATE_PARENS_RE = re.compile(r"\((?:stated|recorded)[^)]*\)")
 _TURN_TAIL_RE = re.compile(r"\s*->->\s*\d+,\d+\s*$")
 _DATE_LABEL_RE = re.compile(
@@ -183,6 +198,36 @@ def _collect_entries(
     return unique
 
 
+def _render_entries(render_text: str, known_lines: set[str]) -> list[dict[str, Any]]:
+    """Record lines of the render itself, for lanes that keep no receipts.
+
+    The distiller/base lane and the evidence packet deliver "- user said ..."
+    lines whose occurrence metadata never reaches the delivery seam. Their day
+    rides IN the line (a "(stated: ...)" label or the packet's "[date]" prefix),
+    so they order by label only — no capture sequence — and the conflict arm
+    covers what a label cannot order."""
+    entries: list[dict[str, Any]] = []
+    for raw in str(render_text or "").split("\n"):
+        text = raw.rstrip()
+        if not text or text in known_lines:
+            continue
+        m = _RECORD_LINE_RE.match(text)
+        if not m:
+            continue
+        role = "assistant" if "assistant said" in text[:34] else "user"
+        body = _RECORD_LINE_RE.sub("", text, count=1)
+        body = _TURN_TAIL_RE.sub("", _DATE_PARENS_RE.sub(" ", body))
+        entries.append({
+            "line": text,
+            "role": role,
+            "statement_at": None,
+            "source_sequence": None,
+            "anchors": _anchors(body),
+            "values": _values(body),
+        })
+    return entries
+
+
 def _pair_kind(a: dict[str, Any], b: dict[str, Any]) -> str:
     """Why this pair chains: "numeric", "cue", or "none".
 
@@ -205,9 +250,16 @@ def _pair_kind(a: dict[str, Any], b: dict[str, Any]) -> str:
 def compute_markers(
     receipts: Sequence[Mapping[str, Any]],
     lane_records: Sequence[tuple[Any, str]],
+    *,
+    _entries: Sequence[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
-    """Line text -> marker suffix for one assembled capsule render."""
-    entries = _collect_entries(receipts, lane_records)
+    """Line text -> marker suffix for one assembled capsule render.
+
+    Callers normally pass receipts + lane records; *_entries* is the
+    pre-collected list (mark_updated_fact_lines merges receipt metadata with
+    render-only lines)."""
+    entries = list(_entries) if _entries is not None else _collect_entries(
+        receipts, lane_records)
     markers: dict[str, str] = {}
 
     def _set(line: str, marker: str) -> None:
@@ -285,7 +337,13 @@ def mark_updated_fact_lines(
     text = str(render_block or "")
     if not text.strip():
         return text
-    markers = compute_markers(receipts or [], lane_records or [])
+    receipt_entries = _collect_entries(receipts or [], lane_records or [])
+    render_extra = _render_entries(
+        text, {entry["line"] for entry in receipt_entries})
+    # metadata-bearing entries first: a line both sources know keeps its
+    # capture sequence, not its label-only shadow
+    markers = compute_markers(
+        [], [], _entries=receipt_entries + render_extra)
     if not markers:
         return text
     out_lines: list[str] = []
@@ -303,4 +361,5 @@ __all__ = [
     "CONFLICT_MARKER",
     "compute_markers",
     "mark_updated_fact_lines",
+    "updated_fact_rule_sentence",
 ]

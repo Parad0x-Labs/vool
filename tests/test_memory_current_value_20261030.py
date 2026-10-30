@@ -198,3 +198,19 @@ def test_forget_law_keeps_no_record_after_forget(tmp_path):
     assert empty == "<retrieved_context>\n</retrieved_context>"
     markers = compute_markers([], [])
     assert markers == {}
+
+
+def test_header_rule_rides_only_when_markers_ride(tmp_path):
+    """A marker-less capsule keeps its whole packing budget and no ordering
+    talk: the answering-rule sentence appears only beside real markers
+    (measured regressions without this gate: DEV-30 10-TR-0 lost the packed
+    3,600-word record to the header's token cost; 7-KU-0 hedged about an
+    ordering no marker named)."""
+    from core.context_retrieval import _header_with_reference_day
+
+    base = _header_with_reference_day("Distilled local facts. Answer from these records.")
+    ruled = _header_with_reference_day("Distilled local facts. Answer from these records.",
+                                       updated_fact_rule=True)
+    assert "[current value]" not in base
+    assert "[current value]" in ruled and "[superseded]" in ruled
+    assert base.startswith("Distilled local facts. Answer from these records. Today is ")
