@@ -1592,7 +1592,11 @@ def model_visible_specs(
         # must not evict each other out of the 8-seat default.
         seat_budget += len(seatable)
     if catalog_seats:
-        seat_budget = max(seat_budget, len(_ALWAYS_VISIBLE_ORDER) + len({*explicit, *catalog_seats}))
+        # Additive: the words' own seats (their explicit intents and family fill) keep the budget
+        # they had, and the catalog adds its own seats beside them. A max() here let the twelve
+        # catalog seats consume the whole budget, so a workspace file ask on a local model lost
+        # workspace.read_file (tests/test_final_answer_authorship_served_p0.py, S5).
+        seat_budget += len(set(catalog_seats) - set(explicit))
     seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     result_specs: list[dict[str, Any]] = []
