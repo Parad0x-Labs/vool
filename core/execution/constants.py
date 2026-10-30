@@ -1738,9 +1738,9 @@ _SPREADSHEET_THING_RE = re.compile(
 )
 # ... and it must ASK for money, not for the file itself. "how much" alone is enough of a question.
 _SPREADSHEET_MONEY_RE = re.compile(
-    r"\b(?:how\s+much|how\s+many|total(?:s|led)?|spend|spent|spending|paid\s+out|pay\s+out|withdraw\w*|"
-    r"came\s+in|coming\s+in|come\s+in|income|earned|earnings?|deposits?|received|money\s+(?:in|out)|"
-    r"incoming?s?|outgoing?s?|expenses?)\b",
+    r"\b(?:how\s+much|how\s+many|total(?:s|led)?|spend|spent|spending|paid|pay|payments?|withdraw\w*|"
+    r"came\s+in|coming\s+in|come\s+in|went\s+out|goes\s+out|gone\s+out|income|earned|earnings?|deposits?|"
+    r"received|money\s+(?:in|out)|incoming?s?|outgoing?s?|expenses?)\b",
     re.IGNORECASE,
 )
 # Another action on the file keeps its own lane (write/convert/send/find-by-name).
@@ -1853,10 +1853,15 @@ def spreadsheet_question_intent(text: str) -> SpreadsheetQuestion | None:
             stem = word[:-1] if len(word) > 4 and word.endswith("s") and not word.endswith("ss") else word
             if len(stem) >= 3 and stem not in _SPREADSHEET_STOPWORDS and stem not in exclude:
                 exclude.append(stem)
-    outgoing = re.search(r"\b(?:spend|spent|spending|paid\s+out|pay\s+out|withdraw\w*|money\s+out|"
-                         r"outgoing?s?|expenses?)\b", without_exclusions, re.IGNORECASE)
-    incoming = re.search(r"\b(?:came\s+in|coming\s+in|come\s+in|income|earned|earnings?|deposits?|"
-                         r"received|money\s+in|incoming?s?|salary|wages?|credits?)\b", without_exclusions, re.IGNORECASE)
+    # "how much did i get paid" is money IN even though it says "paid"; the passive forms are
+    # lifted out before the outgoing scan so they cannot flip the direction.
+    passive_paid = re.compile(r"\b(?:get|got|was|were|be|being)\s+paid\b", re.IGNORECASE)
+    outgoing = re.search(r"\b(?:spend|spent|spending|paid|pay|payments?|withdraw\w*|money\s+out|"
+                         r"outgoing?s?|expenses?|went\s+out|goes\s+out|gone\s+out)\b",
+                         passive_paid.sub(" ", without_exclusions), re.IGNORECASE)
+    incoming = re.search(r"\b(?:came\s+in|coming\s+in|come\s+in|went\s+in|goes\s+in|income|earned|earnings?|"
+                         r"deposits?|received|money\s+in|incoming?s?|salary|wages?|credits?)\b",
+                         without_exclusions, re.IGNORECASE) or passive_paid.search(without_exclusions)
     direction = "both" if outgoing and incoming else "out" if outgoing else "in" if incoming else "both"
     file_words = tuple(dict.fromkeys(word.lower() for word in _SPREADSHEET_FILE_WORD_RE.findall(
         without_exclusions)))[:3]
