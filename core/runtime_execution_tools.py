@@ -4967,6 +4967,14 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
     alias_key = root_key_for_alias(raw)
     if alias_key:
         return safe_root_dir(alias_key, _machine_home().resolve())
+    # "~/Desktop/trip" on a Linux desktop whose Desktop is ~/Schreibtisch is that root's "trip":
+    # the lanes and the model spell a root's subpath by its English (or spoken) name.
+    head, sep, rest = raw.replace("\\", "/")[2:].partition("/") if raw[:2] in {"~/", "~\\"} else ("", "", "")
+    head_key = root_key_for_alias(head) if sep and rest else ""
+    if head_key:
+        root = safe_root_dir(head_key, _machine_home().resolve())
+        if root != (_machine_home() / head).resolve():
+            raw = str(root / rest)
     candidate = _expand_machine_user(raw)
     if not candidate.is_absolute():
         candidate = (_machine_home() / candidate).resolve()

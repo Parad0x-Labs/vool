@@ -198,6 +198,18 @@ def test_on_a_german_linux_desktop_the_xdg_folder_is_the_one_listed(tmp_path, mo
         assert "urlaub.txt" in execution.response_text and "not-the-desktop" not in execution.response_text
 
 
+def test_an_english_subpath_lands_in_the_localized_root(tmp_path, monkeypatch) -> None:
+    from core.runtime_execution_tools import _resolve_safe_machine_directory
+
+    home = _home(tmp_path, monkeypatch)
+    monkeypatch.setattr(names, "_platform", lambda: "linux")
+    _xdg(home, 'XDG_DESKTOP_DIR="$HOME/Schreibtisch"\n')
+    (home / "Schreibtisch" / "reise").mkdir(parents=True)
+    assert _resolve_safe_machine_directory("~/Desktop/reise") == (home / "Schreibtisch" / "reise").resolve()
+    with pytest.raises(ValueError):
+        _resolve_safe_machine_directory("~/Desktop/../../etc")
+
+
 def test_english_folder_arguments_answer_exactly_as_before(tmp_path, monkeypatch) -> None:
     home = _home(tmp_path, monkeypatch)
     (home / "Downloads").mkdir()
