@@ -8,7 +8,7 @@ data folder.
 Reads reserve their worst case before the request goes out (``reserve_reads``) and settle to what X
 actually returned afterwards, and an action is counted before it is sent (``reserve_action``), both
 under one lock, so parallel calls cannot run past a limit between the check and the count.
-The user sets a monthly limit on items read, posts and accounts together (Settings > Your keys > X). Reads are refused BEFORE the
+The user sets a monthly limit on items read, posts and accounts together (Settings > API Keys > X). Reads are refused BEFORE the
 request is sent once the limit is reached, and page sizes are clamped to what is left, so VOOL can
 never run past the number the user chose. A missing or unreadable meter fails closed: VOOL refuses
 reads rather than guess the count is zero. ``0`` means "no reads at all"; ``None`` means no limit.
@@ -94,7 +94,7 @@ def snapshot() -> dict[str, Any]:
             state = _load()
         except UsageUnreadable:
             return {"ok": False, "state": "unreadable",
-                    "message": "VOOL could not read its X usage meter, so X reads are paused. Reset the meter in Settings > Your keys > X."}
+                    "message": "VOOL could not read its X usage meter, so X reads are paused. Reset the meter in Settings > API Keys > X."}
     limits = state["limits"]
     read_limit = _limit(limits.get("monthly_reads", DEFAULT_MONTHLY_READS))
     reads = sum(int(state.get(k) or 0) for k in ("posts_read", "users_read", "other_read")) + _reserved_reads
@@ -127,7 +127,7 @@ def refusal() -> str:
     if snap["reads_left"] is not None and snap["reads_left"] <= 0:
         return (f"Your X read limit for {snap['month']} is used up ({snap['reads']} of "
                 f"{snap['monthly_reads']} posts and accounts read). Nothing was sent to X. You can raise the limit in "
-                "Settings > Your keys > X.")
+                "Settings > API Keys > X.")
     return ""
 
 
@@ -137,7 +137,7 @@ def action_refusal() -> str:
         return snap["message"]
     if snap["actions_left"] is not None and snap["actions_left"] <= 0:
         return (f"Your X send limit for {snap['month']} is used up ({snap['actions']} of "
-                f"{snap['monthly_actions']}). Nothing was sent to X. You can raise it in Settings > Your keys > X.")
+                f"{snap['monthly_actions']}). Nothing was sent to X. You can raise it in Settings > API Keys > X.")
     return ""
 
 
@@ -185,7 +185,7 @@ def reserve_reads(worst_case: int) -> str:
             if left <= 0:
                 return refusal() or "Your X read limit for this month is used up. Nothing was sent to X."
             return (f"That X read could return up to {worst_case} posts and accounts, and only {left} are left under "
-                    "your monthly limit. Nothing was sent to X. Ask for fewer, or raise the limit in Settings > Your keys > X.")
+                    "your monthly limit. Nothing was sent to X. Ask for fewer, or raise the limit in Settings > API Keys > X.")
         _reserved_reads += worst_case
     return ""
 

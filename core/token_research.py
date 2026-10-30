@@ -243,7 +243,7 @@ def _provider(chain: str, op: str, *, prefer: tuple[str, ...] = ()) -> cp.ChainP
         return stored[0]
     if not serving:
         raise _PartUnavailable("not_offered", f"no provider VOOL supports offers this on {cp.CHAIN_LABELS[chain]}.")
-    raise _PartUnavailable("key_missing", f"add a {cd._names(serving)} key in Settings > Your keys to read this.")
+    raise _PartUnavailable("key_missing", f"add a {cd._names(serving)} key in Settings > API Keys to read this.")
 
 
 def _need(chain: str, provider_ids: tuple[str, ...], what: str) -> cp.ChainProviderConfig:
@@ -254,7 +254,7 @@ def _need(chain: str, provider_ids: tuple[str, ...], what: str) -> cp.ChainProvi
     names = [cp.config_for(p).label for p in provider_ids if cp.config_for(p) is not None and chain in cp.config_for(p).coverage]
     if not names:
         raise _PartUnavailable("not_offered", f"VOOL can't read {what} on {cp.CHAIN_LABELS[chain]} yet.")
-    raise _PartUnavailable("key_missing", f"reading {what} on {cp.CHAIN_LABELS[chain]} needs a {' or '.join(names)} key (Settings > Your keys).")
+    raise _PartUnavailable("key_missing", f"reading {what} on {cp.CHAIN_LABELS[chain]} needs a {' or '.join(names)} key (Settings > API Keys).")
 
 
 # --------------------------------------------------------------------------- facts and holders
@@ -320,7 +320,7 @@ def _creator(chain: str, address: str) -> tuple[str, dict[str, Any]]:
 def _solana_creator(mint: str) -> tuple[str, dict[str, Any]]:
     cfg = _provider(cp.CHAIN_SOLANA, cp.OP_HISTORY, prefer=("helius", "alchemy"))
     if cfg.provider_id not in {"helius", "alchemy"}:
-        raise _PartUnavailable("not_offered", "finding a Solana token's creator needs a Helius or Alchemy key (Settings > Your keys).")
+        raise _PartUnavailable("not_offered", "finding a Solana token's creator needs a Helius or Alchemy key (Settings > API Keys).")
     chain = cp.CHAIN_SOLANA
     account = cd._rpc(cfg, chain, "getAccountInfo", [mint, {"encoding": "jsonParsed", "commitment": "confirmed"}])
     value = (account or {}).get("value") if isinstance(account, dict) else None
@@ -569,7 +569,7 @@ def launches(args: dict[str, Any]) -> dict[str, Any]:
 
 def _x_part(address: str) -> tuple[str, dict[str, Any]]:
     if not _x_connected():
-        raise _PartUnavailable("x_not_connected", "connect X in Settings > Your keys to see who posted about it.")
+        raise _PartUnavailable("x_not_connected", "connect X in Settings > API Keys to see who posted about it.")
     from core import x_api
 
     out = x_api.token_callers(address, max_results=50)

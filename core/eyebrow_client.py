@@ -46,7 +46,7 @@ def request_api(endpoint: str, payload: dict | None = None) -> tuple[dict, str]:
     with strict_reads():
         key = get_credential(KEY_NAME)
     if not key:
-        raise AddonError("eyebrow_key_missing", "Add your Eyebrow key in Settings → Your keys first.")
+        raise AddonError("eyebrow_key_missing", "Add your Eyebrow key in Settings → API Keys first.")
     try:
         raw, headers = fetch_bytes(
             API_ORIGIN + endpoint,

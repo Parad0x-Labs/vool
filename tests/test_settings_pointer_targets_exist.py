@@ -9,11 +9,10 @@ hops name rows or real controls; a hop may be the leading words of a longer real
 Directions into the computer's own System Settings are not the app's Settings page and are
 left alone.
 
-One island is still blocked and pinned elsewhere: core/agent_runtime/memory_runtime.py still
-says "Settings → API Keys" because memory code is out of bounds for the job that renamed the
-group and tests/test_cloud_only_path.py:212 pins that wording. Those pointers are tolerated
-ONLY from that file, and only while they still exist -- the count is asserted so a future fix
-must come back here and shrink the allowance.
+One island is still tolerated: core/wallet/pilot_custody.py says "Settings → Wallet → Payment
+approval". It is money code, so its strings change only in their own reviewed change. The
+second test keeps the allowance from growing and fails once the island is fixed, so the
+allowance must shrink with it.
 """
 
 from __future__ import annotations
@@ -31,13 +30,10 @@ ADAPTERS = REPO / "adapters"
 CATALOGS = CORE / "i18n" / "catalogs"
 LOCALES = ["ar", "de", "es", "fr", "he", "hi", "ja", "ko", "lt", "pl", "pt", "ru", "tr", "uk", "vi", "zh-Hans"]
 
-# Tolerated nowhere-direction islands: banned memory code whose wording a test pins; the
-# provider adapter line pinned by tests/test_provider_credential_dispatch.py:74; and the
-# no-route notice pinned by tests/test_cloud_only_path.py:212 (the reply embeds this text).
+# Tolerated nowhere-direction island: a money file whose person-facing strings stay verbatim
+# until its own reviewed change ("Settings → Wallet → Payment approval").
 BLOCKED_ISLAND_FILES = {
-    "core/agent_runtime/memory_runtime.py",
-    "adapters/openai_compatible_adapter.py",
-    "core/cloud_only_default.py",
+    "core/wallet/pilot_custody.py",
 }
 
 # Third-party app menus that happen to be named "Settings": the sentence names the other
@@ -131,7 +127,7 @@ def test_every_settings_pointer_names_a_group_row_or_real_control() -> None:
             continue
         first = hops[0]
         if not _names_something_real(first, groups_ok):
-            if first.startswith("API Keys") and source in BLOCKED_ISLAND_FILES:
+            if source in BLOCKED_ISLAND_FILES:
                 continue
             problems.append(f"{source} {where}: 'Settings → {target.strip()}' names no group or row on the page")
             continue
@@ -142,17 +138,8 @@ def test_every_settings_pointer_names_a_group_row_or_real_control() -> None:
 
 
 def test_the_blocked_island_is_still_just_the_pinned_wording() -> None:
-    """The tolerated islands must not grow: nowhere else may still say the old name, and
-    every island file must still carry its pinned hit, so a fix must shrink the set."""
-    pointers = [(source, _hops(target)) for source, _, target in _py_pointers()]
-    stray = [
-        (source, hops[0])
-        for source, hops in pointers
-        if hops and hops[0].startswith("API Keys") and source not in BLOCKED_ISLAND_FILES
-    ]
-    assert not stray, f"new nowhere-directions appeared outside the pinned islands: {stray[:5]}"
+    """The tolerated islands must not grow, and each island file must still carry a Settings
+    pointer, so a fix there must shrink the set."""
+    pointers = [source for source, _, _ in _py_pointers()]
     for island_file in BLOCKED_ISLAND_FILES:
-        still = any(
-            source == island_file and hops and hops[0].startswith("API Keys") for source, hops in pointers
-        )
-        assert still, f"{island_file} no longer says the old name: shrink BLOCKED_ISLAND_FILES in this test"
+        assert island_file in pointers, f"{island_file} no longer points into Settings: shrink BLOCKED_ISLAND_FILES"

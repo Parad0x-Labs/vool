@@ -308,7 +308,7 @@ def catalog() -> dict:
 
 def security_action(action: str, value: str = "") -> dict:
     if action == "save_key":
-        raise AddonError('shared_key_setup_required','Add or replace this key in Settings → Your keys.',409)
+        raise AddonError('shared_key_setup_required','Add or replace this key in Settings → API Keys.',409)
     if action == "remove_key":
         from core.credential_intelligence.provider_registry import default_registry
         from core.credential_intelligence.store import CredentialStore
@@ -355,7 +355,7 @@ def prepare(identifier: str, *, approved: bool) -> dict:
         raise AddonError('addon_needs_compatibility', 'Inspect this skill’s licence and compatibility before scanning. ' + entry.get('compatibility', ''))
     from core.credential_store import has_credential
     if not has_credential(KEY_NAME):
-        raise AddonError("eyebrow_key_missing", "Add your Eyebrow key in Settings → Your keys first.")
+        raise AddonError("eyebrow_key_missing", "Add your Eyebrow key in Settings → API Keys first.")
     content = _download(entry, "SKILL.md", entry["sha256"])
     licence = _download(entry, "LICENSE.txt", entry["license_sha256"])
     with _LOCK:

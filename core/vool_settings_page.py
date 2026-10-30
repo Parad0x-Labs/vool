@@ -418,7 +418,7 @@ def _settings_groups() -> list[dict]:
         {
             "id": "keys",
             "icon": "⚿",
-            "title": "Your keys",
+            "title": "API Keys",
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
@@ -3789,7 +3789,7 @@ function widgetModelsOverview(stack) {
     const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
       : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
       : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
-      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in Your keys to use an online model.');
+      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
     cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
     // card sends the operator to the detail with the saved approval, never through guided again
@@ -4225,8 +4225,8 @@ function widgetModel(stack) {
     if (!provider) {
       /* Nothing to pick yet: say what makes this row useful, with the way there. */
       const line = el('div', 'inline');
-      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in Your keys to choose a model here.')));
-      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to Your keys')); jump.type = 'button';
+      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in API Keys to choose a model here.')));
+      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to API Keys')); jump.type = 'button';
       jump.addEventListener('click', () => { location.hash = '#keys'; });
       line.appendChild(jump);
       body.appendChild(line);
@@ -4447,7 +4447,7 @@ function widgetUsePod(stack) {
     const tokenCard = el('div', 'stack profile-item usepod-pay-mode');
     tokenCard.setAttribute('data-mode', 'prepaid_token');
     tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? inUse(tokenReady) : '')));
-    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (Your keys → UsePod).')));
+    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (API Keys → UsePod).')));
     if (payLane.transport_mode === 'x402') {
       const useToken = el('button', 'btn usepod-use-prepaid', 'Pay with the funded token'); useToken.type = 'button';
       useToken.addEventListener('click', () => useLane('prepaid_token', useToken));
@@ -4493,7 +4493,7 @@ function widgetUsePod(stack) {
     const cred = d.credential || {};
     if (!cred.configured) {
       body.appendChild(el('div', 'subtle',
-        'No UsePod token stored. Save one under Your keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
+        'No UsePod token stored. Save one under API Keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
     } else {
       const kv = el('dl', 'kv');
       const stateText = { configured_not_verified_here: 'stored, not verified in this view (Test asks UsePod once)', token_or_origin_unusable: 'stored, but the token or origin is not usable as configured' }[cred.state] || cred.state;

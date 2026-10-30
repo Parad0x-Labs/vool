@@ -43,7 +43,7 @@ STEPS: tuple[StepSpec, ...] = (
         id="thinking",
         title="Where should it think?",
         sentence="On my Mac keeps everything private. Online with a key is smarter, but it costs money.",
-        later="Settings → Models & Providers, and Settings → Your keys",
+        later="Settings → Models & Providers, and Settings → API Keys",
     ),
     StepSpec(
         id="folder",

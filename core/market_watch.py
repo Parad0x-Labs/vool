@@ -78,10 +78,10 @@ _WALLET_SETUP_CODES = {
 }
 _BACKOFF_CODES = frozenset({"rate_limited", "provider_down", "provider_error", "timeout", "unreachable"})
 _SETUP_WORDS = {
-    "key_missing": "no saved key serves {chain} history any more. Add one in Settings → Your keys.",
-    "key_unreadable": "VOOL could not read the saved key from this machine's key store. Check Settings → Your keys, "
+    "key_missing": "no saved key serves {chain} history any more. Add one in Settings → API Keys.",
+    "key_unreadable": "VOOL could not read the saved key from this machine's key store. Check Settings → API Keys, "
                       "then resume the watch.",
-    "key_rejected": "the saved key for {chain} history was refused. Replace it in Settings → Your keys, then resume "
+    "key_rejected": "the saved key for {chain} history was refused. Replace it in Settings → API Keys, then resume "
                     "the watch.",
     "quota_exhausted": "the saved key for {chain} history has no quota left. Check the key's plan, then resume the "
                        "watch.",
@@ -219,7 +219,7 @@ def _wallet_requirement(chain: str) -> tuple[bool, str]:
     stored = [cfg for cfg in serving if _stored(cfg)]
     if not stored:
         return False, (f"To watch a wallet on {cp.CHAIN_LABELS.get(chain, chain)}, add a {_names(serving)} key in "
-                       "Settings → Your keys. Nothing was saved, and VOOL did not go online.")
+                       "Settings → API Keys. Nothing was saved, and VOOL did not go online.")
     return True, ""
 
 

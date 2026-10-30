@@ -101,7 +101,7 @@ def _has_image_service() -> bool:
 
 
 def _x_reads_available() -> bool:
-    """The user's connected X keys are the opt-in for the X tools (Settings > Your keys > X).
+    """The user's connected X keys are the opt-in for the X tools (Settings > API Keys > X).
 
     Disk-index presence only: no key read and no keychain prompt while building the tool list.
     Local Only and the per-turn veto still refuse every request at the outbound door."""
@@ -3232,7 +3232,7 @@ def runtime_tool_contract_map() -> dict[str, RuntimeToolContract]:
     return {contract.intent: contract for contract in runtime_tool_contracts()}
 
 
-_X_UNSUPPORTED = "X is not connected. Add your X keys in Settings > Your keys > X to turn the X tools on."
+_X_UNSUPPORTED = "X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on."
 _X_READ_ACTIONS = ("use_network_access", "access_external_providers")
 
 

@@ -85,7 +85,7 @@ _LOCK = threading.RLock()
 
 _WEB_OFF_TEXT = ("Collecting trades uses public DEX candles and pool trades (which need web access on) and/or the "
                  "token's transfer history through a saved chain-data key. Turn on web access in Settings and, for "
-                 "transfer history, add a Helius, Alchemy or Etherscan key in Settings → Your keys, then ask again. "
+                 "transfer history, add a Helius, Alchemy or Etherscan key in Settings → API Keys, then ask again. "
                  "Nothing was collected.")
 _PRIVATE_TEXT = ("This is a private chat, and a private chat saves nothing, so VOOL does not collect market data "
                  "here: a collected dataset is stored on this computer (and copied into the project folder in a "

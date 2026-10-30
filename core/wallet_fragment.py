@@ -2519,7 +2519,7 @@ var walletHome = (function(){
             list.appendChild(btn);
           });
         });
-        if (!found) list.appendChild(el('div', 'vw-wh-sub', 'No saved wallet addresses yet. Your saved contacts fill this list; typing an address directly always works.'));
+        if (!found) list.appendChild(el('div', 'vw-wh-sub', 'No saved wallet addresses yet. Settings → Contacts saves them; typing an address directly always works.'));
       }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', 'Contacts could not be read; type the address directly.')); });
     });
     form.appendChild(pickBtn); form.appendChild(list);

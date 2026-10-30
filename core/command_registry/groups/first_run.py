@@ -40,7 +40,7 @@ _FAULT_REMEDIATIONS = {
     "boundary_partial": ("part of the boundary applied; the outcome names what did and what failed — live truth is projected",),
     "authority_write_failed": ("the boundary write was refused by its authority; nothing was changed",),
     "model_required": ("choose one of the cloud models the setup step lists",),
-    "model_not_registered": ("add that model's key in Settings → Your keys first",),
+    "model_not_registered": ("add that model's key in Settings → API Keys first",),
     "invalid_decision": ("use use_cloud (with a model) or not_now",),
 }
 

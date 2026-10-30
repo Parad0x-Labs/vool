@@ -134,7 +134,7 @@ def _proposal_facts(*, per_call_atomic: int, max_total_atomic: int, expiry_epoch
         raise ValueError("the prepaid lane spends the UsePod account's USDC balance; SOL is paid only through accountless x402")
     credential = discovery.resolve_credential()
     if credential is None:
-        raise ValueError("no UsePod credential is configured; save one under Your keys first")
+        raise ValueError("no UsePod credential is configured; save one under API Keys first")
     models, routes = _routing_facts()
     if not models and not all_models:
         raise ValueError(_NO_ROUTES)

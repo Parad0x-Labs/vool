@@ -58,9 +58,9 @@ REWRITTEN_FW2_EN_VALUES = {
     "dictation.failed_http": "Dictation did not work. Try again.",
     "run.refused_reason": "VOOL did not run this turn.",
     "run.refused_status": "VOOL did not run this turn.",
-    "vmw.err.key_missing": "No saved key serves this chain. Add one in Settings → Your keys.",
-    "vmw.err.key_unreadable": "The saved key could not be read from this computer. Check Settings → Your keys, then Resume.",
-    "vmw.err.key_rejected": "The saved key was refused. Replace it in Settings → Your keys, then Resume.",
+    "vmw.err.key_missing": "No saved key serves this chain. Add one in Settings → API Keys.",
+    "vmw.err.key_unreadable": "The saved key could not be read from this computer. Check Settings → API Keys, then Resume.",
+    "vmw.err.key_rejected": "The saved key was refused. Replace it in Settings → API Keys, then Resume.",
 }
 # Provider-site references and pinned islands that keep their "API Keys" wording on purpose.
 PINNED_API_KEYS_ISLANDS = [
@@ -113,20 +113,18 @@ def test_new_keys_are_placeholder_free_plain_sentences(locale: str) -> None:
 
 
 @pytest.mark.parametrize("locale", ["en", *LOCALES])
-def test_rewritten_values_carry_no_http_code_and_no_api_keys_group_name(locale: str) -> None:
+def test_rewritten_values_carry_no_http_code(locale: str) -> None:
     msgs = _messages(locale)
     for key in REWRITTEN_FW2_KEYS:
         value = msgs[key]
         assert "(HTTP" not in value, f"{locale} {key} still shows an HTTP status: {value!r}"
         assert "HTTP {" not in value, f"{locale} {key} still interpolates a status: {value!r}"
-        assert "API Keys" not in value, f"{locale} {key} still names the retired API Keys group: {value!r}"
-        assert "API" not in value, f"{locale} {key} still leans on the API word: {value!r}"
     if locale == "en":
         for key, expected in REWRITTEN_FW2_EN_VALUES.items():
             assert msgs[key] == expected, f"en {key} drifted from the agreed wording"
-        assert "under Your keys" in msgs["vcs.recovery.revoked"]
+        assert "under API Keys" in msgs["vcs.recovery.revoked"]
         assert msgs["keyguide.provider.helius.step2"] == (
-            "Open Your keys and copy your key. It looks like 8 characters, a dash, "
+            "Open API Keys and copy your key. It looks like 8 characters, a dash, "
             "then more groups of letters and numbers."
         )
 

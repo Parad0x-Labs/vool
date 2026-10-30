@@ -233,7 +233,7 @@ ARTICLE_UNKNOWN_NOTE = (
 
 PUBLISH_REFUSAL_GUIDANCE = (
     "I never post or message on my own and I can't schedule posts. With your X account connected "
-    "(Settings > Your keys > X), I can prepare a post, reply, quote or direct message for you to approve "
+    "(Settings > API Keys > X), I can prepare a post, reply, quote or direct message for you to approve "
     "there, and only your approval sends it. Otherwise, use the copy-ready text in your own X composer."
 )
 
