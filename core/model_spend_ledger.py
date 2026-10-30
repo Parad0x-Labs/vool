@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -43,6 +44,13 @@ class SpendReservation:
     # True when this settlement named an invocation the ledger had already settled: nothing was
     # written, and the row is returned as it stands.
     replayed: bool = False
+
+
+def _finite(cap: object) -> bool:
+    try:
+        return math.isfinite(float(cap))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
 
 
 def _init_table() -> None:
@@ -105,7 +113,7 @@ def reserve_spend(
     amount = round(max(0.0, float(maximum_usd)), 8)
     if not model_call_id or not task_id or amount <= 0:
         raise ValueError("model_call_id, task_id, and a positive reservation are required")
-    if amount > max(0.0, float(limits.per_call_usd)):
+    if not _finite(limits.per_call_usd) or amount > max(0.0, float(limits.per_call_usd)):
         raise PermissionError("per_call_spend_cap_exceeded")
     _init_table()
     ts = datetime.now(timezone.utc).timestamp() if now is None else float(now)
@@ -123,7 +131,8 @@ def reserve_spend(
             (month_total + amount, limits.monthly_usd, "monthly_spend_cap_exceeded"),
         )
         for projected, cap, reason in checks:
-            if cap <= 0 or projected > float(cap) + 1e-9:
+            # A cap that is not a finite number refuses: NaN compares false against any total and inf has no ceiling.
+            if not _finite(cap) or cap <= 0 or projected > float(cap) + 1e-9:
                 raise PermissionError(reason)
         spender = str(limits.spender or "")
         if limits.spender_monthly_usd is not None:
@@ -131,7 +140,7 @@ def reserve_spend(
             spender_total = _committed_and_reserved(
                 conn, "spender = ? AND created_ts >= ?", (spender, month_start)
             ) if spender else 0.0
-            if not spender or spender_cap <= 0 or spender_total + amount > spender_cap + 1e-9:
+            if not spender or not _finite(spender_cap) or spender_cap <= 0 or spender_total + amount > spender_cap + 1e-9:
                 raise PermissionError("device_monthly_spend_cap_exceeded")
         # The call-count cap is checked HERE, inside the BEGIN IMMEDIATE that reserves the
         # dollars, and the row inserted below is the increment. Previously the count was read

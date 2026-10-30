@@ -287,9 +287,11 @@ _KNOWN_SIDE_EFFECTS = frozenset({
 })
 # Web lookups a phone's "paid services" opens. On a phone turn they run on free sources only: every
 # key-backed search provider stands down for a remote turn (tools.web.web_research remote_turn_active).
-_PAID_INTENTS = frozenset({"web.search", "web.research", "web.chain_lookup"})
-# Tools that spend the owner's own keys with no such stand-down: chain-data and X API providers, and
-# media generation. MONEY RULE (security review 2026-10-29): no phone right opens them.
+# web.chain_lookup is NOT one of them: every chain-data lookup reads one of the owner's saved keys
+# (core.chain_data has no free source), so it is classed by its "chain" surface as keyed below.
+_PAID_INTENTS = frozenset({"web.search", "web.research"})
+# Tools that spend the owner's own keys with no such stand-down: chain-data (web.chain_lookup, token.*)
+# and X API providers, and media generation. MONEY RULE (security review 2026-10-29): no phone right opens them.
 _KEYED_INTENT_PREFIXES = ("token.", "market.", "watch.", "x.")
 _KEYED_SURFACES = frozenset({"chain", "market", "x"})
 _KEYED_SIDE_EFFECTS = frozenset({"media_generation"})

@@ -129,6 +129,12 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
 
     if intent != INTENT:
         return result(False, "unsupported_intent", "That is not a chain lookup.")
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, turn_is_remote
+
+    if turn_is_remote(source_context):
+        # Every lookup here reads one of the owner's saved chain-data keys: a phone or chat-app turn never
+        # spends them, whatever right that device holds (MONEY RULE). Refused before any key is read.
+        return result(False, "owner_local_required", REMOTE_TURN_REFUSAL_TEXT)
     try:
         answer = lookup(arguments or {})
     except ChainDataError as exc:
