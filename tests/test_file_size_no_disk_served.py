@@ -58,6 +58,11 @@ SIZE_ASKS = [
     "how many megabytes is the quarterly-report.pdf?",
     "whats the total size of the Taxes 2025 folder in my documents?",
     "how large is the wedding-video.mp4?",
+    # The 0.7.7 red-team's own wordings (P1, 2026-10-30): on the train without this lane each one
+    # reached machine.disk_usage and the reply carried the machine's real drive fill.
+    "how much space does my Downloads folder take",
+    "how big is report.pdf",
+    "how large is the file notes.txt",
 ]
 
 # Both verified to route to the existing disk lane (machine.disk_usage) on this checkout.
@@ -104,6 +109,8 @@ def served(tmp_path_factory: pytest.TempPathFactory):
     (user_home / "Downloads" / "holiday-pictures.zip").write_bytes(b"\0" * ZIP_BYTES)
     (user_home / "Downloads" / "quarterly-report.pdf").write_bytes(b"\0" * PDF_BYTES)
     (user_home / "Documents" / "wedding-video.mp4").write_bytes(b"\0" * VIDEO_BYTES)
+    (user_home / "Documents" / "report.pdf").write_bytes(b"\0" * PDF_BYTES)
+    (user_home / "Desktop" / "notes.txt").write_bytes(b"note\n" * 100)
     taxes = user_home / "Documents" / "Taxes 2025"
     taxes.mkdir()
     (taxes / "receipts.pdf").write_bytes(b"\0" * (512 * 1024))
@@ -136,6 +143,26 @@ def test_a_size_ask_reply_and_payloads_carry_no_drive_numbers(served, ask):
     # Zero payloads (answered before any model turn) passes; any payload there is must be clean.
     for payload in provider.payloads():
         _assert_clean(payload, PAYLOAD_DISK_FILL_PATTERNS)
+
+
+# The 0.7.7 red-team's own wordings are answered by the size lane itself, with the asked thing's size,
+# before any model sees them: a model handed a size ask with a disk tool seated is how the drive fill leaked.
+RED_TEAM_ASKS = {
+    "how much space does my Downloads folder take": "The Downloads folder is ",
+    "how big is report.pdf": "report.pdf is 700.0 KB",
+    "how large is the file notes.txt": "notes.txt is 500 B.",
+}
+
+
+@pytest.mark.parametrize("ask", sorted(RED_TEAM_ASKS))
+def test_the_red_team_size_asks_get_the_size_and_no_model_turn(served, ask):
+    daemon, provider = served
+    provider.reset()
+    out = daemon.chat(ask, session_id=rig.canonical_session("size-red-team-" + uuid.uuid4().hex[:8]))
+    answer = _reply_of(out)
+    assert RED_TEAM_ASKS[ask] in answer, answer
+    _assert_clean(answer, REPLY_DISK_FILL_PATTERNS)
+    assert answer != NEUTRAL_REPLY
 
 
 # --- Case B: a disk ask still gets the drive numbers ---
