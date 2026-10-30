@@ -457,6 +457,17 @@ def test_a_skip_left_from_an_earlier_failure_does_not_hide_normal_checks(tmp_pat
     assert service.status.load().phase is not UpdatePhase.UP_TO_DATE  # a real check ran and published
 
 
+def test_a_scheduled_check_never_writes_over_a_status_set_while_it_ran(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    feed["fetch"] = lambda: (service.status.publish(UpdatePhase.RESTARTING),  # e.g. a rollback pressed meanwhile
+                             manifest_bytes(failed))[1]
+    service.check_once(preserve_failure=True)
+    assert service.status.load().phase is UpdatePhase.RESTARTING
+
+
 def test_a_failed_update_with_no_known_version_keeps_waiting_for_a_pressed_check(tmp_path):
     from core.updater.status import UpdateFault
 
