@@ -14,18 +14,18 @@ import re
 import sys
 
 FAMILY = {
-    "files": r"machine\.(list_directory|find_file|find_folder|read_file|disk|storage|largest)|workspace\.|files?\.",
+    "files": r"machine\.(list_directory|find_file|find_folder|read_file|disk|storage|largest|read_fast_path)|workspace\.|files?\.",
     "notes": r"note",
     "reminders": r"remind",
     "calendar": r"calendar|availability|event",
     "contacts": r"contact",
     "mail": r"mail",
-    "processes": r"process|memory|cpu|system_status|machine\.(top|usage)",
+    "processes": r"process|memory|cpu|system_status|machine\.(top|usage|inspect_specs|read_fast_path)",
     "settings": r"setting|profile\.|language|model\.|set\.",
     "skills": r"skill",
     "web": r"web\.",
-    "pdf": r"pdf",
-    "images": r"image|vision|picture|photo|machine\.read_file",
+    "pdf": r"pdf|machine\.(read_file|read_fast_path)",
+    "images": r"image|vision|picture|photo|machine\.(read_file|read_fast_path)",
 }
 
 
@@ -57,6 +57,9 @@ def main() -> int:
             name = t.get("tool") if isinstance(t, dict) else str(t)
             if name and "." in name and not name.startswith(("ollama-", "openai", "anthropic")):
                 tools.append(name)  # model ids and runtime markers are not tools
+        fast = (r.get("answered_by") or {}).get("fast_path_families") or []
+        if not tools and "machine_read_fast_path" in fast:
+            tools.append("machine.read_fast_path")  # a direct read of this computer that logs no tool row
         want = c.get("expect", {}).get("tool_any") or []
         fam = any(re.search(FAMILY.get(f, re.escape(f)), t, re.I) for f in want for t in tools)
         timeout = any((t.get("http_status") or 0) in (0, 504) or "TIMEOUT" in str(t.get("reply", "")).upper()
