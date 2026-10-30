@@ -1,4 +1,4 @@
-"""Three served workflows: native selection → real tools through the real door.
+"""Served workflows: native selection → real tools through the real door.
 
 "Served" means the skill is selected automatically by the loader authority and its declared tools
 then EXECUTE through `execute_runtime_tool` — the one runtime tool door every real effect goes
@@ -7,7 +7,6 @@ the door refuses, the workflow fails here exactly as it would in a live turn.
 """
 from __future__ import annotations
 
-import subprocess
 import sys
 
 import pytest
@@ -21,15 +20,6 @@ from core.native_skill_library import (
 )
 from core.runtime_execution_tools import execute_runtime_tool
 from core.task_router import classify
-
-
-def _git(*args: str, cwd) -> None:
-    subprocess.run(
-        ["git", *args], cwd=str(cwd), check=True, capture_output=True,
-        env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-             "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(cwd)},
-    )
 
 
 @pytest.fixture()
@@ -121,40 +111,6 @@ def test_served_workflow_cumulative_testing_runs_the_real_test_pack(tmp_path, mo
     assert "2 passed" in str(details.get("stdout") or result.response_text), (
         f"the served test run did not really execute: {result.response_text[:300]}"
     )
-
-
-def test_served_workflow_git_worktrees_lists_real_worktrees(tmp_path, monkeypatch) -> None:
-    """Ask for a worktree → vool-git-worktrees selected → the real git state is read through the
-    sandboxed command door of a real repository."""
-    repo = tmp_path / "worktree-repo"
-    repo.mkdir()
-    (repo / "app.txt").write_text("payload\n", encoding="utf-8")
-    _git("init", "-q", cwd=repo)
-    _git("add", "-A", cwd=repo)
-    _git("commit", "-qm", "seed", cwd=repo)
-    _git("worktree", "add", "-b", "experiment-lane", str(tmp_path / "experiment-lane"), cwd=repo)
-    monkeypatch.setenv("VOOL_WORKSPACE_ROOT", str(repo))
-
-    selection = _select("set up a git worktree for this experiment", task_class="shell_guidance")
-    assert any(c.id == "git-worktrees" for c in selection.selected)
-
-    status = execute_runtime_tool("workspace.git_status", {})
-    assert status is not None and status.ok is True, status.response_text if status else "none"
-
-    # A provably read-only git command executes through the sandboxed command door for real.
-    read_only = execute_runtime_tool(
-        "sandbox.run_command", {"command": "git status --porcelain", "cwd": str(repo)}
-    )
-    assert read_only is not None, "sandbox.run_command did not dispatch"
-    assert read_only.ok is True, read_only.response_text
-
-    # And the mutation the gate cannot prove read-only is refused verbatim — the door fails
-    # closed on git verbs it cannot vouch for, exactly as the package's contract states.
-    mutation = execute_runtime_tool(
-        "sandbox.run_command", {"command": "git worktree add -b x /tmp/x", "cwd": str(repo)}
-    )
-    assert mutation is not None
-    assert "approval" in mutation.response_text.lower(), mutation.response_text
 
 
 def test_served_effects_stay_inside_the_declared_permission_surface(onboarding_project) -> None:

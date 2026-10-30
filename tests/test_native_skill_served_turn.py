@@ -74,7 +74,7 @@ def test_served_turn_binds_the_complete_selected_skill_instructions(served_rig) 
     from core.tool_offer_assembly import MAX_SKILLS
 
     rcr_body = _skill_body("vool-root-cause-repair")
-    bugrepro_body = _skill_body("vool-bug-reproduction")
+    second_body = _skill_body("vool-project-archaeology")
     release_body = _skill_body("vool-release-gate")
 
     served_rig.state.requests.clear()
@@ -87,7 +87,7 @@ def test_served_turn_binds_the_complete_selected_skill_instructions(served_rig) 
     bound = "\n".join(prompts)
 
     assert rcr_body in bound, "the selected repair skill's FULL body never reached the wire"
-    assert bugrepro_body in bound, "the second selected skill's FULL body never reached the wire"
+    assert second_body in bound, "the second selected skill's FULL body never reached the wire"
     # Unrelated skills stay out of context.
     assert release_body not in bound
     assert "audit this project" not in bound

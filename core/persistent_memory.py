@@ -2193,6 +2193,16 @@ def _capture_object_is_another_lanes_effect(verb: str, text: str) -> bool:
     return intent is not None and intent.kind not in READ_ONLY_OPERATOR_KINDS
 
 
+def _capture_object_is_a_set_or_picture(verb: str, text: str) -> bool:
+    """Whether an object-taking storage request saves a creative set or re-saves a picture (never a statement)."""
+    if " ".join(str(verb or "").casefold().split()) not in _OBJECT_CAPTURE_VERBS:
+        return False
+    from core.creative_set import set_save_request
+    from core.execution.constants import picture_edit_request
+
+    return set_save_request(text) is not None or picture_edit_request(text)
+
+
 def _forget_start_failure(user_text, *, session_id, source_context, started):
     reply = ("Forget could not be verified as fully applied: independent revocation authority is unavailable. Please retry the forget."
              if started else
@@ -2345,6 +2355,10 @@ def maybe_handle_memory_command(
         if storage_object_is_a_contact(text):
             return False, ""
         if _capture_object_is_another_lanes_effect(capture_match.group("verb"), text):
+            return False, ""
+        # A named creative set is the set lane's object and a picture saved in another format is a picture edit
+        # (audit N6/N5: both were answered "Locked in. I'll remember that." with nothing kept where it was asked).
+        if _capture_object_is_a_set_or_picture(capture_match.group("verb"), text):
             return False, ""
     if capture_match or _CORRECTION_RE.match(text):
         # Private chat (core.private_chat): nothing from a private chat is saved, an explicit

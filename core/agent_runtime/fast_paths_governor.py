@@ -28,11 +28,38 @@ _FREE_MEMORY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "my laptop is slow, can you clear out my temp files?" names its own remedy. The slowness clause is
+# context; the ask is a temp-file cleanup, which the operator lane owns (preview + approval). Measured
+# 2026-10-29 (re-audit files:F57): the hog report took it and offered "free up memory" instead.
+_NAMED_CLEANUP_RE = re.compile(
+    r"\b(?:clear|clean|delete|remove|empty|wipe|purge|get\s+rid\s+of)\b[^.?!]{0,25}?"
+    r"\b(?:temp|temporary|tmp|cache|caches|junk)\b",
+    re.IGNORECASE,
+)
 
-def maybe_handle_resource_hog_question(user_input: str, *, owner_local: bool) -> str | None:
+
+def _record_governor_read(source_context: dict | None, intent: str) -> None:
+    """Put the governor's own read on the same-turn observation channel.
+
+    These replies state measured GB figures. Unrecorded, the final-output backstop reads the turn as
+    one that observed nothing and replaces the measurement with "I didn't run any live lookup"
+    (re-audit 2026-10-29: "free up memory" and the hog report both shipped that notice).
+    """
+    if not isinstance(source_context, dict):
+        return
+    recorded = [dict(item) for item in list(source_context.get("runtime_tool_observations") or []) if isinstance(item, dict)]
+    recorded.append(
+        {"schema": "tool_observation_v1", "intent": intent, "tool_surface": "machine", "ok": True, "status": "executed"}
+    )
+    source_context["runtime_tool_observations"] = recorded[-12:]
+
+
+def maybe_handle_resource_hog_question(
+    user_input: str, *, owner_local: bool, source_context: dict | None = None
+) -> str | None:
     """"Why is my Mac slow/loud/roaring?" -> the measured answer: pressure, swap, and the hog."""
     text = " ".join(str(user_input or "").split())
-    if not text or not _HOG_QUESTION_RE.search(text):
+    if not text or not _HOG_QUESTION_RE.search(text) or _NAMED_CLEANUP_RE.search(text):
         return None
     if not owner_local:
         return "Machine diagnostics are owner-only, so I can't report this host's numbers from here."
@@ -42,6 +69,7 @@ def maybe_handle_resource_hog_question(user_input: str, *, owner_local: bool) ->
         report = resource_hog_report()
     except Exception:
         return "I couldn't read the machine's live memory state just now — try again in a moment."
+    _record_governor_read(source_context, "governor.resource_hog_report")
     lines: list[str] = []
     hog = report.get("hog")
     if hog and report.get("squeezed"):
@@ -75,7 +103,9 @@ def maybe_handle_resource_hog_question(user_input: str, *, owner_local: bool) ->
     return "\n".join(lines)
 
 
-def maybe_handle_free_memory_command(user_input: str, *, owner_local: bool) -> str | None:
+def maybe_handle_free_memory_command(
+    user_input: str, *, owner_local: bool, source_context: dict | None = None
+) -> str | None:
     """"Free up memory" -> actually unload every resident model (+ idle ComfyUI), with numbers."""
     text = " ".join(str(user_input or "").split())
     if not text or not _FREE_MEMORY_RE.search(text):
@@ -88,6 +118,7 @@ def maybe_handle_free_memory_command(user_input: str, *, owner_local: bool) -> s
         result = free_up_memory()
     except Exception:
         return "I couldn't reclaim memory just now — the local model server didn't respond."
+    _record_governor_read(source_context, "governor.free_up_memory")
     parts: list[str] = []
     if result.get("unloaded"):
         parts.append("unloaded " + ", ".join(result["unloaded"]))

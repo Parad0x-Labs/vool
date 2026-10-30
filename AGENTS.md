@@ -99,6 +99,20 @@ Many implementers may run at the same time. To keep them from colliding:
 - **Hand over, don't publish.** Implementers stop at a clean, committed local head plus evidence.
   Only the publisher pushes, and it publishes one mission per pull request.
 
+## Skills
+
+To write, lint, install and test a VOOL skill (SKILL.md format, `triggers`, the `vool-community`
+SDK, zip import, `skill.install path=<folder>`, and how picking works), follow
+[docs/guides/build-and-test-a-skill.md](docs/guides/build-and-test-a-skill.md). Test a skill
+locally, with phrasings that must pick it and one that must not, before any publishing step.
+Start with `python -m tools.community_skills new <folder> --name <skill-name>` and check picking with
+`python -m tools.community_skills try <folder> --pick "..." --not-pick "..."`; `zip <folder>` writes
+the importable zip. The tool names a skill may put in `allowed-tools`, what Manual and Auto mode
+ask for, and every refusal a skill can hit are in
+[docs/guides/skill-tools-and-limits.md](docs/guides/skill-tools-and-limits.md). Try one tool call
+through the permission check with `python -m tools.community_skills call <tool> --args '{...}'`
+(never `execute_runtime_tool`, which returns None for most tools).
+
 ## Fast local checks
 
 Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.17.2).

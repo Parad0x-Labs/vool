@@ -203,13 +203,22 @@ def _outcome_for(result: Any, drift_count: int) -> str:
     return OUTCOME_REFUSED if status in {"pending_approval", "blocked_by_mode", "cancelled"} else OUTCOME_FAILED
 
 
+def _user_path(raw: str) -> Path:
+    """A declared path as the handler reads it: "~/.bashrc" is the home folder's, never a folder named "~"."""
+    candidate = Path(raw)
+    if raw.startswith("~"):
+        with contextlib.suppress(RuntimeError):
+            candidate = candidate.expanduser()
+    return candidate
+
+
 def declared_paths_for(intent: str, arguments: dict[str, Any], *, capability: MutationCapability, workspace_root: Path | None) -> list[str]:
     """Absolute paths this dispatch declares it will touch, read from the same inputs the handler reads."""
     declared: list[str] = []
     for key in ("path", "target", "dest", "destination", "to", "output_path"):
         raw = str(arguments.get(key) or "").strip()
         if raw:
-            candidate = Path(raw)
+            candidate = _user_path(raw)
             if not candidate.is_absolute() and workspace_root is not None:
                 candidate = workspace_root / candidate
             declared.append(str(candidate))
@@ -217,7 +226,7 @@ def declared_paths_for(intent: str, arguments: dict[str, Any], *, capability: Mu
         for item in list(arguments.get(key) or []):
             raw = str(item or "").strip()
             if raw:
-                candidate = Path(raw)
+                candidate = _user_path(raw)
                 if not candidate.is_absolute() and workspace_root is not None:
                     candidate = workspace_root / candidate
                 declared.append(str(candidate))
@@ -233,7 +242,7 @@ def declared_paths_for(intent: str, arguments: dict[str, Any], *, capability: Mu
     for key in ("from", "source", "src"):
         raw = str(arguments.get(key) or "").strip()
         if raw and intent.endswith("move_path"):
-            candidate = Path(raw)
+            candidate = _user_path(raw)
             if not candidate.is_absolute() and workspace_root is not None:
                 candidate = workspace_root / candidate
             declared.append(str(candidate))

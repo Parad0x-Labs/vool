@@ -1400,6 +1400,37 @@ def _turn_executed_anything(turn_id: str, source_context: Any) -> bool:
     return False
 
 
+def model_authored_turn(*, turn_id: str = "", source_context: Any = None) -> tuple[bool, str]:
+    """Whether a model served this turn's bytes, and the request text the recorders hold.
+
+    Three recorders, any one enough: the authorship record, the grounding lifecycle, and -- for
+    a DIRECT served turn, which has no lifecycle and whose authorship record is keyed by a turn
+    id the transport may not present -- the turn's own model-call ledger, which still knows a
+    provider call completed (the seal receives the turn context).
+    """
+    record = authorship_record_for_publication(turn_id=turn_id)
+    model_authored = bool(getattr(record, "model_authored", False)) if record is not None else False
+    lifecycle = None
+    try:
+        from core.grounding_lifecycle import lifecycle_for_publication
+        lifecycle = lifecycle_for_publication(turn_id=turn_id)
+    except Exception:
+        lifecycle = None
+    if not model_authored:
+        model_authored = bool(lifecycle is not None and lifecycle.generated)
+    if not model_authored and source_context is not None:
+        try:
+            from core.turn_model_call_ledger import turn_call_accounting
+            accounting = turn_call_accounting(source_context)
+            model_authored = int(accounting.get("completed_calls") or 0) > 0 or bool(accounting.get("served_usage"))
+        except Exception:
+            model_authored = False
+    request_text = str(getattr(record, "request_text", "") or "") or str(
+        getattr(lifecycle, "request_text", "") or ""
+    )
+    return model_authored, request_text
+
+
 def gate_execution_claims(
     content: str, *, turn_id: str = "", source_context: Any = None
 ) -> tuple[str, dict[str, Any]]:
@@ -1412,34 +1443,12 @@ def gate_execution_claims(
     bytes and the record; when nothing survives the caller sees "" and takes its no-answer path.
     """
     text = str(content or "")
-    record = authorship_record_for_publication(turn_id=turn_id)
-    model_authored = bool(getattr(record, "model_authored", False)) if record is not None else False
-    lifecycle = None
-    try:
-        from core.grounding_lifecycle import lifecycle_for_publication
-        lifecycle = lifecycle_for_publication(turn_id=turn_id)
-    except Exception:
-        lifecycle = None
-    if not model_authored:
-        model_authored = bool(lifecycle is not None and lifecycle.generated)
-    if not model_authored and source_context is not None:
-        # The third recorder: a DIRECT served turn has no lifecycle, and its authorship record
-        # is keyed by a turn id the transport may not present; the turn's own model-call ledger
-        # still knows a provider call completed (the seal receives the turn context).
-        try:
-            from core.turn_model_call_ledger import turn_call_accounting
-            accounting = turn_call_accounting(source_context)
-            model_authored = int(accounting.get("completed_calls") or 0) > 0 or bool(accounting.get("served_usage"))
-        except Exception:
-            model_authored = False
+    model_authored, request_text = model_authored_turn(turn_id=turn_id, source_context=source_context)
     if not model_authored:
         return text, {"publication": "stood_down:not_model_authored"}
     claims = execution_claims(text)
     if not claims:
         return text, {"publication": "stood_down:no_execution_claims"}
-    request_text = str(getattr(record, "request_text", "") or "") or str(
-        getattr(lifecycle, "request_text", "") or ""
-    )
     try:
         from core.stipulated_frame import has_stipulated_frame
         if request_text and has_stipulated_frame(request_text):
@@ -1512,6 +1521,7 @@ __all__ = [
     "execution_claims",
     "gate_authored_content",
     "gate_execution_claims",
+    "model_authored_turn",
     "invalidate_author_certification",
     "is_authorship_refusal_text",
     "no_model_notice_leads",

@@ -888,6 +888,27 @@ def finalize_answer(
             "execution-claim gate produced no publishable bytes: the reply presented a tool run "
             "this turn did not perform and nothing else in it survived"
         )
+    # ACTION AND READ CLAIMS. The same evidence, for the plain-sentence forms: "I'll nudge you in
+    # 20 minutes", "your appointment is scheduled", "No new emails ... - Checked email inbox".
+    # Without a matching tool result this turn, the reply becomes a plain line saying it was not
+    # done or read, naming a missing connection first. Fail-open like the gates above.
+    from core.action_claim_gate import gate_action_claims
+    try:
+        _claim_request = ""
+        if isinstance(_selection_context, dict):
+            for _key in ("turn_request", "user_input", "effective_input", "request_text"):
+                _value = _selection_context.get(_key)
+                if isinstance(_value, str) and _value.strip():
+                    _claim_request = _value
+                    break
+        content, _action_record = gate_action_claims(
+            content, turn_id=turn_id, source_context=_selection_context, request_text=_claim_request
+        )
+    except Exception:  # pragma: no cover - the check must not end a working turn
+        _log.exception("action-claim gate failed; publishing ungated")
+        _action_record = {}
+    if _action_record.get("publication") == "action_claims_corrected":
+        _authorship_record = {**dict(_authorship_record or {}), "action_claims": _action_record}
     # F45 ENFORCEMENT — unresolved entity ambiguity withholds introduced precise numerics.
     # THE CONSUMER: this seam. The probe's replied-without-verdict state was previously only
     # RECORDED on the context (a fact, not a fence) and the ordinary answer published as if
