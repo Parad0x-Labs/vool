@@ -305,7 +305,7 @@ def _report_kept_data(home: Path) -> None:
     if runtime_home.is_dir():
         print(f"Your chats and settings were kept, in: {runtime_home}")
         print("A fresh VOOL install will find them there again.")
-        print("To delete them as well, run this uninstall again with --remove-data")
+        print("To delete them too, delete that folder.")
     else:
         print("No saved chats and settings were found; nothing was kept.")
 

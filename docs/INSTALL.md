@@ -148,7 +148,7 @@ The desktop opens the local chat in your browser; closing the browser does not
 stop the runtime. Headless mode ends with Ctrl-C. Uninstall stops a running
 VOOL first and removes nothing if it cannot stop it. It keeps your chats, settings
 and memory in `~/.vool_runtime` and says so when it finishes; a fresh install
-finds them there again. To delete them as well, run the uninstall again with
+finds them there again. To delete them too, delete that folder, or uninstall with
 `--remove-data` and answer its one question (`--yes` skips it for scripts).
 Uninstall never deletes anything outside VOOL's own folders.
 The runtime and lean dependencies are included; Ollama/models and optional

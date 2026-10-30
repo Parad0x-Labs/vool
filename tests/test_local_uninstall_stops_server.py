@@ -174,7 +174,7 @@ def test_running_server_stopped_chats_kept_and_install_removed(home, install_roo
     decoy_intact(home)
     assert f"Your chats and settings were kept, in: {runtime_home}" in result.stdout
     assert "A fresh VOOL install will find them there again." in result.stdout
-    assert "To delete them as well, run this uninstall again with --remove-data" in result.stdout
+    assert "To delete them too, delete that folder, or run this uninstall again with --remove-data." in result.stdout
 
 
 def test_process_not_proven_ours_left_running_while_uninstall_completes(home, install_root, runtime_home, tmp_path):
