@@ -7,8 +7,7 @@ description: Common questions about VOOL — whether it works offline, where you
 ## Does VOOL work offline?
 
 Yes, with a local model, for your chats and files. Cloud models need a network
-connection by definition. Asking for live facts such as weather or prices fetches them
-from public web services unless you turn off Web lookups or turn on Local Only.
+connection by definition. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 
 ## Do I need a cloud key?
 

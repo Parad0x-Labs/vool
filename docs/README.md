@@ -31,8 +31,7 @@ handles your files, your memory, and your keys.
 * **A desktop application.** It installs on your computer — not a browser tab, not a
   hosted service.
 * **Works offline for chats and files.** With a local model selected, your chats and files need
-  no internet connection. Asking for live facts such as weather or prices fetches them from
-  public web services unless you turn off Web lookups or turn on Local Only.
+  no internet connection. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 * **Local by default.** With a local model selected, prompts and files are processed
   on your machine.
 * **Model-agnostic.** Local runtimes and cloud providers are both selectable. You supply

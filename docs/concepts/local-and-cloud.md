@@ -11,9 +11,8 @@ header shows which way the next request runs — for example **AUTO** with
 ## Local
 
 The model and your files stay on this computer. The model runs against a local runtime, files
-are read from disk, and no request is made to a provider. Asking for live facts such as weather
-or prices fetches them from public web services unless you turn off Web lookups or turn on
-Local Only.
+are read from disk, and no request is made to a provider. Live facts such as weather
+or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 
 ## Cloud
 
