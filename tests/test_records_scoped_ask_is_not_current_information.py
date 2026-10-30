@@ -218,6 +218,22 @@ GROUNDED_BRANCH_RECORDS_ASKS = (
     "what is the current gate code, check my notebook?",
     "what's the current gate code? check my notes",
     "read my diary: what is the current roof budget?",
+    # The remaining anchor families: according-to/per/off/out-of/based-on/as-noted-in/
+    # as-recorded-in/as-written-in placements, within, the store's verb at the clause end,
+    # the conversations store, an anchor with no ask shape, and every currency family.
+    "what's the current balance according to my notes?",
+    "what's the latest gate code per my notes?",
+    "what's the current weight off my journal?",
+    "out of my notebook, how many hours are logged right now?",
+    "based on my chats, how much is the rent currently?",
+    "as noted in my records, what's the current address?",
+    "as recorded in my journal, what's the price of the bulk delivery right now?",
+    "within my records, who is the duty caretaker right now?",
+    "what's the latest pin code my records hold?",
+    "per my conversations, when is the vet appointment this week?",
+    "read off my diary what the current address is",
+    "as written in my notebook, what's the balance right now?",
+    "who is the caretaker currently according to my notebook?",
 )
 
 
@@ -283,6 +299,7 @@ def test_a_web_named_currency_records_ask_stays_a_lookup(text: str) -> None:
         "who currently holds the shed keys according to my records?",
         "what does my journal currently say about his address?",
         "what do my records currently show for the mooring?",
+        "inside my notebook, what is the gate code currently?",
     ),
 )
 def test_records_asks_no_promotion_armed_for_claim_no_override(text: str) -> None:
