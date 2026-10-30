@@ -12,6 +12,7 @@ real code path (the model is scripted where a model would answer):
 """
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -310,3 +311,32 @@ def test_a_folder_overview_answer_logs_its_folder_read(tmp_path, monkeypatch) ->
     assert [e.get("tool_name") for e in executed] == ["machine.list_directory"]
     assert any(o.get("intent") == "machine.list_directory" for o in context.get("runtime_tool_observations") or [])
 
+
+
+# -- the folder search a seated tool runs finds the folder the owner named ------------------------
+
+
+def _roots(monkeypatch, root) -> None:
+    import core.machine_diagnostics as md
+
+    monkeypatch.setattr(md, "disk_usage", lambda *a, **k: [{"mount": str(root)}])
+
+
+def test_find_folder_matches_the_named_words_in_any_order(tmp_path, monkeypatch) -> None:
+    from core.runtime_execution_tools import _machine_find_folder
+
+    (tmp_path / "Pictures" / "Holiday Lisbon 2026").mkdir(parents=True)
+    _roots(monkeypatch, tmp_path)
+    result = _machine_find_folder({"name": "Lisbon holiday"})
+    matches = (result.details or {}).get("matches") or []
+    assert [os.path.basename(m) for m in matches] == ["Holiday Lisbon 2026"], result.response_text
+
+
+def test_find_folder_still_needs_every_named_word(tmp_path, monkeypatch) -> None:
+    from core.runtime_execution_tools import _machine_find_folder
+
+    (tmp_path / "Pictures" / "Holiday Porto 2025").mkdir(parents=True)
+    (tmp_path / "Documents" / "Lisbonate").mkdir(parents=True)
+    _roots(monkeypatch, tmp_path)
+    result = _machine_find_folder({"name": "Lisbon holiday"})
+    assert not ((result.details or {}).get("matches") or []), result.response_text

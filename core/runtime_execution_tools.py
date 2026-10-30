@@ -1631,6 +1631,11 @@ def _machine_find_folder(
     # on both sides before comparing. (Without this, a folder plainly visible in a listing reads as
     # "not found" the moment its name uses a different separator than the query — a real reported bug.)
     needle_sep = re.sub(r"[\s_\-]+", "", needle)
+    # Word order is not part of a name as people say it: "my Lisbon holiday folder" is the folder
+    # called "Holiday Lisbon 2026" (fresh ask fu03, 2026-10-30: "No folder matching 'Lisbon
+    # holiday' found" beside that very folder). Two or more words all present, as whole words, in
+    # any order, match too.
+    needle_words = frozenset(w for w in re.split(r"[\s_\-]+", needle) if w)
     roots = _find_folder_roots()
     if not roots:
         return RuntimeExecutionResult(
@@ -1689,7 +1694,11 @@ def _machine_find_folder(
                     if not _first_visit(entry.path):
                         continue
                     scanned_dirs += 1
-                    if needle in lowered_name or (needle_sep and needle_sep in re.sub(r"[\s_\-]+", "", lowered_name)):
+                    if (
+                        needle in lowered_name
+                        or (needle_sep and needle_sep in re.sub(r"[\s_\-]+", "", lowered_name))
+                        or (len(needle_words) >= 2 and needle_words <= set(re.split(r"[\s_\-]+", lowered_name)))
+                    ):
                         matches.append(entry.path)
                         if len(matches) >= _FIND_FOLDER_MAX_MATCHES:
                             queue.clear()
