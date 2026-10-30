@@ -1627,6 +1627,7 @@ def _execute_tool_intent_impl(
             # succeed and would strand every fall-through mutation as a false
             # "blocked pending reconciliation". If this wrapper runs at all,
             # the claim holds DISPATCHED state over THIS dispatching lane.
+            _record_lane_dispatch(intent, source_context)
             execution = dispatch()
             try:
                 if bool(getattr(execution, "ok", False)):
@@ -1656,6 +1657,7 @@ def _execute_tool_intent_impl(
     else:
 
         def _dispatch_with_claim(dispatch):
+            _record_lane_dispatch(intent, source_context)
             return dispatch()
 
     # Only a REGISTERED plugin contract enters the claim wrapper: wrapping a None return for a
@@ -1767,6 +1769,7 @@ def _execute_tool_intent_impl(
         return execution
 
     if is_mcp_intent(intent):
+        _record_lane_dispatch(intent, source_context)
         execution = _with_blackbox_coverage(
             intent, arguments, source_context=source_context, dispatch=lambda: execute_mcp_intent(intent, arguments)
         )
@@ -1852,6 +1855,19 @@ def _record_execution(
         )
     except Exception:
         return
+
+
+def _record_lane_dispatch(intent: str, source_context: dict[str, Any] | None) -> None:
+    """Name a tool the lanes below the runtime dispatch (plugin, hive, operator, payment, MCP) in
+    the turn's ledger, as `_dispatch_runtime_tool` does for its own past its guards.
+
+    The claim gates read that ledger. Without this an `operator.find_notes` the model called and
+    that ran left no execution behind, and "I checked your notes ..." was replaced with "I haven't
+    looked through your notes". Recorded before the call, so a lane that raises is still named.
+    """
+    from core.turn_model_call_ledger import record_tool_execution
+
+    record_tool_execution(source_context, intent)
 
 
 def _maybe_store_tool_receipt(
