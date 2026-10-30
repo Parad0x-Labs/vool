@@ -440,4 +440,4 @@ def handle(action: str, body: dict) -> dict:
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None
     except (PackageError, PluginManifestError):
-        raise lifecycle.LifecycleError("This plugin's setup file is missing or broken. Review it before installing.") from None
+        raise lifecycle.LifecycleError("The plugin's setup file is invalid or missing. Review it before installing.") from None

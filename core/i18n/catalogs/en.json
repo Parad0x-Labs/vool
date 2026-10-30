@@ -2886,7 +2886,7 @@
     "addons.plugin_message_432ab8bfecd3": "Approve downloading the public plugin before reviewing it.",
     "addons.plugin_message_48406eae8994": "Review the plugin's access and accept its consent sheet before enabling it.",
     "addons.plugin_message_4d93c0c17a4e": "Paste the service key into its declared slot.",
-    "addons.plugin_message_1b8592920221": "This plugin's setup file is missing or broken. Review it before installing.",
+    "addons.plugin_message_6da9c557c936": "The plugin's setup file is invalid or missing. Review it before installing.",
     "addons.plugin_message_5c39747106a1": "Choose a supported plugin action.",
     "addons.plugin_message_694767a00752": "A linked plugin folder was preserved.",
     "addons.plugin_message_69beeea295ba": "A changed plugin folder was preserved for review.",
@@ -3050,12 +3050,12 @@
     "addons.plugin_migration_model_fallback": "UsePod now comes as a plugin. Chats that used a UsePod model have no model selected now, and Auto won't switch to a cloud model in those chats. Pick a model before you send another message there.",
     "addons.plugin_message_8696e7687080": "The plugin requested a folder containing private application or home data.",
     "addons.plugin_message_87f58523713f": "This plugin action could not be completed. Nothing was changed. Review the plugin in Add-ons and try again.",
-    "addons.plugin_message_205e09656326": "This service is paid from your wallet balance, so VOOL uses it only with your approval each time.",
+    "addons.plugin_message_2b8204c4d3b0": "This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time.",
     "addons.plugin_notice_dismiss": "Got it",
     "addons.plugin_mac_process_note": "On a Mac, a plugin's programs can see some settings of other apps you run, like any app can. Your plugin keys are never put there.",
     "addons.plugin_message_70666fc71452": "On a Mac, this plugin's key can't be kept private from other programs, so it stays off here. Plugins that need no key still work.",
     "addons.plugin_message_1461237e0e9b": "This key was carried over from an earlier VOOL setting and is used only by VOOL's own requests. Connect a key for this plugin in Add-ons.",
-    "addons.plugin_message_f3e582b86b9a": "Give your plugin a different name to install it."
+    "addons.plugin_message_fc0c95675725": "This name belongs to a plugin made by VOOL. Give your plugin a different name to install it."
   },
   "html_keys": [
     "bypass.modal_limits",

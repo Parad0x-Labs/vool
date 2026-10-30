@@ -55,7 +55,7 @@ def refresh_models(plugin_id: str) -> dict:
     record, plugin = declaration(plugin_id, "model_provider")
     spec = plugin.vool["model_provider"]
     if money_governed(spec["base_url"]):
-        raise ServiceRefused("This service is paid from your wallet balance, so VOOL uses it only with your approval each time.")
+        raise ServiceRefused("This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time.")
     response = native_request(plugin_id, "model_provider", "GET", spec["base_url"].rstrip("/") + spec["model_list_path"],
                               expected_approval=record.approval_digest)
     try:

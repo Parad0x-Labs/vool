@@ -13,7 +13,7 @@ SERVICES = (
      "digests": frozenset({"2e03c9975c55d7ccc2e41cef92385b65770343f981b0acc8279b7d20791e0540"})},
 )
 
-RESERVED_NAME = ("Give your plugin a different name to install it.")
+RESERVED_NAME = ("This name belongs to a plugin made by VOOL. Give your plugin a different name to install it.")
 
 
 def reserved_refusal(plugin_id: str, digest: str) -> str:
