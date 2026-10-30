@@ -25,8 +25,8 @@ NEW_FW2_KEYS = [
     "chat.session_import_failed",
     "chat.model_switch_failed",
     "chat.send_failed",
-    "chat.result_failed",
     "settings.store_mismatch",
+    "dictation.unavailable",
 ]
 NEW_FW2_EN_VALUES = {
     "chat.still_unreachable": "Still can't reach VOOL. It will keep trying.",
@@ -35,11 +35,17 @@ NEW_FW2_EN_VALUES = {
     "chat.session_import_failed": "The chats could not be brought back. Nothing was changed.",
     "chat.model_switch_failed": "That model could not be picked. The old one stays.",
     "chat.send_failed": "The message could not be sent.",
-    "chat.result_failed": "This answer could not be shown. Try again.",
     "settings.store_mismatch": "What Settings stored does not match what was saved. Try again.",
+    "dictation.unavailable": "Dictation is not available on this machine. Type instead.",
 }
+# Round two: unused contract key the lead pruned after the code settled.
+PRUNED_FW2_KEYS = ["chat.result_failed"]
 REWRITTEN_FW2_KEYS = [
     "attach.doc_gone_http",
+    "attach.upload_failed_http",
+    "dictation.failed_http",
+    "run.refused_reason",
+    "run.refused_status",
     "vmw.err.key_missing",
     "vmw.err.key_unreadable",
     "vmw.err.key_rejected",
@@ -48,6 +54,10 @@ REWRITTEN_FW2_KEYS = [
 ]
 REWRITTEN_FW2_EN_VALUES = {
     "attach.doc_gone_http": "This document is no longer available.",
+    "attach.upload_failed_http": "The file could not be uploaded.",
+    "dictation.failed_http": "Dictation did not work. Try again.",
+    "run.refused_reason": "VOOL did not run this turn.",
+    "run.refused_status": "VOOL did not run this turn.",
     "vmw.err.key_missing": "No saved key serves this chain. Add one in Settings → Your keys.",
     "vmw.err.key_unreadable": "The saved key could not be read from this computer. Check Settings → Your keys, then Resume.",
     "vmw.err.key_rejected": "The saved key was refused. Replace it in Settings → Your keys, then Resume.",
@@ -152,3 +162,21 @@ def test_no_locale_lost_its_source_hash_and_en_stays_flat() -> None:
         assert isinstance(stamp, str) and re.fullmatch(r"[0-9a-f]{64}", stamp), (
             f"{loc}.json lost or mangled its source_catalog_sha256"
         )
+
+
+@pytest.mark.parametrize("locale", ["en", *LOCALES])
+def test_the_pruned_unused_key_is_gone_everywhere(locale: str) -> None:
+    msgs = _messages(locale)
+    for key in PRUNED_FW2_KEYS:
+        assert key not in msgs, f"{locale}.json still carries the pruned key {key}"
+
+
+@pytest.mark.parametrize("locale", ["en", *LOCALES])
+def test_the_refused_turn_pair_is_one_identical_sentence(locale: str) -> None:
+    msgs = _messages(locale)
+    assert msgs["run.refused_reason"] == msgs["run.refused_status"], (
+        f"{locale} refused_reason/refused_status stopped being the same sentence"
+    )
+    for key in ("run.refused_reason", "run.refused_status", "attach.upload_failed_http", "dictation.failed_http"):
+        assert "{" not in msgs[key], f"{locale} {key} still interpolates raw detail: {msgs[key]!r}"
+
