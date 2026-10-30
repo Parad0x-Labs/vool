@@ -51,6 +51,12 @@ RECORDS_SCOPED_ASKS = (
     "read the balance off my diary",
     "based on my records, how many pallets came in?",
     "out of my notes, how many tonnes is that?",
+    # The store made the object of a bare search imperative (no question mark), and an adverb
+    # seated between the store and its verb: both name the store as the source of truth.
+    "search my chats for the caretaker's current phone number",
+    "search my notes for the current gate code",
+    "what does my journal currently say about his address?",
+    "what do my records currently show for the mooring?",
 )
 
 # Commands that WRITE to the kept material: they name the store but ask nothing of it.
@@ -87,6 +93,7 @@ def test_a_command_that_writes_the_notes_is_not_a_records_ask(text: str) -> None
     (
         "search the web for what i told you about oslo",
         "look that up online from my notes",
+        "search the web for the current price of gold",
         *NON_RECORDS_PRESENT_ASKS,
         "what is the capital of France?",
         "delete that from my records",
@@ -274,12 +281,30 @@ def test_a_web_named_currency_records_ask_stays_a_lookup(text: str) -> None:
         "what did my journal say the rent was last month?",
         "what does my journal say the rent is at the moment?",
         "who currently holds the shed keys according to my records?",
+        "what does my journal currently say about his address?",
+        "what do my records currently show for the mooring?",
     ),
 )
 def test_records_asks_no_promotion_armed_for_claim_no_override(text: str) -> None:
     req = classify_requirements(text)
     assert req.current_information_required is False, (text, req.reason_codes)
     assert "records_scoped_not_current" not in req.reason_codes, (text, req.reason_codes)
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        # An imperative ask on the store with a currency word in its object: the records
+        # reading governs, and the widening that would have fired on "current" stands down.
+        "search my chats for the caretaker's current phone number",
+        "search my notes for the current gate code",
+        "check my records for the current mooring fee",
+    ),
+)
+def test_an_imperative_ask_on_the_store_is_not_current_information(text: str) -> None:
+    req = classify_requirements(text)
+    assert req.current_information_required is False, (text, req.reason_codes)
+    assert "records_scoped_not_current" in req.reason_codes, (text, req.reason_codes)
 
 
 # A mixed turn keeps the current half of its asks: the stand-down reads unit by unit, so one

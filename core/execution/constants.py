@@ -79,7 +79,7 @@ _INTERROGATIVE_OPENER_RE = re.compile(
 )
 _IMPERATIVE_ASK_RE = re.compile(
     r"^(?:so|ok|okay|hey|and|also|then|now|please|pls|just|quick(?:ly)?|could\s+you|can\s+you)?[\s,]*"
-    r"(?:tell|show|give|list|check|report|find|look|see|read|display|print|get|fetch|scan|"
+    r"(?:tell|show|give|list|check|report|find|look|see|read|search|display|print|get|fetch|scan|"
     r"inspect|measure|count|summari[sz]e|run|pull\s+up|bring\s+up)\b",
     re.IGNORECASE,
 )
@@ -346,7 +346,11 @@ _RECORDS_SOURCE_ANCHOR_RE = re.compile(
 # the question shape an imperative write lacks.
 _RECORDS_SOURCE_WEAK_RE = re.compile(
     r"\b(?:in|within|inside)\s+" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\b"
+    # An adverb may sit between the store and its verb ("what does my journal currently say"):
+    # the store still governs the telling, so the shape holds. Bounded to the adverbs people
+    # place there, not an open slot -- "my notes someone wrote" is not this shape.
     r"|\b" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\s+"
+    r"(?:currently|now|still|again|already|also|even|just|exactly|actually)?\s*"
     r"(?:say|says|said|show|shows|showed|list|lists|listed|state|states|stated|hold|holds|held|"
     r"have|has|had|mention|mentions|mentioned|record|records|recorded|note|notes|noted|tell|tells|"
     r"told|put|puts)\b"
