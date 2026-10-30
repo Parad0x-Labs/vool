@@ -192,7 +192,9 @@ def test_uninstall_stops_a_running_server_and_reports_what_was_kept(package, hom
     out = capsys.readouterr().out
     assert f"Your chats and settings were kept, in: {runtime_home}" in out
     assert "A fresh VOOL install will find them there again." in out
-    assert "To delete them as well, run this uninstall again with --remove-data" in out
+    assert "To delete them too, delete that folder." in out
+    # The package (and its uninstall.sh) is gone now, so the line never asks for a second run.
+    assert "--remove-data" not in out
 
 
 def test_uninstall_never_signals_a_process_that_is_not_ours(package, home):

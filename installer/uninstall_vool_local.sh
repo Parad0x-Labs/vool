@@ -198,7 +198,7 @@ report_kept_data() {
   if [[ -d "${RUNTIME_HOME}" ]]; then
     say "Your chats and settings were kept, in: ${RUNTIME_HOME}"
     say "A fresh VOOL install will find them there again."
-    say "To delete them as well, run this uninstall again with --remove-data"
+    say "To delete them too, delete that folder, or run this uninstall again with --remove-data."
   else
     say "No saved chats and settings were found; nothing was kept."
   fi

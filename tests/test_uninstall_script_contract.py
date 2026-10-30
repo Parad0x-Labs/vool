@@ -41,7 +41,7 @@ def test_uninstall_script_keeps_chats_by_default_and_offers_remove_data() -> Non
 
     assert "Your chats and settings were kept, in: ${RUNTIME_HOME}" in script
     assert "A fresh VOOL install will find them there again." in script
-    assert "To delete them as well, run this uninstall again with --remove-data" in script
+    assert "To delete them too, delete that folder, or run this uninstall again with --remove-data." in script
     assert "--remove-data)" in script
     assert "REMOVE_DATA=1" in script
     assert "Delete your saved chats and settings in ${RUNTIME_HOME} too?" in script
