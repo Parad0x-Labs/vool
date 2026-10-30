@@ -36,7 +36,7 @@ Safer:
 
 * **Web lookups off means off.** With the Web lookups switch off, nothing goes online for a lookup: weather, prices, rates, web searches, page reads and downloads are refused before any connection is made, and the reply says where the switch is.
 * When you ask VOOL to find a folder, it searches your own folders. Other drives are searched only when you ask for them.
-* The docs say only what VOOL has. Offline means your chats and your files; looking up live facts such as weather can still go online unless you turn off Web lookups or turn on Local Only.
+* The docs say only what VOOL has. Offline means your chats and your files; live facts such as weather are looked up online only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 
 Linux:
 
