@@ -143,7 +143,7 @@ def test_money_words_stay_red_even_in_a_question(ask):
         ("what about paying the plumber", "red_turn"),
         ("is it ok to move my invoices to the desktop", "write_turn"),
         ("what's my sort code", "red_turn"),
-        ("what is my pin", "red_turn"),
+        ("what is my card pin", "red_turn"),
     ],
 )
 def test_an_order_after_a_question_is_still_an_order(ask, reason):
