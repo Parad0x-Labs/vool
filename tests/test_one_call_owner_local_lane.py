@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,9 @@ WRITE_CALL = {
     "function": {"name": "workspace__write_file", "arguments": {"path": "plumber.txt", "content": "plumber tuesday 9\n"}},
 }
 FINAL_AFTER_TOOL = "Done looking."
+HANG_ASK = "how long is the grocery list in my notes"
+#: While set, the scripted model never answers HANG_ASK inside the provider's deadline.
+_HANG: dict[str, bool] = {"on": False}
 
 
 def _last_user(body: dict[str, Any]) -> str:
@@ -97,6 +101,9 @@ def _reply_fn(body: dict[str, Any]) -> Any:
     )
     offered = _tool_names(body)
     last_user = _last_user(body)
+    if HANG_ASK in text and _HANG["on"]:
+        time.sleep(45)
+        return ""
     if RETRY_INSTRUCTION in last_user:
         return {"id": "call-r", "type": "function", "function": {"name": "operator__find_notes", "arguments": {"query": "plumber"}}}
     for ask, (name, arguments) in UNUSUAL_ASKS.items():
@@ -155,7 +162,7 @@ class _Turn:
 
 
 class _Rig:
-    def __init__(self, root: Path, *, lane: bool) -> None:
+    def __init__(self, root: Path, *, lane: bool, call_timeout: int = 30) -> None:
         self.home = root / "home"
         self.provider = ScriptedProvider({MODEL: KNOWLEDGE_REPLY}, reply_fn=_reply_fn)
         env = {
@@ -166,6 +173,7 @@ class _Rig:
             "VOOL_OWNER_LOCAL_ONE_CALL_LANE": "1" if lane else "0",
         }
         self.daemon = ServedDaemon(self.home, env_extra=env)
+        self._seed = _SEED.replace('"timeout_seconds": 30', f'"timeout_seconds": {int(call_timeout)}')
         self._n = 0
 
     def start(self) -> None:
@@ -175,16 +183,16 @@ class _Rig:
         except Exception as exc:  # pragma: no cover - environment, not the lane
             self.provider.__exit__(None, None, None)
             pytest.skip(f"served daemon could not boot here: {exc}")
-        run_in_home(self.home, _SEED.format(root=REPO_ROOT, base_url=self.provider.base_url, registered=[MODEL], model=MODEL))
+        run_in_home(self.home, self._seed.format(root=REPO_ROOT, base_url=self.provider.base_url, registered=[MODEL], model=MODEL))
         self.provider.reset()
 
     def stop(self) -> None:
         self.daemon.stop()
         self.provider.__exit__(None, None, None)
 
-    def turn(self, ask: str, *, mode: str = "auto") -> _Turn:
+    def turn(self, ask: str, *, mode: str = "auto", session: str = "") -> _Turn:
         self._n += 1
-        self.last_session = f"one-call-{self._n}"
+        self.last_session = session or f"one-call-{self._n}"
         calls_before = len(self.provider.calls)
         events_before = len(_events(self.home))
         payload = self.daemon.chat(ask, session_id=self.last_session, model=MODEL, mode=mode, timeout=240)
@@ -206,6 +214,16 @@ def lane_off(tmp_path_factory: pytest.TempPathFactory):
     rig = _Rig(tmp_path_factory.mktemp("one-call-off"), lane=False)
     rig.start()
     yield rig
+    rig.stop()
+
+
+@pytest.fixture(scope="module")
+def lane_short_deadline(tmp_path_factory: pytest.TempPathFactory):
+    """Lane on, and a 3 s provider deadline so a model that never answers times out quickly."""
+    rig = _Rig(tmp_path_factory.mktemp("one-call-deadline"), lane=True, call_timeout=3)
+    rig.start()
+    yield rig
+    _HANG["on"] = False
     rig.stop()
 
 
@@ -319,3 +337,36 @@ def test_flag_off_restores_the_earlier_path(lane_off: _Rig) -> None:
     assert "one_call_lane" not in calendar.kinds, calendar.kinds
     assert not _chat_calls(calendar), [c["prompt"][:80] for c in _chat_calls(calendar)]
     assert NOT_CONNECTED_REPLY not in calendar.reply, calendar.reply
+
+
+def test_a_tool_round_the_provider_never_answers_costs_one_call_and_why_still_works(lane_short_deadline: _Rig) -> None:
+    """The lane's tool round is sent and times out: the turn ends there (no second, plain
+    generation), and "why did that fail?" still names the model and the timeout from the typed
+    failure the router recorded for that one call. "retry" then replays the original ask."""
+    rig = lane_short_deadline
+    _HANG["on"] = True
+    try:
+        failed = rig.turn(HANG_ASK, session="one-call-deadline")
+    finally:
+        _HANG["on"] = False
+    calls = _chat_calls(failed)
+
+    assert "one_call_lane" in failed.kinds, failed.kinds
+    # One call: the tool round. Before this change the plain lane then generated again on the
+    # same model (a second timeout on a slow box).
+    assert len(calls) == 1, [(c["tools"][:3], c["prompt"][:80]) for c in calls]
+    assert calls[0]["tools"], "the one call was not the tool round"
+    assert "did not answer" in failed.reply, failed.reply
+    completed = [d for kind, d in failed.events if kind == "tool_loop_completed"]
+    assert completed and completed[-1].get("status") == "provider_did_not_answer", failed.kinds
+
+    why = rig.turn("why did that fail?", session="one-call-deadline")
+    assert MODEL in why.reply, why.reply
+    assert "timed out" in why.reply.lower(), why.reply
+    assert _chat_calls(why) == [], [c["prompt"][:80] for c in _chat_calls(why)]
+
+    retry = rig.turn("retry that exact request", session="one-call-deadline")
+    retry_calls = _chat_calls(retry)
+    assert retry_calls, "the retry never reached the model"
+    assert HANG_ASK in retry_calls[0]["full_prompt"], retry_calls[0]["full_prompt"][-400:]
+    assert "retry that exact request" not in retry_calls[0]["full_prompt"], retry_calls[0]["full_prompt"][-400:]

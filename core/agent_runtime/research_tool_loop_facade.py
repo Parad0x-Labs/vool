@@ -1411,6 +1411,9 @@ class ResearchToolLoopFacadeMixin:
         ]
         model_rounds = (max(recorded_rounds) + 1) if recorded_rounds else len(executed_steps)
         loop_stop_reason = ""
+        # Set when a tool round was SENT and its provider never answered (a timeout or a failed
+        # provider), as opposed to a round refused locally before anything left.
+        tool_round_sent_unanswered = False
         # This turn carries an approval the operator just granted, so it is REPLAYING a call that was
         # already selected (and recorded in seen_tool_payloads) before the pause. The duplicate guard
         # would read that replay as a loop and break to grounded synthesis -- the approved action would
@@ -1806,6 +1809,7 @@ class ResearchToolLoopFacadeMixin:
                                 step_count=len(executed_steps),
                             )
                             break
+                        tool_round_sent_unanswered = True
                         self._emit_runtime_event(
                             loop_source_context,
                             event_type="tool_failed",
@@ -2476,6 +2480,43 @@ class ResearchToolLoopFacadeMixin:
                         "loop_stop_reason": "tool_call_rejected",
                         "error_kind": error_kind,
                         "tool_call_resolution": resolution,
+                    },
+                    "learned_plan": None,
+                    "workflow_summary": None,
+                }
+            if one_call_turn and tool_round_sent_unanswered:
+                # The one-call lane (core.one_call_lane): the model's one call for this step was sent
+                # and never answered (a timeout or a failed provider). Handing the turn to the plain
+                # lane spent a second full generation on the same model -- on a CPU box a second
+                # timeout. The router already recorded the typed failed execution for that call
+                # (core.turn_routing, the row "why did that fail?" and "retry" bind to), so the turn
+                # ends here and says so. A round refused locally before anything was sent (a pinned
+                # model this step may not ask) spent nothing; it still falls through to the plain
+                # lane, whose call is the turn's one generation.
+                self._emit_runtime_event(
+                    loop_source_context,
+                    event_type="tool_loop_completed",
+                    message="The one-call lane's model call did not answer; no second generation.",
+                    step_count=0,
+                    status="provider_did_not_answer",
+                )
+                return {
+                    "response": (
+                        "The local model did not answer this time (it timed out or failed), so "
+                        "nothing was run and I have no answer to give. Ask \"why did that fail?\" "
+                        "for the details, or ask again to retry."
+                    ),
+                    "confidence": 0.2,
+                    "success": False,
+                    "status": "provider_did_not_answer",
+                    "mode": "tool_failed",
+                    "task_outcome": "failed",
+                    "details": {
+                        "tool_name": "unknown",
+                        "tool_steps": [],
+                        "step_count": 0,
+                        "loop_stop_reason": "provider_did_not_answer",
+                        "one_call_lane": True,
                     },
                     "learned_plan": None,
                     "workflow_summary": None,
