@@ -228,6 +228,24 @@ def parse_agenda_window(
     if re.search(r"\bnext\s+week\b", lowered):
         start = today - timedelta(days=today.weekday()) + timedelta(days=7)
         return (*_bounds(start, start + timedelta(days=6)), "next week")
+    # The everyday windows the person names beyond the week/days above. Each resolves to real
+    # bounds so "what have I got on this weekend" reads rows instead of asking which days.
+    # "next weekend" is read before the bare weekend so the possessive wins the match.
+    if re.search(r"\bnext\s+weekend\b", lowered):
+        saturday = today + timedelta(days=(5 - today.weekday()) % 7) + timedelta(days=7)
+        return (*_bounds(saturday, saturday + timedelta(days=1)), "next weekend")
+    if re.search(r"\bthis\s+weekend\b|\bthe\s+weekend\b|\bweekend\b", lowered):
+        saturday = today + timedelta(days=(5 - today.weekday()) % 7)
+        return (*_bounds(saturday, saturday + timedelta(days=1)), "this weekend")
+    if re.search(r"\bthis\s+month\b", lowered):
+        first_next = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return (*_bounds(today.replace(day=1), first_next - timedelta(days=1)), "this month")
+    if re.search(r"\bnext\s+month\b", lowered):
+        first_next = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
+        first_after = (first_next.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return (*_bounds(first_next, first_after - timedelta(days=1)), "next month")
+    if re.search(r"\bupcoming\b|\bcoming\s+up\b", lowered):
+        return (*_bounds(today, today + timedelta(days=13)), "the coming two weeks")
 
     range_match = re.search(
         r"\bfrom\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\s+(?:to|until|through|thru)\s+([0-9]{4}-[0-9]{2}-[0-9]{2})\b",
@@ -245,8 +263,12 @@ def parse_agenda_window(
 
     if re.search(r"\btoday\b", lowered):
         return (*_bounds(today, today), "today")
+    if re.search(r"\btonight\b", lowered):
+        return (*_bounds(today, today), "tonight")
     if re.search(r"\btomorrow\b", lowered):
         return (*_bounds(today + timedelta(days=1), today + timedelta(days=1)), "tomorrow")
+    if re.search(r"\byesterday\b", lowered):
+        return (*_bounds(today - timedelta(days=1), today - timedelta(days=1)), "yesterday")
     weekday = next((word for word in _WEEKDAYS if re.search(rf"\b{word}\b", lowered)), None)
     if weekday is not None:
         days_ahead = (_WEEKDAYS.index(weekday) - today.weekday()) % 7 or 7

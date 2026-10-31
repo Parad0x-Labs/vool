@@ -1403,6 +1403,14 @@ _PRESENT_DEVICE_WORDS = frozenset({
 _PRESENT_STORAGE_WORDS = frozenset({
     "disk", "disks", "drive", "drives", "ssd", "storage", "space", "bloat", "junk", "clutter", "temp", "cache",
 })
+# An operator-owned object ("show me the event called School play") is the calendar/notes/
+# reminders lane's ask, never words a file's name carries: the file-present lane stands down and
+# the operator parse owns the turn -- the same boundary the phone lane drew (file lookups leave
+# calendar and list asks to their lanes), so the operator answer never depends on the file lane.
+_PRESENT_OPERATOR_OBJECT_WORDS = frozenset({
+    "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
+    "note", "notes", "agenda",
+})
 
 
 class PresentFileAsk(NamedTuple):
@@ -1438,7 +1446,7 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     if not kept:
         return None  # "show me what you found" names nothing to search for
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
-           or word in _PRESENT_STORAGE_WORDS for word in kept):
+           or word in _PRESENT_STORAGE_WORDS or word in _PRESENT_OPERATOR_OBJECT_WORDS for word in kept):
         return None
     rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
     if _FILE_OTHER_ACTION_RE.search(rest):

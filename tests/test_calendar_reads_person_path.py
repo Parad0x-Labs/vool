@@ -143,7 +143,6 @@ def test_which_calendars_names_them_from_the_store(store):
     assert FAMILY_CAL in text or WORK_CAL in text, text
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'am I seeing the dentist any time soon' gets a toolless model reply instead of the Dentist row")
 def test_dentist_any_time_soon_reads_the_store(store):
     """"am I seeing the dentist any time soon" must read the rows and answer with the real
     appointment (title and date), never a toolless model reply."""
@@ -151,7 +150,6 @@ def test_dentist_any_time_soon_reads_the_store(store):
     _assert_read_the_store(turn(agent, "am I seeing the dentist any time soon", session="cal-dentist-soon"), DENTIST)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'when is the school play' gets a toolless model reply instead of the School play row")
 def test_when_is_the_school_play_reads_the_store(store):
     """"when is the school play" must read the rows and answer with the real event date,
     never a toolless model reply."""
@@ -190,7 +188,6 @@ def test_inspect_wording_answers_from_the_event_row(store):
     _assert_read_the_store(turn(agent, "show me the event called School play", session="cal-inspect"), PLAY)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'search my calendar for dentist' asks which event to search instead of reading the Dentist row")
 def test_unquoted_search_wording_reads_the_row(store):
     """A person does not quote the word: "search my calendar for dentist" must search, not
     ask which event while a Dentist row sits in the store."""
@@ -200,7 +197,6 @@ def test_unquoted_search_wording_reads_the_row(store):
     assert "Which event" not in text, text
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'do I have anything on tomorrow' gets a toolless model reply instead of tomorrow's row")
 def test_anything_on_tomorrow_wording_reads_the_store(store):
     """"do I have anything on tomorrow" reads the rows (tomorrow's real event), never a
     toolless model reply."""
@@ -208,7 +204,6 @@ def test_anything_on_tomorrow_wording_reads_the_store(store):
     _assert_read_the_store(turn(agent, "do I have anything on tomorrow", session="cal-on-tomorrow"), SWIM)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'show me this week's appointments' gets a toolless model reply instead of the week's rows")
 def test_this_weeks_appointments_wording_reads_the_store(store):
     """"show me this week's appointments" answers with this week's three real rows."""
     agent = make_agent()
@@ -218,7 +213,6 @@ def test_this_weeks_appointments_wording_reads_the_store(store):
     assert RETRO[0] not in text, f"next week's row is not this week: {text}"
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'anything coming up with the dentist' gets a toolless model reply instead of the Dentist row")
 def test_anything_coming_up_with_the_dentist_reads_the_store(store):
     """"anything coming up with the dentist" reads the rows and answers with the real
     appointment."""
@@ -226,14 +220,12 @@ def test_anything_coming_up_with_the_dentist_reads_the_store(store):
     _assert_read_the_store(turn(agent, "anything coming up with the dentist", session="cal-coming-up"), DENTIST)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'is the school play soon' gets a toolless model reply instead of the School play row")
 def test_is_the_school_play_soon_reads_the_store(store):
     """"is the school play soon" reads the rows and answers from the real event date."""
     agent = make_agent()
     _assert_read_the_store(turn(agent, "is the school play soon", session="cal-play-soon"), PLAY)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'what have I got on friday' gets a toolless model reply instead of Friday's row")
 def test_what_have_i_got_on_friday_reads_the_store(store):
     """"what have I got on friday" reads the rows: this Friday's real event is the school
     play."""
@@ -241,7 +233,6 @@ def test_what_have_i_got_on_friday_reads_the_store(store):
     _assert_read_the_store(turn(agent, "what have I got on friday", session="cal-friday"), PLAY)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: 'where is the dentist appointment' gets a toolless model reply instead of the Dentist row")
 def test_where_is_the_dentist_appointment_reads_the_store(store):
     """"where is the dentist appointment" reads the event's row and answers about the real
     appointment (its date; the seeded row stores no place)."""
@@ -249,8 +240,8 @@ def test_where_is_the_dentist_appointment_reads_the_store(store):
     _assert_read_the_store(turn(agent, "where is the dentist appointment", session="cal-where-dentist"), DENTIST)
 
 
-# The given wordings above that fail on BASE stay as recorded defects, each behind its
-# own xfail marker where it sits.
+# The given wordings above sat behind their own strict xfail markers while the routing defect
+# stood; the calendar read lane owns them now, so the markers are gone and the asks must pass.
 
 
 # ---------------------------------------------------------------------------------------------
@@ -287,7 +278,6 @@ def test_no_store_calendar_list_ask_says_plainly_no_provider(person_env, monkeyp
     assert MODEL_LEAD not in text
 
 
-@pytest.mark.xfail(strict=True, reason="defect: with no store connected, 'when is the school play' gets a toolless model reply instead of the plain not-connected words")
 def test_no_store_event_ask_says_plainly_no_calendar(person_env, monkeypatch):
     """With nothing connected, an event ask names the calendar in plain words rather than
     a toolless model reply."""
