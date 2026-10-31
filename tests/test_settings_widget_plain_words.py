@@ -181,10 +181,12 @@ def test_refusal_catches_and_not_compositions_read_one_keyed_sentence() -> None:
         "throw new Error(result.detail",
     ):
         assert gone not in SETTINGS_SRC, f"the raw-detail display is back: {gone!r}"
-    # the stored-mismatch contract sentence now covers all three stored-differs displays
-    assert SETTINGS_SRC.count("T('settings.store_mismatch'") >= 3, (
+    # the stored-mismatch contract sentence covers the two general stored-differs displays; the third
+    # (the default email account) reads its own keyed sentence, pinned in test_email_rows_plain_words
+    assert SETTINGS_SRC.count("T('settings.store_mismatch'") >= 2, (
         "the store-mismatch keyed sentence lost a wiring site"
     )
+    assert "T('emailadd.default_not_made'" in SETTINGS_SRC
     # the profile run() inversion: keyed sentence on refusal, authority report only on success
     assert (
         "say(res.ok ? (plainOk ? okText : report(res, okText)) : T('settings.row_not_saved'"
