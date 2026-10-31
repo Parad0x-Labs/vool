@@ -28,7 +28,6 @@ check itself can never touch operator credential state (C15 discipline).
 """
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys

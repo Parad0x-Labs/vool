@@ -498,7 +498,6 @@ class LiveSession:
         self._driver_pid = proc.pid
         self._record_process(proc.pid)
         flags = [a for a in isolation_launch_flags(profile_dir=str(self.profile)) if not a.startswith("--user-data-dir=")]
-        import os
 
         # Chromium puts its Unix sockets under TMPDIR. A socket path is limited to
         # about 100 bytes, and the profile path under the VOOL data directory can

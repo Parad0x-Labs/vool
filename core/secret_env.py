@@ -25,6 +25,7 @@ it can run before anything else in the daemon.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -126,10 +127,8 @@ def handoff_spawn_kwargs(env: Mapping[str, str] | None = None) -> tuple[dict[str
 
 def close_handoff(kwargs: Mapping) -> None:
     for fd in kwargs.get("pass_fds", ()) or ():
-        try:
+        with contextlib.suppress(OSError):
             os.close(fd)
-        except OSError:
-            pass
 
 
 def receive_handoff(environ=None) -> dict[str, str]:
@@ -152,10 +151,8 @@ def receive_handoff(environ=None) -> dict[str, str]:
     except OSError as exc:
         raise SecretHandoffError(f"the key handoff pipe could not be read: {exc.strerror or exc}") from exc
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.close(fd)
-        except OSError:
-            pass
     try:
         payload = json.loads(b"".join(chunks).decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:

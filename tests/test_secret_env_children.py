@@ -137,10 +137,8 @@ def test_plugin_allowlist_does_not_copy_owner_keys_on_mac(keys, monkeypatch):
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Mac rule")
 def test_keyed_mcp_server_outside_the_isolated_runtime_is_refused_on_mac(tmp_path, monkeypatch):
-    from core import mcp_client
+    from core import mcp_client, plugin_executor
     from core.mcp_client import MCPError, MCPStdioClient
-
-    from core import plugin_executor
 
     monkeypatch.setattr(plugin_executor, "confined_argv", lambda argv, **kw: (list(argv), "kernel:sandbox-exec"))
     started = []
