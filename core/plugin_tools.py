@@ -596,7 +596,9 @@ def plugin_scratch_dir(plugin_id: str) -> Path:
 
     override = str(os.environ.get("VOOL_PLUGIN_SCRATCH_ROOT") or "").strip()
     base = Path(override) if override else runtime_child_scratch_root("plugin")
-    return base / str(plugin_id)
+    from core.plugin_paths import child_of
+
+    return child_of(base, str(plugin_id))
 
 
 def confinement_mode() -> str:
