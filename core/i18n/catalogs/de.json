@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "eine Datei verschieben oder umbenennen",
     "approval.action.operator.propose_calendar_event": "einen Termin in deinen Kalender eintragen",
     "approval.action.operator.save_note": "eine Notiz speichern",
+    "approval.action.operator.cancel_reminder": "eine Erinnerung absagen",
+    "approval.action.operator.schedule_reminder": "eine Erinnerung einrichten",
     "approval.action.operator.schedule_calendar_event": "einen Termin in deinen Kalender eintragen",
     "approval.action.operator.search_calendar_event": "deinen Kalender durchsuchen",
     "approval.action.operator.show_agenda": "zeigen, wie dein Tag aussieht",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (ehemals Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

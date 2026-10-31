@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "파일을 옮기거나 이름을 바꾸려고 합니다",
     "approval.action.operator.propose_calendar_event": "캘린더에 일정을 추가하려고 합니다",
     "approval.action.operator.save_note": "메모를 저장하려고 합니다",
+    "approval.action.operator.cancel_reminder": "알림을 취소하려고 합니다",
+    "approval.action.operator.schedule_reminder": "알림을 설정하려고 합니다",
     "approval.action.operator.schedule_calendar_event": "캘린더에 일정을 추가하려고 합니다",
     "approval.action.operator.search_calendar_event": "캘린더를 검색하려고 합니다",
     "approval.action.operator.show_agenda": "그날의 일정이 어떤지 보여 주려고 합니다",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (구 Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

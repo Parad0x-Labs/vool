@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "نقل ملف أو إعادة تسميته",
     "approval.action.operator.propose_calendar_event": "إضافة حدث إلى تقويمك",
     "approval.action.operator.save_note": "حفظ ملاحظة",
+    "approval.action.operator.cancel_reminder": "إلغاء تذكير",
+    "approval.action.operator.schedule_reminder": "ضبط تذكير",
     "approval.action.operator.schedule_calendar_event": "إضافة حدث إلى تقويمك",
     "approval.action.operator.search_calendar_event": "البحث في تقويمك",
     "approval.action.operator.show_agenda": "عرض شكل يومك",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (Twitter سابقًا)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

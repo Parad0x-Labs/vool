@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "להעביר קובץ או לשנות את שמו",
     "approval.action.operator.propose_calendar_event": "להוסיף אירוע ליומן שלכם",
     "approval.action.operator.save_note": "לשמור פתק",
+    "approval.action.operator.cancel_reminder": "לבטל תזכורת",
+    "approval.action.operator.schedule_reminder": "להגדיר תזכורת",
     "approval.action.operator.schedule_calendar_event": "להוסיף אירוע ליומן שלכם",
     "approval.action.operator.search_calendar_event": "לחפש ביומן שלכם",
     "approval.action.operator.show_agenda": "להראות איך נראה היום שלכם",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (לשעבר Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

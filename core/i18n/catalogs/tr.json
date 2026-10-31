@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "bir dosyayı taşımak veya yeniden adlandırmak",
     "approval.action.operator.propose_calendar_event": "takviminize bir etkinlik eklemek",
     "approval.action.operator.save_note": "bir not kaydetmek",
+    "approval.action.operator.cancel_reminder": "bir hatırlatıcıyı iptal etmek",
+    "approval.action.operator.schedule_reminder": "bir hatırlatıcı kurmak",
     "approval.action.operator.schedule_calendar_event": "takviminize bir etkinlik eklemek",
     "approval.action.operator.search_calendar_event": "takviminizde arama yapmak",
     "approval.action.operator.show_agenda": "gününüzün nasıl geçtiğini göstermek",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (eski adıyla Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

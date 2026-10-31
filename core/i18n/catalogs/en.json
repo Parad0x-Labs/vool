@@ -668,6 +668,8 @@
     "approval.action.operator.move_path": "move or rename a file",
     "approval.action.operator.propose_calendar_event": "add an event to your calendar",
     "approval.action.operator.save_note": "save a note",
+    "approval.action.operator.cancel_reminder": "cancel a reminder",
+    "approval.action.operator.schedule_reminder": "set a reminder",
     "approval.action.operator.schedule_calendar_event": "add an event to your calendar",
     "approval.action.operator.search_calendar_event": "search your calendar",
     "approval.action.operator.show_agenda": "show what your day looks like",

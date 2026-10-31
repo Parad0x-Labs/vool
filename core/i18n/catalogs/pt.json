@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "mover ou renomear um arquivo",
     "approval.action.operator.propose_calendar_event": "adicionar um evento ao seu calendário",
     "approval.action.operator.save_note": "salvar uma nota",
+    "approval.action.operator.cancel_reminder": "cancelar um lembrete",
+    "approval.action.operator.schedule_reminder": "criar um lembrete",
     "approval.action.operator.schedule_calendar_event": "adicionar um evento ao seu calendário",
     "approval.action.operator.search_calendar_event": "pesquisar no seu calendário",
     "approval.action.operator.show_agenda": "mostrar como é o seu dia",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X (antigo Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }

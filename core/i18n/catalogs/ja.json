@@ -654,6 +654,8 @@
     "approval.action.operator.move_path": "ファイルを移動または名前変更する",
     "approval.action.operator.propose_calendar_event": "カレンダーに予定を追加する",
     "approval.action.operator.save_note": "メモを保存する",
+    "approval.action.operator.cancel_reminder": "リマインダーを取り消す",
+    "approval.action.operator.schedule_reminder": "リマインダーを設定する",
     "approval.action.operator.schedule_calendar_event": "カレンダーに予定を追加する",
     "approval.action.operator.search_calendar_event": "カレンダーを検索する",
     "approval.action.operator.show_agenda": "その日の予定を表示する",
@@ -3337,5 +3339,5 @@
     "xsetup.title": "X(旧 Twitter)"
   },
   "schema": "vool.i18n.catalog.v1",
-  "source_catalog_sha256": "3537054d4ce178840bbfe2e11d11f3a142e78852f82b08c62ee38f0fa7f33bc1"
+  "source_catalog_sha256": "721cb1a3a817ffd1fa00ed05f59dc781c7af9111de8fb1df14105d818ee39116"
 }
