@@ -710,6 +710,213 @@ def handle_move_path(
     )
 
 
+def handle_make_directory(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+    load_pending_action_fn: Any,
+    create_pending_action_fn: Any,
+    mark_action_executed_fn: Any,
+    evaluate_local_action_fn: Any,
+    resolve_machine_directory_fn: Any,
+    home_label_fn: Any,
+    audit_log_fn: Any,
+) -> OperatorActionResult:
+    """One new folder on one of the owner's own home roots (Desktop/Downloads/Documents), previewed first.
+
+    The exact path is resolved through the machine write authority (`resolve_machine_directory_fn`):
+    the owner's home roots only, never VOOL's own runtime home or state, and no path on the deny
+    list — the authority refuses, it is never widened here. Like the move: only an approval that
+    names its id reaches a pending folder; a request without one is a NEW folder request; and the
+    resolution runs again at execution time, so the guard decides, not the preview.
+    """
+    pending = (
+        load_pending_action_fn(session_id=session_id, action_kind="make_directory", action_id=intent.action_id)
+        if intent.action_id
+        else None
+    )
+    if pending is None and intent.action_id:
+        return OperatorActionResult(
+            ok=False,
+            status="missing_action",
+            response_text="That folder request is no longer waiting for approval, so nothing was created.",
+            details={"action_id": intent.action_id},
+        )
+    if pending is None:
+        return _preview_new_folder(
+            intent,
+            task_id=task_id,
+            session_id=session_id,
+            load_pending_action_fn=load_pending_action_fn,
+            create_pending_action_fn=create_pending_action_fn,
+            resolve_machine_directory_fn=resolve_machine_directory_fn,
+            home_label_fn=home_label_fn,
+        )
+    gate = evaluate_local_action_fn(
+        "make_directory",
+        destructive=False,
+        user_approved=bool(intent.approval_requested),
+    )
+    if gate.requires_user_approval and not intent.approval_requested:
+        return OperatorActionResult(
+            ok=False,
+            status="approval_required",
+            response_text=(
+                "The folder request is ready but still needs explicit approval. "
+                f"Reply with: approve folder {pending['action_id']}"
+            ),
+            details={"action_id": pending["action_id"]},
+        )
+    if gate.mode not in {"execute", "sandbox"}:
+        return OperatorActionResult(
+            ok=False,
+            status="blocked",
+            response_text=f"I can't create that folder right now: {gate.reason}",
+            details={"gate_mode": gate.mode},
+        )
+    scope = json.loads(str(pending.get("scope_json") or "{}"))
+    previewed = str(scope.get("target_path") or "")
+    try:
+        resolved = resolve_machine_directory_fn(previewed, write=True)
+    except ValueError as exc:
+        return OperatorActionResult(
+            ok=False,
+            status="blocked",
+            response_text=str(exc),
+            details={"action_id": pending["action_id"], "target_path": previewed},
+        )
+    if resolved.exists() and not resolved.is_dir():
+        return OperatorActionResult(
+            ok=False,
+            status="conflict",
+            response_text=f"I won't replace the file at {home_label_fn(resolved)} with a folder.",
+            details={"action_id": pending["action_id"], "target_path": str(resolved)},
+        )
+    already_present = resolved.is_dir()
+    resolved.mkdir(parents=True, exist_ok=True)
+    verified = resolved.is_dir()
+    mark_action_executed_fn(
+        pending["action_id"],
+        result={"target_path": str(resolved), "verified": verified, "already_present": already_present},
+    )
+    audit_log_fn(
+        "operator_action_make_directory",
+        target_id=task_id,
+        target_type="task",
+        details={
+            "action_id": pending["action_id"],
+            "target_path": str(resolved),
+            "verified": verified,
+        },
+    )
+    learned_plan = Plan(
+        summary="Verified bounded folder setup workflow with preview, approval, creation, and post-check.",
+        abstract_steps=[
+            "resolve the folder's name and the owner's own root it belongs in",
+            "prepare a folder preview",
+            "require explicit user approval",
+            "create the folder inside the approved root",
+            "verify the folder exists",
+        ],
+        confidence=0.9 if verified else 0.72,
+        risk_flags=[],
+        simulation_steps=[],
+        safe_actions=[{"action": "make_directory", "target_path": str(resolved)}],
+        reads_workspace=False,
+        writes_workspace=True,
+        requests_network=False,
+        requests_subprocess=False,
+        evidence_sources=["local_operator:make_directory"],
+    )
+    if already_present:
+        outcome = f"already existed, so nothing was changed"
+    else:
+        outcome = "is created" if verified else "could not be verified"
+    return OperatorActionResult(
+        ok=True,
+        status="executed",
+        response_text=f"Folder ready. {home_label_fn(resolved)} {outcome}.",
+        details={
+            "action_id": pending["action_id"],
+            "target_path": str(resolved),
+            "verified": verified,
+        },
+        learned_plan=learned_plan,
+    )
+
+
+def _preview_new_folder(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+    load_pending_action_fn: Any,
+    create_pending_action_fn: Any,
+    resolve_machine_directory_fn: Any,
+    home_label_fn: Any,
+) -> OperatorActionResult:
+    name = str(intent.target_label or "").strip(" '\"")
+    place = str(intent.destination_path or "").strip()
+    if not name or not place:
+        return OperatorActionResult(
+            ok=False,
+            status="invalid_request",
+            response_text=(
+                "Tell me the folder's name and where it belongs (Desktop, Downloads, or Documents), "
+                "and I'll show you exactly what will be created before anything is."
+            ),
+            details={},
+        )
+    try:
+        target = resolve_machine_directory_fn(f"~/{place}/{name}", write=True)
+    except ValueError as exc:
+        return OperatorActionResult(
+            ok=False,
+            status="not_allowed",
+            response_text=str(exc),
+            details={},
+        )
+    # The same folder asked again keeps its preview waiting instead of replacing it: only an
+    # approval reaches a pending folder (the move's own law, review 2026-10-28).
+    latest = load_pending_action_fn(session_id=session_id, action_kind="make_directory", action_id=None)
+    if latest:
+        latest_scope = json.loads(str(latest.get("scope_json") or "{}"))
+        if latest_scope.get("target_path") == str(target):
+            return OperatorActionResult(
+                ok=True,
+                status="approval_required",
+                response_text=(
+                    f"Folder preview ready.\n"
+                    f"- Folder: {home_label_fn(target)}\n\n"
+                    f"Reply with: approve folder {latest['action_id']}"
+                ),
+                details={
+                    "action_id": latest["action_id"],
+                    "target_path": str(target),
+                },
+            )
+    action_id = create_pending_action_fn(
+        session_id=session_id,
+        task_id=task_id,
+        action_kind="make_directory",
+        scope={"target_path": str(target), "name": name, "root": place},
+    )
+    return OperatorActionResult(
+        ok=True,
+        status="approval_required",
+        response_text=(
+            f"Folder preview ready.\n"
+            f"- Folder: {home_label_fn(target)}\n\n"
+            f"Reply with: approve folder {action_id}"
+        ),
+        details={
+            "action_id": action_id,
+            "target_path": str(target),
+        },
+    )
+
+
 def handle_schedule_calendar_event(
     intent: OperatorActionIntent,
     *,

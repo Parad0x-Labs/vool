@@ -59,6 +59,10 @@ _DEFAULT_POLICY = {
             "inspect_processes",
             "inspect_services",
             "move_path",
+            # One new folder inside the owner's own Desktop/Downloads/Documents: creates,
+            # destroys nothing, and carries its own preview + explicit approval turn
+            # (core.operator.handlers.handle_make_directory).
+            "make_directory",
             "schedule_calendar_event",
             "schedule_reminder",
             "list_reminders",

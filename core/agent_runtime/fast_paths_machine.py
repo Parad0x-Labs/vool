@@ -910,6 +910,16 @@ def maybe_handle_direct_machine_write_request(
         )
     if not looks_like_supported_machine_directory_create_request(user_input):
         return None
+    # An everyday NAMED folder ask on a chat turn belongs to the operator lane: it stages the
+    # exact folder as a pending request and completes on the person's own approval words in this
+    # chat. The permission card this lane would otherwise raise cannot be answered from the chat
+    # (the 2026-10-27 audit), so "make a folder called X on my desktop" ended at "needs approval"
+    # with no way to give it and no folder. Nameless asks keep this lane's planner.
+    from core.local_operator_actions import parse_operator_action_intent
+
+    folder_intent = parse_operator_action_intent(user_input)
+    if folder_intent is not None and folder_intent.kind == "make_directory" and not folder_intent.action_id:
+        return None
     decision = agent._plan_tool_workflow(
         user_text=_machine_write_request_text(user_input),
         task_class="unknown",

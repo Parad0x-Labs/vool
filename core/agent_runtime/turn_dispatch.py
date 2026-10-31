@@ -331,7 +331,7 @@ def prepare_turn_task_bundle(
         _pinned_kind = str((source_context or {}).get("model_selection") or "").strip().lower()
         if _pinned and _pinned_kind != "sticky":
             approved = None  # a pinned model keeps the turn, as it does for a typed "approve move <id>"
-        if approved is not None and (operator_intent is None or operator_intent.kind == "move_path"):
+        if approved is not None and (operator_intent is None or operator_intent.kind in {"move_path", "make_directory"}):
             operator_intent = approved
     if operator_intent is not None:
         # Mode enforcement: Ask/Plan is a READ-ONLY posture. A mutating operator action (anything
