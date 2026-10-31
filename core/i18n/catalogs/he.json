@@ -2849,6 +2849,9 @@
     "live.upload": "להעלות",
     "settings.row.live_browser.help": "בדקו כל פעולה לפני ביצועה. סקריפטים בדפים כבויים. לתשלום השתמשו בארנק.",
     "settings.row.live_browser.label": "דפדפן",
+    "settings.row.hide_name_on_screen.label": "הסתרת השם שלי על המסך",
+    "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
+    "settings.row.hide_name_on_screen.effect": "חל מיד.",
     "settings.local_models.reading": "מחפשים מודלים במחשב הזה…",
     "settings.local_models.unavailable": "VOOL לא רואה כרגע את המודלים במחשב הזה. ודאו ש-Ollama פתוח, ואז פתחו שוב את ההגדרות.",
     "settings.local_models.disabled": "מודלים מקומיים כבויים במחשב הזה.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL לא הצליח לדעת איזה מודל כתב את התשובה, ולכן עיכב אותה. שאלו שוב.",
     "chat.author_refusal.not_running": "אין כרגע מודל שרץ במחשב הזה. פתחו את אפליקציית המודלים שלכם (למשל Ollama), או בחרו מודל ענן בתפריט המודלים."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

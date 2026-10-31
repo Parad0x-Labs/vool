@@ -2849,6 +2849,9 @@
     "live.upload": "Prześlij",
     "settings.row.live_browser.help": "Sprawdź każdą czynność przed wykonaniem. Skrypty stron są wyłączone. Do płatności używaj portfela.",
     "settings.row.live_browser.label": "Przeglądarka",
+    "settings.row.hide_name_on_screen.label": "Ukryj moje imię na ekranie",
+    "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
+    "settings.row.hide_name_on_screen.effect": "Działa natychmiast.",
     "settings.local_models.reading": "Szukam modeli na tym komputerze…",
     "settings.local_models.unavailable": "VOOL nie widzi teraz modeli na tym komputerze. Upewnij się, że Ollama jest otwarta, i otwórz ponownie Ustawienia.",
     "settings.local_models.disabled": "Modele lokalne są wyłączone na tym komputerze.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL nie rozpoznał, który model napisał odpowiedź, więc ją wstrzymał. Zapytaj ponownie.",
     "chat.author_refusal.not_running": "Na tym komputerze nie działa teraz żaden model. Otwórz aplikację z modelami (np. Ollama) albo wybierz model w chmurze w menu modeli."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

@@ -2849,6 +2849,9 @@
     "live.upload": "رفع",
     "settings.row.live_browser.help": "راجع كل إجراء قبل تنفيذه. برامج الصفحات معطلة. استخدم المحفظة للدفع.",
     "settings.row.live_browser.label": "المتصفح",
+    "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
+    "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
+    "settings.row.hide_name_on_screen.effect": "يسري فورًا.",
     "settings.local_models.reading": "جارٍ البحث عن النماذج على هذا الحاسوب…",
     "settings.local_models.unavailable": "لا يرى VOOL النماذج على هذا الحاسوب الآن. تأكّد من أن Ollama مفتوح، ثم أعد فتح الإعدادات.",
     "settings.local_models.disabled": "النماذج المحلية متوقفة على هذا الحاسوب.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "لم يتمكن VOOL من معرفة النموذج الذي كتب الرد، لذا أوقفه. اسأل مجددًا.",
     "chat.author_refusal.not_running": "لا يعمل أي نموذج على هذا الحاسوب الآن. افتح تطبيق النماذج لديك (مثل Ollama)، أو اختر نموذجًا سحابيًا من قائمة النماذج."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

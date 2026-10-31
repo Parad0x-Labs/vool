@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from core.agent_runtime.fast_command_surface import deferred_turn_rows, record_deferred_turn_rows
@@ -2431,6 +2432,12 @@ def _explicit_path_in(text: str) -> str:
     return explicit_path_in(text)
 
 
+_CREATE_FOLDER_RE = re.compile(
+    r"\b(?:create|make|set\s+up|add|stick|put|new|mkdir|build)\b(?:\s+\S+){0,4}?\s+(?:folders?|director(?:y|ies))\b",
+    re.IGNORECASE,
+)
+
+
 def _execute_arbitrated_family(
     agent: Any,
     *,
@@ -2449,6 +2456,7 @@ def _execute_arbitrated_family(
     from core.agent_runtime.fast_paths_machine import _machine_tool_fast_path_result
     from core.agent_runtime.intent_claims import (
         FAMILY_DISK_USAGE,
+        FAMILY_FIND_FILE,
         FAMILY_FIND_FOLDER,
         FAMILY_FOLDER_OVERVIEW,
         FAMILY_HOST_STATE,
@@ -2457,10 +2465,13 @@ def _execute_arbitrated_family(
         FAMILY_MACHINE_SPECS,
     )
     from core.authorized_tool_execution import execute_authorized_runtime_tool
-    from core.execution.constants import machine_process_sort
+    from core.execution.constants import machine_file_search_intent, machine_process_sort
 
     family = str(getattr(decision, "family", "") or "")
     argument = str(getattr(decision, "argument", "") or "").strip()
+    file_search = machine_file_search_intent(effective_input) if family in (FAMILY_FIND_FILE, FAMILY_FIND_FOLDER) else None
+    if family == FAMILY_FIND_FOLDER and file_search is not None:
+        family = FAMILY_FIND_FILE  # a small model that read "Downloads folder" as the target is overruled
     # A path the user typed is already exact -- do not depend on a 0.6B model to copy it back. Asked
     # about "/Users/me/Desktop/route-planner" the arbiter returned argument="Desktop", so the answer
     # was a listing of the whole Desktop. When the raw text contains a concrete path, that path wins.
@@ -2502,6 +2513,14 @@ def _execute_arbitrated_family(
             # leaves the arbiter's filler span as the "name". A filler is never a folder name:
             # clear it so the family falls open to the model turn instead of walking the disk
             # for folders named "ok" (measured live 2026-09-18).
+            argument = ""
+        # Measured 2026-10-28 on the owner's Mac: the 0.6B arbiter picked find_folder for "stick an
+        # empty folder called Invoices on my desktop" (a CREATE), and for "find the folder with my
+        # lisbon holiday pics" it returned the menu's own words, "the folder name", which then walked
+        # the disk. A create ask is never a search, and a name the person did not say is no name.
+        if _CREATE_FOLDER_RE.search(str(effective_input or "")):
+            return None
+        if argument and argument.lower() not in str(effective_input or "").lower():
             argument = ""
 
     if family == FAMILY_LIST_DIRECTORY and argument and not explicit_path:
@@ -2555,6 +2574,21 @@ def _execute_arbitrated_family(
                 family = FAMILY_LIST_DIRECTORY
                 argument = str(matches[0])
 
+    if family == FAMILY_FIND_FILE:
+        # Only a sentence the detector reads as a file LOOKUP walks the disk; a pick it does not back
+        # ("how big can a file be on FAT32") goes to the model, which has the same tool.
+        from core.agent_runtime.fast_paths_machine import find_named_files
+
+        if file_search is None:
+            return None
+        search = file_search
+        found = find_named_files(search, source_context=source_context)
+        if found is None:
+            return None
+        return _machine_tool_fast_path_result(
+            agent, user_input=effective_input, session_id=session_id, source_context=source_context,
+            intent="machine.find_file", execution=found, reason="intent_arbiter_fast_path",
+        )
     if family == FAMILY_FOLDER_OVERVIEW:
         # The arbiter dispatches here directly, so the front door's ordering does not apply and the
         # same precedence has to be restated. Measured 2026-07-29: with it only in the front door,

@@ -2849,6 +2849,9 @@
     "live.upload": "Hochladen",
     "settings.row.live_browser.help": "Prüfen Sie jede Aktion vor der Ausführung. Seitenskripte sind aus. Nutzen Sie die Wallet für Zahlungen.",
     "settings.row.live_browser.label": "Webbrowser",
+    "settings.row.hide_name_on_screen.label": "Meinen Namen auf dem Bildschirm verbergen",
+    "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
+    "settings.row.hide_name_on_screen.effect": "Wirkt sofort.",
     "settings.local_models.reading": "Suche nach Modellen auf diesem Computer…",
     "settings.local_models.unavailable": "VOOL sieht die Modelle auf diesem Computer gerade nicht. Stelle sicher, dass Ollama geöffnet ist, und öffne dann die Einstellungen erneut.",
     "settings.local_models.disabled": "Lokale Modelle sind auf diesem Computer ausgeschaltet.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL konnte nicht erkennen, welches Modell die Antwort geschrieben hat, und hat sie deshalb zurückgehalten. Frag bitte noch einmal.",
     "chat.author_refusal.not_running": "Auf diesem Computer läuft gerade kein Modell. Öffne deine Modell-App (zum Beispiel Ollama) oder wähle im Modellmenü ein Cloud-Modell."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

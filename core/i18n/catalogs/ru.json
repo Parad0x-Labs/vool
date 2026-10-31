@@ -2849,6 +2849,9 @@
     "live.upload": "Загрузить файл",
     "settings.row.live_browser.help": "Проверяйте каждое действие перед выполнением. Сценарии страниц отключены. Для оплаты используйте кошелёк.",
     "settings.row.live_browser.label": "Браузер",
+    "settings.row.hide_name_on_screen.label": "Скрывать моё имя на экране",
+    "settings.row.hide_name_on_screen.help": "Включите это перед трансляцией или показом экрана. VOOL будет показывать домашнюю папку как ~, а ваше имя и имя компьютера как •••, здесь и на телефоне. Меняется только то, что вы видите: файлы, чаты и всё, что делает VOOL, остаются прежними. Текст, который вы вводите, не скрывается.",
+    "settings.row.hide_name_on_screen.effect": "Применяется сразу.",
     "settings.local_models.reading": "Ищем модели на этом компьютере…",
     "settings.local_models.unavailable": "VOOL сейчас не видит модели на этом компьютере. Убедитесь, что Ollama открыта, и снова откройте Настройки.",
     "settings.local_models.disabled": "Локальные модели на этом компьютере выключены.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL не смог определить, какая модель написала ответ, поэтому придержал его. Спросите ещё раз.",
     "chat.author_refusal.not_running": "Сейчас на этом компьютере не запущено ни одной модели. Откройте приложение с моделями (например, Ollama) или выберите облачную модель в меню моделей."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

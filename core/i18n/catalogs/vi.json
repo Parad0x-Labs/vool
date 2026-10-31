@@ -2849,6 +2849,9 @@
     "live.upload": "Tải lên",
     "settings.row.live_browser.help": "Xem xét từng thao tác trước khi chạy. Tập lệnh của trang đã tắt. Dùng ví để thanh toán.",
     "settings.row.live_browser.label": "Trình duyệt",
+    "settings.row.hide_name_on_screen.label": "Ẩn tên tôi trên màn hình",
+    "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
+    "settings.row.hide_name_on_screen.effect": "Áp dụng ngay.",
     "settings.local_models.reading": "Đang tìm các mô hình trên máy tính này…",
     "settings.local_models.unavailable": "VOOL hiện không thấy các mô hình trên máy tính này. Hãy bảo đảm Ollama đang mở, rồi mở lại Cài đặt.",
     "settings.local_models.disabled": "Mô hình cục bộ đang tắt trên máy tính này.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL không xác định được mô hình nào đã viết câu trả lời nên đã giữ lại. Bạn hãy hỏi lại.",
     "chat.author_refusal.not_running": "Hiện không có mô hình nào đang chạy trên máy tính này. Hãy mở ứng dụng mô hình (như Ollama) hoặc chọn mô hình đám mây trong menu mô hình."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

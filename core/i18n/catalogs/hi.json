@@ -2849,6 +2849,9 @@
     "live.upload": "अपलोड",
     "settings.row.live_browser.help": "हर कार्रवाई चलने से पहले जाँचें। पेज की स्क्रिप्ट बंद हैं। भुगतान के लिए वॉलेट इस्तेमाल करें।",
     "settings.row.live_browser.label": "ब्राउज़र",
+    "settings.row.hide_name_on_screen.label": "स्क्रीन पर मेरा नाम छिपाएँ",
+    "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
+    "settings.row.hide_name_on_screen.effect": "तुरंत लागू।",
     "settings.local_models.reading": "इस कंप्यूटर पर मॉडल खोजे जा रहे हैं…",
     "settings.local_models.unavailable": "VOOL अभी इस कंप्यूटर के मॉडल नहीं देख पा रहा। पक्का करें कि Ollama खुला है, फिर सेटिंग्स दोबारा खोलें।",
     "settings.local_models.disabled": "इस कंप्यूटर पर लोकल मॉडल बंद हैं।",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL यह नहीं पहचान सका कि जवाब किस मॉडल ने लिखा, इसलिए उसे रोक लिया। फिर से पूछें।",
     "chat.author_refusal.not_running": "इस कंप्यूटर पर अभी कोई मॉडल नहीं चल रहा। अपना मॉडल ऐप (जैसे Ollama) खोलें, या मॉडल मेन्यू में कोई क्लाउड मॉडल चुनें।"
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

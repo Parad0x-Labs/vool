@@ -2849,6 +2849,9 @@
     "live.upload": "Надіслати файл",
     "settings.row.live_browser.help": "Переглядайте кожну дію перед виконанням. Сценарії сторінок вимкнено. Для оплати використовуйте гаманець.",
     "settings.row.live_browser.label": "Браузер",
+    "settings.row.hide_name_on_screen.label": "Приховувати моє ім’я на екрані",
+    "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
+    "settings.row.hide_name_on_screen.effect": "Діє негайно.",
     "settings.local_models.reading": "Шукаємо моделі на цьому комп’ютері…",
     "settings.local_models.unavailable": "VOOL зараз не бачить моделей на цьому комп’ютері. Переконайтеся, що Ollama відкрита, і знову відкрийте Налаштування.",
     "settings.local_models.disabled": "Локальні моделі на цьому комп’ютері вимкнено.",
@@ -2883,12 +2886,13 @@
     "chat.author_refusal.unresolved": "VOOL не зміг визначити, яка модель написала відповідь, тому затримав її. Запитайте ще раз.",
     "chat.author_refusal.not_running": "Зараз на цьому комп’ютері не запущено жодної моделі. Відкрийте застосунок із моделями (наприклад, Ollama) або виберіть хмарну модель у меню моделей."
   },
-  "source_catalog_sha256": "0b55c5178a9f13762454800995739d93fbd67b683d07695f6dc3fc168a700a0e",
+  "source_catalog_sha256": "2bcb3371a9acf26e775984ae8b3abd13cb823307fb91c08fdbdc9ee2fde71a8f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
