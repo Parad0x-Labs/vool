@@ -13,7 +13,7 @@ SERVICES = (
      "digests": frozenset({"2e03c9975c55d7ccc2e41cef92385b65770343f981b0acc8279b7d20791e0540"})},
 )
 
-RESERVED_NAME = ("This plugin name belongs to a plugin made by VOOL. Give your plugin its own id to install it.")
+RESERVED_NAME = ("This name belongs to a plugin made by VOOL. Give your plugin a different name to install it.")
 
 
 def reserved_refusal(plugin_id: str, digest: str) -> str:
@@ -129,8 +129,8 @@ def selection_notice() -> dict | None:
     if not isinstance(saved, dict) or not saved.get("notice_open"):
         return None
     return {"plugin_id": "vool-plugin-usepod", "message_key": "plugin_migration_model_fallback", "dismissible": True,
-            "message": "UsePod now comes as a plugin. Chats that used a UsePod model have no model selected now, and "
-                       "automatic cloud escalation is off. Choose a model before sending another message in those chats."}
+            "message": "UsePod now comes as a plugin. Chats that used a UsePod model have no model selected now, "
+                       "and Auto won't switch to a cloud model in those chats. Pick a model before you send another message there."}
 
 
 def dismiss_selection_notice() -> bool:

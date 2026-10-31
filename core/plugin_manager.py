@@ -128,7 +128,7 @@ def prepare_local(folder: str, *, update=False, source="local") -> dict:
         captured = capture_package(Path(folder).expanduser(), destination=stage)
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if not plugin.vool:
-            raise lifecycle.LifecycleError("Choose a plugin with the current manifest and access declarations.")
+            raise lifecycle.LifecycleError("This plugin was made for an older VOOL. Ask its maker for an update.")
         if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
             raise lifecycle.LifecycleError(refusal)
         value = {"review_id": review_id, "digest": captured.digest, "plugin_id": plugin.plugin_id,
@@ -149,7 +149,7 @@ def prepare_github(repository: str, revision: str, folder: str, *, approved: boo
     if approved is not True:
         raise lifecycle.LifecycleError("Approve downloading the public plugin before reviewing it.")
     if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{40}", revision):
-        raise lifecycle.LifecycleError("Choose an exact repository version to review.")
+        raise lifecycle.LifecycleError("Pick an exact version to check.")
     folder = "" if folder in ("", ".") else addon_discovery.safe_path(folder).rstrip("/")
     listing = addon_discovery.repository(repository, revision)
     prefix = folder + "/" if folder else ""
@@ -163,12 +163,12 @@ def prepare_github(repository: str, revision: str, folder: str, *, approved: boo
     try:
         for entry in files:
             if entry.get("type") != "blob" or entry.get("mode") not in {"100644", "100755"}:
-                raise lifecycle.LifecycleError("Linked files and nested repositories cannot be imported.")
+                raise lifecycle.LifecycleError("Linked files and embedded projects can't be added.")
             name = addon_discovery.safe_path(entry["path"][len(prefix):])
             data = addon_discovery.source_bytes(repository, revision, entry["path"])
             digest = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\x00" + data).hexdigest()
             if digest != entry.get("sha"):
-                raise lifecycle.LifecycleError("The repository file differs from the selected version.")
+                raise lifecycle.LifecycleError("The files on GitHub don't match the version you picked.")
             total += len(data)
             if total > 128 * 1024 * 1024:
                 raise lifecycle.LifecycleError("The plugin exceeds the package size limit.")
@@ -319,7 +319,7 @@ def inventory() -> list[dict]:
                 continue
             if record.enabled:
                 lifecycle.disable(record.plugin_id)
-            reason = "The plugin manifest is missing or invalid. Review the package again."
+            reason = "This plugin's setup file is missing or broken. Review the package again."
             result.append({"id": record.plugin_id, "name": record.plugin_id, "enabled": False,
                            "stage": "invalid", "reason": reason, "reason_key": message_key(reason)})
     return result
@@ -346,7 +346,7 @@ def enable(plugin_id: str, *, accepted: bool, approval_digest: str) -> dict:
         if refusal := plugin_isolation_refusal(plugin):
             raise lifecycle.LifecycleError(refusal)
         if not kernel_confinement_available():
-            raise lifecycle.LifecycleError("This device cannot safely confine the plugin. It remains disabled.")
+            raise lifecycle.LifecycleError("Plugins that run their own programs are off on this computer, because it can't keep them walled off from your saved keys. Plugins that only connect a service still work.")
     lifecycle.accept_consent(plugin_id, expected_approval=approval_digest, network=bool(plugin.vool["network"]))
     lifecycle.enable(plugin_id)
     try:
@@ -475,4 +475,4 @@ def handle(action: str, body: dict) -> dict:
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None
     except (PackageError, PluginManifestError):
-        raise lifecycle.LifecycleError("The plugin manifest or package is invalid. Review it before installing.") from None
+        raise lifecycle.LifecycleError("The plugin's setup file is invalid or missing. Review it before installing.") from None

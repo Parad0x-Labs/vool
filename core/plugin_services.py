@@ -241,7 +241,7 @@ def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected
     base = urlsplit(spec["base_url"])
     public_pricing = (_public_pricing and kind == "model_provider" and method == "GET" and url == spec.get("pricing_source"))
     if not public_pricing and (host != base.hostname or not path.startswith((base.path or "").rstrip("/") + "/")):
-        raise ServiceRefused("The service call differs from this plugin's declared endpoint.")
+        raise ServiceRefused("The plugin tried to use a service address it didn't list. The call was stopped.")
     if method not in {"GET", "POST"}:
         raise ServiceRefused("This plugin service operation is not supported.")
     duration = timeout[-1] if isinstance(timeout, (tuple, list)) else timeout
@@ -341,7 +341,7 @@ def provider_binding(manifest) -> tuple[str, str]:
     config = manifest.runtime_config
     _record, plugin = declaration(config["plugin_id"], "model_provider", expected_approval=config.get("plugin_approval", ""))
     if config.get("base_url") != plugin.vool["model_provider"]["base_url"]:
-        raise ServiceRefused("This model belongs to an older plugin endpoint. Refresh its model list in Add-ons.")
+        raise ServiceRefused("This model comes from an older version of the plugin. Refresh its model list in Add-ons.")
     return plugin.vool["model_provider"]["base_url"].rstrip("/"), ""
 
 

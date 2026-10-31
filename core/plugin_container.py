@@ -145,7 +145,7 @@ def command(argv, *, working_directory, writable_roots, readable_roots=(), allow
     from core.runtime_paths import runtime_child_scratch_root
 
     if not available():
-        raise ConfinementUnavailableError("The local isolated plugin runtime is unavailable. No executable plugin was started.")
+        raise ConfinementUnavailableError("Plugins that run their own programs are off on this computer, because it can't keep them walled off from your saved keys. Plugins that only connect a service still work.")
     if allow_network or proxy_port:
         raise ConfinementUnavailableError("Plugin process network access is unavailable on this device. It remains off.")
     root = Path(working_directory).resolve()
@@ -158,7 +158,7 @@ def command(argv, *, working_directory, writable_roots, readable_roots=(), allow
     outside_package = not program.resolve().is_relative_to(root)
     if outside_package and program.name.startswith("python"):
         if isolate_process_tree:
-            raise ConfinementUnavailableError("The executable must belong to the captured plugin package.")
+            raise ConfinementUnavailableError("This plugin tries to run something outside its own files, so VOOL won't start it.")
         args[0] = "/usr/local/bin/python3"
         for token in args[1:]:
             if token.startswith("-"):

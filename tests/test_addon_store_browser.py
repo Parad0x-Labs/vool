@@ -147,7 +147,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
             assert help_cards.count() == 3
             assert page.locator('.addon-risk-explanation[open]').count() == 0
             before_help = calls.copy()
-            for i, consequence in enumerate(('sending unwanted messages', 'access your accounts', 'no specific explanation')):
+            for i, consequence in enumerate(('sending unwanted messages', 'access your accounts', 'explain this finding yet')):
                 card = help_cards.nth(i)
                 card.get_by_text('What could go wrong?', exact=True).click()
                 assert card.get_by_text('VOOL explanation · possible outcomes, not a prediction', exact=True).is_visible()

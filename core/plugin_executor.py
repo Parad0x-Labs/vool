@@ -78,12 +78,11 @@ def process_isolation_refusal(*, private_environment: bool = False) -> str:
             from core.plugin_container import available
 
             if not available():
-                return ("This plugin's server receives its service key in a way this Mac cannot keep private "
-                        "from other programs, so it stays off here. Plugins that need no key, and provider and "
-                        "scanner plugins, still work.")
+                return ("This plugin gets its key in a way this Mac cannot keep private from other programs, "
+                        "so it stays off here. Plugins that need no key still work.")
         elif not kernel_confinement_available():
-            return ("This Mac cannot run plugin code inside the macOS sandbox, so plugins that run their own "
-                    "code stay off. Provider and scanner plugins still work.")
+            return ("Plugins that run their own programs are off on this computer, because it can't keep them "
+                    "walled off from your saved keys. Plugins that only connect a service still work.")
     return ""
 
 
@@ -346,7 +345,7 @@ def confined_argv(
             if backend == "sandbox-exec" and wrapped[1] == "-p":
                 wrapped[2] += "(deny process-fork)"
             elif backend != "bwrap":
-                raise ConfinementUnavailableError("This device cannot contain the plugin's child processes.")
+                raise ConfinementUnavailableError("This computer can't keep this plugin's programs walled off from your saved keys, so VOOL won't start it.")
         if proxy_port:
             if (not 1 <= proxy_port <= 65535 or len(wrapped) < 4
                     or os.path.basename(wrapped[0]) != "sandbox-exec" or wrapped[1] != "-p"):

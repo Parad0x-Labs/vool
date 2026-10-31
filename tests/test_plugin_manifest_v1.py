@@ -97,7 +97,7 @@ def test_automatic_start_and_owner_key_requests_are_rejected_even_when_false(fla
 def test_provider_cannot_send_its_key_to_an_undeclared_host(tmp_path):
     value = manifest()
     value["vool"]["model_provider"]["base_url"] = "https://other.example.org"
-    with pytest.raises(PluginManifestError, match="destination"):
+    with pytest.raises(PluginManifestError, match="didn't list"):
         load(value, tmp_path)
 
 
@@ -138,7 +138,7 @@ def test_symlink_command_cannot_escape_package(tmp_path):
     root = tmp_path / "package"
     root.mkdir()
     (root / "bin").symlink_to(tmp_path / "outside", target_is_directory=True)
-    with pytest.raises(PluginManifestError, match="leaves"):
+    with pytest.raises(PluginManifestError, match="outside its own files"):
         load(mcp_manifest(), root)
 
 

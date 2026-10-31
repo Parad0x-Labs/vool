@@ -3024,7 +3024,7 @@ function widgetKeys(stack) {
   /* The two save buttons do different things, and the note says both (it used to say "only a verified
      key is stored" right under "Save for later (unverified)"). */
   stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
-  stack.appendChild(el('div', 'subtle', T('keys.plugin_checks_note', 'Checks use one selected provider request. Search checks may use credits. Manage scanner connections in Add-ons.')));
+  stack.appendChild(el('div', 'subtle', T('keys.plugin_checks_note', 'A check sends one request to the service you picked. Search checks may cost credits.')));
   /* X has more than one key, so it gets a guided setup instead of the single paste field. */
   const xRow = el('div', 'inline x-setup-entry');
   xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
@@ -3453,7 +3453,7 @@ function thisComputerName() {
 }
 function mpOpenRow(rowId, part) { location.hash = '#models/' + rowId + (part ? '/' + part : ''); }
 function widgetModelsOverview(stack) {
-  stack.appendChild(el('div', 'subtle', T('keys.plugin_models_help', 'Built-in model providers remain in API Keys. Install and connect service plugins in Add-ons; their enabled models appear in the same model picker.')));
+  stack.appendChild(el('div', 'subtle', T('keys.plugin_models_help', 'Built-in model companies stay under API Keys.')));
   const line = el('div', 'inline');
   const local = el('button', 'btn', thisComputerName()); local.type='button'; local.addEventListener('click', () => mpOpenRow('local_models')); line.appendChild(local);
   const addons=el('a', 'btn', T('keys.plugin_manage', 'Manage plugins in Add-ons')); addons.href='/addons'; line.appendChild(addons);

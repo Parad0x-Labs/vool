@@ -11,7 +11,7 @@ from core.plugin_executor import ConfinementUnavailableError
 def test_container_runtime_never_uses_a_remote_or_ambient_daemon(monkeypatch, value):
     monkeypatch.setenv("VOOL_PLUGIN_DOCKER_SOCKET", value)
     assert not plugin_container.available()
-    with pytest.raises(ConfinementUnavailableError, match="unavailable"):
+    with pytest.raises(ConfinementUnavailableError, match="are off on this computer"):
         plugin_container.command(["true"], working_directory=Path.cwd(), writable_roots=())
 
 

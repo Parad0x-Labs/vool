@@ -24,7 +24,7 @@ def credential_env_name(name: str) -> None:
         raise ValueError("A plugin credential environment name must be text.")
     if (name in _RESERVED_ENV or name.startswith(("VOOL_", "NULLA_", "PYTHON", "LD_", "DYLD_", "NODE_", "RUBY"))
             or re.match(r"^(OPENAI|ANTHROPIC|OPENROUTER|GROQ|GEMINI|GOOGLE|MISTRAL|DEEPSEEK|CLOUDFLARE|USEPOD)_", name)):
-        raise ValueError("Plugin key slots cannot request owner model keys or change the process environment policy.")
+        raise ValueError("A plugin may not ask for owner model keys, and it can't change settings for other programs. It was not installed.")
 
 
 def _text(limit=500):
@@ -81,21 +81,21 @@ def validate_schema(value, schema, path="manifest"):
 def host_name(value: str) -> str:
     """An exact public DNS name, never a URL, wildcard, address or local name."""
     if not isinstance(value, str) or value != value.lower() or len(value) > 253:
-        raise ValueError("Network hosts must be exact lower-case HTTPS host names.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     try:
         ipaddress.ip_address(value)
     except ValueError:
         pass
     else:
-        raise ValueError("IP addresses cannot be plugin network hosts.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     labels = value.split(".")
     if len(labels) < 2 or any(not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels):
-        raise ValueError("Network hosts cannot contain wildcards, ports or paths.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     if labels[-1] in {"local", "localhost", "internal", "lan", "home", "invalid"} or value.endswith(".localhost"):
-        raise ValueError("Local and private network hosts are not allowed.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     # DNS spellings that operating systems interpret as abbreviated numeric addresses.
     if not re.search(r"[a-z]", labels[-1]) or all(re.fullmatch(r"(?:0x[0-9a-f]+|[0-9]+)", label) for label in labels):
-        raise ValueError("Numeric network addresses are not allowed.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     return value
 
 
@@ -105,9 +105,9 @@ def https_url(value: str, hosts=None):
         valid = parsed.scheme == "https" and not parsed.username and not parsed.password and not parsed.fragment and parsed.port in (None, 443)
         host = host_name(parsed.hostname or "")
     except (ValueError, TypeError):
-        raise ValueError("A public HTTPS URL on port 443 is required.") from None
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.") from None
     if not valid or (hosts is not None and host not in hosts):
-        raise ValueError("This HTTPS destination is not in the plugin network declaration.")
+        raise ValueError("The plugin tried to reach a website it didn't list. VOOL stopped it.")
     return parsed
 
 
@@ -115,12 +115,12 @@ def package_command(value: str, root: Path) -> Path:
     text = str(value)
     relative = PurePosixPath(text)
     if not text or relative.is_absolute() or ".." in relative.parts or "\\" in text or "\x00" in text or ":" in text or "$" in text:
-        raise ValueError("The command must name a bundled file inside this package.")
+        raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
     if relative.name in {"npx", "uvx", "pip", "pip3", "npm", "curl", "wget"}:
-        raise ValueError("Runtime downloads and package launchers are not allowed.")
+        raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
     result = (root / text).resolve()
     if not result.is_relative_to(root.resolve()) or result == root.resolve():
-        raise ValueError("The command leaves the package.")
+        raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
     return result
 
 
@@ -140,7 +140,7 @@ def _flags(value):
             if normalized in {"auto_enable", "auto_start", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
                 raise ValueError("Plugins cannot start automatically or request owner credentials.")
             if key.lower() in {"wallet", "payments", "signing", "approval", "caps", "budget", "receipts"}:
-                raise ValueError("Plugin packages cannot declare money or approval authority.")
+                raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
             _flags(item)
     elif isinstance(value, list):
         for item in value:
@@ -155,7 +155,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     permission_wall(raw.get("permissions", []))
     for binding in raw.get("credential_bindings", []):
         if not isinstance(binding, str) or binding.startswith(("llm.cloud.", "wallet.", "signing.", "owner.")):
-            raise ValueError("Plugins cannot bind owner model or wallet credentials.")
+            raise ValueError("A plugin can't hold credentials that belong to you or to another plugin.")
         if str(binding).startswith("plugin.") and not str(binding).startswith("plugin." + raw["name"] + "."):
             raise ValueError("A plugin cannot reference another plugin's credentials.")
     extension = raw.get("vool", {})
@@ -165,63 +165,63 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     for tool in tools:
         permission_wall(tool.get("permission_actions", []))
         if tool.get("side_effect_class") in PAID or MONEY.search(tool.get("intent", "")):
-            raise ValueError("Plugins cannot declare wallet, paid or approval tools.")
+            raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
         for name in tool.get("handler", {}).get("env_allowlist", []):
             credential_env_name(name)
     if not extension or "id" not in extension:
         return {}
     if extension["id"] != raw["name"] or extension["version"] != raw.get("version"):
-        raise ValueError("The plugin id and version must match the package name and version.")
+        raise ValueError("The plugin's name and version must match its package.")
     if len(set(extension["kind"])) != len(extension["kind"]):
-        raise ValueError("Plugin kinds must not be duplicated.")
+        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
     https_url(extension["homepage"])
     hosts = extension["network"]
     if len(set(hosts)) != len(hosts):
-        raise ValueError("Network hosts must not be duplicated.")
+        raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
     for host in hosts:
         host_name(host)
     credentials = extension["credentials"]
     env = [row["env"] for row in credentials.values()]
     if len(set(env)) != len(env):
-        raise ValueError("Each credential needs a separate environment name.")
+        raise ValueError("Each service key needs its own name. It was not installed.")
     for row in credentials.values():
         credential_env_name(row["env"])
         https_url(row["help_url"])
     servers = extension.get("mcpServers", {})
     if servers and "tools" not in extension["kind"]:
-        raise ValueError("MCP servers require the tools kind.")
+        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
     for server in servers.values():
         package_command(server["command"], root)
         if any(key not in env or value != "${" + key + "}" for key, value in server.get("env", {}).items()):
-            raise ValueError("MCP env may name only this plugin's declared credential slots, never values.")
+            raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
         if any("${" in arg or "\x00" in arg for arg in server.get("args", [])):
-            raise ValueError("MCP arguments cannot expand environment variables.")
+            raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
     permission_wall(raw.get("permissions", []))
     tools = extension.get("tools", raw.get("tools", []))
     if raw.get("tools") is not None and extension.get("tools") is not None and raw["tools"] != extension["tools"]:
-        raise ValueError("The package contains conflicting tool declarations.")
+        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
     if tools and "tools" not in extension["kind"]:
-        raise ValueError("Tool declarations require the tools kind.")
+        raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
     for tool in tools:
         permission_wall(tool.get("permission_actions", []))
         if tool.get("side_effect_class") in PAID:
-            raise ValueError("Plugins cannot declare paid or wallet tools.")
+            raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
         handler = tool["handler"]
         if handler["kind"] == "subprocess":
             package_command(handler.get("entry", ""), root)
             if set(handler.get("env_allowlist", [])) - set(env):
-                raise ValueError("Handlers may receive only this plugin's declared credential environment names.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
             if handler.get("network") and not hosts:
-                raise ValueError("A network handler must declare network hosts.")
+                raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
         else:
             if handler.get("server") not in servers or not handler.get("tool"):
-                raise ValueError("An MCP tool must name a bundled server and tool.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
             if MONEY.search(handler["tool"]):
-                raise ValueError("Plugins cannot expose MCP money or approval tools.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix: it may not offer money tools. It was not installed.")
             if "trust" in tool:
                 permission_wall(tool["trust"]["permission_actions"])
                 if tool["trust"]["side_effect_class"] in PAID:
-                    raise ValueError("Plugins cannot pin money authority.")
+                    raise ValueError("Plugins can't spend money, use your wallet or approve actions for you.")
     for kind in ("model_provider", "scanner"):
         block = extension.get(kind)
         if (kind in extension["kind"]) != (block is not None):
@@ -230,18 +230,18 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
             continue
         base = https_url(block["base_url"], hosts)
         if base.query:
-            raise ValueError("Service base URLs cannot contain query parameters.")
+            raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
         if block["credential_slot"] not in credentials:
             raise ValueError("A service may read only its own declared credential slot.")
         for key, value in block.items():
             if key.endswith("_path"):
                 if not value.startswith("/") or value.startswith("//") or any(ch in value for ch in ("?", "#", "\\", "\x00")) or ".." in value:
-                    raise ValueError("Service paths must be bounded relative paths.")
+                    raise ValueError("This plugin lists the websites it uses in a way VOOL doesn't accept. Ask its maker to fix it.")
         if kind == "model_provider":
             if block["auth_placement"] == "path" and block.get("auth_path", "").count("{credential}") != 1:
-                raise ValueError("Path authentication needs exactly one credential placeholder.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
             if block["auth_placement"] == "header" and "auth_path" in block:
-                raise ValueError("Header authentication cannot also carry a credential path.")
+                raise ValueError("This plugin has a setup mistake its maker needs to fix. It was not installed.")
             pricing = block["pricing_source"]
             if pricing != "models":
                 https_url(pricing, hosts)
