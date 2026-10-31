@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime_paths import active_vool_home, runtime_home_identity
+from core.secret_env import SecretHandoffError, close_handoff, handoff_spawn_kwargs
 
 
 class NativeRuntimeError(RuntimeError):
@@ -242,9 +243,16 @@ class NativeRuntimeSupervisor:
         deadline = time.monotonic() + self.startup_timeout
         # The child can wait for human authorization without racing a shorter
         # independent timeout. Leave time for binding the API after authorization.
-        child_env = dict(self.env)
+        # Keys the window inherited go to the daemon over a pipe, never in its starting
+        # environment (any same-user program can read that on macOS). See core/secret_env.py.
+        try:
+            child_env, handoff_kwargs = handoff_spawn_kwargs(self.env)
+        except SecretHandoffError as exc:
+            self._close_log()
+            raise NativeRuntimeError(f"runtime not started: {exc}") from exc
         child_env["VOOL_NATIVE_AUTHORIZATION_DEADLINE"] = str(deadline - min(5.0, self.startup_timeout / 10))
         kwargs: dict[str, Any] = {
+            **handoff_kwargs,
             "cwd": str(self.project_root),
             "env": child_env,
             "stdin": subprocess.DEVNULL,
@@ -262,6 +270,8 @@ class NativeRuntimeSupervisor:
         except Exception as exc:
             self._close_log()
             raise NativeRuntimeError(f"runtime spawn failed: {type(exc).__name__}: {exc}") from exc
+        finally:
+            close_handoff(handoff_kwargs)
 
         while time.monotonic() < deadline:
             returncode = self.process.poll()
