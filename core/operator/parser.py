@@ -142,9 +142,10 @@ _AGENDA_RE = re.compile(
     r"|\bwhat\s+(?:have\s+(?:i|we)\s+got|am\s+(?:i|we)\s+doing)\b[^\n!?.]*\b(?:on\s+|for\s+|during\s+)?" + _AGENDA_WINDOW + r"\b"
     r"|\banything\s+(?:on|for|in|during)\s+" + _AGENDA_WINDOW + r"\b"
     # "show me this week's appointments" / "this week's meetings": a window possessive over an
-    # event noun, in either order.
+    # event noun, in either order. Event nouns only: "what does my schedule look like this week"
+    # keeps the availability lane that has always answered it (pinned by the fast-path tests).
     r"|\b(?:show|list|pull\s+up)\b[^\n!?.]*\b(?:this|next|the)\s+(?:week|weekend|month)'s?\b[^\n!?.]*\b(?:appointments?|meetings?|events?|schedule|calendar|agenda)\b"
-    r"|\b(?:appointments?|meetings?|events?|agenda|schedule)\b[^\n!?.]*\b(?:this|next)\s+(?:week|weekend|month)\b"
+    r"|\b(?:appointments?|meetings?|events?)\b[^\n!?.]*\b(?:this|next)\s+(?:week|weekend|month)\b"
     r"|\b(?:show|read|walk (?:me )?through)\b[^\n!?.]*\b(?:my|the)\s+(?:day|agenda)\b"
     r"|\b(?:my|the|this)\s+agenda\b[^\n!?.]*\b(?:for|from|this week|next week|today|tomorrow)\b"
     r"|\bagenda\s+(?:for|from)\b"
