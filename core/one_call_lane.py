@@ -64,8 +64,9 @@ RETRY_INSTRUCTION = (
     "Your reply describes the user's own data, but no tool has read it in this turn. Call the tool "
     "that reads it now. If no tool can read it, say plainly that you did not check."
 )
-#: Appended to a reply the model's output limit cut off.
-CUT_NOTE = "(This reply was cut off at the model's output limit; it is not complete.)"
+#: The start of the notice a reply the model's output limit cut off carries: the runtime's own
+#: partial-answer notice (core.incomplete_answer), the same words every other lane uses.
+CUT_NOTE = "(Incomplete:"
 
 
 def lane_enabled() -> bool:
@@ -214,8 +215,14 @@ def prose_round_outcome(text: str, *, finish_reason: str, retried: bool, tool_ev
 
 
 def cut_reply(text: str) -> str:
+    """A cut reply with the runtime's partial-answer notice (core.incomplete_answer), in the exact
+    form ``inspect_published_answer_completeness`` accepts as the runtime's own disclosure."""
+    from core.incomplete_answer import inspect_answer_completeness, partial_answer_notice
+
     body = str(text or "").rstrip()
-    return f"{body}\n\n{CUT_NOTE}" if body else CUT_NOTE
+    found = inspect_answer_completeness(body)
+    notice = partial_answer_notice(found if found.incomplete else None)
+    return f"{body}\n\n{notice}" if body else notice
 
 
 def runner_threads() -> int:

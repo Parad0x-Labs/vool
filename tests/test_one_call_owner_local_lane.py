@@ -293,7 +293,7 @@ def test_a_prose_reply_on_a_tool_round_is_the_answer_in_one_call(lane_on: _Rig, 
 
 @pytest.mark.parametrize("chat_lane", CHAT_LANES)
 def test_a_reply_the_output_limit_cut_is_not_passed_off_as_complete(lane_on: _Rig, chat_lane: str) -> None:
-    from core.one_call_lane import CUT_NOTE
+    from core.one_call_lane import CUT_NOTE, cut_reply
 
     turn = lane_on.turn(CUT_ASK, streamed=chat_lane == "streamed")
     calls = _chat_calls(turn)
@@ -302,6 +302,8 @@ def test_a_reply_the_output_limit_cut_is_not_passed_off_as_complete(lane_on: _Ri
     assert len(calls) == 1, [c["prompt"][:80] for c in calls]
     assert CUT_TEXT in turn.reply, turn.reply
     assert CUT_NOTE in turn.reply, turn.reply
+    # The runtime's own partial-answer notice, the one every other lane appends to a cut answer.
+    assert cut_reply(CUT_TEXT) in turn.reply, turn.reply
 
 
 @pytest.mark.parametrize("chat_lane", CHAT_LANES)

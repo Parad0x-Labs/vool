@@ -567,9 +567,15 @@ class _RecordingProvider:
         self._server.server_close()
 
 
+#: The post-turn fact extractor (core.fact_extractor) runs in the background after the reply is
+#: committed; it is memory, not part of answering the turn.
+_FACT_EXTRACTOR = "You are a local memory extraction agent"
+
+
 @pytest.mark.served
 @pytest.mark.skipif(not _SERVED_AVAILABLE, reason="served rig unavailable")
-def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) -> None:
+@pytest.mark.parametrize("one_call_lane", ["on", "off"])
+def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path, one_call_lane: str) -> None:
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
 
@@ -588,7 +594,8 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
             root=REPO_ROOT, base_url=provider.base_url, registered=["stub-chat:2b"]
         )
         run_in_home(home, seed)
-        with ServedDaemon(home) as daemon:
+        lane_env = {"VOOL_OWNER_LOCAL_ONE_CALL_LANE": "1" if one_call_lane == "on" else "0"}
+        with ServedDaemon(home, env_extra=lane_env) as daemon:
             request = Request(
                 f"{daemon.base_url}/api/model-tool-certification/run",
                 data=json.dumps(
@@ -602,11 +609,27 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
 
             session = "integrity-session"
 
-            # T1 -- greeting: the smalltalk fast path, NO model.
+            # T1 -- greeting. Lane off: the smalltalk fast path, NO model. On the one-call
+            # owner-local lane (core.one_call_lane) no fast path answers before the model: the
+            # greeting is the model's own reply, in exactly ONE generation.
             provider.calls.clear()
             f1 = daemon.chat_stream("yo", session_id=session, model="stub-chat:2b")
             assert _answer(f1).strip()
-            assert provider.calls == []
+            if one_call_lane == "off":
+                assert provider.calls == []
+            else:
+                # Generations only: a POST without messages is the runner's model-info probe.
+                generations = [
+                    call for call in list(provider.calls)
+                    if call.get("messages") and not any(
+                        str(m.get("content") or "").startswith(_FACT_EXTRACTOR)
+                        for m in call.get("messages") or [] if isinstance(m, dict)
+                    )
+                ]
+                assert len(generations) == 1, [
+                    str((c.get("messages") or [{}])[-1].get("content") or "")[:80] for c in generations
+                ]
+                assert "Sure -- what would you like to know?" in _answer(f1), _answer(f1)[:300]
 
             # T2 -- the wallet-security question, answered with the incident's educational review.
             f2 = daemon.chat_stream(WALLET_QUESTION, session_id=session, model="stub-chat:2b")

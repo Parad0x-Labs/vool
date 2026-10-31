@@ -75,14 +75,52 @@ def _offered(text: str, context: dict) -> tuple[str, ...]:
                                      source_context=dict(context)).intents)
 
 
+#: The catalog's calendar tools. On the one-call lane (core.one_call_lane, default on) a tool whose
+#: source is known not to be connected is not seated as runnable.
+CALENDAR_CATALOG = {intent for intent in OWNER_CATALOG if intent in {"operator.show_agenda"}}
+
+
+@pytest.fixture
+def calendar(monkeypatch):
+    def _set(connected: bool | None) -> None:
+        monkeypatch.setattr("core.action_claim_gate._calendar_connected", lambda: connected)
+    return _set
+
+
+def test_the_catalog_holds_a_calendar_tool() -> None:
+    from core.one_call_lane import source_of_intent
+
+    assert CALENDAR_CATALOG == {"operator.show_agenda"}
+    assert {source_of_intent(intent) for intent in CALENDAR_CATALOG} == {"calendar"}
+
+
 @pytest.mark.parametrize("text", FRESH_NEEDS)
-def test_an_owner_turn_on_the_local_model_reaches_the_catalog(text: str, registry) -> None:
+def test_an_owner_turn_on_the_local_model_reaches_the_catalog(text: str, registry, calendar) -> None:
     registry(LOCAL)
+    calendar(False)
     assert owner_catalog_applies(text, dict(OWNER))
     assert _gates_open(text, OWNER)
     offered = set(_offered(text, OWNER))
-    assert set(OWNER_CATALOG) <= offered, sorted(set(OWNER_CATALOG) - offered)
+    # The whole catalog but the calendar, which is not connected: not seated as runnable.
+    assert set(OWNER_CATALOG) - CALENDAR_CATALOG <= offered, sorted(set(OWNER_CATALOG) - CALENDAR_CATALOG - offered)
+    assert not CALENDAR_CATALOG & offered, sorted(CALENDAR_CATALOG & offered)
     assert "respond.direct" in offered
+
+
+@pytest.mark.parametrize("connected", [True, None])
+def test_a_connected_or_unknown_calendar_keeps_its_catalog_seat(registry, calendar, connected) -> None:
+    registry(LOCAL)
+    calendar(connected)
+    offered = set(_offered(FRESH_NEEDS[1], OWNER))
+    assert set(OWNER_CATALOG) <= offered, sorted(set(OWNER_CATALOG) - offered)
+
+
+def test_with_the_one_call_lane_off_the_calendar_seat_stays(registry, calendar, monkeypatch) -> None:
+    registry(LOCAL)
+    calendar(False)
+    monkeypatch.setenv("VOOL_OWNER_LOCAL_ONE_CALL_LANE", "0")
+    offered = set(_offered(FRESH_NEEDS[1], OWNER))
+    assert set(OWNER_CATALOG) <= offered, sorted(set(OWNER_CATALOG) - offered)
 
 
 def test_the_catalog_is_read_only_and_small() -> None:
@@ -95,11 +133,13 @@ def test_the_catalog_is_read_only_and_small() -> None:
         assert specs[intent].get("read_only") is True, intent
 
 
-def test_a_seated_write_keeps_its_seat_beside_the_catalog(registry) -> None:
+def test_a_seated_write_keeps_its_seat_beside_the_catalog(registry, calendar) -> None:
     registry(LOCAL)
+    calendar(False)
     offered = _offered("save a note: call the plumber about the sink on monday", OWNER)
     assert "operator.save_note" in offered
-    assert set(OWNER_CATALOG) <= set(offered)
+    assert set(OWNER_CATALOG) - CALENDAR_CATALOG <= set(offered)
+    assert not CALENDAR_CATALOG & set(offered)
 
 
 @pytest.mark.parametrize("text", FRESH_NEEDS[:2])

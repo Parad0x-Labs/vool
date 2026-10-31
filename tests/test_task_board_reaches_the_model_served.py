@@ -16,6 +16,7 @@ is attempted, and the artifact's controls work in a real browser under ordinary 
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -250,15 +251,15 @@ def _answer(frame: dict[str, Any]) -> str:
     return text
 
 
-@pytest.fixture()
-def served_model(tmp_path):
+@contextlib.contextmanager
+def _served_model(tmp_path, env_extra: dict[str, str] | None = None):
     home = tmp_path / "home"
     with _TaskBoardProvider() as provider:
         run_in_home(
             home,
             SEED_MANIFEST.format(root=REPO_ROOT, base_url=provider.base_url, registered=["stub-chat:2b"]),
         )
-        with ServedDaemon(home) as daemon:
+        with ServedDaemon(home, env_extra=env_extra) as daemon:
             request = Request(
                 f"{daemon.base_url}/api/model-tool-certification/run",
                 data=json.dumps(
@@ -274,6 +275,19 @@ def served_model(tmp_path):
             with urlopen(request, timeout=180) as response:
                 assert json.loads(response.read().decode("utf-8")).get("state") == "verified"
             yield daemon, provider
+
+
+@pytest.fixture()
+def served_model(tmp_path):
+    with _served_model(tmp_path) as served:
+        yield served
+
+
+@pytest.fixture()
+def served_model_lane_off(tmp_path):
+    """The one-call owner-local lane (core.one_call_lane) turned off: the earlier path."""
+    with _served_model(tmp_path, {"VOOL_OWNER_LOCAL_ONE_CALL_LANE": "0"}) as served:
+        yield served
 
 
 def test_the_task_board_request_reaches_the_model_and_publishes_the_artifact(served_model) -> None:
@@ -317,13 +331,34 @@ def test_design_and_greeting_and_quoted_requests_reach_the_model(served_model) -
         assert "Public Hive" not in published
 
 
-def test_a_standalone_greeting_keeps_its_fast_path(served_model) -> None:
-    daemon, provider = served_model
+def test_a_standalone_greeting_keeps_its_fast_path(served_model_lane_off) -> None:
+    daemon, provider = served_model_lane_off
     provider.calls.clear()
     frame = daemon.chat_stream("hi", session_id="greeting-1", model="stub-chat:2b")
     published = _answer(frame)
     assert provider.calls == [], "a standalone greeting must not spend a model call"
     assert published.strip(), "the greeting fast path produced no reply"
+
+
+#: The post-turn fact extractor (core.fact_extractor) runs in the background after the reply is
+#: committed; it is memory, not part of answering the turn.
+_FACT_EXTRACTOR = "You are a local memory extraction agent"
+
+
+def test_a_standalone_greeting_on_the_one_call_lane_costs_one_model_call(served_model) -> None:
+    """On the one-call owner-local lane (default on) no front-door fast path answers before the
+    model: a greeting is the model's own reply, in exactly one call."""
+    daemon, provider = served_model
+    provider.calls.clear()
+    frame = daemon.chat_stream("hi", session_id="greeting-1", model="stub-chat:2b")
+    published = _answer(frame)
+    # Generations only: a POST without messages is the runner's model-info probe (/api/show).
+    answering = [
+        call for call in list(provider.calls)
+        if call.get("messages") and not any(str(m.get("content") or "").startswith(_FACT_EXTRACTOR) for m in call.get("messages") or [] if isinstance(m, dict))
+    ]
+    assert len(answering) == 1, [str((c.get("messages") or [{}])[-1].get("content") or "")[:80] for c in answering]
+    assert "MODEL-LANE-MARKER" in published, published[:300]
 
 
 def test_an_explicit_hive_create_truthfully_refuses_when_disabled(served_model) -> None:

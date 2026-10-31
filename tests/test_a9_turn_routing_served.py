@@ -517,7 +517,17 @@ class TestServedFailureLifecycle(unittest.TestCase):
             self.assertTrue(retried, plans)
             self.assertTrue(retried[-1].get("retry_of_plan_id"), plans)
             first = plans[0]  # this home served one session; the first plan is the failed turn's
-            self.assertEqual(retried[-1]["retry_of_plan_id"], first["plan_id"], plans)
+            # The retry names the plan whose call FAILED. On the one-call owner-local lane
+            # (core.one_call_lane, default on) the failed turn first offers its tool round: the
+            # pinned model is not one this step may ask, so that round is refused before anything
+            # is sent (its plan, no call, no failure row) and the plain generation is the turn's
+            # one call -- its own plan, the one that timed out. Both plans are the failed turn's.
+            failures = [row for row in served.routing_events() if row.get("event") == "failure"]
+            self.assertTrue(failures, "the timeout left no typed failure row")
+            failed_plan_id = failures[0]["plan_id"]
+            failed_turn_plans = {p["plan_id"] for p in plans if p["turn_id"] == first["turn_id"]}
+            self.assertIn(failed_plan_id, failed_turn_plans, (failures, plans))
+            self.assertEqual(retried[-1]["retry_of_plan_id"], failed_plan_id, plans)
             self.assertEqual(retried[-1]["generation"], 2, plans)
             # Canonical turn identity is PRESERVED, never reused: the retry generation is
             # its OWN canonical turn, linked to the original request -- and the linkage

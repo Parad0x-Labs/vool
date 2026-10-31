@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from types import SimpleNamespace
 from unittest import mock
 
@@ -424,17 +425,22 @@ def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() ->
             reason="test",
         )
     )
-    with (
-        _host_memory(64.0),
-        mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock,
-    ):
-        result = adapter.run_text_task(request)
+    # The one-call lane (core.one_call_lane, flag owner_local_one_call_lane, default on) runs the
+    # local runner on every core; with the lane off the compute budget's thread count binds.
+    for lane, threads in (("1", 16), ("0", 3)):
+        with (
+            _host_memory(64.0),
+            mock.patch.dict(os.environ, {"VOOL_OWNER_LOCAL_ONE_CALL_LANE": lane}),
+            mock.patch("core.one_call_lane.os.cpu_count", return_value=16),
+            mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock,
+        ):
+            result = adapter.run_text_task(request)
 
-    assert result.output_text == "native ollama answer"
-    assert post_mock.call_args.args[0] == "http://127.0.0.1:11434/api/chat"
-    assert post_mock.call_args.kwargs["json"]["options"]["num_thread"] == 3
-    assert post_mock.call_args.kwargs["json"]["options"]["num_ctx"] == 2048
-    assert post_mock.call_args.kwargs["json"]["think"] is False
+        assert result.output_text == "native ollama answer"
+        assert post_mock.call_args.args[0] == "http://127.0.0.1:11434/api/chat"
+        assert post_mock.call_args.kwargs["json"]["options"]["num_thread"] == threads, lane
+        assert post_mock.call_args.kwargs["json"]["options"]["num_ctx"] == 2048
+        assert post_mock.call_args.kwargs["json"]["think"] is False
 
 
 def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_thread_budget() -> None:
@@ -473,8 +479,16 @@ def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_thread
             reason="test",
         )
     )
-    with mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock:
-        result = adapter.run_text_task(request)
+    # The one-call lane (core.one_call_lane, default on) runs the local runner on every core; with
+    # the lane off the compute budget's thread count binds.
+    for lane, threads in (("1", 16), ("0", 3)):
+        with (
+            mock.patch.dict(os.environ, {"VOOL_OWNER_LOCAL_ONE_CALL_LANE": lane}),
+            mock.patch("core.one_call_lane.os.cpu_count", return_value=16),
+            mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock,
+        ):
+            result = adapter.run_text_task(request)
+        assert post_mock.call_args.kwargs["json"]["options"]["num_thread"] == threads, lane
 
     payload = dict(post_mock.call_args.kwargs["json"])
     assert result.output_text == "OPENAI-COMPAT-OK"
