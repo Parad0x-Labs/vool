@@ -50,8 +50,8 @@ plugin's invocation. Wildcards, IP addresses, localhost and private destinations
 A handler always receives its keys on its private input: the JSON request on standard
 input carries them under `context.credentials`, keyed by the declared environment names.
 Read them from there; it works on every platform. On Linux they are also set as those
-environment variables. On macOS they never are, because any program of the same user that
-runs outside the sandbox can read another program's starting environment there.
+environment variables. On macOS they never are, because any program of the same user,
+plugin code included, can read another program's starting environment there.
 
 An MCP server receives its declared keys as environment variables, as Claude Code and Codex
 expect. On macOS such a server therefore runs only in the optional isolated runtime
@@ -78,9 +78,9 @@ itself, to declared hosts only, on every platform.
 The package and approved dependency copies are read-only; writable tools receive only their
 own scratch. Python handlers in the isolated runtime use its interpreter; other bundled
 executables must support its Linux architecture. Unsupported confinement refuses execution.
-The macOS sandbox also refuses reading another program's arguments and starting
-environment. Paths in a handler's or server's `args` are passed to your program but never
-made readable: keep every file your code reads inside the package.
+On a Mac, code a plugin runs can still see other programs' starting settings, as any app you
+install can; the access sheet says so. Paths in a handler's or server's `args` are passed to
+your program but never made readable: keep every file your code reads inside the package.
 
 Every invocation checks enabled state and exact package/dependency digests. Disable stops
 owned work and discards late results; turning a plugin off in the Plugins panel does the same

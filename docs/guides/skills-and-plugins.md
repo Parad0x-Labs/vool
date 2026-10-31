@@ -126,9 +126,8 @@ not certify behavior, attest arbitrary code downloaded or loaded from outside th
 distribution, broker every internal effect or replace native wallet approval.
 
 On macOS, plugin code runs in the macOS sandbox. Keys reach a handler only over its private
-input, never its environment, because any program of the same user that runs outside the
-sandbox can read another program's starting environment on a Mac. The sandbox refuses that
-read to plugin code. A connection server that needs a key in its
+input, never its environment, because any program of the same user, plugin code included,
+can read another program's starting environment on a Mac. A connection server that needs a key in its
 environment runs only in the optional isolated Linux runtime, which you provision yourself;
 VOOL never starts a VM or downloads an image. Without it, that plugin stays off and says why.
 Linux uses bwrap, including a private process namespace and `/proc`.

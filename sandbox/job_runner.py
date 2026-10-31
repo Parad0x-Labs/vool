@@ -182,8 +182,10 @@ def _seatbelt_baseline(*, deny_network: bool) -> str:
     and LaunchServices lookups, preference reads through cfprefsd, and hard-link creation (a
     job could link an outside file into its workspace and then write through it).
 
-    Processes may only signal and inspect processes inside the same sandbox, and may not read
-    another process's arguments or starting environment through sysctl. File READS stay
+    Processes may only signal and inspect processes inside the same sandbox. Another process's
+    starting environment (KERN_PROCARGS2) stays readable: no Seatbelt rule stops that read
+    (measured on macOS 26.5.1, 2026-10-31, even with every sysctl read denied), so keys never
+    travel in a child's environment on macOS. File READS stay
     open here and are narrowed by the layers `_macos_confined_profile` appends, which is the
     same read model as before; file WRITES are denied here and re-granted per root there.
     """
@@ -200,9 +202,6 @@ def _seatbelt_baseline(*, deny_network: bool) -> str:
         "(allow process-info* (target same-sandbox))"
         "(allow signal (target same-sandbox))"
         "(allow sysctl-read)"
-        # Another process's arguments and starting environment (KERN_PROCARGS/KERN_PROCARGS2)
-        # are not covered by the same-sandbox process-info rule above, so they are named here.
-        '(deny sysctl-read (sysctl-name-prefix "kern.procargs"))'
         "(allow file-ioctl)"
         "(allow pseudo-tty)"
         "(allow ipc-posix-sem)"
