@@ -255,3 +255,24 @@ def test_a_second_find_reads_only_the_documents_that_can_match(home):
     assert "trip plan.txt" in outcome.text
     reads = [r for r in second.receipts if r["tool_name"] == "machine.read_file"]
     assert len(reads) == 1, [r.get("arguments") for r in reads]
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "how much was the deposit on the flat",
+        "how much does the gym charge",
+        "when is the refund due",
+        "which block is my flat in",
+        "where is the lock screen screenshot",
+        "how much was the bank transfer to anna",
+        "when do i have to pay the plumber by",
+    ],
+)
+def test_money_nouns_in_a_question_are_not_orders(ask):
+    assert not route.is_red(ask)
+
+
+@pytest.mark.parametrize("ask", ["is it ok to refund anna", "when is it due? refund it", "can you charge my card"])
+def test_the_same_words_as_orders_stay_red(ask):
+    assert route.is_red(ask)

@@ -31,7 +31,7 @@ FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 _RED_RE = re.compile(
-    r"\b(?:pay|paying|send|sending|transfer|wire|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
+    r"\b(?:pay|paying|send|sending|transfer|wire|remit|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
     r"unlock|lock|freeze|block|close\s+(?:it|the|my|this|that)|buy|purchase|sell|trade|swap|donate|tip\s+(?:him|her|them|the)|"
     r"order\s+(?:me|a|an|some)|book\s+(?:me|a|an)|reserve|subscribe|unsubscribe|cancel|"
     r"delete|deleting|remove|removing|erase|wipe|trash|shred|purge|clear\s+out|clean\s+out|clean\s+up|"
@@ -53,7 +53,7 @@ _DESTRUCTIVE_RE = re.compile(
 )
 _MONEY_RE = re.compile(
     r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|(?:credit|debit|visa)\s*-?\s*card|bank\s*-?\s*account|iban|cvv|cvc|"
-    r"card\s+number|security\s+code|sort\s+code|routing\s+number|pin|passwords?|mastercard|amex|paypal|venmo|zelle)\b", re.I
+    r"card\s+number|security\s+code|sort\s+code|routing\s+number|pin\s+(?:number|code)|card\s+pin|passwords?|mastercard|amex|paypal|venmo|zelle)\b", re.I
 )
 # A question asks for facts: "when do i have to pay the plumber by", "when did we move the audit to".
 # The verb inside it is the subject of the question, not an order (Mac hold-out 2026-10-28: both were
@@ -206,8 +206,22 @@ _PERMISSION_RE = re.compile(
 _SUBJECT_BEFORE_RE = re.compile(r"\b(?:i|we|you|he|she|they|it)(?:\s+[\w']+){0,3}\s+$", re.I)
 
 
+# These are also everyday nouns ("how much was the deposit", "when is the refund due", "which block is my
+# flat in"): in a question they are an order only where an order starts (money review 2026-10-31).
+_NOUN_TOO = frozenset({"refund", "charge", "deposit", "block", "lock", "transfer"})
+_ORDER_START_RE = re.compile(r"(?:^|[?.!;,:\n]|\b(?:you|please|to|and|then|just|now|so))\s*$", re.I)
+
+
 def _verbs_are_the_questions_own(value: str, pattern: re.Pattern[str]) -> bool:
-    return all(_SUBJECT_BEFORE_RE.search(value[: match.start()]) for match in pattern.finditer(value))
+    for match in pattern.finditer(value):
+        before = value[: match.start()]
+        if match.group(0).lower() in _NOUN_TOO:
+            if _ORDER_START_RE.search(before):
+                return False
+            continue
+        if not _SUBJECT_BEFORE_RE.search(before):
+            return False
+    return True
 
 
 def is_question(text: str) -> bool:
