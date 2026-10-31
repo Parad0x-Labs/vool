@@ -33,6 +33,7 @@ import sys
 from collections.abc import Mapping
 
 HANDOFF_FD_ENV = "VOOL_SECRET_HANDOFF_FD"
+_shed_done = False  # keys moved in this process already: later calls must not restart it again
 _HANDOFF_LIMIT = 60_000  # below the smallest pipe buffer, so writing never blocks before exec
 
 # Names that hold a key, token or password. Paths/modes/URLs that only mention one are kept.
@@ -205,15 +206,18 @@ def shed_starting_secrets(argv: list[str] | None = None) -> None:
     removed and the values sent over a pipe. Exits with a plain error if the handoff fails: running
     on with the keys still in the starting environment is the leak this exists to stop.
     """
-    if os.name != "posix":
+    global _shed_done
+    if os.name != "posix" or _shed_done:
         return
     try:
         received = receive_handoff()
         clean, found = split_secret_env(os.environ)
         if not found:
+            _shed_done = True
             return
         found = {k: v for k, v in found.items() if received.get(k) != v}
         if not found:
+            _shed_done = True
             # Everything secret in os.environ came over the pipe; the starting environment is clean.
             return
         found.update(received)

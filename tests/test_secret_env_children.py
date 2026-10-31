@@ -304,3 +304,17 @@ def test_legacy_name_mirror_keeps_a_key_out_of_inherited_child_environments(monk
         assert "VOOL_OPENAI_API_KEY=" not in out and "VOOL_SAMPLE_SETTING=on" in out
     finally:
         os.environ.pop("VOOL_OPENAI_API_KEY", None)
+
+
+def test_moving_keys_happens_once_per_process(monkeypatch):
+    from core import secret_env
+
+    monkeypatch.setattr(secret_env, "_shed_done", False)
+    monkeypatch.setattr(secret_env.os, "execve", lambda *a: pytest.fail("restarted a second time"))
+    for name in [n for n in os.environ if secret_env.is_secret_env_name(n)]:
+        monkeypatch.delenv(name)
+    monkeypatch.delenv(secret_env.HANDOFF_FD_ENV, raising=False)
+    secret_env.shed_starting_secrets()
+    # A key set inside the process afterwards (as a received key is) never restarts it again.
+    monkeypatch.setenv("VOOL_EXAMPLE_API_KEY", "in-process-value")
+    secret_env.shed_starting_secrets()

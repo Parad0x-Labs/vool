@@ -16,6 +16,11 @@ from pathlib import Path
 
 
 def main():
+    # Same order as the daemon: move keys out of the starting environment before anything else,
+    # so the restart that does it happens before this fixture reads its one line of input.
+    from core.secret_env import shed_starting_secrets
+
+    shed_starting_secrets()
     config = json.loads(sys.stdin.readline())
     if config.get("upgrade"):
         from core import cloud_escalation_policy
