@@ -22,7 +22,9 @@ turn never spends the owner's key here.
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 MODEL_ENV = "VOOL_CLEAN_LOOP_MODEL"
@@ -124,12 +126,65 @@ def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -
     return manifest if manifest is not None and not _is_local(manifest) else None
 
 
+@dataclass(frozen=True)
+class _StepTask:
+    """The identity and size one paid loop step's reservation binds to (the turn's own task id)."""
+
+    task_id: str
+    task_summary: str
+    prompt_tokens: int
+    max_output_tokens: int
+
+
+def _prompt_token_ceiling(text: str) -> int:
+    ascii_chars = sum(1 for ch in text if ord(ch) < 128)
+    return max(1, (ascii_chars + 3) // 4 + (len(text) - ascii_chars))
+
+
+def _reserve_step(manifest: Any, context: dict[str, Any], messages: list[dict[str, str]]) -> tuple[Any, Any, dict[str, Any]]:
+    """A paid cloud model's step reserves its own hold first, exactly as the router's paid gate needs.
+
+    Each loop step is one call and gets one reservation sized for that call, under the owner's own
+    caps; a free or local model needs none. Returns (authorization, task, call context); raises when
+    the reservation is refused, so the step fails like any provider error and nothing is sent.
+    """
+    from core.agent_runtime.builder.pinned_generation import _manifest_needs_paid_reservation
+
+    turn_task_id = str(context.get("task_id") or context.get("turn_id") or "").strip() or f"clean-loop-{uuid.uuid4().hex[:12]}"
+    task = _StepTask(
+        task_id=turn_task_id,
+        task_summary="clean loop step on the owner's own cloud model",
+        prompt_tokens=_prompt_token_ceiling("".join(str(m.get("content") or "") for m in messages)),
+        max_output_tokens=_MAX_OUTPUT_TOKENS,
+    )
+    if not _manifest_needs_paid_reservation(manifest):
+        return None, task, context
+    from core.paid_call_reservation import reserve_owner_pick_paid_call
+
+    subtask = f"clean_loop_step_{uuid.uuid4().hex[:12]}"
+    call_context = {**context, "task_id": turn_task_id, "subtask_id": subtask}
+    denial: dict[str, str] = {}
+    authorization = reserve_owner_pick_paid_call(
+        manifest=manifest,
+        task=task,
+        source_context=call_context,
+        task_kind="clean_local_loop",
+        call_role="clean_loop_step",
+        denial=denial,
+    )
+    if authorization is None:
+        raise RuntimeError(f"paid_call_refused:{denial.get('reason') or 'not_authorized_or_reserved'}")
+    return authorization, task, {**call_context, "authorized_paid_call": authorization, "model_call_role": "clean_loop_step"}
+
+
 def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None) -> Callable[[list[dict[str, str]]], str]:
     """A `messages -> text` callable over the router's provider seam for one manifest."""
     from adapters.base_adapter import ModelRequest
 
     def call(messages: list[dict[str, str]]) -> str:
         from core import runtime_active_clock
+        from core.memory_first_router import _release_undispatched_pin_reservation
+        from core.paid_call_reservation import release_owner_pick_paid_call
         from core.provider_call_deadline import bind_provider_deadline
 
         system = next((m["content"] for m in messages if m.get("role") == "system"), "")
@@ -153,14 +208,28 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
             cleanup_margin_seconds=0.0,
             reason="clean local loop step",
         )
-        _adapter, response, error = router._invoke_manifest(
-            manifest=manifest,
-            request=request,
-            output_mode="plain_text",
-            task=None,
-            source_context=context,
-        )
+        authorization, task, context = _reserve_step(manifest, context, messages)
+        try:
+            _adapter, response, error = router._invoke_manifest(
+                manifest=manifest,
+                request=request,
+                output_mode="plain_text",
+                task=task if authorization is not None else None,
+                source_context=context,
+            )
+        except BaseException:
+            # The invoke loop settles or releases what it handled; one that escaped it has an unknown
+            # dispatch state, so it is held as possibly billed rather than handed back.
+            if authorization is not None:
+                release_owner_pick_paid_call(
+                    authorization, reason="call_failed", source_context=context, call_role="clean_loop_step"
+                )
+            raise
         if response is None or error:
+            if authorization is not None:
+                # A refusal before any request was built leaves the hold standing: hand it back
+                # (a no-op on one the invoke loop already settled or released).
+                _release_undispatched_pin_reservation(authorization, source_context=context)
             raise RuntimeError(str(error or "no_response"))
         return str(getattr(response, "output_text", "") or "")
 

@@ -791,3 +791,93 @@ def test_a_cloud_brain_error_falls_through_without_the_local_memory_text(home, m
         _Agent(), text="whats on my desktop", effective_input="x", session_id="sess-cloud-err", source_context=context
     )
     assert result is None and context["clean_local_loop_route"] == "cloud_brain_error_fell_through"
+
+
+# --- a paid cloud brain reserves each step (the router's paid gate) ----------------------------
+
+
+class _PaidRouter:
+    def __init__(self, response_text: str | None = "ok", error: str = ""):
+        self.calls: list[dict[str, Any]] = []
+        self.response_text, self.error = response_text, error
+
+    def _invoke_manifest(self, *, manifest, request, output_mode, task, source_context):
+        self.calls.append({"task": task, "context": dict(source_context)})
+        if self.response_text is None:
+            return None, None, self.error or "no_response"
+
+        class _Response:
+            output_text = self.response_text
+
+        return None, _Response(), ""
+
+
+@pytest.fixture
+def paid(monkeypatch):
+    import core.memory_first_router as router_module
+    from core import paid_call_reservation
+    from core.agent_runtime.builder import pinned_generation
+
+    log: dict[str, list[Any]] = {"reserved": [], "handed_back": [], "released": []}
+    monkeypatch.setattr(pinned_generation, "_manifest_needs_paid_reservation", lambda manifest: True)
+
+    def reserve(**kwargs):
+        log["reserved"].append(kwargs)
+        return None if kwargs["source_context"].get("refuse") else f"auth-{len(log['reserved'])}"
+
+    monkeypatch.setattr(paid_call_reservation, "reserve_owner_pick_paid_call", reserve)
+    monkeypatch.setattr(
+        paid_call_reservation, "release_owner_pick_paid_call", lambda auth, **kw: log["released"].append(auth)
+    )
+    monkeypatch.setattr(
+        router_module, "_release_undispatched_pin_reservation", lambda auth, **kw: log["handed_back"].append(auth)
+    )
+    return log
+
+
+MESSAGES = [{"role": "system", "content": "sys"}, {"role": "user", "content": "whats on my desktop"}]
+
+
+def test_each_paid_cloud_step_reserves_its_own_hold(paid):
+    from core.clean_loop.brain import make_brain
+
+    router = _PaidRouter("answer")
+    call = make_brain(router, object(), {**OWNER, "task_id": "turn-1"})
+    assert call(MESSAGES) == "answer" and call(MESSAGES) == "answer"
+    assert len(paid["reserved"]) == 2  # one hold per step, never one hold for the whole loop
+    subtasks = {r["source_context"]["subtask_id"] for r in paid["reserved"]}
+    assert len(subtasks) == 2
+    first = router.calls[0]
+    assert first["context"]["authorized_paid_call"] == "auth-1"
+    assert first["task"].task_id == "turn-1" and first["task"].max_output_tokens > 0
+    assert paid["handed_back"] == [] and paid["released"] == []
+
+
+def test_a_refused_reservation_sends_nothing(paid):
+    from core.clean_loop.brain import make_brain
+
+    router = _PaidRouter("answer")
+    call = make_brain(router, object(), {**OWNER, "task_id": "turn-2", "refuse": True})
+    with pytest.raises(RuntimeError, match="paid_call_refused"):
+        call(MESSAGES)
+    assert router.calls == []
+
+
+def test_an_unanswered_paid_step_hands_its_hold_back(paid):
+    from core.clean_loop.brain import make_brain
+
+    router = _PaidRouter(None, error="paid_call_terms_changed")
+    call = make_brain(router, object(), {**OWNER, "task_id": "turn-3"})
+    with pytest.raises(RuntimeError, match="paid_call_terms_changed"):
+        call(MESSAGES)
+    assert paid["handed_back"] == ["auth-1"]
+
+
+def test_a_free_brain_reserves_nothing(monkeypatch):
+    from core.agent_runtime.builder import pinned_generation
+    from core.clean_loop.brain import make_brain
+
+    monkeypatch.setattr(pinned_generation, "_manifest_needs_paid_reservation", lambda manifest: False)
+    router = _PaidRouter("answer")
+    assert make_brain(router, object(), dict(OWNER))(MESSAGES) == "answer"
+    assert router.calls[0]["task"] is None and "authorized_paid_call" not in router.calls[0]["context"]
