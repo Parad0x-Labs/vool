@@ -30,9 +30,9 @@ from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsp
 from urllib.request import Request
 
 from core.runtime_paths import active_data_dir
+from core.secret_env import child_env
 from core.vool_browser.engine import find_engine_binary, isolation_launch_flags, refuse_real_profile_target
 from core.vool_browser.ops import Untrusted
-from core.secret_env import child_env
 
 MAX_BYTES = 2_000_000
 TIMEOUT = 8

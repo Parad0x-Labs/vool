@@ -11,9 +11,9 @@ import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from core.secret_env import child_env
 from core.updater.macos import _pid_has_exited
 from core.updater.state import UpdaterPaths, _atomic_write_json, _read_json
-from core.secret_env import child_env
 
 
 def _cgroup_units(path: Path = Path("/proc/self/cgroup")) -> set[str]:

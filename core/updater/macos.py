@@ -29,8 +29,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from core.updater.platforms import BundleVerification, SwapOutcome
 from core.secret_env import child_env
+from core.updater.platforms import BundleVerification, SwapOutcome
 
 logger = logging.getLogger("vool.updater.macos")
 
