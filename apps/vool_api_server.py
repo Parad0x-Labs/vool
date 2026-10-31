@@ -10,9 +10,10 @@ from __future__ import annotations
 if __name__ == "__main__":
     # Before anything else: a key in this process's starting environment is readable by any
     # same-user program on macOS (KERN_PROCARGS2). Restart without it; see core/secret_env.py.
-    from core.secret_env import shed_starting_secrets
+    from core.secret_env import load_provider_env_secrets, shed_starting_secrets
 
     shed_starting_secrets()
+    load_provider_env_secrets()
 
 from core.env_compat import apply_legacy_nulla_env
 

@@ -180,6 +180,26 @@ def _set_python_only(target, key: str, value: str) -> None:
         target[key] = value
 
 
+def load_provider_env_secrets(runtime_home: str | None = None) -> list[str]:
+    """Read keys saved in ``<VOOL_HOME>/config/provider-env.sh`` into this process only.
+
+    ``Start_VOOL.sh`` sources that file but no longer exports its keys, so the daemon reads them
+    here. A name already set in the environment wins, as it did when the shell exported the file.
+    Returns the names loaded.
+    """
+    home = runtime_home or os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME")
+    if not home:
+        return []
+    from core.provider_env import load_provider_env_overrides
+
+    loaded: list[str] = []
+    for key, value in load_provider_env_overrides(home).items():
+        if value and is_secret_env_name(key) and not str(os.environ.get(key) or "").strip():
+            _set_python_only(os.environ, key, value)
+            loaded.append(key)
+    return loaded
+
+
 def shed_starting_secrets(argv: list[str] | None = None) -> None:
     """First thing in the daemon: make sure no key stays in this process's starting environment.
 

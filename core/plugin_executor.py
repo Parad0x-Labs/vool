@@ -45,6 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from core import json_schema_lite
+from core.secret_env import is_secret_env_name
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
 _MAX_OUTPUT_BYTES = 4 * 1024 * 1024
@@ -171,6 +172,10 @@ def build_child_env(
             child[key] = value
     child.setdefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
     for key in env_allowlist:
+        if sys.platform == "darwin" and is_secret_env_name(str(key)):
+            # A key copied from VOOL's environment would sit in the child's starting environment,
+            # readable by any same-user program on a Mac. Keys reach handlers over their input.
+            continue
         value = os.environ.get(str(key))
         if value:
             child[str(key)] = value
