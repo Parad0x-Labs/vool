@@ -17,6 +17,7 @@ import os
 import re
 import stat
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -397,9 +398,16 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         for line in outcome.text.splitlines():
             if line.startswith("- ") and line not in hits:
                 hits.append(line)
+    if len(hits) > _FEW_NAME_HITS:
+        return _merge(outcomes, "\n".join(hits[:20]))
+    # Few or no names matched: the file may say it inside without saying it in its name ("flights" is
+    # in a WestJet itinerary, "bank" in chequing_oct.csv; R4-CL review 2026-10-31, R23 R24).
+    inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
+    if hits and inside:
+        lines = [*hits, "these files also mention it inside:", *inside]
+        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines))
     if hits:
         return _merge(outcomes, "\n".join(hits[:20]))
-    inside = _find_in_text(words, ctx)
     if inside:
         lines = [f"no file name has {', '.join(words)}; these files mention it inside:", *inside]
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines))
@@ -409,7 +417,13 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
 
 _TEXT_SUFFIXES = frozenset({".txt", ".md", ".csv", ".pdf", ".json", ".eml", ".ics", ".html", ".rtf", ".log"})
 _TEXT_MAX_BYTES = 2 * 1024 * 1024
-_TEXT_MAX_FILES = 25
+#: The newest documents searched inside per find. Each one's text is kept (by path, size and time) so a
+#: second find in the same session reads nothing again; the scan stops after _TEXT_SCAN_S seconds.
+_TEXT_MAX_FILES = 80
+_TEXT_SCAN_S = 4.0
+_TEXT_CACHE_MAX = 600
+_TEXT_CACHE: OrderedDict[tuple[str, int, int], str] = OrderedDict()
+_FEW_NAME_HITS = 2
 
 
 def _text_candidates(ctx: ToolContext) -> list[Path]:
@@ -446,7 +460,18 @@ def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
     """No name matched: look inside the owner's documents, through the same read tools ("plumber" is
     in invoice_4471.pdf, never in its name: Mac audit F08). Best match first, with the line it is on."""
     scored: list[tuple[int, str]] = []
+    deadline = time.monotonic() + _TEXT_SCAN_S
     for path in _text_candidates(ctx):
+        try:
+            info = path.stat()
+        except OSError:
+            continue
+        key = (str(path), int(info.st_size), int(info.st_mtime_ns))
+        cached = _TEXT_CACHE.get(key)
+        if cached is not None and not any(word in cached for word in words):
+            continue
+        if cached is None and time.monotonic() > deadline:
+            continue
         before = len(ctx.receipts)
         intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
         arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
@@ -454,6 +479,10 @@ def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
         if not outcome.ok:
             continue
         body = outcome.text.lower()
+        _TEXT_CACHE[key] = body
+        _TEXT_CACHE.move_to_end(key)
+        while len(_TEXT_CACHE) > _TEXT_CACHE_MAX:
+            _TEXT_CACHE.popitem(last=False)
         matched = [word for word in words if word in body]
         if not matched:
             # A read that matched nothing is not this turn's evidence about the ask.
@@ -506,9 +535,51 @@ def largest(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     if not outcome.ok:
         return outcome
     text = _largest_lines(outcome.text, target, ctx.home)
+    if target != ctx.home and target.is_dir():
+        text = text + "\n" + _folder_total(target, ctx.home)
     for receipt in ctx.receipts[before:]:
         receipt["response_preview"] = text[:1800]
     return ToolOutcome(text=text, ok=outcome.ok, status=outcome.status, intents=outcome.intents)
+
+
+_TOTAL_ENTRIES = 50000
+_TOTAL_S = 3.0
+
+
+def _folder_total(folder: Path, home: Path) -> str:
+    """"How big is my Downloads folder" needs the folder's total, not its top files (R4-CL review
+    2026-10-31, R29). Sizes only: nothing is opened; links are not followed; bounded, and says so."""
+    total, files, seen = 0, 0, 0
+    deadline = time.monotonic() + _TOTAL_S
+    stack, partial = [folder], False
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    seen += 1
+                    if seen > _TOTAL_ENTRIES or time.monotonic() > deadline:
+                        partial = True
+                        break
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                            files += 1
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+        if partial:
+            break
+    label = _plain(str(folder), home)
+    size = _human_size(total)
+    if partial:
+        return f"Total of {label}: at least {size} in {files} files (stopped counting; the folder is very large)"
+    return f"Total of {label}: {size} in {files} files (measured, all subfolders)"
 
 
 _LARGEST_LINE = re.compile(r"^- (?P<name>.+?) — (?P<gb>[\d.]+) GB \[(?P<kind>[^\]]*)\](?P<partial>[^·]*)(?: · .*)?$")

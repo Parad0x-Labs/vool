@@ -106,39 +106,45 @@ def test_a_joined_follow_up_to_a_clean_loop_turn_comes_in():
     assert decision.admit, decision.reason
 
 
-# --- bank and card words --------------------------------------------------------------------------
+# --- money words and chained orders (independent money review 2026-10-31) -----------------------
 
 
 @pytest.mark.parametrize(
     "ask",
     [
         "which bank account does my rent come out of",
-        "when is my credit card bill due",
-        "what was the last bank account statement i saved",
-    ],
-)
-def test_a_question_about_bank_or_card_papers_comes_in(ask):
-    decision = _decide(ask)
-    assert decision.admit, decision.reason
-
-
-@pytest.mark.parametrize(
-    "ask",
-    [
+        "what is my credit card number and cvv",
+        "is it ok to close the bank account",
         "can i pay the plumber from my bank account?",
-        "what is my bank account number, send it to my brother",
-        "how do i transfer money to my credit card",
-        "move my bank account statements to the desktop",
-        "give me my credit card number",
+        "and when is my credit card bill due",
         "what is in my wallet",
         "how much bitcoin do i have",
-        "which credit card did i delete",
     ],
 )
-def test_money_orders_and_money_assets_stay_red(ask):
+def test_money_words_stay_red_even_in_a_question(ask):
     assert route.is_red(ask)
     decision = _decide(ask)
     assert (decision.admit, decision.reason) == (False, "red_turn")
+
+
+@pytest.mark.parametrize(
+    ("ask", "reason"),
+    [
+        ("so when is the rent due, then wire it", "red_turn"),
+        ("when is the gym fee due? pay it", "red_turn"),
+        ("what is the invoice total and then pay it", "red_turn"),
+        ("ok what if you move the invoices to my desktop", "write_turn"),
+        ("what is in the lease. now move it to my desktop", "write_turn"),
+    ],
+)
+def test_an_order_after_a_question_is_still_an_order(ask, reason):
+    decision = _decide(ask)
+    assert (decision.admit, decision.reason) == (False, reason)
+
+
+def test_several_questions_in_one_turn_are_still_a_question():
+    assert route.is_question("when is the rent due? and how much is it?")
+    assert not route.is_red("when do i pay the dentist? how much is it?")
 
 
 # --- file names from every readable folder --------------------------------------------------------
@@ -171,3 +177,72 @@ def test_an_ask_naming_a_folder_outside_documents_comes_in(tmp_path):
     words = lambda: set(tools.file_words(home))  # noqa: E731
     assert _decide("when does the allotment open", file_words=words).admit
     assert _decide("when does the cinema open", file_words=words).reason == "not_about_own_files"
+
+
+# --- folder total ---------------------------------------------------------------------------------
+
+
+def test_largest_ends_with_the_folders_measured_total(home):
+    registry = Registry()
+    install_builtin_tools(registry)
+    (home / "Downloads" / "albums").mkdir()
+    (home / "Downloads" / "albums" / "live set.mp3").write_bytes(b"x" * 3_000_000)
+    (home / "Downloads" / "notes.txt").write_bytes(b"x" * 1_000_000)
+    (home / "Downloads" / "loop").symlink_to(home / "Documents")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = registry.tool("largest").run({"path": "Downloads"}, ctx)
+    assert outcome.ok, outcome.text
+    total = 3_000_000 + 1_000_000 + len("Bike service EUR 45\n")
+    assert f"Total of Downloads: {total / 1024 / 1024:.1f} MB in 3 files (measured, all subfolders)" in outcome.text
+    assert "Total of Downloads" in ctx.receipts[-1]["response_preview"]
+
+
+# --- searching inside documents -------------------------------------------------------------------
+
+
+def _clear_text_cache():
+    from core.clean_loop import tools
+
+    tools._TEXT_CACHE.clear()
+
+
+def test_find_looks_inside_older_documents_too(home):
+    import os
+
+    _clear_text_cache()
+    registry = Registry()
+    install_builtin_tools(registry)
+    old = home / "Documents" / "journey.txt"
+    old.write_text("Ferry to Mull, departs 09:40, berth 12\n", encoding="utf-8")
+    os.utime(old, (1_600_000_000, 1_600_000_000))
+    for n in range(40):
+        (home / "Documents" / f"meeting {n}.txt").write_text(f"agenda item {n}\n", encoding="utf-8")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = registry.tool("find").run({"query": "ferry"}, ctx)
+    assert "journey.txt" in outcome.text and "departs 09:40" in outcome.text, outcome.text
+
+
+def test_a_single_weak_name_hit_also_brings_the_documents_that_mention_it(home):
+    _clear_text_cache()
+    registry = Registry()
+    install_builtin_tools(registry)
+    (home / "Desktop" / "ferry photo ideas.txt").write_text("sunset shots\n", encoding="utf-8")
+    (home / "Documents" / "trip plan.txt").write_text("Ferry booked: Oban to Mull, 09:40\n", encoding="utf-8")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = registry.tool("find").run({"query": "ferry"}, ctx)
+    assert "ferry photo ideas.txt" in outcome.text
+    assert "also mention it inside" in outcome.text and "trip plan.txt" in outcome.text, outcome.text
+
+
+def test_a_second_find_reads_only_the_documents_that_can_match(home):
+    _clear_text_cache()
+    registry = Registry()
+    install_builtin_tools(registry)
+    (home / "Documents" / "trip plan.txt").write_text("Ferry booked: Oban to Mull\n", encoding="utf-8")
+    ctx = ToolContext(home=home, source_context=dict(OWNER))
+    registry.tool("find").run({"query": "ferry"}, ctx)
+    second = ToolContext(home=home, source_context=dict(OWNER))
+    outcome = registry.tool("find").run({"query": "oban"}, second)
+    assert "trip plan.txt" in outcome.text
+    reads = [r for r in second.receipts if r["tool_name"] == "machine.read_file"]
+    assert len(reads) == 1, [r.get("arguments") for r in reads]

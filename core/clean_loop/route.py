@@ -6,8 +6,8 @@
    never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
    write (create, move, rename, save...), unless the changes flag is on (then the change is shown as
    a card first). A question ("when do i have to pay the plumber by", also after a joining word: "and
-   how much am i paying for it") asks for facts, so its verb counts as neither. Wallet and coin words are
-   RED in any form; bank account and credit card only outside a question or next to a money verb.
+   how much am i paying for it") asks for facts, so its verb counts as neither, but only when every clause is a question.
+   Money words are RED in any form.
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
    project-bound chat or a chat with an active goal workflow, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
@@ -31,7 +31,7 @@ FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 _RED_RE = re.compile(
-    r"\b(?:pay|paying|send|sending|transfer|wire|buy|purchase|sell|trade|swap|donate|tip\s+(?:him|her|them|the)|"
+    r"\b(?:pay|paying|send|sending|transfer|wire|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|buy|purchase|sell|trade|swap|donate|tip\s+(?:him|her|them|the)|"
     r"order\s+(?:me|a|an|some)|book\s+(?:me|a|an)|reserve|subscribe|unsubscribe|cancel|"
     r"delete|deleting|remove|removing|erase|wipe|trash|shred|purge|clear\s+out|clean\s+out|clean\s+up|"
     r"empty\s+(?:the\s+)?(?:trash|bin)|get\s+rid|uninstall|install|kill|shut\s*down|reboot|restart\s+(?:it|my|the)|"
@@ -50,21 +50,15 @@ _DESTRUCTIVE_RE = re.compile(
     r"empty\s+(?:the\s+)?(?:trash|bin)|get\s+rid|uninstall|kill|shut\s*down|reboot|format)\b",
     re.I,
 )
-# Money assets are RED in any form: this loop never touches a wallet or coins, even to read.
-_MONEY_RE = re.compile(r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc)\b", re.I)
-# Bank and card words are RED unless the turn is a question about the owner's own papers ("which bank
-# account does my rent come out of", "when is the credit card bill due"): the loop only reads files, it
-# has no money tool, and every pay/send/transfer verb, outward verb and destructive verb is still RED
-# in a question (R4-CL review 2026-10-31, R40).
-_ACCOUNT_RE = re.compile(r"\b(?:credit\s+card|bank\s+account)\b", re.I)
-# Money verbs stay RED in a question: "can i pay anna from my bank account?" is still an order.
-_MONEY_VERB_RE = re.compile(r"\b(?:pay|paying|send|sending|transfer|wire|buy|purchase|sell|trade|swap|donate)\b", re.I)
+_MONEY_RE = re.compile(
+    r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|(?:credit|debit)\s*-?\s*card|bank\s*-?\s*account|iban|cvv|cvc)\b", re.I
+)
 # A question asks for facts: "when do i have to pay the plumber by", "when did we move the audit to".
 # The verb inside it is the subject of the question, not an order (Mac hold-out 2026-10-28: both were
 # sent to the old pipeline and answered wrong). The loop only reads; a change still needs its card,
 # the owner's yes and VOOL's own approval. Money words stay RED in any form.
 _QUESTION_RE = re.compile(
-    r"^\s*(?:when|what|what'?s|whats|which|where|who|whose|why|how\s+(?:much|many|long|big|old|often|far)|"
+    r"^\s*(?:when|what(?!\s+if\b)|what'?s|whats|which|where|who|whose|why|how\s+(?:much|many|long|big|old|often|far)|"
     r"did|was|were|am|is|are|have|has)\b",
     re.I,
 )
@@ -194,11 +188,16 @@ def flag_on(env: Mapping[str, str] | None = None) -> bool:
 
 # A follow-up often opens with a joining word: "and how much am i paying for it a year", "so when is it
 # due", "ok what about the other one" (R4-CL review 2026-10-31, R38). The joining word is not the ask.
-_LEAD_IN_RE = re.compile(r"^\s*(?:(?:and|so|ok|okay|but|also|then|oh)\b[\s,.!-]*)+", re.I)
+_LEAD_IN_RE = re.compile(r"^\s*(?:(?:and|so|ok|okay|but|also|oh)\b[\s,.!-]*)+", re.I)
+# A question excuses its verb only when the whole turn is questions: "when is the rent due, then wire it"
+# and "what is my balance? pay it" carry an order after the question (money review 2026-10-31).
+_CLAUSE_SPLIT_RE = re.compile(r"[?.!;,]+|\s+(?:and\s+)?then\b", re.I)
 
 
 def is_question(text: str) -> bool:
-    return bool(_QUESTION_RE.search(_LEAD_IN_RE.sub("", str(text or ""), count=1)))
+    value = _LEAD_IN_RE.sub("", str(text or ""), count=1)
+    clauses = [c for c in _CLAUSE_SPLIT_RE.split(value) if c and c.strip(" ,-")]
+    return bool(clauses) and all(_QUESTION_RE.search(_LEAD_IN_RE.sub("", c, count=1)) for c in clauses)
 
 
 # Sending something out of this computer is RED even asked as a question ("can you upload my cv to
@@ -215,8 +214,6 @@ _OUTWARD_RECALL_RE = re.compile(
 def is_red(text: str) -> bool:
     value = str(text or "")
     if _MONEY_RE.search(value) or _DESTRUCTIVE_RE.search(value):
-        return True
-    if _ACCOUNT_RE.search(value) and (not is_question(value) or _MONEY_VERB_RE.search(value)):
         return True
     if _OUTWARD_RE.search(_OUTWARD_RECALL_RE.sub(" ", value)):
         return True
