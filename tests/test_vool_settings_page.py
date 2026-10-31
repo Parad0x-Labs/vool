@@ -370,4 +370,4 @@ def test_a_runtime_minted_key_is_listed_but_never_removable() -> None:
     guard = html.split("if (!isOperatorKey(c.name)) {", 1)[1].split("}", 1)[0]
     assert "return;" in guard, "a managed key would fall through to the Remove button"
     assert "'system'" in guard, "a managed key is not marked as one"
-    assert html.index("function isOperatorKey") < html.index("btn danger")
+    assert html.index("function isOperatorKey") < html.index("btn key-remove")
