@@ -90,6 +90,10 @@ def one_call_lane_applies(text: str, source_context: dict[str, Any] | None) -> b
         verdict = False
     if isinstance(source_context, dict):
         source_context[_APPLIES_KEY] = verdict
+        if verdict:
+            # Created with the verdict, at the turn's start, so every shallow copy of this
+            # context a later round runs under shares the one turn state (retry, held offer).
+            _turn_state(source_context)
     return verdict
 
 
@@ -224,6 +228,53 @@ ONE_CALL_TURN_STATE_KEY = "one_call_lane_turn_state"
 _TURN_STATE_KEY = "_one_call_lane_turn_state"
 
 
+def _turn_state(source_context: dict[str, Any]) -> dict[str, Any]:
+    state = source_context.get(_TURN_STATE_KEY)
+    if not isinstance(state, dict):
+        state = {}
+        source_context[_TURN_STATE_KEY] = state
+    return state
+
+
+#: turn-state key: the tool offer the turn's first round was given.
+_HELD_OFFER_KEY = "held_offer"
+
+
+def _spec_intent(spec: Any) -> str:
+    return str((spec or {}).get("intent") or "") if isinstance(spec, dict) else ""
+
+
+def hold_turn_offer(
+    specs: Any,
+    guidance: Any,
+    *,
+    expansions: tuple[str, ...],
+    user_text: str,
+    source_context: dict[str, Any] | None,
+) -> tuple[list[Any], Any]:
+    """The offer of a one-call turn's round: the offer its first round got, unchanged.
+
+    Measured 2026-10-31 (served, stub model): after a tool ran, the next round's offer gained six
+    seats (notes, disk, process, service and OCR tools) the first round never had, so the
+    model's cached prompt prefix was lost on every two-round turn. A later round's own words seat
+    nothing; a family the model expanded this turn (``capability.expand_family``) appends the
+    tools it seats after the held ones. Off the lane, ``specs`` and ``guidance`` are returned as
+    they came.
+    """
+    if not isinstance(source_context, dict) or not one_call_lane_applies(user_text, source_context):
+        return list(specs or ()), guidance
+    state = _turn_state(source_context)
+    held = state.get(_HELD_OFFER_KEY)
+    if not isinstance(held, dict):
+        state[_HELD_OFFER_KEY] = {"specs": list(specs or ()), "guidance": guidance, "expansions": tuple(expansions)}
+        return list(specs or ()), guidance
+    if tuple(held.get("expansions") or ()) != tuple(expansions):
+        seated = {_spec_intent(spec) for spec in held["specs"]}
+        held["specs"] = [*held["specs"], *(spec for spec in specs or () if _spec_intent(spec) not in seated)]
+        held["expansions"] = tuple(expansions)
+    return list(held["specs"]), held["guidance"]
+
+
 def mark_one_call_round(request: Any, text: str, source_context: dict[str, Any] | None) -> bool:
     """Mark a tool round of a one-call turn: the round key, think off, and the turn's shared state
     (so the one retry is per turn, not per round). False, and nothing marked, off the lane."""
@@ -233,11 +284,7 @@ def mark_one_call_round(request: Any, text: str, source_context: dict[str, Any] 
     if not isinstance(metadata, dict):
         return False
     metadata[ONE_CALL_ROUND_KEY] = True
-    state: dict[str, Any] = {}
-    if isinstance(source_context, dict):
-        existing = source_context.get(_TURN_STATE_KEY)
-        state = existing if isinstance(existing, dict) else {}
-        source_context[_TURN_STATE_KEY] = state
+    state: dict[str, Any] = _turn_state(source_context) if isinstance(source_context, dict) else {}
     metadata[ONE_CALL_TURN_STATE_KEY] = state
     try:
         from core.model_request_policy import REASONING_DISABLED

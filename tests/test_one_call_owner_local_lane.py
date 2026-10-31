@@ -256,6 +256,13 @@ def test_an_owner_ask_no_word_list_covers_reaches_the_model_holding_its_tool(lan
     # One call per step: the tool round, then at most the answer round (after a read tool the
     # loop's synthesis answers from the tool's evidence without tools).
     assert len(calls) <= 2, [c["prompt"][:80] for c in calls]
+    # Every round of the turn is offered the first round's offer, in the same order, under the
+    # same system prompt: the recorded payloads share their prefix, so the model's cache holds.
+    # (Before: after the tool ran, the next round gained six word seats -- notes, disk, process,
+    # service and OCR tools -- the first round never had.)
+    for later in calls[1:]:
+        assert later["tools"] == calls[0]["tools"], (calls[0]["tools"], later["tools"])
+        assert later["system"] == calls[0]["system"]
     # think off on every round; the local runner gets every core.
     assert all(c["think"] is not True for c in calls), [c["think"] for c in calls]
     assert all(c["options"].get("num_thread") == (os.cpu_count() or 1) for c in calls), [c["options"] for c in calls]
@@ -334,6 +341,10 @@ def test_a_write_the_model_proposes_still_waits_for_approval(lane_on: _Rig) -> N
     calls = _chat_calls(turn)
 
     assert calls and "workspace__write_file" in {n for c in calls for n in c["tools"]}, [c["tools"] for c in calls]
+    # The family the model expanded adds its tools AFTER the held offer: the first round's offer
+    # stays the prefix of every later round's.
+    for later in calls[1:]:
+        assert later["tools"][: len(calls[0]["tools"])] == calls[0]["tools"], (calls[0]["tools"], later["tools"])
     assert "workspace.write_file" not in turn.executed, (turn.executed, turn.reply)
     assert pending_session_approvals(lane_on.home, lane_on.last_session), (turn.kinds, turn.reply)
 

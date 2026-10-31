@@ -931,6 +931,17 @@ def assemble_tool_offer(
         if any(str(spec.get("intent") or "") != "respond.direct" for spec in narrowed):
             specs = narrowed
 
+    # The one-call owner-local lane (core.one_call_lane): every round of one turn is offered the
+    # offer its first round held, so the model's prefix cache holds across the rounds. Words a
+    # later round carries (a tool's result rides the round's text) seat nothing new; only a
+    # family the model itself expanded this turn adds its tools, after the held ones.
+    from core.one_call_lane import hold_turn_offer
+
+    specs, guidance = hold_turn_offer(
+        specs, guidance, expansions=tuple(expansions), user_text=str(user_text or ""),
+        source_context=source_context,
+    )
+
     from core.capability_graph import _CANONICAL_FAMILIES
 
     seated_families = tuple(
