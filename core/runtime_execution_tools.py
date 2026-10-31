@@ -166,6 +166,15 @@ _SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
 #: create in: "is my cat photo in Pictures", "which video is biggest". The owner chose read-only
 #: access on 2026-10-28. "Videos" is the Linux name for macOS's "Movies".
 _READ_ONLY_MACHINE_DIRECTORY_NAMES = ("Pictures", "Movies", "Videos", "Music")
+#: The owner's other visible home folders ("~/Projects", "~/Taxes") are READ-only too (owner's
+#: choice 2026-10-31): never written to. Never these: app and system data, not the owner's files.
+_NEVER_READ_HOME_DIRECTORY_NAMES = frozenset(
+    name.casefold()
+    for name in (
+        "Library", "Applications", "Applications (Parallels)", "System", "AppData", "Application Data",
+        "Local Settings", "snap", "Public", "Sites",
+    )
+)
 
 
 @dataclass
@@ -4774,14 +4783,49 @@ def _safe_machine_roots() -> tuple[Path, ...]:
 
 
 def _readable_machine_roots() -> tuple[Path, ...]:
-    """Every root a READ may resolve into: the write roots plus the read-only media folders.
+    """Every root a READ may resolve into: the write roots, the media folders, then the owner's
+    other visible home folders (read-only).
 
-    A media folder that is itself a link elsewhere (to "~", "/" or a library on another disk) is
-    left out: the folder the owner agreed to share is the one in their home, not what it points at.
+    A folder that is itself a link elsewhere (to "~", "/" or a library on another disk) is left
+    out: the folder the owner agreed to share is the one in their home, not what it points at.
+    Hidden folders and app or system data (`_NEVER_READ_HOME_DIRECTORY_NAMES`) are never roots.
     """
     home = _machine_home().resolve()
-    media = ((home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES)
-    return tuple(_safe_machine_roots()) + tuple(root for root in media if root.parent == home)
+    named = tuple(_safe_machine_roots()) + tuple(
+        root for root in ((home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES) if root.parent == home
+    )
+    return named + _other_home_folders(home, named)
+
+
+def _other_home_folders(home: Path, already: tuple[Path, ...]) -> tuple[Path, ...]:
+    try:
+        entries = sorted(os.scandir(home), key=lambda entry: entry.name.casefold())
+    except OSError:
+        return ()
+    taken = {root.name.casefold() for root in already}
+    try:
+        from core.runtime_paths import active_vool_home
+
+        vool_home = active_vool_home().resolve()
+    except Exception:
+        vool_home = None
+    found: list[Path] = []
+    for entry in entries:
+        name = entry.name
+        if name.startswith(".") or name.casefold() in taken or name.casefold() in _NEVER_READ_HOME_DIRECTORY_NAMES:
+            continue
+        try:
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                continue
+        except OSError:
+            continue
+        root = (home / name).resolve()
+        # VOOL's own data folder is VOOL's, not one of the owner's files to search or measure.
+        if vool_home is not None and (root == vool_home or root in vool_home.parents):
+            continue
+        if root.parent == home:
+            found.append(root)
+    return tuple(found)
 
 
 def _readable_root_labels() -> list[str]:
