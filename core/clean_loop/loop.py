@@ -23,7 +23,9 @@ _LOG = logging.getLogger(__name__)
 
 Brain = Callable[[list[dict[str, str]]], str]
 
-DEFAULT_MAX_STEPS = 6
+# Nine looks and a forced answer. Six ran out on asks that needed a find, a list and two reads (R4-CL
+# review 2026-10-31: R22 had the right files and stopped before reading them). Every step is read-only.
+DEFAULT_MAX_STEPS = 10
 _TOOL_RESULT_CHARS = 3000
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S | re.I)
 _DECODER = json.JSONDecoder()

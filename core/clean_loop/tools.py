@@ -55,14 +55,32 @@ def home_dir() -> Path:
 
 _NAME_ROOTS = ("Desktop", "Documents", "Downloads")
 _NAME_DEPTH = 3
-_NAME_ENTRIES = 3000
+_NAME_ENTRIES = 5000
 _NAME_TTL_S = 60.0
 _NAME_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
 
 
+def _name_roots(home: Path) -> list[Path]:
+    """Every folder the loop may read, in reverse order of priority (the walk takes the last first):
+    the media folders, then the owner's other visible home folders ("Projects", "Taxes"), then Desktop,
+    Documents and Downloads. The same roots the read tools use (R4-CL review 2026-10-31, R39: a
+    "Projects/garage sale" folder never let "garage sale" in)."""
+    named = [home / root for root in _NAME_ROOTS]
+    try:
+        from core.runtime_execution_tools import _READ_ONLY_MACHINE_DIRECTORY_NAMES, _other_home_folders
+
+        media = [home / name for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES]
+        media = [root for root in media if not root.is_symlink()]
+        others = list(_other_home_folders(home, tuple(named + media)))
+    except Exception:
+        return named
+    return media + others + named
+
+
 def file_words(home: Path) -> frozenset[str]:
-    """Distinctive words from the names of the owner's files in Desktop, Documents and Downloads
-    (three levels, 3000 entries, hidden entries and links skipped), kept for a minute. Names only:
+    """Distinctive words from the names of the owner's files in every readable folder (Desktop,
+    Documents, Downloads, the media folders and the other visible home folders; three levels, 5000
+    entries, hidden entries and links skipped), kept for a minute. Names only:
     nothing is opened. The route uses it to tell "which flat had the balcony" (there is a "flat
     viewing notes.md") from a general question."""
     from core.clean_loop.route import ask_words
@@ -74,7 +92,7 @@ def file_words(home: Path) -> frozenset[str]:
         return cached[1]
     words: set[str] = set()
     budget = _NAME_ENTRIES
-    stack = [(home / root, 0) for root in _NAME_ROOTS]
+    stack = [(root, 0) for root in _name_roots(home)]
     while stack and budget > 0:
         folder, depth = stack.pop()
         try:
