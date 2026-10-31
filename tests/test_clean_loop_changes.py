@@ -109,6 +109,25 @@ def test_a_change_outside_the_write_folders_or_a_delete_is_refused(home, ops):
     assert _snapshot(home) == before
 
 
+@pytest.mark.parametrize(
+    "ops",
+    [
+        [{"op": "mkdir", "path": "Desktop/.stash"}],
+        [{"op": "mkdir", "path": "Documents/.cache/notes"}],
+        [{"op": "write", "path": "Desktop/.notes.txt", "text": "x"}],
+        [{"op": "move", "src": "Desktop/todo.txt", "dst": "Desktop/.todo.txt"}],
+        [{"op": "move", "src": "Desktop/todo.txt", "dst": "Documents/.hidden/todo.txt"}],
+    ],
+)
+def test_a_change_never_makes_or_moves_into_a_hidden_name(home, ops):
+    # Every read lane skips names starting with "."; a change must not put anything where the
+    # owner (and VOOL's own reads) cannot see it (independent safety audit, 2026-10-31).
+    before = _snapshot(home)
+    with pytest.raises(changes.ChangeRefused, match=r"start with '\.'"):
+        changes.preview(home, ops)
+    assert _snapshot(home) == before
+
+
 def test_a_link_cannot_carry_a_change_out_of_the_write_folders(home, tmp_path):
     (tmp_path / "outside").mkdir()
     (home / "Desktop" / "escape").symlink_to(tmp_path / "outside")

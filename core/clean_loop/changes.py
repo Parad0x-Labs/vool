@@ -112,6 +112,10 @@ def _rel_inside(home: Path, raw: Any) -> str:
         raise ChangeRefused(f"I can only change things inside {', '.join(_WRITE_ROOTS)}: {text}")
     if len(parts) == 1:
         raise ChangeRefused(f"{parts[0]} itself cannot be changed")
+    # Every read lane skips hidden entries, so a change never creates, moves or renames into a name
+    # that hides (".stash/notes.txt", "Desktop/.cache"), where the owner could not see it in the folder.
+    if any(part.startswith(".") for part in parts):
+        raise ChangeRefused(f"I don't change files or folders whose names start with '.': {text}")
     return "/".join(parts)
 
 
