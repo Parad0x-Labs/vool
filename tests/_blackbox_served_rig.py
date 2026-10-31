@@ -104,6 +104,8 @@ class ScriptedProvider:
                             "path": self.path,
                             # The runner and reasoning knobs as sent (additive).
                             "think": body.get("think"),
+                            # Whether the call asked for a streamed reply (additive).
+                            "stream": body.get("stream"),
                             "options": dict(body.get("options") or {}),
                             "tools": [str(((t or {}).get("function") or {}).get("name") or "") for t in tools if isinstance(t, dict)],
                             "has_tool_result": has_tool_result,

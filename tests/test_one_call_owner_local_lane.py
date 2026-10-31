@@ -190,12 +190,13 @@ class _Rig:
         self.daemon.stop()
         self.provider.__exit__(None, None, None)
 
-    def turn(self, ask: str, *, mode: str = "auto", session: str = "") -> _Turn:
+    def turn(self, ask: str, *, mode: str = "auto", session: str = "", streamed: bool = False) -> _Turn:
         self._n += 1
         self.last_session = session or f"one-call-{self._n}"
         calls_before = len(self.provider.calls)
         events_before = len(_events(self.home))
-        payload = self.daemon.chat(ask, session_id=self.last_session, model=MODEL, mode=mode, timeout=240)
+        chat = self.daemon.chat_stream if streamed else self.daemon.chat
+        payload = chat(ask, session_id=self.last_session, model=MODEL, mode=mode, timeout=240)
         calls = list(self.provider.calls[calls_before:])
         events = _events(self.home)[events_before:]
         return _Turn(_reply_text(payload), calls, events)
@@ -261,33 +262,49 @@ def test_an_owner_ask_no_word_list_covers_reaches_the_model_holding_its_tool(lan
     assert turn.reply.strip(), turn.reply
 
 
-def test_a_prose_reply_on_a_tool_round_is_the_answer_in_one_call(lane_on: _Rig) -> None:
-    turn = lane_on.turn(KNOWLEDGE_ASK)
+#: The chat lanes a turn arrives on: the buffered reply and the streamed (NDJSON) one the served
+#: UI uses. On both, every round of a one-call turn is sent unstreamed (``stream: false``): the
+#: round's prose, cut and retry decisions are made before any of its text reaches the owner.
+CHAT_LANES = ["buffered", "streamed"]
+
+
+def _assert_rounds_unstreamed(calls: list[dict[str, Any]]) -> None:
+    assert calls and all(c["stream"] is False for c in calls), [c["stream"] for c in calls]
+
+
+@pytest.mark.parametrize("chat_lane", CHAT_LANES)
+def test_a_prose_reply_on_a_tool_round_is_the_answer_in_one_call(lane_on: _Rig, chat_lane: str) -> None:
+    turn = lane_on.turn(KNOWLEDGE_ASK, streamed=chat_lane == "streamed")
     calls = _chat_calls(turn)
 
+    _assert_rounds_unstreamed(calls)
     assert len(calls) == 1, [c["prompt"][:80] for c in calls]
     assert calls[0]["tools"], "the round offered no tools"
     assert KNOWLEDGE_REPLY in turn.reply, turn.reply
     assert turn.executed == [], turn.executed
 
 
-def test_a_reply_the_output_limit_cut_is_not_passed_off_as_complete(lane_on: _Rig) -> None:
+@pytest.mark.parametrize("chat_lane", CHAT_LANES)
+def test_a_reply_the_output_limit_cut_is_not_passed_off_as_complete(lane_on: _Rig, chat_lane: str) -> None:
     from core.one_call_lane import CUT_NOTE
 
-    turn = lane_on.turn(CUT_ASK)
+    turn = lane_on.turn(CUT_ASK, streamed=chat_lane == "streamed")
     calls = _chat_calls(turn)
 
+    _assert_rounds_unstreamed(calls)
     assert len(calls) == 1, [c["prompt"][:80] for c in calls]
     assert CUT_TEXT in turn.reply, turn.reply
     assert CUT_NOTE in turn.reply, turn.reply
 
 
-def test_prose_that_claims_a_read_no_tool_made_gets_one_retry_with_tools(lane_on: _Rig) -> None:
+@pytest.mark.parametrize("chat_lane", CHAT_LANES)
+def test_prose_that_claims_a_read_no_tool_made_gets_one_retry_with_tools(lane_on: _Rig, chat_lane: str) -> None:
     from core.one_call_lane import RETRY_INSTRUCTION
 
-    turn = lane_on.turn(CLAIM_ASK)
+    turn = lane_on.turn(CLAIM_ASK, streamed=chat_lane == "streamed")
     calls = _chat_calls(turn)
 
+    _assert_rounds_unstreamed(calls)
     retries = [c for c in calls if any(RETRY_INSTRUCTION in m["content"] for m in c["messages"])]
     assert len(retries) == 1, [c["prompt"][:80] for c in calls]
     assert turn.executed == ["operator.find_notes"], (turn.executed, turn.reply)
