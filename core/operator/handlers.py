@@ -830,7 +830,7 @@ def handle_make_directory(
         evidence_sources=["local_operator:make_directory"],
     )
     if already_present:
-        outcome = f"already existed, so nothing was changed"
+        outcome = "already existed, so nothing was changed"
     else:
         outcome = "is created" if verified else "could not be verified"
     return OperatorActionResult(
