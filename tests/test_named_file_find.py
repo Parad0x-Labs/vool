@@ -380,9 +380,21 @@ def test_a_present_file_ask_parses(text, expected):
 
 
 @pytest.mark.parametrize("text", [
+    "pull up my meeting notes", "show me the booking confirmation pdf", "open the dentist appointment invoice",
+])
+def test_a_document_about_an_event_is_still_a_file(text):
+    from core.execution.constants import machine_present_file_intent
+
+    assert machine_present_file_intent(text) is not None
+
+
+@pytest.mark.parametrize("text", [
     "read me my to do list", "find my phone", "copy notes.txt to desktop",
     # The storage scan's asks (test_operator_actions: 'find disk bloat in "<dir>"').
     'find disk bloat in "/tmp/somewhere"', "find the junk on my drive", "show me what's using space",
+    # Calendar and list items keep their own lanes (test_calendar_reads_person_path: the event row).
+    "show me the event called School play", "pull up my dentist appointment", "open the meeting called standup",
+    "show me the reminder about the bins",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent

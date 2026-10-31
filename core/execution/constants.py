@@ -1345,6 +1345,17 @@ _PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directorie
 _PRESENT_DEVICE_WORDS = frozenset({
     "phone", "phones", "laptop", "laptops", "computer", "computers", "pc", "mac", "tv", "tablet", "tablets",
 })
+# "show me the event called School play" asks the calendar for a row, and "pull up my dentist
+# appointment" or "show me the reminder about bins" ask VOOL's own lists: the object names a
+# calendar or list item, not words a file's name carries, so those lanes keep it.
+_PRESENT_ORGANIZER_WORDS = frozenset({
+    "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
+    "calendar", "calendars", "schedule", "agenda", "booking", "bookings", "contact", "birthday", "birthdays",
+})
+# ...unless the ask also names a document: "pull up my meeting notes", "the booking confirmation pdf".
+_PRESENT_DOCUMENT_WORDS = frozenset({
+    "notes", "minutes", "slides", "deck", "invoice", "receipt", "ticket", "tickets", "confirmation", "invite",
+})
 # "find disk bloat in <folder>" asks the storage scan what takes the space; the object names the
 # disk or the clutter, never words a file's name carries, so the cleanup lane keeps it.
 _PRESENT_STORAGE_WORDS = frozenset({
@@ -1386,6 +1397,9 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         return None  # "show me what you found" names nothing to search for
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS for word in kept):
+        return None
+    names_a_document = any(word in _PRESENT_KIND_WORDS or word in _PRESENT_DOCUMENT_WORDS for word in kept)
+    if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS for word in kept):
         return None
     rest = raw[: match.start()] + raw[match.end("cue"): match.start("obj")] + raw[offset:]
     if _FILE_OTHER_ACTION_RE.search(rest):
