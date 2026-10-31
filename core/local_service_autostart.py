@@ -25,6 +25,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from core.secret_env import child_env
 
 # Services currently being started, so a second concurrent request waits instead of spawning a duplicate.
 _STARTING: set[str] = set()
@@ -129,7 +130,7 @@ def ensure_service(svc: LocalService, *, sleep: Callable[[float], None] = time.s
                 log_handle = open(svc.log_path, "a", encoding="utf-8")  # noqa: SIM115 (lives for the child)
         try:
             child = launcher(
-                list(svc.argv), cwd=svc.cwd, env={**os.environ, **svc.env},
+                list(svc.argv), cwd=svc.cwd, env={**child_env(), **svc.env},
                 stdout=log_handle, stderr=log_handle, stdin=subprocess.DEVNULL,
                 start_new_session=True,  # detach: the server outlives this request
             )

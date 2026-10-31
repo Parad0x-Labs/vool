@@ -13,6 +13,7 @@ from pathlib import Path
 
 from core.updater.macos import _pid_has_exited
 from core.updater.state import UpdaterPaths, _atomic_write_json, _read_json
+from core.secret_env import child_env
 
 
 def _cgroup_units(path: Path = Path("/proc/self/cgroup")) -> set[str]:
@@ -126,7 +127,7 @@ def start_worker(subsystem, offer, txid: str, *, recovery: bool = False, rollbac
     })
     if not recovery and not rollback and not rollback_recovery:
         (root / "manifest.json").write_bytes(offer.raw)
-    env = dict(os.environ, PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
+    env = child_env(PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
                VOOL_HOME=str(subsystem.data_dir.resolve().parent))
     log = root / "worker.log"
     prefix = _systemd_scope_prefix(txid)

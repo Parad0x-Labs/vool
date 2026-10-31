@@ -30,6 +30,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from core.updater.platforms import BundleVerification, SwapOutcome
+from core.secret_env import child_env
 
 logger = logging.getLogger("vool.updater.macos")
 
@@ -301,7 +302,7 @@ class MacProcessHelper:
     def relaunch(self, app_path: Path) -> bool:
         command = self.relaunch_cmd or ["open", "-n", str(app_path)]
         try:
-            launch_env = dict(os.environ)
+            launch_env = child_env()
             # A detached updater executes a frozen private code copy. Its import
             # path and old native ownership belong to that worker, never to the
             # installed app being restarted after the swap.

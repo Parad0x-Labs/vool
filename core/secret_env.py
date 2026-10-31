@@ -17,9 +17,10 @@ Two rules follow, and this module holds both:
   of them. ``handoff_spawn_kwargs()`` lets a launcher (the native window's supervisor) send keys the
   same way, so the daemon is never started with them at all.
 
-Inside the running daemon the received values are set in ``os.environ`` again, so the provider code
-that reads them keeps working; that in-process copy is not part of the starting environment, and
-``child_env()`` keeps it from reaching any child. This module imports only the standard library so
+Inside the running daemon the received values are set in ``os.environ`` again (Python's mapping
+only, not the C environment), so the provider code that reads them keeps working; that in-process
+copy is not part of the starting environment, a child that inherits the C environment does not get
+it, and ``child_env()`` keeps it out of children given a copy of ``os.environ``. This module imports only the standard library so
 it can run before anything else in the daemon.
 """
 from __future__ import annotations
@@ -161,8 +162,22 @@ def receive_handoff(environ=None) -> dict[str, str]:
         raise SecretHandoffError("the key handoff pipe did not carry valid data") from exc
     if not isinstance(payload, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in payload.items()):
         raise SecretHandoffError("the key handoff pipe did not carry name/value pairs")
-    target.update(payload)
+    for key, value in payload.items():
+        _set_python_only(target, key, value)
     return payload
+
+
+def _set_python_only(target, key: str, value: str) -> None:
+    """Make ``key`` visible to Python code (``os.environ``/``os.getenv``) without ``putenv``.
+
+    A child started with the inherited C environment (``env=None``: git, helpers) then does not
+    receive the key; children given a copy of ``os.environ`` must go through ``child_env()``.
+    """
+    data = getattr(target, "_data", None)
+    if target is os.environ and isinstance(data, dict) and hasattr(target, "encodekey"):
+        data[target.encodekey(key)] = target.encodevalue(value)
+    else:
+        target[key] = value
 
 
 def shed_starting_secrets(argv: list[str] | None = None) -> None:

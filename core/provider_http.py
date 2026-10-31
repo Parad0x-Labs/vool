@@ -24,6 +24,7 @@ from pathlib import Path
 import requests as _requests
 from requests import HTTPError as HTTPError
 from requests import exceptions as exceptions
+from core.secret_env import child_env
 
 _MAX_BODY = 64 * 1024 * 1024
 _MAX_FRAME = 128 * 1024
@@ -81,7 +82,7 @@ class _Transfer:
         self.frames = queue.Queue(maxsize=8)
         wire = json.dumps({"method": method, "url": url, "options": options,
                            "deadline": self.deadline}).encode()
-        env = dict(os.environ)
+        env = child_env()
         for name in ("PYTHONPATH", "PYTHONSTARTUP", "PYTHONINSPECT"):
             env.pop(name, None)
         self.process = subprocess.Popen(
