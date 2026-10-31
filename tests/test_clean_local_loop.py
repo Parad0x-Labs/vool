@@ -622,7 +622,7 @@ def test_the_privacy_meter_counts_only_what_leaves(tmp_path, monkeypatch):
     assert privacy_meter.plain_line() == "Today nothing you wrote was sent to online AI models."
     privacy_meter.note_model_call(cloud, request)
     state = privacy_meter.today()
-    assert state["bytes"] == len("sys") + len("hello") + len("héllo".encode("utf-8")) and state["calls"] == 1
+    assert state["bytes"] == len("sys") + len("hello") + len("héllo".encode()) and state["calls"] == 1
     assert "cloudco" in privacy_meter.plain_line(state)
 
 

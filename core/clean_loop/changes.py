@@ -358,7 +358,7 @@ def _card(new_folders: list[str], ops: list[dict[str, Any]]) -> list[str]:
     lines += [f"new folder: {path}" for path in new_folders]
     moves = [f"move: {op['src']} -> {op['dst']}" for op in ops if op["op"] == "move"]
     if len(moves) > _CARD_MOVES:
-        moves = moves[:_CARD_MOVES] + [f"...and {len(moves) - _CARD_MOVES} more moves into the same folders"]
+        moves = [*moves[:_CARD_MOVES], f"...and {len(moves) - _CARD_MOVES} more moves into the same folders"]
     return lines + moves
 
 
@@ -499,9 +499,7 @@ def _matches(home: Path, ops: list[dict[str, Any]]) -> bool:
         if want is None:
             if info is not None:
                 return False
-        elif info is None or stat.S_ISLNK(info.st_mode):
-            return False
-        elif want == "dir" and not stat.S_ISDIR(info.st_mode):
+        elif info is None or stat.S_ISLNK(info.st_mode) or (want == "dir" and not stat.S_ISDIR(info.st_mode)):
             return False
         elif want.startswith("file:"):
             try:
@@ -763,10 +761,10 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
-    "ChangeRefused",
     "NEEDS_PERMISSION_TEXT",
-    "NeedsPermission",
+    "ChangeRefused",
     "Done",
+    "NeedsPermission",
     "Plan",
     "apply",
     "ask_undo",

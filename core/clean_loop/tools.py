@@ -639,12 +639,12 @@ def _without_promises(answer: str) -> str:
     if not text:
         return ""
     try:
-        from core.agent_runtime.action_honesty_validator import _DELIVERABLE_PROMISE_RE as promise
+        from core.agent_runtime.action_honesty_validator import _DELIVERABLE_PROMISE_RE as PROMISE_RE
     except Exception:
-        promise = _FUTURE_CHANGE_RE
+        PROMISE_RE = _FUTURE_CHANGE_RE
 
     def promised(part: str) -> bool:
-        return bool(promise.search(part) or _FUTURE_CHANGE_RE.search(part))
+        return bool(PROMISE_RE.search(part) or _FUTURE_CHANGE_RE.search(part))
 
     lines = []
     for line in text.split("\n"):

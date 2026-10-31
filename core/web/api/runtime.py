@@ -724,9 +724,7 @@ def ready_a_local_model_on_boot(
         return
     try:
         from core.local_model_policy import manifest_is_local
-        from core.local_model_readiness import ready_local_models
-
-        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS
+        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS, ready_local_models
 
         def _local_manifests() -> list[Any]:
             return [

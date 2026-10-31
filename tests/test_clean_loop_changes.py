@@ -362,7 +362,7 @@ def test_a_pattern_never_picks_up_a_link(home, tmp_path):
 
 def test_the_preview_writes_nothing_anywhere(home, tmp_path):
     before = {p for p in tmp_path.rglob("*")}
-    changes.preview(home, TIDY + [{"op": "write", "path": "Documents/a/b.txt", "text": "x"}])
+    changes.preview(home, [*TIDY, {"op": "write", "path": "Documents/a/b.txt", "text": "x"}])
     assert {p for p in tmp_path.rglob("*")} == before
 
 

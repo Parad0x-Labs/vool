@@ -10,7 +10,6 @@ runtime events, which the execution-truth ledger records), and any pending propo
 from __future__ import annotations
 
 import logging
-
 from typing import Any
 
 from core.clean_loop import route
