@@ -135,6 +135,15 @@ def test_money_words_stay_red_even_in_a_question(ask):
         ("what is the invoice total and then pay it", "red_turn"),
         ("ok what if you move the invoices to my desktop", "write_turn"),
         ("what is in the lease. now move it to my desktop", "write_turn"),
+        ("what is my balance and pay it", "red_turn"),
+        ("when is the rent due so wire it to the landlord", "red_turn"),
+        ("how much do i owe anna? reimburse her", "red_turn"),
+        ("is it ok to transfer my savings", "red_turn"),
+        ("are you able to settle the plumber's bill", "red_turn"),
+        ("what about paying the plumber", "red_turn"),
+        ("is it ok to move my invoices to the desktop", "write_turn"),
+        ("what's my sort code", "red_turn"),
+        ("what is my pin", "red_turn"),
     ],
 )
 def test_an_order_after_a_question_is_still_an_order(ask, reason):

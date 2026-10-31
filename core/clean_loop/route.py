@@ -31,7 +31,8 @@ FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 _RED_RE = re.compile(
-    r"\b(?:pay|paying|send|sending|transfer|wire|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|buy|purchase|sell|trade|swap|donate|tip\s+(?:him|her|them|the)|"
+    r"\b(?:pay|paying|send|sending|transfer|wire|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
+    r"unlock|lock|freeze|block|close\s+(?:it|the|my|this|that)|buy|purchase|sell|trade|swap|donate|tip\s+(?:him|her|them|the)|"
     r"order\s+(?:me|a|an|some)|book\s+(?:me|a|an)|reserve|subscribe|unsubscribe|cancel|"
     r"delete|deleting|remove|removing|erase|wipe|trash|shred|purge|clear\s+out|clean\s+out|clean\s+up|"
     r"empty\s+(?:the\s+)?(?:trash|bin)|get\s+rid|uninstall|install|kill|shut\s*down|reboot|restart\s+(?:it|my|the)|"
@@ -51,7 +52,8 @@ _DESTRUCTIVE_RE = re.compile(
     re.I,
 )
 _MONEY_RE = re.compile(
-    r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|(?:credit|debit)\s*-?\s*card|bank\s*-?\s*account|iban|cvv|cvc)\b", re.I
+    r"\b(?:wallet|crypto|bitcoin|btc|eth|solana|usdc|(?:credit|debit|visa)\s*-?\s*card|bank\s*-?\s*account|iban|cvv|cvc|"
+    r"card\s+number|security\s+code|sort\s+code|routing\s+number|pin|passwords?|mastercard|amex|paypal|venmo|zelle)\b", re.I
 )
 # A question asks for facts: "when do i have to pay the plumber by", "when did we move the audit to".
 # The verb inside it is the subject of the question, not an order (Mac hold-out 2026-10-28: both were
@@ -191,7 +193,21 @@ def flag_on(env: Mapping[str, str] | None = None) -> bool:
 _LEAD_IN_RE = re.compile(r"^\s*(?:(?:and|so|ok|okay|but|also|oh)\b[\s,.!-]*)+", re.I)
 # A question excuses its verb only when the whole turn is questions: "when is the rent due, then wire it"
 # and "what is my balance? pay it" carry an order after the question (money review 2026-10-31).
-_CLAUSE_SPLIT_RE = re.compile(r"[?.!;,]+|\s+(?:and\s+)?then\b", re.I)
+_CLAUSE_SPLIT_RE = re.compile(r"[?.!;,:&+/(\n\u2026]+|\s-\s|\s+(?:and\s+)?then\b|\s+(?:and|so|'n|n')\s+", re.I)
+# "is it ok to transfer my savings" asks permission for an order: polite, still RED.
+_PERMISSION_RE = re.compile(
+    r"\b(?:(?:is\s+it|would\s+it\s+be|it'?s)\s+(?:ok|okay|fine|alright|all\s+right)\s+(?:to|if)|"
+    r"(?:are|were)\s+you\s+able\s+to|(?:can|could|would|will)\s+you)\b",
+    re.I,
+)
+# In a question an order verb is the question's subject only right after its own subject: "when do i
+# have to pay the plumber", "how much am i paying". "what about paying anna" and "what is due next pay
+# it" are orders (money review 2026-10-31).
+_SUBJECT_BEFORE_RE = re.compile(r"\b(?:i|we|you|he|she|they|it)(?:\s+[\w']+){0,3}\s+$", re.I)
+
+
+def _verbs_are_the_questions_own(value: str, pattern: re.Pattern[str]) -> bool:
+    return all(_SUBJECT_BEFORE_RE.search(value[: match.start()]) for match in pattern.finditer(value))
 
 
 def is_question(text: str) -> bool:
@@ -217,12 +233,16 @@ def is_red(text: str) -> bool:
         return True
     if _OUTWARD_RE.search(_OUTWARD_RECALL_RE.sub(" ", value)):
         return True
-    return bool(_RED_RE.search(value)) and not is_question(value)
+    if not _RED_RE.search(value):
+        return False
+    return bool(_PERMISSION_RE.search(value)) or not is_question(value) or not _verbs_are_the_questions_own(value, _RED_RE)
 
 
 def is_write(text: str) -> bool:
     value = str(text or "")
-    return bool(_WRITE_RE.search(_RECALL_RE.sub(" ", value))) and not is_question(value)
+    if not _WRITE_RE.search(_RECALL_RE.sub(" ", value)):
+        return False
+    return bool(_PERMISSION_RE.search(value)) or not is_question(value)
 
 
 def change_reply(text: str) -> str:
