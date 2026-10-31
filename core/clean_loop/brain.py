@@ -141,7 +141,9 @@ def _prompt_token_ceiling(text: str) -> int:
     return max(1, (ascii_chars + 3) // 4 + (len(text) - ascii_chars))
 
 
-def _reserve_step(manifest: Any, context: dict[str, Any], messages: list[dict[str, str]]) -> tuple[Any, Any, dict[str, Any]]:
+def _reserve_step(
+    manifest: Any, context: dict[str, Any], messages: list[dict[str, str]], *, fallback_task_id: str = ""
+) -> tuple[Any, Any, dict[str, Any]]:
     """A paid cloud model's step reserves its own hold first, exactly as the router's paid gate needs.
 
     Each loop step is one call and gets one reservation sized for that call, under the owner's own
@@ -150,7 +152,12 @@ def _reserve_step(manifest: Any, context: dict[str, Any], messages: list[dict[st
     """
     from core.agent_runtime.builder.pinned_generation import _manifest_needs_paid_reservation
 
-    turn_task_id = str(context.get("task_id") or context.get("turn_id") or "").strip() or f"clean-loop-{uuid.uuid4().hex[:12]}"
+    # One id for the whole loop, so the per-task cap adds every step of this turn together.
+    turn_task_id = (
+        str(context.get("task_id") or context.get("turn_id") or "").strip()
+        or fallback_task_id
+        or f"clean-loop-{uuid.uuid4().hex[:12]}"
+    )
     task = _StepTask(
         task_id=turn_task_id,
         task_summary="clean loop step on the owner's own cloud model",
@@ -181,6 +188,8 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
     """A `messages -> text` callable over the router's provider seam for one manifest."""
     from adapters.base_adapter import ModelRequest
 
+    loop_task_id = f"clean-loop-{uuid.uuid4().hex[:12]}"
+
     def call(messages: list[dict[str, str]]) -> str:
         from core import runtime_active_clock
         from core.memory_first_router import _release_undispatched_pin_reservation
@@ -208,7 +217,7 @@ def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None
             cleanup_margin_seconds=0.0,
             reason="clean local loop step",
         )
-        authorization, task, context = _reserve_step(manifest, context, messages)
+        authorization, task, context = _reserve_step(manifest, context, messages, fallback_task_id=loop_task_id)
         try:
             _adapter, response, error = router._invoke_manifest(
                 manifest=manifest,
