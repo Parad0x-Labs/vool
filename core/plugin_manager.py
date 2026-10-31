@@ -16,6 +16,7 @@ from pathlib import Path
 from core import plugin_lifecycle as lifecycle
 from core.plugin_migration import reserved_refusal
 from core.plugin_package import PackageError, capture_package
+from core.plugin_paths import child_of
 from core.plugin_tools import PluginManifestError, confined_plugin_id, load_manifest, parse_manifest
 
 _LOCK = threading.RLock()
@@ -63,7 +64,10 @@ def _destination(plugin_id: str) -> Path:
         raise lifecycle.LifecycleError("Choose a valid plugin.")
     parent = configured_plugins_root() / "plugins"
     parent.mkdir(parents=True, exist_ok=True)
-    target = parent / plugin_id
+    try:
+        target = child_of(parent, plugin_id)
+    except ValueError:
+        raise lifecycle.LifecycleError("Choose a valid plugin.") from None
     if target.is_symlink() or target.resolve().parent != parent.resolve():
         raise lifecycle.LifecycleError("A linked plugin folder was preserved.")
     return target
@@ -191,10 +195,10 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
         raise lifecycle.LifecycleError("Review and accept this exact package before installing it.")
     with _LOCK:
         try:
-            saved = json.loads((_state() / "reviews" / (review_id + ".json")).read_text())
+            saved = json.loads(child_of(_state() / "reviews", review_id + ".json").read_text())
         except (OSError, ValueError):
             raise lifecycle.LifecycleError("The package review is missing. Review the folder again.") from None
-        stage = _state() / "pending" / review_id
+        stage = child_of(_state() / "pending", review_id)
         captured = capture_package(stage)
         if captured.digest != digest or saved["digest"] != digest or time.time() - saved["created_at"] > 86400:
             raise lifecycle.LifecycleError("The reviewed package changed or its review expired. Review it again.")
@@ -221,7 +225,7 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
                 prior_publisher = ""
             keys_follow = (_origin(previous.source) == _origin(new_source)
                            and prior_publisher == str(plugin.vool.get("publisher") or ""))
-        backup = _state() / "pending" / (review_id + "-previous")
+        backup = child_of(_state() / "pending", review_id + "-previous")
         moved = False
         try:
             if active:

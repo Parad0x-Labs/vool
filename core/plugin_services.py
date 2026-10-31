@@ -267,7 +267,10 @@ def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected
         transfer.check()
         raw = _connector(host, timeout=min(duration, 10), call=transfer.call)
         transfer.socket = raw
-        context = _tls_context or ssl.create_default_context()
+        context = _tls_context
+        if context is None:
+            context = ssl.create_default_context()
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
         secure = context.wrap_socket(raw, server_hostname=host, do_handshake_on_connect=False)
         transfer.socket = secure
         transfer.check()

@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from core import json_schema_lite
+from core.plugin_paths import inside
 
 IDENTITY = r"^[a-z][a-z0-9_-]{0,79}$"
 SEMVER = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
@@ -118,9 +119,10 @@ def package_command(value: str, root: Path) -> Path:
         raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
     if relative.name in {"npx", "uvx", "pip", "pip3", "npm", "curl", "wget"}:
         raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
-    result = (root / text).resolve()
-    if not result.is_relative_to(root.resolve()) or result == root.resolve():
-        raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.")
+    try:
+        result = inside(root, text)
+    except ValueError:
+        raise ValueError("This plugin tries to run something outside its own files, so VOOL won't start it.") from None
     return result
 
 

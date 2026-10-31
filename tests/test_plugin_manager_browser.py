@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -77,7 +78,7 @@ def test_owner_installs_reviews_connects_disables_updates_and_removes(package, t
         assert not lifecycle.is_available("sample-provider")
         card.get_by_role("button", name="Review access and enable", exact=True).click()
         consent = page.get_by_role("dialog", name="Review plugin access", exact=True)
-        assert "api.example.org" in consent.inner_text()
+        assert re.search(r"(?<![\w.-])api\.example\.org(?![\w.-])", consent.inner_text())
         assert "Your service key" in consent.inner_text()
         consent.get_by_role("button", name="Keep disabled", exact=True).click()
         assert not lifecycle.is_available("sample-provider")

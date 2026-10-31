@@ -8,6 +8,7 @@ import os
 import tempfile
 import time
 
+from core.plugin_paths import child_of
 from core.plugin_services import ServiceRefused, declaration, native_request, safe_data
 
 
@@ -101,7 +102,7 @@ def refresh_models(plugin_id: str) -> dict:
         with os.fdopen(descriptor, "w") as handle:
             json.dump({"approval_digest": record.approval_digest, "models": rows, "updated": time.time()}, handle)
         os.chmod(name, 0o600)
-        os.replace(name, folder / (plugin_id + ".json"))
+        os.replace(name, child_of(folder, plugin_id + ".json"))
     finally:
         with contextlib.suppress(OSError):
             os.unlink(name)
@@ -165,7 +166,7 @@ def cached_models(plugin_id: str) -> list[dict]:
         record, plugin = declaration(plugin_id, "model_provider")
         if money_governed(plugin.vool["model_provider"]["base_url"]):
             return []
-        cache = json.loads((data_path("plugin-models") / (plugin_id + ".json")).read_text())
+        cache = json.loads(child_of(data_path("plugin-models"), plugin_id + ".json").read_text())
         return cache["models"] if cache["approval_digest"] == record.approval_digest else []
     except (OSError, ValueError, KeyError, ServiceRefused):
         return []
