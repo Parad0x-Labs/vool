@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "У цьому плагіні є помилка налаштування, яку має виправити його автор: йому не можна пропонувати грошові інструменти. Він не був встановлений.",
     "addons.plugin_message_8d09b8409257": "Плагін не може зберігати ключі, що належать вам або іншому плагіну.",
     "addons.plugin_message_84ac804abfbf": "Кожен ключ служби повинен мати власну назву. Плагін не був встановлений.",
-    "addons.plugin_message_9ca0e140c639": "Цей плагін отримує свій ключ способом, який цей Mac не може приховати від інших програм, тому тут він залишається вимкненим. Плагіни, яким ключ не потрібен, продовжують працювати."
+    "addons.plugin_message_9ca0e140c639": "Цей плагін отримує свій ключ способом, який цей Mac не може приховати від інших програм, тому тут він залишається вимкненим. Плагіни, яким ключ не потрібен, продовжують працювати.",
+    "settings.row.hide_name_on_screen.label": "Приховувати моє ім’я на екрані",
+    "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
+    "settings.row.hide_name_on_screen.effect": "Діє негайно."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

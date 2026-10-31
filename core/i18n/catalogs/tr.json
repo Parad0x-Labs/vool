@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "Bu eklentide geliştiricisinin düzeltmesi gereken bir kurulum hatası var: para araçları sunamaz. Yüklenmedi.",
     "addons.plugin_message_8d09b8409257": "Bir eklenti, size veya başka bir eklentiye ait anahtarları tutamaz.",
     "addons.plugin_message_84ac804abfbf": "Her servis anahtarının kendi adı olmalı. Eklenti yüklenmedi.",
-    "addons.plugin_message_9ca0e140c639": "Bu eklenti anahtarını bu Mac’in diğer programlardan gizli tutamayacağı bir yolla alıyor, bu yüzden burada kapalı kalıyor. Anahtar gerektirmeyen eklentiler çalışmaya devam ediyor."
+    "addons.plugin_message_9ca0e140c639": "Bu eklenti anahtarını bu Mac’in diğer programlardan gizli tutamayacağı bir yolla alıyor, bu yüzden burada kapalı kalıyor. Anahtar gerektirmeyen eklentiler çalışmaya devam ediyor.",
+    "settings.row.hide_name_on_screen.label": "Ekranda adımı gizle",
+    "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
+    "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

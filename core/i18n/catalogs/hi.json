@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "इस प्लगइन में सेटअप की गलती है जिसे इसके निर्माता को ठीक करना है: इसे पैसे के टूल देने की अनुमति नहीं है। यह इंस्टॉल नहीं हुआ।",
     "addons.plugin_message_8d09b8409257": "प्लगइन ऐसी कुंजियाँ रख सकता नहीं जो आपकी हों या किसी दूसरे प्लगइन की।",
     "addons.plugin_message_84ac804abfbf": "हर सेवा कुंजी का अपना नाम होना चाहिए। यह इंस्टॉल नहीं हुआ।",
-    "addons.plugin_message_9ca0e140c639": "यह प्लगइन अपनी कुंजी ऐसे तरीके से लेता है जिसे यह Mac दूसरे प्रोग्रामों से निजी नहीं रख सकता, इसलिए यह यहाँ बंद रहता है। बिना कुंजी वाले प्लगइन अभी भी काम करते हैं।"
+    "addons.plugin_message_9ca0e140c639": "यह प्लगइन अपनी कुंजी ऐसे तरीके से लेता है जिसे यह Mac दूसरे प्रोग्रामों से निजी नहीं रख सकता, इसलिए यह यहाँ बंद रहता है। बिना कुंजी वाले प्लगइन अभी भी काम करते हैं।",
+    "settings.row.hide_name_on_screen.label": "स्क्रीन पर मेरा नाम छिपाएँ",
+    "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
+    "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "Šiame papildinyje yra sąrankos klaida, kurią turi ištaisyti jo kūrėjas: jam neleidžiama siūlyti pinigų įrankių. Jis nebuvo įdiegtas.",
     "addons.plugin_message_8d09b8409257": "Papildinys negali laikyti raktų, priklausančių jums ar kitam papildiniui.",
     "addons.plugin_message_84ac804abfbf": "Kiekvienas paslaugos raktas turi turėti savo pavadinimą. Jis nebuvo įdiegtas.",
-    "addons.plugin_message_9ca0e140c639": "Šis papildinys gauna savo raktą tokiu būdu, kurio „Mac“ kompiuteris negali apsaugoti nuo kitų programų, todėl jis čia lieka išjungtas. Papildiniai, kuriems nereikia rakto, vis dar veikia."
+    "addons.plugin_message_9ca0e140c639": "Šis papildinys gauna savo raktą tokiu būdu, kurio „Mac“ kompiuteris negali apsaugoti nuo kitų programų, todėl jis čia lieka išjungtas. Papildiniai, kuriems nereikia rakto, vis dar veikia.",
+    "settings.row.hide_name_on_screen.label": "Slėpti mano vardą ekrane",
+    "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
+    "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

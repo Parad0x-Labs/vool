@@ -3061,7 +3061,10 @@
     "addons.plugin_message_7038ceabccfe": "That check can't be opened. Start the check again.",
     "addons.plugin_message_0ef7c8054096": "This service needs a plugin that can pay for it. Switch that plugin on first.",
     "addons.plugin_message_2b8204c4d3b0": "This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time.",
-    "addons.plugin_message_fc0c95675725": "This name belongs to a plugin made by VOOL. Give your plugin a different name to install it."
+    "addons.plugin_message_fc0c95675725": "This name belongs to a plugin made by VOOL. Give your plugin a different name to install it.",
+    "settings.row.hide_name_on_screen.label": "Hide my name on screen",
+    "settings.row.hide_name_on_screen.help": "Turn this on before you stream or share your screen. VOOL then shows your home folder as ~, and your name and your computer's name as •••, here and on your phone. Only what you see changes: your files, chats and everything VOOL does stay the same. Text you are typing is not hidden.",
+    "settings.row.hide_name_on_screen.effect": "Applies immediately."
   },
   "html_keys": [
     "bypass.modal_limits",

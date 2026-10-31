@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "في هذه الإضافة خطأ في الإعداد يجب أن يصلحه صانعها: لا يُسمح لها بتقديم أدوات للمال. لم يتم تثبيتها.",
     "addons.plugin_message_8d09b8409257": "لا تستطيع الإضافة الاحتفاظ بمفاتيح تخصك أو تخص إضافة أخرى.",
     "addons.plugin_message_84ac804abfbf": "كل مفتاح خدمة يحتاج إلى اسم خاص به. لم يتم تثبيتها.",
-    "addons.plugin_message_9ca0e140c639": "تحصل هذه الإضافة على مفتاحها بطريقة لا يمكن لهذا Mac إبقاؤها خاصة بعيدًا عن البرامج الأخرى، لذلك تظل مطفأة هنا. الإضافات التي لا تحتاج إلى مفتاح لا تزال تعمل."
+    "addons.plugin_message_9ca0e140c639": "تحصل هذه الإضافة على مفتاحها بطريقة لا يمكن لهذا Mac إبقاؤها خاصة بعيدًا عن البرامج الأخرى، لذلك تظل مطفأة هنا. الإضافات التي لا تحتاج إلى مفتاح لا تزال تعمل.",
+    "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
+    "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
+    "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

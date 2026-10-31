@@ -1215,6 +1215,12 @@ _FIND_FOLDER_TIME_BUDGET_S = 10.0
 _FIND_FILE_MAX_MATCHES = 25
 
 
+def _squeezed_word_match(squeezed_needle: str, lowered_name: str) -> bool:
+    """``"day4"`` matches ``Day_4.png`` / ``day 4.jpg`` from a word start, never inside ``holiday4``."""
+    words = [word for word in re.split(r"[^0-9a-z]+", lowered_name) if word]
+    return any("".join(words[index:]).startswith(squeezed_needle) for index in range(len(words)))
+
+
 def _machine_find_file(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
@@ -1246,6 +1252,8 @@ def _machine_find_file(
             details={},
         )
     needle = name.lower()
+    # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
+    squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
     roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
@@ -1286,6 +1294,8 @@ def _machine_find_file(
                     lowered_name = entry.name.lower()
                     if lowered_name in _FIND_FOLDER_SKIP_DIRS:
                         continue
+                    if lowered_name.startswith(".") and not needle.startswith("."):
+                        continue  # hidden files and folders only when the person names one
                     try:
                         is_dir = entry.is_dir(follow_symlinks=False)
                     except OSError:
@@ -1297,7 +1307,9 @@ def _machine_find_file(
                             scanned_dirs += 1
                             queue.append((entry.path, depth + 1))
                         continue
-                    if needle in lowered_name:
+                    if needle in lowered_name or (
+                        len(squeezed_needle) >= 2 and _squeezed_word_match(squeezed_needle, lowered_name)
+                    ):
                         if not _first_visit(entry.path):
                             continue
                         matches.append(entry.path)
@@ -1472,6 +1484,29 @@ def _looks_like_a_name(word: str) -> bool:
     return token != token.lower()
 
 
+# The system's own volumes. Measured on the owner's Mac 2026-10-28: rooted at "/", a folder search
+# for "Desktop" printed /System/Library/Desktop Pictures, /Library/Caches/... and a /private/tmp path
+# naming the real account. The person's own folders are their home and the drives they plugged in.
+_SYSTEM_MOUNT_PREFIXES = ("/System/", "/private/", "/boot", "/snap/", "/dev", "/proc", "/sys", "/var/", "/usr/", "/efi")
+
+
+def _find_folder_roots() -> list[str]:
+    """Home first, then every other mounted drive that is not the system's own ("/" never)."""
+    from core import machine_diagnostics
+
+    home = str(_machine_home())
+    roots = [home] if os.path.isdir(home) else []
+    for row in machine_diagnostics.disk_usage():
+        mount = str(row.get("mount") or "")
+        if not mount or mount == "/" or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
+            continue
+        if mount.startswith("/run/") and not mount.startswith("/run/media/"):
+            continue
+        if mount not in roots:
+            roots.append(mount)
+    return roots
+
+
 def _machine_find_folder(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
@@ -1491,9 +1526,9 @@ def _machine_find_folder(
     import time as _time
     from collections import deque
 
-    from core import machine_diagnostics
 
     name = " ".join(str((arguments or {}).get("name") or (arguments or {}).get("query") or "").split()).strip(" .'\"")
+    wants_hidden = str((arguments or {}).get("name") or (arguments or {}).get("query") or "").strip(" '\"").startswith(".")
     if not name:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="missing_argument",
@@ -1596,7 +1631,7 @@ def _machine_find_folder(
     # on both sides before comparing. (Without this, a folder plainly visible in a listing reads as
     # "not found" the moment its name uses a different separator than the query — a real reported bug.)
     needle_sep = re.sub(r"[\s_\-]+", "", needle)
-    roots = [str(row.get("mount") or "") for row in machine_diagnostics.disk_usage() if str(row.get("mount") or "")]
+    roots = _find_folder_roots()
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="no_results",
@@ -1644,6 +1679,10 @@ def _machine_find_folder(
                     entry_name = entry.name
                     lowered_name = entry_name.lower()
                     if lowered_name in _FIND_FOLDER_SKIP_DIRS:
+                        continue
+                    if lowered_name.startswith(".") and not wants_hidden:
+                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
+                        # or walked unless the person names a dot-folder themselves.
                         continue
                     if _is_other_git_project(Path(entry.path), workspace_root=workspace_root):
                         continue

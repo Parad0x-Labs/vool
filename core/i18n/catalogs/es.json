@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "Este plugin tiene un error de configuración que su autor debe corregir: no se le permite ofrecer herramientas de dinero. No se ha instalado.",
     "addons.plugin_message_8d09b8409257": "Un plugin no puede guardar claves que te pertenezcan o pertenezcan a otro plugin.",
     "addons.plugin_message_84ac804abfbf": "Cada clave de servicio necesita su propio nombre. No se ha instalado.",
-    "addons.plugin_message_9ca0e140c639": "Este plugin recibe su clave de una forma que este Mac no puede mantener privada frente a otros programas, así que aquí permanece desactivado. Los plugins que no necesitan clave siguen funcionando."
+    "addons.plugin_message_9ca0e140c639": "Este plugin recibe su clave de una forma que este Mac no puede mantener privada frente a otros programas, así que aquí permanece desactivado. Los plugins que no necesitan clave siguen funcionando.",
+    "settings.row.hide_name_on_screen.label": "Ocultar mi nombre en pantalla",
+    "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
+    "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }

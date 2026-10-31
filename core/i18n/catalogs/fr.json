@@ -3061,14 +3061,18 @@
     "addons.plugin_message_033f0bddbe04": "Ce plugin contient une erreur de configuration que son auteur doit corriger : il n'est pas autorisé à proposer des outils pour l'argent. Il n'a pas été installé.",
     "addons.plugin_message_8d09b8409257": "Un plugin ne peut pas détenir des clés qui vous appartiennent ou appartiennent à un autre plugin.",
     "addons.plugin_message_84ac804abfbf": "Chaque clé de service doit avoir son propre nom. Il n'a pas été installé.",
-    "addons.plugin_message_9ca0e140c639": "Ce plugin reçoit sa clé d'une manière que ce Mac ne peut pas garder privée vis-à-vis des autres programmes, donc il reste désactivé ici. Les plugins qui n'ont besoin d'aucune clé continuent de fonctionner."
+    "addons.plugin_message_9ca0e140c639": "Ce plugin reçoit sa clé d'une manière que ce Mac ne peut pas garder privée vis-à-vis des autres programmes, donc il reste désactivé ici. Les plugins qui n'ont besoin d'aucune clé continuent de fonctionner.",
+    "settings.row.hide_name_on_screen.label": "Masquer mon nom à l’écran",
+    "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
+    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "a53d19ad067c3632d15cddb78f988e25f32e51e798d25ce3c1bd5a5aa14e57c7",
+  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
+    "language_picker_addendum": "2 keys translated by the lane author (single writer)",
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
   }
 }
