@@ -177,6 +177,27 @@ _COMING_UP_EVENT_RE = re.compile(
 _WAS_EVENT_RE = re.compile(r"\b(?:was|were)\s+" + _EVENT_SUBJECT, re.IGNORECASE)
 _AGENDA_WINDOW_WORD_RE = re.compile(r"\b" + _AGENDA_WINDOW + r"\b", re.IGNORECASE)
 _NAMED_EVENT_READ_RES = (_WHEN_EVENT_RE, _WHERE_EVENT_RE, _SOON_EVENT_RE, _SEEING_EVENT_RE, _COMING_UP_EVENT_RE)
+# The frames whose words are personal on their own ("am I seeing ...", "anything coming up with
+# ..."). The bare when/where/is-it-soon/was frames are not: "where is the eiffel tower", "where is
+# the bathroom", "when is the election" share their shape, so those frames claim only a subject
+# that names a thing people put on their own calendar.
+_PERSONAL_EVENT_FRAMES = (_SEEING_EVENT_RE, _COMING_UP_EVENT_RE)
+_PERSONAL_EVENT_NOUN_RE = re.compile(
+    r"\b(?:appointments?|meetings?|plays?|lessons?|class(?:es)?|practices?|parties|party|dinners?|lunch(?:es)?|"
+    r"breakfasts?|recitals?|rehearsals?|interviews?|dentist|doctor|check-?ups?|visits?|calls?|sessions?|"
+    r"trainings?|weddings?|birthdays?|anniversar(?:y|ies)|exams?|haircuts?|bookings?|reservations?|events?|"
+    r"retros?|stand-?ups?|ceremon(?:y|ies)|graduations?|recitals?|playdates?|sleepovers?|school\s+run|"
+    r"parents?\s+evening|vet|physio|therapy|surgery|scan|concerts?|shows?|gigs?)\b",
+    re.IGNORECASE,
+)
+# A place or a pick, not a booking: "where is the nearest doctor", "when is the best time to
+# visit" ask about the world even though they carry an event noun.
+_NOT_A_BOOKING_RE = re.compile(r"\b(?:nearest|closest|nearby|near\s+me|best|cheapest|good|open)\b", re.IGNORECASE)
+
+
+def _is_personal_event_subject(subject: str) -> bool:
+    """True when a bare when/where frame's subject names a thing on the person's own calendar."""
+    return bool(_PERSONAL_EVENT_NOUN_RE.search(subject)) and _NOT_A_BOOKING_RE.search(subject) is None
 _PROPOSE_EVENT_RE = re.compile(
     r'\bpropose\s+(?:a|an|the)?\s*(?:[\w-]+\s+){0,2}?(?:meeting|event|call|review|sync|appointment|slot)\b'
     r'|\bpropose\s+["\u201c]'
@@ -727,13 +748,13 @@ def _named_event_subject(words: str) -> str | None:
         if match is None:
             continue
         subject = str(match.group("evref") or "").strip()
-        if subject:
+        if subject and (pattern in _PERSONAL_EVENT_FRAMES or _is_personal_event_subject(subject)):
             return subject
     text = str(words or "")
     if _WAS_EVENT_RE.search(text) and _AGENDA_WINDOW_WORD_RE.search(text):
         match = _WAS_EVENT_RE.search(text)
         subject = str(match.group("evref") or "").strip()
-        if subject:
+        if subject and _is_personal_event_subject(subject):
             return subject
     return None
 

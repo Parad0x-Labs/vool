@@ -168,3 +168,26 @@ def test_whats_the_time_in_tokyo_never_touches_the_calendar(store):
     before = store["requests"]()
     result = turn(agent, "what's the time in Tokyo", session="fw-neg-clock")
     _assert_never_touched_the_store(result, before, store["requests"]())
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "where is the eiffel tower",
+        "where is the nearest pharmacy",
+        "where is the nearest doctor",
+        "where is the bathroom",
+        "where is the settings page",
+        "when is the world cup final",
+        "when is the election",
+        "when is the best time to plant tomatoes",
+    ],
+)
+def test_a_world_or_place_question_never_touches_the_calendar(store, ask):
+    """A bare when/where ask shares the named-event frame's shape, but a subject with no event of
+    the person's own (a landmark, a room, a public date) is not a calendar row: the store stays
+    untouched and no calendar lane answers "No event matching"."""
+    agent = make_agent()
+    before = store["requests"]()
+    result = turn(agent, ask, session="fw-neg-world")
+    _assert_never_touched_the_store(result, before, store["requests"]())
