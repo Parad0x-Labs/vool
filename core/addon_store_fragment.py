@@ -142,7 +142,7 @@ function render(query){
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
  rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);installedState(card,e);grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
- host.append(node('p',tr('plugin_scope','Being listed here doesn't mean VOOL recommends it.'),'addon-meta'));
+ host.append(node('p',tr('plugin_scope','Being listed here doesn’t mean VOOL recommends it.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
 }
 function nativeControlNotice(host,value){
@@ -363,7 +363,7 @@ function riskExplanation(ruleId){
   d.append(node('p',tr('risk_sensitive','This skill refers to files that may contain passwords, API keys or other private information.')),
    node('p',tr('risk_sensitive_worst','Worst case: if VOOL is allowed to read and share those files, secrets could leave your device and someone could use them to access your accounts.')));
  }else{
-  d.append(node('p',tr('plugin_risk_unknown','The scanner flagged a possible risk. VOOL can't explain this finding yet.')),
+  d.append(node('p',tr('plugin_risk_unknown','The scanner flagged a possible risk. VOOL can’t explain this finding yet.')),
    node('p',tr('risk_unknown_worst','Depending on the instructions and allowed access, harm could include private data being shared or unwanted changes. Review the finding and source before deciding.')));
  }
  d.append(node('p',tr('risk_limits','A warning is not proof of malicious intent; scanners can make mistakes. Enabling a skill adds instructions, not permissions. Existing permissions still apply.'),'addon-meta'));

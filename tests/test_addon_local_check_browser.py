@@ -124,7 +124,7 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         assert 'Key Flags' in local.inner_text() and 'table-row' in local.inner_text()
         finding.get_by_text('Why was this flagged?', exact=True).click()
         assert 'not proof of malicious intent' in finding.inner_text()
-        assert 'Advisory only' in local.inner_text()
+        assert 'This check is a hint, not a safety promise.' in local.inner_text()
         local.get_by_text('View local report', exact=True).click()
         assert 'vool-local' in local.locator('pre').inner_text()
         page.screenshot(path=str(tmp_path / 'local-check-findings.png'))
