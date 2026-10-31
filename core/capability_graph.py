@@ -1601,9 +1601,21 @@ def model_visible_specs(
 
     result_specs: list[dict[str, Any]] = []
     included: set[str] = set()
+    one_call_turn = False
+    if user_text and source_is_owner_local:
+        try:
+            from core.one_call_lane import one_call_lane_applies, seat_is_runnable
+
+            one_call_turn = one_call_lane_applies(user_text, source_context)
+        except Exception:
+            one_call_turn = False
 
     def _seat(intent: str, candidate: CapabilityCandidate | None = None) -> None:
         if intent in included or len(result_specs) >= seat_budget:
+            return
+        if one_call_turn and not seat_is_runnable(intent, source_context):
+            # The one-call lane seats by availability (core.one_call_lane): a mail or calendar
+            # tool with nothing connected is not offered as runnable.
             return
         if _intent_is_owner_only(intent):
             # An owner-only contract (an operator authorization mint) is NEVER offered to a

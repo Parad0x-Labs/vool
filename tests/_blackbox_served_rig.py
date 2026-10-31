@@ -31,6 +31,10 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+class CutReply(str):
+    """Scripted prose the model's output limit cut: served with ``done_reason: "length"``."""
+
+
 class ScriptedProvider:
     """An Ollama-dialect endpoint that answers from a table and records every call."""
 
@@ -98,6 +102,9 @@ class ScriptedProvider:
                             # not inside messages — record it or system-riding delivery is invisible.
                             "system": str(body.get("system") or "")[:20000],
                             "path": self.path,
+                            # The runner and reasoning knobs as sent (additive).
+                            "think": body.get("think"),
+                            "options": dict(body.get("options") or {}),
                             "tools": [str(((t or {}).get("function") or {}).get("name") or "") for t in tools if isinstance(t, dict)],
                             "has_tool_result": has_tool_result,
                             # Each message's role and content as sent, so a proof can say WHICH
@@ -132,7 +139,8 @@ class ScriptedProvider:
                         }
                     )
                 return self._send(
-                    {"model": model, "done": True, "done_reason": "stop", "message": {"role": "assistant", "content": text},
+                    {"model": model, "done": True, "done_reason": "length" if isinstance(reply, CutReply) else "stop",
+                     "message": {"role": "assistant", "content": text},
                      "prompt_eval_count": 40, "eval_count": 30}
                 )
 

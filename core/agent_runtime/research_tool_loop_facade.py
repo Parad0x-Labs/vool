@@ -1167,8 +1167,18 @@ class ResearchToolLoopFacadeMixin:
         # whole answer, given before any model can answer the question from its weights.
         from core.execution_requirements import calendar_not_connected_reply, email_not_connected_reply
 
-        mail_reply = email_not_connected_reply(effective_input, source_context)
-        calendar_reply = None if mail_reply else calendar_not_connected_reply(effective_input, source_context)
+        # The one-call owner-local lane (core.one_call_lane) seats by availability instead: a mail
+        # or calendar tool with nothing connected is not offered, the round is told which sources
+        # are not connected, and the claim gate corrects a reply that claims to have read one.
+        from core.one_call_lane import one_call_lane_applies
+
+        one_call_turn = one_call_lane_applies(
+            effective_input, source_context if isinstance(source_context, dict) else None
+        )
+        mail_reply = None if one_call_turn else email_not_connected_reply(effective_input, source_context)
+        calendar_reply = (
+            None if (mail_reply or one_call_turn) else calendar_not_connected_reply(effective_input, source_context)
+        )
         if calendar_reply:
             return {
                 "response": calendar_reply,
@@ -1204,7 +1214,7 @@ class ResearchToolLoopFacadeMixin:
         checkpoint_id = self._runtime_checkpoint_id(source_context)
         checkpoint = self._get_runtime_checkpoint(checkpoint_id) if checkpoint_id else None
         checkpoint_state = dict((checkpoint or {}).get("state") or {})
-        if self._should_keep_ai_first_chat_lane(
+        if not one_call_turn and self._should_keep_ai_first_chat_lane(
             user_input=effective_input,
             classification=classification,
             interpretation=interpretation,
@@ -1269,7 +1279,7 @@ class ResearchToolLoopFacadeMixin:
         # decides it from the raw words BEFORE the model is consulted -- see the comment block in
         # `core.execution.planner.should_attempt_tool_intent` naming that as its own known defect.
         # Recorded, not changed: `blocked` and `reached` return nothing and cannot raise.
-        if not self._should_attempt_tool_intent(
+        if not one_call_turn and not self._should_attempt_tool_intent(
             effective_input,
             task_class=str(classification.get("task_class", "unknown")),
             source_context=source_context,
@@ -1661,6 +1671,9 @@ class ResearchToolLoopFacadeMixin:
                         and not executed_steps
                         and not tool_use_retry_spent
                         and model_rounds < max_rounds
+                        # One-call lane: the round's own evidence decides its one retry
+                        # (core.one_call_lane.prose_round_outcome), never the words.
+                        and not one_call_turn
                     ):
                         # The ask needs a live source on this machine and the model answered in
                         # prose without calling anything: that prose is the fake action ("I'll

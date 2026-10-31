@@ -1052,6 +1052,15 @@ def _build_conversational_request(
         if owner_catalog_applies(str(user_text or ""), source_context):
             system_segments.append(("owner_catalog_directive", _PAYLOAD_ANSWER_BINDER, OWNER_CATALOG_DIRECTIVE))
             turn_directives.append(OWNER_CATALOG_DIRECTIVE)
+            # The one-call lane seats by availability (core.one_call_lane): the sources with
+            # nothing connected are named, so the reply says so instead of guessing.
+            from core.one_call_lane import not_connected_directive, one_call_lane_applies
+
+            if one_call_lane_applies(str(user_text or ""), source_context):
+                _not_connected = not_connected_directive(source_context)
+                if _not_connected:
+                    system_segments.append(("one_call_not_connected", _PAYLOAD_ANSWER_BINDER, _not_connected))
+                    turn_directives.append(_not_connected)
     from core.tool_use_retry import retry_directive
 
     _tool_use_retry = retry_directive(source_context)

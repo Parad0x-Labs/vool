@@ -1927,6 +1927,11 @@ class MemoryFirstRouter:
 
             if owner_catalog_applies(user_text_for_offer, source_context):
                 request.metadata[PROSE_IS_DIRECT_ANSWER_KEY] = True
+            # The one-call owner-local lane (core.one_call_lane): the adapter reads this round's
+            # prose as its answer (one evidence-based retry per turn, a length cut never complete).
+            from core.one_call_lane import mark_one_call_round
+
+            mark_one_call_round(request, user_text_for_offer, source_context)
             # Which offer this request carries: the same digest the prompt catalog's offer has.
             request.metadata["tool_offer_fingerprint"] = offer.fingerprint
             # A later contextual follow-up in the same session inherits this
@@ -3821,6 +3826,19 @@ class MemoryFirstRouter:
                 usage=response_completion_usage,
                 max_output_tokens=response_output_ceiling,
             )
+            if provider_completion.incomplete and (
+                dict(getattr(call_request, "metadata", None) or {}).get("one_call_prose_outcome") == "cut"
+            ):
+                # The one-call lane (core.one_call_lane) already published this length-cut prose as
+                # the turn's answer with a plain note that it is cut. A replacement round would be a
+                # second full generation on a CPU box, and emptying the structured round would drop
+                # the text and send the turn to research for two more calls.
+                provider_completion = inspect_provider_completion(
+                    response.output_text,
+                    finish_reason="stop",
+                    usage=response_completion_usage,
+                    max_output_tokens=response_output_ceiling,
+                )
             initial_provider_completion = provider_completion
             if provider_completion.incomplete and any(
                 "finish_reason:length" in str(reason) for reason in provider_completion.reasons
@@ -6103,6 +6121,11 @@ class MemoryFirstRouter:
 
             if owner_catalog_applies(user_text_for_offer, source_context):
                 request.metadata[PROSE_IS_DIRECT_ANSWER_KEY] = True
+            # The one-call owner-local lane (core.one_call_lane): the adapter reads this round's
+            # prose as its answer (one evidence-based retry per turn, a length cut never complete).
+            from core.one_call_lane import mark_one_call_round
+
+            mark_one_call_round(request, user_text_for_offer, source_context)
             # A later contextual follow-up in the same session inherits this
             # turn's families instead of receiving zero tools. The recorded set is what the
             # offer ACTUALLY seated (demand-signal and control-plane-session families

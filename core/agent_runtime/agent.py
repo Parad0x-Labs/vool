@@ -2657,6 +2657,22 @@ class VoolAgent(
             if browser_refusal is not None:
                 return _guard_final_result(browser_refusal)
 
+        # The one-call owner-local lane (core.one_call_lane): on the owner's own turn served by a
+        # local model the model decides, holding the owner catalog. No contract, conductor, plan,
+        # ambiguity probe or front-door fast path answers or splits the turn first; the checks
+        # that keep it safe (secret intake above, roots and approval in dispatch, the claim gates
+        # at finalization) are where they were. Flag off: this is False and nothing below changes.
+        from core.one_call_lane import one_call_lane_applies
+
+        one_call_turn = not browser_turn and one_call_lane_applies(semantic_text, runtime_source_context)
+        if one_call_turn:
+            self._emit_runtime_event(
+                runtime_source_context,
+                event_type="one_call_lane",
+                message="Owner-local turn on a local model: one model call per step with the owner catalog.",
+            )
+        skip_pre_model_lanes = browser_turn or one_call_turn
+
         _currency_may_claim_whole = True
         try:
             from core.agent_runtime.demand_ownership import (
@@ -2674,7 +2690,7 @@ class VoolAgent(
                 effective_input,
                 source_context=runtime_source_context,
             )
-            if _currency_may_claim_whole and not browser_turn
+            if _currency_may_claim_whole and not skip_pre_model_lanes
             else None
         )
         if currency_value_reply is not None:
@@ -2697,7 +2713,7 @@ class VoolAgent(
         # whose coverage owns the entire turn; mixed requests continue to the conductor below.
         from core.agent_runtime.turn_frontdoor import closed_semantic_contract_covers_turn
 
-        if not browser_turn and closed_semantic_contract_covers_turn(
+        if not skip_pre_model_lanes and closed_semantic_contract_covers_turn(
             semantic_text,
             session_id=session_id,
             source_context=source_context,
@@ -2743,7 +2759,7 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = None if browser_turn else self._maybe_answer_conductor_turn(
+        conductor_result = None if skip_pre_model_lanes else self._maybe_answer_conductor_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2764,7 +2780,7 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = None if browser_turn else self._maybe_answer_demand_owned_turn(
+        demand_owned_result = None if skip_pre_model_lanes else self._maybe_answer_demand_owned_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2781,7 +2797,7 @@ class VoolAgent(
         # multi-city weather clause ended up losing its own boundary. Returns None for anything
         # that is not LIVE_DATA-classified, or when the typed plan itself finds nothing to answer
         # -- the ordinary planner and every existing lane are untouched below.
-        live_data_result = None if browser_turn else self._maybe_answer_live_data_turn(
+        live_data_result = None if skip_pre_model_lanes else self._maybe_answer_live_data_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2792,7 +2808,7 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = None if browser_turn else self._maybe_answer_planned_turn(
+        planned_result = None if skip_pre_model_lanes else self._maybe_answer_planned_turn(
             effective_input=effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
@@ -2813,7 +2829,7 @@ class VoolAgent(
         # is served instead. No surface list: the eligibility gate is structural (ONE KNOW
         # demand, no attachments), which already excludes read/act verbs and multi-part
         # turns, and surfaces are caller-supplied strings a gate must not enumerate.
-        ambiguity_result = None if browser_turn else self._maybe_clarify_ambiguous_entity(
+        ambiguity_result = None if skip_pre_model_lanes else self._maybe_clarify_ambiguous_entity(
             effective_input=effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
@@ -2821,7 +2837,7 @@ class VoolAgent(
         if ambiguity_result is not None:
             return _guard_final_result(ambiguity_result)
 
-        frontdoor_bundle = {} if browser_turn else self._handle_turn_frontdoor(
+        frontdoor_bundle = {} if skip_pre_model_lanes else self._handle_turn_frontdoor(
             raw_user_input=semantic_text,
             effective_input=effective_input,
             normalized_input=normalized_input,

@@ -306,6 +306,14 @@ def prepare_turn_task_bundle(
         _pin_kind = str((source_context or {}).get("model_selection") or "").strip().lower()
         if operator_intent is not None and _pinned_model and _pin_kind != "sticky":
             operator_intent = None
+    if operator_intent is not None:
+        # The one-call owner-local lane (core.one_call_lane): the model, holding the owner
+        # catalog, decides what the words ask; the parser does not route the turn. Writes the
+        # model proposes keep their approval gate in dispatch.
+        from core.one_call_lane import one_call_lane_applies
+
+        if one_call_lane_applies(effective_input, source_context if isinstance(source_context, dict) else None):
+            operator_intent = None
     if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
         # A conversational/no-action constraint is decided before dispatch.  Let the reasoning
         # layer answer independent explanatory siblings; constructing and then rejecting a tool

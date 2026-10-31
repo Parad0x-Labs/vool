@@ -94,6 +94,18 @@ _FLAGS: tuple[RuntimeFlag, ...] = (
         ),
     ),
     RuntimeFlag(
+        name="owner_local_one_call_lane",
+        env_var="VOOL_OWNER_LOCAL_ONE_CALL_LANE",
+        default=True,
+        description=(
+            "On the owner's own turns answered by a local model, run one model call per step "
+            "with the owner catalog: think off, no planner clause split, no ambiguity probe, no "
+            "normalization assist and no fast path or word gate deciding first; a prose reply is "
+            "the answer, a source that is not connected is not offered, and the local runner "
+            "uses every core (core.one_call_lane). Off restores the earlier path exactly."
+        ),
+    ),
+    RuntimeFlag(
         name="capability_tool_dialect",
         env_var="VOOL_CAPABILITY_TOOL_DIALECT",
         default=True,

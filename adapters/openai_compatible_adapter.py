@@ -8,7 +8,7 @@ import os
 import re
 import time
 from dataclasses import replace
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 from adapters.base_adapter import ModelAdapter, ModelRequest, ModelResponse, ModelStreamChunk
@@ -759,50 +759,68 @@ class OpenAICompatibleAdapter(ModelAdapter):
             ),
         )
         headers = self._headers()
-        permit = seal_provider_invocation(
-            request=request,
-            provider_id=self.manifest.provider_id,
-            model_id=self.manifest.model_name,
-            operation="structured" if force_json else "chat",
-            payload=payload,
-            header_names=tuple(headers),
-        )
-        # Admission BEFORE the socket, so a queued turn does not burn its own read timeout waiting
-        # for a model that is busy with somebody else's turn. Measured at N=24 concurrent without
-        # this: 7 of 24 died on `Read timed out (read timeout=59.99)` having never been generated
-        # for. See core/local_model_admission.py.
-        with local_model_slot(provider_id=self.manifest.provider_id):
-            timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
-            body = permit.consume()
-            response = requests.post(
-                f"{base_url}/api/chat",
-                json=body,
-                headers=headers,
-                timeout=_request_timeout(timeout_seconds),
-                **_cancel_option(request),
+        _timeout_budget = timeout_seconds
+
+        def _post_and_read(round_payload: dict[str, Any]) -> tuple[dict[str, Any], tuple[CloudToolCall, ...], str]:
+            permit = seal_provider_invocation(
+                request=request,
+                provider_id=self.manifest.provider_id,
+                model_id=self.manifest.model_name,
+                operation="structured" if force_json else "chat",
+                payload=round_payload,
+                header_names=tuple(headers),
             )
-            _assert_response_timely(request, response)
-            _raise_for_status_with_cause(response)
-        if request.is_cancelled():
-            raise RuntimeError("model_call_cancelled")
-        data = response.json()
-        self._record_benchmark_best_effort(request=request, response_payload=data)
-        # A native tool call arrives beside `content`, not inside it, so it has to be read first
-        # or a model that emits a call plus a sentence of preamble looks like it only chatted.
+            # Admission BEFORE the socket, so a queued turn does not burn its own read timeout waiting
+            # for a model that is busy with somebody else's turn. Measured at N=24 concurrent without
+            # this: 7 of 24 died on `Read timed out (read timeout=59.99)` having never been generated
+            # for. See core/local_model_admission.py.
+            with local_model_slot(provider_id=self.manifest.provider_id):
+                round_timeout = effective_timeout_seconds(request, _timeout_budget)
+                body = permit.consume()
+                response = requests.post(
+                    f"{base_url}/api/chat",
+                    json=body,
+                    headers=headers,
+                    timeout=_request_timeout(round_timeout),
+                    **_cancel_option(request),
+                )
+                _assert_response_timely(request, response)
+                _raise_for_status_with_cause(response)
+            if request.is_cancelled():
+                raise RuntimeError("model_call_cancelled")
+            round_data = response.json()
+            self._record_benchmark_best_effort(request=request, response_payload=round_data)
+            # A native tool call arrives beside `content`, not inside it, so it has to be read first
+            # or a model that emits a call plus a sentence of preamble looks like it only chatted.
+            round_text = ""
+            round_calls: tuple[CloudToolCall, ...] = ()
+            if native_tools:
+                round_calls, round_text = _ollama_tool_calls_with_recovery(
+                    round_data, definitions=native_tools, request=request
+                )
+            if not round_text:
+                # `message.content` only — `message.thinking` is where `think: true` puts the reasoning
+                # and it is never the answer. Stripping a leading `<think>` block on top covers the
+                # older-Ollama / parser-off case where the block lands in `content` anyway. The STREAM
+                # path deliberately does not do this: tags span NDJSON frames, so a per-frame strip
+                # would cut a block it cannot see the end of.
+                round_text = strip_reasoning_block(_extract_ollama_chat_text(round_data))
+            return round_data, round_calls, round_text
+
         native_tools = self._ollama_native_tools(request)
-        output_text = ""
-        native_tool_calls: tuple[CloudToolCall, ...] = ()
-        if native_tools:
-            native_tool_calls, output_text = _ollama_tool_calls_with_recovery(
-                data, definitions=native_tools, request=request
+        data, native_tool_calls, output_text = _post_and_read(payload)
+        if (
+            bool(getattr(request, "tools_required", False))
+            and native_tools
+            and not native_tool_calls
+            and _one_call_round(request)
+        ):
+            # The one-call lane (core.one_call_lane): prose on a tool round is the answer; one
+            # retry only when that prose says it read owner data no tool read; a reply the output
+            # limit cut is never passed off as complete.
+            data, native_tool_calls, output_text = self._one_call_prose_round(
+                request, payload, data, output_text, native_tools, _post_and_read
             )
-        if not output_text:
-            # `message.content` only — `message.thinking` is where `think: true` puts the reasoning
-            # and it is never the answer. Stripping a leading `<think>` block on top covers the
-            # older-Ollama / parser-off case where the block lands in `content` anyway. The STREAM
-            # path deliberately does not do this: tags span NDJSON frames, so a per-frame strip
-            # would cut a block it cannot see the end of.
-            output_text = strip_reasoning_block(_extract_ollama_chat_text(data))
         if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
             prose_answer = _prose_as_direct_answer(request, native_tools, output_text)
             if prose_answer is not None:
@@ -853,6 +871,73 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 else None
             ),
         )
+
+    def _one_call_prose_round(
+        self,
+        request: ModelRequest,
+        payload: dict[str, Any],
+        data: dict[str, Any],
+        output_text: str,
+        native_tools: tuple[CloudToolDefinition, ...],
+        post_and_read: Callable[[dict[str, Any]], tuple[dict[str, Any], tuple[CloudToolCall, ...], str]],
+    ) -> tuple[dict[str, Any], tuple[CloudToolCall, ...], str]:
+        """A prose reply on a one-call round: the answer, a cut answer, or one retry with tools.
+
+        Local models do not honour tool_choice "required", so prose here is the model deciding no
+        tool. The one retry is paid only when that prose says it read the owner's data while no
+        tool ran (the claim gate's own read claims); a reply ``done_reason == "length"`` cut is
+        published with a plain note that it is incomplete, never as a complete answer. Empty
+        prose returns no call and keeps the lane's existing missing-call error.
+        """
+        from core.one_call_lane import (
+            RETRY_INSTRUCTION,
+            cut_reply,
+            prose_round_outcome,
+            retry_spent,
+            round_carries_tool_evidence,
+            spend_retry,
+        )
+
+        metadata = request.metadata if isinstance(getattr(request, "metadata", None), dict) else {}
+        outcome = prose_round_outcome(
+            output_text,
+            finish_reason=str(data.get("done_reason") or ""),
+            retried=retry_spent(request),
+            tool_evidence=round_carries_tool_evidence(payload.get("messages")),
+        )
+        if outcome == "retry":
+            spend_retry(request)
+            retry_payload = {
+                **payload,
+                "messages": [
+                    *list(payload.get("messages") or []),
+                    {"role": "assistant", "content": output_text},
+                    {"role": "user", "content": RETRY_INSTRUCTION},
+                ],
+            }
+            data, calls, output_text = post_and_read(retry_payload)
+            if calls:
+                metadata["one_call_prose_outcome"] = "retry_called_tool"
+                return data, calls, output_text
+            outcome = prose_round_outcome(
+                output_text, finish_reason=str(data.get("done_reason") or ""), retried=True
+            )
+        if outcome == "answer":
+            answer = str(output_text or "").strip()
+        elif outcome == "cut":
+            answer = cut_reply(output_text)
+        else:
+            return data, (), output_text
+        definition = next((d for d in native_tools if d.intent == "respond.direct"), None)
+        if definition is None:
+            return data, (), output_text
+        metadata["one_call_prose_outcome"] = outcome
+        digest = hashlib.sha256(answer.encode("utf-8")).hexdigest()[:16]
+        call = CloudToolCall(
+            call_id=f"one-call-prose-{digest}", intent="respond.direct", name=definition.name,
+            arguments={"message": answer},
+        )
+        return data, (call,), canonical_intent_text(call)
 
     def _stream_openai_compatible(self, request: ModelRequest):
         # The same ONE coherent dispatch binding as the buffered path (review F3): the stream
@@ -1413,7 +1498,15 @@ class OpenAICompatibleAdapter(ModelAdapter):
         prewarm -- takes these keys from this one seam so they all name ONE runner.
         """
         budget = get_active_compute_budget()
-        options: dict[str, Any] = {"num_thread": int(max(1, budget.cpu_threads))}
+        threads = int(max(1, budget.cpu_threads))
+        from core.one_call_lane import lane_enabled, runner_threads
+
+        if lane_enabled():
+            # The one-call lane (core.one_call_lane): the local runner uses every core. Measured
+            # 2026-10-31: the balanced budget's cores // 2 ran qwen3:8b at 1-2.6 tokens/s on a
+            # 4-CPU box. Every payload reads this one seam, so all of them still name ONE runner.
+            threads = max(threads, runner_threads())
+        options: dict[str, Any] = {"num_thread": threads}
         context_window = self._ollama_context_window(request)
         if context_window > 0:
             options["num_ctx"] = context_window
@@ -2688,6 +2781,13 @@ def _extract_ollama_tool_call_text(
     return json.dumps(
         {"intent": calls[0].intent, "arguments": dict(calls[0].arguments)}, ensure_ascii=False
     )
+
+
+def _one_call_round(request: ModelRequest | None) -> bool:
+    """Whether the router marked this request as a round of the one-call lane (core.one_call_lane)."""
+    from core.one_call_lane import request_is_one_call_round
+
+    return request_is_one_call_round(request)
 
 
 def _owner_catalog_round(request: ModelRequest | None) -> bool:
