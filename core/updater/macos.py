@@ -26,6 +26,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -302,7 +303,11 @@ class MacProcessHelper:
     def relaunch(self, app_path: Path) -> bool:
         command = self.relaunch_cmd or ["open", "-n", str(app_path)]
         try:
-            launch_env = child_env()
+            # On a Mac the relaunched app gets no keys from here: `open` cannot carry a key pipe,
+            # and any same-user program can read a starting environment there. Linux restarts
+            # through Start_VOOL.sh, which needs the keys VOOL started with (a file key store's
+            # passphrase); the daemon then moves them out of its own starting environment.
+            launch_env = child_env() if sys.platform == "darwin" else dict(os.environ)
             # A detached updater executes a frozen private code copy. Its import
             # path and old native ownership belong to that worker, never to the
             # installed app being restarted after the swap.
