@@ -13,6 +13,11 @@ The brain is local when:
   registered local model has passed its final-answer check (the model the person made ready).
 
 `VOOL_CLEAN_LOOP_MODEL` pins one registered local model by name, for measurement runs.
+
+With `VOOL_CLEAN_LOOP_CLOUD` on (default OFF), a turn the owner's own cloud model would answer runs the
+same loop on that model: the model the owner pinned for the turn, or the cloud model they saved for
+Auto. Only the owner's own local turn gets this (the route checks that first), so a remote or phone
+turn never spends the owner's key here.
 """
 from __future__ import annotations
 
@@ -21,6 +26,8 @@ from collections.abc import Callable
 from typing import Any
 
 MODEL_ENV = "VOOL_CLEAN_LOOP_MODEL"
+CLOUD_ENV = "VOOL_CLEAN_LOOP_CLOUD"
+_TRUTHY = {"1", "true", "yes", "on"}
 _CALL_SECONDS = float(os.environ.get("VOOL_CLEAN_LOOP_CALL_SECONDS", "120") or 120)
 _MAX_OUTPUT_TOKENS = 700
 
@@ -83,6 +90,40 @@ def resolve_local_manifest(router: Any, source_context: dict[str, Any] | None) -
     return next((m for m in local if _ready(m)), None)
 
 
+def cloud_enabled(env: Any = None) -> bool:
+    return str((env if env is not None else os.environ).get(CLOUD_ENV) or "").strip().lower() in _TRUTHY
+
+
+def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -> Any | None:
+    """The owner's own cloud manifest for this turn (pinned, or saved for Auto), or None."""
+    if not cloud_enabled():
+        return None
+    context = dict(source_context or {})
+    requested = str(context.get("requested_model") or "").strip()
+    try:
+        from core.auto_local_only_mode import is_auto_selection
+
+        auto = not requested or bool(is_auto_selection(requested))
+    except Exception:
+        auto = requested.lower() in {"auto", ""}
+    if auto:
+        try:
+            from core.cloud_only_default import default_for_auto_turn
+            from core.request_trust import request_is_owner_local
+
+            saved = default_for_auto_turn(owner_local=request_is_owner_local(context))
+        except Exception:
+            saved = ""
+        if not saved:
+            return None
+        context["requested_model"] = saved
+    try:
+        manifest = router._requested_model_manifest(context)
+    except Exception:
+        return None
+    return manifest if manifest is not None and not _is_local(manifest) else None
+
+
 def make_brain(router: Any, manifest: Any, source_context: dict[str, Any] | None) -> Callable[[list[dict[str, str]]], str]:
     """A `messages -> text` callable over the router's provider seam for one manifest."""
     from adapters.base_adapter import ModelRequest
@@ -130,4 +171,12 @@ def model_label(manifest: Any) -> tuple[str, str]:
     return str(getattr(manifest, "provider_id", "") or ""), str(getattr(manifest, "model_name", "") or "")
 
 
-__all__ = ["MODEL_ENV", "make_brain", "model_label", "resolve_local_manifest"]
+__all__ = [
+    "CLOUD_ENV",
+    "MODEL_ENV",
+    "cloud_enabled",
+    "make_brain",
+    "model_label",
+    "resolve_cloud_manifest",
+    "resolve_local_manifest",
+]

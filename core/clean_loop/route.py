@@ -12,7 +12,8 @@
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files), and not a live/online
    question, which the online lanes own.
-5. The brain that would answer is a local model (resolved last: it is the only costly check).
+5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on the owner's own cloud model
+   (resolved last: it is the only costly check).
 """
 from __future__ import annotations
 

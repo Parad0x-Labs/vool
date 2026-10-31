@@ -105,11 +105,18 @@ def maybe_answer(
     if settled is not None:
         return settled
     router = getattr(agent, "memory_router", None)
+    brain_kind = {"local": True}
 
     def _resolve() -> Any:
-        from core.clean_loop.brain import resolve_local_manifest
+        from core.clean_loop import brain
 
-        return resolve_local_manifest(router, context) if router is not None else None
+        if router is None:
+            return None
+        local = brain.resolve_local_manifest(router, context)
+        if local is not None:
+            return local
+        brain_kind["local"] = False
+        return brain.resolve_cloud_manifest(router, context)
 
     def _file_words() -> set[str]:
         from core.clean_loop.tools import file_words, home_dir
@@ -146,6 +153,16 @@ def maybe_answer(
         loop_result.think_ms,
         sum(int(step.get("tool_ms") or 0) for step in loop_result.steps),
     )
+    if (
+        loop_result.stopped == "brain_error"
+        and not loop_result.tools_used
+        and not loop_result.proposals
+        and not brain_kind["local"]
+    ):
+        # The owner's cloud model did not answer: the normal pipeline owns its own provider errors
+        # and wording, so nothing here claims a local-memory cause.
+        context["clean_local_loop_route"] = "cloud_brain_error_fell_through"
+        return None
     if loop_result.stopped == "brain_error" and not loop_result.tools_used and not loop_result.proposals:
         # The local model never answered (VOOL refuses to load it on low memory). This ask is about
         # the owner's own things, and the old pipeline answered such asks on the Mac by listing

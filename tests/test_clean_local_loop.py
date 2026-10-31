@@ -702,3 +702,92 @@ def test_a_shortened_file_name_is_put_back_only_when_it_is_unambiguous():
     assert fixed == "On your desktop: flat viewing notes.md, Screenshot 2026-10-20 at 11.40.png and todo.txt."
     result.seen.append("- old notes.md (1 bytes, modified 2026-10-22, today)")
     assert exact_names("You have notes.md", result) == "You have notes.md"
+
+
+# --- the owner's own cloud model (VOOL_CLEAN_LOOP_CLOUD) ----------------------------------------
+
+
+class _Manifest:
+    def __init__(self, provider_id: str, model_name: str, local: bool):
+        self.provider_id, self.model_name, self.local = provider_id, model_name, local
+
+
+class _Router:
+    def __init__(self, *manifests: _Manifest):
+        self.manifests = list(manifests)
+
+    def _requested_model_manifest(self, context):
+        wanted = str((context or {}).get("requested_model") or "")
+        return next((m for m in self.manifests if wanted in {m.provider_id, m.model_name}), None)
+
+
+@pytest.fixture
+def cloud_brain(monkeypatch):
+    from core.clean_loop import brain as brain_module
+
+    monkeypatch.setattr(brain_module, "_is_local", lambda manifest: bool(getattr(manifest, "local", False)))
+    return brain_module
+
+
+def test_the_cloud_brain_is_off_by_default(cloud_brain, monkeypatch):
+    monkeypatch.delenv(cloud_brain.CLOUD_ENV, raising=False)
+    router = _Router(_Manifest("openrouter:glm", "glm-5.3-flashx", local=False))
+    assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "glm-5.3-flashx", **OWNER}) is None
+
+
+def test_the_cloud_brain_is_the_model_the_owner_pinned(cloud_brain, monkeypatch):
+    monkeypatch.setenv(cloud_brain.CLOUD_ENV, "1")
+    cloud = _Manifest("openrouter:glm", "glm-5.3-flashx", local=False)
+    local = _Manifest("ollama:qwen", "qwen3:8b", local=True)
+    router = _Router(cloud, local)
+    assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "glm-5.3-flashx", **OWNER}) is cloud
+    # A pinned local model is never the cloud brain (the local resolver owns it).
+    assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "qwen3:8b", **OWNER}) is None
+
+
+def test_the_cloud_brain_on_auto_is_the_saved_cloud_default_only(cloud_brain, monkeypatch):
+    from core import cloud_only_default
+
+    monkeypatch.setenv(cloud_brain.CLOUD_ENV, "1")
+    cloud = _Manifest("openrouter:glm", "glm-5.3-flashx", local=False)
+    router = _Router(cloud)
+    monkeypatch.setattr(cloud_only_default, "default_for_auto_turn", lambda owner_local: "")
+    assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "auto", **OWNER}) is None
+    monkeypatch.setattr(cloud_only_default, "default_for_auto_turn", lambda owner_local: "glm-5.3-flashx")
+    assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "auto", **OWNER}) is cloud
+
+
+def test_the_hook_runs_the_loop_on_the_owners_cloud_model(home, monkeypatch):
+    from core.clean_loop import brain as brain_module
+    from core.clean_loop import hook
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setattr(brain_module, "resolve_local_manifest", lambda router, ctx: None)
+    monkeypatch.setattr(brain_module, "resolve_cloud_manifest", lambda router, ctx: "cloud-manifest")
+    monkeypatch.setattr(brain_module, "model_label", lambda manifest: ("openrouter", "glm-5.3-flashx"))
+    script = _scripted(['{"tool": "read_file", "path": "Desktop/todo.txt"}', '{"answer": "Renew car insurance."}'])
+    monkeypatch.setattr(brain_module, "make_brain", lambda router, manifest, ctx: script)
+    result = hook.maybe_answer(
+        _Agent(), text="whats on my to do list", effective_input="x", session_id="sess-cloud", source_context=dict(OWNER)
+    )
+    assert result is not None and result["response"] == "Renew car insurance."
+    assert result["model_execution"]["model_id"] == "glm-5.3-flashx"
+
+
+def test_a_cloud_brain_error_falls_through_without_the_local_memory_text(home, monkeypatch):
+    from core.clean_loop import brain as brain_module
+    from core.clean_loop import hook
+
+    def failed(messages):
+        raise RuntimeError("provider_timeout")
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+    monkeypatch.setattr(brain_module, "resolve_local_manifest", lambda router, ctx: None)
+    monkeypatch.setattr(brain_module, "resolve_cloud_manifest", lambda router, ctx: "cloud-manifest")
+    monkeypatch.setattr(brain_module, "model_label", lambda manifest: ("openrouter", "glm-5.3-flashx"))
+    monkeypatch.setattr(brain_module, "make_brain", lambda router, manifest, ctx: failed)
+    context = dict(OWNER)
+    result = hook.maybe_answer(
+        _Agent(), text="whats on my desktop", effective_input="x", session_id="sess-cloud-err", source_context=context
+    )
+    assert result is None and context["clean_local_loop_route"] == "cloud_brain_error_fell_through"
