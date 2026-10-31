@@ -289,3 +289,20 @@ def test_mac_daemon_dev_start_holds_no_key_in_its_starting_environment(tmp_path)
                 os.killpg(proc.pid, 9)
                 proc.wait(5)
         log.close()
+
+
+def test_legacy_name_mirror_keeps_a_key_out_of_inherited_child_environments(monkeypatch):
+    from core.env_compat import apply_legacy_nulla_env
+
+    key = _fake()
+    monkeypatch.setenv("NULLA_OPENAI_API_KEY", key)
+    monkeypatch.setenv("NULLA_SAMPLE_SETTING", "on")
+    monkeypatch.delenv("VOOL_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("VOOL_SAMPLE_SETTING", raising=False)
+    try:
+        apply_legacy_nulla_env()
+        assert os.environ.get("VOOL_OPENAI_API_KEY") == key and os.environ.get("VOOL_SAMPLE_SETTING") == "on"
+        out = subprocess.run(["/usr/bin/env"], capture_output=True, text=True, timeout=10).stdout
+        assert "VOOL_OPENAI_API_KEY=" not in out and "VOOL_SAMPLE_SETTING=on" in out
+    finally:
+        os.environ.pop("VOOL_OPENAI_API_KEY", None)

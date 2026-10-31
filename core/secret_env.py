@@ -163,11 +163,11 @@ def receive_handoff(environ=None) -> dict[str, str]:
     if not isinstance(payload, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in payload.items()):
         raise SecretHandoffError("the key handoff pipe did not carry name/value pairs")
     for key, value in payload.items():
-        _set_python_only(target, key, value)
+        set_in_process_only(target, key, value)
     return payload
 
 
-def _set_python_only(target, key: str, value: str) -> None:
+def set_in_process_only(target, key: str, value: str) -> None:
     """Make ``key`` visible to Python code (``os.environ``/``os.getenv``) without ``putenv``.
 
     A child started with the inherited C environment (``env=None``: git, helpers) then does not
@@ -195,7 +195,7 @@ def load_provider_env_secrets(runtime_home: str | None = None) -> list[str]:
     loaded: list[str] = []
     for key, value in load_provider_env_overrides(home).items():
         if value and is_secret_env_name(key) and not str(os.environ.get(key) or "").strip():
-            _set_python_only(os.environ, key, value)
+            set_in_process_only(os.environ, key, value)
             loaded.append(key)
     return loaded
 
