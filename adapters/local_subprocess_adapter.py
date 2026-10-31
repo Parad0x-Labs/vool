@@ -11,6 +11,7 @@ from typing import Any
 
 from adapters.base_adapter import ModelAdapter, ModelRequest, ModelResponse
 from core.provider_invocation_gateway import seal_provider_invocation
+from core.secret_env import child_env
 
 
 class LocalSubprocessAdapter(ModelAdapter):
@@ -48,7 +49,7 @@ class LocalSubprocessAdapter(ModelAdapter):
         # Preparation and process creation consume this same budget. Starting
         # a new timer after Popen would extend the enclosing turn deadline.
         deadline = timeout_started + timeout_seconds
-        env = os.environ.copy()
+        env = child_env()
         env.update({str(k): str(v) for k, v in dict(self.manifest.runtime_config.get("env") or {}).items()})
         env.update({str(k): str(v) for k, v in extra_env.items()})
         env.setdefault("VOOL_PROVIDER_NAME", self.manifest.provider_name)

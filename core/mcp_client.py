@@ -22,6 +22,7 @@ import json
 import queue
 import re
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -257,6 +258,11 @@ class MCPStdioClient:
         # The isolated runtime takes keys on the child's input, never in a host process's
         # environment, where any same-user program on a Mac could read them.
         private_input = isinstance(argv, ContainerCommand)
+        if sys.platform == "darwin" and self.env and not private_input:
+            # Outside the isolated runtime these values would sit in the server's starting
+            # environment, which any same-user program on a Mac can read (KERN_PROCARGS2).
+            raise MCPError(f"{self.name}: this server needs keys, and on a Mac a server with keys runs only "
+                           "in the isolated runtime, which is not available here")
         full_env = build_child_env(
             env_allowlist=tuple(self.env_allowlist or ()),
             secrets={} if private_input else dict(self.env or {}),

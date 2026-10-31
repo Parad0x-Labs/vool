@@ -36,6 +36,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from core.secret_env import child_env
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 _CHILD_SCRIPT = (
@@ -90,7 +92,7 @@ class ImportConformanceReport:
 
 
 def _child_environment(scratch: str) -> dict[str, str]:
-    env = dict(os.environ)
+    env = child_env()
     # The check must never touch operator credential state: pin the child to a
     # throwaway home with non-interactive file-backed storage (C15 discipline).
     env["VOOL_HOME"] = str(Path(scratch) / "home")

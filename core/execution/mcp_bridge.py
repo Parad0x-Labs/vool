@@ -190,6 +190,9 @@ def _client_for(server: str) -> MCPStdioClient | None:
             env_allowlist=tuple(cfg.get("env_allowlist") or ()),
             allow_network=bool(cfg.get("allow_network", False)),
             confinement=str(cfg.get("confinement") or "auto"),
+            # Configured values are treated as keys, as for plugin servers: on a Mac they go to the
+            # isolated runtime over its input, never into a host process's starting environment.
+            private_environment=bool(cfg.get("env")),
         )
         client.start()
     except Exception as exc:
