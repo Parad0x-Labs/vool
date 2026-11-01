@@ -493,17 +493,8 @@ def _validate_final_chat_output(
             ),
             "",
         )
-        # The memory/evidence the turn carried. A FIGURE the user stated in it (salary,
-        # offer, budget, a price they paid) is a value the user observed about themselves:
-        # the guard exempts it number-for-number, so a memory answer is not wiped as an
-        # unobserved live price. Measured 2026-10-30 (org-credit job 3, fresh 100-question
-        # run on 411efdb2): five whole answers about the user's own figures were replaced
-        # by the notice before this channel reached the recognition.
-        from core.bootstrap_context import admitted_capsule_evidence_text
-
-        _admitted_evidence = admitted_capsule_evidence_text(source_context)
         live_claim_kinds = unobserved_live_value_claims(
-            final_text, user_turn_text=_current_user_text, evidence_text=_admitted_evidence
+            final_text, user_turn_text=_current_user_text
         )
         if live_claim_kinds and _stipulated_frame_owns_the_values(source_context):
             # Named stand-down, same law as the restored-provenance one below: the values in this
@@ -540,8 +531,10 @@ def _validate_final_chat_output(
             # The evidence is the SAME admitted capsule the reader received
             # (harvested at transcript assembly, session-bound at consumption).
             if set(live_claim_kinds) <= {"measured-quantity"}:
+                from core.bootstrap_context import admitted_capsule_evidence_text
                 from core.unsourced_current_claim import recorded_state_retention
 
+                _admitted_evidence = admitted_capsule_evidence_text(source_context)
                 recorded_state_retention_applied = bool(
                     _admitted_evidence and recorded_state_retention(final_text, _admitted_evidence)
                 )
@@ -553,9 +546,7 @@ def _validate_final_chat_output(
                 # answer is replaced, and then by the notice that names the request's
                 # own demand (the currency pair, the part of a multi-part turn).
                 withdrawn = replace_unobserved_live_claims(
-                    final_text,
-                    user_turn_text=_current_user_text,
-                    evidence_text=_admitted_evidence,
+                    final_text, user_turn_text=_current_user_text
                 )
                 if withdrawn == unverified_live_value_notice(live_claim_kinds):
                     withdrawn = unverified_live_value_notice(
