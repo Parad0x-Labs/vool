@@ -152,7 +152,7 @@ out(res);
 
 
 def test_no_stray_corner_dot_on_the_sprite() -> None:
-    """The sprite must not mount the 9px corner tone dot; the restore control keeps its own."""
+    """The sprite must not mount the 9px corner tone dot, and hiding leaves no restore pill."""
     out = run_driver(r"""
 const res = { errors: [] };
 try {
@@ -160,17 +160,15 @@ try {
   const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");  // the harness-established sprite lookup (className is not classList-synced in the stub)
   const spriteDotChildren = sprite.children.filter((c) => c.classList && c.classList.contains("vn-dot"));
   res.spriteDots = spriteDotChildren.length;
-  const restore = layer.children.find((c) => c.className === "vn-restore");
-  res.restorePresent = !!restore;
-  res.restoreHasDot = restore ? restore.innerHTML.indexOf("vn-dot") !== -1 : false;
+  res.restorePresent = layer.children.some((c) => c.className === "vn-restore");
   res.spriteChildClasses = sprite.children.map((c) => (c.className || ""));
 } catch (e) { res.errors.push(String(e && e.stack || e)); }
 out(res);
 """)
     assert not out["errors"], out["errors"]
     assert out["spriteDots"] == 0, f"stray dot on the sprite: children={out['spriteChildClasses']}"
-    # The restore control's dot is part of a real button and stays.
-    assert out["restorePresent"] and out["restoreHasDot"], "the restore control keeps its dot"
+    # Owner 2026-10-31: no "Companion" pill over the sidebar; Settings > Show pet brings it back.
+    assert not out["restorePresent"], "a hidden pet must not leave a restore pill in the chat"
     classes = " ".join(out["spriteChildClasses"])
     assert "vn-caption" in classes, "the caption (tone word carrier) remains on the sprite"
 

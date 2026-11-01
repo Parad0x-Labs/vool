@@ -393,11 +393,13 @@ def test_pet_presentation_controls_carry_no_task_authority() -> None:
     # dialog (they were added to the bridge after this pin was written -- a pre-existing drift on
     # the frozen base, recorded and repaired here, not a new authority), and the same save for a
     # file the assistant built in this chat (the server supplies its bytes; nothing is overwritten).
+    # Show and its read-only hidden/shown query are pet presentation too: they let Settings offer
+    # "Show pet" for a hidden pet, and they only ask the chat page to show its own pet.
     assert exposed == {
-        "attach_companion", "close_settings", "close_setup", "companion_overhead", "detach_companion",
-        "hide_companion", "open_companion_appearance", "open_settings", "open_setup", "pet_yield_rect",
-        "pick_folder", "reset_companion_position", "save_answer_pdf", "save_chat_export",
-        "save_deliverable", "set_window", "sync_companion",
+        "attach_companion", "close_settings", "close_setup", "companion_overhead", "companion_visibility",
+        "detach_companion", "hide_companion", "open_companion_appearance", "open_settings", "open_setup",
+        "pet_yield_rect", "pick_folder", "reset_companion_position", "save_answer_pdf", "save_chat_export",
+        "save_deliverable", "set_window", "show_companion", "sync_companion",
     }
 
 
