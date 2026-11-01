@@ -225,3 +225,19 @@ def test_an_unopenable_document_does_not_block_the_search_and_is_reported(home):
     assert outcome.status == "content_search_complete"
     assert outcome.text.startswith("I didn't find it in your files.")
     assert "1 document could not be opened on this computer" in outcome.text
+
+
+def test_one_changing_file_does_not_make_the_index_retry_everything(home, monkeypatch):
+    for number in range(4):
+        _write(home / "Documents" / f"note_{number}.txt", f"Item {number}: Fernmoor visit list.\n" * 20)
+    monkeypatch.setattr(tools, "_TEXT_INDEX_BYTES", 1)
+    ctx = _ctx(home)
+    tools.document_matches("When is the Fernmoor visit?", ctx)
+    reads = []
+    real = tools._index_read
+    monkeypatch.setattr(tools, "_index_read", lambda *args: reads.append(args[1].name) or real(*args))
+    log = _write(home / "Documents" / "activity.log", "started\n")
+    tools.document_matches("When is the Fernmoor visit?", ctx)
+    log.write_text("started\nstill running\n", encoding="utf-8")
+    tools.document_matches("When is the Fernmoor visit?", ctx)
+    assert reads == ["activity.log", "activity.log"]

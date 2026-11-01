@@ -731,7 +731,18 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[l
         ]:
             _drop_text_key(key)
         candidates = [path for path in candidates if str(path) in metadata]
-        state = {"candidates": candidates, "metadata": metadata, "cursor": 0, "unreadable": set(), "left_out": set()}
+        old_meta = (state or {}).get("metadata", {})
+
+        def unchanged(previous: set[str]) -> set[str]:
+            # A file that did not change keeps its status: one changing log file never makes the
+            # index retry every unopenable or left-out document on every turn.
+            return {item for item in previous if item in metadata and old_meta.get(item) == metadata[item]}
+
+        state = {
+            "candidates": candidates, "metadata": metadata, "cursor": 0,
+            "unreadable": unchanged(set((state or {}).get("unreadable", ()))),
+            "left_out": unchanged(set((state or {}).get("left_out", ()))),
+        }
         _TEXT_SCANS[home_key] = state
     else:
         candidates = state["candidates"]
@@ -757,6 +768,8 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[l
         key = (str(path), int(info.st_size), int(info.st_mtime_ns))
         if key in _TEXT_CACHE:
             _TEXT_CACHE.move_to_end(key)
+            continue
+        if str(path) in state["unreadable"] or str(path) in state["left_out"]:
             continue
         if time.monotonic() >= deadline:
             state["cursor"] -= 1
