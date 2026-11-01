@@ -126,9 +126,26 @@ _CALENDAR_AS_CODE_RE = re.compile(
 # The agenda lane: the request asks WHAT IS ON the chosen calendars on a day/range. It must
 # be checked before _AVAILABILITY_RE, whose broad "(show|what) ... my calendar" would otherwise
 # claim every agenda question for the free-slot lane.
+# The everyday windows an agenda ask names ("on tomorrow", "what have I got on friday", "this
+# week's appointments"). A closed word class shared by the agenda recognizers below;
+# parse_agenda_window (core.operator.calendar_agenda) resolves the same words into real bounds.
+_AGENDA_WINDOW = (
+    r"(?:today|tonight|tomorrow|yesterday|this\s+week|next\s+week|this\s+weekend|next\s+weekend|"
+    r"the\s+weekend|this\s+month|next\s+month|upcoming|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+)
 _AGENDA_RE = re.compile(
     r"\bwhat(?:'s| is)\s+on\s+(?:my|the|their|our)\s+(?:calendar|schedule|plate)\b"
     r"|\bwhat\s+do\s+(?:i|you|we)\s+have\b[^\n!?.]*\b(?:today|tomorrow|this week|next week|upcoming)\b"
+    # "do I have anything on tomorrow" / "what have I got on friday" / "what am I doing this
+    # weekend": the same have/got family over the whole window class.
+    r"|\b(?:do|did)\s+(?:i|we)\s+have\b[^\n!?.]*\b" + _AGENDA_WINDOW + r"\b"
+    r"|\bwhat\s+(?:have\s+(?:i|we)\s+got|am\s+(?:i|we)\s+doing)\b[^\n!?.]*\b(?:on\s+|for\s+|during\s+)?" + _AGENDA_WINDOW + r"\b"
+    r"|\banything\s+(?:on|for|in|during)\s+" + _AGENDA_WINDOW + r"\b"
+    # "show me this week's appointments" / "this week's meetings": a window possessive over an
+    # event noun, in either order. Event nouns only: "what does my schedule look like this week"
+    # keeps the availability lane that has always answered it (pinned by the fast-path tests).
+    r"|\b(?:show|list|pull\s+up)\b[^\n!?.]*\b(?:this|next|the)\s+(?:week|weekend|month)'s?\b[^\n!?.]*\b(?:appointments?|meetings?|events?|schedule|calendar|agenda)\b"
+    r"|\b(?:appointments?|meetings?|events?)\b[^\n!?.]*\b(?:this|next)\s+(?:week|weekend|month)\b"
     r"|\b(?:show|read|walk (?:me )?through)\b[^\n!?.]*\b(?:my|the)\s+(?:day|agenda)\b"
     r"|\b(?:my|the|this)\s+agenda\b[^\n!?.]*\b(?:for|from|this week|next week|today|tomorrow)\b"
     r"|\bagenda\s+(?:for|from)\b"
@@ -150,6 +167,66 @@ _LIST_CALENDARS_RE = re.compile(
 _INSPECT_EVENT_RE = re.compile(
     r"\b(?:show|describe|inspect|view|check|details\s+(?:of|for))\b[^\n!?.]*\bevent\b", re.IGNORECASE
 )
+# The named-event reads: a definite subject from the person's own life ("the school play", "the
+# dentist appointment") under a schedule question. The subject is captured so the stand-downs can
+# read it, and so the handler can search the store for those words.
+_EVENT_SUBJECT = r"(?:the|my|this|that|our|an?)\s+(?P<evref>[A-Za-z][\w\-']*(?:\s+[\w\-']+){0,3})"
+# A PUBLIC schedule is not a calendar row: "when is the next bus", "when is sunrise", "when does
+# the episode come out" are live-info/world asks and keep their lanes. Closed subject classes on
+# the CAPTURED subject only -- the frame never claims a sentence whose subject names a live
+# service, a celestial event, a media release, or opening hours.
+_LIVE_SCHEDULE_SUBJECT_RE = re.compile(
+    r"\b(?:bus(?:es)?|trains?|trams?|ferries?|flights?|planes?|boats?|tube|metro|subway|shuttle|shuttles?|"
+    r"sunrises?|sunsets?|moonrise|eclipses?|meteor\s+showers?|episode|episodes|premiere|premières?|"
+    r"come[s]?\s+out|release[ds]?)\b",
+    re.IGNORECASE,
+)
+_HOURS_ASK_RE = re.compile(r"\b(?:opens?|closes?|closed|open)\b|\bwhat\s+time\s+is\s+it\b", re.IGNORECASE)
+_WHEN_EVENT_RE = re.compile(
+    r"\bwhen\s+(?:is|are|was|were|does|do|did)\s+" + _EVENT_SUBJECT, re.IGNORECASE
+)
+_WHERE_EVENT_RE = re.compile(
+    r"\b(?:where|what\s+time)\s+(?:is|are|was|were)\s+" + _EVENT_SUBJECT, re.IGNORECASE
+)
+_SOON_EVENT_RE = re.compile(
+    r"\bis\s+" + _EVENT_SUBJECT + r"\s+(?:soon|coming\s+up|still\s+on|happening)\b", re.IGNORECASE
+)
+_SEEING_EVENT_RE = re.compile(
+    r"\bam\s+i\s+(?:seeing|meeting|attending|going\s+to|due\s+(?:at|for))\s+"
+    r"(?:(?:the|my|a|an|our)\s+)?(?P<evref>[A-Za-z][\w\-']*(?:\s+[\w\-']+){0,3})",
+    re.IGNORECASE,
+)
+_COMING_UP_EVENT_RE = re.compile(
+    r"\banything\s+coming\s+up\s+(?:with|for|about|regarding|on)\s+"
+    r"(?:(?:the|my|our)\s+)?(?P<evref>[A-Za-z][\w\-']*(?:\s+[\w\-']+){0,3})",
+    re.IGNORECASE,
+)
+# A past-tense ask ("was the dentist this week") is a schedule read only when it names a window:
+# without one it is an opinion question ("was the school play good") and keeps the model lane.
+_WAS_EVENT_RE = re.compile(r"\b(?:was|were)\s+" + _EVENT_SUBJECT, re.IGNORECASE)
+_AGENDA_WINDOW_WORD_RE = re.compile(r"\b" + _AGENDA_WINDOW + r"\b", re.IGNORECASE)
+_NAMED_EVENT_READ_RES = (_WHEN_EVENT_RE, _WHERE_EVENT_RE, _SOON_EVENT_RE, _SEEING_EVENT_RE, _COMING_UP_EVENT_RE)
+# The frames whose words are personal on their own ("am I seeing ...", "anything coming up with
+# ..."). The bare when/where/is-it-soon/was frames are not: "where is the eiffel tower", "where is
+# the bathroom", "when is the election" share their shape, so those frames claim only a subject
+# that names a thing people put on their own calendar.
+_PERSONAL_EVENT_FRAMES = (_SEEING_EVENT_RE, _COMING_UP_EVENT_RE)
+_PERSONAL_EVENT_NOUN_RE = re.compile(
+    r"\b(?:appointments?|meetings?|plays?|lessons?|class(?:es)?|practices?|parties|party|dinners?|lunch(?:es)?|"
+    r"breakfasts?|recitals?|rehearsals?|interviews?|dentist|doctor|check-?ups?|visits?|calls?|sessions?|"
+    r"trainings?|weddings?|birthdays?|anniversar(?:y|ies)|exams?|haircuts?|bookings?|reservations?|events?|"
+    r"retros?|stand-?ups?|ceremon(?:y|ies)|graduations?|recitals?|playdates?|sleepovers?|school\s+run|"
+    r"parents?\s+evening|vet|physio|therapy|surgery|scan|concerts?|shows?|gigs?)\b",
+    re.IGNORECASE,
+)
+# A place or a pick, not a booking: "where is the nearest doctor", "when is the best time to
+# visit" ask about the world even though they carry an event noun.
+_NOT_A_BOOKING_RE = re.compile(r"\b(?:nearest|closest|nearby|near\s+me|best|cheapest|good|open)\b", re.IGNORECASE)
+
+
+def _is_personal_event_subject(subject: str) -> bool:
+    """True when a bare when/where frame's subject names a thing on the person's own calendar."""
+    return bool(_PERSONAL_EVENT_NOUN_RE.search(subject)) and _NOT_A_BOOKING_RE.search(subject) is None
 _PROPOSE_EVENT_RE = re.compile(
     r'\bpropose\s+(?:a|an|the)?\s*(?:[\w-]+\s+){0,2}?(?:meeting|event|call|review|sync|appointment|slot)\b'
     r'|\bpropose\s+["\u201c]'
@@ -457,6 +534,20 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             destination_path=_calendar_name(text),
             raw_text=text,
         )
+    # --- Everyday named-event reads. "when is the school play", "where is the dentist
+    # appointment", "is the school play soon", "am I seeing the dentist any time soon",
+    # "anything coming up with the dentist": a definite subject from the person's own life under a
+    # schedule question reads the store, like every other calendar read. A subject that names a
+    # PUBLIC schedule (the next bus, sunrise, an episode release) or opening hours is live-info,
+    # not a calendar row, and keeps its own lanes. Checked after the search/inspect recognizers so
+    # a named search ("search my calendar for dentist") keeps its own kind.
+    if not calendar_names_code:
+        event_subject = _named_event_subject(words)
+        if event_subject is not None and _LIVE_SCHEDULE_SUBJECT_RE.search(event_subject) is None \
+                and _HOURS_ASK_RE.search(event_subject) is None:
+            label = _clean_event_label(event_subject)
+            if label:
+                return OperatorActionIntent(kind="search_calendar_event", target_label=label, raw_text=text)
     # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
     # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
     if _bare_cancel_referent(words):
@@ -760,6 +851,68 @@ def _calendar_name(text: str) -> str | None:
     return match.group(1).strip() or None
 
 
+def _named_event_subject(words: str) -> str | None:
+    """The captured subject of a named-event read frame, or None when no frame asks.
+
+    Only the frame's own subject matters here: a question word, a bare pronoun or an hours ask is
+    not a thing on a calendar, and the stand-downs in `parse_operator_action_intent` read what this
+    returns.
+    """
+    for pattern in _NAMED_EVENT_READ_RES:
+        match = pattern.search(str(words or ""))
+        if match is None:
+            continue
+        subject = str(match.group("evref") or "").strip()
+        if subject and (pattern in _PERSONAL_EVENT_FRAMES or _is_personal_event_subject(subject)):
+            return subject
+    text = str(words or "")
+    if _WAS_EVENT_RE.search(text) and _AGENDA_WINDOW_WORD_RE.search(text):
+        match = _WAS_EVENT_RE.search(text)
+        subject = str(match.group("evref") or "").strip()
+        if subject and _is_personal_event_subject(subject):
+            return subject
+    return None
+
+
+def _clean_event_label(ref: str) -> str | None:
+    """The store-ready search words from a spoken event reference.
+
+    Time fillers a search term must not carry ("any time soon", "tomorrow"), leading determiners
+    and a generic tail noun ("the dentist appointment" searches "dentist") are stripped; the row's
+    own words ("school play", "swimming lesson") are kept whole.
+    """
+    words = str(ref or "").strip()
+    if not words:
+        return None
+    words = re.sub(
+        r"\s+(?:any\s?time\s+soon|anytime\s+soon|soon|anytime|again|ever|today|tonight|tomorrow|"
+        r"yesterday|this\s+week|next\s+week|this\s+weekend|next\s+weekend|this\s+month|next\s+month|upcoming)\s*[.!?]?\s*$",
+        "", words, flags=re.IGNORECASE,
+    )
+    words = re.sub(r"^(?:the|my|a|an|our|this|that)\s+", "", words, flags=re.IGNORECASE)
+    if len(words.split()) > 1:
+        words = re.sub(
+            r"\s+(?:appointments?|meetings?|events?|bookings?)\s*[.!?]?\s*$", "", words, flags=re.IGNORECASE
+        )
+    if len(words.split()) > 1:
+        # "when does the school play start" asks about the school play; the schedule verb is the
+        # question's, not the row's.
+        words = re.sub(
+            r"\s+(?:start|starts|begin|begins|finish|finishes|end|ends|happen|happens|take\s+place|run)\s*[.!?]?\s*$",
+            "", words, flags=re.IGNORECASE,
+        )
+    if len(words.split()) > 1:
+        # "my next meeting" names no row words of its own; the pointer word is not a search term.
+        words = re.sub(
+            r"\s+(?:next|last|first|upcoming|following)\s*[.!?]?\s*$", "", words, flags=re.IGNORECASE
+        )
+    words = words.strip(" \t'\"-.,!?")
+    if words.lower() in {"next", "last", "first", "upcoming", "following"}:
+        # Nothing but the pointer remains: the ask named no row words to search for.
+        return None
+    return words or None
+
+
 def _event_label(text: str) -> str | None:
     """The event a user names: quoted, or the noun phrase before 'event'."""
     quoted = _extract_quoted_values(str(text or ""))
@@ -777,6 +930,16 @@ def _event_label(text: str) -> str | None:
     )
     if match:
         return match.group(1).strip()
+    # A search that names its term in plain words ("search my calendar for dentist"): a person does
+    # not quote a word, and an empty term asks back "Which event?" while the row sits in the store.
+    match = re.search(
+        r"\b(?:search|find|look(?:\s+up|\s+for)?)\b[^\n!?.]*?\b(?:calendar|calendars|events?|meetings?|appointments?|agenda)\b"
+        r"[^\n!?.]*?\b(?:for|about|named|called|containing|with)\s+(?:the\s+|a\s+|an\s+|my\s+|words?\s+from\s+)?"
+        r"([A-Za-z][\w \-']{1,40}?)\s*[.!?]?\s*$",
+        str(text or ""), re.IGNORECASE,
+    )
+    if match:
+        return _clean_event_label(match.group(1))
     return None
 
 
