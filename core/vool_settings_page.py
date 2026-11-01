@@ -2456,6 +2456,7 @@ function widgetAppearance(stack) {
   stack.appendChild(said);
 }
 
+let petToggleRefresh = null, petToggleHooked = false;
 function widgetCompanionPet(stack) {
   const api = (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
   const appearance = el('button', 'btn', 'Customise pet');
@@ -2487,6 +2488,31 @@ function widgetCompanionPet(stack) {
   appearanceBar.append(appearance, appearanceStatus);
   stack.appendChild(appearanceBar);
   if (!api || !api.detach_companion) {
+    // A browser tab has no native bridge, but the chat that opened Settings still owns its pet: the
+    // Hide/Show toggle drives it directly, so a hidden pet always has a way back.
+    let pet = null;
+    try {
+      const owner = window.opener || (window.parent !== window ? window.parent : null);
+      pet = owner && owner.VoolCompanion && owner.VoolCompanion.showPet ? owner.VoolCompanion : null;
+    } catch (e) { pet = null; }  // another origin's window: no toggle, just the note below
+    if (pet) {
+      const petBar = el('div', 'inline');
+      const petSaid = el('span', 'subtle', '');
+      const petToggle = el('button', 'btn', '');
+      petToggle.type = 'button';
+      petToggle.dataset.testid = 'settings-pet-toggle';
+      const paint = function () { petToggle.textContent = pet.isHidden() ? 'Show pet' : 'Hide pet'; };
+      petToggle.addEventListener('click', function () {
+        try {
+          if (pet.isHidden()) { pet.showPet(); petSaid.textContent = 'The pet is back.'; }
+          else { pet.hide(true); petSaid.textContent = 'The pet is hidden. Chat and the runtime keep running.'; }
+        } catch (e) { petSaid.textContent = 'That is not available right now.'; }
+        paint();
+      });
+      paint();
+      petBar.append(petToggle, petSaid);
+      stack.appendChild(petBar);
+    }
     stack.appendChild(el('div', 'empty', T('settings.companion.needs_app', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.')));
     return;
   }
@@ -2500,23 +2526,53 @@ function widgetCompanionPet(stack) {
     ['Hide pet', 'hide_companion', 'The pet is hidden. Chat and the runtime keep running.'],
     ['Reset position', 'reset_companion_position', 'The pet is back on the main display.'],
   ];
+  // Hide and Show are one toggle whose label says what a press does now: "Hide pet" while the pet
+  // is visible, "Show pet" once it is hidden. The pet's state is asked from the chat window, so a
+  // pet hidden from its own menu also shows "Show pet" here.
+  let petHidden = false;
+  let toggle = null;
+  const paintToggle = function () {
+    if (toggle) toggle.textContent = petHidden ? 'Show pet' : 'Hide pet';
+  };
+  const refreshToggle = async function () {
+    if (!api.companion_visibility) return;
+    try {
+      const state = await api.companion_visibility();
+      if (state && state.ok && typeof state.hidden === 'boolean') { petHidden = state.hidden; paintToggle(); }
+    } catch (e) { /* keep the last known label */ }
+  };
   actions.forEach(function (entry) {
+    const isToggle = entry[1] === 'hide_companion';
     const button = el('button', 'btn', entry[0]);
     button.type = 'button';
+    if (isToggle) { toggle = button; button.dataset.testid = 'settings-pet-toggle'; }
     button.addEventListener('click', async function () {
       button.disabled = true;
+      const showing = isToggle && petHidden;
+      const method = showing ? 'show_companion' : entry[1];
+      const done = showing ? 'The pet is back.' : entry[2];
       try {
-        const call = api[entry[1]];
+        const call = api[method];
         const result = call ? await call() : null;
-        said.textContent = (result && result.ok) ? entry[2] : 'That is not available right now.';
+        const ok = !!(result && result.ok);
+        if (ok && isToggle) { petHidden = !showing; paintToggle(); }
+        said.textContent = ok ? done : 'That is not available right now.';
       } catch (e) {
         said.textContent = 'That is not available right now.';
       } finally {
         button.disabled = false;
       }
+      if (!isToggle) refreshToggle();
     });
     bar.appendChild(button);
   });
+  refreshToggle();
+  // One focus hook for the page: this panel can be drawn again, and only the latest copy re-reads.
+  petToggleRefresh = refreshToggle;
+  if (!petToggleHooked) {
+    petToggleHooked = true;
+    window.addEventListener('focus', function () { if (petToggleRefresh) petToggleRefresh(); });
+  }
   bar.appendChild(said);
   stack.appendChild(bar);
 }

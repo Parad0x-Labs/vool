@@ -1059,6 +1059,39 @@ class _WindowApi:
             _log(f"desktop companion hide failed ({exc!r})")
             return {"ok": False, "error": type(exc).__name__}
 
+    def show_companion(self, _payload: object = None) -> dict:
+        """Bring a hidden pet back: to the desktop if it was hidden from there, otherwise into the chat.
+
+        The chat page owns the pet's placement and its one preference, so the page decides where it
+        reappears; this only asks it to."""
+        if self._window is None:
+            return {"ok": False, "error": "chat_unavailable"}
+        try:
+            shown = self._window.evaluate_js(
+                "Boolean(window.VoolCompanion&&window.VoolCompanion.showPet&&window.VoolCompanion.showPet())"
+            )
+            if shown is not True:
+                return {"ok": False, "error": "pet_unavailable"}
+            _log("companion shown again")
+            return {"ok": True, "mode": "shown"}
+        except Exception as exc:
+            _log(f"companion show failed ({exc!r})")
+            return {"ok": False, "error": type(exc).__name__}
+
+    def companion_visibility(self, _payload: object = None) -> dict:
+        """Whether the pet is hidden right now, so Settings can offer Hide or Show. Read-only."""
+        if self._window is None:
+            return {"ok": False, "error": "chat_unavailable"}
+        try:
+            hidden = self._window.evaluate_js(
+                "window.VoolCompanion&&window.VoolCompanion.isHidden?window.VoolCompanion.isHidden():null"
+            )
+            if not isinstance(hidden, bool):
+                return {"ok": False, "error": "pet_unavailable"}
+            return {"ok": True, "hidden": hidden}
+        except Exception as exc:
+            return {"ok": False, "error": type(exc).__name__}
+
     def reset_companion_position(self, _payload: object = None) -> dict:
         """Put a lost pet back on the primary display."""
         try:
