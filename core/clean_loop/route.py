@@ -174,7 +174,6 @@ class RouteDecision:
     admit: bool
     reason: str
     brain: Any = None
-    send_needs_approval: bool = False
     #: Admitted only because the owner's documents hold its words (no topic, ownership or file-name
     #: word). Such a turn may be one VOOL's memory answers; finding nothing, it falls through.
     by_documents: bool = False
@@ -244,31 +243,6 @@ _OUTWARD_RECALL_RE = re.compile(
     r"(?:upload|send|share|post|publish|tweet|email|forward)\b",
     re.I,
 )
-_SELF_SEND_PERMISSION_RE = re.compile(
-    r"\b(?:can|could)\s+i\s+(?:email|send)\s+(?:it|this|that|the\s+file|my\s+file)\b", re.I
-)
-
-
-def _read_plus_send_permission(text: str) -> bool:
-    """Allow only a personal ability question joined to a separate read question."""
-    value = str(text or "")
-    if _MONEY_RE.search(value) or _DESTRUCTIVE_RE.search(value):
-        return False
-    outward = list(_OUTWARD_RE.finditer(_OUTWARD_RECALL_RE.sub(" ", value)))
-    permission = list(_SELF_SEND_PERMISSION_RE.finditer(value))
-    if len(outward) != 1 or len(permission) != 1:
-        return False
-    match = permission[0]
-    verb = re.search(r"email|send", match.group(0), re.I)
-    if verb is None or (outward[0].start(), outward[0].end()) != (
-        match.start() + verb.start(), match.start() + verb.end()
-    ):
-        return False
-    if any(not (match.start() <= found.start() and found.end() <= match.end()) for found in _RED_RE.finditer(value)):
-        return False
-    remainder = (value[: match.start()] + " " + value[match.end() :]).strip(" ,?!.;:")
-    remainder = re.sub(r"\b(?:and|or|but|then)\s*$", "", remainder, flags=re.I).strip()
-    return bool(remainder and is_question(remainder) and not is_red(remainder))
 
 
 def is_red(text: str) -> bool:
@@ -391,8 +365,7 @@ def decide(
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
-    send_needs_approval = _read_plus_send_permission(text)
-    if is_red(text) and not send_needs_approval:
+    if is_red(text):
         return RouteDecision(False, "red_turn")
     if is_write(text) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
@@ -418,7 +391,7 @@ def decide(
     brain = resolve_brain() if resolve_brain is not None else None
     if brain is None:
         return RouteDecision(False, "brain_not_local")
-    return RouteDecision(True, "admitted", brain, send_needs_approval, by_documents)
+    return RouteDecision(True, "admitted", brain, by_documents=by_documents)
 
 
 __all__ = [

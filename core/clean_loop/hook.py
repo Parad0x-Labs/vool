@@ -250,11 +250,6 @@ def maybe_answer(
         context["clean_local_loop_route"] = "documents_found_nothing_fell_through"
         _clear_evidence(session_id)
         return None
-    if decision.send_needs_approval:
-        loop_result.answer = (
-            loop_result.answer.rstrip()
-            + "\n\nSending needs you to ask for it and approve it first."
-        )
     evidence = _turn_evidence(loop_result.seen) or prior_evidence
     if evidence:
         _remember_evidence(session_id, evidence)
