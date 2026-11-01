@@ -165,7 +165,7 @@ def _folder_answer(label_name: str, display_names: list[str], paths: list[str], 
     if len(paths) == 1:
         response_text = f"The {_folder_display(display_names[0])} is {qualifier}{_human_size(sizes[paths[0]])}."
     else:
-        measured = zip(display_names, paths[:_SIZE_LIST_CAP])
+        measured = zip(display_names, paths[:_SIZE_LIST_CAP], strict=False)
         listed = "; ".join(f"{_folder_display(name)} is {qualifier}{_human_size(sizes[path])}" for name, path in measured)
         response_text = f"I found {len(paths)} folders called '{label_name}': {listed}."
         if len(paths) > _SIZE_LIST_CAP:
