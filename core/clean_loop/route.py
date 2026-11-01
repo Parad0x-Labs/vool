@@ -1,6 +1,6 @@
 """Should this turn take the clean local path? One pure decision, in a fixed order.
 
-1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default OFF).
+1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default ON; explicit OFF disables it).
 2. The turn is not RED: no pay/send/delete/post/cancel-style verb and no money words. VOOL has no
    text-level risky-action classifier to reuse (its consent gates sit at the effect, which this loop
    never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
@@ -13,7 +13,7 @@
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files), and not a live/online
    question, which the online lanes own.
-5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on the owner's own cloud model
+5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on (default ON) the owner's own cloud model
    (resolved last: it is the only costly check).
 """
 from __future__ import annotations
@@ -173,6 +173,7 @@ class RouteDecision:
     admit: bool
     reason: str
     brain: Any = None
+    send_needs_approval: bool = False
 
 
 CHANGES_ENV = "VOOL_CLEAN_LOOP_CHANGES"
@@ -185,7 +186,8 @@ def changes_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 
 def flag_on(env: Mapping[str, str] | None = None) -> bool:
-    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() in _TRUTHY
+    value = (env if env is not None else os.environ).get(FLAG_ENV)
+    return value is None or str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
 # A follow-up often opens with a joining word: "and how much am i paying for it a year", "so when is it
@@ -239,6 +241,31 @@ _OUTWARD_RECALL_RE = re.compile(
     r"(?:upload|send|share|post|publish|tweet|email|forward)\b",
     re.I,
 )
+_SELF_SEND_PERMISSION_RE = re.compile(
+    r"\b(?:can|could)\s+i\s+(?:email|send)\s+(?:it|this|that|the\s+file|my\s+file)\b", re.I
+)
+
+
+def _read_plus_send_permission(text: str) -> bool:
+    """Allow only a personal ability question joined to a separate read question."""
+    value = str(text or "")
+    if _MONEY_RE.search(value) or _DESTRUCTIVE_RE.search(value):
+        return False
+    outward = list(_OUTWARD_RE.finditer(_OUTWARD_RECALL_RE.sub(" ", value)))
+    permission = list(_SELF_SEND_PERMISSION_RE.finditer(value))
+    if len(outward) != 1 or len(permission) != 1:
+        return False
+    match = permission[0]
+    verb = re.search(r"email|send", match.group(0), re.I)
+    if verb is None or (outward[0].start(), outward[0].end()) != (
+        match.start() + verb.start(), match.start() + verb.end()
+    ):
+        return False
+    if any(not (match.start() <= found.start() and found.end() <= match.end()) for found in _RED_RE.finditer(value)):
+        return False
+    remainder = (value[: match.start()] + " " + value[match.end() :]).strip(" ,?!.;:")
+    remainder = re.sub(r"\b(?:and|or|but|then)\s*$", "", remainder, flags=re.I).strip()
+    return bool(remainder and is_question(remainder) and not is_red(remainder))
 
 
 def is_red(text: str) -> bool:
@@ -357,10 +384,12 @@ def decide(
     browser_turn: bool = False,
     env: Mapping[str, str] | None = None,
     file_words: Callable[[], set[str]] | None = None,
+    document_match: Callable[[str], bool] | None = None,
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
-    if is_red(text):
+    send_needs_approval = _read_plus_send_permission(text)
+    if is_red(text) and not send_needs_approval:
         return RouteDecision(False, "red_turn")
     if is_write(text) and not changes_enabled(env):
         return RouteDecision(False, "write_turn")
@@ -376,12 +405,13 @@ def decide(
         or is_privacy_ask(text)
         or _is_follow_up(text, session_id)
         or names_owner_file(text, file_words)
+        or (document_match is not None and bool(document_match(text)))
     ):
         return RouteDecision(False, "not_about_own_files")
     brain = resolve_brain() if resolve_brain is not None else None
     if brain is None:
         return RouteDecision(False, "brain_not_local")
-    return RouteDecision(True, "admitted", brain)
+    return RouteDecision(True, "admitted", brain, send_needs_approval)
 
 
 __all__ = [

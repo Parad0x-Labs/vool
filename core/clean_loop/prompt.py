@@ -20,6 +20,8 @@ _HEAD = (
     "(plumber invoice, lisbon flight) and also looks inside documents; if a path is not found, find it first.\n"
     "- Name files exactly as the tool showed them (invoice_4471.pdf), and give the number, date or size "
     "the owner asked for.\n"
+    "- An archive's name is not its contents. List it or say it has not been opened; never describe "
+    "what is inside from its name.\n"
     "- Never repeat a call that failed; try a different word or folder.\n"
     "- If you looked and did not find it, say so plainly and ask one short question.\n"
     "- You cannot change anything yourself. New folders, moves, renames and new files go through "

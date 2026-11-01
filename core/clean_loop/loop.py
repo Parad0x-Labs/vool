@@ -34,6 +34,10 @@ LOOK_FIRST_NUDGE = (
     "You have not looked yet. If the answer depends on the owner's files or computer, call a tool now; "
     "otherwise give the same answer again."
 )
+CONTENT_SEARCH_NUDGE = (
+    "You have not finished searching document contents yet. Search inside the owner's files before "
+    "saying the information was not found."
+)
 REPEAT_NOTICE = "You already tried exactly that and it failed. Try a different word or folder, or answer with what you found."
 
 GAVE_UP_TEXT = "I couldn't finish looking that up. Could you tell me a bit more about where it might be?"
@@ -123,6 +127,7 @@ def run_loop(
     registry: Registry,
     ctx: ToolContext,
     history: Sequence[dict[str, str]] = (),
+    prior_evidence: str = "",
     max_steps: int = DEFAULT_MAX_STEPS,
 ) -> LoopResult:
     max_steps = max(1, int(max_steps))
@@ -130,6 +135,9 @@ def run_loop(
     messages.extend({"role": m["role"], "content": m["content"]} for m in history)
     staged = _staged_evidence(ask, registry, ctx)
     user = ask if not staged else f"{ask}\n\n[Evidence gathered before you (read-only):]\n{staged}"
+    if prior_evidence.strip():
+        user += "\n\n[Evidence from your previous clean-loop turn in this session (read-only):]\n"
+        user += prior_evidence[:1500]
     messages.append({"role": "user", "content": user})
     result = LoopResult(answer="")
     if staged:
@@ -155,6 +163,16 @@ def run_loop(
         action = parse_action(text)
         messages.append({"role": "assistant", "content": json.dumps(action, ensure_ascii=False)})
         if "tool" not in action:
+            if (
+                any(step.get("tool") == "find" and step.get("status") == "content_search_incomplete"
+                    for step in result.steps)
+                and not any(step.get("tool") == "find" and step.get("status") == "content_search_complete"
+                            for step in result.steps)
+                and not last
+            ):
+                result.steps.append({"step": step, "nudge": "content_search_incomplete", "think_ms": think_ms})
+                messages.append({"role": "user", "content": CONTENT_SEARCH_NUDGE})
+                continue
             if not result.steps and not nudged and not staged and not last and registry.tools():
                 # Half the small model's misses on fresh asks ran no tool at all (router hold-out: 7 of
                 # 14): one reminder to look, once; a general answer simply comes back the same.

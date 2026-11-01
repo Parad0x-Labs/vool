@@ -130,14 +130,16 @@ def scope_path(raw: Any, home: Path) -> Path:
     return full
 
 
-def _plain(text: str, home: Path) -> str:
+def _plain(text: str, home: Path, *, limit: int = _RESULT_CHARS) -> str:
     """Tool prose for the model: home-relative paths, no internal intent names."""
     out = str(text or "").replace(str(home) + os.sep, "").replace(str(home), "~")
     out = re.sub(r"`[a-z_]+\.[a-z_.]+`", "that action", out)
-    return out[:_RESULT_CHARS]
+    return out[:limit]
 
 
-def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutcome:
+def _call(
+    ctx: ToolContext, intent: str, arguments: dict[str, Any], *, record_receipt: bool = True
+) -> ToolOutcome:
     execute = ctx.execute
     if execute is None:
         from core.authorized_tool_execution import execute_authorized_runtime_tool as execute
@@ -164,9 +166,16 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
                 resolve_approval(token, decision="deny")
             except Exception:
                 _LOG.exception("clean loop: could not withdraw a parked approval")
-    plain = _plain(text, ctx.home) if ok else "not available: " + (_plain(text, ctx.home) or status)
-    ctx.receipts.append(
-        {
+    cut_notice = "\n[Cut; continue with read_file using start_line or from_page.]"
+    was_cut = len(text) > _RESULT_CHARS
+    if ok:
+        plain = _plain(text, ctx.home, limit=_RESULT_CHARS - len(cut_notice) if was_cut else _RESULT_CHARS)
+        if was_cut:
+            plain = plain.rstrip() + cut_notice
+    else:
+        plain = "not available: " + (_plain(text, ctx.home) or status)
+    if record_receipt:
+        ctx.receipts.append({
             "tool_name": intent,
             "mode": "tool_executed" if ok else "tool_failed",
             "status": status or ("executed" if ok else "failed"),
@@ -177,8 +186,7 @@ def _call(ctx: ToolContext, intent: str, arguments: dict[str, Any]) -> ToolOutco
             # What the model was shown, in the field the tool-history writer uses: the hook
             # mints it as this turn's own observation so the grounding gate can match claims to it.
             "response_preview": plain[:1800],
-        }
-    )
+        })
     return ToolOutcome(text=plain or "(empty)", ok=ok, status=status, intents=(intent,))
 
 
@@ -195,6 +203,18 @@ def _human_size(size: int) -> str:
             return f"{int(value)} bytes" if unit == "bytes" else f"{value:.1f} {unit}"
         value /= 1024
     return f"{value:.1f} GB"
+
+
+def _plain_pdf_fallback(text: str) -> str:
+    """Keep only obviously printable text from a legacy machine read of a PDF."""
+    value = str(text or "")
+    low = value.lower()
+    if any(marker in low for marker in ("stream", "endobj", "/flatedecode", "/filter", "xref")):
+        return ""
+    if not value or sum(1 for ch in value if ord(ch) < 32 and ch not in "\n\r\t") / len(value) > 0.001:
+        return ""
+    clean = re.sub(r"^\s*%PDF-[^\r\n]*(?:\r?\n)?", "", value, count=1)
+    return clean.strip()
 
 
 def _age(mtime: float, now: float) -> str:
@@ -249,11 +269,11 @@ def _home_path(label: str, home: Path) -> Path:
     return candidate if candidate.is_absolute() else home / candidate
 
 
-def _merge(outcomes: list[ToolOutcome], text: str) -> ToolOutcome:
+def _merge(outcomes: list[ToolOutcome], text: str, *, status: str | None = None) -> ToolOutcome:
     intents = tuple(i for o in outcomes for i in o.intents)
     ok = any(o.ok for o in outcomes)
-    status = "executed" if ok else (outcomes[-1].status if outcomes else "error")
-    return ToolOutcome(text=text[:_RESULT_CHARS] or "(empty)", ok=ok, status=status, intents=intents)
+    outcome_status = status or ("executed" if ok else (outcomes[-1].status if outcomes else "error"))
+    return ToolOutcome(text=text[:_RESULT_CHARS] or "(empty)", ok=ok, status=outcome_status, intents=intents)
 
 
 def _scoped(args: dict[str, Any], ctx: ToolContext, key: str = "path") -> Path | ToolOutcome:
@@ -398,100 +418,233 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         for line in outcome.text.splitlines():
             if line.startswith("- ") and line not in hits:
                 hits.append(line)
-    if len(hits) > _FEW_NAME_HITS:
-        return _merge(outcomes, "\n".join(hits[:20]))
-    # Few or no names matched: the file may say it inside without saying it in its name ("flights" is
-    # in a WestJet itinerary, "bank" in chequing_oct.csv; R4-CL review 2026-10-31, R23 R24).
     inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
+    state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
+    complete = (
+        int(state.get("cursor", 0)) >= len(state.get("candidates", ()))
+        and not state.get("unreadable")
+    )
+    status = "content_search_complete" if complete else "content_search_incomplete"
+    if not complete and not inside:
+        return _merge(
+            outcomes,
+            "I have not searched all document contents yet. Search again before saying it was not found.",
+            status=status,
+        )
     if hits and inside:
         lines = [*hits, "these files also mention it inside:", *inside]
-        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines))
+        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
     if hits:
-        return _merge(outcomes, "\n".join(hits[:20]))
+        return _merge(outcomes, "\n".join(hits[:20]), status=status)
     if inside:
         lines = [f"no file name has {', '.join(words)}; these files mention it inside:", *inside]
-        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines))
-    return _merge(outcomes, "nothing found for: " + ", ".join(words)
-                  + ". Try another word the owner used, a folder name, or list_dir on Downloads or Documents.")
+        return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
+    return _merge(
+        outcomes,
+        f"I didn't find it in your files. Search result: nothing found for: {', '.join(words)}. Try another word you used or a folder name.",
+        status=status,
+    )
 
 
 _TEXT_SUFFIXES = frozenset({".txt", ".md", ".csv", ".pdf", ".json", ".eml", ".ics", ".html", ".rtf", ".log"})
 _TEXT_MAX_BYTES = 2 * 1024 * 1024
-#: The newest documents searched inside per find. Each one's text is kept (by path, size and time) so a
-#: second find in the same session reads nothing again; the scan stops after _TEXT_SCAN_S seconds.
-_TEXT_MAX_FILES = 80
-_TEXT_SCAN_S = 4.0
-_TEXT_CACHE_MAX = 600
-_TEXT_CACHE: OrderedDict[tuple[str, int, int], str] = OrderedDict()
-_FEW_NAME_HITS = 2
+# The index is process memory only. Metadata in the key invalidates changed files; the byte budget
+# bounds both source text and its searchable words. Route work is sliced so a cold turn stays short.
+_TEXT_SCAN_S = 1.7
+_TEXT_FIND_SCAN_S = 4.0
+_TEXT_INDEX_BYTES = 16 * 1024 * 1024
+_TEXT_MAX_ENTRIES = 20_000
+_TEXT_CACHE: OrderedDict[tuple[str, int, int], tuple[str, frozenset[str], int]] = OrderedDict()
+_TEXT_CACHE_BYTES = 0
+_TEXT_SCANS: dict[str, dict[str, Any]] = {}
+
+
+def _inside_vool_data(path: Path) -> bool:
+    try:
+        from core.runtime_paths import active_vool_home
+
+        data = active_vool_home().resolve()
+    except Exception:
+        return False
+    return path == data or data in path.parents
 
 
 def _text_candidates(ctx: ToolContext) -> list[Path]:
-    """Document-like files in the readable folders, newest first: no links, no hidden entries, bounded."""
-    found: list[tuple[float, Path]] = []
-    frontier, seen = _readable_dirs(ctx), 0
+    """All bounded document candidates in the readable roots, without following links."""
+    found: list[Path] = []
+    try:
+        from core.runtime_paths import active_vool_home
+
+        vool_data = active_vool_home().resolve()
+    except Exception:
+        vool_data = None
+    frontier = _readable_dirs(ctx)
+    seen = 0
     for _depth in range(_RESOLVE_DEPTH):
         nxt: list[Path] = []
         for folder in frontier:
             try:
-                entries = list(folder.iterdir())
+                entries = os.scandir(folder)
             except OSError:
                 continue
-            for entry in entries:
-                seen += 1
-                if seen > _RESOLVE_ENTRIES:
-                    break
-                try:
+            with entries:
+                for entry in entries:
+                    seen += 1
+                    if seen > _TEXT_MAX_ENTRIES:
+                        return found
                     if entry.name.startswith(".") or entry.is_symlink():
                         continue
-                    if entry.is_dir():
-                        nxt.append(entry)
-                    elif entry.suffix.lower() in _TEXT_SUFFIXES:
-                        info = entry.stat()
-                        if info.st_size <= _TEXT_MAX_BYTES:
-                            found.append((info.st_mtime, entry))
-                except OSError:
-                    continue
+                    path = Path(entry.path)
+                    if entry.name.casefold() in {"library", "appdata"} or (
+                        vool_data is not None and (path == vool_data or vool_data in path.parents)
+                    ):
+                        continue
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            nxt.append(path)
+                        elif entry.is_file(follow_symlinks=False) and path.suffix.lower() in _TEXT_SUFFIXES:
+                            info = entry.stat(follow_symlinks=False)
+                            if info.st_size <= _TEXT_MAX_BYTES:
+                                found.append(path)
+                    except OSError:
+                        continue
         frontier = nxt
-    return [path for _mtime, path in sorted(found, key=lambda item: -item[0])[:_TEXT_MAX_FILES]]
+    return found
+
+
+def _drop_text_key(key: tuple[str, int, int]) -> None:
+    global _TEXT_CACHE_BYTES
+    old = _TEXT_CACHE.pop(key, None)
+    if old is not None:
+        _TEXT_CACHE_BYTES = max(0, _TEXT_CACHE_BYTES - old[2])
+
+
+def _candidate_metadata(paths: list[Path]) -> dict[str, tuple[int, int]]:
+    metadata: dict[str, tuple[int, int]] = {}
+    for path in paths:
+        try:
+            info = path.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if stat.S_ISREG(info.st_mode) and info.st_size <= _TEXT_MAX_BYTES:
+            metadata[str(path)] = (int(info.st_size), int(info.st_mtime_ns))
+    return metadata
+
+
+def _cache_document(path: Path, key: tuple[str, int, int], text: str) -> None:
+    global _TEXT_CACHE_BYTES
+    from core.clean_loop.route import _WORD_RE
+
+    words = frozenset(_WORD_RE.findall(text.lower()))
+    cost = len(text.encode("utf-8", errors="replace")) + sum(len(word) + 8 for word in words)
+    if cost > _TEXT_INDEX_BYTES:
+        return
+    for old_key in [item for item in _TEXT_CACHE if item[0] == key[0] and item != key]:
+        _drop_text_key(old_key)
+    _drop_text_key(key)
+    _TEXT_CACHE[key] = (text, words, cost)
+    _TEXT_CACHE_BYTES += cost
+    while _TEXT_CACHE_BYTES > _TEXT_INDEX_BYTES and _TEXT_CACHE:
+        _drop_text_key(next(iter(_TEXT_CACHE)))
+
+
+def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
+    """Advance this home's in-memory document index, stopping within a per-turn work slice."""
+    global _TEXT_CACHE_BYTES
+    _TEXT_CACHE_BYTES = sum(item[2] for item in _TEXT_CACHE.values())
+    home_key = str(ctx.home.resolve())
+    candidates = _text_candidates(ctx)
+    metadata = _candidate_metadata(candidates)
+    current = set(metadata)
+    state = _TEXT_SCANS.get(home_key)
+    if state is None or state.get("metadata") != metadata:
+        home = ctx.home.resolve()
+        for key in [
+            key for key in _TEXT_CACHE
+            if (Path(key[0]) == home or home in Path(key[0]).parents)
+            and (key[0] not in current or (key[1], key[2]) != metadata.get(key[0]))
+        ]:
+            _drop_text_key(key)
+        candidates = [path for path in candidates if str(path) in metadata]
+        state = {"candidates": candidates, "metadata": metadata, "cursor": 0, "unreadable": set()}
+        _TEXT_SCANS[home_key] = state
+    else:
+        candidates = state["candidates"]
+    candidates = state["candidates"]
+    deadline = time.monotonic() + max(0.0, budget_s)
+    while state["cursor"] < len(candidates):
+        path = candidates[state["cursor"]]
+        state["cursor"] += 1
+        try:
+            if path.is_symlink():
+                continue
+            info = path.stat(follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode) or info.st_size > _TEXT_MAX_BYTES:
+                continue
+        except OSError:
+            continue
+        key = (str(path), int(info.st_size), int(info.st_mtime_ns))
+        if key in _TEXT_CACHE:
+            _TEXT_CACHE.move_to_end(key)
+            continue
+        if time.monotonic() >= deadline:
+            state["cursor"] -= 1
+            break
+        intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
+        arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
+        outcome = _call(ctx, intent, arguments, record_receipt=False)
+        if outcome.ok:
+            _cache_document(path, key, outcome.text)
+        else:
+            state["unreadable"].add(str(path))
+        if time.monotonic() >= deadline:
+            break
+    complete = state["cursor"] >= len(candidates) and not state["unreadable"]
+    return candidates, complete
+
+
+def document_matches(ask: str, ctx: ToolContext) -> bool:
+    """Whether a distinctive word in `ask` is present in the bounded, owner-local document index."""
+    from core.clean_loop.route import ask_words
+
+    words = ask_words(ask)
+    if not words:
+        return False
+    candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S)
+    paths = {str(path) for path in candidates}
+    return any(key[0] in paths and words.intersection(item[1]) for key, item in _TEXT_CACHE.items())
 
 
 def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
     """No name matched: look inside the owner's documents, through the same read tools ("plumber" is
     in invoice_4471.pdf, never in its name: Mac audit F08). Best match first, with the line it is on."""
+    candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_FIND_SCAN_S)
     scored: list[tuple[int, str]] = []
-    deadline = time.monotonic() + _TEXT_SCAN_S
-    for path in _text_candidates(ctx):
+    for path in candidates:
         try:
-            info = path.stat()
+            info = path.stat(follow_symlinks=False)
         except OSError:
             continue
         key = (str(path), int(info.st_size), int(info.st_mtime_ns))
         cached = _TEXT_CACHE.get(key)
-        if cached is not None and not any(word in cached for word in words):
+        if cached is None:
             continue
-        if cached is None and time.monotonic() > deadline:
+        body, indexed_words, _cost = cached
+        matched = [word for word in words if word in indexed_words]
+        if not matched:
             continue
-        before = len(ctx.receipts)
         intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
         arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
-        outcome = _call(ctx, intent, arguments)
-        if not outcome.ok:
+        shown = _call(ctx, intent, arguments)
+        if not shown.ok:
+            _TEXT_SCANS[str(ctx.home.resolve())]["unreadable"].add(str(path))
             continue
-        body = outcome.text.lower()
-        _TEXT_CACHE[key] = body
-        _TEXT_CACHE.move_to_end(key)
-        while len(_TEXT_CACHE) > _TEXT_CACHE_MAX:
-            _TEXT_CACHE.popitem(last=False)
-        matched = [word for word in words if word in body]
-        if not matched:
-            # A read that matched nothing is not this turn's evidence about the ask.
-            del ctx.receipts[before:]
-            continue
-        at = body.find(matched[0])
-        start = outcome.text.rfind("\n", 0, at) + 1
-        end = outcome.text.find("\n", at)
-        snippet = " ".join(outcome.text[start: end if end != -1 else at + 160].split())[:160]
+        body = shown.text
+        _cache_document(path, key, body)
+        at = body.lower().find(matched[0])
+        start = body.rfind("\n", 0, at) + 1
+        end = body.find("\n", at)
+        snippet = " ".join(body[start : end if end != -1 else at + 160].split())[:160]
         label = _plain(str(path), ctx.home)
         about = describe(path, ctx.home)
         scored.append((len(matched), f"- {label} ({about}): \"{snippet}\""))
@@ -513,14 +666,36 @@ def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
                 ok=False, status="not_found_with_suggestions", intents=hits.intents,
             )
     if target.suffix.lower() == ".pdf":
-        extracted = _call(ctx, "pdf.extract_text", {"path": str(target), "max_pages": 5})
+        extracted = _call(ctx, "pdf.extract_text", {
+            "path": str(target),
+            "start_page": max(1, int(args.get("from_page") or args.get("start_page") or 1)),
+            "max_pages": max(1, min(int(args.get("max_pages") or 5), 200)),
+        })
         if extracted.ok:
             return extracted
-        # The PDF reader can be missing on a machine (the Mac audit: its platform module was not
-        # importable). A plain read still shows a simple PDF's text; the failure stays on record.
         plain = _call(ctx, "machine.read_file", {"path": str(target)})
-        return plain if plain.ok else extracted
-    return _call(ctx, "machine.read_file", {"path": str(target)})
+        recovered = _plain_pdf_fallback(plain.text) if plain.ok else ""
+        if recovered:
+            return ToolOutcome(
+                text=recovered[:_RESULT_CHARS], ok=True, status="text_recovered",
+                intents=(*extracted.intents, *plain.intents),
+            )
+        label = _plain(str(target), ctx.home)
+        if extracted.status == "no_text_layer":
+            message = f"I found {label}, but it has no text layer and appears scanned. Keep looking in other files; it is not empty."
+        else:
+            reason = extracted.text.removeprefix("not available:").strip() or extracted.status
+            message = f"I found {label} but could not open its text on this computer ({reason}). Keep looking in other files."
+        return ToolOutcome(
+            text=message, ok=False, status=extracted.status,
+            intents=(*extracted.intents, *plain.intents),
+        )
+    arguments = {"path": str(target)}
+    if args.get("start_line") or args.get("from_line"):
+        arguments["start_line"] = max(1, int(args.get("start_line") or args.get("from_line") or 1))
+    if args.get("max_lines"):
+        arguments["max_lines"] = max(1, min(int(args["max_lines"]), 400))
+    return _call(ctx, "machine.read_file", arguments)
 
 
 def largest(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -696,8 +871,8 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
 
 BUILTIN_TOOLS = (
     ("list_dir", '{"tool": "list_dir", "path": "Downloads"}  list a folder (path relative to home; "" = home)', list_dir),
-    ("find", '{"tool": "find", "query": "plumber invoice"}  find files by words in their name, or inside them', find),
-    ("read_file", '{"tool": "read_file", "path": "Desktop/todo.txt"}  read a text, csv, md or pdf file', read_file),
+    ("find", '{"tool": "find", "query": "plumber invoice"}  search file names and document contents; repeat if the result says the content search is incomplete', find),
+    ("read_file", '{"tool": "read_file", "path": "Documents/notes.txt", "start_line": 40}  read text from a line, or a PDF with "from_page" and "max_pages"', read_file),
     ("largest", '{"tool": "largest", "path": ""}  biggest files under a folder', largest),
     ("disk_usage", '{"tool": "disk_usage"}  how full the disk is', disk_usage),
     ("system_info", '{"tool": "system_info"}  computer specs: model, chip, memory, disk', system_info),
@@ -809,6 +984,24 @@ def exact_names(answer: str, result: Any) -> str:
                 out = out[:start] + owners[0] + out[end:]
                 break
     return out
+
+
+_ABSENCE_CLAIM_RE = re.compile(
+    r"\b(?:not found|couldn't find|could not find|isn't there|is not there|doesn't exist|does not exist|"
+    r"don't have|do not have|no record|nothing saved|not in your files|no file)\b", re.I
+)
+
+
+def content_absence_gate(answer: str, result: Any) -> str:
+    """Do not let an incomplete or absent content search become a confident absence claim."""
+    steps = list(getattr(result, "steps", None) or [])
+    searched = any(
+        step.get("tool") == "find" and step.get("status") == "content_search_complete"
+        for step in steps
+    )
+    if not searched and _ABSENCE_CLAIM_RE.search(str(answer or "")):
+        return "I have not completed a search inside your files, so I can't say whether it is there."
+    return answer
 
 
 def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
@@ -943,6 +1136,7 @@ def install_builtin_tools(registry: Registry) -> None:
     registry.register_pre_step("privacy", privacy_pre_step)
     registry.register_pre_step("look_first", look_first_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
+    registry.register_answer_gate("content_absence", content_absence_gate)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
 
 
@@ -953,6 +1147,8 @@ __all__ = [
     "OutsideHome",
     "home_dir",
     "install_builtin_tools",
+    "document_matches",
+    "content_absence_gate",
     "pending_proposal_notice",
     "scope_path",
 ]

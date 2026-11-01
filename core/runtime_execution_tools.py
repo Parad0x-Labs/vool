@@ -7912,6 +7912,7 @@ def _pdf_extract_text(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     result = extract_text(
         str(arguments.get("path") or ""),
         max_pages=int(arguments.get("max_pages") or 0),
+        start_page=int(arguments.get("start_page") or 1),
     )
     return _pdf_result("pdf.extract_text", result, verb="Read")
 

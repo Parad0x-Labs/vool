@@ -10,6 +10,8 @@ runtime events, which the execution-truth ledger records), and any pending propo
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Any
 
 from core.clean_loop import route
@@ -24,6 +26,39 @@ BRAIN_DOWN_TEXT = (
 )
 _HISTORY_TURNS = 6
 _HISTORY_CHARS = 800
+_EVIDENCE_TTL_S = 900.0
+_EVIDENCE_CHARS = 1500
+_EVIDENCE: dict[str, tuple[float, str]] = {}
+_EVIDENCE_LOCK = threading.Lock()
+
+
+def _prior_evidence(session_id: str, text: str, *, owner_local: bool) -> str:
+    if not session_id or not owner_local or not route._is_follow_up(text, session_id):
+        return ""
+    now = time.monotonic()
+    with _EVIDENCE_LOCK:
+        row = _EVIDENCE.get(session_id)
+        if row is None:
+            return ""
+        if now - row[0] >= _EVIDENCE_TTL_S:
+            _EVIDENCE.pop(session_id, None)
+            return ""
+        return row[1]
+
+
+def _remember_evidence(session_id: str, evidence: str) -> None:
+    if not session_id or not evidence.strip():
+        return
+    with _EVIDENCE_LOCK:
+        _EVIDENCE[session_id] = (time.monotonic(), evidence[:_EVIDENCE_CHARS])
+        while len(_EVIDENCE) > 256:
+            _EVIDENCE.pop(next(iter(_EVIDENCE)))
+
+
+def _clear_evidence(session_id: str) -> None:
+    if session_id:
+        with _EVIDENCE_LOCK:
+            _EVIDENCE.pop(session_id, None)
 
 
 def _history(source_context: dict[str, Any], current: str) -> list[dict[str, str]]:
@@ -97,6 +132,12 @@ def maybe_answer(
     if not route.flag_on():
         return None
     context = source_context if isinstance(source_context, dict) else {}
+    context_block = route._owner_context_blocks(context, session_id)
+    if browser_turn or context_block or not route._is_follow_up(text, session_id):
+        _clear_evidence(session_id)
+    prior_evidence = _prior_evidence(
+        session_id, text, owner_local=not browser_turn and not context_block
+    )
     settled = _settle_change(
         agent, text=text, effective_input=effective_input, session_id=session_id, context=context,
         browser_turn=browser_turn,
@@ -117,27 +158,35 @@ def maybe_answer(
         brain_kind["local"] = False
         return brain.resolve_cloud_manifest(router, context)
 
-    def _file_words() -> set[str]:
-        from core.clean_loop.tools import file_words, home_dir
+    from core.clean_loop.tools import OutsideHome, home_dir
+    try:
+        route_ctx = ToolContext(
+            home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or "")
+        )
+    except OutsideHome:
+        context["clean_local_loop_route"] = "home_is_root"
+        return None
 
-        return set(file_words(home_dir()))
+    def _file_words() -> set[str]:
+        from core.clean_loop.tools import file_words
+
+        return set(file_words(route_ctx.home))
+
+    def _document_match(ask: str) -> bool:
+        from core.clean_loop.tools import document_matches
+
+        return document_matches(ask, route_ctx)
 
     decision = route.decide(
         text, source_context=context, session_id=session_id, resolve_brain=_resolve, browser_turn=browser_turn,
-        file_words=_file_words,
+        file_words=_file_words, document_match=_document_match,
     )
     context["clean_local_loop_route"] = decision.reason
     _LOG.info("clean loop route: %s", decision.reason)
     if not decision.admit:
         return None
     from core.clean_loop.brain import make_brain, model_label
-    from core.clean_loop.tools import OutsideHome, home_dir
-
-    try:
-        ctx = ToolContext(home=home_dir(), source_context=context, task_id=str(context.get("turn_id") or ""))
-    except OutsideHome:
-        context["clean_local_loop_route"] = "home_is_root"
-        return None
+    ctx = route_ctx
     provider_id, model_id = model_label(decision.brain)
     loop_result = run_loop(
         text,
@@ -145,6 +194,7 @@ def maybe_answer(
         registry=default_registry(),
         ctx=ctx,
         history=_history(context, text),
+        prior_evidence=prior_evidence,
     )
     _LOG.info(
         "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
@@ -174,6 +224,16 @@ def maybe_answer(
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.
         context["clean_local_loop_route"] = "no_answer_fell_through"
         return None
+    if decision.send_needs_approval:
+        loop_result.answer = (
+            loop_result.answer.rstrip()
+            + "\n\nSending needs you to ask for it and approve it first."
+        )
+    evidence = "\n".join(loop_result.seen).strip() or prior_evidence
+    if evidence:
+        _remember_evidence(session_id, evidence)
+    else:
+        _clear_evidence(session_id)
     _record_observations(context, ctx.receipts)
     trace = {**loop_result.trace(), "provider_id": provider_id, "model_id": model_id}
     context["tool_receipts"] = list(context.get("tool_receipts") or []) + ctx.receipts

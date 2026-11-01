@@ -2208,7 +2208,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_claim="read the text of a PDF on this machine",
             supported=read_enabled,
             unsupported_reason="Local file reading is disabled on this runtime.",
-            input_schema={"path": "string", "max_pages": "integer optional"},
+            input_schema={"path": "string", "start_page": "integer optional", "max_pages": "integer optional"},
             output_schema={
                 "status": "ok|no_text_layer|not_found|unreadable|missing_dependency|timeout|error",
                 "text": "string",

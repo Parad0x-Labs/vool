@@ -95,7 +95,7 @@ def test_the_prompt_is_unchanged_by_the_speed_work():
     # confident-wrong on the Mac, reproducibly (re-measure 2026-10-28: base 26/30 twice, head 24/30);
     # the prompt stays byte for byte as it was, and only the staged evidence makes it faster.
     first = build_system_prompt(_registry())
-    assert first == build_system_prompt(_registry()) and len(first) == 2336
+    assert first == build_system_prompt(_registry()) and len(first) == 2564
 
 
 # --- what the look-first pre-step stages and what it must never stage ------------------------------
