@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from core.clean_loop import route, tools
 from core.clean_loop.registry import ToolContext
 
@@ -139,3 +141,153 @@ def test_memory_only_fact_does_not_admit_without_document_match(tmp_path, monkey
     ctx = _fixture(tmp_path, monkeypatch)
     ask = "When does Evaro arrive at Brackenlight?"
     assert not _decide(ask, ctx).admit
+
+
+# --- A realistic household (added 2026-11-01, committed before the matcher change) ----------------
+# The fragment home above holds only invented names, so no general ask can ever share a word with
+# it. A real home also holds recipes, receipts and course notes in everyday words. The same 40
+# general asks must stay out here too, and everyday personal asks, phrased the way people ask (with
+# and without names), must get in. Read through VOOL's real authorized boundary over real files.
+
+HOUSEHOLD = {
+    "Documents/Health/clinic_letter.txt": (
+        "Fennick Lane Clinic\nDear Ilse,\nYour eye examination is booked for Thursday 14 March at 10:40 "
+        "with Dr Amsel. Please bring your current glasses.\n"
+    ),
+    "Documents/kids/swim_timetable.txt": (
+        "Spring term timetable\nWren swims on Tuesdays at 17:15 in lane 3 with coach Petrov at Brindle.\n"
+        "Odile is in the beginners pool on Saturdays at 09:00.\n"
+    ),
+    "Documents/house/annual_service.eml": (
+        "Subject: Your annual visit\n\nHi, thanks for booking with Kettleby Heating. The boiler service is "
+        "due again on 2 September. This year it came to 96.00.\n"
+    ),
+    "Desktop/weeknight food.md": (
+        "# Weeknight food\n\nLentil soup: two onions, one carrot, red lentils, cumin. Simmer 25 min.\n"
+        "Rice: rinse twice, cook 12 minutes, rest 5. Fluffy every time.\n"
+    ),
+    "Documents/trip_notes.txt": (
+        "Portugal in June with Tomasz. Ferry across the river, then the coast road. Pack the guidebook "
+        "and sun cream.\n"
+    ),
+    "Documents/receipts/halvard_receipt.txt": (
+        "Halvard Music\nBeginner guitar, spare strings, chord book\nPaid 189.00\nCover: 2 years\n"
+    ),
+    "Documents/garden/allotment.txt": (
+        "Corran Street allotment, plot 17. The water butt key is with Mrs Ogunleye at number 4. "
+        "Repot the cactus in spring.\n"
+    ),
+    "Documents/school/trip_form.txt": (
+        "Odile's class trip to the Marrowby science museum is on 22 May. Packed lunch needed. "
+        "Coaches return by 15:30.\n"
+    ),
+    "Downloads/SCN_7781.txt": (
+        "Ashgrove Vets\nPatient: Biscuit (spaniel)\nVaccination given today. The next booster is due on "
+        "3 November.\n"
+    ),
+    "Documents/car/test_reminder.txt": (
+        "Reminder for KX17 LMB: the yearly road test is due before 30 April. Booked at Dunmore Garage.\n"
+    ),
+    "Documents/work/course.md": (
+        "Notes from the Python course: functions, strings, reversing a list with slicing. The next "
+        "session is with Priya on Wednesday at 18:00.\n"
+    ),
+    "Documents/clubs/lantern_hill.txt": (
+        "Lantern Hill astronomy club: the next viewing night is 9 October, bring the telescope if the sky "
+        "is clear. The talk on comets is by Ines.\n"
+    ),
+    "Documents/house/household.txt": (
+        "The spare key is with the neighbour at number 4. The bins go out on Thursday night. The window "
+        "cleaner comes every fourth Monday, 18 per visit.\n"
+    ),
+    "Documents/gym.txt": "Tidewell Leisure: the membership renews on 1 February. Locker 212.\n",
+    "Documents/family/dinner.txt": (
+        "Tomasz's birthday dinner is booked at Osteria Vela, 19:30 on 11 July, table for six.\n"
+    ),
+    "Documents/kids/library.txt": "Three picture books for Wren are due back at the library on 8 August.\n",
+    "Documents/Health/renewal.txt": "Ilse's passport runs out on 9 January 2027; the renewal form is printed.\n",
+    "Documents/house/skylark.eml": (
+        "Subject: Skylark Fibre\n\nYour Skylark Fibre agreement ends on 31 May. Router serial SKF-0093.\n"
+    ),
+    "Documents/kids/piano.txt": "Wren has piano with Mr Dallow on Fridays at 16:00; the grade 2 exam is on 6 June.\n",
+    "Documents/family/sitter.txt": "Marisol can sit on Wednesdays, 12 an hour, and prefers a text the day before.\n",
+    "Documents/kids/football.txt": "Odile's kit is size 7-8 with small shin pads. Matches are at Copsey Park.\n",
+    "Documents/riverside.txt": "Riverside 10k on 14 September, bib 4471, start 09:30 at the boathouse.\n",
+    "Documents/house/roof.txt": (
+        "The solar panels were fitted by Brightmoor Energy in 2024: twelve panels, with the inverter in "
+        "the loft.\n"
+    ),
+    "Documents/garden/plants.txt": "Water the fern weekly. The lemon tree needs feeding in April.\n",
+}
+
+EVERYDAY_PERSONAL_ASKS = [
+    "when is grandma ilse's eye check?",
+    "what time is wren's swim lesson?",
+    "which lane is wren in at brindle?",
+    "when is the boiler service due again?",
+    "how much did the boiler service come to?",
+    "who has the water butt key?",
+    "what plot number is the allotment?",
+    "when is odile's class trip?",
+    "what time do the coaches get back from marrowby?",
+    "when is biscuit's next booster?",
+    "when is the road test due for the car?",
+    "which garage is doing the road test?",
+    "when is the next session with priya?",
+    "when is the next astronomy viewing night?",
+    "who is giving the talk on comets?",
+    "where is the spare key?",
+    "which night do the bins go out?",
+    "when does the tidewell membership renew?",
+    "what's the locker number at tidewell?",
+    "where is tomasz's birthday dinner?",
+    "when are wren's library books due back?",
+    "when does ilse's passport run out?",
+    "when does the skylark agreement end?",
+    "what grade is wren taking in piano?",
+    "what is marisol's hourly rate?",
+    "what size is odile's football kit?",
+    "what's the bib number for the riverside run?",
+    "how often does the window cleaner come?",
+    "who fitted the solar panels on the roof?",
+    "when does the lemon tree need feeding?",
+]
+
+
+@pytest.fixture
+def household(tmp_path, monkeypatch) -> ToolContext:
+    home = (tmp_path / "home").resolve()
+    for name in ("Desktop", "Documents", "Downloads"):
+        (home / name).mkdir(parents=True)
+    for relative, body in HOUSEHOLD.items():
+        path = home / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    return ToolContext(home=home, source_context=dict(OWNER))
+
+
+def _household_decide(ask: str, ctx: ToolContext, *, with_documents: bool = True) -> route.RouteDecision:
+    return route.decide(
+        ask,
+        source_context=OWNER,
+        resolve_brain=lambda: object(),
+        env=ON,
+        file_words=lambda: set(tools.file_words(ctx.home)),
+        document_match=(lambda value: tools.document_matches(value, ctx)) if with_documents else None,
+    )
+
+
+def test_household_document_words_admit_no_general_ask(household):
+    assert len(EVERYDAY_PERSONAL_ASKS) == 30
+    added = [
+        ask for ask in GENERAL_ASKS
+        if _household_decide(ask, household).admit and not _household_decide(ask, household, with_documents=False).admit
+    ]
+    assert added == []
+
+
+def test_household_everyday_personal_asks_are_admitted(household):
+    admitted = [ask for ask in EVERYDAY_PERSONAL_ASKS if _household_decide(ask, household).admit]
+    missed = [ask for ask in EVERYDAY_PERSONAL_ASKS if ask not in admitted]
+    assert len(admitted) >= 24, missed
