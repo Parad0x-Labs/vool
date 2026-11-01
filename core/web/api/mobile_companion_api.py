@@ -1788,6 +1788,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   .gone #qr, .gone .code { opacity: .25; filter: grayscale(1); }
   .expired { display: none; text-align: center; margin-top: 16px; }
   .gone .expired { display: block; }
+  .missing #qr, .missing .code, .missing .lead, .missing > .say { display: none; }
   button { font: inherit; background: #c3b8a8; color: #171513; border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
   .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
@@ -1837,7 +1838,10 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
     setTimeout(function () { window.location.href = next; }, 1500);
   }
   var watch = null;
-  if (payload.status && payload.status !== "waiting") {
+  if (payload.status === "missing") {
+    card.classList.add("missing");
+    gone("This pairing code has expired or was already used. Make a new one.");
+  } else if (payload.status && payload.status !== "waiting") {
     gone("This code was already used or closed.");
   } else if (tick()) {
     var timer = setInterval(function () { if (!tick()) clearInterval(timer); }, 1000);
@@ -1860,6 +1864,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
       })
       .catch(function () { btn.disabled = false; say.textContent = "VOOL isn't answering right now. Check that it is running, then try again."; });
   });
+  if (payload.status === "missing") return;
   var uri = "vool-pair://" + (payload.companion_host || window.location.host)
     + "?fp=" + payload.fp + "&pid=" + payload.pid
     + "&code=" + payload.code + "&exp=" + payload.exp;
@@ -1874,7 +1879,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
 """
 
 
-def _html_pairing_page(payload: dict[str, Any]):
+def _html_pairing_page(payload: dict[str, Any], *, status: int = 200):
     from core.web.api.service import ApiResponse
 
     html = _PAIRING_PAGE_TEMPLATE.replace("__SHORT_FP__", str(payload.get("short_fp") or ""))
@@ -1885,7 +1890,7 @@ def _html_pairing_page(payload: dict[str, Any]):
     # Inline the vendored renderer before the page logic (one file, no CDN).
     marker = "<script>"
     html = html.replace(marker, marker + chr(10) + vendor, 1)
-    return ApiResponse(200, content_type="text/html; charset=utf-8", body=html.encode("utf-8"))
+    return ApiResponse(status, content_type="text/html; charset=utf-8", body=html.encode("utf-8"))
 
 
 MOBILE_PATH_PREFIX = "/api/mobile/"
@@ -1968,7 +1973,13 @@ def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runti
         pairing_id = _q("pairing_id")
         session = store.pairing(pairing_id) if pairing_id else None
         if session is None:
-            return _err(404, "pairing_unknown", "no such pairing session")
+            # A bookmarked or old pairing link is opened in a browser, so it gets the page in its
+            # expired state with "Make a new code", not a JSON error painted as text.
+            return _html_pairing_page({
+                "pid": "", "code": "", "fp": service.desktop_fingerprint(),
+                "short_fp": service.desktop_short_fingerprint(), "exp": 0, "status": "missing",
+                "companion_host": "",
+            }, status=404)
         payload = {
             "pid": pairing_id,
             "code": str(session.get("code") or ""),
