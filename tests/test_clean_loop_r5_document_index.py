@@ -181,13 +181,13 @@ def test_a_fact_past_the_first_3000_characters_is_found_and_shown(home):
 
 
 def test_a_meaningless_file_name_is_found_by_its_content_in_a_loop(home):
-    _write(home / "Downloads" / "SCN_7713.txt", "Kestrel Lane surgery: Anwen's check-up is on 12 June at 09:20.\n")
+    _write(home / "Downloads" / "SCN_5820.txt", "Kestrel Lane surgery: Anwen's check-up is on 12 June at 09:20.\n")
     replies = iter([
         '{"tool": "find", "query": "anwen check-up"}',
-        '{"answer": "Anwen\'s check-up is on 12 June at 09:20 (SCN_7713.txt in Downloads)."}',
+        '{"answer": "Anwen\'s check-up is on 12 June at 09:20 (SCN_5820.txt in Downloads)."}',
     ])
     result = run_loop("when is anwen's check-up?", brain=lambda _m: next(replies), registry=_registry(), ctx=_ctx(home))
-    assert "12 June" in result.answer and "SCN_7713.txt" in result.answer
+    assert "12 June" in result.answer and "SCN_5820.txt" in result.answer
 
 
 def test_an_absence_answer_without_a_content_search_takes_one_more_step(home):

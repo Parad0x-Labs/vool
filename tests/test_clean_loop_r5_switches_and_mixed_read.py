@@ -32,7 +32,7 @@ def test_with_nothing_set_a_files_ask_is_admitted_and_a_change_is_not(monkeypatc
     files = route.decide("whats on my desktop?", source_context={"surface": "cli"}, resolve_brain=lambda: object())
     change = route.decide("move my invoices into a new folder", source_context={"surface": "cli"},
                           resolve_brain=lambda: object())
-    red = route.decide("pay the plumber invoice", source_context={"surface": "cli"}, resolve_brain=lambda: object())
+    red = route.decide("pay the roofer's bill", source_context={"surface": "cli"}, resolve_brain=lambda: object())
     assert files.admit
     assert (change.admit, change.reason) == (False, "write_turn")
     assert (red.admit, red.reason) == (False, "red_turn")
@@ -114,7 +114,7 @@ MIXED_FORMS_THAT_STAY_OUT = (
     "how big is the file, can i send it with my card number?",
     "how big is the file, can we send it?",
     "how big is the file, can i send it or should you send it",
-    "how big is the file, can I email it? also pay the plumber",
+    "how big is the file, can I email it? also pay the roofer",
     "can i email it",
     "how big is the file, can i transfer it to my phone",
     "send it. how big is the file, can i email it?",

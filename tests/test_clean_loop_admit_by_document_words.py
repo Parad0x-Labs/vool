@@ -219,7 +219,7 @@ HOUSEHOLD = {
     "Documents/kids/piano.txt": "Wren has piano with Mr Dallow on Fridays at 16:00; the grade 2 exam is on 6 June.\n",
     "Documents/family/sitter.txt": "Marisol can sit on Wednesdays, 12 an hour, and prefers a text the day before.\n",
     "Documents/kids/football.txt": "Odile's kit is size 7-8 with small shin pads. Matches are at Copsey Park.\n",
-    "Documents/riverside.txt": "Riverside 10k on 14 September, bib 4471, start 09:30 at the boathouse.\n",
+    "Documents/riverside.txt": "Riverside 10k on 14 September, bib 2386, start 09:30 at the boathouse.\n",
     "Documents/house/roof.txt": (
         "The solar panels were fitted by Brightmoor Energy in 2024: twelve panels, with the inverter in "
         "the loft.\n"

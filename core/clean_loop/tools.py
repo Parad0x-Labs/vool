@@ -836,8 +836,8 @@ def document_matches(ask: str, ctx: ToolContext) -> bool:
 
 
 def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
-    """Look inside the owner's documents ("plumber" is in invoice_4471.pdf, never in its name: Mac
-    audit F08), over the whole in-memory index rather than the newest few files. Best match first,
+    """Look inside the owner's documents (the word the owner uses is often inside a file, never in
+    its name: Mac audit F08), over the whole in-memory index rather than the newest few files. Best match first,
     with the line it is on. The five best are read again through the read tools at the matching
     line or page, so what the model is shown is this turn's own read evidence."""
     with _INDEX_LOCK:
