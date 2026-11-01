@@ -171,7 +171,8 @@ def test_every_row_sends_once_and_settles_with_its_own_explorer_link_in_both_env
     results = {}
     for row in ROWS[:6]:
         results[row[0]] = _drive_row(daemon, chains, provider, row, session=f"matrix-{row[1]}-testnet")
-    status, switched = _door(daemon, "/api/wallet/environment", {"environment": "mainnet"})
+    # switching to Mainnet with a wallet that can pay is an owner step: it carries the wallet PIN
+    status, switched = _door(daemon, "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
     assert status == 200, switched
     for row in ROWS[6:]:
         results[row[0]] = _drive_row(daemon, chains, provider, row, session=f"matrix-{row[1]}-mainnet")

@@ -98,7 +98,7 @@ def fees(tmp_path_factory):
 
 def _setup(fees) -> dict:
     daemon, service, node = fees.daemon, fees.service, fees.node
-    status, switched = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet"})
+    status, switched = daemon.door("POST", "/api/wallet/environment", {"environment": "mainnet", "credential": PIN})
     assert status == 200, switched
     wallet = ready_pilot_wallet(daemon)
     node.fund_sol(wallet["address"], 50_000_000)
@@ -355,9 +355,9 @@ def test_the_settings_door_owns_the_threshold_and_rejecting_the_payment_releases
     status, policy = daemon.door("POST", "/api/wallet/dna-fees/policy", {"asset": "USDC"})
     assert status == 200 and policy["saved"] is None and policy["override_in_force"] is True, policy
     assert policy["collect_min"] == {"asset": "USDC", "atomic": 1, "source": "operator_override", "settings_atomic": None, "default_atomic": 100_000}, policy
-    status, saved = daemon.door("POST", "/api/wallet/dna-fees/policy", {"asset": "USDC", "collect_min_atomic": 7})
+    status, saved = daemon.door("POST", "/api/wallet/dna-fees/policy", {"asset": "USDC", "collect_min_atomic": 7, "credential": PIN})
     assert status == 200 and saved["saved"] == {"asset": "USDC", "atomic": 7, "source": "settings"} and saved["override_in_force"] is True, saved
-    status, bad = daemon.door("POST", "/api/wallet/dna-fees/policy", {"asset": "USDC", "collect_min_atomic": 0})
+    status, bad = daemon.door("POST", "/api/wallet/dna-fees/policy", {"asset": "USDC", "collect_min_atomic": 0, "credential": PIN})
     assert status != 200 and bad.get("error") == "wallet_amount_invalid"
     # a plan rides the next payment's quote; rejecting that payment on its card releases the plan and its proposal
     _declare_bound(daemon, 1, 1_000)

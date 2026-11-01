@@ -41,6 +41,13 @@ def _text(page, selector: str) -> str:
     return (node.text_content() or "").strip() if node else ""
 
 
+def _prove_owner(page) -> None:
+    """Changing the fee threshold needs the wallet PIN: the page asks for it once and saves again with it."""
+    page.wait_for_selector("#vwOwnerProof", state="visible", timeout=20000)
+    page.fill("#vwOwnerProofSecret", PIN)
+    page.click("#vwOwnerProofOk")
+
+
 def _served(tmp_path, *, collect_min_override: str):
     """A booted daemon with the wallet section enabled; ``collect_min_override`` "" leaves the operator override unset."""
     import tests._reader_served_rig as rig
@@ -88,6 +95,7 @@ def test_the_threshold_is_saved_from_the_page_and_the_door_stores_it(tmp_path):
         # --- one whole number, one Save: the door stores it, the page says exactly what was saved, and re-reads it as the owner's value
         page.fill("#vwDnaFeeMin", "7")
         page.click("#vwDnaFeeSave")
+        _prove_owner(page)
         page.wait_for_function(
             "() => { const m = document.querySelector('#vwMsg'); return !!m && m.textContent.trim() === 'DNA fee threshold saved: 7 atomic units of USDC.'; }",
             timeout=20000,
@@ -149,6 +157,7 @@ def test_an_operator_override_is_said_beside_the_saved_value_and_never_shown_as_
         # --- the owner saves 9: stored as the owner's value, SAID as saved, and the effective threshold stays the override's
         page.fill("#vwDnaFeeMin", "9")
         page.click("#vwDnaFeeSave")
+        _prove_owner(page)
         page.wait_for_function(
             "() => { const m = document.querySelector('#vwMsg'); return !!m && m.textContent.trim() === 'DNA fee threshold saved: 9 atomic units of USDC. An operator override keeps the effective threshold at 3 atomic units until it is removed.'; }",
             timeout=20000,
