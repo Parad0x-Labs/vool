@@ -1563,7 +1563,7 @@ def _memory_figure_keys(text: str) -> frozenset[tuple[float, str]]:
 #: is never also read as "btc" (the same law `price_assets_named` states).  Built once from
 #: `core.agent_runtime.fast_live_info_price._PRICE_ASSET_ALIASES` -- imported, not copied,
 #: so this guard can never drift from the table every market lane reads.
-_MARKET_ALIAS_BOUNDARIES: list[tuple[str, "re.Pattern[str]"]] | None = None
+_MARKET_ALIAS_BOUNDARIES: list[tuple[str, re.Pattern[str]]] | None = None
 
 
 def _clause_states_a_market_priced_value(clause: str) -> bool:

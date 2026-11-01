@@ -125,7 +125,7 @@ def readable_page(raw_html: str) -> PageText:
     try:
         parser.feed(str(raw_html or ""))
         parser.close()
-    except Exception:  # noqa: BLE001 - html.parser is lenient; a failure must not resurface markup
+    except Exception:  # html.parser is lenient; a failure must not resurface markup
         pass
     return parser.result()
 

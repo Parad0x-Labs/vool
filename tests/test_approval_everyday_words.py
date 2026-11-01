@@ -48,7 +48,7 @@ TOOL_ID = re.compile(r"\b[a-z_]+\.[a-z_]{2,}(?:\.[a-z_]+)*\b")
 # The contracts' developer vocabulary never belongs in an ask a person reads.
 CONTRACT_WORDS = ("bounded", "workspace", "directory", "http", "shell")
 
-from core.approval_action_phrases import (  # noqa: E402
+from core.approval_action_phrases import (
     APPROVAL_ACTION_PHRASES,
     approval_action_key,
     approval_target_name,

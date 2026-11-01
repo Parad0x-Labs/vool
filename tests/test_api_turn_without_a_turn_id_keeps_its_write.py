@@ -30,8 +30,8 @@ def home(tmp_path, monkeypatch):
 
 
 def _post(body: dict) -> tuple[int, dict]:
-    from tests.gauntlet import harness
     from core.web.api.service import dispatch_post
+    from tests.gauntlet import harness
 
     res = dispatch_post(
         path="/api/chat",
@@ -100,8 +100,8 @@ def test_two_long_request_ids_are_two_turns(home) -> None:
     """A request id may be longer than a turn id holds; two that share their first 80 characters
     must still be two tasks, or one's grants, cancel and follow-ups would land on the other."""
     from core.mode_permission_policy import _APPROVALS
-    from tests.gauntlet import harness
     from core.web.api.service import dispatch_post
+    from tests.gauntlet import harness
 
     for tail in ("A", "B"):
         res = dispatch_post(

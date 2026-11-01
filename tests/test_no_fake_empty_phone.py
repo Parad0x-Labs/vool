@@ -21,7 +21,6 @@ import time
 from core.null_browser_page import render_null_browser_html
 from tests.chat_page_js_harness import DOM, run_node, script_blocks
 
-
 # ---- /web0: the .null browser ---------------------------------------------------------------
 # The page auto-opens web0.null while the script evaluates, so the fetch stub is installed BEFORE
 # the page script runs (the harness default fetch would otherwise answer first).

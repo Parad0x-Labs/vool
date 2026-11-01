@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
+import core.artifact_readers as readers
 from core import chat_attachments
 from core.artifact_readers import _sandbox
-import core.artifact_readers as readers
 from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
 from tests.reader_fixtures import native_text_pdf
 

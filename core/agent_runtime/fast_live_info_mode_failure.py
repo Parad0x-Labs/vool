@@ -2,12 +2,11 @@ from __future__ import annotations
 
 
 def live_info_failure_text(*, query: str, mode: str) -> str:
-    from core.remote_fetch_policy import effective_web_available
-
     from core.agent_runtime.fast_live_info_runtime_results import (
         asks_only_for_general_knowledge,
         web_lookups_off_text,
     )
+    from core.remote_fetch_policy import effective_web_available
 
     if not effective_web_available() and not asks_only_for_general_knowledge(query):
         # Nothing went online, so "I tried the live web lane" would be false: say what held. A

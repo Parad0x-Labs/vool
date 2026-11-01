@@ -25,10 +25,12 @@ def maybe_handle_creative_set_save(
         return None
     name, description = request
 
-    from core.authorized_tool_execution import authorize_runtime_tool, execute_authorized_runtime_tool
+    from core.authorized_tool_execution import (
+        authorize_runtime_tool,
+        execute_authorized_runtime_tool,
+        permission_payload,
+    )
     from core.mode_permission_policy import PermissionEffect
-
-    from core.authorized_tool_execution import permission_payload
 
     arguments = {"name": name, "description": description}
     decision = authorize_runtime_tool("set.save", arguments, source_context=source_context)

@@ -1466,10 +1466,7 @@ def reminder_names_a_subject(text: str) -> bool:
 
 
 _WHEN_ONLY_WORDS = frozenset(
-    "on at in by am pm utc gmt today tonight tomorrow morning afternoon evening noon midnight next this "
-    "monday tuesday wednesday thursday friday saturday sunday minutes minute hours hour days day weeks week "
-    "january february march april may june july august september october november december "
-    "jan feb mar apr jun jul aug sep sept oct nov dec st nd rd th of the".split()
+    ["on", "at", "in", "by", "am", "pm", "utc", "gmt", "today", "tonight", "tomorrow", "morning", "afternoon", "evening", "noon", "midnight", "next", "this", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "minutes", "minute", "hours", "hour", "days", "day", "weeks", "week", "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec", "st", "nd", "rd", "th", "of", "the"]
 )
 
 

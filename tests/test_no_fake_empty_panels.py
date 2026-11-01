@@ -25,13 +25,12 @@ load.unreachable fallback is assertable verbatim.
 """
 from __future__ import annotations
 
-from tests.chat_page_js_harness import DOM, run_node, script_blocks
-
 from core.chat_import_settings_fragment import render_chat_import_settings_fragment
 from core.council_fragment import render_council_fragment
 from core.goal_progress_fragment import render_goal_progress_fragment
 from core.model_radar_fragment import render_model_radar_fragment
 from core.settings_extras_fragment import render_settings_extras_fragment
+from tests.chat_page_js_harness import DOM, run_node, script_blocks
 
 CALM = "Can\u2019t reach VOOL right now, trying again\u2026"
 

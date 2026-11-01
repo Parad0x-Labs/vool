@@ -265,7 +265,6 @@ def _currency_reply(
     )
     source = dict(source_context or {})
     from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
-
     from core.remote_fetch_policy import effective_web_available
 
     # The switch AND Local Only: under a chat's Local Only the rate was fetched anyway, its name

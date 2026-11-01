@@ -14,7 +14,7 @@ import pytest
 from core import chain_data
 from core import request_trust as rt
 from tests.mobile.test_phone_full_vool_rights import _turn
-from tests.mobile.test_phone_full_vool_rights import phone as phone  # noqa: F401  (fixture)
+from tests.mobile.test_phone_full_vool_rights import phone as phone
 
 
 @pytest.mark.parametrize("rules", [

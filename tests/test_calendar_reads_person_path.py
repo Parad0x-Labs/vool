@@ -132,7 +132,7 @@ def test_next_week_agenda_is_answered_from_the_rows(store):
     agent = make_agent()
     text = _assert_read_the_store(turn(agent, "whats on my calendar next week", session="cal-next-week"), RETRO)
     assert FAMILY_NAME not in text and WORK_NAME in text, text
-    for word, date in (DENTIST, PLAY, SWIM):  # this week's events stay outside "next week"
+    for word, _date in (DENTIST, PLAY, SWIM):  # this week's events stay outside "next week"
         assert word not in text, f"{word!r} is not next week but was answered: {text}"
 
 

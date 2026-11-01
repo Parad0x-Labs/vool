@@ -16,7 +16,8 @@ reads "folder", "file", "email", "command"; not "directory", "workspace", "shell
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 #: intent -> the action in everyday words (the English catalog source).
 APPROVAL_ACTION_PHRASES: dict[str, str] = {

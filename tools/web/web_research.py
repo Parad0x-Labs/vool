@@ -20,16 +20,16 @@ from core import policy_engine
 from core.live_quote_contract import LiveQuoteResult, format_quote_timestamp
 from core.market_intent import MARKET_TERMS, market_quote_intent_present
 from core.remote_fetch_policy import (
-    RemoteFetchRefusedError as _RemoteFetchRefusedError,
-)
-from core.remote_fetch_policy import (
     WEB_LOOKUPS_OFF_DENIAL,
-    open_remote as _open_remote_door,
-)
-from core.remote_fetch_policy import (
     local_only_active,
     remote_fetch_forbidden,
     remote_turn_active,
+)
+from core.remote_fetch_policy import (
+    RemoteFetchRefusedError as _RemoteFetchRefusedError,
+)
+from core.remote_fetch_policy import (
+    open_remote as _open_remote_door,
 )
 from core.source_credibility import evaluate_source_domain
 from core.weather_result_contract import WeatherResult

@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from tests.action_claim_fresh_cases import CLAIM, PASS
-from tests.test_action_claim_gate_review_corpus import _fresh, gate  # noqa: F401  (fixture + helper)
+from tests.test_action_claim_gate_review_corpus import _fresh, gate
 
 
 @pytest.mark.parametrize("text", PASS)

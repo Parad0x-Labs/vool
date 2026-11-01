@@ -156,7 +156,7 @@ _STOPWORDS = frozenset(
         "also", "just", "only", "some", "them", "they", "their", "there", "here", "about", "after",
         "before", "over", "under", "each", "per", "via", "get", "got", "make", "made", "does", "did",
         "should", "would", "could", "may", "might", "please", "want", "wants", "need", "needs",
-        "these", "those", "much", "many", "very", "really", "actually", "anyway", "just", "such",
+        "these", "those", "much", "many", "very", "really", "actually", "anyway", "such",
         "even", "ever", "still", "yet", "now", "something", "anything", "everything", "nothing",
         "someone", "anyone", "everyone", "thing", "things",
     }

@@ -26,7 +26,6 @@ from core.operator.notes import find_notes_query, parse_note_request
 from core.operator.parser import parse_operator_action_intent
 from core.persistent_memory import maybe_handle_memory_command
 
-
 # --- N5: editing an existing picture ------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("text", [

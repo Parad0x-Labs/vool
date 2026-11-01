@@ -12,7 +12,7 @@ import sqlite3
 import uuid
 
 from tests.test_forget_scrubs_run_history import CANARY, _remember, command
-from tests.test_forget_scrubs_run_history import isolated_pages as isolated_pages  # noqa: F401  (fixture)
+from tests.test_forget_scrubs_run_history import isolated_pages as isolated_pages
 
 DEVICE = "phone:abc"
 

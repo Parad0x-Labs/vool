@@ -313,7 +313,7 @@ def _ready_local_models_first(
         return list(manifests)
     reordered = ready + [manifest for manifest in locals_in_order if not certified(manifest)]
     out = list(manifests)
-    for index, manifest in zip(local_slots, reordered):
+    for index, manifest in zip(local_slots, reordered, strict=False):
         out[index] = manifest
     return out
 

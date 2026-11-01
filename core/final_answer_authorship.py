@@ -1611,6 +1611,7 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
+    "AUTHOR_REFUSAL_LEAD",
     "CERTIFICATION_SOURCE_MEASURED",
     "CERTIFICATION_SOURCE_NONE",
     "CERTIFICATION_SOURCE_OPERATOR",
@@ -1635,6 +1636,8 @@ __all__ = [
     "AuthorshipDecision",
     "AuthorshipRecord",
     "author_certification",
+    "author_refusal_leads",
+    "author_refusal_text",
     "authored_publication_verdict",
     "authorship_record_for_publication",
     "decide_final_answer_author",
@@ -1642,13 +1645,10 @@ __all__ = [
     "execution_claims",
     "gate_authored_content",
     "gate_execution_claims",
-    "model_authored_turn",
     "invalidate_author_certification",
     "is_authorship_refusal_text",
+    "model_authored_turn",
     "no_model_notice_leads",
-    "author_refusal_leads",
-    "author_refusal_text",
-    "AUTHOR_REFUSAL_LEAD",
     "no_model_notice_text",
     "record_authorship_decision",
     "record_runtime_support",
