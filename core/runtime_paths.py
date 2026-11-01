@@ -60,13 +60,16 @@ def vool_env(name: str, default: str | None = None) -> str | None:
 
 
 def user_runtime_default() -> Path:
-    """Default per-user runtime home: ``~/.vool_runtime``, or the pre-rename
-    ``~/.nulla_runtime`` when only that directory exists (reuse, never a second profile)."""
-    canonical = Path.home() / ".vool_runtime"
-    legacy = Path.home() / ".nulla_runtime"
-    if not canonical.exists() and legacy.exists():
-        return legacy
-    return canonical
+    """Default per-user runtime home: ``~/.vool_runtime``.
+
+    First-run law (2026-11-01): a missing VOOL profile is a clean first-run setup, never a
+    silent read of the pre-rename store. A ``~/.nulla_runtime`` directory is NOT adopted
+    implicitly: an old store holds identity material sealed under secrets this runtime may
+    not have (measured failure mode: cryptography InvalidTag on boot, process gone before
+    any window could explain itself). It is left untouched on disk. An operator who really
+    wants that store selects it explicitly via ``VOOL_HOME`` / ``NULLA_HOME``.
+    """
+    return Path.home() / ".vool_runtime"
 
 
 def configure_runtime_home(path: str | Path | None) -> None:
@@ -187,7 +190,13 @@ def runtime_auxiliary_path(*parts: str, legacy: str | Path | None = None) -> Pat
 
 
 def native_runtime_home(env: Mapping[str, str] | None = None) -> Path:
-    """Native launch home, resolved before the launcher opens logs or starts a child."""
+    """Native launch home, resolved before the launcher opens logs or starts a child.
+
+    First-run law (2026-11-01): when the canonical VOOL home does not exist yet, this is a
+    clean first-run setup. The pre-rename NULLA-named stores are never adopted implicitly
+    (see :func:`user_runtime_default` for the measured InvalidTag boot failure); they are
+    left exactly as they are. An explicit ``VOOL_HOME`` / ``NULLA_HOME`` still wins.
+    """
     env_map = os.environ if env is None else env
     if env is None and _runtime_override_is_active(env_map):
         return _VOOL_HOME_OVERRIDE.resolve()
@@ -196,12 +205,10 @@ def native_runtime_home(env: Mapping[str, str] | None = None) -> Path:
         return Path(explicit).expanduser().resolve()
     if sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
-        canonical, legacy = base / "VOOL" / "runtime", base / "NULLA" / "runtime"
-        return (legacy if not canonical.exists() and legacy.exists() else canonical).resolve()
+        return (base / "VOOL" / "runtime").resolve()
     if sys.platform == "win32":
         base = Path(str(env_map.get("LOCALAPPDATA") or Path.home())).expanduser()
-        canonical, legacy = base / "VOOL", base / "NULLA"
-        return (legacy if not canonical.exists() and legacy.exists() else canonical).resolve()
+        return (base / "VOOL").resolve()
     return user_runtime_default().resolve()
 
 

@@ -1,11 +1,12 @@
 """Upgrade compatibility across the NULLA -> VOOL rename (installed-base contracts).
 
-A user upgrading from a pre-rename build (the macOS .app that writes
-``~/Library/Application Support/NULLA``) must land in their EXISTING profile, not a fresh
-empty one; the two app generations must keep excluding each other's windows; and an
-external SIGTERM must still tear the owned runtime down while the native run loop parks
-the main thread. All three contracts were broken by the rename or by the Cocoa run loop
-(measured 2026-09-19 against the packaged 0.6.0-beta app):
+Amended 2026-11-01 (first-run law): a machine with a pre-rename NULLA profile and no VOOL
+profile starts FRESH in the canonical home — the old store is never read implicitly (its
+identity material may not decrypt: measured InvalidTag boot death, no window) and is left
+byte-identical on disk. The two app generations must still exclude each other's windows,
+and an external SIGTERM must still tear the owned runtime down while the native run loop
+parks the main thread. The pre-amendment contracts that were broken by the rename or by
+the Cocoa run loop (measured 2026-09-19 against the packaged 0.6.0-beta app):
 
 - the generated self-contained launcher hardcoded the new support dir, stranding a legacy
   profile and creating a duplicate empty home beside it;
@@ -195,13 +196,21 @@ def test_download_without_platform_metadata_is_refused_before_any_profile_choice
     )
 
 
-def test_launcher_reuses_a_legacy_nulla_runtime_home(tmp_path: Path) -> None:
+def test_launcher_leaves_a_legacy_nulla_store_unadopted(tmp_path: Path) -> None:
+    """First-run law (2026-11-01), replacing the 2026-09-19 reuse rule: a legacy-only
+    machine starts FRESH in the canonical home; the old store is never read implicitly and
+    is left byte-identical on disk. The decision is visible in the launch log, never silent."""
     home = tmp_path / "home"
     home.mkdir()
     legacy = _legacy_runtime(home)
+    legacy_db = legacy / "data/nulla_web0_v2.db"
+    before = legacy_db.read_bytes()
     log = _run_launcher(_without_macos_hardware_gate(_self_contained_launcher_text()), home, _stub_bundle_root(tmp_path))
-    assert f"VOOL_HOME={legacy}" in log, f"legacy profile was not reused: {log}"
-    assert "reusing the pre-rename runtime home" in log
+    canonical = home / "Library/Application Support/VOOL/runtime"
+    assert f"VOOL_HOME={canonical}" in log, f"the legacy store was adopted implicitly: {log}"
+    assert "not used" in log and str(legacy) in log, "the unadopted store must be named in the log"
+    assert legacy_db.read_bytes() == before, "the legacy store must be left byte-identical"
+    assert "reusing the pre-rename runtime home" not in log
 
 
 def test_launcher_fresh_machine_uses_canonical_home(tmp_path: Path) -> None:

@@ -20,9 +20,13 @@ Canonical names are now `VOOL_*`. Legacy `NULLA_*` names still work everywhere:
 
 ## Runtime home and data
 
-- Canonical per-user home: `~/.vool_runtime`. If `~/.nulla_runtime` already exists (and the
-  canonical dir does not), **it is reused as-is** — the runtime never creates a second profile
-  beside your old one.
+- Canonical per-user home: `~/.vool_runtime`. **2026-11-01, first-run law:** a missing VOOL
+  profile is a clean first-run setup — the runtime no longer adopts a legacy `~/.nulla_runtime`
+  store implicitly. An old store holds identity material sealed under secrets the current
+  runtime may not have (measured failure: `cryptography.exceptions.InvalidTag` killed the boot
+  before any window could explain itself). The legacy store is left byte-identical on disk;
+  an operator who wants it selects it explicitly via `VOOL_HOME` / `NULLA_HOME`
+  (`core/runtime_paths.py`).
 - Project-local dev home: `.vool_local`, with the same reuse rule for an existing `.nulla_local`.
 - Install receipts (`install_receipt.json`) still point at the home chosen at install time;
   nothing about an installed app moves.
@@ -32,13 +36,18 @@ Canonical names are now `VOOL_*`. Legacy `NULLA_*` names still work everywhere:
 - Install directories: `~/vool-local`, with reuse of an existing `~/nulla-local` (shell and
   PowerShell installers).
 - macOS app support home: the app's per-user home is `~/Library/Application Support/VOOL/runtime`.
-  When only the pre-rename `~/Library/Application Support/NULLA/runtime` exists, **it is reused
-  as-is** (the generated launcher in `installer/bundle/build_macos_app.sh` resolves this before
-  the runtime starts). When both exist, the canonical home is chosen deterministically and the
-  launch log names both directories, so the conflict is visible. The pre-rename
+  **2026-11-01, first-run law:** the generated launcher in `installer/bundle/build_macos_app.sh`
+  no longer reuses a pre-rename `~/Library/Application Support/NULLA/runtime` implicitly — a
+  machine without a VOOL profile starts fresh in the canonical home and the launch log names
+  the legacy store as not used when one exists. The pre-rename
   `Application Support/NULLA` **window lock and Windows mutex name stay frozen**: the VOOL
   window claims both generations' locks so an old NULLA.app window and a VOOL window never
   stack on one machine (`installer/bundle/vool_window.py`).
+- **Undecryptable profile records:** if the active profile's encrypted identity record cannot
+  be decrypted at startup (wrong or missing passphrase, damaged record), the runtime refuses
+  to start with a plain on-screen message and leaves the record and its neighbours untouched —
+  it is never silently replaced, archived, or regenerated (`network/signer.py`
+  `SigningKeyUnreadable`, `data/startup_blocker.json`, the native window's blocker dialog).
 
 ## Intentionally frozen identifiers (documented legacy)
 

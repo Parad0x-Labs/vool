@@ -910,15 +910,15 @@ set -uo pipefail
 RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
 # Bootstrap native state without executing the payload before its platform gate.
 # This is the Darwin selection law used by core.runtime_paths.native_runtime_home.
+# FIRST-RUN LAW (2026-11-01): a missing VOOL profile is a clean first-run setup, never a
+# silent read of the pre-rename NULLA store. A legacy store holds identity material sealed
+# under secrets this build may not have; adopting it implicitly bricked first launches with
+# cryptography InvalidTag and no window (see docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md).
 CANONICAL_RUNTIME="${HOME}/Library/Application Support/VOOL/runtime"
 LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
 SELECTED_RUNTIME="${VOOL_HOME:-${NULLA_HOME:-}}"
 if [[ -z "${SELECTED_RUNTIME}" ]]; then
-  if [[ ! -d "${CANONICAL_RUNTIME}" && -d "${LEGACY_RUNTIME}" ]]; then
-    SELECTED_RUNTIME="${LEGACY_RUNTIME}"
-  else
-    SELECTED_RUNTIME="${CANONICAL_RUNTIME}"
-  fi
+  SELECTED_RUNTIME="${CANONICAL_RUNTIME}"
 fi
 if [[ "${SELECTED_RUNTIME}" == "${CANONICAL_RUNTIME}" || "${SELECTED_RUNTIME}" == "${LEGACY_RUNTIME}" ]]; then
   SUPPORT="${HOME}/Library/Application Support/VOOL"
@@ -982,18 +982,16 @@ echo "--- VOOL.app (self-contained) launch $(date) ---"
 # or validation rig set, routing the daemon's data to the installed home instead (measured
 # 2026-09-08: an isolated acceptance home was never read and never written).
 #
-# UPGRADE REUSE (2026-09-19): a user upgrading from a pre-rename build has their whole
-# profile — database, conversations, credentials, wallet references, permissions — under
-# ~/Library/Application Support/NULLA/runtime. The canonical home is chosen ONLY when it
-# already exists or no legacy home does; a legacy-only machine keeps its data (never a
-# second empty profile beside the old one). When BOTH exist the canonical home wins
-# deterministically (same rule as core.runtime_paths.user_runtime_default and the
-# .vool_local/.nulla_local reuse) and the decision names both directories in the log, so
-# the conflict is visible instead of silent. See docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md.
-if [[ "${VOOL_HOME}" == "${CANONICAL_RUNTIME}" && -d "${LEGACY_RUNTIME}" ]]; then
-  echo "NOTE: profiles exist at both ${CANONICAL_RUNTIME} (used) and ${LEGACY_RUNTIME} (not used)."
-elif [[ "${VOOL_HOME}" == "${LEGACY_RUNTIME}" ]]; then
-  echo "reusing the pre-rename runtime home: ${LEGACY_RUNTIME}"
+# FIRST-RUN LAW (2026-11-01): the legacy reuse rule of 2026-09-19 is repealed. A machine
+# with a pre-rename NULLA profile and no VOOL profile starts FRESH in the canonical home;
+# the old store is never read implicitly (its identity material may not decrypt — measured:
+# cryptography InvalidTag killed the boot before any window could explain itself) and is
+# left byte-identical on disk. An operator who wants the old store selects it explicitly
+# via VOOL_HOME / NULLA_HOME. The decision still names both directories in the log, so a
+# legacy store sitting beside a fresh profile is visible instead of silent.
+# See docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md.
+if [[ -d "${LEGACY_RUNTIME}" && "${VOOL_HOME}" == "${CANONICAL_RUNTIME}" ]]; then
+  echo "NOTE: a pre-rename profile exists at ${LEGACY_RUNTIME} and is not used; VOOL uses ${CANONICAL_RUNTIME}."
 fi
 # Reuse an existing Ollama model store when the machine already has one, so a first launch does
 # not re-download several GB; otherwise keep the models inside the app's own support dir.

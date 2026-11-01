@@ -1584,6 +1584,70 @@ def _start_notification_bridge(window: object) -> object | None:
         return None
 
 
+def _startup_blocker_alert_command(message: str) -> list[str] | None:
+    """The per-OS command that shows the plain startup-blocker sentence, or None.
+
+    Pure so tests can pin the exact dialog a person sees per platform without spawning one.
+    """
+    if sys.platform == "darwin":
+        return [
+            "osascript",
+            "-e",
+            "on run argv",
+            "-e",
+            'display alert "VOOL cannot start" message (item 1 of argv) as critical giving up after 30',
+            "-e",
+            "end run",
+            message,
+        ]
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            return ["zenity", "--error", "--no-wrap", "--title", "VOOL cannot start", "--text", message]
+        if shutil.which("kdialog"):
+            return ["kdialog", "--error", message, "--title", "VOOL cannot start"]
+        return None
+    return None
+
+
+def _show_startup_blocker_dialog(message: str) -> None:
+    """First-run law (2026-11-01): a decrypt failure at startup is a plain user message and
+    untouched data, never a silent quit. Best-effort on every surface; the sentence is
+    always logged too, so an environment without a dialog tool still names the blocker."""
+    _log(f"VOOL cannot start: {message}")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, "VOOL cannot start", 0x10)  # MB_ICONERROR
+        except Exception as exc:
+            _log(f"startup blocker dialog unavailable ({exc!r})")
+        return
+    command = _startup_blocker_alert_command(message)
+    if command is None:
+        _log("startup blocker dialog unavailable: no dialog tool on this platform")
+        return
+    try:
+        subprocess.run(
+            command,
+            check=False,
+            timeout=60,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as exc:
+        _log(f"startup blocker dialog failed ({exc!r})")
+
+
+def _startup_blocker_message(supervisor: object) -> str | None:
+    """The dead child's own plain-language boot blocker, when it named one."""
+    blocker = getattr(supervisor, "startup_blocker", None)
+    if isinstance(blocker, dict):
+        message = str(blocker.get("message") or "").strip()
+        if message:
+            return message
+    return None
+
+
 def main() -> int:
     supervisor = None
     notification_bridge = None
@@ -1617,6 +1681,11 @@ def main() -> int:
             identity = supervisor.ensure_ready()
         except NativeRuntimeError as exc:
             _log(f"ERROR: exact native runtime unavailable ({exc})")
+            blocker = _startup_blocker_message(supervisor)
+            if blocker:
+                # First-run law (2026-11-01): the runtime named its own decrypt failure;
+                # the person reads it as a sentence, not as a window that never appears.
+                _show_startup_blocker_dialog(blocker)
             return 1
         owned_child = getattr(supervisor, "process", None)
         if supervisor.owns_runtime and owned_child is not None:

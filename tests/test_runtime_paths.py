@@ -207,7 +207,11 @@ def test_blank_canonical_home_preserves_explicit_legacy_home(tmp_path) -> None:
     assert active_vool_home({"VOOL_HOME": "  ", "NULLA_HOME": str(home)}) == home
 
 
-def test_native_default_reuses_legacy_profile_before_creating_state(tmp_path, monkeypatch) -> None:
+def test_native_default_never_adopts_a_legacy_profile(tmp_path, monkeypatch) -> None:
+    """First-run law (2026-11-01): a missing VOOL profile is a clean first-run setup, never a
+    silent read of the pre-rename NULLA store. The old store held identity material sealed
+    under secrets the current runtime may not have; adopting it bricked first launches with
+    cryptography InvalidTag and no window. The legacy store is left exactly as it is."""
     from core.runtime_paths import native_runtime_home
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -215,8 +219,12 @@ def test_native_default_reuses_legacy_profile_before_creating_state(tmp_path, mo
     base = tmp_path / "Library" / "Application Support"
     legacy = base / "NULLA" / "runtime"
     legacy.mkdir(parents=True)
-    assert native_runtime_home({}) == legacy
-    assert not (base / "VOOL").exists()
+    legacy_record = legacy / "data"
+    legacy_record.mkdir()
+    legacy_record_file = legacy_record / "legacy.db"
+    legacy_record_file.write_bytes(b"legacy-profile")
+    assert native_runtime_home({}) == base / "VOOL" / "runtime"
+    assert legacy_record_file.read_bytes() == b"legacy-profile"
     current = base / "VOOL" / "runtime"
     current.mkdir(parents=True)
     assert native_runtime_home({}) == current

@@ -19,10 +19,11 @@ from core.runtime_paths import active_vool_home, runtime_home_is_isolated, vool_
 
 _DEFAULT_PLUGINS_DIR = Path.home() / "Desktop" / "Vool-skills-plugins"
 # The pre-rename installation folder (NULLA -> VOOL, 2026-09). An existing installation there is
-# REUSED as-is -- never moved, never duplicated into the current name -- by the same law
-# core.runtime_paths.user_runtime_default applies to ~/.nulla_runtime: one installation, whichever
-# folder it already lives in. The current name wins only when both folders exist, so an operator
-# who deliberately migrates controls that transition; nothing here ever writes both.
+# REUSED as-is -- never moved, never duplicated into the current name -- so an operator's desktop
+# plugin folder survives the rename (its own contract; the runtime-home first-run law of
+# 2026-11-01 in core.runtime_paths governs the PROFILE store, not these Desktop folders). The
+# current name wins only when both folders exist, so an operator who deliberately migrates
+# controls that transition; nothing here ever writes both.
 _LEGACY_PLUGINS_DIR = Path.home() / "Desktop" / "Nulla-skills-plugins"
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 

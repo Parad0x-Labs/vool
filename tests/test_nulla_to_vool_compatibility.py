@@ -1,9 +1,10 @@
-"""Contracts added by the NULLA -> VOOL rename (see docs/UPGRADE_NULLA_TO_VOOL.md).
+"""Contracts carried across the NULLA -> VOOL rename (see docs/UPGRADE_NULLA_TO_VOOL.md).
 
-These pin the three compat laws the migration promised:
-1. VOOL_* env wins over NULLA_*; NULLA_* alone still works.
-2. A legacy runtime home is REUSED, never duplicated by a second profile.
-3. A legacy database filename is REUSED, never orphaned.
+The compat laws as they stand after the 2026-11-01 first-run amendment:
+1. VOOL_* env wins over NULLA_*; NULLA_* alone still works (explicit selection).
+2. A legacy runtime store is NEVER adopted implicitly: a missing VOOL profile is a clean
+   first-run setup, and the old store is left untouched on disk.
+3. A legacy database filename inside an existing home is REUSED, never orphaned.
 """
 from __future__ import annotations
 
@@ -38,11 +39,16 @@ def test_vool_env_reads_canonical_first_then_legacy(monkeypatch) -> None:
     assert vool_env("K", "d") == "d"
 
 
-def test_legacy_user_home_is_reused_not_duplicated(monkeypatch, tmp_path) -> None:
+def test_legacy_user_home_is_never_adopted_implicitly(monkeypatch, tmp_path) -> None:
+    """First-run law (2026-11-01), replacing the 2026-09-19 reuse rule: a missing VOOL
+    profile is a clean first-run setup, never a silent read of the pre-rename store. The
+    old store's identity material may not decrypt under this runtime (measured: InvalidTag
+    boot death, no window); it is left untouched. An explicit VOOL_HOME/NULLA_HOME still
+    selects a home directly (`core.runtime_paths.active_vool_home`)."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)  # type: ignore[assignment]
     legacy = tmp_path / ".nulla_runtime"
     legacy.mkdir()
-    assert user_runtime_default() == legacy
+    assert user_runtime_default() == tmp_path / ".vool_runtime"
     canonical = tmp_path / ".vool_runtime"
     canonical.mkdir()
     assert user_runtime_default() == canonical

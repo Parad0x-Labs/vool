@@ -83,6 +83,10 @@ class NativeRuntimeSupervisor:
         self.log_handle: Any | None = None
         self.attached_existing = False
         self.ready_identity: dict[str, Any] = {}
+        # Set when the owned child died before readiness AND named its own blocker (a boot
+        # that refused to start on an undecryptable profile record, first-run law
+        # 2026-11-01). The window host turns this into a plain user message.
+        self.startup_blocker: dict[str, Any] | None = None
 
     @classmethod
     def from_environment(cls, *, module_path: str | Path) -> NativeRuntimeSupervisor:
@@ -212,6 +216,29 @@ class NativeRuntimeSupervisor:
             and self._identity(payload).get("pid") == self.process.pid
         )
 
+    def _read_startup_blocker(self, child_pid: int) -> dict[str, Any] | None:
+        """The dead child's own typed boot blocker, or None.
+
+        Accepted only when the record names THIS child's pid: a successful boot deletes the
+        record, so a surviving one belongs either to the child that just died or to a boot
+        that never got far enough to clear it — the pid check keeps a stale record from
+        another process speaking for this one. Never raised into the caller's way: the
+        returncode failure stands on its own.
+        """
+        path = active_vool_home(self.env) / "data" / "startup_blocker.json"
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        if str(payload.get("schema") or "") != "vool.startup_blocker.v1":
+            return None
+        message = str(payload.get("message") or "").strip()
+        if not message or payload.get("pid") != child_pid:
+            return None
+        return {"reason": str(payload.get("reason") or "startup_blocked"), "message": message}
+
     def ensure_ready(self) -> dict[str, Any]:
         """Return the exact runtime stamp, or raise before any native window is created."""
         if not self.expected_sha:
@@ -266,7 +293,14 @@ class NativeRuntimeSupervisor:
         while time.monotonic() < deadline:
             returncode = self.process.poll()
             if returncode is not None:
+                child_pid = int(self.process.pid)
                 self.shutdown()
+                blocker = self._read_startup_blocker(child_pid)
+                if blocker is not None:
+                    self.startup_blocker = blocker
+                    raise NativeRuntimeError(
+                        f"runtime child exited before readiness (returncode={returncode}): {blocker['message']}"
+                    )
                 raise NativeRuntimeError(f"runtime child exited before readiness (returncode={returncode})")
             payload = self._health()
             if payload is not None:

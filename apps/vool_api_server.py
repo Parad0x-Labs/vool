@@ -97,6 +97,10 @@ from core.web.api.service import (
 logger = logging.getLogger("vool.api")
 
 VOOL_API_PORT = 11435
+# A boot blocked by an undecryptable profile record exits with this code; the native window
+# host pairs it with the typed startup_blocker.json record (first-run law 2026-11-01).
+_STARTUP_BLOCKER_SCHEMA = "vool.startup_blocker.v1"
+_STARTUP_BLOCKED_EXIT_CODE = 86
 
 _runtime_services: RuntimeServices | None = None
 _agent = None
@@ -600,6 +604,45 @@ def _arm_fatal_signal_diagnostics() -> bool:
     return True
 
 
+def _startup_blocker_path() -> Path:
+    from core.runtime_paths import active_data_dir
+
+    return active_data_dir() / "startup_blocker.json"
+
+
+def _write_startup_blocker(reason: str, message: str) -> None:
+    """Record WHY this boot refused to start, as one typed plain-language record.
+
+    The native window host reads it through the runtime supervisor when its own child exits
+    before readiness, so a decrypt failure reaches the person as a sentence instead of a
+    bare returncode in a log file they were never shown (first-run law 2026-11-01). The
+    record carries this process's pid — a supervisor only trusts the record of the child it
+    just watched die — and a later boot that succeeds deletes it.
+    """
+    import time
+
+    payload = {
+        "schema": _STARTUP_BLOCKER_SCHEMA,
+        "reason": reason,
+        "message": message,
+        "pid": os.getpid(),
+        "created_at_epoch": time.time(),
+    }
+    try:
+        path = _startup_blocker_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _clear_startup_blocker() -> None:
+    """A boot that passed the decrypt-bearing bootstrap deletes any blocker record: a
+    surviving record must always explain the boot that just failed, never an older one."""
+    with contextlib.suppress(OSError):
+        _startup_blocker_path().unlink(missing_ok=True)
+
+
 def main() -> int:
     # Diagnosability law (F46): a served turn spent a measured ~97 s idle between
     # task_classified and model_routing — no events, no model call, no network — and the
@@ -658,6 +701,10 @@ def main() -> int:
 
             route_logging_to_file(active_data_dir() / "logs" / "vool_api.log")
         app = create_app(runtime)
+        # Boot passed the decrypt-bearing bootstrap: any earlier startup blocker record is
+        # stale by definition, and a successful boot must never leave one behind to explain
+        # a future, different failure.
+        _clear_startup_blocker()
         import uvicorn
 
         _write_pidfile()
@@ -754,6 +801,21 @@ def main() -> int:
         finally:
             if owns_signals:
                 signal.signal(signal.SIGTERM, previous_sigterm)
+    except Exception as exc:
+        from network.signer import SigningKeyUnreadable
+
+        if not isinstance(exc, SigningKeyUnreadable):
+            raise
+        # First-run law (2026-11-01): a decrypt failure at startup is a plain message and
+        # untouched data, never a bare traceback dying in a log file. The typed record is
+        # what lets the native window host show the same sentence in a dialog.
+        with contextlib.suppress(Exception):
+            if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        logger.error("VOOL cannot start: %s", exc)
+        print(f"VOOL cannot start: {exc}", file=sys.stderr)
+        _write_startup_blocker("signing_key_unreadable", str(exc))
+        return _STARTUP_BLOCKED_EXIT_CODE
     finally:
         _remove_pidfile()
         try:

@@ -5,12 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_DIR="${PROJECT_ROOT}/.venv"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-# NULLA -> VOOL compatibility: an existing pre-rename runtime home is reused, never duplicated.
+# FIRST-RUN LAW (2026-11-01): a missing VOOL profile is a clean first-run setup. A pre-rename
+# ~/.nulla_runtime store is never adopted implicitly (it can hold identity material this
+# runtime cannot decrypt); it is left untouched. An explicit VOOL_HOME/NULLA_HOME still wins.
 if [ -z "${VOOL_HOME_DEFAULT:-}" ]; then
   if [[ -n "${VOOL_HOME:-${NULLA_HOME:-}}" ]]; then
     VOOL_HOME_DEFAULT="${VOOL_HOME:-${NULLA_HOME}}"
-  elif [ -d "$HOME/.nulla_runtime" ] && [ ! -d "$HOME/.vool_runtime" ]; then
-    VOOL_HOME_DEFAULT="$HOME/.nulla_runtime"
   else
     VOOL_HOME_DEFAULT="$HOME/.vool_runtime"
   fi

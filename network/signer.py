@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -43,6 +44,16 @@ _KEYRING_ACCOUNT = "node_signing_key"
 _LOG = logging.getLogger("vool.signer")
 _LOCAL_KEYPAIR: LocalKeypair | None = None
 _KEYPAIR_LOCK = threading.RLock()
+
+# The one plain-language message an undecryptable identity record produces. Shown in the
+# startup blocker dialog and the logs; deliberately free of filesystem paths so it reads as
+# a sentence to a person, not a stack frame.
+_UNREADABLE_SEED_MESSAGE = (
+    "VOOL found this profile's encrypted identity record but could not decrypt it — "
+    "it was sealed with a different secret than the one available now, or the record is damaged. "
+    "Nothing was changed. To recover, start VOOL with the passphrase that originally sealed "
+    "this profile (VOOL_KEY_PASSPHRASE), or restore the profile's keys folder from a backup."
+)
 
 
 @dataclass
@@ -500,6 +511,17 @@ def key_storage_class() -> str:
     return assert_known_storage_class(STORAGE_CLASS_EPHEMERAL)
 
 
+class SigningKeyUnreadable(RuntimeError):
+    """The profile's encrypted signing-key record exists but does not authenticate.
+
+    Raised instead of a raw ``cryptography.exceptions.InvalidTag`` (or a malformed-payload
+    ``ValueError``) so every boot path can recognise ONE typed failure and tell the person
+    plainly, instead of dying in a log file they were never shown. The record and its
+    neighbours are left byte-identical: a key that cannot be opened is never silently
+    replaced, archived, or regenerated (first-run law 2026-11-01).
+    """
+
+
 def load_or_create_local_keypair() -> LocalKeypair:
     global _LOCAL_KEYPAIR
     if _LOCAL_KEYPAIR is not None:
@@ -516,7 +538,10 @@ def _load_or_create_local_keypair_unlocked() -> LocalKeypair:
 
     if _KEYRING_RECORD_PATH.exists():
         _enforce_private_key_permissions(_KEYRING_RECORD_PATH)
-        seed = _load_keyring_seed(_KEYRING_RECORD_PATH)
+        try:
+            seed = _load_keyring_seed(_KEYRING_RECORD_PATH)
+        except (InvalidTag, ValueError) as exc:
+            raise SigningKeyUnreadable(_UNREADABLE_SEED_MESSAGE) from exc
         sk = _signing_key_from_seed(seed)
         _LOCAL_KEYPAIR = LocalKeypair(signing_key=sk, verify_key=_verify_key(sk))
         return _LOCAL_KEYPAIR
@@ -543,7 +568,13 @@ def _load_or_create_local_keypair_unlocked() -> LocalKeypair:
                 raise RuntimeError(
                     f"Encrypted signing key record exists at {_KEY_RECORD_PATH} but {_KEY_PASSPHRASE_ENV} is not set."
                 )
-        seed = _load_encrypted_seed(_KEY_RECORD_PATH, passphrase=passphrase)
+        try:
+            seed = _load_encrypted_seed(_KEY_RECORD_PATH, passphrase=passphrase)
+        except (InvalidTag, ValueError) as exc:
+            # The record is sealed under a different secret than the one available now, or its
+            # payload is damaged. Raise the typed failure WITHOUT touching anything: no
+            # archive, no regeneration, no rewrite — the person keeps every byte.
+            raise SigningKeyUnreadable(_UNREADABLE_SEED_MESSAGE) from exc
         sk = _signing_key_from_seed(seed)
         _LOCAL_KEYPAIR = LocalKeypair(signing_key=sk, verify_key=_verify_key(sk))
         return _LOCAL_KEYPAIR
