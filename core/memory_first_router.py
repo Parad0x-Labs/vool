@@ -1983,6 +1983,14 @@ class MemoryFirstRouter:
             interpretation.raw_text = demand_text
             interpretation.normalized_text = demand_text
             interpretation.reconstructed_text = demand_text
+        # The one seam every surface and lane builds through: retrieval sizes its evidence to the
+        # model expected to answer. In place, because the prompt path records onto this mapping.
+        if isinstance(source_context, dict):
+            window = self.stamp_planned_context_window(
+                source_context, classification=classification,
+            ).get("model_context_window")
+            if window:
+                source_context["model_context_window"] = window
         internal_request = normalize_prompt(
             task=task,
             classification=classification,
@@ -5733,6 +5741,13 @@ class MemoryFirstRouter:
                 or _paid_call_authorization(source_context, manifest=manifest, task=task) is not None
             )
         ]
+        # This ranking already names who may answer: the request built below sizes its evidence
+        # from it rather than ranking the same pool a second time. An owner's pick has its own window.
+        if self._requested_model_manifest(source_context) is None and available_prompt_tokens(source_context) <= 0:
+            pool_window = _smallest_context_window(ranked_manifests)
+            source_context = {**source_context, "context_window_planned": True}
+            if pool_window:
+                source_context["model_context_window"] = pool_window
         # A composer/model-menu pick is a strict execution contract, not a ranking hint.  Falling
         # through to another local or cloud model after the selected adapter fails makes the UI lie
         # and produces the visible local/cloud ping-pong.  Auto routing still keeps its normal
@@ -7344,15 +7359,7 @@ class MemoryFirstRouter:
             for manifest in ranked_manifests
             if is_text_generation_ollama_model(manifest.model_name)
         ]
-        if not ranked_manifests:
-            return 0
-        windows = [
-            int(provider_capability_truth_for_manifest(manifest).context_window)
-            for manifest in ranked_manifests
-        ]
-        if any(window <= 0 for window in windows):
-            return 0
-        return min(windows)
+        return _smallest_context_window(ranked_manifests)
 
     def stamp_planned_context_window(
         self,
@@ -7369,7 +7376,7 @@ class MemoryFirstRouter:
         """
 
         ctx = dict(source_context or {})
-        if available_prompt_tokens(ctx) > 0:
+        if available_prompt_tokens(ctx) > 0 or ctx.get("context_window_planned"):
             return ctx
         try:
             window = self.planned_context_window_tokens(
@@ -7381,6 +7388,12 @@ class MemoryFirstRouter:
         if window > 0:
             ctx["model_context_window"] = window
         return ctx
+
+
+def _smallest_context_window(manifests: list[Any]) -> int:
+    """The window that fits every candidate, or 0 when there are none or any hides its window."""
+    windows = [int(provider_capability_truth_for_manifest(manifest).context_window) for manifest in manifests]
+    return min(windows) if windows and min(windows) > 0 else 0
 
 
 def _memory_is_good_enough(context_result: Any, classification: dict[str, Any]) -> bool:
