@@ -29,8 +29,10 @@ def test_the_whole_block_never_exceeds_its_target_plus_the_capped_turn_lane(fres
     tel = dict(cr.get_last_retrieval_telemetry())
     budget = tel["evidence_budget"]
     turn_tokens = int(tel.get("whole_turn_tokens") or 0)
+    distilled_tokens = int(tel.get("estimated_distilled_tokens") or 0)
     assert turn_tokens <= cr._TURN_LANE_MAX_TOKENS, tel
     assert turn_tokens <= int(budget["free_tokens"]), tel
+    assert distilled_tokens + turn_tokens <= int(budget["free_tokens"]), tel
     whole = capsule.estimate_tokens(block)
     packet_tokens = int((tel.get("evidence_compiler") or {}).get("packet_tokens") or 0)   # the receipts packet, its own cap
     assert whole <= int(budget["resolved_target_tokens"]) + turn_tokens + packet_tokens + HEADER_SLACK_TOKENS, (whole, budget, turn_tokens, packet_tokens)
