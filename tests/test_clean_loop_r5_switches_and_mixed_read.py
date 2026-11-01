@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.clean_loop import route
+from core.clean_loop import brain, route
 from core.clean_loop.prompt import build_system_prompt
 from core.clean_loop.registry import Registry
 from core.clean_loop.tools import install_builtin_tools

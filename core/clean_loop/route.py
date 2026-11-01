@@ -9,7 +9,8 @@
    how much am i paying for it") asks for facts, so its verb counts as neither, but only when every clause is a question.
    Money words are RED in any form.
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
-   project-bound chat or a chat with an active goal workflow, and it is the owner's own local turn.
+   project-bound chat, a private chat (its words never reach this loop's brain) or a chat with an
+   active goal workflow, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
    shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
    question about something the owner's documents hold: `tools.document_matches`), and not a
@@ -93,8 +94,14 @@ _TOPIC_RE = re.compile(
 )
 # The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
 _MACHINE_RE = re.compile(r"\b(?:my|this|the)\s+(?:own\s+)?(?:laptop|computer|mac(?:book)?|pc|machine)\b", re.I)
+# Ownership counts only with a file action of the owner's own ("did i move the audit", "i saved the
+# invoice"). A bare possessive ("my cat is called Biscuit", default-on delivery 2026-11-01) is
+# ordinary chat, not an ask about the owner's files or computer: claiming it kept the turn out of
+# the old pipeline, which then never wrote its routing provenance (turn_routing_events.jsonl) —
+# the no-trace contract's ordinary-chat control broke. The same holds for "my speed" style general
+# asks (the document-admission hold-out's reported false admission).
 _OWNED_RE = re.compile(
-    r"\b(?:my|mine|our|ours|did\s+(?:i|we)|i\s+(?:wrote|saved|downloaded|took|put|keep|named|made|have|had|got|need|owe))\b",
+    r"\b(?:did\s+(?:i|we)|i\s+(?:wrote|saved|downloaded|took|put|keep|named|made|have|had|got|need|owe))\b",
     re.I,
 )
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -337,6 +344,18 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
         return "resumed_turn"
     if str(source_context.get("_trusted_project_id") or "").strip():
         return "project_owns_turn"
+    try:
+        from core.private_chat import turn_is_private
+
+        # A private turn belongs to the private-chat machinery (core.private_chat): its words must
+        # not reach this loop's brain — with VOOL_CLEAN_LOOP_CLOUD on (default) that can be the
+        # owner's cloud model — and its pin/rename/move asks must keep the switch's own refusal
+        # (no-trace contract, default-on delivery 2026-11-01: "pin this chat" in a private chat was
+        # claimed here as a follow-up and answered by the brain).
+        if turn_is_private(source_context, session_id):
+            return "private_turn"
+    except Exception:
+        pass
     try:
         from core.goal_workflow import load_active_goal_for_session
 
