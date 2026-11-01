@@ -128,7 +128,7 @@ def test_a_files_ask_is_answered_by_the_clean_loop_from_tool_evidence(turn_setup
 
 def test_with_the_flag_off_the_turn_never_reaches_the_loop(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
-    monkeypatch.delenv("VOOL_CLEAN_LOCAL_LOOP", raising=False)
+    monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "0")
     result = agent.run_once("how much do i owe the plumber?", source_context={"surface": "cli", "platform": "cli"})
     assert result.get("route_reason") != "clean_local_loop"
     assert "clean_local_loop" not in result
