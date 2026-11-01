@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 from core.clean_loop import route, tools
 from core.clean_loop.hook import _prior_evidence, _remember_evidence
-from core.clean_loop.loop import LoopResult, run_loop
-from core.clean_loop.registry import Registry, ToolContext
+from core.clean_loop.loop import CONTENT_SEARCH_NUDGE, LoopResult, run_loop
+from core.clean_loop.registry import Registry, ToolContext, ToolOutcome
 from core.clean_loop.tools import install_builtin_tools
 from core.pdf_tools import extract_text
 
@@ -144,3 +144,26 @@ def test_absence_answer_waits_for_a_complete_content_search():
     )
     assert "can't say whether it is there" in tools.content_absence_gate(incomplete.answer, incomplete)
     assert tools.content_absence_gate(complete.answer, complete) == complete.answer
+
+
+def test_loop_takes_one_more_step_before_an_absence_claim():
+    registry = Registry()
+    install_builtin_tools(registry)
+    registry.register_tool(
+        "find", "", lambda _args, _ctx: ToolOutcome("search incomplete", status="content_search_incomplete")
+    )
+    replies = [
+        '{"answer": "That note is not there."}',
+        '{"tool": "find", "query": "orchid"}',
+        '{"answer": "I did not find that note."}',
+    ]
+    seen = []
+
+    def brain(messages):
+        seen.append([dict(item) for item in messages])
+        return replies[len(seen) - 1]
+
+    result = run_loop("Is the note saved?", brain=brain, registry=registry, ctx=ToolContext(home=Path(".")))
+    assert len(seen) == 3
+    assert any(CONTENT_SEARCH_NUDGE in message["content"] for message in seen[1])
+    assert "can't say whether it is there" in result.answer

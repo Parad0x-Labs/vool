@@ -143,6 +143,7 @@ def run_loop(
     if staged:
         result.seen.append(staged)
     nudged = False
+    absence_search_nudged = False
     failed: set[str] = set()
     for step in range(max_steps):
         last = step == max_steps - 1
@@ -163,13 +164,19 @@ def run_loop(
         action = parse_action(text)
         messages.append({"role": "assistant", "content": json.dumps(action, ensure_ascii=False)})
         if "tool" not in action:
+            from core.clean_loop.tools import content_absence_claim
+
+            content_search_complete = any(
+                item.get("tool") == "find" and item.get("status") == "content_search_complete"
+                for item in result.steps
+            )
             if (
-                any(step.get("tool") == "find" and step.get("status") == "content_search_incomplete"
-                    for step in result.steps)
-                and not any(step.get("tool") == "find" and step.get("status") == "content_search_complete"
-                            for step in result.steps)
+                content_absence_claim(str(action.get("answer") or ""))
+                and not content_search_complete
+                and not absence_search_nudged
                 and not last
             ):
+                absence_search_nudged = True
                 result.steps.append({"step": step, "nudge": "content_search_incomplete", "think_ms": think_ms})
                 messages.append({"role": "user", "content": CONTENT_SEARCH_NUDGE})
                 continue

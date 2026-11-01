@@ -405,6 +405,17 @@ def _query_words(query: str) -> list[str]:
     return seen[:_FIND_WORDS]
 
 
+def _content_index_complete(ctx: ToolContext) -> bool:
+    state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
+    candidates = state.get("candidates", ())
+    metadata = state.get("metadata", {})
+    return (
+        int(state.get("cursor", 0)) >= len(candidates)
+        and not state.get("unreadable")
+        and all((str(path), *metadata[str(path)]) in _TEXT_CACHE for path in candidates if str(path) in metadata)
+    )
+
+
 def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     words = _query_words(args.get("query") or args.get("name") or "")
     if not words:
@@ -419,11 +430,7 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
             if line.startswith("- ") and line not in hits:
                 hits.append(line)
     inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
-    state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
-    complete = (
-        int(state.get("cursor", 0)) >= len(state.get("candidates", ()))
-        and not state.get("unreadable")
-    )
+    complete = _content_index_complete(ctx)
     status = "content_search_complete" if complete else "content_search_incomplete"
     if not complete and not inside:
         return _merge(
@@ -431,6 +438,8 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
             "I have not searched all document contents yet. Search again before saying it was not found.",
             status=status,
         )
+    if not complete and (hits or inside):
+        status = "content_search_partial_match"
     if hits and inside:
         lines = [*hits, "these files also mention it inside:", *inside]
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
@@ -551,6 +560,7 @@ def _cache_document(path: Path, key: tuple[str, int, int], text: str) -> None:
 def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
     """Advance this home's in-memory document index, stopping within a per-turn work slice."""
     global _TEXT_CACHE_BYTES
+    deadline = time.monotonic() + max(0.0, budget_s)
     _TEXT_CACHE_BYTES = sum(item[2] for item in _TEXT_CACHE.values())
     home_key = str(ctx.home.resolve())
     candidates = _text_candidates(ctx)
@@ -571,7 +581,12 @@ def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Pat
     else:
         candidates = state["candidates"]
     candidates = state["candidates"]
-    deadline = time.monotonic() + max(0.0, budget_s)
+    if state["cursor"] >= len(candidates):
+        for index, path in enumerate(candidates):
+            size, mtime_ns = state["metadata"][str(path)]
+            if (str(path), size, mtime_ns) not in _TEXT_CACHE and str(path) not in state["unreadable"]:
+                state["cursor"] = index
+                break
     while state["cursor"] < len(candidates):
         path = candidates[state["cursor"]]
         state["cursor"] += 1
@@ -599,7 +614,14 @@ def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Pat
             state["unreadable"].add(str(path))
         if time.monotonic() >= deadline:
             break
-    complete = state["cursor"] >= len(candidates) and not state["unreadable"]
+    complete = (
+        state["cursor"] >= len(candidates)
+        and not state["unreadable"]
+        and all(
+            (str(path), *state["metadata"][str(path)]) in _TEXT_CACHE
+            for path in candidates
+        )
+    )
     return candidates, complete
 
 
@@ -987,8 +1009,9 @@ def exact_names(answer: str, result: Any) -> str:
 
 
 _ABSENCE_CLAIM_RE = re.compile(
-    r"\b(?:not found|couldn't find|could not find|isn't there|is not there|doesn't exist|does not exist|"
-    r"don't have|do not have|no record|nothing saved|not in your files|no file)\b", re.I
+    r"\b(?:not found|nothing found|couldn't find|could not find|can't find|cannot find|didn't find|did not find|"
+    r"isn't there|is not there|not there|doesn't exist|does not exist|don't have(?: one)?|do not have(?: one)?|"
+    r"no record|nothing saved|not saved|not in your files|no file)\b", re.I
 )
 
 
@@ -1002,6 +1025,10 @@ def content_absence_gate(answer: str, result: Any) -> str:
     if not searched and _ABSENCE_CLAIM_RE.search(str(answer or "")):
         return "I have not completed a search inside your files, so I can't say whether it is there."
     return answer
+
+
+def content_absence_claim(answer: str) -> bool:
+    return bool(_ABSENCE_CLAIM_RE.search(str(answer or "")))
 
 
 def privacy_pre_step(ask: str, ctx: ToolContext) -> str | None:
@@ -1145,10 +1172,11 @@ __all__ = [
     "CARD_NOTICE",
     "PENDING_NOTICE",
     "OutsideHome",
+    "content_absence_claim",
+    "content_absence_gate",
+    "document_matches",
     "home_dir",
     "install_builtin_tools",
-    "document_matches",
-    "content_absence_gate",
     "pending_proposal_notice",
     "scope_path",
 ]

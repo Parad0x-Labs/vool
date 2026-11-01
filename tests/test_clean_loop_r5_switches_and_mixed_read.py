@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from core.clean_loop import route
+from core.clean_loop import brain, hook, route
 from core.clean_loop.brain import CLOUD_ENV, cloud_enabled
-from core.clean_loop import brain, hook
 from core.clean_loop.prompt import build_system_prompt
 from core.clean_loop.registry import Registry
 from core.clean_loop.tools import install_builtin_tools
