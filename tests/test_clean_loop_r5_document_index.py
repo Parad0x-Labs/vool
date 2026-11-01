@@ -309,3 +309,20 @@ def test_a_route_check_spends_only_a_short_slice_on_a_cold_index(home, monkeypat
     tools.document_matches("What is the capital of France?", _ctx(home))
     assert _time.monotonic() - started < tools._TEXT_SCAN_S + 0.5
     assert len(tools._TEXT_CACHE) < 40  # the rest is left for later slices (or the background warm-up)
+
+
+def test_a_linked_documents_folder_makes_the_search_incomplete_and_says_so(tmp_path, monkeypatch):
+    """Second review repro: ~/Documents kept in a cloud folder under ~/Library is a link. The index
+    does not walk it (Library is never walked), and the search must not call itself complete."""
+    root = (tmp_path / "home2").resolve()
+    for name in ("Desktop", "Downloads"):
+        (root / name).mkdir(parents=True)
+    cloud = _write(root / "Library" / "Mobile Documents" / "Docs" / "lease.txt", "The landlord is Brackwell Lettings.\n")
+    (root / "Documents").symlink_to(cloud.parent, target_is_directory=True)
+    monkeypatch.setenv("HOME", str(root))
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "vool-data2"))
+    tools._TEXT_SCANS.clear()
+    outcome = _registry().tool("find").run({"query": "brackwell"}, _ctx(root))
+    assert outcome.status != "content_search_complete"
+    assert "Documents is a link to another place" in outcome.text, outcome.text
+    assert not any("Library" in key[0] for key in tools._TEXT_CACHE)

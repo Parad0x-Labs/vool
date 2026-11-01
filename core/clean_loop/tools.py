@@ -417,7 +417,7 @@ def _content_index_complete(ctx: ToolContext) -> bool:
 def _state_complete(state: dict[str, Any]) -> bool:
     metadata = state.get("metadata", {})
     unreadable = state.get("unreadable", set())
-    if state.get("left_out") or state.get("truncated"):
+    if state.get("left_out") or state.get("truncated") or state.get("refused"):
         return False
     return int(state.get("cursor", 0)) >= len(state.get("candidates", ())) and all(
         str(path) in unreadable or (str(path), *metadata[str(path)]) in _TEXT_CACHE
@@ -437,6 +437,9 @@ def _unopened_note(ctx: ToolContext) -> str:
         notes.append(f"{left} document{'s' if left != 1 else ''} did not fit in the search index")
     if state.get("truncated"):
         notes.append("some folders were too deep or too large to walk")
+    refused = list(state.get("refused") or [])
+    if refused:
+        notes.append(f"{', '.join(refused[:5])} {'is a link' if len(refused) == 1 else 'are links'} to another place, which I do not search inside")
     return f" ({'; '.join(notes)}, so not everything was searched.)" if notes else ""
 
 
@@ -458,7 +461,7 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     status = "content_search_complete" if complete else "content_search_incomplete"
     if not complete and not inside and not hits:
         state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
-        if state.get("truncated") or state.get("left_out"):
+        if state.get("truncated") or state.get("left_out") or state.get("refused"):
             # Searching again will not reach the rest: say what was and was not searched.
             return _merge(
                 outcomes,
@@ -574,6 +577,23 @@ def _inside_vool_data(path: Path) -> bool:
     return path == data or data in path.parents
 
 
+def _refused_home_links(ctx: ToolContext) -> list[str]:
+    """Visible folders in the home that are links (a "Documents" kept in a cloud folder): the index
+    never walks them, so a search that skipped one is not complete and says which."""
+    names = []
+    try:
+        entries = list(os.scandir(ctx.home))
+    except OSError:
+        return names
+    for entry in entries:
+        try:
+            if not entry.name.startswith(".") and entry.is_symlink() and entry.is_dir(follow_symlinks=True):
+                names.append(entry.name)
+        except OSError:
+            continue
+    return sorted(names)
+
+
 def _index_roots(ctx: ToolContext) -> list[Path]:
     """The readable roots the index may walk: a folder directly in the home, not hidden, and not
     itself a link (a "Pictures" that links to "~/.config" is never walked, whatever the read roots say)."""
@@ -620,6 +640,7 @@ def _text_candidates(
     found: list[Path] = []
     if walk is not None:
         walk["truncated"] = False
+        walk["refused"] = _refused_home_links(ctx)
     try:
         from core.runtime_paths import active_vool_home
 
@@ -789,7 +810,7 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float, fresh: boo
     if not fresh and state is not None and time.monotonic() - state.get("walked_at", 0.0) < _WALK_REUSE_S:
         metadata = state["metadata"]
         candidates = state["candidates"]
-        walk = {"truncated": state.get("truncated", False)}
+        walk = {"truncated": state.get("truncated", False), "refused": state.get("refused", [])}
     else:
         metadata = {}
         walk = {}
@@ -797,6 +818,7 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float, fresh: boo
         if state is not None:
             state["walked_at"] = time.monotonic()
             state["truncated"] = bool(walk.get("truncated"))
+            state["refused"] = list(walk.get("refused") or [])
     current = set(metadata)
     if state is None or state.get("metadata") != metadata:
         home = ctx.home.resolve()
@@ -817,6 +839,7 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float, fresh: boo
         state = {
             "candidates": candidates, "metadata": metadata, "cursor": 0,
             "walked_at": time.monotonic(), "truncated": bool(walk.get("truncated")),
+            "refused": list(walk.get("refused") or []),
             "unreadable": unchanged(set((state or {}).get("unreadable", ()))),
             "left_out": unchanged(set((state or {}).get("left_out", ()))),
         }
