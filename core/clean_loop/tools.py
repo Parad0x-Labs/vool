@@ -417,7 +417,7 @@ def _content_index_complete(ctx: ToolContext) -> bool:
 def _state_complete(state: dict[str, Any]) -> bool:
     metadata = state.get("metadata", {})
     unreadable = state.get("unreadable", set())
-    if state.get("left_out"):
+    if state.get("left_out") or state.get("truncated"):
         return False
     return int(state.get("cursor", 0)) >= len(state.get("candidates", ())) and all(
         str(path) in unreadable or (str(path), *metadata[str(path)]) in _TEXT_CACHE
@@ -435,7 +435,9 @@ def _unopened_note(ctx: ToolContext) -> str:
     left = len(state.get("left_out", ()))
     if left:
         notes.append(f"{left} document{'s' if left != 1 else ''} did not fit in the search index")
-    return f" ({'; '.join(notes)}, so their text was not searched.)" if notes else ""
+    if state.get("truncated"):
+        notes.append("some folders were too deep or too large to walk")
+    return f" ({'; '.join(notes)}, so not everything was searched.)" if notes else ""
 
 
 def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -454,7 +456,16 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     inside = [line for line in _find_in_text(words, ctx) if line.split(" (", 1)[0] not in "\n".join(hits)]
     complete = _content_index_complete(ctx)
     status = "content_search_complete" if complete else "content_search_incomplete"
-    if not complete and not inside:
+    if not complete and not inside and not hits:
+        state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
+        if state.get("truncated") or state.get("left_out"):
+            # Searching again will not reach the rest: say what was and was not searched.
+            return _merge(
+                outcomes,
+                f"Nothing found for: {', '.join(words)} in the documents I could search.{_unopened_note(ctx)} "
+                "Try a folder name or another word.",
+                status=status,
+            )
         return _merge(
             outcomes,
             "I have not searched all document contents yet. Search again before saying it was not found.",
@@ -482,10 +493,10 @@ _TEXT_SUFFIXES = frozenset({".txt", ".md", ".csv", ".pdf", ".json", ".eml", ".ic
 _TEXT_MAX_BYTES = 2 * 1024 * 1024
 # The index is process memory only. Metadata in the key invalidates changed files; the byte budget
 # bounds both source text and its searchable words. Route work is sliced so a cold turn stays short.
-_TEXT_SCAN_S = 1.7
+#: Index work a route decision may do on the turn itself; the rest is done by `warm_index`, off the turn.
+_TEXT_SCAN_S = 0.25
 _TEXT_FIND_SCAN_S = 4.0
 _TEXT_INDEX_BYTES = 48 * 1024 * 1024
-_TEXT_MAX_ENTRIES = 20_000
 
 
 class _IndexedDocument:
@@ -563,19 +574,61 @@ def _inside_vool_data(path: Path) -> bool:
     return path == data or data in path.parents
 
 
-def _text_candidates(ctx: ToolContext, metadata: dict[str, tuple[int, int]] | None = None) -> list[Path]:
-    """All bounded document candidates in the readable roots, without following links. With
-    `metadata`, each one's (size, mtime_ns) from the same walk is filled in."""
+def _index_roots(ctx: ToolContext) -> list[Path]:
+    """The readable roots the index may walk: a folder directly in the home, not hidden, and not
+    itself a link (a "Pictures" that links to "~/.config" is never walked, whatever the read roots say)."""
+    home = ctx.home.resolve()
+    roots = []
+    for root in _readable_dirs(ctx):
+        in_home = home / root.name
+        try:
+            if (
+                root.parent == home and not root.name.startswith(".")
+                and not in_home.is_symlink() and in_home.resolve() == root
+            ):
+                roots.append(root)
+        except OSError:
+            continue
+    return roots
+
+
+def _inside_index_roots(path: Path, ctx: ToolContext, roots: list[Path] | None = None) -> bool:
+    home = ctx.home.resolve()
+    try:
+        relative = path.relative_to(home)
+    except ValueError:
+        return False
+    if any(part.startswith(".") for part in relative.parts):
+        return False
+    return any(root == path or root in path.parents for root in (roots if roots is not None else _index_roots(ctx)))
+
+
+#: How deep and how wide the index walks. A walk cut short by either says so: the content search is
+#: then not complete, and no absence answer is given as if it were.
+_TEXT_DEPTH = 10
+_TEXT_MAX_ENTRIES = 60_000
+
+
+def _text_candidates(
+    ctx: ToolContext,
+    metadata: dict[str, tuple[int, int]] | None = None,
+    walk: dict[str, Any] | None = None,
+) -> list[Path]:
+    """All bounded document candidates in the index roots, without following links. With
+    `metadata`, each one's (size, mtime_ns) from the same walk is filled in; with `walk`,
+    `walk["truncated"]` says whether the depth or entry bound cut the walk short."""
     found: list[Path] = []
+    if walk is not None:
+        walk["truncated"] = False
     try:
         from core.runtime_paths import active_vool_home
 
         vool_prefix = str(active_vool_home().resolve())
     except Exception:
         vool_prefix = ""
-    frontier = _readable_dirs(ctx)
+    frontier = _index_roots(ctx)
     seen = 0
-    for _depth in range(_RESOLVE_DEPTH):
+    for _depth in range(_TEXT_DEPTH):
         nxt: list[Path] = []
         for folder in frontier:
             try:
@@ -586,6 +639,8 @@ def _text_candidates(ctx: ToolContext, metadata: dict[str, tuple[int, int]] | No
                 for entry in entries:
                     seen += 1
                     if seen > _TEXT_MAX_ENTRIES:
+                        if walk is not None:
+                            walk["truncated"] = True
                         return found
                     if entry.name.startswith(".") or entry.is_symlink():
                         continue
@@ -606,6 +661,8 @@ def _text_candidates(ctx: ToolContext, metadata: dict[str, tuple[int, int]] | No
                     except OSError:
                         continue
         frontier = nxt
+    if frontier and walk is not None:
+        walk["truncated"] = True
     return found
 
 
@@ -645,6 +702,12 @@ class _IndexPermit:
     def __init__(self, ctx: ToolContext) -> None:
         self.ctx = ctx
         self.allowed: dict[str, bool] = {}
+        self.roots: list[Path] | None = None
+
+    def inside(self, path: Path) -> bool:
+        if self.roots is None:
+            self.roots = _index_roots(self.ctx)
+        return _inside_index_roots(path, self.ctx, self.roots)
 
     def allows(self, intent: str, path: Path) -> bool:
         if intent not in self.allowed:
@@ -684,7 +747,7 @@ def _index_read(ctx: ToolContext, path: Path, permit: _IndexPermit) -> str | Non
     so a fact deep in a long file is still found. No receipt and nothing shown: the owner's text
     reaches the model only when `find` or `read_file` reads it through the boundary."""
     intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
-    if not permit.allows(intent, path):
+    if not permit.inside(path) or not permit.allows(intent, path):
         return None
     try:
         from core.runtime_execution_tools import _is_probably_text, _resolve_machine_directory
@@ -707,21 +770,34 @@ def _index_read(ctx: ToolContext, path: Path, permit: _IndexPermit) -> str | Non
         return None
 
 
-def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
+#: A route check reuses a walk this recent (a `find` always walks afresh).
+_WALK_REUSE_S = 20.0
+
+
+def _scan_document_index(ctx: ToolContext, *, budget_s: float, fresh: bool = True) -> tuple[list[Path], bool]:
     """Advance this home's in-memory document index, stopping within a per-turn work slice."""
     with _INDEX_LOCK:
-        return _scan_document_index_locked(ctx, budget_s=budget_s)
+        return _scan_document_index_locked(ctx, budget_s=budget_s, fresh=fresh)
 
 
-def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
+def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float, fresh: bool = True) -> tuple[list[Path], bool]:
     global _TEXT_CACHE_BYTES
     deadline = time.monotonic() + max(0.0, budget_s)
     _TEXT_CACHE_BYTES = sum(item.cost for item in _TEXT_CACHE.values())
     home_key = str(ctx.home.resolve())
-    metadata: dict[str, tuple[int, int]] = {}
-    candidates = _text_candidates(ctx, metadata)
-    current = set(metadata)
     state = _TEXT_SCANS.get(home_key)
+    if not fresh and state is not None and time.monotonic() - state.get("walked_at", 0.0) < _WALK_REUSE_S:
+        metadata = state["metadata"]
+        candidates = state["candidates"]
+        walk = {"truncated": state.get("truncated", False)}
+    else:
+        metadata = {}
+        walk = {}
+        candidates = _text_candidates(ctx, metadata, walk)
+        if state is not None:
+            state["walked_at"] = time.monotonic()
+            state["truncated"] = bool(walk.get("truncated"))
+    current = set(metadata)
     if state is None or state.get("metadata") != metadata:
         home = ctx.home.resolve()
         for key in [
@@ -740,6 +816,7 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[l
 
         state = {
             "candidates": candidates, "metadata": metadata, "cursor": 0,
+            "walked_at": time.monotonic(), "truncated": bool(walk.get("truncated")),
             "unreadable": unchanged(set((state or {}).get("unreadable", ()))),
             "left_out": unchanged(set((state or {}).get("left_out", ()))),
         }
@@ -788,6 +865,43 @@ def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[l
     return candidates, _state_complete(state)
 
 
+_WARMING: dict[str, threading.Thread] = {}
+_WARM_SLICE_S = 0.25
+_WARM_MAX_S = 600.0
+
+
+def warm_index(ctx: ToolContext) -> None:
+    """Finish building this home's index off the turn: a daemon thread advances it in short slices
+    (releasing the lock between them, so a turn never waits long) until it is complete, the budget
+    is full, or ten minutes pass. Same reads, same permission decision per slice, memory only. Started
+    only from the owner's own turn, after the route's owner-local checks."""
+    home_key = str(ctx.home.resolve())
+    if _content_index_complete(ctx):
+        return
+    with _INDEX_LOCK:
+        running = _WARMING.get(home_key)
+        if running is not None and running.is_alive():
+            return
+        own = ToolContext(home=ctx.home, source_context=dict(ctx.source_context or {}), task_id=ctx.task_id)
+
+        def run() -> None:
+            stop_at = time.monotonic() + _WARM_MAX_S
+            while time.monotonic() < stop_at:
+                try:
+                    _candidates, complete = _scan_document_index(own, budget_s=_WARM_SLICE_S, fresh=False)
+                except Exception:
+                    _LOG.exception("clean loop: background index slice failed")
+                    return
+                state = _TEXT_SCANS.get(home_key, {})
+                if complete or state.get("left_out") or int(state.get("cursor", 0)) >= len(state.get("candidates", ())):
+                    return
+                time.sleep(0.05)
+
+        thread = threading.Thread(target=run, name="clean-loop-index", daemon=True)
+        _WARMING[home_key] = thread
+        thread.start()
+
+
 # A question that asks for one specific fact: when, where, who, which, how much/many/often/long, or
 # "what <thing>" ("what time", "what size"). "what is ...", "how do i ...", "explain ..." are not.
 _FACT_QUESTION_RE = re.compile(
@@ -823,7 +937,7 @@ def document_matches(ask: str, ctx: ToolContext) -> bool:
     if not words or not is_question(ask):
         return False
     with _INDEX_LOCK:
-        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S)
+        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S, fresh=False)
         paths = {str(path) for path in candidates}
         documents = [item for key, item in _TEXT_CACHE.items() if key[0] in paths]
     if not documents:
@@ -1418,4 +1532,5 @@ __all__ = [
     "install_builtin_tools",
     "pending_proposal_notice",
     "scope_path",
+    "warm_index",
 ]

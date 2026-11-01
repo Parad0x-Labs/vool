@@ -4791,8 +4791,16 @@ def _readable_machine_roots() -> tuple[Path, ...]:
     Hidden folders and app or system data (`_NEVER_READ_HOME_DIRECTORY_NAMES`) are never roots.
     """
     home = _machine_home().resolve()
+    # The link test runs on the folder in the home, before resolving: a media folder that links to a
+    # hidden folder in the same home ("Pictures" -> "~/.config") resolves to a child of home too.
     named = tuple(_safe_machine_roots()) + tuple(
-        root for root in ((home / name).resolve() for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES) if root.parent == home
+        root
+        for root in (
+            (home / name).resolve()
+            for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES
+            if not (home / name).is_symlink()
+        )
+        if root.parent == home and not root.name.startswith(".")
     )
     return named + _other_home_folders(home, named)
 

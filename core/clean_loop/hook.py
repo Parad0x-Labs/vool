@@ -188,9 +188,13 @@ def maybe_answer(
         return set(file_words(route_ctx.home))
 
     def _document_match(ask: str) -> bool:
-        from core.clean_loop.tools import document_matches
+        from core.clean_loop.tools import document_matches, warm_index
 
-        return document_matches(ask, route_ctx)
+        try:
+            return document_matches(ask, route_ctx)
+        finally:
+            # Whatever the route could not index within its short slice is finished off the turn.
+            warm_index(route_ctx)
 
     decision = route.decide(
         text, source_context=context, session_id=session_id, resolve_brain=_resolve, browser_turn=browser_turn,

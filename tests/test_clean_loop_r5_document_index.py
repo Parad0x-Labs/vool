@@ -97,7 +97,8 @@ def test_the_index_reads_nothing_when_the_owner_denies_file_reads(home):
     assert tools.document_matches("When does Velmarra collect it?", _ctx(home))
 
 
-def test_a_changed_document_is_read_again(home):
+def test_a_changed_document_is_read_again(home, monkeypatch):
+    monkeypatch.setattr(tools, "_WALK_REUSE_S", 0.0)
     note = _write(home / "Documents" / "plan.txt", "On the trip Hollisan brings the tent.\n")
     ctx = _ctx(home)
     assert tools.document_matches("What does Hollisan bring?", ctx)
@@ -231,6 +232,7 @@ def test_one_changing_file_does_not_make_the_index_retry_everything(home, monkey
     for number in range(4):
         _write(home / "Documents" / f"note_{number}.txt", f"Item {number}: Fernmoor visit list.\n" * 20)
     monkeypatch.setattr(tools, "_TEXT_INDEX_BYTES", 1)
+    monkeypatch.setattr(tools, "_WALK_REUSE_S", 0.0)
     ctx = _ctx(home)
     tools.document_matches("When is the Fernmoor visit?", ctx)
     reads = []
@@ -241,3 +243,69 @@ def test_one_changing_file_does_not_make_the_index_retry_everything(home, monkey
     log.write_text("started\nstill running\n", encoding="utf-8")
     tools.document_matches("When is the Fernmoor visit?", ctx)
     assert reads == ["activity.log", "activity.log"]
+
+
+def test_find_sees_a_new_document_at_once_even_when_the_route_reused_its_walk(home):
+    _write(home / "Documents" / "plan.txt", "On the trip Hollisan brings the tent.\n")
+    ctx = _ctx(home)
+    assert tools.document_matches("What does Hollisan bring?", ctx)
+    _write(home / "Documents" / "late.txt", "The Grenvoy tickets are in the drawer.\n")
+    outcome = _registry().tool("find").run({"query": "grenvoy"}, ctx)
+    assert "late.txt" in outcome.text, outcome.text
+
+
+# --- the reviewer's repros (independent review 2026-11-01) --------------------------------------
+
+
+def test_a_media_folder_linked_to_a_hidden_folder_is_never_walked(home):
+    secret = _write(home / ".config" / "gcloud" / "creds.json", '{"refresh_token": "Zorbatoken"}\n')
+    (home / "Pictures").symlink_to(secret.parent.parent, target_is_directory=True)
+    ctx = _ctx(home)
+    assert not tools.document_matches("Where is Zorbatoken now?", ctx)
+    outcome = _registry().tool("find").run({"query": "refresh token zorbatoken"}, ctx)
+    assert "Zorbatoken" not in outcome.text and "creds.json" not in outcome.text, outcome.text
+    assert not any(".config" in key[0] for key in tools._TEXT_CACHE)
+    from core.runtime_execution_tools import _readable_machine_roots
+
+    assert all(not root.name.startswith(".") for root in _readable_machine_roots())
+
+
+def test_a_walk_cut_short_never_reports_a_complete_search(home, monkeypatch):
+    _write(home / "Documents" / "a" / "b" / "c" / "d" / "e" / "f" / "g" / "h" / "i" / "j" / "k" / "deep.txt",
+           "The Quillfeather receipt.\n")
+    outcome = _registry().tool("find").run({"query": "quillfeather"}, _ctx(home))
+    assert outcome.status != "content_search_complete"
+    assert "too deep or too large" in outcome.text or "quillfeather" not in outcome.text.lower()
+
+    tools._TEXT_SCANS.clear()
+    for number in range(30):
+        (home / "Downloads" / f"photo_{number}.jpg").write_bytes(b"x")
+    _write(home / "Documents" / "sub" / "deep.txt", "The Quillfeather receipt.\n")
+    monkeypatch.setattr(tools, "_TEXT_MAX_ENTRIES", 20)
+    outcome = _registry().tool("find").run({"query": "harrowmint"}, _ctx(home))
+    assert outcome.status != "content_search_complete"
+    assert "too deep or too large" in outcome.text
+
+
+def test_a_document_five_folders_down_is_found(home):
+    _write(home / "Documents" / "a" / "b" / "c" / "d" / "deep.txt", "The Quillfeather receipt is 31.20.\n")
+    outcome = _registry().tool("find").run({"query": "quillfeather"}, _ctx(home))
+    assert "deep.txt" in outcome.text and outcome.status == "content_search_complete", outcome.text
+
+
+def test_a_route_check_spends_only_a_short_slice_on_a_cold_index(home, monkeypatch):
+    import time as _time
+
+    for number in range(40):
+        _write(home / "Documents" / f"n{number}.txt", f"Note {number} for Pellory.\n")
+    real = tools._index_read
+
+    def slow(*args):
+        _time.sleep(0.05)
+        return real(*args)
+
+    monkeypatch.setattr(tools, "_index_read", slow)
+    started = _time.monotonic()
+    tools.document_matches("What is the capital of France?", _ctx(home))
+    assert _time.monotonic() - started < tools._TEXT_SCAN_S + 0.5
+    assert len(tools._TEXT_CACHE) < 40  # the rest is left for later slices (or the background warm-up)

@@ -52,17 +52,15 @@ def main() -> None:
 
     ctx = ToolContext(home=HOME, source_context={"surface": "cli"})
     start = time.perf_counter()
-    rounds = 0
-    slice_ms = []
-    while True:
-        rounds += 1
-        slice_started = time.perf_counter()
-        tools.document_matches(ASK, ctx)
-        slice_ms.append((time.perf_counter() - slice_started) * 1000)
-        if tools._content_index_complete(ctx):
-            break
-        if rounds >= 120:
-            raise RuntimeError("index did not complete in 120 slices")
+    # The first owner turn: the route's own short slice, then the rest built off the turn.
+    tools.document_matches(ASK, ctx)
+    cold_turn_ms = (time.perf_counter() - start) * 1000
+    tools.warm_index(ctx)
+    while not tools._content_index_complete(ctx):
+        if time.perf_counter() - start > 600:
+            raise RuntimeError("index did not complete in 600 s")
+        time.sleep(0.05)
+    slice_ms = [cold_turn_ms]
     cold_ms = (time.perf_counter() - start) * 1000
     indexed = len(tools._TEXT_CACHE)
     byte_budget_used = tools._TEXT_CACHE_BYTES
@@ -94,7 +92,7 @@ def main() -> None:
         if decision.admit:
             raise RuntimeError("a general question was admitted")
     general_p95 = sorted(general)[94]
-    print(f"documents={indexed} slices={rounds} cold_build_ms={cold_ms:.1f} cold_slice_max_ms={max(slice_ms):.1f} warm_decision_p95_ms={p95:.1f} warm_general_decision_p95_ms={general_p95:.1f} byte_budget_used={byte_budget_used} byte_budget_limit={tools._TEXT_INDEX_BYTES}")
+    print(f"documents={indexed} cold_turn_route_ms={max(slice_ms):.1f} cold_build_ms={cold_ms:.1f} (route slice + background) warm_decision_p95_ms={p95:.1f} warm_general_decision_p95_ms={general_p95:.1f} byte_budget_used={byte_budget_used} byte_budget_limit={tools._TEXT_INDEX_BYTES}")
 
 
 if __name__ == "__main__":
