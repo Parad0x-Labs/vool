@@ -309,7 +309,8 @@ _CODE_REPLY_SOURCES = frozenset({"settings", "skills", "model", "files"})
 
 
 _ABBREVIATION = re.compile(r"\b(Dr|Mr|Mrs|Ms|St|vs)\.", re.I)
-_ONLY_MARK = re.compile(r"^[\s.!✅✔️]*[✅✔][\s.!✅✔️]*$")
+# The first mark ends the lead-in, so the lead-in class holds no mark (one way to match, no backtracking).
+_ONLY_MARK = re.compile(r"^[\s.!\ufe0f]*[✅✔][\s.!✅✔\ufe0f]*$")
 
 
 def _claim_form(sentence: str) -> str:

@@ -1740,7 +1740,7 @@ _FILE_DEMAND_OBJECT = re.compile(
     r"|\b(?:saved|took|taken|kept|have|had)\s+(?:a|the|that|some)\s+(?:pic|picture|photo|image|screenshot|video)s?\s+of\b"
     r"|\b(?:downloaded|saved|exported)\b[^.?!]{0,40}?\b(?:csv|pdf|spreadsheet|xlsx|excel\s+file)\b"
     r"|\b(?:in|on|from|to|into)\s+(?:the\s+|my\s+)?(?:downloads|desktop|documents|pictures)\b"
-    r"|(?<![\w/.])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
+    r"|(?<![\w/.\-])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
     re.I,
 )
 # "my mac" or "this laptop" alone is the machine, not its files ("is my laptop worth upgrading",

@@ -681,7 +681,28 @@ def find_notes_query(intent: OperatorActionIntent) -> str:
         r"(?:saved\s+)?notes?\b\s*(?:(?:about|on|for|containing|matching|with)\b\s*)?",
         "", str(intent.raw_text or ""), flags=re.IGNORECASE,
     )
-    return re.sub(r"(?:(?:^|\s+)(?:please|pls|thanks|for\s+me|now)|[\s?!.]+)+$", "", rest, flags=re.IGNORECASE).strip()
+    return _strip_query_filler(rest).strip()
+
+
+_QUERY_FILLER_RE = re.compile(r"(?:^|\s)(?:please|pls|thanks|for\s+me|now)$", re.IGNORECASE)
+
+
+def _strip_query_filler(text: str) -> str:
+    """Drop trailing please / thanks / for me / now and end marks, one piece per pass.
+
+    A single repeated pattern for this backtracks exponentially on a long run of spaces (CodeQL:
+    inefficient regular expression); one piece per pass is linear in the text.
+    """
+    rest = str(text or "")
+    while True:
+        end = len(rest)
+        while end and (rest[end - 1].isspace() or rest[end - 1] in "?!."):
+            end -= 1
+        rest = rest[:end]
+        filler = _QUERY_FILLER_RE.search(rest)
+        if filler is None:
+            return rest
+        rest = rest[: filler.start()]
 
 
 def handle_find_notes(

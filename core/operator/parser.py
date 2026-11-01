@@ -950,7 +950,7 @@ def _note_query(text: str) -> str | None:
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        terms = _TITLE_TRAILER_RE.sub("", match.group(1).strip())
+        terms = _strip_title_trailer(match.group(1).strip())
         return re.sub(r"^(?:the|my|a|an)\s+", "", terms, flags=re.IGNORECASE).strip() or None
     return None
 
@@ -972,16 +972,34 @@ def _note_title(text: str) -> str | None:
 # What trails a spoken title without being part of it (audit N10: "read my note about the flat viewing in apple
 # notes?" looked for a note titled "the flat viewing in apple notes?"): the app or store it is in, a please, the
 # question mark. After "about" the words name a topic, so a leading article is not part of the title either.
-_TITLE_TRAILER_RE = re.compile(
-    r"(?:\s+(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)"
-    r"|\s+(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)"
-    r"|[\s?!.:;'\"]+)+$",
+_TITLE_TRAILER_WORDS_RE = re.compile(
+    r"\s(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)$"
+    r"|\s(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)$",
     re.IGNORECASE,
 )
+_TITLE_TRAILER_PUNCT = "?!.:;'\""
+
+
+def _strip_title_trailer(text: str) -> str:
+    """Drop the trailing store, please and punctuation from a spoken title, one piece at a time.
+
+    One trailing piece per pass, so a long run of spaces or marks costs one scan instead of the
+    backtracking a single repeated pattern needs (CodeQL: inefficient regular expression).
+    """
+    title = str(text or "")
+    while True:
+        end = len(title)
+        while end and (title[end - 1].isspace() or title[end - 1] in _TITLE_TRAILER_PUNCT):
+            end -= 1
+        title = title[:end]
+        trailer = _TITLE_TRAILER_WORDS_RE.search(title)
+        if trailer is None:
+            return title
+        title = title[: trailer.start()]
 
 
 def _spoken_note_title(match: re.Match[str]) -> str | None:
-    title = _TITLE_TRAILER_RE.sub("", match.group("title").strip())
+    title = _strip_title_trailer(match.group("title").strip())
     if match.group("how").lower() == "about":
         title = re.sub(r"^(?:the|my|a|an|that|this)\s+", "", title, flags=re.IGNORECASE)
     return title.strip() or None

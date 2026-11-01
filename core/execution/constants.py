@@ -3556,7 +3556,7 @@ _IMAGE_GEN_DEPICT_RE = re.compile(
 # claiming one of these sends an ordinary sentence into the image renderer.
 _IMAGE_GEN_FIGURATIVE_RE = re.compile(
     r"\bdraw(?:s|n|ing)?\s+(?:(?:your|my|our|their|his|her|its)\s+)?(?:own\s+)?"
-    r"(?:a|an|the|some|any)?\s*"
+    r"(?:(?:a|an|the|some|any)\s*)?"
     r"(?:conclusion|conclusions|inference|inferences|comparison|comparisons|parallel|parallels|"
     r"distinction|distinctions|analogy|analogies|attention|blank|breath|fire|criticism|praise|"
     r"crowd|crowds|line|lines|contrast|contrasts|lesson|lessons)\b"

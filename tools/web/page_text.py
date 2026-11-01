@@ -25,7 +25,8 @@ _BLOCK = frozenset({
 })
 _HEADING = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
 
-_HTML_SNIFF_RE = re.compile(r"^\s*(?:<!--.*?-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.IGNORECASE | re.DOTALL)
+# A comment body never runs past its own "-->", so each comment matches one way only.
+_HTML_SNIFF_RE = re.compile(r"^\s*(?:<!--(?:(?!-->).)*-->\s*)*<(?:!doctype\s+html|html|head|body)\b", re.IGNORECASE | re.DOTALL)
 
 
 @dataclass(frozen=True)
