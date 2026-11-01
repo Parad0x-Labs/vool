@@ -1,6 +1,6 @@
 """Should this turn take the clean local path? One pure decision, in a fixed order.
 
-1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default OFF).
+1. The flag `VOOL_CLEAN_LOCAL_LOOP` is on (default ON; 0/false/no/off turns it off).
 2. The turn is not RED: no pay/send/delete/post/cancel-style verb and no money words. VOOL has no
    text-level risky-action classifier to reuse (its consent gates sit at the effect, which this loop
    never reaches), so this is a small verb floor. RED turns keep the normal ceremony. Nor is it a
@@ -14,7 +14,7 @@
    shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
    question about something the owner's documents hold: `tools.document_matches`), and not a
    live/online question, which the online lanes own.
-5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on the owner's own cloud model
+5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on (default ON) the owner's own cloud model
    (resolved last: it is the only costly check).
 """
 from __future__ import annotations
@@ -30,6 +30,7 @@ from typing import Any
 
 FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
 
 _RED_RE = re.compile(
     r"\b(?:pay|paying|send|sending|transfer|wire|remit|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
@@ -189,7 +190,8 @@ def changes_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 
 def flag_on(env: Mapping[str, str] | None = None) -> bool:
-    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() in _TRUTHY
+    # Default ON (0.8): unset or empty runs the clean loop; 0/false/no/off turns it off.
+    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() not in _FALSY
 
 
 # A follow-up often opens with a joining word: "and how much am i paying for it a year", "so when is it
