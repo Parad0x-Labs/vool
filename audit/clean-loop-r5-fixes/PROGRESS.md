@@ -68,3 +68,10 @@ index churn fix; test tokens that matched earlier audit notes replaced.
 Still broken: a 795-file agent-adjacent run was too slow for this window (1-2% in 5 min) and was
 stopped; narrowed to the 95 files that drive real agent turns.
 ETA: hand-back 10:30 UTC.
+
+09:25 UTC
+Doing: hand-back committed; waiting for the last regression chunk (informational: C7 is reverted).
+Done: review pass 1 (3 FIX) fixed; review pass 2 (1 FIX, b/c) fixed; per the rule C7 reverted and
+C5 dropped. Default-on regression confirmed independently (private-chat test fails with C7 on).
+Still broken: general hold-out bar (base rules); no full suite; no model to re-measure the prompt.
+ETA: done.
