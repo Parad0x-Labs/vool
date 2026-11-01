@@ -59,3 +59,12 @@ C5 adversarial forms pinned; clean-loop scope 311 passed, 2 skipped (PDFKit).
 Still broken: general hold-out 38/40 (fragment) and 35/40 (household) admitted-out because of BASE
 route rules (unchanged); personal household 25/30.
 ETA: hand-back by 10:30 UTC.
+
+09:00 UTC
+Doing: default-on regression run (95 agent-turn test files on the C7 head, 4 parallel chunks);
+independent read-only review running; hand-back drafted.
+Done: C1-C7 committed (C7 separate: c8ec582); fail-before/pass-after scenarios on 8c403f0 vs head;
+index churn fix; test tokens that matched earlier audit notes replaced.
+Still broken: a 795-file agent-adjacent run was too slow for this window (1-2% in 5 min) and was
+stopped; narrowed to the 95 files that drive real agent turns.
+ETA: hand-back 10:30 UTC.
