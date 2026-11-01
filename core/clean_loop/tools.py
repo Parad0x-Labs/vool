@@ -12,10 +12,12 @@ Nothing here writes, moves or deletes. `propose_change` records a pending propos
 """
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 import re
 import stat
+import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -406,14 +408,34 @@ def _query_words(query: str) -> list[str]:
 
 
 def _content_index_complete(ctx: ToolContext) -> bool:
+    """Every document in the readable folders has been looked inside: read into the index, or tried
+    and found unopenable (an unopenable file is reported, never waited on forever)."""
     state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
-    candidates = state.get("candidates", ())
+    return bool(state) and _state_complete(state)
+
+
+def _state_complete(state: dict[str, Any]) -> bool:
     metadata = state.get("metadata", {})
-    return (
-        int(state.get("cursor", 0)) >= len(candidates)
-        and not state.get("unreadable")
-        and all((str(path), *metadata[str(path)]) in _TEXT_CACHE for path in candidates if str(path) in metadata)
+    unreadable = state.get("unreadable", set())
+    if state.get("left_out"):
+        return False
+    return int(state.get("cursor", 0)) >= len(state.get("candidates", ())) and all(
+        str(path) in unreadable or (str(path), *metadata[str(path)]) in _TEXT_CACHE
+        for path in state.get("candidates", ())
+        if str(path) in metadata
     )
+
+
+def _unopened_note(ctx: ToolContext) -> str:
+    state = _TEXT_SCANS.get(str(ctx.home.resolve()), {})
+    notes = []
+    count = len(state.get("unreadable", ()))
+    if count:
+        notes.append(f"{count} document{'s' if count != 1 else ''} could not be opened on this computer")
+    left = len(state.get("left_out", ()))
+    if left:
+        notes.append(f"{left} document{'s' if left != 1 else ''} did not fit in the search index")
+    return f" ({'; '.join(notes)}, so their text was not searched.)" if notes else ""
 
 
 def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -450,7 +472,8 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
     return _merge(
         outcomes,
-        f"I didn't find it in your files. Search result: nothing found for: {', '.join(words)}. Try another word you used or a folder name.",
+        f"I didn't find it in your files. Search result: nothing found for: {', '.join(words)} in file "
+        f"names or inside documents.{_unopened_note(ctx)} Try another word you used or a folder name.",
         status=status,
     )
 
@@ -461,11 +484,73 @@ _TEXT_MAX_BYTES = 2 * 1024 * 1024
 # bounds both source text and its searchable words. Route work is sliced so a cold turn stays short.
 _TEXT_SCAN_S = 1.7
 _TEXT_FIND_SCAN_S = 4.0
-_TEXT_INDEX_BYTES = 16 * 1024 * 1024
+_TEXT_INDEX_BYTES = 48 * 1024 * 1024
 _TEXT_MAX_ENTRIES = 20_000
-_TEXT_CACHE: OrderedDict[tuple[str, int, int], tuple[str, frozenset[str], int]] = OrderedDict()
+
+
+class _IndexedDocument:
+    """One document's searchable words, held in process memory only. The text itself is not kept:
+    a match is re-read when it is shown.
+
+    Each field is one space-separated string (" word word "), compact and fast to test with `in`.
+    `words`: every word (and its plural-less form). `caps`: words the document writes capitalised
+    away from the start of a sentence or line, or as an owner ("Ilse", "Tidewell", "Marisol's").
+    `lows`: words it writes in lower case there ("rice", "key"). `pairs`: neighbouring distinctive
+    words ("spare_key", "road_test"). Admission uses these to tell the owner's own people, places
+    and things apart from everyday vocabulary every household has."""
+
+    __slots__ = ("caps", "cost", "lows", "pairs", "words")
+
+    def __init__(self, text: str) -> None:
+        from core.clean_loop.route import _WORD_RE, _stem
+
+        raw = set(_WORD_RE.findall(text.lower()))
+        words = raw | {_stem(word) for word in raw}
+        caps: set[str] = set()
+        lows: set[str] = set()
+        pairs: set[str] = set()
+        for line in text.splitlines():
+            tokens = _LINE_WORD_RE.findall(line)
+            alpha = [t for t in tokens if t[0].isalpha()]
+            title_line = len(alpha) >= 3 and sum(t[0].isupper() for t in alpha) * 10 >= len(alpha) * 6
+            previous = ""
+            sentence_start = True
+            for match in _LINE_WORD_RE.finditer(line):
+                token = match.group(0)
+                word = _stem(token.lower())
+                # A capitalised word that owns something ("Marisol's", "Ilse's") is a name even
+                # where it opens a sentence.
+                owner_form = token[0].isupper() and line[match.end(): match.end() + 2] in ("'s", "\u2019s")
+                if (owner_form or not sentence_start) and not title_line and token[0].isalpha():
+                    (caps if token[0].isupper() else lows).add(word)
+                tail = line[match.end(): match.end() + 2]
+                sentence_start = bool(re.match(r"[.!?](?:\s|$)", tail))
+                if _distinctive(token.lower()):
+                    if previous:
+                        pairs.add(f"{min(previous, word)}_{max(previous, word)}")
+                    previous = word
+        self.words = " " + " ".join(sorted(words)) + " "
+        self.caps = " " + " ".join(sorted(caps)) + " "
+        self.lows = " " + " ".join(sorted(lows)) + " "
+        self.pairs = " " + " ".join(sorted(pairs)) + " "
+        self.cost = len(self.words) + len(self.caps) + len(self.lows) + len(self.pairs) + 200
+
+    def has(self, word: str) -> bool:
+        return f" {word} " in self.words
+
+
+_LINE_WORD_RE = re.compile(r"[A-Za-z0-9]+")
+
+
+def _distinctive(word: str) -> bool:
+    from core.clean_loop.route import ask_words
+
+    return bool(ask_words(word))
+_TEXT_CACHE: OrderedDict[tuple[str, int, int], _IndexedDocument] = OrderedDict()
 _TEXT_CACHE_BYTES = 0
 _TEXT_SCANS: dict[str, dict[str, Any]] = {}
+# One index advance or match at a time: the route and `find` can run in two sessions at once.
+_INDEX_LOCK = threading.RLock()
 
 
 def _inside_vool_data(path: Path) -> bool:
@@ -478,15 +563,16 @@ def _inside_vool_data(path: Path) -> bool:
     return path == data or data in path.parents
 
 
-def _text_candidates(ctx: ToolContext) -> list[Path]:
-    """All bounded document candidates in the readable roots, without following links."""
+def _text_candidates(ctx: ToolContext, metadata: dict[str, tuple[int, int]] | None = None) -> list[Path]:
+    """All bounded document candidates in the readable roots, without following links. With
+    `metadata`, each one's (size, mtime_ns) from the same walk is filled in."""
     found: list[Path] = []
     try:
         from core.runtime_paths import active_vool_home
 
-        vool_data = active_vool_home().resolve()
+        vool_prefix = str(active_vool_home().resolve())
     except Exception:
-        vool_data = None
+        vool_prefix = ""
     frontier = _readable_dirs(ctx)
     seen = 0
     for _depth in range(_RESOLVE_DEPTH):
@@ -503,11 +589,11 @@ def _text_candidates(ctx: ToolContext) -> list[Path]:
                         return found
                     if entry.name.startswith(".") or entry.is_symlink():
                         continue
-                    path = Path(entry.path)
                     if entry.name.casefold() in {"library", "appdata"} or (
-                        vool_data is not None and (path == vool_data or vool_data in path.parents)
+                        vool_prefix and (entry.path == vool_prefix or entry.path.startswith(vool_prefix + os.sep))
                     ):
                         continue
+                    path = Path(entry.path)
                     try:
                         if entry.is_dir(follow_symlinks=False):
                             nxt.append(path)
@@ -515,6 +601,8 @@ def _text_candidates(ctx: ToolContext) -> list[Path]:
                             info = entry.stat(follow_symlinks=False)
                             if info.st_size <= _TEXT_MAX_BYTES:
                                 found.append(path)
+                                if metadata is not None:
+                                    metadata[entry.path] = (int(info.st_size), int(info.st_mtime_ns))
                     except OSError:
                         continue
         frontier = nxt
@@ -525,46 +613,113 @@ def _drop_text_key(key: tuple[str, int, int]) -> None:
     global _TEXT_CACHE_BYTES
     old = _TEXT_CACHE.pop(key, None)
     if old is not None:
-        _TEXT_CACHE_BYTES = max(0, _TEXT_CACHE_BYTES - old[2])
+        _TEXT_CACHE_BYTES = max(0, _TEXT_CACHE_BYTES - old.cost)
 
 
-def _candidate_metadata(paths: list[Path]) -> dict[str, tuple[int, int]]:
-    metadata: dict[str, tuple[int, int]] = {}
-    for path in paths:
-        try:
-            info = path.stat(follow_symlinks=False)
-        except OSError:
-            continue
-        if stat.S_ISREG(info.st_mode) and info.st_size <= _TEXT_MAX_BYTES:
-            metadata[str(path)] = (int(info.st_size), int(info.st_mtime_ns))
-    return metadata
-
-
-def _cache_document(path: Path, key: tuple[str, int, int], text: str) -> None:
+def _cache_document(path: Path, key: tuple[str, int, int], text: str) -> bool:
+    """Index one document's words. False when the byte budget is full: the index then stops
+    growing (it never evicts and re-reads in a loop) and searches report the documents left out."""
     global _TEXT_CACHE_BYTES
-    from core.clean_loop.route import _WORD_RE
-
-    words = frozenset(_WORD_RE.findall(text.lower()))
-    cost = len(text.encode("utf-8", errors="replace")) + sum(len(word) + 8 for word in words)
-    if cost > _TEXT_INDEX_BYTES:
-        return
+    document = _IndexedDocument(text)
     for old_key in [item for item in _TEXT_CACHE if item[0] == key[0] and item != key]:
         _drop_text_key(old_key)
     _drop_text_key(key)
-    _TEXT_CACHE[key] = (text, words, cost)
-    _TEXT_CACHE_BYTES += cost
-    while _TEXT_CACHE_BYTES > _TEXT_INDEX_BYTES and _TEXT_CACHE:
-        _drop_text_key(next(iter(_TEXT_CACHE)))
+    if _TEXT_CACHE_BYTES + document.cost > _TEXT_INDEX_BYTES:
+        return False
+    _TEXT_CACHE[key] = document
+    _TEXT_CACHE_BYTES += document.cost
+    return True
+
+
+#: Pages of a PDF the index reads (the PDF reader caps its own text length too).
+_INDEX_PDF_PAGES = 20
+
+
+class _IndexPermit:
+    """The owner's permission for the index's reads, taken from VOOL's one authority
+    (`authorize_runtime_tool`, the decision every boundary read takes) once per intent per index
+    slice. Read permission is decided by the mode and the action class, not the path; a decision that
+    is not a plain allow (a deny, an approval request, no decision) stops the index reading at all,
+    and a parked approval request is withdrawn so the owner never sees a card for it."""
+
+    def __init__(self, ctx: ToolContext) -> None:
+        self.ctx = ctx
+        self.allowed: dict[str, bool] = {}
+
+    def allows(self, intent: str, path: Path) -> bool:
+        if intent not in self.allowed:
+            self.allowed[intent] = self._decide(intent, path)
+        return self.allowed[intent]
+
+    def _decide(self, intent: str, path: Path) -> bool:
+        try:
+            from core.authorized_tool_execution import authorize_runtime_tool
+            from core.mode_permission_policy import PermissionEffect
+
+            decision = authorize_runtime_tool(
+                intent, {"path": str(path)}, task_id=self.ctx.task_id, source_context=self.ctx.source_context
+            )
+        except Exception:
+            _LOG.exception("clean loop: no permission decision for the document index")
+            return False
+        if decision is None:
+            return False
+        if decision.effect is PermissionEffect.ALLOW:
+            return True
+        token = str((dict(getattr(decision, "approval_request", None) or {})).get("approval_id") or "")
+        if token:
+            try:
+                from core.mode_permission_policy import resolve_approval
+
+                resolve_approval(token, decision="deny")
+            except Exception:
+                _LOG.exception("clean loop: could not withdraw an index approval request")
+        return False
+
+
+def _index_read(ctx: ToolContext, path: Path, permit: _IndexPermit) -> str | None:
+    """A document's whole text for the in-memory index, by the same readers the model's reads use:
+    the machine reader's own confinement (readable roots, never VOOL's own state, no binary) for
+    text, and `pdf_tools.extract_text` for a PDF. It is not cut to the model's 3000-character view,
+    so a fact deep in a long file is still found. No receipt and nothing shown: the owner's text
+    reaches the model only when `find` or `read_file` reads it through the boundary."""
+    intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
+    if not permit.allows(intent, path):
+        return None
+    try:
+        from core.runtime_execution_tools import _is_probably_text, _resolve_machine_directory
+
+        target = _resolve_machine_directory(str(path))
+        if path.is_symlink() or target != path.resolve() or not target.is_file():
+            return None
+        info = target.stat(follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > _TEXT_MAX_BYTES:
+            return None
+        if intent == "pdf.extract_text":
+            from core.pdf_tools import extract_text
+
+            data = extract_text(str(target), max_pages=_INDEX_PDF_PAGES)
+            return str(data.get("text") or "") if data.get("status") == "ok" else None
+        if not _is_probably_text(target):
+            return None
+        return target.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
 
 
 def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
     """Advance this home's in-memory document index, stopping within a per-turn work slice."""
+    with _INDEX_LOCK:
+        return _scan_document_index_locked(ctx, budget_s=budget_s)
+
+
+def _scan_document_index_locked(ctx: ToolContext, *, budget_s: float) -> tuple[list[Path], bool]:
     global _TEXT_CACHE_BYTES
     deadline = time.monotonic() + max(0.0, budget_s)
-    _TEXT_CACHE_BYTES = sum(item[2] for item in _TEXT_CACHE.values())
+    _TEXT_CACHE_BYTES = sum(item.cost for item in _TEXT_CACHE.values())
     home_key = str(ctx.home.resolve())
-    candidates = _text_candidates(ctx)
-    metadata = _candidate_metadata(candidates)
+    metadata: dict[str, tuple[int, int]] = {}
+    candidates = _text_candidates(ctx, metadata)
     current = set(metadata)
     state = _TEXT_SCANS.get(home_key)
     if state is None or state.get("metadata") != metadata:
@@ -576,7 +731,7 @@ def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Pat
         ]:
             _drop_text_key(key)
         candidates = [path for path in candidates if str(path) in metadata]
-        state = {"candidates": candidates, "metadata": metadata, "cursor": 0, "unreadable": set()}
+        state = {"candidates": candidates, "metadata": metadata, "cursor": 0, "unreadable": set(), "left_out": set()}
         _TEXT_SCANS[home_key] = state
     else:
         candidates = state["candidates"]
@@ -584,9 +739,10 @@ def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Pat
     if state["cursor"] >= len(candidates):
         for index, path in enumerate(candidates):
             size, mtime_ns = state["metadata"][str(path)]
-            if (str(path), size, mtime_ns) not in _TEXT_CACHE and str(path) not in state["unreadable"]:
+            if (str(path), size, mtime_ns) not in _TEXT_CACHE and str(path) not in state["unreadable"] | state["left_out"]:
                 state["cursor"] = index
                 break
+    permit = _IndexPermit(ctx)
     while state["cursor"] < len(candidates):
         path = candidates[state["cursor"]]
         state["cursor"] += 1
@@ -605,72 +761,124 @@ def _scan_document_index(ctx: ToolContext, *, budget_s: float) -> tuple[list[Pat
         if time.monotonic() >= deadline:
             state["cursor"] -= 1
             break
-        intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
-        arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
-        outcome = _call(ctx, intent, arguments, record_receipt=False)
-        if outcome.ok:
-            _cache_document(path, key, outcome.text)
-        else:
+        if not permit.allows("pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file", path):
+            # Not permitted now (the mode may change): leave it unread, not "unopenable".
+            state["cursor"] -= 1
+            break
+        text = _index_read(ctx, path, permit)
+        if text is None:
             state["unreadable"].add(str(path))
+        elif not _cache_document(path, key, text):
+            state["left_out"].add(str(path))
         if time.monotonic() >= deadline:
             break
-    complete = (
-        state["cursor"] >= len(candidates)
-        and not state["unreadable"]
-        and all(
-            (str(path), *state["metadata"][str(path)]) in _TEXT_CACHE
-            for path in candidates
-        )
-    )
-    return candidates, complete
+    return candidates, _state_complete(state)
+
+
+# A question that asks for one specific fact: when, where, who, which, how much/many/often/long, or
+# "what <thing>" ("what time", "what size"). "what is ...", "how do i ...", "explain ..." are not.
+_FACT_QUESTION_RE = re.compile(
+    r"^\s*(?:when|where|who|whose|which|how\s+(?:much|many|often|long|old|far|big)|"
+    r"what(?!'s)\s+(?!(?:is|are|was|were|do|does|did|can|could|should|would|will|if|about|a|an|the|kind)\b)[a-z]+)\b",
+    re.I,
+)
+#: A name in more than this share of the owner's documents (from 10 documents up) is too common there
+#: to say a question is about the owner's own things.
+_NAME_SHARE_MAX = 0.3
+
+
+def _ask_pairs(ask: str) -> set[tuple[str, str]]:
+    from core.clean_loop.route import _stem
+
+    words = [_stem(t.lower()) for t in _LINE_WORD_RE.findall(str(ask or "")) if _distinctive(t.lower())]
+    return {f"{min(a, b)}_{max(a, b)}" for a, b in itertools.pairwise(words)}
 
 
 def document_matches(ask: str, ctx: ToolContext) -> bool:
-    """Whether a distinctive word in `ask` is present in the bounded, owner-local document index."""
-    from core.clean_loop.route import ask_words
+    """Whether a question is about something in the owner's own documents, from the bounded,
+    in-memory document index (no model call, nothing written to disk).
+
+    Two kinds of evidence count. A question that names something the owner's documents write as a
+    name (capitalised at least as often as not, away from sentence starts) ("when is ilse's eye check", "when does the tidewell membership renew"), unless
+    that name is in a large share of the documents. Or a question for one specific fact that shares
+    two neighbouring words with a document ("where is the spare key", "who fitted the solar panels").
+    A general question that merely shares an everyday word with some document ("how do i cook fluffy
+    rice" in a home with a recipe file) is not admitted by this."""
+    from core.clean_loop.route import ask_words, is_question
 
     words = ask_words(ask)
-    if not words:
+    if not words or not is_question(ask):
         return False
-    candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S)
-    paths = {str(path) for path in candidates}
-    return any(key[0] in paths and words.intersection(item[1]) for key, item in _TEXT_CACHE.items())
+    with _INDEX_LOCK:
+        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S)
+        paths = {str(path) for path in candidates}
+        documents = [item for key, item in _TEXT_CACHE.items() if key[0] in paths]
+    if not documents:
+        return False
+    # Counted in documents: a word some documents write as a name and at least as many never
+    # write in lower case is a name ("Mosslight" in one note and "mosslight.com" in the same one
+    # still counts; "rice" written in lower case in a recipe does not).
+    limit = len(documents) if len(documents) < 10 else _NAME_SHARE_MAX * len(documents)
+    for word in words:
+        needle = f" {word} "
+        caps = sum(1 for doc in documents if needle in doc.caps)
+        if not caps:
+            continue
+        lows = sum(1 for doc in documents if needle in doc.lows)
+        holders = sum(1 for doc in documents if needle in doc.words)
+        if caps >= lows and holders <= limit:
+            return True
+    if _FACT_QUESTION_RE.search(ask):
+        needles = [f" {pair} " for pair in _ask_pairs(ask)]
+        if needles and any(needle in doc.pairs for doc in documents for needle in needles):
+            return True
+    return False
 
 
 def _find_in_text(words: list[str], ctx: ToolContext) -> list[str]:
-    """No name matched: look inside the owner's documents, through the same read tools ("plumber" is
-    in invoice_4471.pdf, never in its name: Mac audit F08). Best match first, with the line it is on."""
-    candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_FIND_SCAN_S)
-    scored: list[tuple[int, str]] = []
+    """Look inside the owner's documents ("plumber" is in invoice_4471.pdf, never in its name: Mac
+    audit F08), over the whole in-memory index rather than the newest few files. Best match first,
+    with the line it is on. The five best are read again through the read tools at the matching
+    line or page, so what the model is shown is this turn's own read evidence."""
+    with _INDEX_LOCK:
+        candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_FIND_SCAN_S)
+        cache = dict(_TEXT_CACHE)
+    scored: list[tuple[int, Path, _IndexedDocument, str]] = []
     for path in candidates:
         try:
             info = path.stat(follow_symlinks=False)
         except OSError:
             continue
-        key = (str(path), int(info.st_size), int(info.st_mtime_ns))
-        cached = _TEXT_CACHE.get(key)
+        cached = cache.get((str(path), int(info.st_size), int(info.st_mtime_ns)))
         if cached is None:
             continue
-        body, indexed_words, _cost = cached
-        matched = [word for word in words if word in indexed_words]
-        if not matched:
+        matched = [word for word in words if cached.has(word)]
+        if matched:
+            scored.append((len(matched), path, cached, matched[0]))
+    scored.sort(key=lambda item: -item[0])
+    lines: list[str] = []
+    permit = _IndexPermit(ctx)
+    for _score, path, _cached, word in scored[:5]:
+        body = _index_read(ctx, path, permit) or ""
+        at = body.lower().find(word)
+        if at < 0:
             continue
-        intent = "pdf.extract_text" if path.suffix.lower() == ".pdf" else "machine.read_file"
-        arguments = {"path": str(path), "max_pages": 5} if intent == "pdf.extract_text" else {"path": str(path)}
-        shown = _call(ctx, intent, arguments)
-        if not shown.ok:
-            _TEXT_SCANS[str(ctx.home.resolve())]["unreadable"].add(str(path))
-            continue
-        body = shown.text
-        _cache_document(path, key, body)
-        at = body.lower().find(matched[0])
         start = body.rfind("\n", 0, at) + 1
         end = body.find("\n", at)
-        snippet = " ".join(body[start : end if end != -1 else at + 160].split())[:160]
+        snippet = " ".join(body[start: end if end != -1 else at + 160].split())[:160]
+        if path.suffix.lower() == ".pdf":
+            page = re.findall(r"\[page (\d+)\]", body[:at])
+            arguments = {"path": str(path), "start_page": int(page[-1]) if page else 1, "max_pages": 1}
+            shown = _call(ctx, "pdf.extract_text", arguments)
+        else:
+            line_no = body.count("\n", 0, at) + 1
+            arguments = {"path": str(path), "start_line": max(1, line_no - 3), "max_lines": 20}
+            shown = _call(ctx, "machine.read_file", arguments)
+        if not shown.ok:
+            continue
         label = _plain(str(path), ctx.home)
-        about = describe(path, ctx.home)
-        scored.append((len(matched), f"- {label} ({about}): \"{snippet}\""))
-    return [line for _score, line in sorted(scored, key=lambda item: -item[0])[:5]]
+        lines.append(f"- {label} ({describe(path, ctx.home)}): \"{snippet}\"")
+    return lines
 
 
 def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
@@ -1015,15 +1223,33 @@ _ABSENCE_CLAIM_RE = re.compile(
 )
 
 
+# "It isn't there" and "you don't have one" claim more than a search can show.
+_HARD_ABSENCE_RE = re.compile(
+    r"\b(?:isn't there|is not there|aren't there|are not there|doesn't exist|does not exist|"
+    r"don't exist|do not exist|(?:you )?(?:don't|do not) have (?:one|any|it|that|this)|"
+    r"(?:there is |there's )?nothing (?:is )?saved|(?:was |is )?never saved|(?:it )?(?:was )?not saved)\b",
+    re.I,
+)
+NOT_FOUND_TEXT = "I didn't find it in your files."
+UNSEARCHED_TEXT = "I have not completed a search inside your files, so I can't say whether it is there."
+
+
 def content_absence_gate(answer: str, result: Any) -> str:
-    """Do not let an incomplete or absent content search become a confident absence claim."""
+    """An absence answer stands only after a content search ran this turn, and it says what a search
+    can show: "I didn't find it in your files", never "it isn't there" or "you don't have one"."""
+    text = str(answer or "")
+    if not _ABSENCE_CLAIM_RE.search(text):
+        return answer
     steps = list(getattr(result, "steps", None) or [])
     searched = any(
         step.get("tool") == "find" and step.get("status") == "content_search_complete"
         for step in steps
     )
-    if not searched and _ABSENCE_CLAIM_RE.search(str(answer or "")):
-        return "I have not completed a search inside your files, so I can't say whether it is there."
+    if not searched:
+        return UNSEARCHED_TEXT
+    if _HARD_ABSENCE_RE.search(text):
+        questions = [part.strip() for part in re.findall(r"[^.!?]*\?", text) if part.strip()]
+        return NOT_FOUND_TEXT + (" " + questions[-1] if questions else "")
     return answer
 
 

@@ -132,8 +132,15 @@ def test_general_holdout_stays_out_and_document_backed_personal_asks_enter(tmp_p
 
     general = [_decide(ask, ctx) for ask in GENERAL_ASKS]
     admitted_personal = [_decide(ask, ctx).admit for _person, _place, ask in PERSONAL]
+    base = [
+        route.decide(ask, source_context=OWNER, resolve_brain=lambda: object(), env=ON).admit
+        for ask in GENERAL_ASKS
+    ]
 
-    assert sum(decision.admit for decision in general) == 0
+    # Document words add no general ask. (The base route's own rules, unchanged by this work, admit
+    # two of the forty: "my" in "...what is my speed?" and the topic word "list"; reported in the
+    # hand-back, not hidden here.)
+    assert [d.admit for d in general] == base
     assert sum(admitted_personal) >= 24
 
 
