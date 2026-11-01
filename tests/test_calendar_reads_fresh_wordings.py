@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from tests._person_turn_rig import make_agent, person_env, reply, turn  # noqa: F401  (fixtures)
+from tests._person_turn_rig import make_agent, person_env, reply, turn  # fixtures
 from tests.pa_beta_gate._json_api_service import start_json_calendar_fixture
 from tests.pa_beta_gate._pc_calendar_rig import Clock
 
