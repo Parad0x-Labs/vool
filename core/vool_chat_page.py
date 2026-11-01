@@ -1207,7 +1207,7 @@ body:not(.panel-open) #xpanel { display:none; }
   .no-model-actions .setup-line-open { font-size:13px; padding:6px 13px; }
 </style>
 </head>
-<body>
+<body data-vool-stage="chat">
 <aside id="sidebar">
   <div class="side-head">
     <span class="side-title" data-i18n="sidebar.chats">Chats</span>
@@ -2277,6 +2277,7 @@ function setDisplayedChat(chatId) {
   if (previousChat && previousChat !== String(chatId || '') && typeof closeBypassModal === 'function') closeBypassModal();
   displayedChat = String(chatId || '');
   view = chatState(displayedChat);
+  if (window.VoolStage) window.VoolStage.mirror(displayedChat, false);
   // The address follows the chat on screen (replaced, not pushed, so Back history is not flooded).
   try { if (CANONICAL.test(displayedChat) && location.hash !== '#' + displayedChat) history.replaceState(null, '', '#' + displayedChat); } catch (e) {}
   // Named fragment call site: per-chat composer state (drafts, accent) follows the ONE place the
@@ -6211,6 +6212,7 @@ function applyTaskEvent(run, ev) {
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
+  if (typeof window !== 'undefined' && window.VoolStage && isDisplayed(run.chatId)) window.VoolStage.mirror(run.chatId, false);
   // The goal card consumes the same durable event (also before the ended-gate: a goal event
   // that arrives after the carrying turn finished is still live goal truth).
   if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
@@ -6776,9 +6778,14 @@ function humanToolTitle(e, eventType, map) {
   // The map already holds the right label for these; use it.
   return (map && map[2]) || finished[category] || 'Tool finished';
 }
+// A row that carries a money receipt (what was paid, from which wallet, the fees) is a trusted
+// money surface: the class marks it so an app skin leaves it in VOOL's own look.
+function receiptClass(...events) {
+  return events.some((e) => e && ledgerUsePodReceipt(e)) ? ' xp-receipt' : '';
+}
 function renderLedgerRows(events) {
   let html = '';
-  for (const e of events) { const row = ledgerRow(e); if (row) html += panelRow(row.cls, row.icon, row.title, row.sub); }
+  for (const e of events) { const row = ledgerRow(e); if (row) html += panelRow(row.cls + receiptClass(e), row.icon, row.title, row.sub); }
   return html;
 }
 
@@ -7713,7 +7720,7 @@ function activityItemHtml(item, openState) {
   // A tool call's state comes from its pairing; a step row (no pairing) is drawn the way its own
   // display says, so a failure there shows in the failure colour rather than as ordinary progress.
   const stepCls = item.display && (item.display.cls === 'ok' || item.display.cls === 'fail') ? item.display.cls : 'run';
-  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : (item.status ? 'run' : stepCls);
+  const cls = (item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : (item.status ? 'run' : stepCls)) + receiptClass(item.startEvent, item.endEvent);
   const icon = item.display ? item.display.icon : '•';
   const title = item.display ? item.display.title : (item.tool || 'Action');
   const sub = item.display ? item.display.sub : '';
@@ -9094,6 +9101,7 @@ async function runTurn(text, queueItemId, opts) {
   // `Working` header (measured 2026-09-06). `task.submitted` claims nothing about the server.
   if (typeof window !== 'undefined' && window.VoolCompanion) {
     try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start }); } catch (e) {}
+    if (window.VoolStage && isDisplayed(chatId)) window.VoolStage.mirror(chatId, false);
   }
   run.attachments = turnAttachments;
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
@@ -9332,6 +9340,7 @@ async function runTurn(text, queueItemId, opts) {
           // State first, unconditionally: the answer accrues on the run whether or not anyone is
           // looking at this chat. Painting is the gated second step.
           assistant += chunk;
+          if (window.VoolStage && isDisplayed(chatId)) window.VoolStage.mirror(chatId, true);
           run.text = assistant;
           // Live token estimate (~4 chars/token) as the answer streams -- the answer's own footer
           // carries the exact count when it finishes.
@@ -14670,11 +14679,13 @@ def _page_fragments() -> tuple[str, ...]:
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
+    from core.toybox_fragment import render_toybox_fragment
     from core.ui_chip_fragment import render_chip_fragment
     from core.wallet_fragment import render_wallet_fragment
 
     return (
         render_chip_fragment(),
+        render_toybox_fragment(),
         render_addon_store_fragment(),
         render_chat_visuals_fragment(),
         render_palette_fragment(),
@@ -14716,6 +14727,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
 
     from core.i18n.catalog import catalog_for
     from core.i18n.locales import get_locale
+    from core.toybox_fragment import current_skin_style
 
     logo = Path(__file__).with_name("assets") / "vool-logo-dark.png"
     logo_uri = "data:image/png;base64," + b64encode(logo.read_bytes()).decode("ascii")
@@ -14727,7 +14739,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
     tag = catalog_for(ui_locale).locale
     spec = get_locale(tag)
     page = (
-        _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
+        _VOOL_CHAT_HTML.replace("</head>", current_skin_style() + "</head>", 1).replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")

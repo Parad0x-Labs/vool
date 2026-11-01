@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "renderer_contract": "1.2",
+  "kind": "skin",
+  "id": "xeno-abyss",
+  "version": "1.0.0",
+  "name": "Xeno Abyss",
+  "author": "sls_0x",
+  "description": "Deep-space alien bio-tech: a nebula, a ringed alien world, bioluminescent tendrils, glowing glyph bands and chamfered holo-glass controls. Original art.",
+  "license": "CC0-1.0",
+  "assets": [],
+  "skin": {
+    "palette": {
+      "background": "#05060d",
+      "panel": "#0a0e1c",
+      "field": "#0e1428",
+      "ink": "#e8f7ff",
+      "muted": "#93b3c8",
+      "accent": "#3dffb8",
+      "accentInk": "#00180f",
+      "border": "#4f8199"
+    },
+    "frame": "chamfer",
+    "density": "comfortable",
+    "corners": 8,
+    "borderWidth": 1,
+    "gap": 12,
+    "typography": "mono-heading",
+    "ornament": "xeno"
+  }
+}

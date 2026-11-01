@@ -1541,6 +1541,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/toybox": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/toybox",
+      "note": "toybox lane read feed (skin state and choices)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/update/status": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/update/status",
@@ -2696,6 +2703,13 @@
       "registry_command_id": "tasks.recovery",
       "surface": "http"
     },
+    "http:POST:/api/toybox/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/toybox/*",
+      "note": "toybox lane operator action (preview, apply, restore, remove)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/update/check": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/update/check",
@@ -3224,7 +3238,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 313,
+    "EXTERNAL_TRANSPORT_ONLY": 315,
     "GENERATED_ADAPTER": 138,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
