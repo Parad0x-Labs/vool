@@ -8,11 +8,15 @@ import sqlite3
 from contextlib import contextmanager
 
 
-@contextmanager
-def connection():
+def archive_path():
     from core.runtime_paths import active_data_dir
 
-    path = active_data_dir() / "mobile_companion" / "notification_archive.sqlite3"
+    return active_data_dir() / "mobile_companion" / "notification_archive.sqlite3"
+
+
+@contextmanager
+def connection():
+    path = archive_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     os.fchmod(descriptor, 0o600) if hasattr(os, "fchmod") else os.chmod(path, 0o600)
@@ -83,3 +87,36 @@ def page(device_id, *, before=0, limit=200):
                     message="An action is no longer waiting. Check the result on your computer.",
                 )
     return events, selected[-1][0] if has_more else 0
+
+
+def forget(token, *, chat_id, carries):
+    """Erase the archived phone notifications that carry a forgotten text: rows of this chat, and rows that name no
+    chat (the same derivative law as every other forget store). Returns ``(erased rows of this chat, verified)``;
+    ``None`` for ``verified`` when no archive exists on this computer.
+
+    Each row is a copy the phone's inbox reads back (``detail`` is the notification title, which can be a reminder's
+    own words), so a "forget" said in the chat must reach it. The wallet's ledger and receipts are not here."""
+    path = archive_path()
+    if not path.exists():
+        return 0, None
+
+    def scope(event):
+        return str(event.get("session_id") or "") if isinstance(event, dict) else ""
+
+    with connection() as conn:
+        conn.execute("PRAGMA secure_delete = ON")  # an erased row's bytes are zeroed, not left in a free page
+        conn.execute("BEGIN IMMEDIATE")
+        counted = 0
+        for rowid, raw in conn.execute("SELECT rowid, event_json FROM notification_archive").fetchall():
+            event = json.loads(raw)
+            if scope(event) not in {"", chat_id} or not carries(event, token):
+                continue
+            conn.execute("DELETE FROM notification_archive WHERE rowid = ?", (rowid,))
+            counted += 1 if scope(event) == chat_id else 0
+        conn.commit()
+        retained = any(
+            scope(event) in {"", chat_id} and carries(event, token)
+            for event in (json.loads(raw) for (raw,) in conn.execute("SELECT event_json FROM notification_archive"))
+        )
+    return counted, not retained
+

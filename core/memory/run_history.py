@@ -677,6 +677,7 @@ def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any], co
         return
     _erase_databases(databases, _INVENTORY, token, chat_id=chat_id, erasures=erasures, command=command)
     _forget_pins(token, chat_id=chat_id, erasures=erasures)
+    _forget_phone_notification_archive(token, chat_id=chat_id, erasures=erasures)
     failed = any(name.startswith(STORE_PREFIX) and result["status"] == "incomplete"
                  for name, result in erasures.get("stores", {}).items())
     _record_erasure_store(erasures, "run_history", "incomplete" if failed else "verified")
@@ -714,6 +715,27 @@ def _erase_databases(databases: list[str], inventory: list[_Table] | tuple[_Tabl
                     conn.close()
                 except Exception:
                     _record_erasure_store(erasures, "run_history_connection", "incomplete")
+
+
+# ── the phone's notification archive ─────────────────────────────────────────
+
+def _forget_phone_notification_archive(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
+    """The paired phone's inbox keeps its own copy of each notification it was sent, in a database of its own
+    (core.mobile_companion.notification_archive). A copy of a notification this chat erased is erased there too."""
+    from core.memory.entries import _record_erasure_store
+    from core.mobile_companion import notification_archive
+
+    store = STORE_PREFIX + "phone_notification_archive"
+    try:
+        removed, verified = notification_archive.forget(token, chat_id=chat_id, carries=carries)
+    except Exception as exc:
+        _LOG.warning("forget: %s could not be erased: %s", store, type(exc).__name__)
+        _record_erasure_store(erasures, store, "incomplete")
+        return
+    if verified is None:
+        _record_erasure_store(erasures, store, "not_applicable")
+        return
+    _record_erasure_store(erasures, store, "verified" if verified else "incomplete", removed)
 
 
 # ── pinned messages ──────────────────────────────────────────────────────────

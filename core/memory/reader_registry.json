@@ -101,6 +101,10 @@
     "fold_forget_text": "transform",
     "text_carries": "transform"
   },
+  "core/memory/copies.py": {
+    "forget_copies": "writer",
+    "kept_note": "transform"
+  },
   "core/memory/command_result.py": {
     "command_turn_key": "authority",
     "verified_forget_outcome": "authority",

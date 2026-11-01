@@ -22,6 +22,7 @@ from core.memory import entries as memory_entries
 from core.memory import learning as memory_learning
 from core.memory.admission import _APOSTROPHES
 from core.memory.command_result import _ForgetOutcomeRegistry
+from core.memory.copies import forget_copies, kept_note
 from core.memory.files import (
     MAX_CONVERSATION_LOG_BYTES as _MAX_CONVERSATION_LOG_BYTES,
 )
@@ -634,6 +635,8 @@ def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> t
     if len(applied) == len(results):
         removed = sum(int(re.search(r"Removed (\d+)", reply).group(1)) for reply in applied)
         reply = f"Forget applied. Removed {removed} memory entr{'y' if removed == 1 else 'ies'}."
+        note = kept_note({"stores": stores})
+        reply = f"{reply} {note}" if note else reply
     else:
         reply = "\n".join(reply for reply, _, _ in results)
     return reply, combined, {"stores": stores}
@@ -2599,7 +2602,9 @@ def maybe_handle_memory_command(
             erasures: dict[str, Any] = {}
 
             def outcome(reply: str, status: str) -> tuple[str, str, dict[str, Any]]:
-                return reply, status, erasures
+                # What a finished forget leaves holding the words (the forget list itself) is said, never implied.
+                note = kept_note(erasures) if status in {"applied", "already_erased", "no_match"} else ""
+                return (f"{reply} {note}" if note else reply), status, erasures
 
             referential, token = _referential_forget_token(
                 argument,
@@ -2747,6 +2752,9 @@ def maybe_handle_memory_command(
             # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
             # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
             forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
+            # The update backups, the log files and the file undo copies kept what the live stores no longer
+            # did; a rollback would have brought a forgotten fact back (red-team pass on 0.7.7, 2026-10-30).
+            forget_copies(token, chat_id=resolved_session, erasures=erasures)
             for owner, operation_store in owner_stores.items():
                 block_status: dict[str, Any] = {}
                 try:
