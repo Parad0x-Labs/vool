@@ -323,7 +323,10 @@ def resolve_everyday_move(text: str) -> dict[str, str] | str | None:
     match = EVERYDAY_MOVE_RE.search(str(text or ""))
     if match is None:
         return None
-    home = Path.home()
+    # Resolved, like the finder's own roots and the write guard's probe: on macOS the OS home
+    # symlink (/var -> /private/var) would otherwise make the in-folder test below drop the one
+    # file the finder did find (measured 2026-10-31: "move the cat photo from Pictures").
+    home = Path.home().resolve()
     destination = home / match.group("dst").capitalize()
     source_place = (match.group("src") or "").capitalize()
     what = match.group("what").strip(" .'\"")
