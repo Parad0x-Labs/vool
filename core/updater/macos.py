@@ -499,14 +499,18 @@ class ExternalScriptHelper:
             with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
                 os.killpg(launched.pid, signal.SIGTERM)  # its own session (start_new_session)
         pid = self._pid()
-        if pid > 0 and pid != os.getpid():
-            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-                os.kill(pid, signal.SIGTERM)
-        else:
+        if pid <= 0 or pid == os.getpid():
             pid = 0
+        # The swap script starts the new version in its own process group and exits; that version
+        # may not have written the pidfile yet. Its processes are found by group and stopped too.
+        started_by_script = self._script_group_app_pids()
+        pids = sorted({pid, *started_by_script} - {0, os.getpid()})
+        for each in pids:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.kill(each, signal.SIGTERM)
 
         def stopped() -> bool:
-            return (pid == 0 or _pid_has_exited(pid)) and (launched is None or launched.poll() is not None)
+            return all(_pid_has_exited(each) for each in pids) and (launched is None or launched.poll() is not None)
 
         import time
 
@@ -515,7 +519,39 @@ class ExternalScriptHelper:
             if stopped():
                 return True
             time.sleep(self.poll_interval)
+        if stopped():
+            return True
+        # An app that ignores the request to quit is ended, but only a process proven to be this app.
+        for each in pids:
+            if not _pid_has_exited(each) and _pid_belongs_to_app(each, self.app_path):
+                with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                    os.kill(each, signal.SIGKILL)
+        if launched is not None and launched.poll() is None:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(launched.pid, signal.SIGKILL)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if stopped():
+                return True
+            time.sleep(self.poll_interval)
         return stopped()
+
+    def _script_group_app_pids(self) -> list[int]:
+        """Processes still in the swap script's process group that are this app (never a reused number)."""
+        process = self.process
+        if process is None:
+            return []
+        try:
+            listing = subprocess.run(["ps", "-axo", "pid=,pgid="], capture_output=True, text=True,
+                                     timeout=5, check=False)
+        except (OSError, subprocess.SubprocessError):
+            return []
+        members = []
+        for line in listing.stdout.splitlines():
+            fields = line.split()
+            if len(fields) == 2 and fields[1] == str(process.pid) and fields[0].isdigit():
+                members.append(int(fields[0]))
+        return [each for each in members if each != process.pid and _pid_belongs_to_app(each, self.app_path)]
 
     def relaunch(self, app_path: Path) -> bool:
         # In the success path the SCRIPT relaunches (--relaunch-cmd) and the flow
