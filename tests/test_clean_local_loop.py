@@ -57,10 +57,8 @@ def _local_brain():
     return object()
 
 
-def test_route_is_off_when_the_flag_is_explicitly_disabled():
-    decision = route.decide(
-        "whats on my desktop?", source_context=OWNER, resolve_brain=_local_brain, env={route.FLAG_ENV: "0"}
-    )
+def test_route_is_off_unless_the_flag_is_set():
+    decision = route.decide("whats on my desktop?", source_context=OWNER, resolve_brain=_local_brain, env={})
     assert (decision.admit, decision.reason) == (False, "flag_off")
 
 
@@ -479,7 +477,7 @@ def test_the_hook_does_nothing_for_a_red_ask(home, monkeypatch):
 def test_the_hook_is_inert_with_the_flag_off(monkeypatch):
     from core.clean_loop import hook
 
-    monkeypatch.setenv(route.FLAG_ENV, "0")
+    monkeypatch.delenv(route.FLAG_ENV, raising=False)
     context = dict(OWNER)
     assert hook.maybe_answer(_Agent(), text="whats on my desktop", effective_input="x", session_id="s",
                              source_context=context) is None
@@ -731,8 +729,8 @@ def cloud_brain(monkeypatch):
     return brain_module
 
 
-def test_the_cloud_brain_is_off_when_explicitly_disabled(cloud_brain, monkeypatch):
-    monkeypatch.setenv(cloud_brain.CLOUD_ENV, "0")
+def test_the_cloud_brain_is_off_by_default(cloud_brain, monkeypatch):
+    monkeypatch.delenv(cloud_brain.CLOUD_ENV, raising=False)
     router = _Router(_Manifest("openrouter:glm", "glm-5.3-flashx", local=False))
     assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "glm-5.3-flashx", **OWNER}) is None
 

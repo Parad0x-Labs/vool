@@ -14,7 +14,7 @@ The brain is local when:
 
 `VOOL_CLEAN_LOOP_MODEL` pins one registered local model by name, for measurement runs.
 
-With `VOOL_CLEAN_LOOP_CLOUD` on (default ON; 0/false/no/off turns it off), a turn the owner's own cloud model would answer runs the
+With `VOOL_CLEAN_LOOP_CLOUD` on (default OFF), a turn the owner's own cloud model would answer runs the
 same loop on that model: the model the owner pinned for the turn, or the cloud model they saved for
 Auto. Only the owner's own local turn gets this (the route checks that first), so a remote or phone
 turn never spends the owner's key here.
@@ -30,7 +30,6 @@ from typing import Any
 MODEL_ENV = "VOOL_CLEAN_LOOP_MODEL"
 CLOUD_ENV = "VOOL_CLEAN_LOOP_CLOUD"
 _TRUTHY = {"1", "true", "yes", "on"}
-_FALSY = {"0", "false", "no", "off"}
 _CALL_SECONDS = float(os.environ.get("VOOL_CLEAN_LOOP_CALL_SECONDS", "120") or 120)
 _MAX_OUTPUT_TOKENS = 700
 
@@ -94,9 +93,7 @@ def resolve_local_manifest(router: Any, source_context: dict[str, Any] | None) -
 
 
 def cloud_enabled(env: Any = None) -> bool:
-    # Default ON (0.8): unset or empty lets the owner's own cloud model run the loop; 0/false/no/off
-    # turns it off.
-    return str((env if env is not None else os.environ).get(CLOUD_ENV) or "").strip().lower() not in _FALSY
+    return str((env if env is not None else os.environ).get(CLOUD_ENV) or "").strip().lower() in _TRUTHY
 
 
 def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -> Any | None:

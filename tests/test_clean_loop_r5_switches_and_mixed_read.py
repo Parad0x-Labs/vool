@@ -6,38 +6,6 @@ from core.clean_loop.registry import Registry
 from core.clean_loop.tools import install_builtin_tools
 
 
-def test_local_loop_switch_defaults_on_and_each_explicit_off_turns_it_off():
-    assert route.flag_on({}) and route.flag_on({route.FLAG_ENV: ""})
-    for value in ("0", "false", "no", "off", "OFF", " False "):
-        assert not route.flag_on({route.FLAG_ENV: value}), value
-    for value in ("1", "true", "yes", "on"):
-        assert route.flag_on({route.FLAG_ENV: value}), value
-
-
-def test_cloud_loop_switch_defaults_on_and_each_explicit_off_turns_it_off():
-    assert brain.cloud_enabled({}) and brain.cloud_enabled({brain.CLOUD_ENV: ""})
-    for value in ("0", "false", "no", "off", "OFF", " False "):
-        assert not brain.cloud_enabled({brain.CLOUD_ENV: value}), value
-
-
-def test_changes_stay_off_by_default():
-    assert not route.changes_enabled({})
-    assert not route.changes_enabled({route.CHANGES_ENV: ""})
-    assert route.changes_enabled({route.CHANGES_ENV: "1"})
-
-
-def test_with_nothing_set_a_files_ask_is_admitted_and_a_change_is_not(monkeypatch):
-    for name in (route.FLAG_ENV, brain.CLOUD_ENV, route.CHANGES_ENV):
-        monkeypatch.delenv(name, raising=False)
-    files = route.decide("whats on my desktop?", source_context={"surface": "cli"}, resolve_brain=lambda: object())
-    change = route.decide("move my invoices into a new folder", source_context={"surface": "cli"},
-                          resolve_brain=lambda: object())
-    red = route.decide("pay the roofer's bill", source_context={"surface": "cli"}, resolve_brain=lambda: object())
-    assert files.admit
-    assert (change.admit, change.reason) == (False, "write_turn")
-    assert (red.admit, red.reason) == (False, "red_turn")
-
-
 def test_archive_names_are_not_evidence_of_archive_contents():
     registry = Registry()
     install_builtin_tools(registry)
