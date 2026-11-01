@@ -151,7 +151,7 @@ fail at the base and pass at the head:
 | `python -m pytest -q -p no:cacheprovider $(grep -rl --include=*.py clean_loop tests)` | `dcf4e69` | **317 passed, 2 skipped** (the 2 need macOS PDFKit) |
 | Read-root tests (13 files that reference `_readable_machine_roots` or the media folders) | `ba74968` | **476 passed** |
 | Money and paid-step tests: the 39 files that import `core.clean_loop.brain` or the spend ledger, incl. `test_clean_loop_paid_step_ledger.py` | `1724b77` (C7 on) | **716 passed, 37 failed, 3 skipped** |
-| Default-on regression: the 95 agent-turn test files (`make_agent`), 4 parallel chunks | `c8ec582` (C7 on) | Chunks 1-3: **1,906 passed, 8 failed**. Chunk 0 had not finished when this was written |
+| Default-on regression: the 95 agent-turn test files (`make_agent`), 4 parallel chunks | `c8ec582` (C7 on) | Chunks 1-3: **1,906 passed, 8 failed**. Chunk 0 stalled at 11% (one test hung for ~25 min) and was stopped: its 24 files are untested |
 | `uvx ruff@0.17.2 check core tests/test_clean_loop_*.py tests/test_clean_local_loop*.py audit/clean-loop-r5-fixes` | `dcf4e69` | **All checks passed** |
 
 **The 37 money-test failures:**
