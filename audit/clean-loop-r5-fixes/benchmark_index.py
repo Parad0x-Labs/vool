@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+"""C1 measurement: cold build and warm route-decision time of the document index on 5,000 documents.
+
+Run: python3.12 audit/clean-loop-r5-fixes/benchmark_index.py
+It builds a synthetic home in a fresh temporary folder (removed afterwards) and reports one line.
+"""
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -10,7 +17,7 @@ from core.clean_loop import route, tools
 from core.clean_loop.registry import ToolContext
 
 
-ROOT = Path("/Volumes/VOOL_WORK/VOOL-Work/tmp/clean-loop-r5-20261101/index-benchmark").resolve()
+ROOT = Path(tempfile.mkdtemp(prefix="vool-index-bench-")).resolve()
 HOME = ROOT / "home"
 DOCS = HOME / "Documents"
 ASK = "When does Neralis arrive at VelvetQuartz?"
@@ -64,4 +71,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        shutil.rmtree(ROOT, ignore_errors=True)

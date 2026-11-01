@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import subprocess
 import zlib
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from core.clean_loop import route, tools
 from core.clean_loop.hook import _prior_evidence, _remember_evidence
@@ -12,6 +15,14 @@ from core.clean_loop.tools import install_builtin_tools
 from core.pdf_tools import extract_text
 
 OWNER = {"surface": "cli"}
+# The PDF text reader is macOS PDFKit through the system Python; elsewhere it reports
+# missing_dependency, and the loop must say so plainly (the failure-path tests below run everywhere).
+SYSTEM_PYTHON = "/usr/bin/python3"
+_HAS_PDFKIT = (
+    Path(SYSTEM_PYTHON).exists()
+    and subprocess.run([SYSTEM_PYTHON, "-c", "import Quartz, Foundation"], capture_output=True).returncode == 0
+)
+needs_pdfkit = pytest.mark.skipif(not _HAS_PDFKIT, reason="macOS PDFKit bindings not present")
 
 
 def _pdf(path: Path, pages: list[str]) -> Path:
@@ -66,6 +77,7 @@ def _pdf_context(home: Path) -> ToolContext:
     return ToolContext(home=home, source_context=dict(OWNER), execute=execute)
 
 
+@needs_pdfkit
 def test_compressed_text_pdf_is_read_and_scanned_pdf_is_never_called_empty(tmp_path):
     text_pdf = _pdf(tmp_path / "compressed.pdf", ["Saffron marker appears here"])
     extracted = extract_text(str(text_pdf))
@@ -79,6 +91,7 @@ def test_compressed_text_pdf_is_read_and_scanned_pdf_is_never_called_empty(tmp_p
     assert "not empty" in scan.text
 
 
+@needs_pdfkit
 def test_long_pdf_marks_the_cut_and_can_continue_from_a_later_page(tmp_path):
     rows = " ".join(f"({('X' * 52)} {index}) Tj 0 -10 Td" for index in range(76))
     long_pdf = _pdf(tmp_path / "long.pdf", [f"RAW:BT /F1 8 Tf 40 760 Td {rows} ET", "Orchid marker is recorded on this page"])
@@ -167,3 +180,53 @@ def test_loop_takes_one_more_step_before_an_absence_claim():
     assert len(seen) == 3
     assert any(CONTENT_SEARCH_NUDGE in message["content"] for message in seen[1])
     assert "can't say whether it is there" in result.answer
+
+
+def _failing_pdf_reader(status: str, reason: str):
+    """The real authorized boundary, except that the PDF text reader fails the way it does off
+    macOS or when its helper breaks (fault injection at the boundary, not a stand-in reader)."""
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    def execute(intent, arguments, **kwargs):
+        if intent == "pdf.extract_text":
+            return RuntimeExecutionResult(handled=True, ok=False, status=status, response_text=reason)
+        return execute_authorized_runtime_tool(intent, arguments, **kwargs)
+
+    return execute
+
+
+@pytest.fixture
+def pdf_home(tmp_path, monkeypatch) -> Path:
+    root = (tmp_path / "home").resolve()
+    (root / "Documents").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(root))
+    return root
+
+
+def test_an_unopenable_pdf_is_named_plainly_and_never_shown_as_bytes(pdf_home):
+    pdf = _pdf(pdf_home / "Documents" / "harbour_lease.pdf", ["Deposit held: 1,940.00 Quillmark"])
+    ctx = ToolContext(
+        home=pdf_home, source_context=dict(OWNER),
+        execute=_failing_pdf_reader("missing_dependency", "the PDF reader is not available here"),
+    )
+    outcome = tools.read_file({"path": "Documents/harbour_lease.pdf"}, ctx)
+    assert not outcome.ok
+    assert outcome.text.startswith("I found Documents/harbour_lease.pdf but could not open its text on this computer (")
+    assert "Keep looking in other files" in outcome.text
+    for noise in ("%PDF", "endobj", "stream", "FlateDecode", "xref"):
+        assert noise not in outcome.text
+    # Nor does any receipt the grounding gate reads carry the raw bytes.
+    assert all("endobj" not in str(r.get("response_preview") or "") for r in ctx.receipts)
+
+
+def test_a_pdf_without_a_text_layer_is_called_scanned_never_empty(pdf_home):
+    pdf = _pdf(pdf_home / "Documents" / "scan_0042.pdf", [""])
+    ctx = ToolContext(
+        home=pdf_home, source_context=dict(OWNER),
+        execute=_failing_pdf_reader("no_text_layer", "no text layer"),
+    )
+    outcome = tools.read_file({"path": str(pdf)}, ctx)
+    assert outcome.status == "no_text_layer"
+    assert "appears scanned" in outcome.text and "not empty" in outcome.text
+    assert "Keep looking in other files" in outcome.text

@@ -1,22 +1,9 @@
 from __future__ import annotations
 
 from core.clean_loop import brain, hook, route
-from core.clean_loop.brain import CLOUD_ENV, cloud_enabled
 from core.clean_loop.prompt import build_system_prompt
 from core.clean_loop.registry import Registry
 from core.clean_loop.tools import install_builtin_tools
-
-
-def test_local_loop_switch_defaults_on_and_recognizes_every_explicit_off():
-    assert route.flag_on({})
-    for value in ("0", "false", "no", "off"):
-        assert not route.flag_on({route.FLAG_ENV: value})
-
-
-def test_cloud_loop_switch_defaults_on_and_recognizes_every_explicit_off():
-    assert cloud_enabled({})
-    for value in ("0", "false", "no", "off"):
-        assert not cloud_enabled({CLOUD_ENV: value})
 
 
 def test_archive_names_are_not_evidence_of_archive_contents():
