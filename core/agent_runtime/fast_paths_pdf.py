@@ -243,6 +243,11 @@ def pdf_read_request(text: str) -> dict[str, Any] | None:
     padded = _padded(raw)
     if any(marker in padded for marker in _CREATE_MARKERS):
         return None
+    from core.execution.constants import machine_size_query_intent
+
+    if machine_size_query_intent(raw) is not None:
+        # "how big is report.pdf" asks for the file's size, not its text: the machine lane's size answer owns it.
+        return None
     resolved = _resolve_named_pdf(raw)
     if resolved is None:
         return None
