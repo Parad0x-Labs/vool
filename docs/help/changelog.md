@@ -32,11 +32,20 @@ Fixes people will notice:
 * Settings use plainer words in all 17 languages, such as "Daily cloud use guide" and "word pieces".
 * The first-run setup says "On this computer" everywhere, where it used to say "On my Mac".
 * VOOL no longer stops when it isn't allowed to open the folder where models are kept.
+* In Settings, "Hide pet" turns into "Show pet" and brings the pet back. Closing the pet with its X no longer leaves a "Companion" button over the chat list.
+* The buttons under an answer (copy, pin, try again and the rest) are now a small row of icons below the answer, so they no longer cover its text.
+* API Keys: Remove is a plain button now, and a working key shows a soft green light. A key the provider refuses shows red.
+* "How big is the holiday photos zip" answers with the size of that file or folder only.
+* "What's on my calendar tomorrow" and "when is my dentist appointment" read your calendar in more everyday wordings. Questions like "where is the nearest pharmacy" are not taken as calendar questions.
+* Updates: if an update fails, VOOL puts the old version back, keeps checking for newer versions and skips only the one that failed.
 
 Safer:
 
 * **Web lookups off means off.** With the Web lookups switch off, nothing goes online for a lookup: weather, prices, rates, web searches, page reads and downloads are refused before any connection is made, and the reply says where the switch is.
 * When you ask VOOL to find a folder, it searches your own folders. Other drives are searched only when you ask for them.
+* Wallet settings that loosen what can be paid (raising a spending cap, switching to Mainnet, turning on a payment channel, adding an AI endpoint) now ask for your wallet PIN, password or Touch ID. Turning things off never asks.
+* Forget reaches more places: update backups, logs, the chat's helper files and undo copies. If a copy cannot be changed, the reply says which one.
+* A paired phone never uses your paid chain-data keys, and a spending cap must be a real number.
 * The docs say only what VOOL has. Your chats and files stay on this computer. Live facts such as weather go online only while Web lookups is on (Settings > Privacy & Permissions), and it is off on a fresh install.
 
 Linux:
