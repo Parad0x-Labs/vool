@@ -11,8 +11,9 @@
 3. Nothing else owns the turn: not a planned sub-turn, a resumed checkpoint, a browser workflow, a
    project-bound chat or a chat with an active goal workflow, and it is the owner's own local turn.
 4. It is about the owner's own files or computer (or a short follow-up to a clean-loop turn, or it
-   shares a distinctive word with the name of one of the owner's files), and not a live/online
-   question, which the online lanes own.
+   shares a distinctive word with the name of one of the owner's files, or, checked last, it is a
+   question about something the owner's documents hold: `tools.document_matches`), and not a
+   live/online question, which the online lanes own.
 5. A brain answers: a ready local model, or with `VOOL_CLEAN_LOOP_CLOUD` on the owner's own cloud model
    (resolved last: it is the only costly check).
 """
@@ -174,6 +175,9 @@ class RouteDecision:
     reason: str
     brain: Any = None
     send_needs_approval: bool = False
+    #: Admitted only because the owner's documents hold its words (no topic, ownership or file-name
+    #: word). Such a turn may be one VOOL's memory answers; finding nothing, it falls through.
+    by_documents: bool = False
 
 
 CHANGES_ENV = "VOOL_CLEAN_LOOP_CHANGES"
@@ -399,18 +403,22 @@ def decide(
         return RouteDecision(False, blocked)
     if is_online_ask(text):
         return RouteDecision(False, "online_ask")
+    by_documents = False
     if not (
         asks_about_own_files_or_computer(text)
         or is_privacy_ask(text)
         or _is_follow_up(text, session_id)
         or names_owner_file(text, file_words)
-        or (document_match is not None and bool(document_match(text)))
     ):
-        return RouteDecision(False, "not_about_own_files")
+        # Last, and only for the owner's own turn: words the owner's documents hold (bounded,
+        # in-memory index; no model call).
+        by_documents = document_match is not None and bool(document_match(text))
+        if not by_documents:
+            return RouteDecision(False, "not_about_own_files")
     brain = resolve_brain() if resolve_brain is not None else None
     if brain is None:
         return RouteDecision(False, "brain_not_local")
-    return RouteDecision(True, "admitted", brain, send_needs_approval)
+    return RouteDecision(True, "admitted", brain, send_needs_approval, by_documents)
 
 
 __all__ = [

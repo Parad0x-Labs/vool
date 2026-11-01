@@ -48,3 +48,14 @@ Done: audit of 42626ca; corrections above.
 Still broken: hold-out general 38/40 with original wording (base rules); C3 completeness rule too
 strict (any unreadable file blocks every absence answer).
 ETA: C1-C6 by 10:00 UTC, review + hand-back by 10:45 UTC.
+
+08:55 UTC
+Doing: C4/C5/C6 audit and tests committed; next C7 (separate commit), fail-before runs on 8c403f0,
+paid-step tests, independent review, hand-back.
+Done: C1 index rework (names vs everyday words, compact in-memory strings, one permission decision
+per slice, budget stop); C2 failure-path tests; C3 completeness + wording; C4 evidence latest-first
+and hook-level tests; memory guard (document-only admission that finds nothing falls through);
+C5 adversarial forms pinned; clean-loop scope 311 passed, 2 skipped (PDFKit).
+Still broken: general hold-out 38/40 (fragment) and 35/40 (household) admitted-out because of BASE
+route rules (unchanged); personal household 25/30.
+ETA: hand-back by 10:30 UTC.

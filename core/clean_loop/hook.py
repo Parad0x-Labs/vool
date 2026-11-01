@@ -17,6 +17,7 @@ from typing import Any
 from core.clean_loop import route
 from core.clean_loop.loop import NO_REPLY_TEXT, run_loop
 from core.clean_loop.registry import ToolContext, default_registry
+from core.clean_loop.tools import content_absence_claim
 
 _LOG = logging.getLogger(__name__)
 REASON = "clean_local_loop"
@@ -53,6 +54,20 @@ def _remember_evidence(session_id: str, evidence: str) -> None:
         _EVIDENCE[session_id] = (time.monotonic(), evidence[:_EVIDENCE_CHARS])
         while len(_EVIDENCE) > 256:
             _EVIDENCE.pop(next(iter(_EVIDENCE)))
+
+
+def _turn_evidence(seen: list[str]) -> str:
+    """What this turn's tools showed (paths and the lines read), latest first, bounded: the read
+    that answered usually comes last, after the searches that found it."""
+    parts: list[str] = []
+    room = _EVIDENCE_CHARS
+    for text in reversed([str(item).strip() for item in seen if str(item or "").strip()]):
+        if room <= 0:
+            break
+        piece = text[: min(room, _EVIDENCE_CHARS // 2 if parts == [] and len(seen) > 1 else room)]
+        parts.append(piece)
+        room -= len(piece) + 1
+    return "\n".join(parts)[:_EVIDENCE_CHARS]
 
 
 def _clear_evidence(session_id: str) -> None:
@@ -224,12 +239,19 @@ def maybe_answer(
         # an apology is never better than the normal pipeline's own try. Only reads ran so far.
         context["clean_local_loop_route"] = "no_answer_fell_through"
         return None
+    if decision.by_documents and not loop_result.proposals and content_absence_claim(loop_result.answer):
+        # Only the owner's documents brought this turn here, and they did not answer it. It may be
+        # something the owner told VOOL in chat, which lives in memory the loop cannot read: the
+        # normal pipeline (and its memory lane) gets the turn. Only reads ran so far.
+        context["clean_local_loop_route"] = "documents_found_nothing_fell_through"
+        _clear_evidence(session_id)
+        return None
     if decision.send_needs_approval:
         loop_result.answer = (
             loop_result.answer.rstrip()
             + "\n\nSending needs you to ask for it and approve it first."
         )
-    evidence = "\n".join(loop_result.seen).strip() or prior_evidence
+    evidence = _turn_evidence(loop_result.seen) or prior_evidence
     if evidence:
         _remember_evidence(session_id, evidence)
     else:
