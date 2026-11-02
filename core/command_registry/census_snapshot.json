@@ -1548,6 +1548,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/toybox": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/toybox",
+      "note": "toybox lane read feed (skin state and choices)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/update/status": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/update/status",
@@ -2708,6 +2715,13 @@
       "name": "POST /api/task/recovery",
       "note": "legacy surface forwards through execute_command",
       "registry_command_id": "tasks.recovery",
+      "surface": "http"
+    },
+    "http:POST:/api/toybox/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/toybox/*",
+      "note": "toybox lane operator action (preview, apply, restore, remove)",
+      "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/update/check": {

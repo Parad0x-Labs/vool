@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "renderer_contract": "1.1",
+  "kind": "skin",
+  "id": "forest-relic",
+  "version": "2.0.0",
+  "name": "Forest Relic",
+  "author": "sls_0x",
+  "description": "Woodland survey kit: moss and ink, brass-cornered panels, map contours, leaf markers and engraved serif titles. Original art.",
+  "license": "CC0-1.0",
+  "assets": [],
+  "skin": {
+    "palette": {
+      "background": "#0f1613",
+      "panel": "#18211d",
+      "field": "#1f2a25",
+      "ink": "#f0e7cf",
+      "muted": "#c4bc9f",
+      "accent": "#d6b36a",
+      "accentInk": "#221906",
+      "border": "#8f7f55"
+    },
+    "frame": "etched",
+    "density": "comfortable",
+    "corners": 4,
+    "borderWidth": 1,
+    "gap": 12,
+    "typography": "serif-heading",
+    "ornament": "leaf"
+  }
+}
