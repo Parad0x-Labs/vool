@@ -659,9 +659,12 @@ def _prioritize_planner_residency(manifests: list[Any]) -> list[Any]:
         truth = hydrate_capability_truth_with_benchmarks(
             tuple(provider_capability_truth_for_manifest(item) for item in candidates)
         )
+        from core.final_answer_authorship import unready_local_model_names
+
         prioritized = prioritize_daily_residency_capabilities(
             truth,
             default_model_tag=_planner_default_model_tag(),
+            unready_local_models=unready_local_model_names(candidates),
         )
     except Exception:
         return candidates

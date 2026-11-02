@@ -635,12 +635,12 @@ def _single_candidate_failure_hint(model_execution: Any) -> str:
             "selector to Auto so the turn can route to whatever is actually available."
         )
     # Some other reason left only one candidate attempted despite a larger ranked pool. Still must
-    # not claim singularity, but without inventing a more specific story than the evidence supports.
-    return (
-        f"`{name}` failed and did not return a usable reply. Other candidates were ranked for this "
-        "turn but were not tried. Retry, or switch the model selector to Auto so the turn can fall "
-        "back to another provider."
-    )
+    # not claim singularity, but without inventing a more specific story than the evidence supports,
+    # and in the person's words: which model didn't reply, and what to do (the selector/provider
+    # wording read as engineering text to someone who just pressed Use this model).
+    from core.final_answer_authorship import author_refusal_text
+
+    return author_refusal_text(reason="", author=attempted[0], attempted=(attempted[0],))
 
 
 #: Word-bounded status markers. A bare substring "401" matched the PRICE 1401000 in

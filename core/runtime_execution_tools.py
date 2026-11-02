@@ -162,6 +162,19 @@ _WORKSPACE_CONTENT_QUESTION_RE = re.compile(
 )
 _FILE_LINE_RE = re.compile(r"(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+):(?P<line>\d+)")
 _SAFE_MACHINE_DIRECTORY_NAMES = ("Desktop", "Downloads", "Documents")
+#: Media folders the machine tools may READ (list, find, read, measure) but never write, move or
+#: create in: "is my cat photo in Pictures", "which video is biggest". The owner chose read-only
+#: access on 2026-10-28. "Videos" is the Linux name for macOS's "Movies".
+_READ_ONLY_MACHINE_DIRECTORY_NAMES = ("Pictures", "Movies", "Videos", "Music")
+#: The owner's other visible home folders ("~/Projects", "~/Taxes") are READ-only too (owner's
+#: choice 2026-10-31): never written to. Never these: app and system data, not the owner's files.
+_NEVER_READ_HOME_DIRECTORY_NAMES = frozenset(
+    name.casefold()
+    for name in (
+        "Library", "Applications", "Applications (Parallels)", "System", "AppData", "Application Data",
+        "Local Settings", "snap", "Public", "Sites",
+    )
+)
 
 
 @dataclass
@@ -1254,7 +1267,7 @@ def _machine_find_file(
     needle = name.lower()
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
     squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
-    roots = [root for root in _safe_machine_roots() if os.path.isdir(root)]
+    roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="unavailable",
@@ -1748,7 +1761,7 @@ def _machine_find_largest(
     if requested_drive:
         root, resolution_error = _resolve_find_largest_root(requested_drive)
         if root is None:
-            allowed_roots = [_home_relative_label(r) for r in _safe_machine_roots()]
+            allowed_roots = _readable_root_labels()
             return RuntimeExecutionResult(
                 handled=True,
                 ok=False,
@@ -4661,7 +4674,8 @@ def resolve_write_target(intent: str, raw_path: str | None, source_context: dict
         return None
     try:
         if str(intent or "").strip().lower().startswith("machine."):
-            return _resolve_machine_directory(path)
+            # The writer's roots, not the wider read roots (Pictures/Movies/Music are read-only).
+            return _resolve_machine_directory(path, write=True)
         return _resolve_workspace_path(path, workspace_root=_workspace_root(source_context))
     except (ValueError, OSError, RuntimeError):
         return None
@@ -4768,6 +4782,66 @@ def _safe_machine_roots() -> tuple[Path, ...]:
     return tuple((home / name).resolve() for name in _SAFE_MACHINE_DIRECTORY_NAMES)
 
 
+def _readable_machine_roots() -> tuple[Path, ...]:
+    """Every root a READ may resolve into: the write roots, the media folders, then the owner's
+    other visible home folders (read-only).
+
+    A folder that is itself a link elsewhere (to "~", "/" or a library on another disk) is left
+    out: the folder the owner agreed to share is the one in their home, not what it points at.
+    Hidden folders and app or system data (`_NEVER_READ_HOME_DIRECTORY_NAMES`) are never roots.
+    """
+    home = _machine_home().resolve()
+    # The link test runs on the folder in the home, before resolving: a media folder that links to a
+    # hidden folder in the same home ("Pictures" -> "~/.config") resolves to a child of home too.
+    named = tuple(_safe_machine_roots()) + tuple(
+        root
+        for root in (
+            (home / name).resolve()
+            for name in _READ_ONLY_MACHINE_DIRECTORY_NAMES
+            if not (home / name).is_symlink()
+        )
+        if root.parent == home and not root.name.startswith(".")
+    )
+    return named + _other_home_folders(home, named)
+
+
+def _other_home_folders(home: Path, already: tuple[Path, ...]) -> tuple[Path, ...]:
+    try:
+        entries = sorted(os.scandir(home), key=lambda entry: entry.name.casefold())
+    except OSError:
+        return ()
+    taken = {root.name.casefold() for root in already}
+    try:
+        from core.runtime_paths import active_vool_home
+
+        vool_home = active_vool_home().resolve()
+    except Exception:
+        vool_home = None
+    found: list[Path] = []
+    for entry in entries:
+        name = entry.name
+        if name.startswith(".") or name.casefold() in taken or name.casefold() in _NEVER_READ_HOME_DIRECTORY_NAMES:
+            continue
+        try:
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                continue
+        except OSError:
+            continue
+        root = (home / name).resolve()
+        # VOOL's own data folder is VOOL's, not one of the owner's files to search or measure.
+        if vool_home is not None and (root == vool_home or root in vool_home.parents):
+            continue
+        if root.parent == home:
+            found.append(root)
+    return tuple(found)
+
+
+def _readable_root_labels() -> list[str]:
+    """The roots a read refusal names: the write roots always, a media folder when it exists."""
+    safe = _safe_machine_roots()
+    return [_home_relative_label(r) for r in _readable_machine_roots() if r in safe or r.is_dir()]
+
+
 def _machine_home() -> Path:
     try:
         return Path.home()
@@ -4791,7 +4865,7 @@ def _expand_machine_user(raw: str) -> Path:
 
 def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
     """A safe machine directory path, refused when it is this runtime's own state (or, for a write, its running code)."""
-    target = _resolve_safe_machine_directory(raw_path)
+    target = _resolve_safe_machine_directory(raw_path, write=write)
     from core.runtime_state_protection import refusal as _protected_refusal
 
     reason = _protected_refusal(target, write=write)
@@ -4800,7 +4874,9 @@ def _resolve_machine_directory(raw_path: str | None, *, write: bool = False) -> 
     return target
 
 
-def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
+def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False) -> Path:
+    """A path inside the machine roots: the write roots for a write, the readable roots otherwise."""
+    roots = _safe_machine_roots() if write else _readable_machine_roots()
     raw = str(raw_path or "").strip()
     if not raw:
         return _safe_machine_roots()[0]
@@ -4817,17 +4893,25 @@ def _resolve_safe_machine_directory(raw_path: str | None) -> Path:
         "~/documents": "Documents",
         "docs": "Documents",
     }
-    if lowered in alias_map:
-        return (_machine_home() / alias_map[lowered]).resolve()
-    candidate = _expand_machine_user(raw)
+    if not write:
+        alias_map.update(
+            {
+                "pictures": "Pictures", "my pictures": "Pictures", "~/pictures": "Pictures", "photos": "Pictures",
+                "my photos": "Pictures", "movies": "Movies", "my movies": "Movies", "~/movies": "Movies",
+                "music": "Music", "my music": "Music", "~/music": "Music",
+            }
+        )
+    # An alias names a root but still passes the root check below (a media folder that is a link
+    # elsewhere is not a root).
+    candidate = _machine_home() / alias_map[lowered] if lowered in alias_map else _expand_machine_user(raw)
     if not candidate.is_absolute():
         candidate = (_machine_home() / candidate).resolve()
     else:
         candidate = candidate.resolve()
-    for root in _safe_machine_roots():
+    for root in roots:
         if candidate == root or root in candidate.parents:
             return candidate
-    allowed = ", ".join(_home_relative_label(root) for root in _safe_machine_roots())
+    allowed = ", ".join(_home_relative_label(r) for r in _safe_machine_roots()) if write else ", ".join(_readable_root_labels())
     raise ValueError(f"I can only inspect safe local directories in this lane: {allowed}.")
 
 
@@ -5164,7 +5248,7 @@ def _hiding_applies(target: Path, *, workspace_root: Path) -> bool:
     """
     if _is_ancestor_or_self(workspace_root, target):
         return False
-    safe_roots = _safe_machine_roots()
+    safe_roots = _readable_machine_roots()
     node = target
     while True:
         if _is_ancestor_or_self(node, workspace_root):
@@ -5207,7 +5291,7 @@ def _list_machine_directory(
     try:
         target = _resolve_machine_directory(arguments.get("path"))
     except ValueError:
-        allowed_roots = [_home_relative_label(root) for root in _safe_machine_roots()]
+        allowed_roots = _readable_root_labels()
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
@@ -5437,7 +5521,7 @@ def _read_machine_file(arguments: dict[str, Any]) -> RuntimeExecutionResult:
                     ),
                 },
             )
-        allowed_roots = [_home_relative_label(root) for root in _safe_machine_roots()]
+        allowed_roots = _readable_root_labels()
         # Echo the requested path: "that path" forced the reader to match the refusal back to
         # their own message (matrix §6, acceptance turn 16). Bounded, and the path is the
         # user's own text restated, never new information.
@@ -5932,7 +6016,47 @@ def _write_machine_file(
                     ),
                 },
             )
-    if reviewed_destination is not None:
+    if bool(arguments.get("create_only")):
+        # Create, never replace: the existence check and the create are one exclusive open, so a
+        # file the owner saved a moment ago can never be overwritten by a caller that asked only
+        # for a new file (the clean loop's changes, which can sit open behind consent prompts).
+        from core.machine_file_ops import create_file_exclusive
+
+        try:
+            create_file_exclusive(target, content)
+        except FileExistsError:
+            return RuntimeExecutionResult(
+                handled=True,
+                ok=False,
+                status="already_exists",
+                response_text=f"`{_home_relative_label(target)}` already exists; nothing was written.",
+                details={
+                    "observation": _tool_observation(
+                        intent="machine.write_file",
+                        tool_surface="machine",
+                        ok=False,
+                        status="already_exists",
+                    ),
+                },
+            )
+        except OSError as exc:
+            # A folder on the way became a link (or vanished) after the path was checked.
+            return RuntimeExecutionResult(
+                handled=True,
+                ok=False,
+                status="destination_changed",
+                response_text=f"`{_home_relative_label(target)}` changed while it was being written; nothing was written.",
+                details={
+                    "detail": type(exc).__name__,
+                    "observation": _tool_observation(
+                        intent="machine.write_file",
+                        tool_surface="machine",
+                        ok=False,
+                        status="destination_changed",
+                    ),
+                },
+            )
+    elif reviewed_destination is not None:
         # A reviewed destination is written inside its pinned parent directory, with its reviewed bytes
         # re-read there just before the rename (`pinned_atomic_write_text`).
         from core.execution.artifacts import DestinationChangedError, ReviewedBaseChangedError, pinned_atomic_write_text
@@ -7796,6 +7920,7 @@ def _pdf_extract_text(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     result = extract_text(
         str(arguments.get("path") or ""),
         max_pages=int(arguments.get("max_pages") or 0),
+        start_page=int(arguments.get("start_page") or 1),
     )
     return _pdf_result("pdf.extract_text", result, verb="Read")
 

@@ -2639,6 +2639,18 @@ class VoolAgent(
             if browser_refusal is not None:
                 return _guard_final_result(browser_refusal)
 
+        # Opt-in clean local path (VOOL_CLEAN_LOCAL_LOOP, default off): a local-model turn about the
+        # owner's own files or computer runs one plain tool loop instead of the lanes below. None
+        # (flag off, not admitted, RED, owned elsewhere) falls through unchanged. core/clean_loop.
+        from core.clean_loop.hook import maybe_answer as _clean_local_answer
+
+        clean_result = _clean_local_answer(
+            self, text=raw_turn_text, effective_input=effective_input, session_id=session_id,
+            source_context=runtime_source_context, browser_turn=browser_turn,
+        )
+        if clean_result is not None:
+            return _guard_final_result(clean_result)
+
         _currency_may_claim_whole = True
         try:
             from core.agent_runtime.demand_ownership import (

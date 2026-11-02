@@ -2146,6 +2146,7 @@ def _dispatch_get(
         # invisible to every other surface -- this listing is what makes it addressable at all.
         from core.local_compute_budget import apple_silicon_build_notice
         from core.local_model_policy import resolve_local_model_policy
+        from core.local_model_readiness import plain_readiness, recommended_local_model
         from core.local_model_tool_certification import certification_status
         from core.model_registry import ModelRegistry
         from core.web.api.runtime import installed_ollama_model_inventory, is_text_generation_ollama_model
@@ -2168,11 +2169,12 @@ def _dispatch_get(
                     "registered": manifest is not None,
                     "enabled": bool(getattr(manifest, "enabled", False)),
                 }
+                entry["readiness"] = plain_readiness(None)
                 if manifest is not None:
                     with contextlib.suppress(Exception):
-                        entry["certification_state"] = str(
-                            certification_status(manifest).get("state") or "unknown"
-                        )
+                        _status = certification_status(manifest)
+                        entry["certification_state"] = str(_status.get("state") or "unknown")
+                        entry["readiness"] = plain_readiness(_status)
                 models.append(entry)
         return apply_runtime_headers(
             json_response(
@@ -2181,9 +2183,18 @@ def _dispatch_get(
                     "models": models,
                     "local_models_disabled": bool(policy.local_models_disabled),
                     "apple_silicon_notice": apple_silicon_build_notice(),
+                    "recommended": None if policy.local_models_disabled else recommended_local_model(),
                 },
             ),
             runtime,
+        )
+
+    if normalized_path == "/api/models/local/pull":
+        # Live progress of a recommended-model download Settings started; reads memory only.
+        from core.local_model_readiness import pull_status
+
+        return apply_runtime_headers(
+            json_response(200, pull_status(str((query.get("model_name") or [""])[0] or ""))), runtime
         )
 
     if normalized_path == "/api/oauth/status":
@@ -4719,7 +4730,57 @@ def _dispatch_post_inner(
                 ),
                 runtime,
             )
+        from core.local_model_readiness import plain_readiness
+
+        result = {**result, "readiness": plain_readiness(result)}
         return apply_runtime_headers(json_response(200, result), runtime)
+
+    if normalized_path == "/api/models/local/pull":
+        # One-click download of a model VOOL recommends, started by the person's own button.
+        # Same guard suite as registration; limited to the recommended tags and to an Ollama on
+        # this machine. The model still has to pass its check before it may answer.
+        from core.web.api.runtime import host_header_allowed
+
+        def _pull_header(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ctype = _pull_header("content-type").lower()
+        if ctype and "json" not in ctype:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _pull_header("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(
+                json_response(403, {"error": "local models can only be downloaded from your own local session"}),
+                runtime,
+            )
+        unknown = set(body.keys()) - {"model_name"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        from urllib.parse import urlparse
+
+        from core.local_model_policy import resolve_local_model_policy
+        from core.local_model_readiness import is_recommended_tag, start_recommended_pull
+        from core.web.api.runtime import ollama_base_url
+
+        model_name = str(body.get("model_name") or "").strip()
+        if not is_recommended_tag(model_name):
+            return apply_runtime_headers(
+                json_response(400, {"error": "only a recommended model can be downloaded here"}), runtime
+            )
+        if resolve_local_model_policy().local_models_disabled:
+            return apply_runtime_headers(
+                json_response(409, {"error": "local models are disabled by policy on this runtime"}), runtime
+            )
+        if not is_loopback_host(str(urlparse(ollama_base_url()).hostname or "")):
+            return apply_runtime_headers(
+                json_response(409, {"error": "downloads go only to an Ollama on this computer"}), runtime
+            )
+        return apply_runtime_headers(json_response(202, start_recommended_pull(model_name)), runtime)
 
     if normalized_path == "/api/models/local/register":
         # The write side of the local-model door: register ONE installed Ollama model as a lane

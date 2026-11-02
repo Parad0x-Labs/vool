@@ -2837,6 +2837,11 @@ class MemoryFirstRouter:
                     nonlocal call_id, call_started
                     call_id = _note_attempt()
                     call_started = active_monotonic()
+                    # The privacy meter: bytes of this request that leave the machine (a local
+                    # manifest records nothing). Observation only; it cannot raise.
+                    from core.privacy_meter import note_model_call
+
+                    note_model_call(manifest, task_request)
 
                 task_request.metadata.pop("request_evidence_finalized", None)
                 try:
@@ -5829,6 +5834,9 @@ class MemoryFirstRouter:
             eagle3_active=_eagle3_active,
             default_model_tag=_cached_default_model_tag(),
             resident_model_tags=_recent_resident_model_tags(),
+            # The model the person made ready goes first: a local model the call fence would
+            # refuse is never the primary while a ready one is ranked (it stays a fallback).
+            unready_local_models=_unready_local_models(ranked_manifests),
         )
         autopilot_plan = autopilot.to_dict()
         emergency_rejected = False
@@ -8267,6 +8275,15 @@ def _local_remote_race_pair(ranked_manifests: list[Any]) -> tuple[Any, Any] | No
     if local_manifest.provider_id == remote_manifest.provider_id:
         return None
     return local_manifest, remote_manifest
+
+
+def _unready_local_models(ranked_manifests: list[Any]) -> frozenset[str]:
+    try:
+        from core.final_answer_authorship import unready_local_model_names
+
+        return unready_local_model_names(ranked_manifests)
+    except Exception:
+        return frozenset()
 
 
 def _can_prioritize_autopilot_selection(

@@ -36,7 +36,7 @@ _MAX_PAGES = 200
 
 _EXTRACT_HELPER = r'''
 import json, sys
-path, max_pages = sys.argv[1], int(sys.argv[2])
+path, start_page, max_pages = sys.argv[1], max(1, int(sys.argv[2])), int(sys.argv[3])
 try:
     from Foundation import NSURL
     import Quartz
@@ -53,15 +53,17 @@ if doc is None:
     print(json.dumps({"status": "unreadable", "reason": "not a readable PDF"}))
     raise SystemExit(0)
 total = int(doc.pageCount())
-wanted = total if max_pages <= 0 else min(total, max_pages)
+first = min(total, start_page) if total else 1
+wanted = total if max_pages <= 0 else min(total, first - 1 + max_pages)
 parts = []
-for index in range(wanted):
+for index in range(first - 1, wanted):
     page = doc.pageAtIndex_(index)
     parts.append(str(page.string() or "") if page is not None else "")
 print(json.dumps({
     "status": "ok",
     "pages_total": total,
-    "pages_read": wanted,
+    "pages_read": len(parts),
+    "page_start": first,
     "page_text": parts,
 }))
 '''
@@ -166,7 +168,8 @@ def _assemble(result: dict[str, Any], *, path: Path, source: str) -> dict[str, A
     if str(result.get("status")) != "ok":
         return {**result, "path": str(path), "source": source, "text": "", "characters": 0}
     pages = [str(part or "") for part in list(result.get("page_text") or [])]
-    text = "\n\n".join(f"[page {index + 1}]\n{body}".rstrip() for index, body in enumerate(pages))
+    page_start = max(1, int(result.get("page_start") or 1))
+    text = "\n\n".join(f"[page {index + page_start}]\n{body}".rstrip() for index, body in enumerate(pages))
     truncated = len(text) > _MAX_TEXT_CHARS
     if truncated:
         text = text[:_MAX_TEXT_CHARS]
@@ -176,20 +179,24 @@ def _assemble(result: dict[str, Any], *, path: Path, source: str) -> dict[str, A
         "source": source,
         "pages_total": int(result.get("pages_total") or 0),
         "pages_read": int(result.get("pages_read") or 0),
+        "page_start": page_start,
         "text": text,
         "characters": len(text),
         "truncated": truncated,
     }
 
 
-def extract_text(path: str, *, max_pages: int = 0, timeout: float = _DEFAULT_TIMEOUT) -> dict[str, Any]:
+def extract_text(
+    path: str, *, max_pages: int = 0, start_page: int = 1, timeout: float = _DEFAULT_TIMEOUT
+) -> dict[str, Any]:
     """The text layer a PDF already carries. Empty text means a scanned page, not a blank one."""
 
     resolved, problem = _resolve(path)
     if problem is not None:
         return {**problem, "path": str(path), "source": "pdfkit", "text": "", "characters": 0}
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
-    result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(bounded)], timeout=timeout)
+    first = max(1, int(start_page or 1))
+    result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
     assembled = _assemble(result, path=resolved, source="pdfkit")
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.

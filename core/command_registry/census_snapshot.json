@@ -1268,6 +1268,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/models/local/pull": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/models/local/pull",
+      "note": "model registry read feed (recommended model download progress)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/money/contract": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/money/contract",
@@ -2444,6 +2451,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/models/local/pull": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/models/local/pull",
+      "note": "model registry operator action (recommended local model download)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/models/local/register": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/models/local/register",
@@ -3224,7 +3238,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 313,
+    "EXTERNAL_TRANSPORT_ONLY": 315,
     "GENERATED_ADAPTER": 138,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

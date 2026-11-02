@@ -172,6 +172,12 @@ def test_served_uncertified_author_never_gets_its_generation_and_the_wire_says_w
     from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD
 
     assert UNCERTIFIED_AUTHOR_NOTICE_LEAD in text, text[:400]
+    fenced = [
+        details
+        for _kind, details in served.events("model_lane_failed")
+        if "author_not_certified_for_final_answer" in details
+    ]
+    assert fenced, "the wire has no record of the fence refusing the uncertified candidate"
 
 
 def test_served_escalation_calls_the_certified_author_and_not_the_uncertified_one():
@@ -187,12 +193,14 @@ def test_served_escalation_calls_the_certified_author_and_not_the_uncertified_on
     )
     assert served.provider.generations_for(CERTIFIED) >= 1, served.provider.calls
     assert "never inserted" in text, text[:400]
-    fenced = [
+    # The certified author is the primary: the uncertified one is not even offered before it
+    # (it stays a fallback the fence refuses; S1 proves that refusal reaches the wire).
+    offered_first = [
         details
         for _kind, details in served.events("model_lane_failed")
-        if "author_not_certified_for_final_answer" in details
+        if UNCERTIFIED in details
     ]
-    assert fenced, "the wire has no record of the fence refusing the uncertified candidate"
+    assert not offered_first, offered_first
 
 
 def test_served_eligible_author_publishes_unchanged():

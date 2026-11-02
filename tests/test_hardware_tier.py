@@ -43,7 +43,7 @@ def test_select_qwen_tier_uses_ram_thresholds_for_apple_unified_memory(monkeypat
     tier = select_qwen_tier(probe)
 
     assert tier.tier_name == "base"
-    assert tier.ollama_tag == "qwen2.5:7b"
+    assert tier.ollama_tag == "qwen3:8b"
 
 
 def test_select_qwen_tier_unlocks_14b_on_higher_ram_apple_unified_memory(monkeypatch) -> None:
