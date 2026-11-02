@@ -355,7 +355,8 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
         if turn_is_private(source_context, session_id):
             return "private_turn"
     except Exception:
-        pass
+        # The switch could not be read: treat the turn as private, as core.private_chat.record_chat_ref does.
+        return "private_turn"
     try:
         from core.goal_workflow import load_active_goal_for_session
 

@@ -57,3 +57,17 @@ def test_an_ordinary_my_statement_is_not_claimed_by_the_clean_loop():
     ):
         decision = route.decide(ask, source_context=context, resolve_brain=_local_brain, env=ON)
         assert (decision.admit, decision.reason) == (want_admit, want_reason), (ask, decision.reason)
+
+
+def test_a_private_switch_that_cannot_be_read_keeps_the_turn_out_of_the_loop(monkeypatch):
+    """If the private switch cannot be read, the turn is treated as private (fail closed)."""
+    import core.private_chat as private_chat
+
+    def _broken(*_a, **_k):
+        raise OSError("switch unreadable")
+
+    monkeypatch.setattr(private_chat, "turn_is_private", _broken)
+    decision = route.decide("did i save the invoice for the boiler?", source_context=OWNER,
+                            resolve_brain=_local_brain, env=ON)
+    assert not decision.admit
+    assert decision.reason == "private_turn"
