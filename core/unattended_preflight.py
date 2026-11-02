@@ -106,9 +106,13 @@ def provenance_chain(*, max_depth: int = _PROVENANCE_DEPTH) -> list[ProvenanceEn
 
 
 def _ps_command(pid: int) -> tuple[str, ...] | None:
+    # -ww keeps the line whole: provenance compares the full repository path,
+    # which a terminal-width cut would drop and misclassify this launch as not
+    # VOOL-owned. /bin/ps stays ABSOLUTE: the preflight runs under hostile,
+    # PATH-scrubbed environments where a PATH-planted ps could forge the chain.
     try:
         out = subprocess.run(
-            ["/bin/ps", "-o", "command=", "-p", str(pid)],
+            ["/bin/ps", "-ww", "-o", "command=", "-p", str(pid)],
             capture_output=True,
             text=True,
             timeout=2,

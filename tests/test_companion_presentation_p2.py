@@ -287,11 +287,12 @@ def test_caption_layout_dom_smoke() -> None:
     # No status dot on the sprite (product/desktop-usability-20260917): the 9px tone dot sat at
     # the CORNER of the 112px drag box -- roughly a centimetre from the character's drawn feet --
     # and was reported as a stray floating mark. Tone is already carried by the caption word,
-    # which the pack's colour law requires anyway. The RESTORE chip keeps its own inline dot:
-    # that one is part of a real control.
+    # which the pack's colour law requires anyway.
     assert "vnSprite.appendChild(vnDot);" not in boot, "the sprite must not mount a corner dot"
     assert "vnDot" not in boot, "no dot element is created for the sprite at all"
-    assert boot.index("vnRestore.innerHTML") > 0, "the restore control still mounts"
+    # Owner 2026-10-31: hiding the pet leaves nothing behind in the chat (the old "Companion"
+    # restore pill covered the sidebar's buttons); Settings > Companion > Show pet brings it back.
+    assert "vn-restore" not in FRAGMENT, "a hidden pet must not leave a restore pill in the chat"
 
 
 def test_timers_only_present_reducer_truth() -> None:

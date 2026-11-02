@@ -422,18 +422,33 @@ header a:hover { text-decoration:underline; }
 .msg.assistant.pending { color:var(--muted); }
 .msg-text a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
 .msg-text a:hover { text-decoration:none; }
-.msg-actions { position:absolute; top:6px; right:6px; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
+/* The message actions are one small framed pill of icon buttons. It never sits over the words:
+   an answer's pill hangs off its bottom edge, in the space before the next message; your own
+   message's pill sits just under the bubble. Each button keeps its translated name as its text
+   (read by screen readers, shown as the tooltip above it) and draws only its line icon. */
+.msg-actions { position:absolute; bottom:-14px; inset-inline-end:0; z-index:3; display:flex; align-items:center; gap:1px; padding:1px;
+  background:var(--panel); border:1px solid var(--border); border-radius:9px; box-shadow:0 2px 8px var(--shadow);
+  opacity:0; transition:opacity .12s; white-space:nowrap; }
 .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity:1; }
-/* Your own message carries Copy and Edit: the pair sits just under the bubble, in the gap between
-   messages, so it never covers the message's attachments or words. */
-.msg.user .msg-actions { top:calc(100% + 2px); right:auto; inset-inline-end:0; white-space:nowrap; }
-/* No hover on a touch screen: your own message's row stays faintly visible under the bubble. */
+.msg.user .msg-actions { bottom:auto; top:calc(100% + 3px); }
+/* No hover on a touch screen: your own message's pill stays faintly visible under the bubble. */
 @media (hover:none) { .msg.user .msg-actions { opacity:.75; } }
+.msg .msg-actions button { box-sizing:border-box; position:relative; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0;
+  background:transparent; color:var(--muted); border:0; border-radius:7px; font-size:0; line-height:0; cursor:pointer; user-select:none; }
+.msg-actions button.vi::before { width:15px; height:15px; margin:0; vertical-align:0; }
+.msg-actions button:hover, .msg-actions button:focus-visible { color:var(--ink); background:var(--active); }
+.msg-actions button:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
+.msg-actions button:disabled { opacity:.5; cursor:default; }
+.msg-actions button[data-tip]:hover::after, .msg-actions button[data-tip]:focus-visible::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+  padding:4px 8px; border-radius:6px; background:var(--panel); color:var(--ink); border:1px solid var(--border); box-shadow:0 2px 8px var(--shadow);
+  font-size:11.5px; line-height:1.2; white-space:nowrap; pointer-events:none; z-index:4; }
+.msg-actions button[data-tip]:first-child:hover::after, .msg-actions button[data-tip]:first-child:focus-visible::after { left:0; transform:none; }
+.msg-actions button[data-tip]:last-child:hover::after, .msg-actions button[data-tip]:last-child:focus-visible::after { left:auto; right:0; transform:none; }
 .msg-copy, .msg-act { background:var(--bg); color:var(--muted); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1; padding:3px 7px; cursor:pointer; user-select:none; }
 .msg-copy:hover, .msg-act:hover { color:var(--ink); border-color:var(--accent); }
 .msg-export-status { display:block; max-width:100%; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--muted); }
 .msg-export-status:empty { display:none; }
-.msg-pin.on { color:var(--accent); border-color:var(--accent); }
+.msg-pin.on, .msg-actions .msg-pin.on { color:var(--accent); border-color:var(--accent); }
 .msg-act.icon { padding:3px 6px; font-size:12px; }
 .msg-act.on { color:var(--accent); border-color:var(--accent); }
 /* Code-block copy: the button lives at the top-right edge of the fenced block it copies, shown on
@@ -2798,7 +2813,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const rawOf = () => (span.dataset.raw != null ? span.dataset.raw : span.textContent);
   const copy = document.createElement('button');
   copy.type = 'button';
-  copy.className = 'msg-copy';
+  copy.className = 'vi msg-copy'; copy.dataset.ico = 'copy';
   copy.textContent = pageT('msg.copy', 'Copy');
   copy.title = role === 'assistant' ? pageT('msg.copy_source_title', 'Copy message source (raw Markdown, exactly as stored)') : pageT('msg.copy_title', 'Copy message');
   copy.addEventListener('click', () => copyText(rawOf(), copy));
@@ -2806,7 +2821,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   if (role === 'assistant') {
     const copyTextBtn = document.createElement('button');
     copyTextBtn.type = 'button';
-    copyTextBtn.className = 'msg-copy msg-copy-text';
+    copyTextBtn.className = 'vi msg-copy msg-copy-text'; copyTextBtn.dataset.ico = 'copy-text';
     copyTextBtn.textContent = pageT('msg.copy_text', 'Copy text');
     copyTextBtn.title = pageT('msg.copy_text_title', 'Copy as plain text (Markdown formatting removed)');
     copyTextBtn.addEventListener('click', () => copyText(mdToPlainText(rawOf()), copyTextBtn));
@@ -2814,7 +2829,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
     if (richClipboardSupported()) {
       const copyRichBtn = document.createElement('button');
       copyRichBtn.type = 'button';
-      copyRichBtn.className = 'msg-copy msg-copy-rich';
+      copyRichBtn.className = 'vi msg-copy msg-copy-rich'; copyRichBtn.dataset.ico = 'copy-rich';
       copyRichBtn.textContent = pageT('msg.copy_rich', 'Copy rich');
       copyRichBtn.title = pageT('msg.copy_rich_title', 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)');
       copyRichBtn.addEventListener('click', () => copyRichMessage(rawOf(), copyRichBtn));
@@ -2826,14 +2841,14 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   // as to any typed message, and the earlier turn stays in the chat exactly as it happened.
   if (role === 'assistant') {
     const retry = document.createElement('button');
-    retry.type = 'button'; retry.className = 'msg-act msg-retry';
+    retry.type = 'button'; retry.className = 'vi msg-act msg-retry'; retry.dataset.ico = 'retry';
     retry.textContent = pageT('msg.retry', 'Try again');
     retry.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
     retry.addEventListener('click', () => resendFromBubble(el, true));
     actions.insertBefore(retry, actions.firstChild);   // the main action comes first
   } else if (role === 'user') {
     const edit = document.createElement('button');
-    edit.type = 'button'; edit.className = 'msg-act msg-edit';
+    edit.type = 'button'; edit.className = 'vi msg-act msg-edit'; edit.dataset.ico = 'rename';
     edit.textContent = pageT('msg.edit', 'Edit');
     edit.title = pageT('msg.edit_title', 'Put this message back in the box to change it and send it again');
     edit.addEventListener('click', () => resendFromBubble(el, false));
@@ -2841,11 +2856,12 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   }
   // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
   const pin = document.createElement('button');
-  pin.type = 'button'; pin.className = 'msg-act msg-pin';
+  pin.type = 'button'; pin.className = 'vi msg-act msg-pin'; pin.dataset.ico = 'pin';
   setPinBtn(pin, isPinnedLocal(role, text));
   pin.addEventListener('click', () => togglePin(role, text, pin));
   actions.appendChild(pin);
   el.appendChild(actions);
+  wireActionTips(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
   if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
@@ -2854,6 +2870,20 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// The pill's tooltip shows each button's own current name -- its translated label, or "Copied" /
+// "Copy failed" / "Pinned" while that feedback is up -- so it follows every later text change.
+// Icon-only buttons (thumbs-down, PDF) fall back to their aria-label.
+function wireActionTips(actions) {
+  if (!actions || actions.dataset.tips) return;
+  actions.dataset.tips = '1';
+  const sync = () => actions.querySelectorAll('button').forEach((b) => {
+    const tip = (b.textContent || '').trim() || b.getAttribute('aria-label') || b.title || '';
+    if (b.dataset.tip !== tip) b.dataset.tip = tip;
+  });
+  sync();
+  try { new MutationObserver(sync).observe(actions, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+}
 
 // ---- Private chat (core.private_chat) ----
 // "private chat" / "don't record this" turns it on; "turn recording back on" ends it. The server owns
@@ -5104,7 +5134,7 @@ function mountAnswerReport(host, chatId, requestId) {
   if (!actions) return;
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
   const report = document.createElement('button');
-  report.type = 'button'; report.className = 'msg-act msg-report';
+  report.type = 'button'; report.className = 'vi msg-act msg-report'; report.dataset.ico = 'report';
   report.textContent = pageT('msg.report', 'Report');
   report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
@@ -5125,8 +5155,8 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!actions) return;
   const label = (key, fallback) => (typeof pageT === 'function') ? pageT(key, fallback) : fallback;
   const button = document.createElement('button');
-  button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = label('msg.pdf_title', 'Download this answer as PDF');
+  button.type = 'button'; button.className = 'vi msg-act msg-export-pdf'; button.dataset.ico = 'download';
+  button.title = label('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');

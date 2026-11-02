@@ -32,7 +32,18 @@ def snapshot_runtime(data_dir: Path, destination: Path) -> None:
             raise ValueError('runtime data contains a symlink; backup refused')
         files.extend(Path(directory) / name for name in names)
     databases = [p for p in files if p.suffix.lower() in ('.db', '.sqlite', '.sqlite3')]
-    if len(databases) > 64 or len(files) > 100000 or sum(p.stat().st_size for p in files) > 8 * 1024**3:
+    # SQLite's own side files are never copied (the backup API reads through them), and SQLite may
+    # remove them the moment the paused app closes its last connection: they never count or fail here.
+    sidecars = {Path(str(path) + suffix) for path in databases for suffix in ('-wal', '-shm', '-journal')}
+    files = [path for path in files if path not in sidecars]
+
+    def size(path: Path) -> int:
+        try:
+            return path.stat().st_size
+        except FileNotFoundError:
+            return 0  # removed since the listing: nothing left to back up
+
+    if len(databases) > 64 or len(files) > 100000 or sum(size(p) for p in files) > 8 * 1024**3:
         raise ValueError("runtime database backup exceeds limits")
     for database in sorted(databases):
         if database.is_symlink() or not database.is_file():
@@ -53,14 +64,18 @@ def snapshot_runtime(data_dir: Path, destination: Path) -> None:
                     raise ValueError("SQLite snapshot failed its integrity check")
         os.chmod(target, 0o600)
         entries.append({"path": relative.as_posix(), "kind": "sqlite", "present": True})
-    sidecars = {Path(str(path) + suffix) for path in databases for suffix in ('-wal', '-shm', '-journal')}
-    for path in sorted(set(files) - set(databases) - sidecars):
+    for path in sorted(set(files) - set(databases)):
+        if not os.path.lexists(path):
+            continue  # removed since the listing (a temporary file): it is not part of this backup
         if not path.is_file():
             raise ValueError('runtime history backup requires regular files')
         relative = path.relative_to(home)
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
+        try:
+            shutil.copy2(path, target)
+        except FileNotFoundError:
+            continue  # removed between the check and the copy
         os.chmod(target, 0o600)
         entries.append({'path': relative.as_posix(), 'kind': 'file', 'present': True})
     (destination / "index.json").write_text(json.dumps(entries, sort_keys=True) + "\n", encoding="utf-8")

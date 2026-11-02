@@ -98,6 +98,22 @@ def _fault(exc: WalletFault) -> Any:
     return _json(_STATUS_FOR_CODE.get(exc.code, 400), payload)
 
 
+def _prove_settings_owner(body: dict[str, Any], *, purpose: str, source_context: dict[str, Any] | None) -> None:
+    """A wallet-wide setting that loosens what can be paid (Mainnet, a payment channel on, a pay-per-answer endpoint
+    on, the fee threshold) needs the same owner proof as raising a cap: loopback alone is any process on this machine.
+    With no wallet that holds a key VOOL could sign with, nothing here can pay, so nothing is asked."""
+    profile = custody.owner_proof_wallet()
+    if profile is None:
+        return
+    try:
+        custody.prove_owner(profile.wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
+                            purpose=purpose, source_context=source_context)
+    except WalletFault as exc:
+        # the page names the wallet whose PIN or password it asks for
+        exc.context["wallet_label"] = profile.label or "your first wallet"
+        raise
+
+
 def _source_context(body: dict[str, Any], client_host: str) -> dict[str, Any]:
     return {"session_id": str(body.get("session_id") or ""), "surface": "wallet_api", "client_host": str(client_host or "")}
 
@@ -325,6 +341,10 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             from core.wallet import environment
             from core.wallet.status import crypto_pilot_status
 
+            # asked whatever the current choice: a check of the current state first would let a request that
+            # raced the owner's own switch to Test networks turn Mainnet back on with no proof
+            if str(body.get("environment") or "").strip().lower() == environment.ENVIRONMENT_MAINNET:
+                _prove_settings_owner(body, purpose="switch payments to Mainnet", source_context=source_context)
             environment.set_active_environment(str(body.get("environment") or ""), source_context=source_context)
             return _ok({"crypto_pilot": crypto_pilot_status()})
         if path == "/api/wallet/channels":
@@ -334,6 +354,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             raw = body.get("on")
             if not isinstance(raw, bool):
                 return _json(400, {"ok": False, "error": "channel_choice_invalid", "reason": "on_must_be_true_or_false"})
+            if raw and channels.get(str(body.get("channel") or "")) is not None:
+                _prove_settings_owner(body, purpose="turn on a payment channel", source_context=source_context)
             changed = channels.set_on(str(body.get("channel") or ""), raw, source_context=source_context)
             return _ok({"channel": changed, "payment_channels": channels.status()})
         if path == "/api/wallet/ai-endpoints":
@@ -341,6 +363,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             from core import x402_ai
 
             action = str(body.get("action") or "")
+            if action == "add" or (action == "set_on" and body.get("on") is True):
+                _prove_settings_owner(body, purpose="add or turn on a pay-per-answer AI service", source_context=source_context)
             try:
                 if action == "add":
                     x402_ai.add_endpoint(label=body.get("label"), base_url=body.get("base_url"), model=body.get("model"), max_price=body.get("max_price"))
@@ -360,11 +384,29 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
 
             wallet_id = _wallet_id(body)
             custody.require_wallet(wallet_id, source_context=source_context)
-            current = limits.load_limits(wallet_id, str(body.get("asset") or "SOL"))
-            updated = limits.set_limits(wallet_id, str(body.get("asset") or "SOL"), limits.SpendLimits(
-                per_tx_minor=int(body.get("per_tx_minor", current.per_tx_minor)), daily_minor=int(body.get("daily_minor", current.daily_minor)),
-                per_destination_daily_minor=int(body.get("per_destination_daily_minor", current.per_destination_daily_minor)),
-            ))
+            asset = str(body.get("asset") or "SOL")
+            current = limits.load_limits(wallet_id, asset)
+            try:
+                wanted = limits.SpendLimits(
+                    per_tx_minor=int(body.get("per_tx_minor", current.per_tx_minor)), daily_minor=int(body.get("daily_minor", current.daily_minor)),
+                    per_destination_daily_minor=int(body.get("per_destination_daily_minor", current.per_destination_daily_minor)),
+                )
+            except (TypeError, ValueError, OverflowError):
+                return _json(400, {"ok": False, "error": "limits_invalid", "message": "Caps are whole numbers of minor units. Nothing was changed."})
+
+            def prove() -> None:
+                # raising a cap needs the wallet's own approval credential: loopback alone is any process on this machine
+                custody.prove_owner(wallet_id, credential=str(body.get("credential") or body.get("pin") or body.get("password") or ""),
+                                    purpose="raise a spending cap", source_context=source_context)
+
+            proven = limits.loosens(current, wanted)
+            if proven:
+                prove()
+            updated = limits.set_limits_unless_raised(wallet_id, asset, wanted, proven=proven)
+            if updated is None:
+                # a cap was lowered after the first read: against the stored caps this write is now a raise
+                prove()
+                updated = limits.set_limits_unless_raised(wallet_id, asset, wanted, proven=True)
             return _ok({"limits": updated.to_dict()})
         if path == "/api/wallet/dna-fees/policy":
             # the trusted Settings door for the collection threshold (the rate and the treasury are not settable here or
@@ -375,6 +417,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             asset = str(body.get("asset") or "USDC")
             saved = None
             if "collect_min_atomic" in body:
+                _prove_settings_owner(body, purpose="change when fees are collected", source_context=source_context)
                 value = dna_fees.set_collect_min_atomic(asset, body.get("collect_min_atomic"), source_context=source_context)
                 saved = {"asset": asset.upper(), "atomic": value, "source": "settings"}
             view = dna_fees.collect_min_view(asset)

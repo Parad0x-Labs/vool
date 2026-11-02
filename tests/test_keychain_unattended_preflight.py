@@ -119,7 +119,9 @@ def test_provenance_chain_records_the_real_ancestry() -> None:
     assert chain[0].ppid == os.getppid()
     # pytest.main() preserves the host runner's command. Check the actual recorded
     # command rather than requiring a launcher spelling the host need not use.
-    actual = subprocess.run(["/bin/ps", "-o", "command=", "-p", str(os.getpid())],
+    # -ww keeps this oracle whole: ps cuts the line at the terminal width when
+    # there is no terminal, which would compare a cut oracle to the un-cut chain.
+    actual = subprocess.run(["/bin/ps", "-ww", "-o", "command=", "-p", str(os.getpid())],
                             check=True, capture_output=True, text=True, timeout=2)
     assert chain[0].argv == tuple(actual.stdout.strip().split())
 
