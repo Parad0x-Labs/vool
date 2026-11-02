@@ -1,0 +1,7 @@
+(version 1)
+(allow default)
+(deny file-write*)
+(allow file-write* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "/private/tmp") (subpath "/private/var/folders") (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (regex #"^/dev/fd/"))
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*"))
+(allow network-outbound (remote unix-socket))
