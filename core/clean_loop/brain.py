@@ -30,7 +30,6 @@ from typing import Any
 MODEL_ENV = "VOOL_CLEAN_LOOP_MODEL"
 CLOUD_ENV = "VOOL_CLEAN_LOOP_CLOUD"
 _TRUTHY = {"1", "true", "yes", "on"}
-_FALSY = {"0", "false", "no", "off"}
 _CALL_SECONDS = float(os.environ.get("VOOL_CLEAN_LOOP_CALL_SECONDS", "120") or 120)
 _MAX_OUTPUT_TOKENS = 700
 
@@ -95,8 +94,10 @@ def resolve_local_manifest(router: Any, source_context: dict[str, Any] | None) -
 
 def cloud_enabled(env: Any = None) -> bool:
     # Default ON (0.8): unset or empty lets the owner's own cloud model run the loop; 0/false/no/off
-    # turns it off.
-    return str((env if env is not None else os.environ).get(CLOUD_ENV) or "").strip().lower() not in _FALSY
+    # turns it off, and so does any other value that is not a known yes ("disabled", "never"): an
+    # off switch the code cannot read keeps the owner's files away from the cloud (review 2026-11-02).
+    value = str((env if env is not None else os.environ).get(CLOUD_ENV) or "").strip().lower()
+    return not value or value in _TRUTHY
 
 
 def resolve_cloud_manifest(router: Any, source_context: dict[str, Any] | None) -> Any | None:

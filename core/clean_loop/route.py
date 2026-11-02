@@ -31,7 +31,6 @@ from typing import Any
 
 FLAG_ENV = "VOOL_CLEAN_LOCAL_LOOP"
 _TRUTHY = {"1", "true", "yes", "on"}
-_FALSY = {"0", "false", "no", "off"}
 
 _RED_RE = re.compile(
     r"\b(?:pay|paying|send|sending|transfer|wire|remit|settle|top\s*up|withdraw|cash\s+(?:out|him|her|them)|lend|reimburse|refund|charge|deposit|"
@@ -197,8 +196,10 @@ def changes_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 
 def flag_on(env: Mapping[str, str] | None = None) -> bool:
-    # Default ON (0.8): unset or empty runs the clean loop; 0/false/no/off turns it off.
-    return str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower() not in _FALSY
+    # Default ON (0.8): unset or empty runs the clean loop; 0/false/no/off turns it off, and so does
+    # any other value that is not a known yes ("disabled", "never"): fail closed (review 2026-11-02).
+    value = str((env if env is not None else os.environ).get(FLAG_ENV) or "").strip().lower()
+    return not value or value in _TRUTHY
 
 
 # A follow-up often opens with a joining word: "and how much am i paying for it a year", "so when is it
