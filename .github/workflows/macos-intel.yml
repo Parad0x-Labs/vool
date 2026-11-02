@@ -24,10 +24,12 @@ on:
       - 'installer/bundle/built_wheels.json'
       - 'installer/bundle/macos_arch_gate.py'
       - 'installer/bundle/macos_arch_census.py'
+      - 'installer/bundle/macos_slice_check.sh'
       - 'installer/bundle/launcher_ollama.sh'
       - 'installer/bundle/vool_window.py'
       - 'installer/bundle/native_runtime_supervisor.py'
       - 'ops/bundle_dependency_provenance.py'
+      - 'ops/macos_locked_requirements.py'
       - 'ops/macos_bundle_smoke.py'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -583,6 +585,33 @@ jobs:
               handle.write("\n")
           print(f"wrote {out}")
           PY
+      # The bundle installs its Python packages from uv.lock with --require-hashes, and a built wheel
+      # is accepted only by the digest its record names. A record run's fresh wheels are not in the
+      # committed record yet, so that run (never release-grade) installs against a copy carrying
+      # this run's entries. A default run never reaches this step and uses the committed record.
+      - name: Record run only - accept this run's built wheels in the locked install
+        if: inputs.record_wheel == true
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP/built_wheels.record-run.json" "$RUNNER_TEMP/built_wheels_entry.json" \
+            "$RUNNER_TEMP/built_wheels_proxy_tools_entry.json" <<'PY'
+          import json
+          import sys
+
+          out, *entries = sys.argv[1:]
+          with open("installer/bundle/built_wheels.json", encoding="utf-8") as handle:
+              record = json.load(handle)
+          fresh = {}
+          for path in entries:
+              with open(path, encoding="utf-8") as handle:
+                  entry = json.load(handle)
+              fresh[entry["package"]] = entry
+          record["wheels"] = [fresh.get(wheel["package"], wheel) for wheel in record["wheels"]]
+          with open(out, "w", encoding="utf-8") as handle:
+              json.dump(record, handle, indent=2)
+              handle.write("\n")
+          print(f"wrote {out}")
+          PY
       - uses: actions/upload-artifact@v7
         # Only a record run uploads this: both wheels the build makes itself and their
         # entries. It is the input for updating
@@ -612,11 +641,22 @@ jobs:
           lipo -archs bin/ollama
           echo "$O/bin" >> "$GITHUB_PATH"
       - name: Build-time Python for the build script's helpers
+        env:
+          RECORD_WHEEL: ${{ inputs.record_wheel }}
         run: |
           set -euo pipefail
+          record=()
+          if [[ "$RECORD_WHEEL" == "true" ]]; then record=(--built-wheels "$RUNNER_TEMP/built_wheels.record-run.json"); fi
           uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/sys-venv"
-          python3 -c "from ops.bundle_dependency_provenance import lean_requirements; print('\n'.join(lean_requirements()))" > "$RUNNER_TEMP/lean.txt"
-          uv pip install --python "$RUNNER_TEMP/sys-venv/bin/python" --no-build --find-links "$RUNNER_TEMP/wheelhouse" -r "$RUNNER_TEMP/lean.txt"
+          # The same locked, hashed set the bundle installs (ops/macos_locked_requirements.py), so
+          # the audit below covers exactly the shipped versions.
+          "$RUNNER_TEMP/sys-venv/bin/python" -I ops/macos_locked_requirements.py export --arch x86_64 \
+            --out "$RUNNER_TEMP/lean.txt" ${record[@]+"${record[@]}"}
+          uv pip sync --python "$RUNNER_TEMP/sys-venv/bin/python" --no-build --require-hashes --strict \
+            --find-links "$RUNNER_TEMP/wheelhouse" "$RUNNER_TEMP/lean.txt"
+          "$RUNNER_TEMP/sys-venv/bin/python" -I ops/macos_locked_requirements.py check --arch x86_64 \
+            --site-packages "$("$RUNNER_TEMP/sys-venv/bin/python" -I -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+            --requirements "$RUNNER_TEMP/lean.txt"
       - name: pip-audit the lean set the bundle installs
         # Same policy as .github/workflows/security-audit.yml: the auditor's own nonzero exit
         # is the only failure authority (a crash is UNKNOWN, never a healthy zero), and no
@@ -666,8 +706,10 @@ jobs:
           # wheelhouse artifact that is not release-grade. A record run is explicitly not
           # release-grade, so it keeps the audit non-strict and says so in its artifact names.
           VOOL_REQUIRE_RELEASE_PROVENANCE: ${{ inputs.record_wheel != true && '1' || '0' }}
+          RECORD_WHEEL: ${{ inputs.record_wheel }}
         run: |
           set -euo pipefail
+          if [[ "$RECORD_WHEEL" == "true" ]]; then export VOOL_BUILT_WHEELS_RECORD="$RUNNER_TEMP/built_wheels.record-run.json"; fi
           export HOME="$RUNNER_TEMP/vool-builder-home"
           export UV_PYTHON_INSTALL_DIR="$HOME/uv-python" UV_CACHE_DIR="$HOME/uv-cache"
           mkdir -p "$HOME"
@@ -678,6 +720,9 @@ jobs:
             printf '%s\n' "$hits" | head -5
             echo "the bundle carries the build checkout path $GITHUB_WORKSPACE"; exit 1
           fi
+          # The finished app, checked with the platform tools and against uv.lock.
+          bash installer/bundle/macos_slice_check.sh "$HOME/macos-x86_64/VOOL.app" x86_64
+          "$SYS_PY" -I ops/macos_locked_requirements.py check-app "$HOME/macos-x86_64/VOOL.app" --arch x86_64
           cd "$RUNNER_TEMP/assets"
           for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
           cat *.sha256

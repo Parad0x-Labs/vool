@@ -472,13 +472,10 @@ def test_the_lean_dependency_list_carries_what_the_served_surface_imports() -> N
     it at import time. The behavioural guard is the conformance check in verify_bundle(); this
     pin names the specific distribution whose absence caused the observed HTTP 500.
     """
-    src = BUILD_SCRIPT.read_text(encoding="utf-8")
-    # Anchor on the real command, not the first textual match: the word also appears in a
-    # comment above it, and a `|| die` inside an intervening guard would truncate a naive slice.
-    marker = 'uv pip install --python "${embedded}"'
-    assert marker in src, "the lean dependency install command moved or was renamed"
-    install = src.split(marker, 1)[1].split("lean dependency install failed", 1)[0]
-    assert "zstandard" in install, "the lean dependency install lost zstandard"
+    from ops import bundle_dependency_provenance as prov
+
+    # The bundle installs the lock's export of exactly this declared set.
+    assert "zstandard" in prov.lean_requirements(), "the lean dependency set lost zstandard"
 
 
 def test_both_modes_are_declared_in_info_plist_and_none_is_implicit() -> None:
@@ -975,10 +972,11 @@ def test_bundled_build_source_stamp_built_at_is_known_variable_too(tmp_path: Pat
 # must stay the truthful runtime answer when a dependency genuinely goes missing.
 
 def test_the_lean_bundle_install_list_ships_the_evm_signing_dependencies() -> None:
-    script = BUILD_SCRIPT.read_text(encoding="utf-8")
-    lean = script.split("lean dependency install failed", 1)[0].rsplit("uv pip install", 1)[-1]
+    from ops import bundle_dependency_provenance as prov
+
+    lean = prov.lean_requirements()
     for package in ("eth-abi", "eth-utils", "eth-account"):
-        assert re.search(rf'["\s]{package}>=', lean), f"the bundle's lean install dropped {package}: the artifact's EVM lanes would be dependency-unavailable"
+        assert package in lean, f"the bundle's lean install dropped {package}: the artifact's EVM lanes would be dependency-unavailable"
 
 
 def test_a_missing_evm_dependency_still_answers_the_typed_refusal_not_a_crash(monkeypatch, tmp_path: Path) -> None:

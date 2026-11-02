@@ -1,9 +1,8 @@
 """The downloads carry the x402 Foundation SDK, so a Crypto Pilot wallet in the shipped app pays x402 offers in USDC on
 Base (core/wallet/x402_sdk.py) instead of that payment channel answering "not usable on this install".
 
-The macOS bundle installs a hand-listed lean set and the Linux bundle exports extras from the lock: both must carry the
-`x402` extra at the version pyproject pins, the Mac list with web3 at the lock's version (the SDK's EVM package imports
-it at import time).
+Both bundles install from the lock's export of the project's extras: both must carry the `x402` extra at the version
+pyproject pins, and the lock must carry web3 with it (the SDK's EVM package imports it at import time).
 """
 from __future__ import annotations
 
@@ -28,11 +27,17 @@ def _locked(name: str) -> str:
     return next(package["version"] for package in lock["package"] if package["name"] == name)
 
 
-def test_the_macos_lean_install_ships_the_x402_sdk_at_the_pinned_and_locked_versions() -> None:
-    script = MACOS_BUILD.read_text(encoding="utf-8")
-    lean = script.split("lean dependency install failed", 1)[0].rsplit("uv pip install", 1)[-1]
-    assert f'"{_x402_pin()}"' in lean, "the Mac bundle dropped the x402 SDK: the Base x402 channel would be unusable in the app"
-    assert f'"web3=={_locked("web3")}"' in lean, "the Mac bundle's web3 left the lock's version"
+def test_the_macos_bundle_installs_the_x402_extra_from_the_lock() -> None:
+    from ops.macos_locked_requirements import EXTRAS
+
+    assert "x402" in EXTRAS, "the Mac bundle dropped the x402 SDK: the Base x402 channel would be unusable in the app"
+    assert _x402_pin() == "x402[evm]==2.25.0" and _locked("x402") == "2.25.0"
+    lock = tomllib.loads((REPO / "uv.lock").read_text(encoding="utf-8"))
+    x402 = next(package for package in lock["package"] if package["name"] == "x402")
+    assert any(dep["name"] == "web3" for dep in x402["optional-dependencies"]["evm"]), "the lock lost x402's web3"
+    assert _locked("web3") == "8.0.0"
+    # The build installs exactly that export (tests/test_macos_locked_requirements.py pins the wiring).
+    assert "ops/macos_locked_requirements.py\" export" in MACOS_BUILD.read_text(encoding="utf-8")
 
 
 def test_the_linux_bundle_exports_the_x402_extra_from_the_lock() -> None:
