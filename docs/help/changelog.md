@@ -6,6 +6,30 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.7-beta — 2026-11-02
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.7-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
+Safer updates, a wallet that asks you first, and a more thorough forget.
+
+**New**
+* **The wallet asks you first.** Wallet settings that loosen what can be paid (raising a spending cap, switching to Mainnet, turning on a payment channel, adding an AI endpoint) ask for your wallet PIN, password or Touch ID. Turning things off never asks.
+* **Hide or show the pet.** In Settings, "Hide pet" turns into "Show pet" and brings the pet back. Closing the pet with its X no longer leaves a "Companion" button over the chat list.
+* **Calmer message buttons.** The buttons under an answer (copy, pin, try again and the rest) are a small row of icons below the answer, so they no longer cover its text.
+
+**Fixes**
+* **Updates are safer.** If an update fails, VOOL puts the old version back, keeps checking for newer versions and skips only the one that failed.
+* **Forget reaches more places:** update backups, logs, the chat's helper files and undo copies. If a copy cannot be changed, the reply says which one.
+* A paired phone never uses your paid chain-data keys, and a spending cap must be a real number.
+* "How big is the holiday photos zip" answers with the size of that file or folder only.
+* A price VOOL recorded earlier is not shown as the current price.
+* API Keys: Remove is a plain button now, and a working key shows a soft green light. A key the provider refuses shows red.
+
+**Updating**
+* **From 0.7.5 or 0.7.6:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+* **From 0.7.4 or 0.7.3 on a Mac:** turn on "Go online on its own" (Settings > Privacy & Permissions), then press Check for updates once in the header update menu.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.7 and install it over your current version. Your chats and settings stay in your profile.
+
 ## 0.7.6-beta — 2026-10-30
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

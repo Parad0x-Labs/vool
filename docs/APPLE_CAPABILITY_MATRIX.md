@@ -1,6 +1,6 @@
 # VOOL — Apple / Linux Lane Capability Matrix
 
-> **Historical 0.4.x audit; superseded.** See the README for 0.7.6.
+> **Historical 0.4.x audit; superseded.** See the README for 0.7.7.
 
 
 ## 2026-09-11 Last-Run Repair Checkpoint
