@@ -1,5 +1,7 @@
 # Licensing Matrix
 
+> **Historical planning note, superseded.** VOOL is MIT-licensed (see `LICENSE` and `pyproject.toml`). The BSL 1.1 split below was never adopted.
+
 This is the clean internal licensing split for local repository preparation.
 
 It is an operational structure guide, not legal advice.

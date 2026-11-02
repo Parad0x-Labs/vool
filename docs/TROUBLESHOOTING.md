@@ -49,6 +49,6 @@ mainnet payment has been made with this yet. See the
 
 ## Reporting bugs safely
 
-Use the built-in bug reporter (`vool bug-report` CLI or `/api/bug-report/*`): it builds a local
+Use the built-in bug reporter (`python -m apps.vool_cli bug-report` CLI or `/api/bug-report/*`): it builds a local
 redacted draft you preview and approve byte-for-byte before anything is sent. Security issues
 go through [../SECURITY.md](../SECURITY.md), never a public issue.
