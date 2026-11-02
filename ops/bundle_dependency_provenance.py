@@ -39,7 +39,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 LOCK = REPO / "uv.lock"
-BUILD_SCRIPT = REPO / "installer" / "bundle" / "build_macos_app.sh"
+PYPROJECT = REPO / "pyproject.toml"
 #: Wheels this project builds itself because no published wheel exists for a target (cryptography
 #: >= 49 ships no Intel macOS wheel). Each entry is reviewed and committed with what it was built
 #: from: the wheel's own sha256, the source sdist and its sha256, and the toolchain inputs.
@@ -47,79 +47,27 @@ BUILT_WHEELS = REPO / "installer" / "bundle" / "built_wheels.json"
 
 
 def lean_requirements() -> list[str]:
-    """The bundle's lean pins, read from the build script so there is ONE source of truth.
+    """The bundle's top-level requirements: the project's base dependencies plus the extras the
+    macOS app ships (ops.macos_locked_requirements.EXTRAS), by name.
 
-    A second hand-maintained copy here would drift from the installer exactly the way the
-    installer drifted from the runtime's real import closure.
+    The build installs exactly the lock's export of this same declaration, so this list and the
+    installed set cannot disagree about what the bundle asks for. It used to be parsed out of a
+    hand-written `uv pip install` line in the build script, which resolved those names against the
+    live index instead of the lock (0.7.7 shipped 32 packages at versions the lock does not pin).
     """
-    src = BUILD_SCRIPT.read_text(encoding="utf-8")
-    marker = 'uv pip install --python "${embedded}"'
-    if marker not in src:
-        raise SystemExit("could not find the lean dependency install in the build script")
-    body = src.split(marker, 1)[1].split("lean dependency install failed", 1)[0]
-    return lean_requirements_from_text(body)
-
-
-def _strip_shell_expansions(body: str) -> str:
-    """Remove every `${...}` (nesting and quotes inside honoured) and `$name` expansion.
-
-    The bash-3.2 guard `${arr[@]+"${arr[@]}"}` nests a quoted expansion inside an expansion; a
-    regex that stops at the first closing brace left a stray quote that paired with the next
-    quoted specifier and swallowed a whole line of packages (measured 2026-09-07).
-    """
-    out: list[str] = []
-    i = 0
-    while i < len(body):
-        if body.startswith("${", i):
-            depth = 0
-            j = i
-            while j < len(body):
-                if body.startswith("${", j):
-                    depth += 1
-                    j += 2
-                    continue
-                if body[j] == "}":
-                    depth -= 1
-                    j += 1
-                    if depth == 0:
-                        break
-                    continue
-                j += 1
-            out.append(" ")
-            i = j
-            continue
-        if body[i] == "$" and i + 1 < len(body) and (body[i + 1].isalpha() or body[i + 1] == "_"):
-            j = i + 1
-            while j < len(body) and (body[j].isalnum() or body[j] == "_"):
-                j += 1
-            out.append(" ")
-            i = j
-            continue
-        out.append(body[i])
-        i += 1
-    return "".join(out)
-
-
-def lean_requirements_from_text(body: str) -> list[str]:
-    """The package names in one `uv pip install` invocation's argument text."""
-    # Drop shell noise BEFORE tokenising: option flags (--quiet, --no-compile-bytecode), shell
-    # variable expansions (nested ones included), line continuations, the `||` that opens the
-    # failure branch. Reading a flag's name as a package produced three phantom "unpinned
-    # dependencies" on the first run of this tool.
-    body = re.sub(r"--[A-Za-z0-9-]+", " ", body)
-    body = _strip_shell_expansions(body)
-    body = body.replace("\\\n", " ").replace("||", " ")
+    try:
+        import tomllib
+    except ImportError as exc:  # pragma: no cover - the build's helper interpreter is 3.11+
+        raise SystemExit("reading pyproject.toml needs Python 3.11+ (set SYS_PY to one)") from exc
+    from ops.macos_locked_requirements import EXTRAS
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
+    specs = list(project["dependencies"])
+    for extra in EXTRAS:
+        specs.extend(project["optional-dependencies"][extra])
     names: list[str] = []
-    for quoted, bare in re.findall(r'"([^"]+)"|(\b[A-Za-z][A-Za-z0-9_.-]*\b)', body):
-        raw = (quoted or bare).strip()
-        if not raw or raw.startswith("-"):
-            continue
-        name = re.split(r"[<>=!~\[ ]", raw, maxsplit=1)[0].strip()
-        if not name or name.startswith("$"):
-            continue
-        if name in {"die", "uv", "pip", "install", "python", "embedded", "lean", "dependency", "failed"}:
-            continue
-        if name not in names:
+    for spec in specs:
+        name = re.split(r"[<>=!~\[ ;]", spec.strip(), maxsplit=1)[0]
+        if name and name not in names:
             names.append(name)
     return names
 
@@ -138,8 +86,15 @@ def lock_artifacts() -> dict[str, dict[str, str]]:
         # No zip(strict=...): the bundle build runs this under macOS's system python3.9, which has no
         # such keyword. Indexing keeps the same pairing (a missing hash leaves its wheel out).
         entry = {urls[i].rsplit("/", 1)[-1]: hashes[i] for i in range(min(len(urls), len(hashes)))}
-        entry["__version__"] = version.group(1) if version else ""
-        out[_norm(m.group(1))] = entry
+        # A package the lock pins at more than one version (a marker fork: toolz for the `pay`
+        # extra, ckzg and cryptography for Intel macOS) keeps every version's artifacts. Keying on
+        # the name alone let the later block overwrite the earlier one's digests.
+        merged = out.setdefault(_norm(m.group(1)), {"__version__": ""})
+        versions = [v for v in merged["__version__"].split(" or ") if v]
+        if version and version.group(1) not in versions:
+            versions.append(version.group(1))
+        merged.update(entry)
+        merged["__version__"] = " or ".join(versions)
     return out
 
 

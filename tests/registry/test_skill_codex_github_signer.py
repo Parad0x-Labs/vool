@@ -564,29 +564,35 @@ def test_the_workflow_installs_exactly_what_vools_lock_file_pins():
 
     After a change to uv.lock, regenerate the file with the command at its top."""
     repo = Path(__file__).resolve().parents[2]
-    lock = {package["name"]: package for package in tomllib.loads((repo / "uv.lock").read_text())["package"]}
+    # A package the lock forks by marker (cryptography for Intel macOS) has one entry per version.
+    lock: dict[str, list[dict]] = {}
+    for package in tomllib.loads((repo / "uv.lock").read_text())["package"]:
+        lock.setdefault(package["name"], []).append(package)
     text = (github_authority.TEMPLATES / "requirements.txt").read_text()
     pins = {}
     for block in re.split(r"\n(?=[a-z0-9])", text.split("\n", 2)[2].strip()):
         name, version = re.match(r"([a-z0-9][a-z0-9._-]*)==([^\s;\\]+)", block).groups()
-        pins[name] = (version, set(re.findall(r"--hash=sha256:([0-9a-f]{64})", block)))
-    root = next(package for package in lock.values() if package.get("source") == {"editable": "."})
+        pins[(name, version)] = set(re.findall(r"--hash=sha256:([0-9a-f]{64})", block))
+    root = next(package for versions in lock.values() for package in versions
+                if package.get("source") == {"editable": "."})
     wanted, todo = set(), [(item["name"], tuple(item.get("extra", ()))) for item in root["dependencies"]]
     while todo:  # everything VOOL itself needs to run, on any platform, without its optional extras
         name, extras = todo.pop()
         if name in wanted and not extras:
             continue
         wanted.add(name)
-        todo += [(item["name"], tuple(item.get("extra", ()))) for item in lock[name].get("dependencies", [])]
-        for extra in extras:
-            todo += [(item["name"], tuple(item.get("extra", ())))
-                     for item in lock[name].get("optional-dependencies", {}).get(extra, [])]
-    assert set(pins) == wanted
-    for name, (version, hashes) in pins.items():
-        package = lock[name]
+        for package in lock[name]:
+            todo += [(item["name"], tuple(item.get("extra", ()))) for item in package.get("dependencies", [])]
+            for extra in extras:
+                todo += [(item["name"], tuple(item.get("extra", ())))
+                         for item in package.get("optional-dependencies", {}).get(extra, [])]
+    assert {name for name, _ in pins} == wanted
+    for (name, version), hashes in pins.items():
+        package = next((p for p in lock[name] if p["version"] == version), None)
+        assert package is not None, f"{name}=={version} is not a version uv.lock pins"
         known = {item["hash"].removeprefix("sha256:") for item in [package.get("sdist", {}), *package.get("wheels", [])]
                  if "hash" in item}
-        assert version == package["version"] and hashes and hashes <= known, name
+        assert hashes and hashes <= known, name
 
 
 def test_the_service_hands_the_signer_only_admitted_bytes(world):

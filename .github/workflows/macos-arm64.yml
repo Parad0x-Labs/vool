@@ -1,0 +1,120 @@
+name: macOS arm64 package
+
+# Builds VOOL.app for Apple Silicon natively on GitHub's arm64 macOS runner and fails the job when
+# the app could make macOS report VOOL as an Intel app, or when its Python packages left uv.lock:
+#
+#   * the build's own architecture gate (installer/bundle/macos_arch_gate.py, a Mach-O parser),
+#   * an independent check of the finished app with Apple's `file` and `lipo -archs`
+#     (installer/bundle/macos_slice_check.sh): any Mach-O without an arm64 slice fails the job,
+#   * the dependency drift check (ops/macos_locked_requirements.py): every installed package is the
+#     one uv.lock pins for arm64, nothing more and nothing less.
+#
+# 0.7.7's arm64 app shipped Contents/Resources/ollama/ollama with an x86_64 slice and 32 of 80
+# Python packages at versions the lock does not pin; it was built outside CI, so nothing here saw it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'installer/bundle/build_macos_app.sh'
+      - 'installer/bundle/built_wheels.json'
+      - 'installer/bundle/macos_arch_gate.py'
+      - 'installer/bundle/macos_arch_census.py'
+      - 'installer/bundle/macos_slice_check.sh'
+      - 'installer/bundle/native_launcher.c'
+      - 'installer/bundle/launcher_ollama.sh'
+      - 'installer/bundle/vool_window.py'
+      - 'installer/bundle/native_runtime_supervisor.py'
+      - 'ops/macos_build_inputs.py'
+      - 'ops/macos_locked_requirements.py'
+      - 'ops/bundle_dependency_provenance.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/macos-arm64.yml'
+
+permissions:
+  contents: read
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
+  # The bundle embeds python-build-standalone; never a runner image's own (universal2, not
+  # relocatable) CPython.
+  UV_PYTHON_PREFERENCE: only-managed
+
+jobs:
+  package:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.11.1'
+      - name: Refuse anything but a native Apple Silicon host
+        run: |
+          set -euo pipefail
+          echo "machine $(uname -m); cpu $(sysctl -n machdep.cpu.brand_string); macOS $(sw_vers -productVersion)"
+          test "$(uname -m)" = arm64
+          # A shell translated by Rosetta would build and verify everything as x86_64.
+          test "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" = 0
+      - name: Build-time Python for the build script's helpers
+        run: |
+          set -euo pipefail
+          uv python install cpython-3.11-macos-aarch64-none
+          uv venv --python cpython-3.11-macos-aarch64-none "$RUNNER_TEMP/sys-venv"
+          PY="$RUNNER_TEMP/sys-venv/bin/python"
+          lipo -archs "$(readlink -f "$PY")"
+          # The build runs repo modules with this interpreter (the device-authentication helper is
+          # compiled through core.wallet, which imports cryptography), so it carries the same locked
+          # arm64 set the bundle installs. proxy-tools comes from its recorded recipe.
+          "$PY" -I ops/macos_build_inputs.py proxy-wheel --cache "$RUNNER_TEMP/inputs-cache" --out "$RUNNER_TEMP/wheelhouse"
+          "$PY" -I ops/macos_locked_requirements.py export --arch arm64 --out "$RUNNER_TEMP/lean.txt"
+          uv pip sync --python "$PY" --no-build --require-hashes --strict \
+            --find-links "$RUNNER_TEMP/wheelhouse" "$RUNNER_TEMP/lean.txt"
+          "$PY" -I ops/macos_locked_requirements.py check --arch arm64 \
+            --site-packages "$("$PY" -I -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+            --requirements "$RUNNER_TEMP/lean.txt"
+      # The build script's footprint gate refuses any bundle byte that carries the builder's $HOME;
+      # on a hosted runner that is /Users/runner, the home of the runners that built many upstream
+      # wheels. The build runs under a dedicated builder home, as the Intel package job does.
+      - name: Build the arm64 app and DMG on Apple Silicon
+        env:
+          SYS_PY: ${{ runner.temp }}/sys-venv/bin/python
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/vool-builder-home"
+          export UV_PYTHON_INSTALL_DIR="$HOME/uv-python" UV_CACHE_DIR="$HOME/uv-cache"
+          mkdir -p "$HOME"
+          bash installer/bundle/build_macos_app.sh --self-contained --arch arm64 \
+            --out "$HOME/macos-arm64" --release-dir "$RUNNER_TEMP/assets"
+          hits="$(grep -r -a -l -F "$GITHUB_WORKSPACE" "$HOME/macos-arm64/VOOL.app" || true)"
+          if [[ -n "$hits" ]]; then
+            printf '%s\n' "$hits" | head -5
+            echo "the bundle carries the build checkout path $GITHUB_WORKSPACE"; exit 1
+          fi
+      - name: No Mach-O without an arm64 slice (file + lipo)
+        run: |
+          set -euo pipefail
+          bash installer/bundle/macos_slice_check.sh "$RUNNER_TEMP/vool-builder-home/macos-arm64/VOOL.app" arm64
+      - name: No Python package outside uv.lock
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/sys-venv/bin/python" -I ops/macos_locked_requirements.py check-app \
+            "$RUNNER_TEMP/vool-builder-home/macos-arm64/VOOL.app" --arch arm64
+      - name: Checksums and records beside the DMG
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/assets"
+          for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
+          cat ./*.sha256
+          cp "$RUNNER_TEMP/vool-builder-home/macos-arm64/ARCH_CENSUS.json" .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64-package
+          path: |
+            ${{ runner.temp }}/assets/*.dmg
+            ${{ runner.temp }}/assets/*.sha256
+            ${{ runner.temp }}/assets/*.json
+          if-no-files-found: error
