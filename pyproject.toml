@@ -135,7 +135,7 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     # The authoritative gate checks this exact version before collection so local and CI cannot
     # silently disagree about collection semantics.
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
     "ruff==0.17.2",
