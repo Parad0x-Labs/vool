@@ -127,7 +127,11 @@ fi
 # The wrapper LAUNCHER restates this logic inline (an unquoted heredoc cannot call parent-shell
 # functions), so the pair is kept deliberately small and mirrored; the packaging tests execute
 # the emitted launcher copy verbatim so a silent divergence fails CI.
-webview_capable() { "$1" -c 'import webview' >/dev/null 2>&1; }
+# A candidate must also run NATIVELY as the bundle's architecture. An Intel interpreter (Homebrew
+# under /usr/local, a venv made from one, a python.org x86_64 build) imports webview fine on Apple
+# Silicon, but it runs under Rosetta, and macOS then reports VOOL as an Intel app. platform.machine()
+# reads x86_64 inside a translated process, so the check holds for a universal2 interpreter too.
+webview_capable() { "$1" -c 'import webview' >/dev/null 2>&1 && "$1" -c "import platform, sys; sys.exit(platform.machine() != '${TARGET_ARCH}')" >/dev/null 2>&1; }
 
 select_capable_wrapper_python() {
   # Same candidate order the shipped wrapper launcher uses at run time (install venv first, then a
@@ -329,6 +333,21 @@ bundle_ollama_runtime() {
     [[ -e "${dst}/${target}" || -L "${dst}/${target}" ]] || continue
     ln -sfn "${target}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
   done
+  # The ollama executable itself follows the same rule as its runner: only the target slice ships.
+  # ollama-darwin.tgz carries one universal ollama; copied whole, the arm64 app carried an x86_64
+  # executable (0.7.7: Contents/Resources/ollama/ollama was arm64+x86_64). A file whose slices
+  # cannot be read, or that lacks the target, stops the build: the app cannot run models without it.
+  f="${src}/ollama"
+  [[ -f "${f}" && ! -L "${f}" ]] || die "the pinned Ollama archive has no ollama executable"
+  archs="$(lipo -archs "${f}" 2>/dev/null)" || die "could not read the slices of ollama's executable"
+  [[ " ${archs} " == *" ${arch} "* ]] || die "ollama's executable has no ${arch} slice (slices: ${archs})"
+  if [[ "${archs}" != "${arch}" ]]; then
+    lipo -thin "${arch}" -output "${dst}/ollama" "${f}" || die "could not thin ollama's executable to ${arch}"
+    say "        thinned ollama to ${arch} (slices: ${archs})"
+  else
+    cp -f "${f}" "${dst}/ollama" || die "could not bundle ollama's executable"
+  fi
+  chmod +x "${dst}/ollama" || die "could not bundle ollama's executable"
   if grep -a -q -F "llama-server binary not found" "${dst}/ollama" && [[ ! -x "${dst}/llama-server" ]]; then
     die "the bundled ollama runs models through llama-server, but no ${arch} llama-server was found next to it in ${src}"
   fi
@@ -725,8 +744,6 @@ stage_self_contained() {
   "${embedded}" "${PROJECT_ROOT}/ops/macos_build_inputs.py" ollama \
       --cache "${input_scratch}/cache" --out "${input_scratch}/ollama" \
       || die "pinned Ollama download failed"
-  cp -f "${input_scratch}/ollama/ollama" "${res}/ollama/ollama"
-  chmod +x "${res}/ollama/ollama"
   bundle_ollama_runtime "${input_scratch}/ollama" "${res}/ollama" "${TARGET_ARCH}"
   [[ -x "${res}/ollama/ollama" ]] || die "the pinned Ollama executable is missing"
   rm -rf "${input_scratch}"
@@ -1066,7 +1083,9 @@ fi
 # Resolve a python by CAPABILITY, not version: the native window needs pywebview. A candidate
 # qualifies only when it can 'import webview' — preferring 3.12 over a webview-capable 3.9 sent
 # launches into the browser fallback on machines that already had a working interpreter installed.
-py_ok() { "\$1" -c 'import webview' >/dev/null 2>&1; }
+# ...and it must run natively as ${TARGET_ARCH}: an interpreter translated by Rosetta makes macOS
+# report VOOL as an Intel app.
+py_ok() { "\$1" -c 'import webview' >/dev/null 2>&1 && "\$1" -c "import platform, sys; sys.exit(platform.machine() != '${TARGET_ARCH}')" >/dev/null 2>&1; }
 PY=""
 VENV_PY="\${PROJECT_ROOT}/.venv/bin/python"
 if [[ -x "\${VENV_PY}" ]] && py_ok "\${VENV_PY}"; then
@@ -1084,7 +1103,7 @@ if [[ -z "\${PY}" ]]; then
     [[ -x "\${PY}" ]] || PY="python3"
     echo "WARNING: no interpreter with pywebview found; degraded browser-fallback launch (VOOL_ALLOW_BROWSER_FALLBACK=1)"
   else
-    echo "ERROR: no interpreter that can 'import webview' found for \${PROJECT_ROOT}; native window impossible."
+    echo "ERROR: no interpreter that can 'import webview' and runs natively as ${TARGET_ARCH} found for \${PROJECT_ROOT}; native window impossible."
     exit 1
   fi
 fi
@@ -1205,7 +1224,7 @@ ${conf_out}"
     capable="$(select_capable_wrapper_python "${PROJECT_ROOT}")" || true
     # (the "|| true" matters: with set -e, a failing selection would otherwise kill the build
     # silently BEFORE the legible die below ever runs)
-    [[ -n "${capable}" ]] || die "no interpreter that can 'import webview' found for ${PROJECT_ROOT}; the native window cannot start. Install pywebview for a candidate interpreter (python3.13/3.12/3.11/3 or .venv), or rebuild with --self-contained."
+    [[ -n "${capable}" ]] || die "no interpreter that can 'import webview' and runs natively as ${TARGET_ARCH} found for ${PROJECT_ROOT}; the native window cannot start. Install pywebview for a native ${TARGET_ARCH} candidate interpreter (python3.13/3.12/3.11/3 or .venv), or rebuild with --self-contained."
     say "  wrapper preflight: runtime starter + native interpreter (${capable}) verified"
   fi
 
