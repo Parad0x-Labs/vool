@@ -81,7 +81,10 @@ class _Transfer:
         self.frames = queue.Queue(maxsize=8)
         wire = json.dumps({"method": method, "url": url, "options": options,
                            "deadline": self.deadline}).encode()
-        env = dict(os.environ)
+        # Imported here: this file also runs as the bare worker (-P, no PYTHONPATH), without core.
+        from core.secret_env import child_env
+
+        env = child_env()
         for name in ("PYTHONPATH", "PYTHONSTARTUP", "PYTHONINSPECT"):
             env.pop(name, None)
         self.process = subprocess.Popen(

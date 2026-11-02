@@ -257,6 +257,7 @@ jobs:
               "tests/wallet/test_wallet_approval_methods.py",
               "tests/wallet/test_wallet_device_auth_ipc.py",
               "tests/wallet/test_wallet_export_ui_served.py",
+              "tests/test_plugin_macos_sandbox.py",
           }
           dropped = sorted(set(files) & macos_only)
           if set(dropped) != macos_only:
@@ -358,6 +359,7 @@ jobs:
           tests/wallet/test_wallet_approval_methods.py
           tests/wallet/test_wallet_device_auth_ipc.py
           tests/wallet/test_wallet_export_ui_served.py
+          tests/test_plugin_macos_sandbox.py
       - name: Upload macos job log
         if: always()
         uses: actions/upload-artifact@v7

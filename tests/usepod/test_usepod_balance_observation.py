@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from adapters.base_adapter import ModelRequest
-from adapters.usepod_adapter import UsePodDispatchRefusedError
+from core.usepod.legacy_adapter import UsePodDispatchRefusedError
 from core.usepod.monetary import MonetaryAuthorityRefusedError
 from tests.usepod._usepod_doors import post as _post
 from tests.usepod.strict_usepod_service import Listing, default_reply
@@ -71,7 +71,7 @@ def _adapter(service, authority):
     UNAVAILABLE authority per test, so the production law is installed here under its own label --
     no test double touches these dispatches."""
     from core.model_registry import ModelRegistry
-    from core.runtime_provider_defaults import register_chat_cloud_model
+    from core.usepod.legacy_registration import register_model
     from core.usepod.monetary import install_monetary_authority
 
     install_monetary_authority(authority, label=authority.label)
@@ -84,7 +84,7 @@ def _adapter(service, authority):
     route = "+".join(sorted(str(item) for item in payload["approved_route"]["allowed_route_classes"]))
     status, payload = _post("/api/cloud/usepod/lane", {"protocol": "openai", "transport_mode": "prepaid_token"})
     assert status == 200, payload
-    assert register_chat_cloud_model("usepod", MODEL) == f"usepod-byok:{MODEL}"
+    assert register_model(MODEL) == f"usepod-byok:{MODEL}"
     registry = ModelRegistry()
     manifest = registry.get_manifest("usepod-byok", MODEL)
     assert manifest is not None
@@ -114,8 +114,8 @@ def test_the_money_law_refuses_an_observation_older_than_its_window_and_names_th
 def test_a_never_observed_and_a_failed_read_are_named_not_treated_as_zero(law) -> None:
     authority, service, token = law
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.usepod import discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     credential_store.store_credential("llm.cloud.usepod", token)
     credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)
@@ -247,8 +247,8 @@ def test_another_credentials_observation_never_funds_this_one(law) -> None:
 def test_the_settings_test_records_the_balance_it_reads(law) -> None:
     authority, service, token = law
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.usepod import discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     credential_store.store_credential("llm.cloud.usepod", token)
     credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)
@@ -360,21 +360,21 @@ def test_choosing_auto_for_a_chat_releases_its_server_pin_through_the_pin_door(l
     status, payload = _post("/api/cloud/model", {"model": "auto", "session_id": session, "selection_revision": 5})
     assert status == 200 and payload["ok"] is True and payload["model"] == "", payload
     assert chat_model_selection(session) == {"model": "", "provider": ""}
-    # With a pinned UsePod model on the server, the release clears exactly this chat's pin.
+    # With a pinned built-in cloud model on the server, the release clears exactly this chat's pin.
     _observe_balance(service, token)
     _adapter(service, authority)
-    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "usepod", "session_id": session, "selection_revision": 6, "confirm_paid": True})
-    assert status == 200 and payload["provider"] == "usepod", payload
-    assert chat_model_selection(session) == {"model": MODEL, "provider": "usepod"}
+    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "openai", "session_id": session, "selection_revision": 6, "confirm_paid": True})
+    assert status == 200 and payload["provider"] == "openai", payload
+    assert chat_model_selection(session) == {"model": MODEL, "provider": "openai"}
     other = "openclaw:" + "b" * 20
-    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "usepod", "session_id": other, "selection_revision": 7, "confirm_paid": True})
+    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "openai", "session_id": other, "selection_revision": 7, "confirm_paid": True})
     assert status == 200, payload
     status, payload = _post("/api/cloud/model", {"model": "auto", "session_id": session, "selection_revision": 8})
     assert status == 200 and payload["model"] == "", payload
     assert chat_model_selection(session) == {"model": "", "provider": ""}
-    assert chat_model_selection(other) == {"model": MODEL, "provider": "usepod"}, "another chat's pin is untouched"
+    assert chat_model_selection(other) == {"model": MODEL, "provider": "openai"}, "another chat's pin is untouched"
     # A stale release (older revision) cannot undo a newer selection.
-    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "usepod", "session_id": session, "selection_revision": 9, "confirm_paid": True})
+    status, payload = _post("/api/cloud/model", {"model": MODEL, "provider": "openai", "session_id": session, "selection_revision": 9, "confirm_paid": True})
     assert status == 200, payload
     status, payload = _post("/api/cloud/model", {"model": "auto", "session_id": session, "selection_revision": 3})
     assert status == 503 or chat_model_selection(session)["model"] == MODEL, (status, payload, chat_model_selection(session))

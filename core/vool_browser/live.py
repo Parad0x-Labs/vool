@@ -30,6 +30,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsp
 from urllib.request import Request
 
 from core.runtime_paths import active_data_dir
+from core.secret_env import child_env
 from core.vool_browser.engine import find_engine_binary, isolation_launch_flags, refuse_real_profile_target
 from core.vool_browser.ops import Untrusted
 
@@ -497,7 +498,6 @@ class LiveSession:
         self._driver_pid = proc.pid
         self._record_process(proc.pid)
         flags = [a for a in isolation_launch_flags(profile_dir=str(self.profile)) if not a.startswith("--user-data-dir=")]
-        import os
 
         # Chromium puts its Unix sockets under TMPDIR. A socket path is limited to
         # about 100 bytes, and the profile path under the VOOL data directory can
@@ -515,7 +515,7 @@ class LiveSession:
             user_data_dir=str(self.profile), executable_path=binary, headless=True,
             args=flags, timeout=ENGINE_START_TIMEOUT * 1000, chromium_sandbox=True,
             proxy={'server':f'http://127.0.0.1:{proxy_port}', 'bypass':'<-loopback>'},
-            downloads_path=str(self.profile / "downloads"), env={**os.environ, "TMPDIR": str(self._engine_tmp)},
+            downloads_path=str(self.profile / "downloads"), env=child_env(TMPDIR=str(self._engine_tmp)),
             java_script_enabled=False, service_workers="block", accept_downloads=False,
             permissions=[], viewport={"width": 1100, "height": 720},
         )

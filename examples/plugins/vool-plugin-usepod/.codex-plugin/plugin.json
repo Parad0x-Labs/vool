@@ -1,0 +1,37 @@
+{
+  "name": "vool-plugin-usepod",
+  "version": "1.0.0",
+  "description": "Connect your own UsePod service account through a declarative model provider.",
+  "vool": {
+    "id": "vool-plugin-usepod",
+    "name": "UsePod example",
+    "description": "Connect your own UsePod service account through a declarative model provider.",
+    "homepage": "https://usepod.ai/",
+    "kind": [
+      "model_provider"
+    ],
+    "network": [
+      "api.usepod.ai"
+    ],
+    "credentials": {
+      "access": {
+        "label": "Your UsePod service token",
+        "help_url": "https://usepod.ai/",
+        "env": "PLUGIN_USEPOD_ACCESS"
+      }
+    },
+    "model_provider": {
+      "base_url": "https://api.usepod.ai",
+      "auth_placement": "path",
+      "auth_path": "/proxy/{credential}",
+      "credential_slot": "access",
+      "model_list_path": "/v1/models",
+      "pricing_source": "https://api.usepod.ai/v1/marketplace/models",
+      "api_path": "/v1/chat/completions",
+      "x402": true
+    },
+    "version": "1.0.0",
+    "publisher": "VOOL",
+    "license": "MIT"
+  }
+}

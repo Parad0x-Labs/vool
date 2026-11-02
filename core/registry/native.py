@@ -179,6 +179,8 @@ def unsafe(artifact: dict, raw: bytes) -> bool:
     if artifact["metadata"]["kind"] == "skill":
         # Where a file sits is the Skill Codex's own tidiness rule; install() checks the native layout itself.
         findings += [item for item in outcome["findings"].get("code", []) if item.get("rule") != "layout"]
+    elif isinstance(artifact["manifest"].get("vool"), dict) and "id" in artifact["manifest"]["vool"]:
+        findings += outcome["findings"].get("code", [])
     return bool(findings)
 
 
@@ -217,8 +219,13 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     entry = catalog.resolve(package_id, version, target=target, now=now)
     artifact = inspect(raw)
     authority = manifest_authority(artifact["manifest"])
-    # Only VOOL writes the "vool" block (it marks a pack as the owner's own); a downloaded package never may.
-    require("vool" not in artifact["manifest"], "a package cannot say how VOOL made it")
+    from core.plugin_tools import parse_manifest
+
+    plugin = parse_manifest(artifact["manifest"], path=Path(".codex-plugin/plugin.json"))
+    require("vool" not in artifact["manifest"] or
+            (artifact["metadata"]["kind"] == "plugin" and bool(plugin.vool)),
+            "a package cannot say how VOOL made it")
+    require(not plugin.vool or enable is False, "Install this plugin disabled, then review its access before enabling.")
     from core.registry.rules import analyze
 
     require(not analyze(artifact["files"])["conflicts"], "instructions cannot override VOOL native controls")
@@ -279,6 +286,9 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             moved = True
             record = plugin_lifecycle.install(plugin_id, root=destination, source="registry:" + package_id)
             record = plugin_lifecycle.verify(plugin_id, expected_digest=entry["native_digest"])
+            if plugin.vool:
+                record.credential_bindings = list(authority["credential_bindings"])
+                plugin_lifecycle._save(record)
             require(record.verified_dependencies == entry["dependencies"], "native dependency approvals differ from admission")
             envelope = next(envelope for envelope in catalog.current["entries"]
                             if envelope["signed"] == entry)
@@ -330,4 +340,5 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
             "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
-            "reviewed": True, "installed": False, "enabled": False}
+            "reviewed": True, "installed": False, "enabled": False,
+            "separate_enable_consent": bool(value["manifest"].get("vool", {}).get("id"))}

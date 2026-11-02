@@ -503,58 +503,11 @@ def _intake_descriptor(provider_id: str, base_url: str, auth: str = ""):
         # The placement chosen in THIS intake, never the one committed with the live pair: a new
         # endpoint is verified exactly as its key will travel.
         descriptor = descriptor.with_base_url(base).with_custom_auth(placement)
-    elif descriptor.endpoint_slot:
-        chosen = str(base_url or "").strip()
-        origin = _chosen_origin(chosen) if chosen else str(descriptor.default_endpoint or "")
-        if not origin:
-            return None, _intake_fault(
-                "insecure_base_url",
-                "the origin must be scheme://host[:port] with no path -- https:// to any host, plain http:// only to a server on this machine -- so the key never travels in clear or to a path you did not choose",
-                400,
-            )
-        descriptor = descriptor.with_base_url(origin)
     return descriptor, None
 
 
-def _chosen_origin(value: str) -> str:
-    """``scheme://host[:port]`` for an origin the operator chose, or "": the canonical key-transport gate
-    (https to any host, plain http only to loopback) with no userinfo, path, query or fragment."""
-    from core.usepod.descriptor import UsePodConfigError, normalize_origin
-
-    try:
-        return normalize_origin(value)
-    except UsePodConfigError:
-        return ""
 
 
-def _path_token_descriptor(session: _IntakeSession, provider_id: str, base_url: str, auth: str = ""):
-    """(descriptor, fault) for the selected provider, splitting a URL-path credential first.
-
-    A credential that rides the URL path (UsePod) may be pasted as the bare token or as the whole
-    proxy URL containing it. It is split with the provider's own parser BEFORE anything is sent:
-    the session keeps only the token (registered with the redactor) and the origin it binds to, and
-    the pasted URL itself is dropped. A URL that names another origin than the one the operator
-    chose, or a non-default origin nobody chose, is refused. Every other placement is resolved by
-    ``_intake_descriptor`` unchanged."""
-    descriptor, fault = _intake_descriptor(provider_id, base_url, auth)
-    if fault is not None or str(getattr(descriptor, "auth_style", "") or "") != "url_path_token":
-        return descriptor, fault
-    from core.usepod.descriptor import UsePodConfigError, remember_token_for_redaction
-    from core.usepod.discovery import plan_credential_binding
-
-    try:
-        plan = plan_credential_binding(session.value, explicit_origin=str(base_url or ""))
-    except UsePodConfigError as exc:
-        return None, _intake_fault(
-            "credential_not_usable",
-            f"not a usable {descriptor.label} credential ({exc.code}); nothing was sent anywhere",
-            400,
-        )
-    remember_token_for_redaction(plan.token)
-    with _intake_lock():
-        session.value = plan.token
-        session.base_url = plan.origin
-    return _intake_descriptor(provider_id, plan.origin)
 
 
 def _intake_classify(inp, ctx):
@@ -611,7 +564,7 @@ def _intake_preview(inp, ctx):
     if session is not None and session.value:
         # A URL-path credential is split here as well, so a key saved for later keeps only its token
         # and the origin it binds to -- never the pasted URL.
-        descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url,
+        descriptor, fault = _intake_descriptor(str(inp.provider_id or ""), base_url,
                                                    str(getattr(inp, "auth", "") or ""))
     else:
         descriptor, fault = _intake_descriptor(str(inp.provider_id or ""), base_url, str(getattr(inp, "auth", "") or ""))
@@ -663,7 +616,7 @@ def _intake_verify(inp, ctx):
     if session is None or not session.value:
         return _intake_fault("intake_session_expired", "re-paste the key; sessions are memory-only", 410)
     base_url = str(getattr(inp, "base_url", "") or "").strip()
-    descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url,
+    descriptor, fault = _intake_descriptor(str(inp.provider_id or ""), base_url,
                                                str(getattr(inp, "auth", "") or ""))
     if fault is not None:
         return fault
@@ -825,7 +778,7 @@ def _intake_complete(inp, ctx):
         return _intake_fault("intake_session_expired", "re-paste the key; sessions are memory-only", 410)
     if not session.provider_id:
         return _intake_fault("provider_mismatch", "no provider was selected and verified in this session — nothing saved", 409)
-    descriptor, fault = _path_token_descriptor(session, session.provider_id, session.base_url, session.auth)
+    descriptor, fault = _intake_descriptor(session.provider_id, session.base_url, session.auth)
     if fault is not None:
         return fault
     if str(getattr(inp, "persist", "store") or "store") == "asserted":
@@ -894,16 +847,6 @@ def _intake_complete(inp, ctx):
                 detail={**refusal, "legacy_status": 409},
             )
     path_facts: dict[str, Any] = {}
-    if str(descriptor.auth_style or "") == "url_path_token":
-        # Non-secret facts about what is being bound: the origin the token travels to and the one-way
-        # fingerprint its receipts carry. Never the token itself.
-        from core.usepod.descriptor import credential_fingerprint, token_shape
-
-        path_facts = {
-            "origin": session.base_url,
-            "credential_fingerprint": credential_fingerprint(session.base_url, session.value),
-            "token_shape": token_shape(session.value),
-        }
     try:
         # The custom endpoint (and a path token's origin) commits TOGETHER with its key inside
         # save_verified's one transaction -- never before it (review R3: a pre-lock write here let

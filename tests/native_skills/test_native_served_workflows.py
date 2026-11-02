@@ -86,6 +86,7 @@ def test_served_workflow_cumulative_testing_runs_the_real_test_pack(tmp_path, mo
     executes a real bounded pytest run over a generated mini project and reports its result."""
     project = tmp_path / "mini-service"
     (project / "tests").mkdir(parents=True)
+    (project / "pytest.ini").write_text("[pytest]\naddopts = -p no:pytest_anchorpy\n", encoding="utf-8")
     (project / "tests" / "test_pack.py").write_text(
         "def test_alpha() -> None:\n    assert 1 + 1 == 2\n\n"
         "def test_beta() -> None:\n    assert 'vool' in 'vool'\n",

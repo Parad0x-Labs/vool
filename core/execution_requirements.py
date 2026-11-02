@@ -950,6 +950,21 @@ def _compute_requirements(
             reason_codes=tuple(reasons),
         )
 
+    # Registered plugin intents are the same closed vocabulary the tool offer seats.
+    # Consent controls availability; naming one still requires a tool-capable lane
+    # so a disabled package is explained instead of a fabricated result.
+    from core.tool_demand_signals import resolve_demand_signals
+
+    if ("plugin" in resolve_demand_signals(candidate_text).required_families
+            and not constraints.forbids_all_tools and not constraints.forbids("plugin")):
+        reasons.append("plugin_tool_request")
+        return ExecutionRequirements(
+            answer_mode="DIRECT", external_evidence_required=False,
+            current_information_required=False, user_material_supplied=supplied,
+            tools_required=True, allowed_toolsets=("plugin",),
+            inference_allowed=not no_guessing, reason_codes=tuple(reasons),
+        )
+
     if _wallet_action_demand(candidate_text) and not constraints.forbids_all_tools and not constraints.forbids("wallet"):
         reasons.append("wallet_action_request")
         return ExecutionRequirements(

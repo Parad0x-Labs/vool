@@ -11,8 +11,8 @@ import json
 
 import pytest
 
-from adapters.usepod_adapter import UsePodAdapter, call_receipt
 from core.usepod import transport as tp
+from core.usepod.legacy_adapter import UsePodAdapter, call_receipt
 from core.usepod.monetary import SettlementEvidence
 from tests.usepod.test_usepod_receipt_rendering import PAY_TO, PAYER, SOLANA_MAINNET, _evidence
 
