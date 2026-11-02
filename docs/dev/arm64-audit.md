@@ -62,14 +62,14 @@ were run on the extracted `VOOL.app`:
 | 9 | Build host running under Rosetta (`uname -m` reads `x86_64`) | Builds a consistently labelled x86_64 app; an explicit `--arch arm64` from a translated shell is refused as a cross build | Unchanged. The new CI job also refuses a translated runner (`sysctl.proc_translated`). |
 | 10 | The arm64 package was built outside CI | Only the internal gate guarded it | **New CI job** `.github/workflows/macos-arm64.yml` builds natively on `macos-15` (arm64) and fails on any Mach-O without an arm64 slice (`file` + `lipo`), and on dependency drift. |
 
-Not part of the app, but able to start an Intel process from a running arm64 VOOL (found during the
-audit, **not changed** here):
+Not part of the app, but able to start an Intel process from a running arm64 VOOL:
 
-- `core/artifact_readers/video.py` tries `/opt/homebrew/bin/ffmpeg`, then `/usr/local/bin/ffmpeg` (the
-  Intel Homebrew prefix), then `PATH`. On an Apple Silicon Mac with only an Intel Homebrew ffmpeg,
-  reading a video starts ffmpeg/ffprobe under Rosetta. A follow-up could prefer an arm64 binary and
-  report the video reader unavailable when only an x86_64 one exists.
-- `core/bug_report/machine.py` runs `ollama --version` from `PATH` for a bug report.
+- **Fixed:** `core/artifact_readers/video.py` tried `/opt/homebrew/bin/ffmpeg`, then
+  `/usr/local/bin/ffmpeg` (the Intel Homebrew prefix), then `PATH`. On an Apple Silicon Mac with only an
+  Intel Homebrew ffmpeg, reading a video started ffmpeg/ffprobe under Rosetta. On Apple Silicon it now
+  reads each candidate's Mach-O slices and takes only an arm64 or universal binary; with only an x86_64
+  one, video reading reports itself unavailable (`tests/test_video_reader_skips_intel_ffmpeg.py`).
+- Not changed: `core/bug_report/machine.py` runs `ollama --version` from `PATH` for a bug report.
 - The live browser lane starts the user's own installed Chrome-family app.
 
 ## Task 2: the 0.7.7 Mac build did not install from the lock
@@ -131,7 +131,7 @@ runner (it is built there by the recorded recipe), so that one was not dry-run h
 - The census shows no x86_64-only code in the 0.7.7 arm64 app and a native launch contract, so which
   process made macOS show the notice on the reporting Mac is not established. Candidates: a wrapper
   app built from a local install with an Intel Python (entry 3), an Intel ffmpeg read through the video
-  reader, or an older (0.5.0-era) arm64 bundle whose script main executable launched translated (fixed earlier by
+  reader (now refused), or an older (0.5.0-era) arm64 bundle whose script main executable launched translated (fixed earlier by
   `LSArchitecturePriority`). `installer/bundle/macos_rosetta_probe.py` run on that Mac while VOOL is
   open names the translated process.
 - `lipo -thin` on the real universal `ollama` and the resulting app's model replies were not exercised;
