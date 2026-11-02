@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from core.memory.copies import FORGET_LIST_NOTE
 from tests.test_forget_context_pages_r6 import admit
 from tests.test_forgetting_is_applied_or_never_claimed_20261007 import _forget_command as command
 from tests.test_memory_forget_served_p0 import _reply_text, served  # served: the daemon fixture
@@ -164,7 +165,7 @@ def test_forget_of_a_number_erases_that_number_and_not_a_longer_one(isolated_pag
 
     handled, reply = command(isolated_pages, chat, "forget the code 12")
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     live = [row.get("text") for row in map(json.loads, memory_entries_path().read_text().splitlines())
             if row.get("status") != "erased"]
     assert live == ["the meeting is in room 312"], live
@@ -449,7 +450,7 @@ def test_numbers_inside_a_longer_number_date_or_time_are_not_the_forgotten_numbe
 
     handled, reply = command(isolated_pages, chat, "forget 12")
 
-    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     live = sorted(row.get("text") for row in map(json.loads, memory_entries_path().read_text().splitlines())
                   if row.get("status") != "erased")
     assert live == sorted(kept), live

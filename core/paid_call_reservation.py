@@ -77,7 +77,9 @@ def _positive_policy_float(key: str, default: float) -> float:
         value = float(policy_engine.get(f"{_POLICY_PREFIX}_{key}", default))
     except (TypeError, ValueError):
         return default
-    return value if value > 0 else default
+    # "inf" and "nan" parse as floats: an infinite cap would lift every paid-model ceiling, and a NaN cap
+    # compares false against any total. Neither is a ceiling, so both read as the default.
+    return value if math.isfinite(value) and value > 0 else default
 
 
 def _daily_call_cap() -> int | None:

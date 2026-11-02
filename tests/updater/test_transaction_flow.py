@@ -477,6 +477,29 @@ class TestRollback:
         assert harness.marker() == "old"  # swap's own undo restored it
         assert harness.relaunch_log  # and the app was brought back up
 
+    def test_refused_swap_without_a_backup_ends_put_back_in_plain_words(self, harness, monkeypatch):
+        # The swap undid itself and kept no backup (prior_path None). The previous app came back healthy,
+        # so the person must read "put back", not an internal error from the rollback's own bookkeeping.
+        import core.updater.macos as macos_module
+
+        real_rename = macos_module.os.rename
+        state = {"failed": False}
+
+        def flaky(src, dst):
+            if str(dst).endswith("VOOL.app") and not state["failed"]:
+                state["failed"] = True
+                raise OSError("simulated disk failure during swap")
+            return real_rename(src, dst)
+
+        monkeypatch.setattr(macos_module.os, "rename", flaky)
+        result = harness.make_flow().run(harness.raw_manifest, harness.manifest, harness.decision)
+        assert result.terminal is Step.ROLLED_BACK
+        assert result.prior_path is None
+        status = StatusStore(harness.data_dir / "update_v2" / "status.json").load()
+        assert status.phase is UpdatePhase.ROLLED_BACK
+        assert "put back" in status.message
+        assert "NoneType" not in status.message and "unexpected" not in status.message
+
     def test_rollback_is_idempotent(self, harness):
         harness.health_forced_fail = True
         flow = harness.make_flow()

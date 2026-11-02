@@ -278,7 +278,143 @@ def test_worker_pruning_keeps_active_and_incomplete_jobs(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("fault", ["install_failed", "health_check_failed", "rollback_failed"])
-def test_background_checks_preserve_update_failure_until_manual_check(tmp_path, fault):
+def test_background_checks_after_a_failed_update_skip_that_version_and_offer_a_newer_one(tmp_path, fault):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta", sequence=47)
+    newer, _ = build_manifest(private_hex=private, version="0.7.2", channel="beta", sequence=48)
+    feed = {"document": failed}
+    calls = []
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: (calls.append(True), manifest_bytes(feed["document"]))[1])
+    assert service.check_once(preserve_failure=True).ok  # 0.7.1 is offered, then its update fails
+    calls.clear()
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.current_offer() is None
+    assert service.status.load().fault_code == fault
+    if fault == "rollback_failed":  # a failed rollback needs a person: no check, not even a pressed one
+        assert calls == []
+        assert not service.check_once().ok and calls == []
+        assert service.status.load().fault_code == fault
+        return
+    assert calls == [True]  # the daily check goes on, but 0.7.1 is not offered again
+
+    feed["document"] = newer
+    assert service.check_once(preserve_failure=True).ok
+    assert service.status.load().phase is UpdatePhase.READY
+    assert service.current_offer().manifest.version == "0.7.2"
+
+
+@pytest.mark.parametrize("fault", ["install_failed", "health_check_failed"])
+def test_a_pressed_check_after_a_failed_update_may_offer_the_same_version_again(tmp_path, fault):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: manifest_bytes(document))
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.status.load().fault_code == fault
+    assert service.check_once().ok and service.status.load().phase is UpdatePhase.READY
+
+
+def test_a_refused_or_unusable_feed_after_a_failed_update_keeps_what_happened(tmp_path):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta", sequence=47)
+    other_channel, _ = build_manifest(private_hex=private, version="0.7.2", channel="stable", sequence=48)
+    feed = {"raw": manifest_bytes(failed)}
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: feed["raw"])
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.FAILED, detail="injected update failure", fault=UpdateFault("install_failed"))
+    for raw in (b"not a signed feed", manifest_bytes(other_channel)):
+        feed["raw"] = raw
+        service.check_once(preserve_failure=True)
+        assert service.current_offer() is None
+        assert service.status.load().fault_code == "install_failed"
+
+
+def _failed_update_service(tmp_path, feed, *, fault="install_failed", calls=None):
+    from core.updater.state import UpdaterPaths
+    from core.updater.status import UpdateFault
+    from core.updater.transaction import Step, UpdateJournal
+
+    private, public = feed.pop("keys")
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: (calls.append(True) if calls is not None else None,
+                                                  feed["fetch"]())[1])
+    assert service.check_once().ok  # 0.7.1 is offered ...
+    UpdateJournal(UpdaterPaths.for_data_dir(tmp_path).transaction_dir("tx-071")).append(
+        Step.DECIDED, {"target_version": "0.7.1", "installed_version": "0.7.0"})
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+    return service  # ... and its update failed
+
+
+def test_the_failed_version_stays_skipped_after_the_feed_moves_on_and_back(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta", sequence=47)
+    no_mac, _ = build_manifest(private_hex=private, version="0.7.2", channel="beta", sequence=48,
+                               artifacts={"linux-x64": b"linux only"})
+    reissued, _ = build_manifest(private_hex=private, version="v0.7.1+build.2", channel="beta", sequence=49)
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    assert not service.check_once(preserve_failure=True).ok
+    for document in (no_mac, reissued):  # a newer version this Mac cannot use, then the failed one signed again
+        feed["fetch"] = lambda document=document: manifest_bytes(document)
+        service.check_once(preserve_failure=True)
+        assert service.current_offer() is None
+        assert service.status.load().fault_code == "install_failed"
+
+
+def test_the_failure_stays_on_disk_while_a_scheduled_check_runs(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    seen = []
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    feed["fetch"] = lambda: (seen.append(service.status.load().fault_code), manifest_bytes(failed))[1]
+    service.check_once(preserve_failure=True)
+    assert seen == ["install_failed"]  # an app killed mid-check still remembers the failed update
+
+    def lost_connection():
+        raise OSError("offline")
+
+    feed["fetch"] = lost_connection
+    assert not service.check_once(preserve_failure=True).ok
+    assert service.status.load().fault_code == "install_failed"
+    restarted = UpdateCheckService(manifest_url="fixture", trust=service.trust, installed_version="0.7.0",
+                                   channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                   fetch=lambda _: manifest_bytes(failed))
+    assert not restarted.check_once(preserve_failure=True).ok and restarted.current_offer() is None
+
+
+def test_a_download_that_stopped_still_waits_for_a_pressed_check(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    calls = []
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed, fault="download_failed", calls=calls)
+    calls.clear()
+    assert not service.check_once(preserve_failure=True).ok and calls == []
+    assert service.status.load().fault_code == "download_failed"
+    assert service.check_once().ok and service.current_offer().manifest.version == "0.7.1"
+
+
+def test_a_failed_rollback_blocks_every_check_even_with_nothing_recorded(tmp_path):
     from core.updater.status import UpdateFault
 
     private, public = generate_publisher_keypair()
@@ -287,18 +423,63 @@ def test_background_checks_preserve_update_failure_until_manual_check(tmp_path, 
     service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
                                  installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
                                  fetch=lambda _: (calls.append(True), manifest_bytes(document))[1])
-    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
-                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+    service.status.publish(UpdatePhase.FAILED, detail="injected", fault=UpdateFault("rollback_failed"))
+    assert not service.check_once(preserve_failure=True).ok and not service.check_once().ok and calls == []
+    assert service.status.load().fault_code == "rollback_failed"
+
+
+def test_a_failure_before_the_update_named_its_target_still_skips_the_offered_version(tmp_path):
+    from core.updater.state import UpdaterPaths
+    from core.updater.status import UpdateFault
+    from core.updater.transaction import Step, UpdateJournal
+
+    private, public = generate_publisher_keypair()
+    offered, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: manifest_bytes(offered))
+    UpdateJournal(UpdaterPaths.for_data_dir(tmp_path).transaction_dir("tx-070")).append(
+        Step.DECIDED, {"target_version": "0.7.0", "installed_version": "0.6.9"})  # the update that installed 0.7.0
+    assert service.check_once().ok
+    service.status.publish(UpdatePhase.FAILED, detail="refused download", fault=UpdateFault("verification_failed"))
     assert not service.check_once(preserve_failure=True).ok
-    assert calls == [] and service.current_offer() is None
-    assert service.status.load().fault_code == fault
-    manual = service.check_once()
-    if fault == "rollback_failed":
-        assert not manual.ok and calls == []
-        assert service.status.load().fault_code == fault
-    else:
-        assert manual.ok and service.status.load().phase is UpdatePhase.READY
-        assert calls == [True]
+    assert service.current_offer() is None and service.status.load().fault_code == "verification_failed"
+
+
+def test_a_skip_left_from_an_earlier_failure_does_not_hide_normal_checks(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    service.check_once(preserve_failure=True)  # the skip is stored
+    service.status.publish(UpdatePhase.UP_TO_DATE)  # e.g. startup recovery finished something else
+    service.check_once(preserve_failure=True)
+    assert service.status.load().phase is not UpdatePhase.UP_TO_DATE  # a real check ran and published
+
+
+def test_a_scheduled_check_never_writes_over_a_status_set_while_it_ran(tmp_path):
+    private, public = generate_publisher_keypair()
+    failed, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    feed = {"keys": (private, public), "fetch": lambda: manifest_bytes(failed)}
+    service = _failed_update_service(tmp_path, feed)
+    feed["fetch"] = lambda: (service.status.publish(UpdatePhase.RESTARTING),  # e.g. a rollback pressed meanwhile
+                             manifest_bytes(failed))[1]
+    service.check_once(preserve_failure=True)
+    assert service.status.load().phase is UpdatePhase.RESTARTING
+
+
+def test_a_failed_update_with_no_known_version_keeps_waiting_for_a_pressed_check(tmp_path):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    calls = []
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: (calls.append(True), manifest_bytes(document))[1])
+    service.status.publish(UpdatePhase.FAILED, detail="injected update failure", fault=UpdateFault("install_failed"))
+    assert not service.check_once(preserve_failure=True).ok and calls == []
+    assert service.status.load().fault_code == "install_failed"
 
 
 def test_startup_recovery_that_can_stop_its_host_is_detached(tmp_path, monkeypatch):

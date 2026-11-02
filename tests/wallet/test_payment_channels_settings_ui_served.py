@@ -54,6 +54,11 @@ def _open_channels(page, base: str) -> None:
 def _switch(page, channel_id: str, on: bool, label: str) -> None:
     box = f"#vwCh_{channel_id}"
     page.check(box) if on else page.uncheck(box)
+    if on:
+        # Turning a channel on loosens what can be paid, so it asks for the wallet PIN first (off never asks).
+        page.wait_for_selector("#vwOwnerProof #vwOwnerProofSecret", state="visible", timeout=20000)
+        page.fill("#vwOwnerProofSecret", PIN)
+        page.click("#vwOwnerProofOk")
     said = f"{label} is on." if on else f"{label} is off: nothing is paid through it."
     page.wait_for_function(
         "([row, said]) => { const r = document.querySelector(row); const m = r && r.parentElement.querySelector('.vw-msg');"

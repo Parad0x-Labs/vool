@@ -52,6 +52,7 @@ from core.updater.migrations import (
     run_migrations,
     snapshot_tree,
 )
+from core.updater.relaunch_health import STOP_BOUND_SECONDS, await_relaunch_health
 from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import HighWaterStore, UpdaterPaths
 from core.updater.status import StatusStore, UpdateFault, UpdatePhase
@@ -316,12 +317,17 @@ class UpdateFlow:
         # shutdown_app() IS the swap vehicle and must never run here.
         try:
             if getattr(self.helper, "performs_swap", False):
+                # The swap script may still be waiting for a slow app to close: stopped first, so it
+                # cannot see the app gone and swap the new version in under this rollback.
+                stop_script = getattr(self.helper, "stop_swap_script", None)
+                if callable(stop_script) and not stop_script(timeout=10.0):
+                    raise RuntimeError("the update helper could not be stopped for rollback")
                 stop = getattr(self.helper, "stop_running_app", None)
                 if not callable(stop) or stop(timeout=10.0) is False:
-                    raise RuntimeError("the new app could not be stopped for rollback")
+                    raise RuntimeError("the app could not be stopped for rollback")
             else:
                 self.helper.shutdown_app()
-                if not self.helper.wait_until_stopped(timeout=30.0):
+                if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                     raise RuntimeError("the new app did not stop for rollback")
             if self._journal.has(Step.SWAPPED) or (prior is not None and prior.exists()):
                 if prior is None or not prior.exists() or self.installer is None:
@@ -343,7 +349,12 @@ class UpdateFlow:
             if not self.helper.relaunch(self.app_path):
                 raise RuntimeError("the previous app could not be relaunched")
             previous_identity = str(self._journal.payload_of(Step.DECIDED).get("previous_identity") or previous_version)
-            previous_health = self.health_probe(timeout=self.health_timeout, expected_version=previous_identity or None)
+            previous_health = await_relaunch_health(
+                self.health_probe,
+                self.helper,
+                health_timeout=self.health_timeout,
+                expected_version=previous_identity or None,
+            )
             if not previous_health.ok:
                 raise RuntimeError("the previous app was restored but did not become healthy")
         except Exception as exc:
@@ -378,7 +389,7 @@ class UpdateFlow:
             Step.ROLLED_BACK,
             detail=detail,
             txid=self._txid,
-            prior_path=prior if prior.exists() else None,
+            prior_path=prior if prior is not None and prior.exists() else None,
             receipt_path=receipt,
         )
 
@@ -667,14 +678,18 @@ class UpdateFlow:
             except Exception as exc:
                 return self._fail_and_rollback(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.HELPER_SHUTDOWN, {"delegated": True})
-            if not self.helper.wait_until_stopped(timeout=30.0):
+            if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._fail_and_rollback("the app did not stop in time", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED, {"delegated": True})
-            # The script does the swap; journal the deterministic prior location so
-            # rollback and startup recovery agree with it byte-for-byte.
-            self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             self._publish(UpdatePhase.RESTARTING, version=manifest.version)
             outcome, detail = self.helper.wait_for_result(timeout=max(self.health_timeout, 60.0))
+            # SWAPPED is journaled only once the script's own rename put the previous app aside
+            # (the deterministic prior location, so rollback and startup recovery agree with it).
+            # A refused swap (a locked app, a permission error) moved nothing: the rollback then
+            # puts the data back and starts the old app again, instead of hunting a backup that
+            # never existed and leaving the app stopped.
+            if outcome or expected_prior.exists():
+                self._step(Step.SWAPPED, {"delegated": True, "prior_path": str(expected_prior)})
             if not outcome:
                 return self._fail_and_rollback(
                     f"the external updater could not finish the swap: {detail}", fault=UpdateFault.INSTALL_FAILED
@@ -687,7 +702,7 @@ class UpdateFlow:
             except Exception as exc:
                 return self._abort(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.HELPER_SHUTDOWN)
-            if not self.helper.wait_until_stopped(timeout=30.0):
+            if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                 return self._abort("the app did not stop in time; nothing was changed", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED)
 
@@ -711,8 +726,16 @@ class UpdateFlow:
                 )
             self._step(Step.RESTARTED)
 
-        health = self.health_probe(
-            timeout=self.health_timeout, expected_version=manifest.expected_health_identity
+        # The health verdict for the version this flow just relaunched waits for the
+        # relaunched process to be observed (relaunch_health.py): a slow machine must
+        # not roll back a good update before the new version got to run. A helper
+        # whose launch is not observable (the external script's relaunch, a test
+        # helper) keeps the plain bounded probe.
+        health = await_relaunch_health(
+            self.health_probe,
+            self.helper,
+            health_timeout=self.health_timeout,
+            expected_version=manifest.expected_health_identity,
         )
         if not health.ok:
             return self._fail_and_rollback(
@@ -886,7 +909,7 @@ def recover_interrupted_update(
                     raise RuntimeError("the new app could not be stopped for recovery")
             else:
                 helper.shutdown_app()
-                if not helper.wait_until_stopped(timeout=30.0):
+                if not helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                     raise RuntimeError("the new app could not be stopped for recovery")
             if swapped:
                 if installer is None:
@@ -907,8 +930,17 @@ def recover_interrupted_update(
                 restore_runtime(data_dir, runtime_snapshot)
             if not helper.relaunch(app_path):
                 raise RuntimeError("the prior app was restored but could not be restarted")
-            prior_health = health_probe(timeout=30.0, expected_version=str(
-                decided.get("previous_identity") or decided.get("installed_version") or "") or None)
+            # Same fair-start verdict as the live flow (relaunch_health.py): the
+            # window is measured from the moment the restored prior version is
+            # actually up, not from the relaunch call.
+            prior_health = await_relaunch_health(
+                health_probe,
+                helper,
+                health_timeout=30.0,
+                expected_version=str(
+                    decided.get("previous_identity") or decided.get("installed_version") or ""
+                ) or None,
+            )
             if not prior_health.ok:
                 raise RuntimeError("the prior app was restored but did not become healthy")
         except Exception as exc:
@@ -926,7 +958,10 @@ def recover_interrupted_update(
             fault=UpdateFault.HEALTH_CHECK_FAILED,
         )
         results.append(
-            RecoveryResult(txid, "rolled_back", "new version unhealthy after crash", prior_path=prior if prior and prior.exists() else None)
+            RecoveryResult(txid, "rolled_back",
+                           "new version unhealthy after crash" if journal.has(Step.SWAPPED)
+                           else "update stopped before the new version was put in place",
+                           prior_path=prior if prior and prior.exists() else None)
         )
     return results
 
