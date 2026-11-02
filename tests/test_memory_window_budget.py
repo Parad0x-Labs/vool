@@ -13,7 +13,7 @@ from tests.test_capsule_match_strength_eviction_20261002 import (
     HARBOR_DECISIVE,
     HARBOR_FILLERS,
     _seed,
-    fresh_profile,  # noqa: F401
+    fresh_profile,
 )
 
 TURN = [{"role": "user", "content": "what did I decide about the harbor"}]
