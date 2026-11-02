@@ -576,6 +576,10 @@ def asks_about_chat_attachment(text: str) -> bool:
     return bool(_ATTACHMENT_REF_RE.search(str(text or "")))
 
 
+#: Surfaces that are never the owner's own session, whatever peer the request came from.
+_REMOTE_SURFACES = frozenset({"mobile_companion", "channel", "null_protocol"})
+
+
 def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) -> str:
     if source_context.get("planned_subturn"):
         return "planned_subturn"
@@ -605,6 +609,13 @@ def _owner_context_blocks(source_context: Mapping[str, Any], session_id: str) ->
             return "workflow_owns_turn"
     except Exception:
         pass
+    # The surface names the device, and it decides before the peer: a paired phone's send or a remote
+    # agent's null:// call that reaches the chat door through anything on this computer (the
+    # companion relay, a local proxy or tunnel) has a loopback peer and is stamped owner-local
+    # (privacy review 2026-11-02).
+    for key in ("surface", "platform"):
+        if str(source_context.get(key) or "").strip().lower() in _REMOTE_SURFACES:
+            return "not_owner_local"
     try:
         from core.request_trust import request_is_owner_local
 
