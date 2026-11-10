@@ -13,6 +13,33 @@ import pytest
 from tests.test_addon_discovery import source
 from tests.test_addon_store import rig
 
+_UNSUPPORTED_ROW = {
+    "id": "github-13347ca2d62cb1b63ab52a37",
+    "name": "brainstorming",
+    "description": "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.",
+    "publisher": "obra",
+    "ecosystem": "Superpowers",
+    "category": "Coding",
+    "kind": "skill",
+    "repository": "https://github.com/obra/superpowers",
+    "ref": "5bf4e78011075bcfc0dc295f0724994cd123ee71",
+    "path": "skills/brainstorming",
+    "skill_path": "skills/brainstorming/SKILL.md",
+    "skill_name": "brainstorming",
+    "license": "MIT",
+    "discovery_only": False,
+    "compatibility": "This skill is larger than VOOL’s instruction limit. It needs adaptation; VOOL will not silently cut it short. This skill includes supporting files or scripts. The current importer only installs complete standalone instruction skills.",
+    "requirements": "Uses the existing model and permitted tools. No executable dependencies are installed.",
+    "license_path": "LICENSE",
+    "sha256": "a32d2255354775aa124855aa7100cf276bea096fff4ebb3a0edf57be216e6c72",
+    "license_sha256": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
+    "import_ready": False,
+    "compatibility_reasons": [
+        "This skill is larger than VOOL’s instruction limit. It needs adaptation; VOOL will not silently cut it short.",
+        "This skill includes supporting files or scripts. The current importer only installs complete standalone instruction skills.",
+    ],
+}
+
 
 @pytest.mark.parametrize('risk', [False, True, 'bundled', 'delayed-risk'])
 def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypatch, tmp_path, risk):
@@ -32,7 +59,10 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         from core import addon_catalog, eyebrow_client
         from tests.test_addon_store import report
         actual = copy.deepcopy(addon_catalog.CATALOG[0])
-        unsupported = copy.deepcopy(next(e for e in addon_catalog.CATALOG if e.get('import_ready') is False))
+        # The shipped directory no longer lists a row VOOL cannot install, so the unsupported
+        # card is fed the last such row it listed (obra/superpowers brainstorming, unlisted
+        # 2026-10-28), verbatim.
+        unsupported = copy.deepcopy(_UNSUPPORTED_ROW)
         unsupported['name'] = 'Unsupported example'
         monkeypatch.setattr(addon_store, 'CATALOG', [actual, unsupported])
         monkeypatch.setattr(addon_store, 'fetch_bytes', lambda *a, **kw: pytest.fail('Bundled workflow must not download'))

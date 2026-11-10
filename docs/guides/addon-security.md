@@ -1,6 +1,6 @@
 # Discover skills and Eyebrow checks
 
-The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 53 text-only VOOL skills bundled with the app, then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
+The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 51 text-only VOOL skills bundled with the app, then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
 
 ## First use
 
@@ -13,7 +13,7 @@ A scan is a vendor's assessment of specific bytes, not a guarantee of safety, co
 
 ## Boundaries
 
-Content comes only from public GitHub repositories at a fixed 40-character revision, with SHA-256-pinned skill and licence files. There is no private repository, archive extraction, install script or executable/MCP plugin importer in this version. Only the standalone SKILL.md is sent to Eyebrow; local chats, workspace files, credentials and licence contents are not submitted for scanning.
+Content comes only from public GitHub repositories at a fixed 40-character revision, with SHA-256-pinned skill and licence files. There is no private repository, archive extraction, install script or executable/MCP plugin importer in this version. A skill folder holds SKILL.md and an optional licence file. It may also hold pictures directly in an `assets/` folder (an icon or banner: PNG, JPEG, WebP or SVG, at most 1 MB each); VOOL does not download or install them. Any other file in the folder, including anything else in `assets/`, makes the skill not import-ready (*This skill includes supporting files or scripts.*). Only the standalone SKILL.md is sent to Eyebrow; local chats, workspace files, credentials and licence contents are not submitted for scanning.
 
 Downloads remain inert until review and acceptance. Locally authenticated receipts bind the report to the pinned content. Installation refuses expired reviews (24 hours), modified staged files and existing target directories. The runtime checks lifecycle state and reviewed bytes before adding a managed skill to model context. Added files, symlinks or changed content make it unavailable. Guidance is inserted whole or explicitly recorded as omitted for insufficient prompt budget; the scanned instructions are not silently truncated.
 

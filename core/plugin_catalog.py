@@ -145,7 +145,12 @@ def _skill_frontmatter(skill_md: Path) -> dict[str, str]:
     for line in match.group(1).splitlines():
         if ":" in line:
             key, value = line.split(":", 1)
-            values[key.strip()] = value.strip()
+            value = value.strip()
+            # A quoted YAML scalar ("decline-politely") is the words inside the quotes: the
+            # add-ons page showed the quotes, and the on/off button sent them as the skill's id.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            values[key.strip()] = value
     return values
 
 
@@ -167,8 +172,15 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
             if not md.is_file():
                 continue
             front = _skill_frontmatter(md)
+            # A shipped pack's copy of a developer skill (audience: developer) stays off a
+            # person's list, like the native library's; an external pack cannot hide by it.
+            if first_party and front.get("audience", "").strip().lower() == "developer" and not _developer_skills_on():
+                continue
             skills.append({
                 "name": front.get("name") or skill_dir.name,
+                # The one disable store (core.native_skill_library) turns a skill off by its name;
+                # the add-ons page shows the state and its on/off button from this field.
+                "enabled": str(front.get("name") or skill_dir.name).strip() not in _disabled_skill_names(),
                 "description": front.get("description", ""),
                 "slug": skill_dir.name,
                 # The Add-ons page offers "Publish to Skill Codex" only for a skill the person made.
@@ -189,6 +201,21 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
     }
 
 
+def _developer_skills_on() -> bool:
+    from core.native_skill_library import developer_skills_on
+
+    return developer_skills_on()
+
+
+def _disabled_skill_names() -> set[str]:
+    try:
+        from core.native_skill_library import disabled_skill_ids
+
+        return set(disabled_skill_ids())
+    except Exception:
+        return set()
+
+
 def _native_library_entry() -> dict[str, Any] | None:
     """The first-party native skill library as one catalog entry, for the SAME projection.
 
@@ -197,9 +224,10 @@ def _native_library_entry() -> dict[str, Any] | None:
     a library that cannot be read yields no entry rather than an error page.
     """
     try:
-        from core.native_skill_library import skill_inventory
+        from core.native_skill_library import shown_to_people, skill_inventory
 
-        rows = skill_inventory()
+        # VOOL's own developer skills are not listed for a person (developer setting off).
+        rows = [row for row in skill_inventory() if shown_to_people(str(row.get("id") or ""))]
     except Exception:
         return None
     if not rows:

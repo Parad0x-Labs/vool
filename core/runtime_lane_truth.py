@@ -122,6 +122,17 @@ _DEPLETION_IDIOM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "whats running on my computer right now?" asks WHICH programs run on the machine -- a process list,
+# not where VOOL itself runs. Measured 2026-10-29 (re-audit files:F30): the serve-verb + locality
+# pattern read "running on my computer" as a lane question and shipped the model-status block. The
+# subject is the question word itself ("what's running", "what apps are running"), never "you".
+_PROCESS_LISTING_RE = re.compile(
+    r"\b(?:what(?:'s|s|\s+is|\s+are)?|which|anything|everything)\s+"
+    r"(?:(?:apps?|programs?|processes|applications|tasks|stuff|things|else)\s+)?"
+    r"(?:is\s+|are\s+)?(?:currently\s+|actually\s+|still\s+)?running\b(?!\s+(?:you|vool)\b)",
+    re.IGNORECASE,
+)
+
 # (facet, pattern, needs_self_reference).
 #
 # Most patterns describe a shape that a general-knowledge question shares — "which cloud provider is
@@ -262,6 +273,8 @@ def runtime_lane_question(text: str) -> str:
     if users_own_past_is_asked(cleaned):
         return ""
     about_this_runtime = bool(_SELF_REFERENCE.search(cleaned))
+    if _PROCESS_LISTING_RE.search(cleaned):
+        return ""
     if _DEPLETION_IDIOM_RE.search(cleaned):
         # "running low on space on this machine" -- depletion idiom, not a serving question.
         # Checked before the facet scan because the lane pattern's own vocabulary ("running" +

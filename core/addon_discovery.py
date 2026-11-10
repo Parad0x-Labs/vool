@@ -266,6 +266,22 @@ def inspect(repository_name_input: str, ref: str, path: str) -> dict:
     return result
 
 
+#: Pictures a skill folder may carry in assets/ (an icon or banner). They are never installed or run.
+_PICTURE_SUFFIXES = frozenset({'.png', '.jpg', '.jpeg', '.webp', '.svg'})
+_PICTURE_MAX_BYTES = 1024 * 1024
+
+
+def _picture_asset(item: dict, prefix: str) -> bool:
+    """A plain image file directly inside the skill's assets/ folder, at most 1 MB."""
+    rel = str(item.get('path', ''))[len(prefix):]
+    parts = PurePosixPath(rel).parts
+    size = item.get('size')
+    return (item.get('type') == 'blob' and item.get('mode') == '100644'
+            and len(parts) == 2 and parts[0] == 'assets'
+            and PurePosixPath(rel).suffix.lower() in _PICTURE_SUFFIXES
+            and isinstance(size, int) and not isinstance(size, bool) and 0 < size <= _PICTURE_MAX_BYTES)
+
+
 def inspect_source(source: dict, path: str, read_file) -> dict:
     """One compatibility law for public discovery and release-time catalogue snapshots."""
     import yaml
@@ -301,7 +317,8 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
     extras = [i['path'] for i in source['tree'] if i.get('type') in {'blob','commit'}
               and i['path'].startswith(prefix) and i['path'] != path
               and not (str(PurePosixPath(i['path']).parent) == folder
-                       and PurePosixPath(i['path']).name.lower() in {'license','license.txt','license.md'})]
+                       and PurePosixPath(i['path']).name.lower() in {'license','license.txt','license.md'})
+              and not _picture_asset(i, prefix)]
     if extras:
         reasons.append('This skill includes supporting files or scripts. The current importer only installs complete standalone instruction skills.')
     licence = b''

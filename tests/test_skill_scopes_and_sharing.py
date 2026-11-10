@@ -150,13 +150,17 @@ def test_a_chat_skill_shadows_a_global_skill_of_the_same_name(_private_plugins_t
     assert "GLOBAL-VERSION" in elsewhere
 
 
-def test_the_operators_skill_is_not_crowded_out_by_first_party_selections() -> None:
+def test_the_operators_skill_is_not_crowded_out_by_first_party_selections(monkeypatch) -> None:
     """Measured live 2026-10-05: four first-party skills chosen on the task class filled every slot
     and the chat skill that matched the request never reached the prompt. A task class that selects
     a full budget of native skills ("debugging" picks three) must still leave the operator's
     matching skill its slot, with natives filling only what is left."""
     from core.tool_offer_assembly import MAX_SKILLS
 
+    # The natives that fill a "debugging" turn are VOOL's developer skills, which an everyday ask
+    # (these meeting notes) no longer carries unless the developer setting is on. The crowding
+    # this pins is measured with them in play.
+    monkeypatch.setenv("VOOL_DEVELOPER_SKILLS", "1")
     keys = _bind("chat-not-crowded")
     _install_scoped(keys, "chat")
     here = skill_guidance_for(ASK, task_class="debugging", source_context={"session_id": "chat-not-crowded"})
@@ -454,7 +458,13 @@ def test_turn_it_on_installs_exactly_the_shown_draft_in_its_scope() -> None:
     assert "numbered list of action items" not in skill_guidance_for(ASK, source_context={"session_id": "chat-lane-other"}).text
 
 
-def test_without_a_model_the_draft_is_the_operators_own_words_and_says_so() -> None:
+def test_without_a_model_it_asks_for_a_name_then_drafts_the_operators_own_words() -> None:
+    """No model, no name in the request: the name is ASKED for, never derived from first words.
+
+    The old fallback named the skill from the purpose's first content words ("chats-whenever-give"
+    shape) and drafted at once; the draft is still the operator's own words, but it now waits for
+    the name they choose, and the answer is what names it.
+    """
     from core.agent_runtime import fast_paths_skill
 
     chat = "chat-no-model"
@@ -465,16 +475,26 @@ def test_without_a_model_the_draft_is_the_operators_own_words_and_says_so() -> N
         label="test-skill-words", actions=[PermissionAction.CREATE_FILES], intents=["skill.create"],
         session_id=chat, duration_seconds=300,
     )
-    reply = fast_paths_skill.maybe_handle_skill_request(
+    context = {"session_id": chat, "operating_mode": "manual", "internal_authority_token": token}
+    ask = fast_paths_skill.maybe_handle_skill_request(
         _agent(), "we need a skill for this chat that turns pasted meeting notes into action items",
-        session_id=chat,
-        source_context={"session_id": chat, "operating_mode": "manual", "internal_authority_token": token},
+        session_id=chat, source_context=context,
+    )
+    assert ask["reason"] == "skill_needs_a_name", ask
+    assert "What should I call this skill?" in ask["response"]
+    staged_dir = skill_tools._scoped_dirs("chat", scope_keys({"session_id": chat}))[0]
+    assert not list(staged_dir.glob("*/SKILL.md")), "nothing is written before the name is given"
+
+    reply = fast_paths_skill.maybe_handle_skill_request(
+        _agent(), "Meeting actions", session_id=chat, source_context=context,
     )
     assert reply["reason"] == "skill_create", reply
-    assert "(written from your own words: " in reply["response"]
+    assert "(written from your words, no AI model was connected)" in reply["response"]
     assert "written by from" not in reply["response"]  # the fallback author reads as a sentence
-    staged = list(skill_tools._scoped_dirs("chat", scope_keys({"session_id": chat}))[0].glob("*/SKILL.md"))
-    assert len(staged) == 1 and "turns pasted meeting notes into action items" in staged[0].read_text()
+    staged = list(staged_dir.glob("*/SKILL.md"))
+    assert len(staged) == 1, staged
+    assert staged[0].parent.name == "meeting-actions"
+    assert "turns pasted meeting notes into action items" in staged[0].read_text()
 
 
 # --------------------------------------------------------------------------- 7. plugin packs

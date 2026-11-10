@@ -658,7 +658,9 @@ def test_website_drafts_note_needs_the_instructions_seem_to_use_but_do_not_list(
         # Advice, not a refusal: the draft goes on to its checks with web search declared and the wallet named.
         assert result["state"] == "quarantined" and result["findings"] == [] and result["via"] == "draft"
         assert result["needs_notices"] == [{"need": "wallet", "label": "VOOL wallet",
-                                            "reason": 'SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to needs.'}]
+                                            "reason": 'SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to the '
+                                                      '"needs" list in metadata.json (registry.json in the '
+                                                      'package folder), like "needs": ["wallet"].'}]
         assert client.get(PREFIX + "/submissions/" + result["id"]).json()["needs_notices"] == result["needs_notices"]
         assert client.get(PREFIX + "/submissions").json()["submissions"][0]["needs_notices"] == result["needs_notices"]
         plain = client.post(PREFIX + "/drafts", headers=mutation(csrf), json={

@@ -723,6 +723,8 @@ _LEGACY_INTENT_TO_CAPABILITY: dict[str, str] = {
     "operator.cleanup_temp_files": "operator.mutate",
     "operator.move_path": "operator.mutate",
     "operator.schedule_calendar_event": "operator.mutate",
+    "operator.schedule_reminder": "operator.mutate",
+    "operator.cancel_reminder": "operator.mutate",
     "operator.discord_post": "communication.social",
     "operator.telegram_send": "communication.social",
 
@@ -1316,6 +1318,57 @@ _ALWAYS_VISIBLE_ORDER: tuple[str, ...] = (
 )
 _ALWAYS_VISIBLE = frozenset(_ALWAYS_VISIBLE_ORDER)
 
+# Job 6c (Fix 1): the owner-local wording seats in core.tool_demand_signals
+# (``owner_local_operator_intents``) can seat these intents on the owner's own asks, so a
+# family expansion is not their only legal selection path. Keep this in step with the
+# intents those seats append: an intent missing here makes the drain treat its only
+# remaining path as the expansion (it ranks up -- safe); an intent listed that no wording
+# seat can produce only counts as path-covered (it ranks behind -- the authority census
+# still guarantees it a path through the expansion of its family).
+_WORDING_SEATED_INTENTS = frozenset({
+    "operator.show_agenda",
+    "operator.check_availability",
+    "operator.list_reminders",
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
+    "operator.propose_calendar_event",
+    "operator.find_notes",
+    "operator.show_note",
+    "operator.apple_note_list",
+    "operator.apple_note_read",
+    "operator.inspect_disk_usage",
+    "operator.save_note",
+})
+
+# Job 6d (Fix 1): the two reminder mutates this repair lane added to the operator family
+# (Job 6). Inside an overflowing expand's path-covered tail they step down FIRST: they are
+# the family's newest members, and they keep two seating surfaces of their own besides the
+# expansion (the dedicated reminder wording seats in ``owner_local_operator_intents`` and
+# the chat lane's reminder parser), so a family expansion is never their last resort. The
+# family's pre-lane tools -- the calendar mutates among them -- seat ahead of them.
+_LANE_ADDED_FAMILY_MUTATES = frozenset({
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
+})
+
+# Job 6e (Fix 5): the calendar's entry mutate. The expansion is the only path for the
+# calendar's edit mutates (update_calendar_event, schedule_calendar_event rank in the
+# expansion-only class), and they act on events this tool drafts; with it stepped down the
+# expand offered calendar edits without the tool that makes an event. Inside the path-covered
+# mutate tail it seats ahead of the other pre-lane mutates, so a third step-down falls on
+# operator.save_note (its note wording seat re-seats it) and propose_calendar_event only goes
+# at the fourth.
+_CALENDAR_ENTRY_MUTATES = frozenset({
+    "operator.propose_calendar_event",
+})
+
+
+def _demand_rule_intents() -> tuple[str, ...]:
+    """The intents a tool_demand_signals rule can name (the explicit-demand path)."""
+    from core.tool_demand_signals import _RULES
+
+    return tuple(rule_intent for rule_intent, _family, _pattern in _RULES)
+
 # Hard bounds for the adaptive composition. The per-turn definition budget stays
 # at ``max_candidates`` (8): reserved seats + explicit intents + family fill all
 # share it, so a mixed demand splits the SAME budget rather than growing it.
@@ -1351,6 +1404,7 @@ def model_visible_specs(
     family_hints: tuple[str, ...] = (),
     source_context: dict[str, Any] | None = None,
     expanded_families: tuple[str, ...] | None = None,
+    skill_allowed: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     """Build a bounded set of tool specs for the served model/planner path.
 
@@ -1372,6 +1426,11 @@ def model_visible_specs(
       offer of that turn includes the family's ranked candidates. Reading them
       never clears them (``core.tool_offer_state``). ``expanded_families`` is the
       turn's set as the caller already read it, so one offer comes from one read.
+    - ``skill_allowed`` seats the ``allowed-tools`` of a skill the words matched
+      (the offer seam resolves and trust-gates them): a skill whose tools the
+      ranking left out had nothing to call -- allowed-tools only ever NARROWED
+      the offer. Skill seats widen the per-turn budget by their count, hard-capped
+      at ``_HARD_MAX_CANDIDATES``; unavailable and owner-only tools never seat.
 
     The total stays capped at ``max_candidates``: reserved seats, explicit
     intents and per-family fills all draw from the same bounded budget. Seating
@@ -1421,6 +1480,28 @@ def model_visible_specs(
                 explicit.append(intent)
         for family in signals.required_families:
             _add_family(family)
+    # The operator seats (notes, agenda, reminders, Apple Notes, calendar) apply ONLY to the
+    # machine owner's own local turns: a remote session's mention of a note or a calendar must
+    # never widen its offer. The trust seam owns that verdict, and the same recognizer feeds the
+    # lane release (core.execution_requirements), so the gate and the offer cannot disagree.
+    source_is_owner_local = False
+    if source_context is not None:
+        try:
+            from core.request_trust import request_is_owner_local
+
+            source_is_owner_local = bool(request_is_owner_local(source_context))
+        except Exception:
+            source_is_owner_local = False
+    if user_text and source_is_owner_local:
+        try:
+            from core.tool_demand_signals import owner_local_operator_intents
+
+            operator_seats = [i for i in owner_local_operator_intents(user_text) if i not in explicit]
+            if operator_seats:
+                explicit.extend(operator_seats)
+                _add_family("operator")
+        except Exception:
+            pass
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())
@@ -1442,10 +1523,14 @@ def model_visible_specs(
     # family that seats in this round's family set: a family the resolved-family
     # cap truncated away seats nothing, and its bonus would silently widen the
     # other families' fill for every remaining round of the turn.
+    skill_seats: list[str] = []
+    for name in skill_allowed:
+        clean = str(name or "").strip()
+        if clean and clean not in skill_seats:
+            skill_seats.append(clean)
     seat_budget = max_candidates
     for _ in [family for family in expansions if family in families][:_EXPANSION_MAX_FAMILIES]:
         seat_budget += _EXPANSION_SEAT_BONUS
-    seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     # -- Step 2: Materialise the spec map and availability truth --
     all_specs = runtime_tool_specs()
@@ -1464,6 +1549,22 @@ def model_visible_specs(
             # window must not out the tool after the lane closed.
             return impl.available and intent in spec_map
         return impl.available
+
+    # R8 (round 2): the skill bonus counts only SEATABLE tools -- available on this runtime
+    # and not owner-only, the same two filters `_seat` enforces below. Counting the raw
+    # ``skill_allowed`` list paid the bonus for tools the filters refuse to seat, and the
+    # ranked fill grew by every unavailable name a matched skill happened to list (measured
+    # on the served rig: an unrelated turn went from 8 to 18 tools, among them sell.quote
+    # and marketplace.search_listings). The hard cap still bounds the whole round.
+    if skill_seats:
+        seatable = [
+            intent for intent in skill_seats
+            if _intent_available(intent) and not _intent_is_owner_only(intent)
+        ]
+        # The same bounded-bonus shape an expansion pays: a matched skill's tools
+        # must not evict each other out of the 8-seat default.
+        seat_budget += len(seatable)
+    seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     result_specs: list[dict[str, Any]] = []
     included: set[str] = set()
@@ -1492,14 +1593,17 @@ def model_visible_specs(
         result_specs.append(spec)
         included.add(intent)
 
-    # -- Step 3: Reserved seats, then explicit intents (priority over ranking) --
+    # -- Step 3: Reserved seats, then explicit intents, then skill seats --
     for intent in _ALWAYS_VISIBLE_ORDER:
         _seat(intent)
     for intent in explicit:
         if _intent_available(intent):
             _seat(intent)
+    for intent in skill_seats:
+        if _intent_available(intent):
+            _seat(intent)
 
-    # -- Step 4: Round-robin family fill from ranked available candidates --
+    # -- Step 4: Expanded families drain first, then round-robin the rest --
     family_queues: list[list[CapabilityCandidate]] = []
     for family in families:
         result = discover(
@@ -1510,8 +1614,120 @@ def model_visible_specs(
             offline_mode=offline_mode,
         )
         family_queues.append([c for c in result.candidates if c.available])
-    while len(result_specs) < seat_budget and any(family_queues):
-        for queue in family_queues:
+    # The family the model asked to expand WINS the budget: its ranked queue drains in
+    # full (still bounded by the hard cap) before the families the words resolved get a
+    # single seat. Round-robin shared the bonus evenly, and under the read-only-first
+    # ranking with declaration-order tie-breaks that evicted exactly the long-tail tools
+    # (agenda, notes writes, reminders) the expansion existed to expose: measured on the
+    # served rig, "summarize my notes from this week" after capability.expand_family
+    # {"family":"operator"} seated only 11 of the 20 operator tools beside web and token.
+    # R7 (round 2): the full drain is the owner's own navigational act. A remote turn that
+    # expands a family keeps exactly the seats it had: the family still joins the ranked fill
+    # through the expansion hint (base behaviour), but the drain to the whole catalogue is
+    # owner-local only — measured on the served rig, a remote expand of operator went from 11
+    # to 20 tools, seating move_path, cleanup_temp_files and schedule_calendar_event with them.
+    expansion_set = (
+        {family for family in expansions if family in families} if source_is_owner_local else set()
+    )
+    expanded_queues = [queue for family, queue in zip(families, family_queues, strict=True)
+                       if family in expansion_set]
+    rest = [queue for family, queue in zip(families, family_queues, strict=True)
+            if family not in expansion_set]
+    if expanded_queues:
+        # The cap law: the expanded family wins the budget and the others fill what is left.
+        # Step-3 demand seats of OTHER families sit in result_specs before the drain; when the
+        # expanded family grew past what the cap holds beside them (the operator family at 22
+        # beside a web-resolving ask), the drain stopped inside the family's own mutate tail
+        # and the expansion asked for tools it never delivered. The non-family, non-floor
+        # seats step down here and return through the round-robin fill below if room remains;
+        # the always-visible floor and every expanded-family seat stay.
+        expanded_intents = {c.tool_intent for queue in expanded_queues for c in queue}
+        family_need = sum(
+            1
+            for intent in expanded_intents
+            if intent not in included and _intent_available(intent) and not _intent_is_owner_only(intent)
+        )
+        while len(result_specs) + family_need > seat_budget:
+            for index in range(len(result_specs) - 1, -1, -1):
+                intent = str(result_specs[index].get("intent") or "")
+                if intent in _ALWAYS_VISIBLE_ORDER or intent in expanded_intents:
+                    continue
+                result_specs.pop(index)
+                included.discard(intent)
+                break
+            else:
+                break
+    # Job 6b (Fix 5): when the expanded family itself does not fit the cap, what steps down
+    # is decided by the ask, not by declaration order. The drain seats the family in discover
+    # order (read-only first, declaration tie-break), so once the operator family grew past
+    # what the cap holds beside the reserved seats, the overflow fell off the declaration
+    # tail -- measured on the served rig, the two operator.command.* reads pushed
+    # operator.update_calendar_event and operator.schedule_calendar_event, the mutate tail,
+    # out of the very offer the expansion asked for. The family's own tools now rank by what
+    # the turn asks: its demand seats first (they are seated in step 3 and never evicted -- a
+    # tool the ask names never steps down), then mutate tools before inspection reads the ask
+    # did not name. The sort is stable, so the discover ranking keeps ordering each class and
+    # the overflow drops from the least-asked end.
+    #
+    # Job 6c (Fix 1): a lone-family expansion is the path of last resort for a family tool
+    # that neither the always-visible floor, nor a demand rule, nor an owner-local wording
+    # seat, nor the family-hint fill can seat. Job 6b's mutate-before-read order pushed every
+    # unnamed read behind the mutates, so on the repo family (25 candidates beside the
+    # 3 floor seats) the overflow always fell on the reads declared last --
+    # repo.verify_remote, repo.pr.request and repo.receipt lost their last legal path and
+    # test_p0_tool_offer_authority went red. A candidate whose only legal selection path is
+    # this expansion now ranks directly behind the ask-named seats (class 1) and keeps Job
+    # 6b's mutate-before-read order inside its class; the candidates another path can still
+    # seat follow (class 2), reads ahead of mutates there, so the droppable tail of an
+    # overflowing family is its path-covered mutate tail (on today's operator family the
+    # two reminder tools, which the reminder wording seats can always seat again) and never
+    # a read that would go dark. Tools the ask names stay first in every case.
+    hint_prefix = max(0, _DEFAULT_MAX_CANDIDATES - len(_ALWAYS_VISIBLE_ORDER))
+    # The hint-prefix intents are collected before the sort: list.sort() sees the queue
+    # emptied while it runs, so the prefix cannot be read from the queue inside the key.
+    hint_seatable = {
+        candidate.tool_intent
+        for queue in expanded_queues
+        for candidate in queue[:hint_prefix]
+    }
+    demand_rule_intents = frozenset(_demand_rule_intents())
+
+    def _has_path_besides_expansion(candidate: CapabilityCandidate) -> bool:
+        intent = candidate.tool_intent
+        return (
+            intent in _ALWAYS_VISIBLE_ORDER
+            or intent in _WORDING_SEATED_INTENTS
+            or intent in demand_rule_intents
+            or intent in hint_seatable
+        )
+
+    def _expanded_family_rank(candidate: CapabilityCandidate) -> int:
+        if candidate.tool_intent in explicit:
+            return 0
+        if not _has_path_besides_expansion(candidate):
+            return 1 if not candidate.read_only else 2
+        # Inside the path-covered tail the 6c read-before-mutate order holds. A tool this
+        # turn's own wording seats is in ``explicit`` already (rank 0 above), so the tail
+        # holds only tools the ask did not name. Job 6d: this lane's added reminder mutates
+        # step down before every pre-lane tool (they keep the reminder wording seats and the
+        # chat-lane parser as their own surfaces). Job 6e: the calendar's entry mutate seats
+        # ahead of the other pre-lane mutates (see _CALENDAR_ENTRY_MUTATES).
+        if candidate.read_only:
+            return 3
+        if candidate.tool_intent in _CALENDAR_ENTRY_MUTATES:
+            return 4
+        if candidate.tool_intent in _LANE_ADDED_FAMILY_MUTATES:
+            return 6
+        return 5
+
+    for queue in expanded_queues:
+        queue.sort(key=_expanded_family_rank)
+        while queue and len(result_specs) < seat_budget:
+            candidate = queue.pop(0)
+            if _intent_available(candidate.tool_intent):
+                _seat(candidate.tool_intent, candidate)
+    while len(result_specs) < seat_budget and any(rest):
+        for queue in rest:
             if queue and len(result_specs) < seat_budget:
                 candidate = queue.pop(0)
                 if _intent_available(candidate.tool_intent):

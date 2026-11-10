@@ -2736,6 +2736,14 @@ def actions_for_tool(
             actions.add(PermissionAction.READ_FILES)
         elif name == "operator.save_note":
             actions.add(PermissionAction.CREATE_FILES)
+        elif name in {"operator.schedule_reminder", "operator.cancel_reminder"}:
+            # A reminder row is a write to this runtime's own store, never an outward send:
+            # the "schedule" in the name must not class it with external messages.
+            actions.add(
+                PermissionAction.CREATE_FILES
+                if name == "operator.schedule_reminder"
+                else PermissionAction.DELETE_FILES
+            )
         elif name in {"operator.propose_calendar_event", "operator.update_calendar_event"}:
             # Creating/updating an event on an external provider's calendar. The mode
             # matrix governs the tool call; the provider lane adds its own explicit

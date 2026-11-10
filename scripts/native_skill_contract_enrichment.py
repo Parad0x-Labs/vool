@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-time enrichment: give every native SKILL.md the typed contract keys.
 
-The 13 vool-* packages were authored by a concurrent sibling lane with a prose-leaning
+The vool-* packages were authored by a concurrent sibling lane with a prose-leaning
 frontmatter (triggers, stop-conditions, recovery, cumulative-test-law — all preserved
 verbatim). This migration ADDS the typed contract block the library's load-time law reads:
 
@@ -43,15 +43,6 @@ CONTRACTS: dict[str, dict] = {
         ],
         "incompatible-with": [],
     },
-    "vool-bug-reproduction": {
-        "id": "bug-reproduction", "risk-class": "workspace_write", "priority": 30,
-        "task-families": ["debugging"], "capability-families": ["workspace", "sandbox"],
-        "prerequisites": [],
-        "expected-outputs": ["reproduction_test_or_command", "observed_vs_expected"],
-        "verification": ["failing_test_reproduces", "deterministic_evidence"],
-        "stopping-conditions": ["stop when the bug reproduces deterministically or is honestly reported as not reproduced"],
-        "incompatible-with": [],
-    },
     "vool-feature-build": {
         "id": "feature-build", "risk-class": "workspace_write", "priority": 20,
         "task-families": ["system_design"], "capability-families": ["workspace"],
@@ -88,15 +79,6 @@ CONTRACTS: dict[str, dict] = {
         "stopping-conditions": ["stop when each finding states the class, the seam, and the exploit path sketch — or the audit surface is exhausted and said so"],
         "incompatible-with": [],
     },
-    "vool-git-worktrees": {
-        "id": "git-worktrees", "risk-class": "workspace_write", "priority": 20,
-        "task-families": ["shell_guidance"], "capability-families": ["sandbox", "workspace"],
-        "prerequisites": ["binary:git"],
-        "expected-outputs": ["worktree_path", "branch_name", "command_receipts"],
-        "verification": ["typed_receipts", "deterministic_evidence"],
-        "stopping-conditions": ["stop when the worktree exists, is on its branch, and the receipts name every command run"],
-        "incompatible-with": [],
-    },
     "vool-ci-repair": {
         "id": "ci-repair", "risk-class": "workspace_write", "priority": 40,
         "task-families": ["debugging", "integration_orchestration"], "capability-families": ["workspace", "sandbox"],
@@ -104,15 +86,6 @@ CONTRACTS: dict[str, dict] = {
         "expected-outputs": ["failure_attribution", "pipeline_fix", "local_verification_receipt"],
         "verification": ["failing_test_reproduces", "cumulative_suite_green"],
         "stopping-conditions": ["stop when the pipeline failure is reproduced locally and the fix's verification receipt exists"],
-        "incompatible-with": [],
-    },
-    "vool-browser-qa": {
-        "id": "browser-qa", "risk-class": "read_only", "priority": 30,
-        "task-families": ["integration_orchestration"], "capability-families": ["web"],
-        "prerequisites": [],
-        "expected-outputs": ["qa_checklist_results", "fetched_page_evidence"],
-        "verification": ["browser_verified", "evidence_cited"],
-        "stopping-conditions": ["stop when every checklist row carries observed evidence — a row with no evidence is UNVERIFIED, never green"],
         "incompatible-with": [],
     },
     "vool-performance": {
@@ -149,18 +122,9 @@ CONTRACTS: dict[str, dict] = {
         "id": "media-studio", "risk-class": "workspace_write", "priority": 100,
         "task-families": [], "capability-families": ["media"],
         "prerequisites": [],
-        "expected-outputs": ["media_project_state", "exported_media_file", "typed_receipt"],
+        "expected-outputs": ["media_project_state", "exported_media_file", "export_receipt"],
         "verification": ["typed_receipts", "evidence_cited"],
-        "stopping-conditions": ["stop when the edit's typed receipt names the operation and the export path — never claim an export without its receipt"],
-        "incompatible-with": [],
-    },
-    "vool-hive-mind": {
-        "id": "vool-hive-mind", "risk-class": "read_only", "priority": 100,
-        "task-families": [], "capability-families": ["hive", "network", "orchestration"],
-        "prerequisites": [],
-        "expected-outputs": ["bridge_guidance"],
-        "verification": ["evidence_cited"],
-        "stopping-conditions": ["stop when the bridge/mesh question is answered from the document"],
+        "stopping-conditions": ["stop when the export result names the new file — never claim an export the result does not show"],
         "incompatible-with": [],
     },
 }
@@ -168,19 +132,15 @@ CONTRACTS: dict[str, dict] = {
 TOOL_INTENTS: dict[str, list[str]] = {
     "vool-repo-onboarding": ["workspace.identity", "workspace.list_tree", "workspace.read_file", "workspace.search_text", "workspace.symbol_search", "workspace.git_summary"],
     "vool-root-cause-repair": ["workspace.search_text", "workspace.read_file", "workspace.git_diff", "workspace.symbol_search", "workspace.run_tests"],
-    "vool-bug-reproduction": ["workspace.read_file", "workspace.search_text", "workspace.run_tests", "sandbox.run_command", "workspace.write_file"],
     "vool-feature-build": ["workspace.symbol_search", "workspace.read_file", "workspace.write_file", "workspace.ensure_directory", "workspace.apply_unified_diff", "workspace.run_tests", "workspace.run_lint"],
     "vool-cumulative-testing": ["workspace.run_tests", "workspace.run_lint", "workspace.run_formatter", "workspace.read_file"],
     "vool-code-review": ["workspace.git_diff", "workspace.read_file", "workspace.search_text", "workspace.run_lint"],
     "vool-security-audit": ["workspace.search_text", "workspace.read_file", "workspace.git_diff", "workspace.symbol_search"],
-    "vool-git-worktrees": ["workspace.git_status", "workspace.git_diff", "workspace.read_file", "sandbox.run_command"],
     "vool-ci-repair": ["workspace.read_file", "workspace.search_text", "workspace.run_tests", "workspace.run_lint", "sandbox.run_command"],
-    "vool-browser-qa": ["web.fetch", "web.search"],
     "vool-performance": ["workspace.search_text", "workspace.read_file", "workspace.run_tests", "sandbox.run_command"],
     "vool-migration": ["workspace.search_text", "workspace.read_file", "workspace.replace_in_file", "workspace.write_file", "workspace.apply_unified_diff", "workspace.run_tests"],
     "vool-release-gate": ["workspace.run_tests", "workspace.run_lint", "workspace.git_status", "workspace.git_diff", "sandbox.run_command"],
     "media-studio": ["media.open", "media.inspect", "media.edit", "media.undo", "media.redo", "media.export"],
-    "vool-hive-mind": [],
 }
 
 

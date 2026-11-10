@@ -298,6 +298,35 @@ def _x_action_demand(text: str) -> bool:
         return False
 
 
+def _operator_action_demand(text: str, source_context: dict[str, Any] | None = None) -> bool:
+    """Whether the words ask VOOL's own note/agenda/reminder/Apple Notes/calendar tools to act.
+
+    Same law as the wallet, email, Contacts and X arms, read through the SAME typed recognizer
+    the tool offer seats from (core.tool_demand_signals.owner_local_operator_intents), so the
+    lane release and the offer cannot disagree. Two gates the other arms do not have:
+
+    - OWNER-LOCAL ONLY: the operator tools touch this machine's own notes and calendars, so a
+      remote session's words never release the lane (core.request_trust owns the verdict). A
+      MISSING or unsure context is remote too (section 12): the owner-local stamp must be
+      present before the arm can fire, so context-free callers (classify_requirements, the
+      recall recursion, agent.py) never release the lane through this arm.
+    - The chat lane stays the authority for typed words; the recognizer is deliberately the
+      narrower of the two wherever the parser's width is a typed-turn UX choice.
+    """
+    if not isinstance(source_context, dict) or not source_context:
+        return False
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        from core.tool_demand_signals import owner_local_operator_intents
+
+        return bool(owner_local_operator_intents(str(text or "")))
+    except Exception:
+        return False
+
+
 def _retrieval_prohibited_requirements(
     *,
     supplied: bool,
@@ -752,6 +781,7 @@ def _compute_requirements(
     *,
     task_class: str = "unknown",
     source_context: dict[str, Any] | None = None,
+    _operator_arm_silent: bool = False,
 ) -> ExecutionRequirements:
     """The classification itself.  Callers reach it through `requirements_for`, which
     owns the turn-scoped freeze; this function stays pure so the freeze is impossible to
@@ -996,6 +1026,49 @@ def _compute_requirements(
             allowed_toolsets=("email",),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
+        )
+
+    # An operator action demand ("show my agenda for today", "save this as a note", "list my
+    # Apple Notes", "put a dentist appointment on my calendar") is served only through the
+    # operator tools: the tools-less chat lane cannot read a calendar or keep a note. Same law
+    # as the wallet/Contacts/email arms -- the demand signal is the same typed recognizer the
+    # tool offer seats from -- with the operator's own two gates: owner-local turns only
+    # (core.request_trust), and the recognizer narrower than the chat parser wherever the
+    # parser's width is a typed-turn UX choice, so ordinary prose that merely mentions notes or
+    # calendars releases nothing. The model still decides whether any operator tool is called.
+    if (
+        not _operator_arm_silent
+        and _operator_action_demand(candidate_text, source_context)
+        and not constraints.forbids_all_tools
+        # The explicit prohibited set, not `forbids("operator")`: that helper also blocks on any
+        # external-retrieval prohibition, and "do not search the web, just show my agenda" must
+        # still reach the operator tools -- they never leave this machine.
+        and "operator" not in set(getattr(constraints, "prohibited_toolsets", ()) or ())
+    ):
+        # ADDITIVE, never a replacement (round 2, R1): the operator demand JOINS the
+        # requirements the evidence arms set. Returning ("operator",) here with
+        # current_information_required=False used to cut those arms off, so
+        # "is tomorrow free? what is the current bitcoin price" lost its LIVE_DATA
+        # market_prices toolsets and "which reminders app is best for Android right now?"
+        # lost grounded web. Recompute the turn once with this arm silent and merge:
+        # operator appends to the toolsets, tools_required rises, and every evidence
+        # verdict (mode, current_information_required, external evidence) keeps what the
+        # other arms found. A pure operator ask still lands operator-only: with the arm
+        # silent the turn falls through to the plain DIRECT contract below.
+        base = _compute_requirements(
+            user_input, task_class=task_class, source_context=source_context, _operator_arm_silent=True
+        )
+        return ExecutionRequirements(
+            answer_mode=base.answer_mode,
+            external_evidence_required=base.external_evidence_required,
+            current_information_required=base.current_information_required,
+            user_material_supplied=base.user_material_supplied,
+            tools_required=True,
+            allowed_toolsets=tuple(dict.fromkeys((*base.allowed_toolsets, "operator"))),
+            inference_allowed=base.inference_allowed,
+            reason_codes=tuple(dict.fromkeys((*base.reason_codes, "operator_action_request"))),
+            multipart=getattr(base, "multipart", None),
+            parallel_preferred=getattr(base, "parallel_preferred", None),
         )
 
     # Asking what was said earlier in this conversation is answered from the conversation and memory.

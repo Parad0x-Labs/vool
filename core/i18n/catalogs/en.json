@@ -1873,7 +1873,7 @@
     "sidebar.skills": "▵ Skills",
     "sidebar.skills_title": "Skills — how VOOL uses those powers",
     "skills.from_plugin_title": "From plugin: {plugin}",
-    "skills.none_installed": "No skills installed yet.",
+    "skills.none_installed": "No skills yet. Ask VOOL in any chat: make me a skill that ...",
     "update.action_check": "Check for updates",
     "update.action_restart": "Restart",
     "update.action_rollback": "Roll back to {version}",

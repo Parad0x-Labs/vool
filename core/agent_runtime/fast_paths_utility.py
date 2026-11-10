@@ -494,8 +494,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
         return agent._help_capabilities_text()
     # "what can we/you/i do|build" wrapped in filler ("no idea tbh what can we", "so what can you do")
     # — a SHORT friendly answer, not the full capability manifest (that's `help`), and never the
-    # slow model.
-    if re.search(r"\bwhat can (?:we|you|i|u)\b", phrase) or phrase in {"what now", "now what", "what next"}:
+    # slow model. "what can you tell me about the cat_on_sofa picture" asks about a THING, not about
+    # VOOL (re-audit 2026-10-29, mailweb:M01), so a tell/say/find/see verb stands this down.
+    if re.search(
+        r"\bwhat can (?:we|you|i|u)\b(?!\s+(?:tell|say|find|see|show|figure|work|make\s+of|learn)\b)", phrase
+    ) or phrase in {"what now", "now what", "what next"}:
         return (
             "Plenty. The short version:\n"
             "- answer questions and keep our context, locally and free on your machine\n"
@@ -2045,7 +2048,13 @@ _ASKS_DATE_RE = re.compile(
     # requirements below keep "wat day is the meeting" out.
     r"|(?:what|wat)\s+day\s+is\s+(?:it|today|this)\b"
     r"|(?:what|wat)(?:'?s| is)?\s+(?:the\s+)?day\s+today\b"
-    r"|\bday\s+today\b"
+    # The bare "day today" arm: a possessive or determiner directly before "day" makes it an
+    # OBJECT the sentence works on, not the clock's subject -- "organise my day today from my
+    # calendar, reminders and to-dos" was claimed here and answered "Today is Tuesday, ...",
+    # and the day-planning turn never reached the model. "what's the day today" has its own
+    # arm above; this one keeps only fragment-shaped asks ("day today?").
+    r"|(?<!\bmy\s)(?<!\byour\s)(?<!\bhis\s)(?<!\bher\s)(?<!\bits\s)(?<!\bour\s)(?<!\btheir\s)"
+    r"(?<!\bthe\s)(?<!\ba\s)(?<!\ban\s)(?<!\bthis\s)(?<!\bthat\s)\bday\s+today\b"
     r"|tell\s+me\s+(?:the\s+|today'?s\s+)*date\b"
     r"|(?:what|wat)\s+is\s+today\b"
     # "which day of the week are we on right now?" reached the model instead of the clock, and it

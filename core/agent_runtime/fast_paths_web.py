@@ -61,6 +61,16 @@ _READ_MARKERS = (
 
 # Saving a URL to disk is the download lane's job and it runs above this one; a message that says
 # where to PUT the bytes is not a message asking to read them out loud.
+#: Beyond-reading asks: the words ask for selection, judgement or extraction FROM the page,
+#: which a raw fetch cannot serve. Those turns belong to the model (with the page's text and
+#: any matched skill), not to this lane's raw dump.
+_ANALYSIS_MARKERS = (
+    " quote ", " what matters ", " key points ", " key takeaways ",
+    " takeaways ", " extract ", " analyse ", " analyze ", " analysis of ", " critique ", " evaluate ",
+    " fact-check ", " factcheck ", " proofread ", " review this ", " main points ", " highlights ",
+    " summarize and ", " summarise and ", " pull out ", " pick out ", " the important bits ",
+)
+
 _DOWNLOAD_MARKERS = (
     " download ", " save it to ", " save to ", " save as ", " write it to ", " store it in ",
     " put it in ", " into ~/", " to ~/", " to my desktop", " to my downloads", " to my documents",
@@ -152,6 +162,13 @@ def url_read_request(text: str) -> dict[str, Any] | None:
     if any(marker in padded for marker in _DOWNLOAD_MARKERS):
         return None
     if not any(marker in padded for marker in _READ_MARKERS):
+        return None
+    # An ANALYSIS ask ("read this page and quote the parts that matter") wants selection and
+    # judgement, not the raw bytes this lane returns: answering with raw text pre-empted the
+    # model (and any reading skill the owner installed) entirely -- measured on the served
+    # rig, the page-reader skill never ran on its own trigger words. Raw reads ("read <url>",
+    # "what does <url> say") keep this lane exactly as it was.
+    if any(marker in padded for marker in _ANALYSIS_MARKERS):
         return None
     url = match.group(0).rstrip(".,;:!?)\u201d\u2019")
     return {"url": url}
