@@ -119,7 +119,7 @@ For a manual Windows API launch, activate the installed virtual environment and 
   <tr>
     <td valign="top"><strong>Proof, not promises</strong><br />Every tool call records what was asked, what ran and what came back. Signed receipts verify offline.<br /><a href="docs/concepts/receipts.md">Receipts</a></td>
     <td valign="top"><strong>You stay in charge</strong><br />Workspace scopes, approval modes and spending limits decide what the agent may do. Money moves only with your OK.<br /><a href="docs/guides/spending-limits.md">Spending limits</a></td>
-    <td valign="top"><strong>Skills and plugins</strong><br />Comes with its own skill library. Add your own skills and plugins; they teach, they never grant permissions.<br /><a href="docs/guides/skills-and-plugins.md">Skills and plugins</a></td>
+    <td valign="top"><strong>Skills</strong><br />Comes with its own skill library, and you can add more. A skill teaches a task; it never grants permissions. Plugins are planned for 0.8, not released yet.<br /><a href="https://github.com/Parad0x-Labs/vool-skills">VOOL skills</a></td>
   </tr>
 </table>
 
