@@ -1,0 +1,66 @@
+diff --git a/node_modules/deepmerge/dist/cjs.js b/node_modules/deepmerge/dist/cjs.js
+index 7c36cbd..4122450 100644
+--- a/node_modules/deepmerge/dist/cjs.js
++++ b/node_modules/deepmerge/dist/cjs.js
+@@ -80,11 +80,16 @@ function mergeObject(target, source, options) {
+ 	var destination = {};
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			// Assigning an own "__proto__" key (JSON.parse makes one) would set the
++			// result's prototype instead of copying a property: prototype poisoning.
++			if (key === '__proto__') {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 		});
+ 	}
+ 	getKeys(source).forEach(function(key) {
+-		if (propertyIsUnsafe(target, key)) {
++		if (key === '__proto__' || propertyIsUnsafe(target, key)) {
+ 			return
+ 		}
+ 
+diff --git a/node_modules/deepmerge/dist/umd.js b/node_modules/deepmerge/dist/umd.js
+index 4071e7c..7a348bd 100644
+--- a/node_modules/deepmerge/dist/umd.js
++++ b/node_modules/deepmerge/dist/umd.js
+@@ -84,11 +84,16 @@
+ 		var destination = {};
+ 		if (options.isMergeableObject(target)) {
+ 			getKeys(target).forEach(function(key) {
++				// Assigning an own "__proto__" key (JSON.parse makes one) would set the
++				// result's prototype instead of copying a property: prototype poisoning.
++				if (key === '__proto__') {
++					return
++				}
+ 				destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 			});
+ 		}
+ 		getKeys(source).forEach(function(key) {
+-			if (propertyIsUnsafe(target, key)) {
++			if (key === '__proto__' || propertyIsUnsafe(target, key)) {
+ 				return
+ 			}
+ 
+diff --git a/node_modules/deepmerge/index.js b/node_modules/deepmerge/index.js
+index 77968ae..d19786b 100644
+--- a/node_modules/deepmerge/index.js
++++ b/node_modules/deepmerge/index.js
+@@ -55,11 +55,16 @@ function mergeObject(target, source, options) {
+ 	var destination = {}
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			// Assigning an own "__proto__" key (JSON.parse makes one) would set the
++			// result's prototype instead of copying a property: prototype poisoning.
++			if (key === '__proto__') {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options)
+ 		})
+ 	}
+ 	getKeys(source).forEach(function(key) {
+-		if (propertyIsUnsafe(target, key)) {
++		if (key === '__proto__' || propertyIsUnsafe(target, key)) {
+ 			return
+ 		}
+ 
