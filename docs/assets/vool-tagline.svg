@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="56" viewBox="0 0 720 56" role="img" aria-label="Remembers more. Spends less. Runs on your machine.">
+  <title>Remembers more. Spends less. Runs on your machine.</title>
+  <style>
+    text { font: 600 26px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: #586e75; text-anchor: middle; dominant-baseline: middle; opacity: 0; }
+    .caret { fill: #b58900; }
+    @media (prefers-color-scheme: dark) { text { fill: #eee8d5; } }
+    .l1 { animation: show 9s infinite 0s; }
+    .l2 { animation: show 9s infinite 3s; }
+    .l3 { animation: show 9s infinite 6s; }
+    @keyframes show {
+      0% { opacity: 0; transform: translateY(8px); }
+      5% { opacity: 1; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(0); }
+      35% { opacity: 0; transform: translateY(-8px); }
+      100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .l1, .l2 { animation: none; opacity: 0; }
+      .l3 { animation: none; opacity: 1; }
+    }
+  </style>
+  <text class="l1" x="360" y="28">remembers more<tspan class="caret">_</tspan></text>
+  <text class="l2" x="360" y="28">spends less<tspan class="caret">_</tspan></text>
+  <text class="l3" x="360" y="28">runs on your machine<tspan class="caret">_</tspan></text>
+</svg>
