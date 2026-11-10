@@ -319,6 +319,21 @@ def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_ori
             return status, result_headers, raw
 
 
+def _driver_process(manager: Any) -> Any:
+    """The driver subprocess handle of an ``async_playwright()`` manager, or None.
+
+    Playwright keeps it on private attributes, and 1.65 moved it: the pipe
+    transport used to hang off the manager's Connection and now hangs off its
+    PlaywrightClient. Both known layouts are read. Anything else returns None and
+    the caller fails closed instead of running a driver it cannot clean up.
+    """
+    for owner in (getattr(manager, "_client", None), getattr(manager, "_connection", None)):
+        proc = getattr(getattr(owner, "_transport", None), "_proc", None)
+        if proc is not None and isinstance(getattr(proc, "pid", None), int):
+            return proc
+    return None
+
+
 class LiveSession:
     def __init__(self, chat: str, *, fixture_origin: str = "", lease_seconds: float = 120) -> None:
         from core.private_chat import is_private
@@ -493,7 +508,13 @@ class LiveSession:
         if self.closed:
             raise BrowserFault("stopped")
         # The driver's actual subprocess handle, never a process-name search.
-        proc = self._driver._impl_obj._connection._transport._proc
+        proc = _driver_process(self._driver_manager)
+        if proc is None:
+            # An unknown Playwright layout: no owned handle means no exact cleanup,
+            # so the engine is stopped and the page is refused, never run untracked.
+            with contextlib.suppress(Exception):
+                await self._driver.stop()
+            raise BrowserFault("engine_missing")
         self._driver_pid = proc.pid
         self._record_process(proc.pid)
         flags = [a for a in isolation_launch_flags(profile_dir=str(self.profile)) if not a.startswith("--user-data-dir=")]
@@ -1060,9 +1081,7 @@ class LiveSession:
 
         # A cancelled launch may not yet have returned its browser handle. The
         # exact transport subprocess still owns that launch and its descendants.
-        manager = self._driver_manager
-        transport = getattr(getattr(manager, "_connection", None), "_transport", None)
-        proc = getattr(transport, "_proc", None)
+        proc = _driver_process(self._driver_manager)
         if proc is None:
             return
         self._driver_pid = proc.pid
