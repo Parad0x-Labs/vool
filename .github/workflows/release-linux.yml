@@ -37,7 +37,7 @@ jobs:
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Installer and packaging regression
         run: |
-          uv run --no-project --with pytest==9.1.1 --with pyyaml python -m pytest --noconftest -q tests/test_linux_bundle_packaging.py
+          uv run --no-project --with pytest==9.2.0 --with pyyaml python -m pytest --noconftest -q tests/test_linux_bundle_packaging.py
       - name: Build self-contained Linux x86_64 tarball
         run: bash installer/bundle/build_linux_bundle.sh --out "$RUNNER_TEMP/linux-release"
       - name: In-app update payload for installed packages (the same package, zipped for the signed feed)
