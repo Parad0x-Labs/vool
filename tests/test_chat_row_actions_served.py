@@ -6,8 +6,10 @@ Now:
 - pin, rename, archive and delete are on the row; the pin is ONE toggle whose state is the chat's
   (aria-pressed, title) and it is the only pin on the row -- no colour emoji mark beside it;
 - a pinned chat keeps that pin showing when the row is idle; nothing else shows then;
-- emoji/colour and move-to-project open from one chevron, stay open across the sidebar's own
-  re-renders, and close again from the same chevron;
+- emoji/colour and move-to-project open from one chevron, IN PLACE of the four usual actions (so
+  the title keeps its width), stay open across the sidebar's own re-renders, and close again from
+  the same chevron;
+- the Pinned section header uses the line pin icon, not a colour emoji;
 - a refused or unreachable pin change says so and leaves the server state as it was;
 - an archived chat has no pin and no move; its chevron holds only emoji/colour.
 """
@@ -69,10 +71,14 @@ def test_chat_row_has_one_pin_toggle_and_a_chevron_for_the_rest(tmp_path):
                 # The chevron slides out emoji/colour and move; a sidebar re-render keeps it open.
                 chevron = row.locator(".s-more-toggle")
                 assert chevron.get_attribute("aria-expanded") == "false"
+                title_w = "s => document.querySelector(s + ' .s-title').getBoundingClientRect().width"
+                closed_w = page.evaluate(title_w, sel)
                 chevron.click()
+                assert page.evaluate(title_w, sel) >= closed_w   # opening never squeezes the title
                 assert chevron.get_attribute("aria-expanded") == "true"
                 shown = page.evaluate(VISIBLE_ACTIONS, sel)
-                assert shown[:3] == ["Set chat emoji or colour", "Move to project", "Fewer actions"], shown
+                # Open, the chevron swaps the four usual actions for these two, so the title keeps its room.
+                assert shown == ["Set chat emoji or colour", "Move to project", "Fewer actions"], shown
                 page.evaluate("loadSessions()")
                 page.wait_for_function("s => document.querySelector(s + '.more-open')", arg=sel, timeout=5000)
                 row = page.locator(sel).first
@@ -93,7 +99,11 @@ def test_chat_row_has_one_pin_toggle_and_a_chevron_for_the_rest(tmp_path):
                     assert pin.get_attribute("title") == "Unpin chat"
                     assert pin.get_attribute("aria-pressed") == "true"
                     assert pin.get_attribute("data-ico") == "pin-filled"
-                    text = r.inner_text()
+                head = page.locator("#sessions .pin-head .proj-name")
+                assert head.get_attribute("data-ico") == "pin" and "\U0001F4CC" not in head.inner_text()
+                assert page.evaluate("getComputedStyle(document.querySelector('#sessions .pin-head .proj-name'), '::before').content") == '""'
+                for i in range(pinned_rows.count()):
+                    text = pinned_rows.nth(i).inner_text()
                     assert "\U0001F4CC" not in text and "\U0001F4CD" not in text, text
                 # Idle pinned row: only its pin shows (the "pinned" mark is the toggle itself).
                 page.locator("#input").hover()
@@ -136,8 +146,7 @@ def test_chat_row_has_one_pin_toggle_and_a_chevron_for_the_rest(tmp_path):
                 arch.hover()
                 arch.locator(".s-more-toggle").click()
                 shown = page.evaluate(VISIBLE_ACTIONS, sel)
-                assert shown == ["Set chat emoji or colour", "Fewer actions", "Rename", "Unarchive",
-                                 "Delete chat (removes it and its memory)"], shown
+                assert shown == ["Set chat emoji or colour", "Fewer actions"], shown
                 assert not errors, errors
             finally:
                 browser.close()
