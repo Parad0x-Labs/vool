@@ -299,7 +299,6 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
-#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
 #sessions .session:hover .s-actions, #sessions .session:focus-within .s-actions { display:flex; }
@@ -311,6 +310,7 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
   #sessions .session.active .s-actions, .proj-head.active .proj-actions { display:flex !important; }
   #sessions .session.pinned:not(.active) .s-actions { display:flex !important; }
   #sessions .session.pinned:not(.active) .s-actions > :not(.s-pin) { display:none; }
+  #sessions .session.more-open.active .s-actions > .s-act:not(.s-more-toggle) { display:none; }
 }
 #sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
@@ -319,6 +319,8 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
    both the "pinned" mark and the unpin button. */
 #sessions .s-more { display:none; gap:2px; }
 #sessions .session.more-open .s-more { display:inline-flex; }
+/* Open, the chevron swaps the row's actions instead of adding to them, so the title keeps its room. */
+#sessions .session.more-open:is(:hover, :focus-within) .s-actions > .s-act:not(.s-more-toggle) { display:none; }
 #sessions .s-more-toggle::before { transition:transform .15s ease; }
 #sessions .session.more-open .s-more-toggle::before { transform:scaleX(-1); }
 #sessions .s-act.s-pin.on { color:var(--accent); }
@@ -3523,7 +3525,7 @@ function makeSessionItem(s, archived, nested) {
   const actions = document.createElement('div');
   actions.className = 's-actions';
   // Always on the row: pin (one toggle), rename, archive, delete. The rarer two, emoji/colour and
-  // move-to-project, sit behind one chevron that slides them out to its left.
+  // move-to-project, sit behind one chevron; open, it shows those two in place of the usual four.
   const more = document.createElement('span');
   more.className = 's-more';
   const semo = document.createElement('button');
@@ -4116,7 +4118,7 @@ function renderSessions(sessions) {
     const pinCollapsed = !!collapsed[PIN_KEY];
     const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
     const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
-    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const n = document.createElement('span'); n.className = 'proj-name vi'; n.dataset.ico = 'pin'; n.textContent = pageT('pin.pinned', 'Pinned');
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
     ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
     ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
