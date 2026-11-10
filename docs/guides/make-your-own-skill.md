@@ -35,6 +35,8 @@ it a name straight away: *make me a skill called aisle-sorter that ...*.
 
 ## 2. Give it a name, if VOOL asks
 
+(VOOL asking for a name is planned for VOOL 0.7.8, not released yet.)
+
 When an AI model is connected, VOOL writes the skill for you, picks a name and shows you the
 draft. When no model answers, VOOL writes the skill from your own words and asks:
 
@@ -96,7 +98,7 @@ Ask:
 > which skills do I have?
 
 VOOL lists them in groups: **Made by you**, **Built in**, **Added from Browse** and **Drafts
-not turned on yet**. Each line says whether a skill is **on**, **off** or **not available
+not turned on yet** (the groups are planned for VOOL 0.7.8, not released yet). Each line says whether a skill is **on**, **off** or **not available
 here**, and what it is for. A skill made for one chat or project says so, for example
 "Shopping list by aisle, for this chat".
 
@@ -149,6 +151,11 @@ VOOL stops using it from your next message and it leaves *which skills do I have
 kept. There is no "turn it back on" by name: to use it again, import its zip file (step 8) or
 make it again. This works for skills you made or imported, not
 for the skills that come with VOOL.
+
+**Only want a break from a skill?** Open **Skills & Plugins**, then **My add-ons**, then
+**Skills**, and press **Disable** on its card. Nothing is removed, and **Enable** turns it back
+on. This is also how you turn off a skill that comes with VOOL. (These buttons are planned for
+VOOL 0.7.8, not released yet.)
 
 ## How VOOL decides to use your skill
 
