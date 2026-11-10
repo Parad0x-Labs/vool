@@ -86,7 +86,7 @@ def starter_finding(path: str) -> dict:
 #: Frontmatter keys VOOL reads (core.plugin_skills.parse_skill_content), plus `license` and
 #: `metadata`, which the publishing tools read. Any other key is ignored by VOOL.
 KNOWN_FRONTMATTER_KEYS = frozenset({
-    "name", "description", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
+    "name", "description", "summary", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
     "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
     "cumulative-test-law", "cumulative_test_law", "license", "metadata",
 })

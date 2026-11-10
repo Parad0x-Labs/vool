@@ -7910,7 +7910,24 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
     except Exception:
         plugin_serving = None
 
+    try:
+        from core.plugin_catalog import native_skill_summaries, skill_summary
+
+        summaries = native_skill_summaries()
+    except Exception:
+        summaries, skill_summary = {}, None
+
     def _plain_use(row: dict[str, Any]) -> str:
+        # A skill's own `summary:` line is written for people; the description is written for
+        # skill picking and often reads as instructions ("Answer presentation doctrine: ...").
+        summary = summaries.get(str(row.get("name") or ""), "")
+        if not summary and skill_summary is not None and row.get("path"):
+            try:
+                summary = skill_summary(str(row.get("path")))
+            except Exception:
+                summary = ""
+        if summary:
+            return re.sub(r"\s+", " ", summary.replace("`", "")).strip().rstrip(".")
         # One line of plain words; the reply itself must never become a path listing.
         first_line = next(
             (line.strip() for line in str(row.get("description") or "").splitlines() if line.strip()),
@@ -8030,16 +8047,15 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             if on_count == count
             else f"You have {count} built-in skills, {on_count} of them on."
         )
-        body = (
-            f"{head}\n\n"
-            f"{sections[1][0]}\n\n"
-            "To make your own, ask me: make me a skill that ..."
-        )
+        body = f"{head}\n\n{sections[1][0]}"
     if total:
         body += (
             "\n\nMore ready-made skills are in Skills & Plugins, under Browse. "
-            "To turn one off, open My add-ons there, or ask me."
+            "To turn one on or off, open My add-ons there, then Skills. "
+            "To make your own, ask me: make me a skill that ..."
         )
+    else:
+        body += " To make your own, ask me: make me a skill that ..."
     return _skill_result("skill.list", result, response=body or "No skills found.")
 
 
@@ -8225,7 +8241,10 @@ def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: di
         if str(result.get("status") or "") != "ok":
             built_in = _native_built_in_display(name)
             if built_in:
-                outcome.response_text = f"{built_in} comes with VOOL and cannot be turned off here."
+                outcome.response_text = (
+                    f"{built_in} comes with VOOL, so I can't remove it. You can turn it off in "
+                    "Skills & Plugins, under My add-ons, Skills."
+                )
         return outcome
     from core import skill_package
 

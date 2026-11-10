@@ -1,6 +1,7 @@
 ---
 name: vool-lens-architecture
 description: "Automatic architecture expert lens: when a turn designs, integrates, or trades off structure, apply the architecture lens — boundaries, coupling, blast radius, failure modes — bounded to five checks, grounded in the material already present. Use automatically on design-shaped turns; never a substitute for real repo inspection."
+summary: "When you plan how something fits together, VOOL points out the weak spots and what could break."
 version: 1.0.0
 license: MIT
 author: sls_0x

@@ -1,6 +1,7 @@
 ---
 name: vool-lens-market
 description: "Automatic market expert lens: when a turn reasons about positioning, customers, pricing, or competition, apply the market lens — who actually pays, what alternative they already use, and what would make them switch — bounded to five checks on the material already present. Use automatically on market-shaped turns; never a substitute for real market data."
+summary: "When you talk about customers, prices or rivals, VOOL asks who would really pay and why they would switch."
 version: 1.0.0
 license: MIT
 author: sls_0x

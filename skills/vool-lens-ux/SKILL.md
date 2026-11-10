@@ -1,6 +1,7 @@
 ---
 name: vool-lens-ux
 description: "Automatic UX expert lens: when a turn designs or judges a user-facing flow, copy, or interface, apply the UX lens — the user's actual goal, the first-confusing step, error and empty states, and the cheapest friction to remove — bounded to five checks on the material already present. Use automatically on UX-shaped turns; never a substitute for real user evidence."
+summary: "When you design something people use, VOOL looks for the first confusing step and the easiest fix."
 version: 1.0.0
 license: MIT
 author: sls_0x

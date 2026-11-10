@@ -1,6 +1,7 @@
 ---
 name: vool-lens-security
 description: "Automatic security expert lens: when a turn designs, reviews, or changes anything attackable, apply the security lens — name the trust boundary, the worst plausible attacker, and the fail-closed answer — bounded to five checks, evidence-first. Use automatically on security-relevant turns; never a substitute for a real audit."
+summary: "When something could be attacked or misused, VOOL names the risk and the safer choice."
 version: 1.0.0
 license: MIT
 author: sls_0x

@@ -1,6 +1,7 @@
 ---
 name: vool-lens-evidence
 description: "Automatic evidence expert lens: when a turn asserts, summarizes, or concludes, apply the evidence lens — what claim carries what support, what is receipt-backed versus asserted, and what would change the answer — bounded to five checks on the material already present. Use automatically on research and conclusion-shaped turns; never a substitute for the evidence contracts that own the turn."
+summary: "When an answer draws a conclusion, VOOL checks what backs it up and what is only a guess."
 version: 1.0.0
 license: MIT
 author: sls_0x
