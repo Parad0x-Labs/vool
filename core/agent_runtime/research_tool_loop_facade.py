@@ -1334,6 +1334,9 @@ class ResearchToolLoopFacadeMixin:
         # stored with a paused request's checkpoint must never reopen that request's scope here.
         from core.tool_offer_state import TURN_SCOPE_KEY
 
+        # This request's own words, server-owned, for gates that must tell what the PERSON wrote
+        # from what the model proposed (core.email_argument_guard grounds recipients on it).
+        loop_source_context["_turn_user_text"] = str(effective_input or "")
         current_scope = str((source_context or {}).get(TURN_SCOPE_KEY) or "")
         if current_scope:
             loop_source_context[TURN_SCOPE_KEY] = current_scope

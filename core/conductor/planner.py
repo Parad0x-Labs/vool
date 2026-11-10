@@ -2617,6 +2617,17 @@ def plan_conductor_turn(
     # inside "between the day I X and the day I Y" is what admitted it above.
     if recall_question_needs_no_planner(original):
         return None
+    # A request about the user's OWN mailbox is the email tool lane's: the conductor has no mailbox
+    # operation, so every clause it plans from such a turn lands on one that cannot read mail, and
+    # the private-content ceiling the email tools stamp never applies. Measured 2026-11-10 on 0.7.8
+    # c684e66d through the chat page with a connected account: "Do I have any unread emails? List
+    # every one with sender and subject." was split into machine_observation ("found nothing to act
+    # on") + factual_explanation, answered "There is no information available about your emails",
+    # and email.read was never seated. Decided by the one recognizer that owns the question.
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    if mailbox_retrieval_intents(original):
+        return None
 
     try:
         raw = ask_model(conductor_system_prompt(), original)

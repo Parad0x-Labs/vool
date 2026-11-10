@@ -3204,7 +3204,10 @@ def _approval_effect_summary(actions: tuple[PermissionAction, ...]) -> str:
 
 def _affected_resources(arguments: dict[str, Any]) -> list[str]:
     resources: list[str] = []
-    for key in ("path", "paths", "cwd", "resource", "url", "recipient", "channel", "target"):
+    # "to"/"cc"/"bcc": an email send or reply names WHO receives it. Measured 2026-11-10 on 0.7.8:
+    # the Manual-mode card for email.send said "Affects: No specific path reported" while the
+    # model had addressed it to an invented address -- the one fact the person needed was absent.
+    for key in ("path", "paths", "cwd", "resource", "url", "recipient", "to", "cc", "bcc", "sender", "channel", "target"):
         value = arguments.get(key)
         if isinstance(value, list):
             resources.extend(str(item) for item in value[:12] if str(item).strip())
@@ -3245,7 +3248,46 @@ def _affected_resources_display(
     return displayed
 
 
+def _email_preview(intent: str, arguments: dict[str, Any]) -> str:
+    """What an email send/reply will put on the wire, shown on its approval card before it runs."""
+
+    def _joined(value: Any) -> str:
+        if isinstance(value, (list, tuple)):
+            return ", ".join(str(item) for item in value if str(item or "").strip())
+        return str(value or "").strip()
+
+    lines = [f"To: {_joined(arguments.get('to')) or '(no recipient)'}"]
+    for key, label in (("cc", "Cc"), ("bcc", "Bcc")):
+        if _joined(arguments.get(key)):
+            lines.append(f"{label}: {_joined(arguments.get(key))}")
+    lines.append(f"From account: {str(arguments.get('account') or '').strip() or 'default'}")
+    lines.append(f"Subject: {str(arguments.get('subject') or '').strip()}")
+    body = str(arguments.get("body") or "").strip()
+    if len(body) > 1500:
+        body = body[:1500] + f" ...[{len(body) - 1500} more characters]"
+    return "\n".join(lines) + "\n\n" + body
+
+
+def _email_read_preview(arguments: dict[str, Any]) -> str:
+    """Which mail a read will open, so the person can deny a read aimed at the wrong sender."""
+    bits = [f"Folder: {str(arguments.get('folder') or 'INBOX').strip()}"]
+    for key, label in (("sender", "From"), ("from", "From"), ("subject", "Subject"), ("since", "Since"),
+                       ("before", "Before"), ("message_id", "Message")):
+        value = str(arguments.get(key) or "").strip()
+        if value:
+            bits.append(f"{label}: {value}")
+    if arguments.get("unseen_only"):
+        bits.append("Unread only")
+    if str(arguments.get("account") or "").strip():
+        bits.append(f"Account: {str(arguments.get('account')).strip()}")
+    return "\n".join(bits)
+
+
 def _edit_preview(intent: str, arguments: dict[str, Any], source_context: dict[str, Any]) -> str:
+    if intent in {"email.send", "email.reply"}:
+        return _email_preview(intent, arguments)
+    if intent in {"email.read", "email.open"}:
+        return _email_read_preview(arguments)
     if intent not in {"workspace.write_file", "workspace.replace_in_file", "machine.write_file"}:
         return ""
     raw_path = str(arguments.get("path") or "").strip()
@@ -3679,7 +3721,11 @@ def _new_approval_request(
         "scope_options": scope_options,
         "one_time": True,
         "edit_batch": edit_batch,
-        "diff_preview": _edit_preview(display_intent, display_arguments, display_context) if edit_batch else "",
+        "diff_preview": (
+            _edit_preview(display_intent, display_arguments, display_context)
+            if edit_batch or display_intent in {"email.send", "email.reply", "email.read", "email.open"}
+            else ""
+        ),
         "expires_at": time.time() + 86400,
         # What the "allow all planned changes" button would actually cover, named file by file, so
         # the operator approves a visible list rather than a count.

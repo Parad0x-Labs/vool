@@ -918,6 +918,11 @@ _FIRST_PERSON_REPORT_RE = re.compile(
 #: Kucoin"). The instruction-authority gates in mailbox_retrieval_intents still decide first.
 _SENDER_FIRST_ANCHOR_RE = re.compile(
     rf"\b[A-Z][\w'-]+\s+{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
+    # A possessive sender with up to two words before the mail noun: "Show me Ana's last email",
+    # "Reply to Ana's dinner email". Measured 2026-11-10 on 0.7.8: neither seated email.read, so the
+    # reply was drafted without ever reading Ana's message (to an invented address). Possessive
+    # only: "Write Ana a nice email" is a compose request and stays out.
+    rf"|\b[A-Z][\w-]*['\u2019]s\s+(?:[a-z][\w-]*\s+){{1,2}}?{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
 )
 
 

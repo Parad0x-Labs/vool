@@ -23,6 +23,7 @@ import email.utils
 import imaplib
 import ipaddress
 import json
+import re
 import smtplib
 import socket
 import ssl
@@ -745,6 +746,42 @@ def _provider_search_request(*, folder: str, sender: str, subject: str, since: s
                       before=days.get("before", ""), unseen_only=bool(unseen_only), seen_only=bool(seen_only))
 
 
+
+
+def _sender_matches(wanted: str, from_header: str) -> bool:
+    """Whether a sender filter names this From header, on word boundaries.
+
+    A plain substring test matched inside other words: measured 2026-11-10 on 0.7.8, a read for
+    sender 'Ana' returned Ryanair's check-in mail ("ry-ana-ir") beside Ana's own message."""
+    needle = " ".join(str(wanted or "").casefold().split())
+    if not needle:
+        return True
+    haystack = " ".join(str(from_header or "").casefold().split())
+    return re.search(rf"(?<![\w]){re.escape(needle)}(?![\w])", haystack) is not None
+
+class _FolderNotSelectable(RuntimeError):
+    """The server refused to open the folder (it does not exist or is not visible)."""
+
+
+def _canonical_folder(folder: str) -> str:
+    """RFC 3501 section 5.1: the name INBOX is case-insensitive; every other name is the server's."""
+    name = str(folder or "").strip() or "INBOX"
+    return "INBOX" if name.casefold() == "inbox" else name
+
+
+def _select_readonly(imap: Any, folder: str) -> str:
+    """Open ``folder`` read-only and return the name opened, or raise ``_FolderNotSelectable``.
+
+    The select status used to be ignored: measured 2026-11-10 on 0.7.8 against a standards IMAP
+    server, a model's ``folder='Inbox'`` was refused, the connection stayed unselected, and the
+    person read "Email search failed (error): command SEARCH illegal in state AUTH" instead of
+    their mail."""
+    name = _canonical_folder(folder)
+    status, _data = imap.select(name, readonly=True)
+    if status != "OK":
+        raise _FolderNotSelectable(name)
+    return name
+
 def search_email(
     *,
     account: str = "",
@@ -819,7 +856,7 @@ def search_email(
         limit = max(1, min(100, int(limit or 25)))
         with _imap_connect(creds) as imap:
             imap.login(username, password)
-            imap.select(folder, readonly=True)
+            folder = _select_readonly(imap, folder)
             _typ, data = imap.search(None, *criteria) if criteria else imap.search(None, "ALL")
             ids = data[0].split() if data and data[0] else []
             # No header filter: the server already matched everything; newest N is exact.
@@ -836,15 +873,23 @@ def search_email(
                         continue
                     scanned += 1
                     parsed = email_lib.message_from_bytes(raw)
-                    if sender_l and sender_l not in _decoded_header(parsed, "From").lower():
+                    if sender_l and not _sender_matches(sender_l, _decoded_header(parsed, "From")):
                         continue
                     if subject_l and subject_l not in _decoded_header(parsed, "Subject").lower():
                         continue
                     entry = _summary_from_parsed(parsed)
                     entry["seq"] = mid.decode("latin-1", "replace")
                     messages.append(entry)
+                    if len(messages) >= limit:
+                        break
                 if len(messages) >= limit or scan_bounded:
                     break
+    except _FolderNotSelectable as exc:
+        return EmailReadResult(
+            False, "no_folder",
+            f"The mailbox has no folder named '{exc}' that this account can open. Use INBOX, or a folder "
+            "name exactly as the mail server lists it.",
+        )
     except Exception as exc:  # network / auth / config
         return EmailReadResult(False, "read_failed", f"Email search failed ({type(exc).__name__}): {exc}")
     summary = (
@@ -872,7 +917,7 @@ def _fetch_all(creds: dict[str, Any], folder: str, cap: int = 500) -> tuple[list
     reported as bounded incompleteness rather than confident absence."""
     with _imap_connect(creds) as imap:
         imap.login(str(creds.get("username") or ""), str(creds.get("password") or ""))
-        imap.select(folder, readonly=True)
+        _select_readonly(imap, folder)
         _typ, data = imap.search(None, "ALL")
         all_ids = data[0].split() if data and data[0] else []
         ids = all_ids[-cap:]

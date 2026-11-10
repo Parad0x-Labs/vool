@@ -2050,6 +2050,7 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            _stamp_tool_loop_continuation(request, source_context)
             # Which offer this request carries: the same digest the prompt catalog's offer has.
             request.metadata["tool_offer_fingerprint"] = offer.fingerprint
             # A later contextual follow-up in the same session inherits this
@@ -6299,6 +6300,7 @@ class MemoryFirstRouter:
             # the plain_text/auto catalog is a capability offer, not a requirement, and must not
             # trip the final pre-invocation gate just because a conversational turn didn't call one.
             request.tools_required = True
+            _stamp_tool_loop_continuation(request, source_context)
             # A later contextual follow-up in the same session inherits this
             # turn's families instead of receiving zero tools. The recorded set is what the
             # offer ACTUALLY seated (demand-signal and control-plane-session families
@@ -8565,3 +8567,31 @@ def _prioritize_autopilot_selection(ranked_manifests: list[Any], selected_provid
     fence_refused = [manifest for manifest in ranked_manifests if _fence_would_refuse(manifest)]
     fence_admits = [manifest for manifest in ranked_manifests if not _fence_would_refuse(manifest)]
     return fence_admits + fence_refused
+
+
+#: Request metadata key: this tool-intent round follows a tool that already EXECUTED in this turn.
+TOOL_LOOP_CONTINUATION_KEY = "tool_loop_continuation"
+
+
+def _stamp_tool_loop_continuation(request: Any, source_context: dict[str, Any] | None) -> None:
+    """Mark a tool-intent round whose turn already holds an executed, successful tool observation.
+
+    On such a round the model has the evidence in front of it and may close the loop by answering;
+    the Ollama lane reads this stamp to take a prose reply as that answer (``respond.direct``)
+    instead of refusing it as a missing call. Measured 2026-11-10 on 0.7.8 c684e66d: email.read
+    returned the 8 unread messages, qwen3:8b answered them in prose twice (initial + re-ask), both
+    were refused as "required native tool call is missing", the fallbacks timed out or were
+    RAM-gated, and the person saw "8 message(s) matched" with no list after 370 s.
+    """
+    observations = (source_context or {}).get("runtime_tool_observations") or []
+    executed = any(
+        isinstance(item, dict)
+        and bool(item.get("ok"))
+        and str(item.get("mode") or "tool_executed") == "tool_executed"
+        and str(item.get("intent") or "").strip().lower() not in {"", "respond.direct", "none", "no_tool"}
+        for item in observations
+    )
+    if executed:
+        request.metadata[TOOL_LOOP_CONTINUATION_KEY] = True
+    else:
+        request.metadata.pop(TOOL_LOOP_CONTINUATION_KEY, None)

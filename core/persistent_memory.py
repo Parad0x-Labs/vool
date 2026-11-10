@@ -3040,17 +3040,27 @@ def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, An
         os.environ.get("VOOL_MIRROR_URL") or "").strip() else "not_applicable")
 
 
+#: The owner's own words binding a remembered fact to the current chat only.
+_CHAT_BOUND_REMEMBER_RE = re.compile(
+    r"\b(?:for|in|within|to)\s+(?:this|the\s+current)\s+(?:chat|conversation|thread)\b"
+    r"|\b(?:this|the\s+current)\s+(?:chat|conversation|thread)\s+only\b"
+    r"|\bonly\s+(?:here|in\s+here)\b",
+    re.IGNORECASE,
+)
+
+
 def _memory_scope_for_user_fact(
     fact: str,
     *,
     policy: ContextAccessPolicy,
 ) -> str:
-    """Keep ordinary remembered facts in the chat namespace.
+    """Decide where an explicitly remembered, owner-authored fact lives.
 
-    Private local chats may import confirmed profile preferences, but that does
-    not make every user-authored fact a profile preference.  Only explicit
-    preference/identity language is eligible for profile scope; all other
-    captures stay bound to their originating chat.
+    In the owner's trusted private local chats (the ones holding the confirmed
+    profile grant) an authored fact is the owner's own memory and is stored at
+    profile scope, readable from their other chats; the owner keeps one to the
+    current chat by saying so ("for this chat").  Chats without the grant
+    (groups, channels, remote callers) keep every capture in their own chat.
 
     Eligibility is decided on the fact's AUTHORED portion only: an explicitly
     remembered quotation ("Remember this article excerpt: \"My name is Petra.
@@ -3068,7 +3078,19 @@ def _memory_scope_for_user_fact(
         # The entire fact is quoted/fenced source material.
         return "chat"
     lowered = " ".join(authored.casefold().split())
-    return "user_profile" if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS) else "chat"
+    if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS):
+        return "user_profile"
+    # An explicit "remember X" the owner authors in their own trusted local chat is THEIR memory,
+    # and the product promise is that memory carries across sessions (docs/concepts/memory.md:
+    # "one store per VOOL home"). Measured 2026-11-10 on 0.7.8 c684e66d through the chat page:
+    # "Please remember that my dentist appointment is on 3 December at 9:30" answered "Locked in",
+    # and a new chat asked "When is my dentist appointment?" got "That is not mentioned in the
+    # records I have" -- the row was stored scope=chat, which no other chat may read. The owner
+    # can still keep a fact to one chat by saying so; group/channel chats never reach this line
+    # (they hold no profile grant), and quoted source material is classified out above.
+    if _CHAT_BOUND_REMEMBER_RE.search(lowered):
+        return "chat"
+    return "user_profile"
 
 
 #: Trailing connective framing that introduces quoted/pasted source material

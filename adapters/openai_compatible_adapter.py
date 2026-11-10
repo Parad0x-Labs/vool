@@ -811,6 +811,12 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # would cut a block it cannot see the end of.
             output_text = strip_reasoning_block(_extract_ollama_chat_text(data))
         if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
+            # A continuation round (a tool already executed this turn) answered in prose: that is
+            # the model closing the loop, taken as respond.direct without a re-ask round.
+            native_tool_calls = _prose_closes_tool_loop(request, output_text, native_tools)
+            if native_tool_calls:
+                output_text = canonical_intent_text(native_tool_calls[0])
+        if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
             # SWITCHBOARD repair: `_extract_ollama_tool_calls` deliberately never raises on an
             # absent/empty `tool_calls` array (see its own docstring) -- a local turn that carries
             # no tools is an ordinary conversational one, and elsewhere that silence is correct.
@@ -2716,6 +2722,35 @@ def _extract_ollama_tool_call_text(
         {"intent": calls[0].intent, "arguments": dict(calls[0].arguments)}, ensure_ascii=False
     )
 
+
+
+def _prose_closes_tool_loop(
+    request: ModelRequest,
+    output_text: str,
+    definitions: tuple[CloudToolDefinition, ...],
+) -> tuple[CloudToolCall, ...]:
+    """A prose reply on a tool-loop CONTINUATION round is the model's answer: ``respond.direct``.
+
+    Only when the router stamped the round as a continuation (a tool already executed this turn,
+    ``core.memory_first_router.TOOL_LOOP_CONTINUATION_KEY``), the reply carries text after the
+    reasoning block is stripped, and ``respond.direct`` is among the offered tools. The answer then
+    travels the loop's ordinary close path (grounding and finalization apply to it as to any
+    respond.direct). A first round is never converted: there the demanded work has not run yet.
+    """
+    if not bool((getattr(request, "metadata", None) or {}).get("tool_loop_continuation")):
+        return ()
+    text = str(output_text or "").strip()
+    if not text:
+        return ()
+    respond = next((item for item in definitions if str(item.intent) == "respond.direct"), None)
+    if respond is None:
+        return ()
+    calls = _extract_ollama_tool_calls(
+        {"message": {"tool_calls": [{"function": {"name": str(respond.name), "arguments": {"message": text}}}]}},
+        definitions=definitions,
+    )
+    request.metadata["tool_call_resolution"] = {"state": "prose_closed_loop", "intent": "respond.direct"}
+    return calls
 
 def _ollama_tool_calls_with_recovery(
     payload: dict[str, Any],

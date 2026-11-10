@@ -2107,16 +2107,39 @@ def forget_structured_memory(
     summary_error: Exception | None = None
     with _MEMORY_ENTRY_LOCK:
         rows = _load_erasure_rows(memory_entries_path())
-        target_ids = [
-            str(row.get("record_id") or "").strip()
-            for row in rows
-            if str(row.get("record_id") or "").strip()
-            and (
-                carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean_token)
-                or (subject_key and str(row.get("fact_key") or "").strip().lower() == subject_key)
-            )
-            and _memory_erasure_row_owned(row, policy)
-        ]
+
+        def _selected(needle: str) -> list[str]:
+            return [
+                str(row.get("record_id") or "").strip()
+                for row in rows
+                if str(row.get("record_id") or "").strip()
+                and (
+                    carries(row_payload(row, structural_fields=ROW_IDENTITIES), needle)
+                    or (subject_key and str(row.get("fact_key") or "").strip().lower() == subject_key)
+                )
+                and _memory_erasure_row_owned(row, policy)
+            ]
+
+        target_ids = _selected(clean_token)
+        # A subject said with its article ("Forget what I told you about the MOT") selects no row
+        # by its literal words; inside one chat that is answered by the subject WITHDRAWAL, which
+        # hides the subject from every reader of THIS chat. A profile-scope row is read from every
+        # chat of the owner, so a withdrawal in one chat cannot cover it: measured 2026-11-10 on
+        # 0.7.8 through the chat page, "Forget what I told you about the MOT" in a second chat
+        # answered "Nothing was removed" and a third chat still recalled "my car's MOT inspection
+        # is due on 22 January". Such rows are ERASED by the bare subject (article dropped, never a
+        # possessive); chat-scope rows keep the withdrawal contract unchanged.
+        bare_token = re.sub(r"^(?:the|a|an)\s+", "", clean_token, count=1).strip()
+        if not target_ids and bare_token != clean_token and len(bare_token) >= 3:
+            profile_ids = {
+                str(row.get("record_id") or "").strip()
+                for row in rows
+                if str(row.get("scope") or "").strip().lower() == "user_profile"
+            }
+            bare_ids = [record_id for record_id in _selected(bare_token) if record_id in profile_ids]
+            if bare_ids:
+                target_ids = bare_ids
+                clean_token = bare_token
         erased_texts = _erase_rows_locked(target_ids)
         if erased_texts:
             retained = _load_erasure_rows(memory_entries_path())

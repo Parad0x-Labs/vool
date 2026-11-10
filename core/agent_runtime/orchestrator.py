@@ -198,6 +198,42 @@ def _step_succeeded(step: dict[str, Any]) -> bool:
     return str(step.get("status") or "").lower() in {"executed", "ok", "success"}
 
 
+
+def _mailbox_observation_message(executed_steps: list[dict[str, Any]]) -> str:
+    """The mail a successful read returned, rendered from its own observation, when no model wrote it.
+
+    Measured 2026-11-10 on 0.7.8 c684e66d: email.read returned the 8 unread messages, every model
+    round after it failed, and the person got "1 of 2 tool steps succeeded. Last result: 8
+    message(s) matched in INBOX" -- the count of their mail, not the mail. The headers are the
+    tool's own evidence (never model text), so listing them is grounded and stays on this machine.
+    """
+    for step in reversed(executed_steps):
+        if str(step.get("tool_name") or "") not in {"email.read", "email.open"} or not _step_succeeded(step):
+            continue
+        observation = step.get("observation")
+        if not isinstance(observation, dict):
+            continue
+        messages = [item for item in list(observation.get("messages") or []) if isinstance(item, dict)]
+        count = observation.get("count")
+        if not messages:
+            if count == 0:
+                return "The mailbox search matched no messages."
+            continue
+        lines = [f"Here is what the mailbox returned ({len(messages)} message(s)):"]
+        for item in messages:
+            sender = str(item.get("from") or "(unknown sender)").strip()
+            subject = str(item.get("subject") or "(no subject)").strip()
+            date = str(item.get("date") or "").strip()
+            lines.append(f"- {sender} — {subject}" + (f" ({date})" if date else ""))
+            body = str(item.get("body") or item.get("snippet") or "").strip()
+            if body:
+                lines.append(f"  {body[:400]}")
+        omitted = observation.get("messages_omitted")
+        if omitted:
+            lines.append(f"({omitted} more message(s) matched and are not shown.)")
+        return "\n".join(lines)
+    return ""
+
 def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]) -> str:
     structured = getattr(synthesis, "structured_output", None)
     if isinstance(structured, dict):
@@ -222,6 +258,9 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
         observation_message = _git_summary_observation_message(last_step)
         if observation_message:
             return observation_message
+        mailbox_message = _mailbox_observation_message(executed_steps)
+        if mailbox_message:
+            return mailbox_message
         completed = sum(_step_succeeded(step) for step in executed_steps)
         return (
             f"{completed} of {len(executed_steps)} tool steps succeeded. "

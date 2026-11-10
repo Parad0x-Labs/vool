@@ -236,6 +236,15 @@ def single_plain_know_question(
 
     if runtime_lane_question(message):
         return False
+    # A question about the person's OWN mail names a sender, not an entity to adjudicate: the
+    # mailbox holds the answer. Measured 2026-11-10 on 0.7.8 c684e66d with a connected account:
+    # "What did KuCoin email me about?" was answered "Are you referring to the cryptocurrency
+    # exchange KuCoin or a person named KuCoin?" and email.read never ran. Same recognizer that
+    # seats the read.
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    if mailbox_retrieval_intents(message):
+        return False
     try:
         from core.agent_runtime.answer_coverage import demand_units
 

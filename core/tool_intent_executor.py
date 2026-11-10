@@ -1137,6 +1137,42 @@ def _execute_tool_intent_impl(
             },
         )
 
+    # Email arguments are checked HERE, ahead of every approval card: a placeholder account the
+    # person never configured is dropped (the default account serves, and the card shows it), and a
+    # recipient address nothing in the chat grounds is refused before anything is drafted or sent.
+    # See core.email_argument_guard for the measured defect.
+    if intent.startswith("email."):
+        from core.email_argument_guard import guard_email_arguments
+
+        email_verdict = guard_email_arguments(
+            intent,
+            arguments,
+            source_context=source_context,
+            user_text=str((source_context or {}).get("_turn_user_text") or ""),
+        )
+        if email_verdict.refused:
+            return ToolIntentExecution(
+                handled=True,
+                ok=False,
+                status=email_verdict.status,
+                response_text=email_verdict.message,
+                user_safe_response_text=email_verdict.message,
+                mode="tool_failed",
+                tool_name=intent,
+                details={
+                    "controller_enforced": True,
+                    "executed": False,
+                    "observation": _tool_observation(
+                        intent=intent,
+                        tool_surface="email",
+                        ok=False,
+                        status=email_verdict.status,
+                        response_preview=email_verdict.message,
+                    ),
+                },
+            )
+        arguments = dict(email_verdict.arguments)
+
     # "Do not run tests" is not "do not act". It withdraws execution and leaves the writes the same
     # sentence asked for standing, so it is enforced HERE -- one gate, after the turn policy and
     # before dispatch -- rather than by each lane deciding for itself what the words meant. The

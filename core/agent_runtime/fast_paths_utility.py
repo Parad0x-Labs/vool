@@ -2035,7 +2035,16 @@ def _time_word_is_the_clock(cleaned: str, *, has_timezone: bool = False) -> bool
 
 _ASKS_DATE_RE = re.compile(
     r"(?:"
-    r"what(?:'?s| is| was)?\s+(?:the\s+)?date(?!\s+(?:of|for|on)\b)"
+    # "what date" asks the CLOCK only when nothing after it names another subject: the sentence
+    # ends, or the date is pinned to the present ("today", "now", "is it"), to a place ("in
+    # Tokyo") or joined to the time ("and time"). Any other continuation makes the date the
+    # attribute of an event the conversation owns. Measured 2026-11-10 on 0.7.8 c684e66d: after
+    # "I fly from Vilnius to Lisbon on 14 March and stay 5 nights", the follow-up "What date do I
+    # fly back?" was claimed here and answered "Today is Tuesday, 2026-11-10." in 0.6s; the
+    # earlier negative list (of/for/on) could never enumerate "do I fly", "is my flight", ...
+    r"what(?:'?s| is| was)?\s+(?:the\s+)?date"
+    r"(?=\s*(?:[?.!,;:]|$)"
+    r"|\s+(?:today|now|right\s+now|currently|exactly|please|here|is\s+(?:it|today|this)\b|in\s|and\s+time\b))"
     r"|(?:what|wat)\s+date\s+is\s+(?:it|today|this)\b"
     r"|today'?s?\s+date\b"
     r"|\bdate\s+today\b"
