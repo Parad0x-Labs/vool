@@ -258,3 +258,26 @@ def test_a_sender_filter_matches_whole_words():
     assert _sender_matches("ana", "Ana Petraite <ana@vooltest.example>")
     assert not _sender_matches("ana", "Ryanair <noreply@ryanair.example>")
     assert _sender_matches("kucoin", "KuCoin <no-reply@kucoin.example>")
+
+
+def test_a_question_about_the_speakers_own_facts_is_not_an_entity_to_disambiguate():
+    from core.entity_ambiguity import single_plain_know_question
+
+    assert not single_plain_know_question("Which bakery is my favourite?")
+
+
+def test_an_exact_value_recall_keeps_the_owners_profile_memory_from_another_chat():
+    from core.tiered_context_loader import ContextItem, _current_session_scoped_items
+
+    def item(scope: str, chat: str) -> ContextItem:
+        return ContextItem(
+            item_id=f"m-{scope}-{chat}", layer="relevant", source_type="runtime_memory", title="t",
+            content="my bike lock code word is HERON-7.", priority=0.5, confidence=0.9,
+            include_reason="relevant_persistent_memory", metadata={"scope": scope, "origin_chat_id": chat},
+        )
+
+    kept = _current_session_scoped_items(
+        [item("user_profile", "chat-a"), item("chat", "chat-a"), item("chat", "chat-b")], session_id="chat-b",
+    )
+    assert [(i.metadata["scope"], i.metadata["origin_chat_id"]) for i in kept] == [
+        ("user_profile", "chat-a"), ("chat", "chat-b")]

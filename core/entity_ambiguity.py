@@ -245,6 +245,15 @@ def single_plain_know_question(
 
     if mailbox_retrieval_intents(message):
         return False
+    # A question about the speaker's OWN facts is answered from their memory, never adjudicated
+    # against the world: measured 2026-11-10 on 0.7.8 (patched build, real chat surface), after
+    # "Remember that my favourite bakery is Kepykla Holy", a new chat asked "Which bakery is my
+    # favourite?" and was answered "Did you mean: Bakery A, Bakery B, Bakery C?" -- invented
+    # referents, memory never read. Same detector both planners consult for recall questions.
+    from core.agent_runtime.turn_planner import recall_question_needs_no_planner
+
+    if recall_question_needs_no_planner(message):
+        return False
     try:
         from core.agent_runtime.answer_coverage import demand_units
 

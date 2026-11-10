@@ -1100,6 +1100,13 @@ def _current_session_scoped_items(items: list[ContextItem], *, session_id: str) 
         ).strip()
         if item_session and item_session == current:
             scoped.append(item)
+        elif str((item.metadata or {}).get("scope") or "").strip().lower() == "user_profile":
+            # The owner's confirmed profile memory is THEIRS in every one of their chats -- the
+            # access policy already admitted it for this chat. An exact-value recall ("What is my
+            # bike lock code word?") restricted to this chat's own rows dropped it, and the model
+            # invented a value instead: measured 2026-11-10 on the installed 0.7.8 build, a new chat
+            # answered "velvet" for the remembered "HERON-7". Other chats' chat-scope rows stay out.
+            scoped.append(item)
     return scoped
 
 
