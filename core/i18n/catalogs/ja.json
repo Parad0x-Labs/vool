@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "ブラウザー",
     "settings.row.hide_name_on_screen.label": "画面に自分の名前を表示しない",
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
-    "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
+    "settings.row.hide_name_on_screen.effect": "即時に適用されます。",
+    "session.pin_title": "チャットを上部にピン留め",
+    "session.unpin_title": "チャットのピン留めを解除",
+    "session.more_title": "その他: 絵文字、色、プロジェクトへ移動",
+    "session.less_title": "表示を減らす",
+    "session.pin_failed": "このチャットのピン留めを変更できませんでした。少し待ってからもう一度お試しください。",
+    "session.pin_unreachable": "VOOL に接続できなかったため、ピン留めは変更されていません。"
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

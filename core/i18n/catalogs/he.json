@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "דפדפן",
     "settings.row.hide_name_on_screen.label": "הסתרת השם שלי על המסך",
     "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
-    "settings.row.hide_name_on_screen.effect": "חל מיד."
+    "settings.row.hide_name_on_screen.effect": "חל מיד.",
+    "session.pin_title": "הצמדת הצ'אט למעלה",
+    "session.unpin_title": "ביטול הצמדת הצ'אט",
+    "session.more_title": "עוד: אימוג'י, צבע, העברה לפרויקט",
+    "session.less_title": "פחות פעולות",
+    "session.pin_failed": "לא ניתן היה לשנות את הצמדת הצ'אט הזה. נסו שוב בעוד רגע.",
+    "session.pin_unreachable": "לא ניתן היה להגיע ל-VOOL, ולכן ההצמדה לא השתנתה."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

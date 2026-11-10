@@ -2851,7 +2851,13 @@
     "settings.row.live_browser.label": "Browser",
     "settings.row.hide_name_on_screen.label": "Hide my name on screen",
     "settings.row.hide_name_on_screen.help": "Turn this on before you stream or share your screen. VOOL then shows your home folder as ~, and your name and your computer's name as •••, here and on your phone. Only what you see changes: your files, chats and everything VOOL does stay the same. Text you are typing is not hidden.",
-    "settings.row.hide_name_on_screen.effect": "Applies immediately."
+    "settings.row.hide_name_on_screen.effect": "Applies immediately.",
+    "session.pin_title": "Pin chat to the top",
+    "session.unpin_title": "Unpin chat",
+    "session.more_title": "More: emoji, colour, move to project",
+    "session.less_title": "Fewer actions",
+    "session.pin_failed": "Couldn't change this chat's pin. Try again in a moment.",
+    "session.pin_unreachable": "VOOL couldn't be reached, so the pin didn't change."
   },
   "html_keys": [
     "bypass.modal_limits",

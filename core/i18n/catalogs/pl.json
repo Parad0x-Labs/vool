@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Przeglądarka",
     "settings.row.hide_name_on_screen.label": "Ukryj moje imię na ekranie",
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
-    "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
+    "settings.row.hide_name_on_screen.effect": "Działa natychmiast.",
+    "session.pin_title": "Przypnij czat na górze",
+    "session.unpin_title": "Odepnij czat",
+    "session.more_title": "Więcej: emoji, kolor, przenieś do projektu",
+    "session.less_title": "Mniej działań",
+    "session.pin_failed": "Nie udało się zmienić przypięcia tego czatu. Spróbuj ponownie za chwilę.",
+    "session.pin_unreachable": "Nie udało się połączyć z VOOL, więc przypięcie się nie zmieniło."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

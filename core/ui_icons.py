@@ -28,6 +28,8 @@ _ICONS: dict[str, str] = {
     ),
     "report": "<path d='M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z'/>",
     "pin": "<path d='M6 2.5h4l-.5 4 2 2h-7l2-2z'/><path d='M8 8.5v5'/>",
+    "pin-filled": "<path d='M6 2.5h4l-.5 4 2 2h-7l2-2z' fill='black'/><path d='M8 8.5v5'/>",
+    "chevron-left": "<path d='M10 3.5 5.5 8l4.5 4.5'/>",
     "bell": "<path d='M4 11V7.5a4 4 0 0 1 8 0V11l1 1.5H3z'/><path d='M6.8 14a1.3 1.3 0 0 0 2.4 0'/>",
     "attach": "<path d='M13 7.5 8.2 12.3a3 3 0 0 1-4.3-4.3l5-5a2 2 0 0 1 2.9 2.9l-5 5a1 1 0 0 1-1.4-1.4L10 4.9'/>",
     "mic": "<rect x='6' y='2' width='4' height='7.5' rx='2'/><path d='M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2V14'/>",

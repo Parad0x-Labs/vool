@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Navigateur",
     "settings.row.hide_name_on_screen.label": "Masquer mon nom à l’écran",
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
-    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
+    "settings.row.hide_name_on_screen.effect": "S'applique immédiatement.",
+    "session.pin_title": "Épingler la discussion en haut",
+    "session.unpin_title": "Détacher la discussion",
+    "session.more_title": "Plus : emoji, couleur, déplacer vers un projet",
+    "session.less_title": "Moins d'actions",
+    "session.pin_failed": "Impossible de modifier l'épinglage de cette discussion. Réessayez dans un instant.",
+    "session.pin_unreachable": "VOOL est injoignable, l'épinglage n'a donc pas changé."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

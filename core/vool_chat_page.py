@@ -300,7 +300,6 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
 #sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
-#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
 #sessions .session:hover .s-actions, #sessions .session:focus-within .s-actions { display:flex; }
@@ -310,9 +309,21 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 @media (hover: none) {   /* touch: a tap never reveals buttons under the finger; only the open chat and its project show theirs */
   #sessions .session .s-actions, .proj-head .proj-actions { display:none !important; }
   #sessions .session.active .s-actions, .proj-head.active .proj-actions { display:flex !important; }
+  #sessions .session.pinned:not(.active) .s-actions { display:flex !important; }
+  #sessions .session.pinned:not(.active) .s-actions > :not(.s-pin) { display:none; }
 }
 #sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
+/* Row actions: pin, rename, archive, delete always; emoji/colour and move-to-project open from the
+   chevron. A pinned chat keeps its (filled) pin showing when the row is idle -- that one icon is
+   both the "pinned" mark and the unpin button. */
+#sessions .s-more { display:none; gap:2px; }
+#sessions .session.more-open .s-more { display:inline-flex; }
+#sessions .s-more-toggle::before { transition:transform .15s ease; }
+#sessions .session.more-open .s-more-toggle::before { transform:scaleX(-1); }
+#sessions .s-act.s-pin.on { color:var(--accent); }
+#sessions .session.pinned .s-actions { display:flex; }
+#sessions .session.pinned:not(:hover):not(:focus-within) .s-actions > :not(.s-pin) { display:none; }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
 #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
@@ -3511,22 +3522,49 @@ function makeSessionItem(s, archived, nested) {
   }
   const actions = document.createElement('div');
   actions.className = 's-actions';
+  // Always on the row: pin (one toggle), rename, archive, delete. The rarer two, emoji/colour and
+  // move-to-project, sit behind one chevron that slides them out to its left.
+  const more = document.createElement('span');
+  more.className = 's-more';
   const semo = document.createElement('button');
   semo.type = 'button'; semo.className = 's-act vi'; semo.dataset.ico = 'palette'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour'); semo.setAttribute('aria-label', 'Emoji and colour for this chat');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
-  actions.appendChild(semo);
+  more.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
     move.type = 'button'; move.className = 's-act vi'; move.dataset.ico = 'move'; move.title = pageT('session.move_title', 'Move to project'); move.setAttribute('aria-label', 'Move chat to a project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
-    actions.appendChild(move);
+    more.appendChild(move);
   }
+  const moreB = document.createElement('button');
+  moreB.type = 'button'; moreB.className = 's-act s-more-toggle vi'; moreB.dataset.ico = 'chevron-left';
+  const setMoreOpen = (open) => {
+    item.classList.toggle('more-open', open);
+    moreB.setAttribute('aria-expanded', open ? 'true' : 'false');
+    moreB.title = open ? pageT('session.less_title', 'Fewer actions') : pageT('session.more_title', 'More: emoji, colour, move to project');
+    moreB.setAttribute('aria-label', moreB.title);
+  };
+  setMoreOpen(_sessionMoreOpen === s.session_id);   // survives the sidebar's own re-renders
+  moreB.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !item.classList.contains('more-open');
+    if (open) document.querySelectorAll('#sessions .session.more-open').forEach((row) => { if (row !== item) row.classList.remove('more-open'); });
+    _sessionMoreOpen = open ? s.session_id : '';
+    setMoreOpen(open);
+  });
+  actions.appendChild(more); actions.appendChild(moreB);
   if (!archived) {
+    // One pin control. Its state is the chat's: filled and always shown while pinned, a plain
+    // outline on hover while not. Clicking it flips that state.
     const pinB = document.createElement('button');
-    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
-    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.type = 'button'; pinB.className = 's-act s-pin vi' + (s.pinned ? ' on' : '');
+    pinB.dataset.ico = s.pinned ? 'pin-filled' : 'pin';
+    pinB.title = s.pinned ? pageT('session.unpin_title', 'Unpin chat') : pageT('session.pin_title', 'Pin chat to the top');
+    pinB.setAttribute('aria-label', pinB.title);
+    pinB.setAttribute('aria-pressed', s.pinned ? 'true' : 'false');
     pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
     actions.appendChild(pinB);
+    if (s.pinned) item.classList.add('pinned');
   }
   const ren = document.createElement('button');
   ren.type = 'button'; ren.className = 's-act vi'; ren.dataset.ico = 'rename'; ren.title = pageT('session.rename_title', 'Rename'); ren.setAttribute('aria-label', 'Rename chat');
@@ -3541,15 +3579,22 @@ function makeSessionItem(s, archived, nested) {
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
-  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
 }
+// The one sidebar row whose chevron is open (emoji/colour and move showing), kept across re-renders.
+let _sessionMoreOpen = '';
 async function setChatPinned(sid, pinned) {
+  let ok = false, reached = true;
   try {
-    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
-  } catch (e) {}
+    const res = await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+    const data = await res.json().catch(() => ({}));
+    ok = res.ok && data.ok !== false;
+  } catch (e) { reached = false; }
+  // A refused or lost change is said out loud; the reload below shows the state the server kept.
+  if (!ok) toast(!reached ? pageT('session.pin_unreachable', "VOOL couldn't be reached, so the pin didn't change.")
+    : pageT('session.pin_failed', "Couldn't change this chat's pin. Try again in a moment."));
   await loadSessions();
 }
 // Stop a chat's own running turn the way its Stop button does: the server turn first (by its

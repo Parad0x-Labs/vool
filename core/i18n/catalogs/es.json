@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Navegador",
     "settings.row.hide_name_on_screen.label": "Ocultar mi nombre en pantalla",
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
-    "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
+    "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato.",
+    "session.pin_title": "Fijar el chat arriba",
+    "session.unpin_title": "Desfijar el chat",
+    "session.more_title": "Más: emoji, color, mover a un proyecto",
+    "session.less_title": "Menos acciones",
+    "session.pin_failed": "No se pudo cambiar la fijación de este chat. Inténtalo de nuevo en un momento.",
+    "session.pin_unreachable": "No se pudo contactar con VOOL, así que la fijación no cambió."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
