@@ -19,7 +19,9 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     early = "\n".join(readme.splitlines()[:90])
 
-    assert "# VOOL" in readme.splitlines()[0]
+    # The flag banner opens the page; the VOOL title sits right under it.
+    assert "docs/assets/vool-flag-banner.png" in "\n".join(readme.splitlines()[:3])
+    assert '<h1 align="center">VOOL</h1>' in "\n".join(readme.splitlines()[:8])
     assert "local-first personal agent" in readme
     assert "0.7.7-beta" in early, "current beta version must be stated up front"
     assert "## ⚡ Install" in early or "## Install" in early

@@ -1,8 +1,8 @@
-# VOOL
-
 <p align="center">
   <img src="docs/assets/vool-flag-banner.png" alt="VOOL flag — your machine, your agent" width="100%" />
 </p>
+
+<h1 align="center">VOOL</h1>
 
 <p align="center"><img src="docs/assets/vool-tagline.svg" alt="Remembers more. Spends less. Runs on your machine." width="560" /></p>
 
