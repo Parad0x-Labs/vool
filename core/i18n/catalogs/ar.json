@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "المتصفح",
     "settings.row.hide_name_on_screen.label": "إخفاء اسمي على الشاشة",
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
-    "settings.row.hide_name_on_screen.effect": "يسري فورًا."
+    "settings.row.hide_name_on_screen.effect": "يسري فورًا.",
+    "session.pin_title": "تثبيت المحادثة في الأعلى",
+    "session.unpin_title": "إلغاء تثبيت المحادثة",
+    "session.more_title": "المزيد: رمز تعبيري، لون، نقل إلى مشروع",
+    "session.less_title": "إجراءات أقل",
+    "session.pin_failed": "تعذّر تغيير تثبيت هذه المحادثة. حاول مرة أخرى بعد قليل.",
+    "session.pin_unreachable": "تعذّر الوصول إلى VOOL، لذلك لم يتغيّر التثبيت."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

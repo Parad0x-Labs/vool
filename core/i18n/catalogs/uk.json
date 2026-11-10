@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Браузер",
     "settings.row.hide_name_on_screen.label": "Приховувати моє ім’я на екрані",
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
-    "settings.row.hide_name_on_screen.effect": "Діє негайно."
+    "settings.row.hide_name_on_screen.effect": "Діє негайно.",
+    "session.pin_title": "Закріпити чат угорі",
+    "session.unpin_title": "Відкріпити чат",
+    "session.more_title": "Більше: емодзі, колір, перемістити до проєкту",
+    "session.less_title": "Менше дій",
+    "session.pin_failed": "Не вдалося змінити закріплення цього чату. Спробуйте ще раз за мить.",
+    "session.pin_unreachable": "Не вдалося зв'язатися з VOOL, тому закріплення не змінилося."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

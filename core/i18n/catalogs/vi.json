@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Trình duyệt",
     "settings.row.hide_name_on_screen.label": "Ẩn tên tôi trên màn hình",
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
-    "settings.row.hide_name_on_screen.effect": "Áp dụng ngay."
+    "settings.row.hide_name_on_screen.effect": "Áp dụng ngay.",
+    "session.pin_title": "Ghim cuộc trò chuyện lên đầu",
+    "session.unpin_title": "Bỏ ghim cuộc trò chuyện",
+    "session.more_title": "Thêm: biểu tượng cảm xúc, màu, chuyển sang dự án",
+    "session.less_title": "Ít thao tác hơn",
+    "session.pin_failed": "Không thể thay đổi ghim của cuộc trò chuyện này. Hãy thử lại sau giây lát.",
+    "session.pin_unreachable": "Không kết nối được với VOOL nên ghim không thay đổi."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

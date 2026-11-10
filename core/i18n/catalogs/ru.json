@@ -2851,9 +2851,15 @@
     "settings.row.live_browser.label": "Браузер",
     "settings.row.hide_name_on_screen.label": "Скрывать моё имя на экране",
     "settings.row.hide_name_on_screen.help": "Включите это перед трансляцией или показом экрана. VOOL будет показывать домашнюю папку как ~, а ваше имя и имя компьютера как •••, здесь и на телефоне. Меняется только то, что вы видите: файлы, чаты и всё, что делает VOOL, остаются прежними. Текст, который вы вводите, не скрывается.",
-    "settings.row.hide_name_on_screen.effect": "Применяется сразу."
+    "settings.row.hide_name_on_screen.effect": "Применяется сразу.",
+    "session.pin_title": "Закрепить чат вверху",
+    "session.unpin_title": "Открепить чат",
+    "session.more_title": "Ещё: эмодзи, цвет, переместить в проект",
+    "session.less_title": "Меньше действий",
+    "session.pin_failed": "Не удалось изменить закрепление этого чата. Попробуйте ещё раз чуть позже.",
+    "session.pin_unreachable": "Не удалось связаться с VOOL, поэтому закрепление не изменилось."
   },
-  "source_catalog_sha256": "c9746535ec72cb89e40cab8fdf27a91fa63fa734d360b2a8c1602d0c585b308a",
+  "source_catalog_sha256": "cb83eaf62060f31c2555f5743254ae398d0936ff0c6120cf605fce89ceaec682",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
