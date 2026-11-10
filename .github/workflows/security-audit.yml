@@ -50,6 +50,15 @@ jobs:
           set -euo pipefail
           npm audit --audit-level=moderate
 
+      # The phone companion has its own lockfile. The root step above never sees it,
+      # so advisories in mobile/package-lock.json went unreported here.
+      - name: npm audit (mobile companion lockfile)
+        if: ${{ hashFiles('mobile/package-lock.json') != '' }}
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          npm audit --package-lock-only --audit-level=moderate
+
       - name: cargo audit (only when a Cargo.toml exists)
         if: ${{ hashFiles('Cargo.toml') != '' }}
         run: |
