@@ -280,3 +280,48 @@ def test_an_allowed_page_that_fails_to_load_reaches_the_reply(world, path, needl
         outcome, step, out = future.result(timeout=30)
     assert not outcome.ok and step and step['url'] == origin + path
     assert needle in out['response'] and '14:36' not in out['response']
+
+
+@pytest.mark.parametrize('status', ['refused', 'stale_approval', 'destination_refused', 'page_failed'])
+def test_the_step_reply_survives_the_publication_gate(status):
+    """Mac run 4: after Refuse and after expiry the step's own reply was replaced by "That is not
+    mentioned in the records I have from our conversations, so I am not going to state one."."""
+    from core.grounding_lifecycle import GroundingLifecycle, TurnIdentity
+    from core.grounding_publication import _RECORDS_ABSENCE_MARKER, is_typed_refusal_text, publication_verdict
+    from core.vool_browser.live_requests import note_unanswered, turn_scope
+
+    with turn_scope(ASK, 'reply-test'):
+        note_unanswered('navigate', URL, status)
+        reply = grounded_twice(ASK)['response']
+    # The records-absence lifecycle that replaced it on the Mac: model-authored, no rows.
+    lifecycle = GroundingLifecycle(lifecycle_id='browser-' + status, identity=TurnIdentity(), request_text=ASK,
+                                   model_authored=True, memory_records=({'summary': _RECORDS_ABSENCE_MARKER},))
+    verdict = publication_verdict(lifecycle, reply)
+    assert verdict.published and verdict.content == reply
+    assert is_typed_refusal_text(reply)
+    # A model's guess about the page gets no such pass.
+    guess = publication_verdict(lifecycle, f'You said no to opening {URL}, but the next train is at 14:36.')
+    assert '14:36' not in guess.content
+
+
+def test_a_model_timeout_after_an_opened_page_says_so_plainly():
+    """Mac run 4: after Approve the page opened, qwen3:8b hit its 60 s limit writing the answer,
+    and the reply was "Incomplete — model synthesis failed (empty_synthesis) ... 3 of 3 tool steps
+    succeeded. Last result: [Browser](...)"."""
+    from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply, is_browser_step_reply
+    from core.grounding_lifecycle import GroundingLifecycle, TurnIdentity
+    from core.grounding_publication import publication_verdict
+    from core.vool_browser.live_requests import note_completed, turn_scope
+
+    assert browser_synthesis_failed_reply() == ''
+    with turn_scope(ASK, 'reply-test'):
+        assert browser_synthesis_failed_reply() == ''
+        note_completed('navigate', URL)
+        note_completed('click', URL + '#geography')
+        reply = browser_synthesis_failed_reply()
+        again = enforce_url_grounding({'response': reply}, user_input=ASK, fetch_attempts=1)
+    assert reply.startswith('I opened ' + URL + '#geography in the browser, but the model ran out of time')
+    assert 'still open in the Browser pane' in reply and 'tool steps' not in reply and again['response'] == reply
+    assert is_browser_step_reply(reply)
+    lifecycle = GroundingLifecycle(lifecycle_id='browser-timeout', identity=TurnIdentity(), request_text=ASK, model_authored=True)
+    assert publication_verdict(lifecycle, reply).content == reply

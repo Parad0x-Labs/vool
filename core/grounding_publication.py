@@ -156,7 +156,11 @@ def is_typed_refusal_text(text: str) -> bool:
     from core.agent_runtime.builder.pinned_generation import PINNED_BUILD_REFUSAL_LEAD
     from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD, no_model_notice_leads
 
+    from core.agent_runtime.action_honesty_validator import is_browser_step_reply
+
     body = str(text or "").lstrip()
+    if is_browser_step_reply(body):
+        return True
     leads = (*_ALL_REFUSAL_LEADS, UNCERTIFIED_AUTHOR_NOTICE_LEAD, *no_model_notice_leads(), PINNED_BUILD_REFUSAL_LEAD)
     return any(body.startswith(lead) for lead in leads)
 
@@ -997,6 +1001,21 @@ def publication_verdict(lifecycle: GroundingLifecycle, content: str) -> Publicat
             support_origin=lifecycle.support_origin,
             evidence_set_id=lifecycle.bound_evidence_set_id,
             detail="content already carries this turn's withheld-work notice",
+        )
+
+    from core.agent_runtime.action_honesty_validator import is_browser_step_reply
+
+    if is_browser_step_reply(text):
+        # The runtime's own account of a browser step that never ran ("You said no to
+        # opening ..."): it claims nothing about the page, so there is nothing to withhold.
+        # Mac run 4: replacing it said "not mentioned in the records I have" after a refusal.
+        return PublicationVerdict(
+            state=STAGE_PUBLISHED,
+            content=text,
+            coverage="runtime_composed",
+            support_origin=lifecycle.support_origin,
+            evidence_set_id=lifecycle.bound_evidence_set_id,
+            detail="browser step outcome composed by runtime code, not generated",
         )
 
     rows, origin = _support_rows(lifecycle)
