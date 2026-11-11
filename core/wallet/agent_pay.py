@@ -229,6 +229,31 @@ def explain(reason: str) -> str:
     return _PLAIN.get(str(reason or ""), "It could not be checked against the allowance, so it needs your approval.")
 
 
+_NOTICE_SCOPE = {"window": "for this period", "total": "in total", "service": "for this service"}
+#: Refusals the owner settles by raising the allowance rather than by approving one payment.
+_RAISABLE = frozenset({allowances.REASON_WINDOW_USED, allowances.REASON_TOTAL_USED, allowances.REASON_SERVICE_TOTAL_USED, allowances.REASON_COUNT_USED,
+                       allowances.REASON_EXPIRED, allowances.REASON_OVER_PER_PAYMENT})
+
+
+def notice_text(notices: list[str] | tuple[str, ...]) -> str:
+    """Plain words for the budget marks a payment crossed (half, 80%, all), the highest mark of each kind only."""
+    best: dict[str, int] = {}
+    for entry in notices or ():
+        scope, _, mark = str(entry).partition(":")
+        if scope in _NOTICE_SCOPE and mark.isdigit():
+            best[scope] = max(best.get(scope, 0), int(mark))
+    parts = []
+    for scope, mark in best.items():
+        share = "all" if mark >= 100 else ("half" if mark == 50 else f"{mark}%")
+        parts.append(f"This used {share} of the spending allowance {_NOTICE_SCOPE[scope]}.")
+    return " ".join(parts)
+
+
+def raise_hint(reason: str) -> str:
+    """Where the owner gives the agent more room, for a refusal more room would settle; "" otherwise."""
+    return "To let it pay this kind of request without asking, change the allowance in Settings, under Crypto, Agent spending." if reason in _RAISABLE else ""
+
+
 def agent_for_turn(source_context: dict[str, Any] | None) -> str:
     """The agent identity the SERVER gives this turn, or "" when no agent may pay unattended on it. Only the owner's
     own turn at this computer is the assistant's: a remote or phone turn, a turn that did not come from the owner's
@@ -277,4 +302,4 @@ def fetch_for_turn(url: str, *, source_context: dict[str, Any] | None = None) ->
     return None
 
 
-__all__ = ["ASSISTANT_AGENT", "agent_for_turn", "approve_as_owner", "explain", "fetch_for_turn", "pay", "reconcile"]
+__all__ = ["ASSISTANT_AGENT", "agent_for_turn", "approve_as_owner", "explain", "fetch_for_turn", "notice_text", "pay", "raise_hint", "reconcile"]

@@ -318,3 +318,27 @@ def test_without_an_assistant_wallet_the_tool_does_what_it_always_did(agent):
         result = _tool(resource.url, {"session_id": "chat-1", **in_process_owner_source_context()})
         assert result.status != "paid" and resource.paid_requests == []
         assert chain.token_balance(agent["wallet"]["address"]) == FUNDED, "another agent's wallet is never the assistant's"
+
+
+def test_the_reply_says_when_a_payment_used_half_or_all_of_the_allowance_and_where_to_give_more(agent):
+    from core.request_trust import in_process_owner_source_context
+    from core.wallet import allowances as alw
+
+    chain = agent["chain"]
+    wallet = _assistant(agent)
+    owner_turn = {"session_id": "chat-1", **in_process_owner_source_context()}
+    with Site(chain, amount_minor=AMOUNT, pay_to=PAYEE) as resource:
+        _allow({"wallet": wallet}, resource, pay_to=PAYEE, agent_id="assistant", window_minor=AMOUNT * 2, total_minor=AMOUNT * 8,
+               services=(alw.ServiceRule(resource.url, AMOUNT * 8, PAYEE),))
+        resource.asked_at = resource.url + "?n=1"
+        first = _tool(resource.asked_at, owner_turn)
+        assert first.status == "paid" and "This used half of the spending allowance for this period." in first.response_text, first.response_text
+        assert first.response_text.index("This used half") < first.response_text.index("It returned:")
+        resource.asked_at = resource.url + "?n=2"
+        second = _tool(resource.asked_at, owner_turn)
+        assert second.status == "paid" and "This used all of the spending allowance for this period." in second.response_text, second.response_text
+        resource.asked_at = resource.url + "?n=3"
+        third = _tool(resource.asked_at, owner_turn)
+        assert third.status == "pending_approval" and "Nothing was paid" in third.response_text and "used up" in third.response_text
+        assert "change the allowance in Settings, under Crypto, Agent spending" in third.response_text
+        assert len(resource.paid_requests) == 2 and chain.token_balance(PAYEE) == AMOUNT * 2

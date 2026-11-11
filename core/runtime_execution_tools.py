@@ -2977,9 +2977,15 @@ def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecution
     elif decision == agent_allowances.DECISION_ASK_OWNER:
         status = "pending_approval"
         text = f"Nothing was paid. {reason} The payment of {amount} is waiting as proposal {proposal_id}; approve it in your wallet if you want it paid."
+        hint = agent_pay.raise_hint(str(payment.get("reason") or ""))
+        text += f" {hint}" if hint else ""
     else:
         status = "not_paid"
         text = f"Nothing was paid. {reason}"
+    said = agent_pay.notice_text(payment.get("notices") or [])
+    if said and status == "paid":
+        # ahead of the delivered content, so the owner reads it even when the content is long
+        text = text.replace(" It returned:\n", f" {said} It returned:\n", 1) if " It returned:\n" in text else f"{text} {said}"
     if payment.get("paused"):
         text += " The assistant's spending allowance has been paused after repeated problems; you can turn it back on in Settings."
     return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={
