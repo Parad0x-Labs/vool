@@ -20,7 +20,6 @@ import pytest
 
 from core.memory.copies import FORGET_LIST_NOTE
 from tests.test_forget_scrubs_run_history import (
-    _db_carriers,
     _file_carriers,
     _remember,
     _runtime_db,
@@ -41,7 +40,41 @@ CODE = "5906"
 def _holds_code(text: str) -> bool:
     """The code as a word of its own. A bare substring check also matched random hex ids in
     the session rows (attempt-...a8590696...), which failed CI by chance."""
-    return re.search(rf"(?<![0-9A-Za-z]){CODE}(?![0-9A-Za-z])", text) is not None
+    return _holds_word(CODE, text)
+
+
+def _holds_word(needle: str, text: str) -> bool:
+    """``needle`` not glued to letters or digits. The stores are full of hex ids, salts and
+    digests, so a bare substring test for a 4-digit code fails by chance (memory_entries.jsonl
+    erasure salts, CI on #241); a remembered code always stands as its own word."""
+    return re.search(rf"(?<![0-9a-z]){re.escape(needle.casefold())}(?![0-9a-z])", text.casefold()) is not None
+
+
+def _db_word_carriers(db_path: Path, needle: str) -> list[str]:
+    """``_db_carriers`` with the word rule: each table.column whose value still holds ``needle``."""
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        found = []
+        for (table,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall():
+            columns = [str(column[1]) for column in conn.execute(f'PRAGMA table_info("{table}")')]
+            for row in conn.execute(f'SELECT * FROM "{table}"'):
+                for column, value in zip(columns, row, strict=True):
+                    text = value.decode("utf-8", "replace") if isinstance(value, bytes) else str(value)
+                    if _holds_word(needle, text):
+                        found.append(f"{table}.{column}")
+        return sorted(set(found))
+    finally:
+        conn.close()
+
+
+def _file_word_carriers(db_path: Path, needle: str) -> list[str]:
+    """``_file_carriers`` with the word rule: the database file and its -wal/-shm as raw bytes."""
+    pattern = re.compile(rb"(?<![0-9a-z])" + re.escape(needle.casefold().encode()) + rb"(?![0-9a-z])")
+    hits = []
+    for path in (db_path, Path(str(db_path) + "-wal"), Path(str(db_path) + "-shm")):
+        if path.exists() and pattern.search(path.read_bytes().lower()):
+            hits.append(path.name)
+    return hits
 BYSTANDER = "signal green"
 
 
@@ -292,14 +325,14 @@ def _carriers_outside_the_revocation_ledger(home: Path, needle: str) -> dict[str
     revocation ledger keeps the canonical token by design: it is the authority that refuses the words later."""
     found: dict[str, list[str]] = {}
     for database in sorted(home.rglob("*.db")):
-        rows = _db_carriers(database, needle)
+        rows = _db_word_carriers(database, needle)
         # Where the ledger holds the very bytes, its file cannot speak for the other tables; their rows still do.
-        file_bytes = [] if "memory_revocations.token" in rows else _file_carriers(database, needle)
+        file_bytes = [] if "memory_revocations.token" in rows else _file_word_carriers(database, needle)
         hits = [hit for hit in rows if hit != "memory_revocations.token"] + file_bytes
         if hits:
             found[str(database.relative_to(home))] = hits
     for text_file in sorted([*home.rglob("*.jsonl"), *home.rglob("*.md")]):
-        if needle.casefold() in text_file.read_text(encoding="utf-8", errors="replace").casefold():
+        if _holds_word(needle, text_file.read_text(encoding="utf-8", errors="replace")):
             found[str(text_file.relative_to(home))] = ["text"]
     return found
 
@@ -319,7 +352,7 @@ def test_a_multi_target_forget_leaves_no_bytes_in_the_database_or_its_write_ahea
     assert handled and reply == "Forget applied. Removed 2 memory entries." + " " + FORGET_LIST_NOTE, reply
     for needle in (LABEL, CODE):
         assert _carriers_outside_the_revocation_ledger(home, needle) == {}, needle
-        assert _file_carriers(_runtime_db(), needle) == [], needle
+        assert _file_word_carriers(_runtime_db(), needle) == [], needle
     assert BYSTANDER in "\n".join(_live_entries())
     assert _carriers_outside_the_revocation_ledger(home, BYSTANDER)
 
