@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize(("package", "patched"), [("pypdf", "6.21.2"), ("setuptools", "84.1.0")])
+@pytest.mark.parametrize(("package", "patched"), [("pypdf", "6.21.4"), ("setuptools", "84.1.0")])
 def test_frozen_dependencies_meet_the_advisory_patch_floor(package, patched):
     lock = tomllib.loads((ROOT / "uv.lock").read_text())
     versions = [entry["version"] for entry in lock["package"] if entry["name"] == package]
@@ -27,7 +27,7 @@ def test_frozen_dependencies_meet_the_advisory_patch_floor(package, patched):
 
 
 def test_pdf_decoder_installed_for_the_reader_is_patched():
-    assert Version(metadata.version("pypdf")) >= Version("6.21.2")
+    assert Version(metadata.version("pypdf")) >= Version("6.21.4")
 
 
 def test_build_and_bootstrap_paths_cannot_select_vulnerable_setuptools():

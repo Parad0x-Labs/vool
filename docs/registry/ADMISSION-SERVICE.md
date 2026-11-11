@@ -1,5 +1,9 @@
 # Proposed trusted admission service
 
+> **Status:** skill uploads are checked and signed automatically by the Skill Codex signer (`registry_service/github_authority.py`). The fork-and-PR route and the parts this contract lists as not activated are planned for 0.8, not released yet.
+
+
+
 This is an activation contract. Scanner adapters, disposable workers, protected
 check identities, independent signing custody and a publisher receipt service
 are not activated by these documents or repository blueprints. Fixture reports

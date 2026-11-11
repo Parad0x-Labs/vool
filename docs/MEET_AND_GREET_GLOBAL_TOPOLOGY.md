@@ -1,5 +1,8 @@
 # Meet And Greet Global Topology
 
+> **Research, not released.** Meet-and-greet is not shipped or enabled in official releases (see `apps/meet_and_greet_server.py`). This page describes a design, not a running service.
+
+
 ## Purpose
 
 This document defines the first serious global topology for VOOL meet-and-greet coordination infrastructure.

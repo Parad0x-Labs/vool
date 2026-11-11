@@ -8,7 +8,7 @@ A workspace is an explicit grant. VOOL can read and write inside it, and nowhere
 
 ## Adding and removing
 
-Add a folder in **Settings → Workspace**. Removing it revokes access immediately; there
+Add a folder with **Choose a project folder…** in the chat. Removing it revokes access immediately; there
 is no cached copy kept outside the workspace.
 
 ## Scoping advice
