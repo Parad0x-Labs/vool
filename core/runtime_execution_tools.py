@@ -8123,15 +8123,33 @@ def _native_copy_refusal(path: str, source_context: dict[str, Any] | None) -> di
     return None
 
 
-def _record_skill_install_origin(result: dict[str, Any]) -> None:
-    """Record, durably, where the skill just installed came from (core.skill_origin)."""
+def _record_skill_install_origin(result: dict[str, Any]) -> list[str]:
+    """Record, durably, where the skill just installed came from (core.skill_origin), and return
+    the plain-words notes the person is told about what that origin means for this skill."""
+    notes: list[str] = []
     with contextlib.suppress(Exception):
-        from core.skill_origin import _history_source, decide_install_origin, record_install
+        from core.native_skill_library import _frontmatter_of
+        from core.skill_origin import (
+            ORIGIN_CREATED_HERE,
+            TOOLS_NOT_ADDED,
+            TYPED_KEYS_IGNORED,
+            _history_source,
+            decide_install_origin,
+            record_install,
+        )
 
         path = Path(str(result.get("path") or ""))
         digest = str(result.get("sha256") or "")
         origin = decide_install_origin(digest, history_source=_history_source(path))
         record_install(path, origin=origin, sha256=digest)
+        result["origin"] = origin
+        front = _frontmatter_of(path)
+        if str(front.get("id") or "").strip():
+            # Installed skills never hold typed contracts (core.native_skill_library).
+            notes.append(TYPED_KEYS_IGNORED)
+        if origin != ORIGIN_CREATED_HERE and (front.get("allowed-tools") or front.get("allowed_tools")):
+            notes.append(TOOLS_NOT_ADDED)
+    return notes
 
 
 def _record_pack_install_origin(result: dict[str, Any]) -> None:
@@ -8184,8 +8202,11 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         keys=_skill_scope_keys(source_context),
         expected_sha256=str(arguments.get("sha256") or ""),
     )
+    notes: list[str] = []
     if result.get("status") == "ok":
-        _record_skill_install_origin(result)
+        notes = _record_skill_install_origin(result)
+        if notes:
+            result["trust_notes"] = list(notes)
     display = _display_name(str(result.get("name") or ""))
     where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
     try:
@@ -8201,6 +8222,7 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         response=(
             f'{verb} the skill "{display}"{where}. '
             "It is on from your next message."
+            + "".join(f" {note}" for note in notes)
         ),
     )
 

@@ -38,11 +38,13 @@ ORIGIN_REGISTRY = "registry"
 ORIGIN_BUNDLED = "bundled"
 ORIGIN_NATIVE = "native"
 ORIGIN_PACK = "pack"
+#: Shipped as a ``skill://`` resource by a configured MCP server.
+ORIGIN_MCP = "mcp"
 #: Installed from some other file on disk: not something the person wrote in VOOL.
 ORIGIN_INSTALLED = "installed"
 ORIGINS = (
     ORIGIN_CREATED_HERE, ORIGIN_IMPORTED, ORIGIN_REGISTRY, ORIGIN_BUNDLED, ORIGIN_NATIVE,
-    ORIGIN_PACK, ORIGIN_INSTALLED,
+    ORIGIN_PACK, ORIGIN_MCP, ORIGIN_INSTALLED,
 )
 
 _LOCK = threading.Lock()
@@ -153,6 +155,10 @@ def origin_of(skill: Any) -> str:
     """The origin of a loaded skill, from where VOOL itself put it and the install record."""
     path = str(getattr(skill, "path", "") or "")
     plugin_id = str(getattr(skill, "plugin_id", "") or "")
+    # A typed contract renders with its source ("plugin:<id>") where a plain skill has its id.
+    plugin_id = plugin_id.removeprefix("plugin:")
+    if plugin_id.startswith("mcp:") or path.startswith("skill://"):
+        return ORIGIN_MCP
     if not path:
         return ORIGIN_INSTALLED
     resolved = Path(_key(path))
@@ -188,6 +194,18 @@ def origin_of(skill: Any) -> str:
     return ORIGIN_IMPORTED if _history_source(resolved) == "import" else ORIGIN_INSTALLED
 
 
+#: What a person is told when a skill they turn on lists tools it will not be given.
+TOOLS_NOT_ADDED = (
+    "It was not written here in VOOL, so the tools it lists are not added: it works only with "
+    "the tools VOOL already offers for your request."
+)
+#: What a person is told when a skill they turn on carries automatic-start settings.
+TYPED_KEYS_IGNORED = (
+    "Its automatic settings (id, task-families and the like) are ignored: it is used only when "
+    "your words ask for it."
+)
+
+
 def may_add_tools(skill: Any) -> bool:
     """Whether a matched skill's ``allowed-tools`` may seat tools the turn would not otherwise get."""
     return origin_of(skill) == ORIGIN_CREATED_HERE
@@ -199,9 +217,12 @@ __all__ = [
     "ORIGIN_CREATED_HERE",
     "ORIGIN_IMPORTED",
     "ORIGIN_INSTALLED",
+    "ORIGIN_MCP",
     "ORIGIN_NATIVE",
     "ORIGIN_PACK",
     "ORIGIN_REGISTRY",
+    "TOOLS_NOT_ADDED",
+    "TYPED_KEYS_IGNORED",
     "created_here_digest",
     "decide_install_origin",
     "install_record",

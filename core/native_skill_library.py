@@ -123,6 +123,9 @@ class SkillContract:
     #: Who the skill is for. "developer" marks the skills the VOOL team builds VOOL with (code
     #: review, test runs, release gates ...): left out of a person's list and everyday turns.
     audience: str = ""
+    #: The author's "use when" words. Read only when the skill is used as a PLAIN skill (an MCP
+    #: server's skill, picked by the person's own words); a typed contract never matches on them.
+    triggers: tuple[str, ...] = ()
 
     @property
     def task_family_set(self) -> frozenset[str]:
@@ -263,6 +266,7 @@ def contract_from_frontmatter(
         capabilities=_as_list(front, "capabilities"),
         kind=_normalized_kind(front.get("type")),
         audience=str(front.get("audience") or "").strip().lower(),
+        triggers=_as_list(front, "triggers"),
         source=str(source or "native"),
         path=str(path),
         body=str(body or ""),
@@ -766,6 +770,37 @@ def load_mcp_skill_contracts() -> LibraryLoad:
     return loaded
 
 
+def mcp_lexical_skills() -> tuple[Any, ...]:
+    """The VALID skills MCP servers ship, as PLAIN skills: picked only by the person's words.
+
+    An MCP server's ``skill://`` text is never a typed contract (``load_skill_contracts``
+    reports it instead), but a valid one is still a skill the person configured a server for,
+    so it joins the lexical lane every installed plain skill is in: rendered only when the
+    words match, fenced and labelled as third-party text, and its tool list can only narrow.
+    An invalid one stays refused with its typed violations and is not offered here at all.
+    """
+    from core.plugin_skills import Skill
+
+    try:
+        contracts = load_mcp_skill_contracts().contracts
+    except Exception:
+        return ()
+    return tuple(
+        Skill(
+            name=contract.id,
+            description=contract.description,
+            body=str(contract.body or "").strip(),
+            allowed_tools=tuple(contract.permitted_tools),
+            triggers=tuple(contract.triggers),
+            plugin_id=contract.source,
+            path=contract.path,
+            version=contract.version,
+        )
+        for contract in contracts
+        if contract.source.startswith("mcp:") and str(contract.body or "").strip()
+    )
+
+
 def load_skill_contracts() -> LibraryLoad:
     """EVERY typed skill this runtime can select: native + trusted plugin-typed, one validated
     set. Untrusted typed sources (other packs, MCP servers) are reported on ``invalid``."""
@@ -1005,6 +1040,8 @@ def inspect_skill(skill_id: str) -> dict[str, Any]:
                 "status": "invalid_contract",
                 "id": skill_id,
                 "source": error.path,
+                # Said in plain words wherever this is shown (skill.inspect replies with it).
+                "reason": "; ".join(error.violations),
                 "violations": list(error.violations),
                 "path": error.path,
             }
@@ -1367,6 +1404,7 @@ __all__ = [
     "load_native_library",
     "load_plugin_typed_contracts",
     "load_skill_contracts",
+    "mcp_lexical_skills",
     "native_skills_root",
     "parse_skill_text",
     "reset_contract_caches",

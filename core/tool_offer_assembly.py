@@ -188,6 +188,11 @@ def loaded_skills() -> tuple[Any, ...]:
                 with _lock:
                     _skill_cache[key] = skill
             skills.append(skill)
+    # MCP servers' valid skill:// skills are plain skills too (never typed contracts).
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import mcp_lexical_skills
+
+        skills.extend(mcp_lexical_skills())
     return tuple(skills)
 
 
@@ -253,8 +258,11 @@ def _skill_header(skill: Any) -> str:
     raw = str(getattr(skill, "path", "") or "")
     plugin_id = str(getattr(skill, "plugin_id", "") or "")
     shown = None
-    with contextlib.suppress(Exception):
-        shown = str(Path(raw).resolve().relative_to(Path(__file__).resolve().parents[1]))
+    if raw.startswith("skill://"):
+        shown = f"{plugin_id}/{raw[len('skill://'):]}"
+    if shown is None:
+        with contextlib.suppress(Exception):
+            shown = str(Path(raw).resolve().relative_to(Path(__file__).resolve().parents[1]))
     if shown is None:
         # The skill sits outside this repository (a local, chat or project install):
         # where it lives is machine state, so only its scope and slug directory show.
@@ -351,6 +359,8 @@ def skill_provenance_rows(rows: Any) -> list[dict[str, Any]]:
         }
         if row.get("dropped"):
             entry["dropped"] = str(row.get("dropped"))
+        if row.get("tools"):
+            entry["tools"] = str(row.get("tools"))
         out.append(entry)
     return out
 
@@ -420,16 +430,21 @@ def _render_lexical(
         scope_origin = {"chat-skills": "chat", "project-skills": "project"}.get(
             str(skill.plugin_id or ""), "plugin"
         )
-        provenance.append(
-            {
-                "name": str(skill.name),
-                "plugin_id": str(skill.plugin_id or ""),
-                "origin": scope_origin,
-                "path": str(skill.path),
-                "chars": int(used),
-                **({"version": int(version)} if version else {}),
-            }
-        )
+        row: dict[str, Any] = {
+            "name": str(skill.name),
+            "plugin_id": str(skill.plugin_id or ""),
+            "origin": scope_origin,
+            "path": str(skill.path),
+            "chars": int(used),
+            **({"version": int(version)} if version else {}),
+        }
+        if getattr(skill, "allowed_tools", ()):
+            # The audit names whether this skill's tool list could ADD tools or only narrow.
+            with contextlib.suppress(Exception):
+                from core.skill_origin import may_add_tools
+
+                row["tools"] = "may_add" if may_add_tools(skill) else "narrow_only"
+        provenance.append(row)
         for name in getattr(skill, "allowed_tools", ()) or ():
             if name not in allowed:
                 allowed.append(str(name))
