@@ -997,6 +997,7 @@ def parse_proposal(
             abstentions.append(
                 Abstention(frame_id, family, AbstentionReason.INVENTED_SURFACE, broken)
             )
+            continue
         evidence.append(
             SemanticFrameEvidence(
                 frame_id=frame_id,
