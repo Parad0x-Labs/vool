@@ -369,15 +369,14 @@ def _render_lexical(
 
 #: Words that put a turn in a developer's own work: code, tests, repositories, releases. Any one of
 #: them lets VOOL's developer skills guide the turn; an everyday ask carries none.
-_DEVELOPER_WORDS_RE = re.compile(
-    r"\b(?:code|codebase|source\s+code|repo|repository|git|commits?|branch|pull\s+request|diff"
-    r"|unit\s+tests?|tests?|test\s+suite|pytest|ci|pipeline|builds?|deploy\w*|release\s+gate"
-    r"|functions?|modules?|stack\s*trace|traceback|exceptions?|compile\w*|lint\w*|refactor\w*"
-    r"|migrat\w*|schema|database|sql|queries|query|api|endpoints?|benchmark\w*|profil\w*"
-    r"|hot\s+path|vulnerab\w*|secrets?|injection|security\s+(?:audit|issues?|review)"
-    r"|audit|feature|implement\w*|bugs?|debug\w*|archaeology|regression)\b",
-    re.IGNORECASE,
-)
+def _about_code(user_text: str) -> bool:
+    """The turn is about a developer's own work (``core.native_skill_library.about_code``):
+    software-only words, a software name, or software-leaning words in their software sense.
+    The everyday senses ("commit to sending it", "error code 45", "the parcel was deployed")
+    do not count."""
+    from core.native_skill_library import about_code
+
+    return about_code(user_text)
 
 
 def _people_safe(
@@ -399,7 +398,7 @@ def _people_safe(
     developer = [c for c in selected if getattr(c, "audience", "") == "developer"]
     if not developer or developer_skills_on():
         return tuple(selected)
-    if _DEVELOPER_WORDS_RE.search(user_text or ""):
+    if _about_code(user_text or ""):
         return tuple(contract for contract in selected if contract.id not in by_class_only
                      or getattr(contract, "audience", "") != "developer")
     from core.tool_demand_signals import resolve_demand_signals
@@ -424,7 +423,7 @@ def _people_safe_lexical(skills: tuple[Any, ...], user_text: str) -> tuple[Any, 
         return tuple(skills)
     from core.native_skill_library import developer_skills_on
 
-    if developer_skills_on() or _DEVELOPER_WORDS_RE.search(user_text or ""):
+    if developer_skills_on() or _about_code(user_text or ""):
         return tuple(skills)
     return tuple(skill for skill in skills if getattr(skill, "audience", "") != "developer")
 

@@ -843,6 +843,18 @@ def bootstrap_runtime_services(
         indexed_tool_contracts,
     )
 
+    # The media edit family joins the graph on a machine that has the media tools (the
+    # nebula-media worker and ffmpeg/ffprobe), with the worker's live availability. Until this
+    # ran nowhere, the media-studio skill was refused on every machine for "unknown capability
+    # ids". A media failure never stops the runtime from booting.
+    try:
+        from core.media_capabilities import register_media_capabilities_if_present
+
+        media = register_media_capabilities_if_present()
+        logger.info("Media capabilities: %s", media)
+    except Exception:  # pragma: no cover - boot must survive a broken media stack
+        logger.exception("Media capability registration failed; media stays unregistered")
+
     if is_first_boot():
         ensure_bootstrap_identity(
             default_agent_name="VOOL",

@@ -9,7 +9,7 @@ type: expert_lens
 id: lens-ux
 risk-class: read_only
 task-families: [creative_ideation]
-triggers: [ux, user experience, usability, user flow, signup flow, onboarding flow, checkout flow, screens, interface, confusing for users, friction, drop off, empty state, error message, button copy, wireframe]
+triggers: [ux, user experience, usability, user flow, signup flow, onboarding flow, checkout flow, screens, interface, confusing for users, friction, drop off, empty state, error message, button copy, wireframe, confusing, cluttered, clutter, layout, lay out, too many buttons, too many fields, too many options, too many toggles, too many steps, easier to use, simpler for, hard to use, hard to find, sign-up page, signup page, registration form, navigation, home screen, dashboard, user-friendly, new users, accessibility]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each tied to a specific step or word in the material shown, or states that the material shows no user-facing flow to assess"]

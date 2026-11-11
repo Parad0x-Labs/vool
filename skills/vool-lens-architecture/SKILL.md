@@ -9,7 +9,7 @@ type: expert_lens
 id: lens-architecture
 risk-class: read_only
 task-families: [system_design, integration_orchestration]
-triggers: [architecture, system design, design the system, boundaries, coupling, components, microservices, monolith, scalability, data flow, failure modes, single point of failure]
+triggers: [architecture, system design, design the system, boundaries, coupling, components, microservices, monolith, scalability, data flow, failure modes, single point of failure, services, separate services, split into services, one server, backend, database per, shared database, one database, separate databases, event-driven, api design, data model, how to structure the system, tightly coupled]
 expected-outputs: [lens_assessment]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five structural observations with their referents, or states that the material shown carries no structural decision to assess"]

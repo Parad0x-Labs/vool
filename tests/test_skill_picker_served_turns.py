@@ -145,3 +145,42 @@ def test_served_everyday_turn_of_a_person_binds_no_developer_skill(person_rig, t
     assert not names & DEVELOPER_IDS, f"{text!r} recorded {sorted(names)}"
     for skill_dir in ("vool-database", "vool-project-archaeology", "vool-root-cause-repair"):
         assert _body(skill_dir) not in bound, f"{skill_dir} reached a person's everyday turn"
+
+
+# --------------------------------------------------------------------------- media tools
+
+MEDIA_ASK = "cut the boring first ten seconds out of my holiday video"
+
+
+@pytest.fixture(scope="module")
+def media_rig(tmp_path_factory):
+    """A daemon on a machine WITH the media tools: a nebula-media worker and ffmpeg/ffprobe on
+    PATH (tests/_media_tools_stub.py). The runtime's own boot registers the media family."""
+    from tests._media_tools_stub import media_tools_env
+
+    rig = _rig(tmp_path_factory, "picker-media", media_tools_env(tmp_path_factory.mktemp("media-tools")))
+    yield rig
+    rig.daemon.stop()
+    rig.server.shutdown()
+
+
+@pytest.fixture(scope="module")
+def no_media_rig(tmp_path_factory):
+    """The same daemon on a machine WITHOUT them: no worker where NEBULA_MEDIA_HOME points."""
+    empty = tmp_path_factory.mktemp("no-media-worker")
+    rig = _rig(tmp_path_factory, "picker-no-media", {"NEBULA_MEDIA_HOME": str(empty)})
+    yield rig
+    rig.daemon.stop()
+    rig.server.shutdown()
+
+
+def test_served_video_edit_binds_media_studio_where_the_media_tools_are(media_rig) -> None:
+    names, bound = _turn(media_rig, MEDIA_ASK, "picker-media-edit")
+    assert "media-studio" in names, sorted(names)
+    assert _body("media-studio") in bound, "media-studio's instructions never reached the provider"
+
+
+def test_served_video_edit_binds_no_media_skill_where_the_tools_are_missing(no_media_rig) -> None:
+    names, bound = _turn(no_media_rig, MEDIA_ASK, "picker-no-media-edit")
+    assert "media-studio" not in names, sorted(names)
+    assert _body("media-studio") not in bound

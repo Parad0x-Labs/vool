@@ -9,7 +9,7 @@ type: expert_lens
 id: lens-strategy
 risk-class: read_only
 task-families: [business_advisory, general_advisory]
-triggers: [strategy, strategic, decide, decision, choose between, trade-off, trade-offs, tradeoff, prioritise, prioritize, priorities, pros and cons, next step, long term, worth it, weigh up, weigh the options, roadmap]
+triggers: [strategy, strategic, decide, decision, choose between, trade-off, trade-offs, tradeoff, prioritise, prioritize, priorities, pros and cons, next step, long term, worth it, weigh up, weigh the options, roadmap, good idea, bad idea, smart move, career move, alternatives, opportunity cost, risk it, plan ahead, quit my job, start a business, start my own, change careers, career change, job offer, go freelance, invest, investing]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each tied to a stated goal, constraint, or option in the turn, or states that the material contains no decision to advise on"]
