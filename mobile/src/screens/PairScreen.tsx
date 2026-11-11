@@ -33,6 +33,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   const [code, setCode] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [fingerprint, setFingerprint] = useState("");
+  // The computer's away-from-home address, when its pairing code carries one.
+  const [awayAddress, setAwayAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>("");
   // A scanned QR pairs at once; there is nothing left to type, so waiting for a button read as "nothing happened".
@@ -51,7 +53,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
       setPairingId(parsed.pairingId);
       setCode(parsed.code);
-      setFingerprint(parsed.desktopFingerprint);
+      setFingerprint(parsed.desktopFingerprint); setAwayAddress(parsed.awayAddress);
       if (!pairingUriIsFresh(parsed)) {
         setError(tr("This pairing QR has expired — start a new pairing on the computer."));
       }
@@ -68,7 +70,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
     setPairingId(parsed.pairingId);
     setCode(parsed.code);
-    setFingerprint(parsed.desktopFingerprint);
+    setFingerprint(parsed.desktopFingerprint); setAwayAddress(parsed.awayAddress);
     if (!pairingUriIsFresh(parsed)) {
       setError(tr("This pairing QR has expired — start a new pairing on the computer."));
       return;
@@ -107,7 +109,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         pinnedDesktopFingerprint: fingerprint.trim(),
         approvalKey,
       });
-      await onPaired({...credentials, ...(approvalAlias ? {approvalKeyAlias: approvalAlias} : {})});
+      await onPaired({...credentials, ...(awayAddress ? {awayUrl: awayAddress} : {}), ...(approvalAlias ? {approvalKeyAlias: approvalAlias} : {})});
       approvalAlias = null;
     } catch (exc) {
       if (approvalAlias) await deleteApprovalKey(approvalAlias).catch(() => {});

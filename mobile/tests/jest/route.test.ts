@@ -57,3 +57,27 @@ describe("home and away routes", () => {
     expect(c.route).toBe("home");
   });
 });
+
+import {parsePairingUri} from "../../src/protocol/pairing";
+import {connectionAddress, isHiddenAddress} from "../../src/protocol/connection";
+
+describe("hidden away address", () => {
+  const onion = "a".repeat(56) + ".onion";
+  const base = "vool-pair://192.168.1.20:5000?fp=" + "ab".repeat(32) + "&pid=pair_0a1b&code=ABCDEFGH&exp=1900000000";
+  it("is read from the pairing code", () => {
+    expect(parsePairingUri(base)?.awayAddress).toBe("");
+    expect(parsePairingUri(base + "&away=" + onion)?.awayAddress).toBe("http://" + onion);
+  });
+  it("refuses a pairing code whose away address is not a hidden address", () => {
+    expect(parsePairingUri(base + "&away=evil.example.com")).toBeNull();
+    expect(parsePairingUri(base + "&away=" + "a".repeat(55) + ".onion")).toBeNull();
+  });
+  it("is accepted as a connection address only in its plain form", () => {
+    expect(connectionAddress("http://" + onion)).toBe("http://" + onion);
+    expect(isHiddenAddress("http://" + onion)).toBe(true);
+    expect(isHiddenAddress("http://192.168.1.20:5000")).toBe(false);
+    expect(() => connectionAddress("https://" + onion)).toThrow();
+    expect(() => connectionAddress("http://" + onion + ":8080")).toThrow();
+    expect(() => connectionAddress("http://example.com")).toThrow();
+  });
+});

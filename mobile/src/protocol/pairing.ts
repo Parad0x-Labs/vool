@@ -16,7 +16,13 @@ export interface ParsedPairingUri {
   code: string;
   /** Expiry epoch pinned by the QR (seconds). A stale QR refuses locally. */
   expiresAtEpoch: number;
+  /** The computer's hidden address for when the phone is away from home ("" when it has none).
+   *  Only a route: the computer still has to prove the pinned key over it. */
+  awayAddress: string;
 }
+
+/** A Tor hidden-service name: 56 base32 characters, then ".onion". */
+export const HIDDEN_HOST_RE = /^[a-z2-7]{56}\.onion$/;
 
 // React Native's URL is a stub: hostname, port and searchParams THROW on a phone ("not implemented"),
 // while Node's full URL made every test pass. Measured on Android 2026-10-27: every pairing QR read
@@ -56,6 +62,8 @@ export function parsePairingUri(uri: string): ParsedPairingUri | null {
   if (!/^[A-HJKMNP-Z2-9]{8}$/.test(code)) return null;
   if (!Number.isFinite(exp) || exp <= 0) return null;
   if (port !== null && (port < 1 || port > 65535)) return null;
+  const away = (params.get("away") || "").toLowerCase();
+  if (away && !HIDDEN_HOST_RE.test(away)) return null;
   return {
     host: match[1].toLowerCase(),
     port,
@@ -63,6 +71,7 @@ export function parsePairingUri(uri: string): ParsedPairingUri | null {
     pairingId: pid,
     code,
     expiresAtEpoch: Math.floor(exp),
+    awayAddress: away ? "http://" + away : "",
   };
 }
 

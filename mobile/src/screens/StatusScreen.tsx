@@ -106,7 +106,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         }
         const address = `http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`;
         void (async () => {
-          try {const next = connectionAddress(address); await onConnection?.(next); setConnection(next); setError("");}
+          try {const next = connectionAddress(address); await onConnection?.(next); setConnection(next); setError("");
+            if (parsed.awayAddress) {await onAwayConnection?.(parsed.awayAddress); setAway(parsed.awayAddress);}}
           catch {setError(tr("Could not complete this. Check your computer."));}
         })();
       }} />
