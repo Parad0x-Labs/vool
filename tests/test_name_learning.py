@@ -505,7 +505,7 @@ def test_served_a_name_beside_a_question_is_learned_and_the_part_lanes_never_see
         original = getattr(type(agent), lane)
 
         def spy(self, *args, _original=original, **kwargs):
-            handed.extend(str(kwargs.get(key) or "") for key in ("raw_input", "effective_input"))
+            handed.extend(str(kwargs.get(key) or "") for key in (("plan_text",) if kwargs.get("plan_text") else ("raw_input", "effective_input")))
             return _original(self, *args, **kwargs)
 
         monkeypatch.setattr(type(agent), lane, spy)
@@ -519,3 +519,21 @@ def test_served_a_name_beside_a_question_is_learned_and_the_part_lanes_never_see
     # ... and it is not announced a second time on the next ordinary turn.
     later = chat(agent, "thanks, what should I cook tonight?", "beside-c")
     assert not _frame(later).get("saved"), _frame(later)
+
+
+def test_served_a_name_beside_several_requests_is_learned_and_the_parts_are_planned_without_it(profile_env, monkeypatch):
+    agent = make_agent()
+    planned: list[str] = []
+    original = type(agent)._maybe_answer_conductor_turn
+
+    def spy(self, *args, **kwargs):
+        planned.append(str(kwargs.get("plan_text") or kwargs.get("raw_input") or ""))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(agent), "_maybe_answer_conductor_turn", spy)
+    text = "hi my name is Bex and what is the capital of Portugal? also whats 12 times 12"
+    turn = chat(agent, text, "several-a")
+    assert planned and all("Bex" not in given for given in planned), planned
+    assert "capital of Portugal" in planned[0] and len(planned[0]) == len(text)  # same positions as typed
+    assert [entry.get("report") for entry in _frame(turn).get("saved") or []] == ["I'll call you Bex."], _frame(turn)
+    assert [i["value"] for i in _items(agent)] == ["Bex"] and "Bex" in _name(agent, "several-b")

@@ -270,7 +270,8 @@ def observe_name_beside_request(
     read the introduction as a request nobody could serve. The name is applied HERE, by the same
     law as the seat (which then leaves it alone for this turn).
 
-    Returns None when the turn carries no such name. Otherwise ``{"raw", "effective", "single"}``:
+    Returns None when the turn carries no such name. Otherwise ``{"raw", "effective", "single"}``
+    (and ``"plan"`` when the lanes keep the message as written but should plan its parts without the name):
     the message with the name part blanked out (same length, so every position a lane computes
     still points into what the person wrote) for the several-part lanes, and whether one request
     at most is left beside the name (nothing for those lanes to split)."""
@@ -329,7 +330,8 @@ def observe_name_beside_request(
         if left != after:
             # The requests beside the name would be numbered differently without it: the lanes keep
             # the message as written, so what they account for stays what was asked.
-            return {"raw": raw, "effective": str(effective_input or ""), "single": single}
+            # Only the planning of the parts reads the message without the name.
+            return {"raw": raw, "effective": str(effective_input or ""), "single": single, "plan": blanked}
         effective = str(effective_input or "")
         if effective and effective != raw:
             again = name_beside_request(effective)
