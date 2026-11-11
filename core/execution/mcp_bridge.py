@@ -389,15 +389,14 @@ def execute_plugin_mcp(plugin, contract, arguments, *, scratch, dependencies, ca
         return PluginToolResult(ok=False, status="invalid_arguments", error="; ".join(problems))
     scratch.mkdir(parents=True, exist_ok=True)
     environment = {name: credentials[name] for name in spec.get("env", {}) if name in credentials}
-    if proxy:
-        environment.update(proxy.environment)
     client = MCPStdioClient(
         str(plugin.root / spec["command"]), spec.get("args", []), env=environment,
+        extra_env=dict(proxy.environment) if proxy else None,
         cwd=str(plugin.root), name=plugin.plugin_id, timeout=float(handler.get("timeout_seconds", 30)),
         immutable_package=True, scratch_dir=str(scratch),
         readable_roots=(*dependencies.values(), scratch), proxy_port=proxy.port if proxy else 0, call=call,
         read_only=contract.side_effect_class == "read_only",
-        private_environment=bool(set(environment) - set(proxy.environment if proxy else {})),
+        private_environment=bool(environment),
     )
     try:
         with client:

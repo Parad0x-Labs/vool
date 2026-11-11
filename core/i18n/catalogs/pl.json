@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Uruchamia mały program pomocniczy na tym komputerze.",
     "addons.plugin_message_012a50e6cef1": "Wybierz folder wtyczki, który chcesz przejrzeć.",
     "addons.plugin_message_013e87e4e20c": "Przejrzany pakiet został zmieniony lub jego przegląd wygasł. Przejrzyj go ponownie.",
+    "addons.plugin_message_d453471519dc": "Sprawdzenie na tym urządzeniu oznaczyło pliki w tym pakiecie. Przejrzyj je przed instalacją.",
     "addons.plugin_message_0d9b04c5e903": "Przejrzyj ponownie zainstalowaną wtyczkę przed jej włączeniem.",
     "addons.plugin_message_2c6df3a269fe": "Wybierz prawidłową wtyczkę.",
     "addons.plugin_message_361fa7dd8bc4": "Wybierz pełny folder wtyczki, mieszczący się w limicie rozmiaru pakietu.",

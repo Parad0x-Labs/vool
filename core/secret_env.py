@@ -40,6 +40,9 @@ _HANDOFF_LIMIT = 60_000  # below the smallest pipe buffer, so writing never bloc
 _SECRET_NAME = re.compile(
     r"(API_?KEY|ACCESS_KEY|PRIVATE_KEY|SECRET|PASSWORD|PASSWD|PASSPHRASE|(^|_)TOKEN($|_)|(^|_)PAT$|_KEY$|^KEY$)"
 )
+# Always secret, even when the name ends like a setting: a webhook URL carries its own
+# credential, and a JSON list of auth tokens is still tokens.
+_ALWAYS_SECRET = re.compile(r"(WEBHOOK|(^|_)AUTH_TOKENS($|_))")
 _NOT_SECRET_SUFFIX = (
     "_FILE", "_PATH", "_DIR", "_MODE", "_URL", "_SOCK", "_ID", "_NAME", "_PROVIDER", "_STORAGE", "_SYMBOL", "_PER_TOKEN",
     "_LIMIT", "_BUDGET", "_ADDRESS",
@@ -54,6 +57,8 @@ def is_secret_env_name(name: str) -> bool:
     upper = str(name or "").upper()
     if not upper or upper == HANDOFF_FD_ENV:
         return False
+    if _ALWAYS_SECRET.search(upper):
+        return True
     if upper.endswith(_NOT_SECRET_SUFFIX):
         return False
     return bool(_SECRET_NAME.search(upper))

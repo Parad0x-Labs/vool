@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Ejecuta un pequeño programa auxiliar en esta máquina.",
     "addons.plugin_message_012a50e6cef1": "Seleccione la carpeta del complemento que desea revisar.",
     "addons.plugin_message_013e87e4e20c": "El paquete revisado ha cambiado o su revisión ha caducado. Revíselo de nuevo.",
+    "addons.plugin_message_d453471519dc": "La comprobación en este dispositivo marcó archivos de este paquete. Revísalos antes de instalar.",
     "addons.plugin_message_0d9b04c5e903": "Revise el complemento instalado de nuevo antes de habilitarlo.",
     "addons.plugin_message_2c6df3a269fe": "Seleccione un complemento válido.",
     "addons.plugin_message_361fa7dd8bc4": "Seleccione una carpeta de complemento completa que cumpla con los límites de tamaño del paquete.",

@@ -28,7 +28,15 @@ function renderServicePlugins(host,query){
   label.append(toggle,document.createTextNode(' '+tr('plugin_tools_switch','Let chats use plugin tools')));box.append(label,node('p',tr('plugin_tools_switch_help','When this is on, VOOL can use the tools of plugins you have enabled. When it is off, those tools are not used. Model and scanner plugins work either way.'),'addon-meta'));host.append(box);}
  if(pluginReview){
   const p=pluginReview.plugin;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_review','Review plugin package'));card.append(node('h3',p.name),node('p',p.description),node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store')),node('p',tr('plugin_review_full','VOOL checks these files haven’t changed. That does not prove they are safe.')));pluginFacts(card,p);
-  card.append(button(tr('plugin_install_disabled','Install and keep disabled'),()=>action(async()=>{await pluginPost({action:'plugin_install',review_id:pluginReview.review_id,digest:pluginReview.digest,accepted:true});}),'addon-primary'),button(tr('plugin_cancel','Cancel'),()=>{pluginReview=null;refresh();}));host.append(card);return;
+  // GitHub packages carry the on-device check; flagged files are shown before install, and the
+  // install names how many it showed, so the server refuses an install that skipped them.
+  const checks=pluginReview.local_checks||[];const flagged=checks.filter(c=>localFindings(c.report).length);
+  if(checks.length){const box=node('section',undefined,'addon-localcheck');box.append(node('h3',tr('local_check_title','VOOL local check')));
+   if(flagged.length){const list=node('ul',undefined,'addon-findings');flagged.forEach(c=>localFindings(c.report).forEach(f=>{const li=node('li');li.append(node('strong',String(c.file)+' · '+String(f.severity||'').toUpperCase()+' · '+String(f.ruleId||'')),node('span',f.explanation||''),node('small',[f.line?tr('line','Line')+' '+f.line:'',f.snippet||''].filter(Boolean).join(' · ')));list.append(li);}));
+    box.append(node('p',tr('local_check_found','Local findings (advisory):')+' '+pluginReview.local_findings),list);}
+   else box.append(node('p',tr('local_check_clean','No findings in the local check. This is not a safety guarantee.')));
+   box.append(node('p',tr('plugin_local_check_advisory','This check is a hint, not a safety promise.'),'addon-meta'));card.append(box);}
+  card.append(button(tr('plugin_install_disabled','Install and keep disabled'),()=>action(async()=>{await pluginPost({action:'plugin_install',review_id:pluginReview.review_id,digest:pluginReview.digest,accepted:true,findings_seen:pluginReview.local_findings||0});}),'addon-primary'),button(tr('plugin_cancel','Cancel'),()=>{const id=pluginReview.review_id;pluginReview=null;refresh();post({action:'plugin_cancel_review',review_id:id}).catch(()=>{});}));host.append(card);return;
  }
  if(pluginConsent){
   const p=pluginConsent;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_access_review','Review plugin access'));card.append(node('h3',p.name),node('p',tr('plugin_consent_intro','Enabling lets this plugin use the access listed below. Your normal permission checks still apply.')));pluginFacts(card,p);

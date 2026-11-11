@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Chạy một chương trình hỗ trợ nhỏ trên máy tính này.",
     "addons.plugin_message_012a50e6cef1": "Chọn thư mục plugin bạn muốn xem xét.",
     "addons.plugin_message_013e87e4e20c": "Gói đã xem xét đã thay đổi hoặc thời hạn xem xét đã hết hạn. Hãy xem xét lại.",
+    "addons.plugin_message_d453471519dc": "Bước kiểm tra trên thiết bị này đã đánh dấu một số tệp trong gói. Hãy xem lại trước khi cài đặt.",
     "addons.plugin_message_0d9b04c5e903": "Xem xét lại plugin đã cài đặt trước khi kích hoạt.",
     "addons.plugin_message_2c6df3a269fe": "Chọn một plugin hợp lệ.",
     "addons.plugin_message_361fa7dd8bc4": "Chọn một thư mục plugin hoàn chỉnh trong giới hạn kích thước gói.",

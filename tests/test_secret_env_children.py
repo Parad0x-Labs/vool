@@ -49,7 +49,8 @@ def _assert_clean(env, argv, values):
 
 def test_names_that_hold_keys_are_recognized_and_settings_are_not():
     for name in ("OPENAI_API_KEY", "VOOL_OPENROUTER_API_KEY", "GITHUB_TOKEN", "HF_TOKEN", "VOOL_KEY_PASSPHRASE",
-                 "DB_PASSWORD", "VOOL_MEET_AUTH_TOKEN", "AWS_SECRET_ACCESS_KEY", "VOOL_RELEASE_GPG_KEY"):
+                 "DB_PASSWORD", "VOOL_MEET_AUTH_TOKEN", "AWS_SECRET_ACCESS_KEY", "VOOL_RELEASE_GPG_KEY",
+                 "VOOL_MEET_AUTH_TOKENS_JSON", "DISCORD_WEBHOOK_URL"):
         assert is_secret_env_name(name), name
     for name in ("PATH", "HOME", "VOOL_HOME", "VOOL_KEY_STORAGE_MODE", "TOKENIZERS_PARALLELISM", "VOOL_MAX_TOKENS",
                  "VOOL_CLOUD_USD_PER_TOKEN", "VOOL_WATCH_TOKEN_SYMBOL", "VOOL_NATIVE_AUTHORIZATION_DEADLINE",

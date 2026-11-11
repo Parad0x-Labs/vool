@@ -2877,6 +2877,7 @@
     "addons.plugin_local_server": "Runs a small helper program on this computer.",
     "addons.plugin_message_012a50e6cef1": "Choose the plugin folder you want to review.",
     "addons.plugin_message_013e87e4e20c": "The reviewed package changed or its review expired. Review it again.",
+    "addons.plugin_message_d453471519dc": "The on-device check flagged files in this package. Review them before installing.",
     "addons.plugin_message_0d9b04c5e903": "Review the installed plugin again before enabling it.",
     "addons.plugin_message_2c6df3a269fe": "Choose a valid plugin.",
     "addons.plugin_message_361fa7dd8bc4": "Choose a complete plugin folder within the package size limits.",

@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Executa um pequeno programa auxiliar neste computador.",
     "addons.plugin_message_012a50e6cef1": "Escolha a pasta de plugins que deseja revisar.",
     "addons.plugin_message_013e87e4e20c": "O pacote revisado foi alterado ou sua revisão expirou. Revise-o novamente.",
+    "addons.plugin_message_d453471519dc": "A verificação neste dispositivo sinalizou arquivos neste pacote. Revise-os antes de instalar.",
     "addons.plugin_message_0d9b04c5e903": "Revise o plugin instalado novamente antes de ativá-lo.",
     "addons.plugin_message_2c6df3a269fe": "Escolha um plugin válido.",
     "addons.plugin_message_361fa7dd8bc4": "Escolha uma pasta de plugins completa dentro dos limites de tamanho do pacote.",

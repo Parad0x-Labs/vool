@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Bu bilgisayarda küçük bir yardımcı program çalıştırır.",
     "addons.plugin_message_012a50e6cef1": "İncelemek istediğiniz eklenti klasörünü seçin.",
     "addons.plugin_message_013e87e4e20c": "İncelenen paket değişti veya inceleme süresi doldu. Tekrar inceleyin.",
+    "addons.plugin_message_d453471519dc": "Bu cihazdaki denetim bu paketteki dosyaları işaretledi. Yüklemeden önce bunları inceleyin.",
     "addons.plugin_message_0d9b04c5e903": "Etkinleştirmeden önce kurulu eklentiyi tekrar inceleyin.",
     "addons.plugin_message_2c6df3a269fe": "Geçerli bir eklenti seçin.",
     "addons.plugin_message_361fa7dd8bc4": "Paket boyutu sınırları içinde eksiksiz bir eklenti klasörü seçin.",

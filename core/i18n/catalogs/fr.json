@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Exécute un petit programme assistant sur cette machine.",
     "addons.plugin_message_012a50e6cef1": "Sélectionnez le dossier du plugin à examiner.",
     "addons.plugin_message_013e87e4e20c": "Le paquet examiné a été modifié ou son examen a expiré. Veuillez l'examiner à nouveau.",
+    "addons.plugin_message_d453471519dc": "La vérification sur cet appareil a signalé des fichiers dans ce paquet. Examinez-les avant l'installation.",
     "addons.plugin_message_0d9b04c5e903": "Veuillez examiner à nouveau le plugin installé avant de l'activer.",
     "addons.plugin_message_2c6df3a269fe": "Sélectionnez un plugin valide.",
     "addons.plugin_message_361fa7dd8bc4": "Sélectionnez un dossier de plugin complet respectant les limites de taille du paquet.",

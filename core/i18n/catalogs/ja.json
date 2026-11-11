@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "このマシンで小さな補助プログラムを実行します。",
     "addons.plugin_message_012a50e6cef1": "レビューするプラグインフォルダを選択してください。",
     "addons.plugin_message_013e87e4e20c": "レビュー対象のパッケージが変更されたか、レビューの有効期限が切れています。再度レビューしてください。",
+    "addons.plugin_message_d453471519dc": "このデバイスでのチェックで、このパッケージ内のファイルが指摘されました。インストールする前に確認してください。",
     "addons.plugin_message_0d9b04c5e903": "インストール済みのプラグインを有効にする前に、再度レビューしてください。",
     "addons.plugin_message_2c6df3a269fe": "有効なプラグインを選択してください。",
     "addons.plugin_message_361fa7dd8bc4": "パッケージサイズ制限内の完全なプラグインフォルダを選択してください。",

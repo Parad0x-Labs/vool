@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "Führt ein kleines Hilfsprogramm auf diesem Rechner aus.",
     "addons.plugin_message_012a50e6cef1": "Wählen Sie den Plugin-Ordner aus, den Sie überprüfen möchten.",
     "addons.plugin_message_013e87e4e20c": "Das überprüfte Paket hat sich geändert oder die Überprüfung ist abgelaufen. Überprüfen Sie es erneut.",
+    "addons.plugin_message_d453471519dc": "Die Prüfung auf diesem Gerät hat Dateien in diesem Paket markiert. Prüfen Sie sie vor der Installation.",
     "addons.plugin_message_0d9b04c5e903": "Überprüfen Sie das installierte Plugin erneut, bevor Sie es aktivieren.",
     "addons.plugin_message_2c6df3a269fe": "Wählen Sie ein gültiges Plugin aus.",
     "addons.plugin_message_361fa7dd8bc4": "Wählen Sie einen vollständigen Plugin-Ordner innerhalb der Paketgrößenbeschränkungen aus.",

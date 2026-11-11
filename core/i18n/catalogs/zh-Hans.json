@@ -2875,6 +2875,7 @@
     "addons.plugin_local_server": "在此电脑上运行一个小的辅助程序。",
     "addons.plugin_message_012a50e6cef1": "选择要审核的插件文件夹。",
     "addons.plugin_message_013e87e4e20c": "审核的软件包已更改或审核已过期。请重新审核。",
+    "addons.plugin_message_d453471519dc": "本设备上的检查标记了此软件包中的文件。请在安装前查看。",
     "addons.plugin_message_0d9b04c5e903": "启用插件前，请再次审核已安装的插件。",
     "addons.plugin_message_2c6df3a269fe": "选择一个有效的插件。",
     "addons.plugin_message_361fa7dd8bc4": "选择一个符合软件包大小限制的完整插件文件夹。",

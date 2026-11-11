@@ -388,6 +388,16 @@ def _manifest_contract(spec: dict, *, plugin_id: str, version: str, extension: d
     return replace(contract, handler=json.dumps(handler, sort_keys=True))
 
 
+_NETWORK_SIDE_EFFECTS = frozenset({"network_send", "network_publish", "media_generation"})
+
+
+def _mcp_tool_may_use_network(contract: RuntimeToolContract) -> bool:
+    """The same rule ``handler.network`` subprocess tools meet at load, applied to MCP pins."""
+    return (contract.side_effect_class == "external_unpinned"
+            or contract.side_effect_class in _NETWORK_SIDE_EFFECTS
+            or "use_network_access" in tuple(contract.permission_actions or ()))
+
+
 def _owner_disabled(plugin_id: str) -> bool:
     try:
         from core.plugin_catalog import _disabled_ids
@@ -728,7 +738,11 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                 names = (reviewed.vool["mcpServers"][handler["server"]].get("env", {}) if is_mcp else
                          handler.get("env_allowlist", [])) if reviewed.vool else ()
                 credentials = credential_values(plugin_id, reviewed.vool, names)
-                wants_network = bool(reviewed.vool.get("network")) and (is_mcp or handler.get("network") is True)
+                # A connection-server tool reaches the plugin's hosts only when its own pin says it
+                # uses the network (or it is unpinned, which already needs the owner's opt-in): a
+                # self-pinned read_only tool runs with no approval, so it must not get a way out.
+                wants_network = bool(reviewed.vool.get("network")) and (
+                    _mcp_tool_may_use_network(contract) if is_mcp else handler.get("network") is True)
                 if wants_network:
                     from core.remote_fetch_policy import remote_fetch_forbidden
                     from core.turn_prohibitions import FAMILY_TOOLS, FAMILY_WEB, conserved_request_prohibitions

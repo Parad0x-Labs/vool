@@ -57,6 +57,19 @@ def _remove(path: Path) -> None:
     shutil.rmtree(path)
 
 
+def _remove_scratch(path: Path) -> None:
+    """Scratch is the plugin's own disposable space. Whatever it left there (links included) is
+    removed without following anything, so a plugin cannot make itself impossible to uninstall."""
+    if path.is_symlink():
+        path.unlink()
+        return
+    if not path.exists():
+        return
+    for folder, _directories, _files in os.walk(path, followlinks=False):
+        Path(folder).chmod(0o700)
+    shutil.rmtree(path)
+
+
 def _destination(plugin_id: str) -> Path:
     from core.plugin_catalog import configured_plugins_root
 
@@ -120,10 +133,49 @@ def user_message(message: str) -> dict:
     return {"message": GENERIC_FAILURE, "message_key": "addons." + message_key(GENERIC_FAILURE)}
 
 
-def prepare_local(folder: str, *, update=False, source="local") -> dict:
+_REVIEW_LIFETIME = 86400
+
+
+def _drop_review(review_id: str) -> None:
+    """Forget one review: its captured copy and its record. Never touches installed plugins."""
+    with contextlib.suppress(lifecycle.LifecycleError, OSError, ValueError):
+        _remove(child_of(_state() / "pending", review_id))
+    with contextlib.suppress(OSError, ValueError):
+        child_of(_state() / "reviews", review_id + ".json").unlink(missing_ok=True)
+
+
+def _sweep_reviews() -> None:
+    """Reviews nobody installed expire after a day; their copies (up to the package limit) go too."""
+    reviews = _state() / "reviews"
+    if not reviews.is_dir():
+        return
+    now = time.time()
+    for record in reviews.glob("*.json"):
+        review_id = record.stem
+        if not re.fullmatch(r"[a-f0-9]{32}", review_id):
+            continue
+        try:
+            created = float(json.loads(record.read_text()).get("created_at") or 0)
+        except (OSError, ValueError, TypeError, AttributeError):
+            created = 0.0
+        if now - created > _REVIEW_LIFETIME:
+            _drop_review(review_id)
+
+
+def cancel_review(review_id: str) -> dict:
+    if not re.fullmatch(r"[a-f0-9]{32}", str(review_id)):
+        raise lifecycle.LifecycleError("The package review is missing. Review the folder again.")
+    with _LOCK:
+        _drop_review(review_id)
+    return {"ok": True}
+
+
+def prepare_local(folder: str, *, update=False, source="local", local_findings=0) -> dict:
     """Capture inert bytes once; the owner reviews the resulting complete digest."""
     if not isinstance(folder, str) or not folder or len(folder) > 4096:
         raise lifecycle.LifecycleError("Choose the plugin folder you want to review.")
+    with _LOCK:
+        _sweep_reviews()
     review_id = uuid.uuid4().hex
     pending = _state() / "pending"
     pending.mkdir(exist_ok=True)
@@ -136,7 +188,8 @@ def prepare_local(folder: str, *, update=False, source="local") -> dict:
         if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
             raise lifecycle.LifecycleError(refusal)
         value = {"review_id": review_id, "digest": captured.digest, "plugin_id": plugin.plugin_id,
-                 "created_at": time.time(), "update": update is True, "source": source}
+                 "created_at": time.time(), "update": update is True, "source": source,
+                 "local_findings": int(local_findings)}
         _write(_state() / "reviews" / (review_id + ".json"), value)
         return {"ok": True, "review_id": review_id, "digest": captured.digest,
                 "reviewed_by_store": False, "plugin": summary(plugin),
@@ -182,15 +235,18 @@ def prepare_github(repository: str, revision: str, folder: str, *, approved: boo
             target.chmod(0o755 if entry["mode"] == "100755" else 0o644)
             if target.suffix.lower() in {".md", ".txt", ".json", ".py", ".js", ".sh"}:
                 reports.append({"file": name, "report": scan_bytes(name, data)})
-        result = prepare_local(str(stage), update=update, source="github:" + listing["repository"] + "@" + revision)
+        flagged = sum(len(item["report"].get("findings") or []) for item in reports)
+        result = prepare_local(str(stage), update=update, source="github:" + listing["repository"] + "@" + revision,
+                               local_findings=flagged)
         result["local_checks"] = reports
+        result["local_findings"] = flagged
         result["scan_notice"] = "Checked on this device. No remote scan service was contacted."
         return result
     finally:
         _remove(stage)
 
 
-def install(review_id: str, *, accepted: bool, digest: str) -> dict:
+def install(review_id: str, *, accepted: bool, digest: str, findings_seen=0) -> dict:
     if accepted is not True or not re.fullmatch(r"[a-f0-9]{32}", str(review_id)):
         raise lifecycle.LifecycleError("Review and accept this exact package before installing it.")
     with _LOCK:
@@ -200,8 +256,11 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
             raise lifecycle.LifecycleError("The package review is missing. Review the folder again.") from None
         stage = child_of(_state() / "pending", review_id)
         captured = capture_package(stage)
-        if captured.digest != digest or saved["digest"] != digest or time.time() - saved["created_at"] > 86400:
+        if captured.digest != digest or saved["digest"] != digest or time.time() - saved["created_at"] > _REVIEW_LIFETIME:
             raise lifecycle.LifecycleError("The reviewed package changed or its review expired. Review it again.")
+        if int(saved.get("local_findings") or 0) and findings_seen != saved["local_findings"]:
+            # The device check flagged files: the owner accepts only a review that showed them.
+            raise lifecycle.LifecycleError("The on-device check flagged files in this package. Review them before installing.")
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
             raise lifecycle.LifecycleError(refusal)
@@ -269,6 +328,7 @@ def install(review_id: str, *, accepted: bool, digest: str) -> dict:
                 with contextlib.suppress(lifecycle.LifecycleError):
                     lifecycle.uninstall(plugin.plugin_id)
             raise
+        _drop_review(review_id)
         _refresh(plugin.plugin_id)
         return {"ok": True, "plugin": inspect(plugin.plugin_id), "enabled": False, "keys_removed": not keys_follow}
 
@@ -424,11 +484,12 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
     if Path(record.root).resolve() != target.resolve() or not (record.source.startswith("plugin:") or registry_owned):
         raise lifecycle.LifecycleError("This package is managed by its original installation settings.")
     lifecycle.disable(plugin_id)
-    if remove_key:
-        for name in _owned_key_names(plugin_id, record):
-            delete_credential(name)
-    _remove(plugin_scratch_dir(plugin_id))
+    key_names = _owned_key_names(plugin_id, record) if remove_key else ()
+    _remove_scratch(plugin_scratch_dir(plugin_id))
     _remove(target)
+    # Keys go only once the files are gone, so a refused removal never leaves a keyless install.
+    for name in key_names:
+        delete_credential(name)
     lifecycle.uninstall(plugin_id)
     _refresh(plugin_id)
     return {"ok": True, "enabled": False, "uninstalled": True}
@@ -443,8 +504,11 @@ def handle(action: str, body: dict) -> dict:
         if action == "plugin_github_prepare":
             return prepare_github(body.get("repository"), body.get("revision"), body.get("path", ""),
                                   approved=body.get("approved") is True, update=body.get("update") is True)
+        if action == "plugin_cancel_review":
+            return cancel_review(body.get("review_id"))
         if action == "plugin_install":
-            return install(body.get("review_id"), accepted=body.get("accepted") is True, digest=body.get("digest"))
+            return install(body.get("review_id"), accepted=body.get("accepted") is True, digest=body.get("digest"),
+                           findings_seen=body.get("findings_seen") if type(body.get("findings_seen")) is int else 0)
         if action == "plugin_tools_setting":
             from core.plugin_tools import plugin_tools_on, set_plugin_tools_setting
 

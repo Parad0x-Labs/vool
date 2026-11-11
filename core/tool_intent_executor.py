@@ -86,6 +86,12 @@ from tools.registry import call_tool, load_builtin_tools
 # Intents that EXECUTE something rather than read or write a file. These are what "do not run
 # tests" / "do not run anything" withdraws; a write in the same turn is untouched, which is the
 # whole point of separating the two.
+# Fields of a plugin observation that only VOOL may set (see the plugin dispatch below).
+_PLUGIN_RESERVED_OBSERVATION_KEYS = frozenset({
+    "schema", "intent", "tool_surface", "ok", "status", "verified", "approval", "approved",
+    "permission_actions", "trust", "executed", "receipt", "confinement",
+})
+
 _COMMAND_INTENTS = frozenset(
     {
         "sandbox.command",
@@ -792,7 +798,10 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any], *, source_conte
             },
         )
     details = result.as_details()
-    payload = {k: v for k, v in dict(result.observation or {}).items() if k != "intent"}
+    # Plugin output is untrusted: it may not set the fields VOOL itself vouches for, and a
+    # colliding name must not crash dispatch after the tool already ran.
+    payload = {str(k): v for k, v in dict(result.observation or {}).items()
+               if str(k) not in _PLUGIN_RESERVED_OBSERVATION_KEYS}
     details["observation"] = _tool_observation(
         intent=intent,
         tool_surface="plugin",
