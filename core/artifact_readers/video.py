@@ -25,7 +25,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import shutil
+import struct
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -62,12 +65,48 @@ VIDEO_TYPES: dict[str, tuple[str, ...]] = {
 _EXTENSION_TO_TYPE = {ext: media for media, exts in VIDEO_TYPES.items() for ext in exts}
 
 
+_CPU_TYPES = {0x0100000C: "arm64", 0x01000007: "x86_64"}
+
+
+def macho_archs(path: str) -> set[str] | None:
+    """The CPU slices of a Mach-O file, or None when the file is not Mach-O (a script, say)."""
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(4096)
+    except OSError:
+        return None
+    if len(head) < 8:
+        return None
+    magic = struct.unpack_from(">I", head, 0)[0]
+    if magic in (0xCAFEBABE, 0xCAFEBABF):  # fat (universal) header, always big-endian
+        wide = magic == 0xCAFEBABF
+        count, size = struct.unpack_from(">I", head, 4)[0], 32 if wide else 20
+        if count > 64 or 8 + count * size > len(head):
+            return None  # 0xcafebabe is also a Java class file; not a plausible fat header
+        types = [struct.unpack_from(">i", head, 8 + i * size)[0] & 0xFFFFFFFF for i in range(count)]
+        return {_CPU_TYPES.get(t, hex(t)) for t in types}
+    for order in (">", "<"):
+        if struct.unpack_from(order + "I", head, 0)[0] in (0xFEEDFACE, 0xFEEDFACF):
+            cputype = struct.unpack_from(order + "i", head, 4)[0] & 0xFFFFFFFF
+            return {_CPU_TYPES.get(cputype, hex(cputype))}
+    return None
+
+
+def _runs_natively(path: str) -> bool:
+    """On Apple Silicon, an x86_64-only tool would run under Rosetta, and macOS would then report VOOL
+    as an Intel app. /usr/local/bin is Intel Homebrew's prefix, so its ffmpeg is often exactly that."""
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return True
+    archs = macho_archs(os.path.realpath(path))
+    return archs is None or "arm64" in archs
+
+
 def _which(candidates: tuple[str, ...]) -> str:
     for path in candidates:
-        if os.access(path, os.X_OK):
+        if os.access(path, os.X_OK) and _runs_natively(path):
             return path
     found = shutil.which(os.path.basename(candidates[0]))
-    return found if found and os.path.isabs(found) else ""
+    return found if found and os.path.isabs(found) and _runs_natively(found) else ""
 
 
 def ffmpeg_path() -> str:

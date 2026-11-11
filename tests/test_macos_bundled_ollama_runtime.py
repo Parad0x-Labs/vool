@@ -147,3 +147,48 @@ def test_a_universal_file_that_cannot_be_thinned_fails_the_build(tmp_path):
     run = _run(_release(tmp_path), tmp_path / "ollama", "arm64", thin_fails=True)
     assert run.returncode == 3, (run.stdout, run.stderr)
     assert "DIE: could not thin ollama's llama-server to arm64" in run.stdout
+
+
+def test_an_apple_silicon_bundle_ships_ollama_itself_as_arm64_only(tmp_path):
+    """0.7.7 arm64 shipped Contents/Resources/ollama/ollama with arm64 AND x86_64 slices: the
+    executable was copied whole while only its runner was thinned."""
+    dst = tmp_path / "ollama"
+    run = _run(_release(tmp_path), dst, "arm64")
+    assert run.returncode == 0 and "done" in run.stdout, (run.stdout, run.stderr)
+    assert (dst / "ollama").read_bytes().startswith(b"ARCHS arm64\n")
+    assert os.access(dst / "ollama", os.X_OK)
+    assert "thinned ollama to arm64 (slices: x86_64 arm64)" in run.stdout
+    # Thinning keeps the executable's body, so the runner requirement is still read from it.
+    assert RUNNER_MARKER in (dst / "ollama").read_bytes()
+
+
+def test_an_intel_bundle_ships_ollama_itself_as_x86_64_only(tmp_path):
+    dst = tmp_path / "ollama"
+    run = _run(_release(tmp_path), dst, "x86_64")
+    assert run.returncode == 0 and "done" in run.stdout, (run.stdout, run.stderr)
+    assert (dst / "ollama").read_bytes().startswith(b"ARCHS x86_64\n")
+
+
+def test_an_ollama_without_the_target_slice_fails_the_build(tmp_path):
+    src = _release(tmp_path)
+    (src / "ollama").write_bytes(b"ARCHS x86_64\n" + RUNNER_MARKER + b"\n")
+    run = _run(src, tmp_path / "ollama", "arm64")
+    assert run.returncode == 3, (run.stdout, run.stderr)
+    assert "DIE: ollama's executable has no arm64 slice (slices: x86_64)" in run.stdout
+
+
+def test_an_ollama_executable_that_cannot_be_read_fails_the_build(tmp_path):
+    src = _release(tmp_path)
+    (src / "ollama").write_bytes(b"#!/bin/sh\n")
+    run = _run(src, tmp_path / "ollama", "arm64")
+    assert run.returncode == 3, (run.stdout, run.stderr)
+    assert "DIE: could not read the slices of ollama's executable" in run.stdout
+
+
+def test_an_ollama_that_cannot_be_thinned_fails_the_build(tmp_path):
+    src = tmp_path / "release"
+    src.mkdir()
+    (src / "ollama").write_bytes(b"ARCHS x86_64 arm64\n")
+    run = _run(src, tmp_path / "ollama", "arm64", thin_fails=True)
+    assert run.returncode == 3, (run.stdout, run.stderr)
+    assert "DIE: could not thin ollama's executable to arm64" in run.stdout

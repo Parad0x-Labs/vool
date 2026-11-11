@@ -205,6 +205,8 @@ constraint-dependencies = [
     "datasets>=5.0.1",
     "filelock>=4.2.1",
     "setuptools>=84.1.0",  # Patched legacy wheel namespace validation.
+    "ckzg<2.1.6; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "cryptography==50.0.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 # The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
 # 0.36 and so solders below 0.27, and uv locks all extras together: without this, every install from the lock would
