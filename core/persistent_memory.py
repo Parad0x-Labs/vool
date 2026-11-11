@@ -2327,6 +2327,7 @@ def maybe_handle_memory_command(
     if not (
         scope_command is not None
         or lowered in {"/memory", "what do you remember", "show memory"}
+        or _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!"))
         or _memory_capture_match(text)
         or _CORRECTION_RE.match(text)
         or _FORGET_RE.match(text)
@@ -2417,7 +2418,7 @@ def maybe_handle_memory_command(
             f", forced local by privacy guard: {int(result.get('blocked_shards') or 0)}."
         )
         return True, f"Session scope set to {label}. {scope_note}{protected}{stats}"
-    if lowered in {"/memory", "what do you remember", "show memory"}:
+    if lowered in {"/memory", "what do you remember", "show memory"} or _MEMORY_INVENTORY_RE.fullmatch(" ".join(lowered.split()).strip(" ?.!")):
         summary = summarize_memory(
             access_policy=resolved_policy,
             limit=8,
@@ -3045,6 +3046,19 @@ _CHAT_BOUND_REMEMBER_RE = re.compile(
     r"\b(?:for|in|within|to)\s+(?:this|the\s+current)\s+(?:chat|conversation|thread)\b"
     r"|\b(?:this|the\s+current)\s+(?:chat|conversation|thread)\s+only\b"
     r"|\bonly\s+(?:here|in\s+here)\b",
+    re.IGNORECASE,
+)
+
+
+#: An ask for the WHOLE of what VOOL remembers, in the ways people say it. Only the three literal
+#: strings above used to open the inventory: measured 2026-11-11 on 0.7.8, "What do you remember
+#: about me?" reached a model that saw no memory rows (nothing overlapped "about me") and answered
+#: "I don't remember anything specific about you yet" while saved facts existed.
+_MEMORY_INVENTORY_RE = re.compile(
+    r"(?:what|wat)\s+(?:do|did|have)\s+you\s+(?:remember(?:ed)?|know|saved|stored)(?:\s+about\s+me)?"
+    r"|(?:what'?s|whats|what\s+is)\s+in\s+(?:your\s+)?memory"
+    r"|(?:show|list|tell)(?:\s+me)?\s+(?:everything|all|what)\s+(?:you\s+)?(?:remember|know\s+about\s+me|have\s+saved|saved)"
+    r"|(?:show|list)\s+(?:my\s+)?memor(?:y|ies)",
     re.IGNORECASE,
 )
 

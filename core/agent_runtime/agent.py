@@ -2845,6 +2845,46 @@ class VoolAgent(
         # is served instead. No surface list: the eligibility gate is structural (ONE KNOW
         # demand, no attachments), which already excludes read/act verbs and multi-part
         # turns, and surfaces are caller-supplied strings a gate must not enumerate.
+        # A question about the owner's own fact that neither saved memory nor this chat holds is
+        # answered from their OTHER chats and projects, with where it was found -- or plainly not
+        # found -- before any probe or model that sees only this chat can answer "not in the
+        # provided context" or invent a value (core.agent_runtime.cross_chat_recall).
+        if not browser_turn:
+            from core.agent_runtime.cross_chat_recall import (
+                LANE_ID as _CROSS_CHAT_LANE,
+                accept_pending_offer,
+                cross_chat_recall,
+            )
+
+            accepted = accept_pending_offer(effective_input, session_id=session_id)
+            if accepted:
+                # "yes" to "Want me to remember it?": the ordinary remember path saves exactly the
+                # quoted statement, with its scope, revocation and secret checks.
+                from core.persistent_memory import maybe_handle_memory_command
+
+                handled, saved_reply = maybe_handle_memory_command(
+                    accepted, session_id=session_id, source_context=runtime_source_context,
+                )
+                if handled:
+                    saved_result = self._fast_path_result(
+                        session_id=session_id, user_input=effective_input, response=saved_reply,
+                        confidence=1.0, source_context=runtime_source_context, reason=_CROSS_CHAT_LANE,
+                    )
+                    return _guard_final_result(saved_result)
+            cross_recall = cross_chat_recall(effective_input, session_id=session_id, source_context=runtime_source_context)
+            if cross_recall is not None:
+                recall_result = self._fast_path_result(
+                    session_id=session_id,
+                    user_input=effective_input,
+                    response=cross_recall.response,
+                    confidence=0.95 if cross_recall.found else 0.9,
+                    source_context=runtime_source_context,
+                    reason=_CROSS_CHAT_LANE,
+                )
+                recall_result.update({"route": _CROSS_CHAT_LANE, "recall_found": cross_recall.found,
+                                      "route_skips": ["model", "web", "tool_loop"], "fast_path_hit": True})
+                return _guard_final_result(recall_result)
+
         ambiguity_result = None if browser_turn else self._maybe_clarify_ambiguous_entity(
             effective_input=effective_input,
             session_id=session_id,

@@ -250,9 +250,14 @@ def single_plain_know_question(
     # "Remember that my favourite bakery is Kepykla Holy", a new chat asked "Which bakery is my
     # favourite?" and was answered "Did you mean: Bakery A, Bakery B, Bakery C?" -- invented
     # referents, memory never read. Same detector both planners consult for recall questions.
+    from core.agent_runtime.cross_chat_recall import as_question
     from core.agent_runtime.turn_planner import recall_question_needs_no_planner
 
-    if recall_question_needs_no_planner(message):
+    if recall_question_needs_no_planner(as_question(message)):
+        return False
+    # "what bike do I have", "which hotel am I staying at": the referent is the speaker's own, so
+    # there is nothing in the world to disambiguate (measured: "Did you mean: bike?").
+    if re.search(r"\b(?:do|did|have|had|am|was|will)\s+i\b|\bi(?:'m|'ve)\b", message, re.IGNORECASE):
         return False
     try:
         from core.agent_runtime.answer_coverage import demand_units
