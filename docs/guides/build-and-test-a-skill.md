@@ -106,9 +106,16 @@ Frontmatter keys VOOL reads:
 | `name` | yes | The skill's identity. Use lowercase words joined by hyphens, the same as the folder name. Lists show it as plain words ("Aisle sorter"). If missing, the folder name is used. |
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
-| `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails: the names are listed in [Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name). Leaving it out narrows nothing. It never grants a permission. |
+| `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails: the names are listed in [Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name). Leaving it out narrows nothing. It never grants a permission. Only a skill the person made in VOOL also gets these tools offered; an imported, downloaded, published or MCP skill only narrows ([Where a skill came from](skill-tools-and-limits.md#where-a-skill-came-from)). |
 | `permissions` | no | A list of permission ids (such as `create_files`, `external_messages`). It grants nothing; see [the permissions key](#the-permissions-key). |
 | `license` | for publishing | Read by the publishing tools. Keep the full licence text in a `LICENSE` file beside `SKILL.md` (for MIT: the standard MIT text with your name and the year). |
+
+`id`, `task-families`, `type`, `priority` and the other keys of VOOL's built-in skills let a
+skill start on its own, without the person's words. VOOL reads them only from its built-in skills,
+the packs it ships and signed Skill Codex packages. In a skill you share as a zip, install from a
+file, add from GitHub or serve from an MCP server they are ignored: turning it on says *Its
+automatic settings (id, task-families and the like) are ignored*, and the skill is used only when
+the person's message picks it.
 
 ### The permissions key
 

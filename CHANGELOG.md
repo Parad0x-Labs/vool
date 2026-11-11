@@ -3,6 +3,13 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## Unreleased
+
+### Fixes
+- **Skills from other people stay in their place.** An imported, downloaded, add-on or MCP skill is used only when your message asks for it, and only narrows the tools VOOL offers. Only a skill you made in VOOL can have its tools offered. Turning one on says what is ignored.
+- A skill's name can no longer write text outside its own block in VOOL's instructions, and each skill's text is marked with where it came from.
+- VOOL's developer skills no longer join everyday requests because of words like "test" or "feature", and a built-in skill cannot be installed as a copy.
+
 ## [0.7.7-beta] — 2026-11-02
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

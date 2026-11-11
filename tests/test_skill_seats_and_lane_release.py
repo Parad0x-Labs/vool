@@ -5,6 +5,11 @@ Red on b744af81: ``allowed-tools`` only ever NARROWED the ranked fill (TOOL-RECH
 skill whose tools the ranking left out had nothing to call; and four deterministic lanes (the
 date clock, the disk capacity read, the web-lookup plan, the URL fetch) answered skill-shaped
 turns before any model round, so the skill never even rendered.
+
+Seats are tools a skill ADDS, so the skill here is one the person wrote in VOOL
+(``skill.create`` then ``skill.install``): only such a skill may add tools (core.skill_origin,
+red team f109f118 #5). The same skill installed from a file is the negative case, and the
+person is told in the install reply why its tools are not added.
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from core.capability_graph import _HARD_MAX_CANDIDATES
 from core.execution.constants import machine_diagnostics_intent
 from core.skill_tools import install_skill
 from core.tool_offer_assembly import assemble_tool_offer, reset_skill_cache
+from tests._toolchain_fixtures import person_writes_skill
 
 _SKILL = """---
 name: media-trimmer
@@ -38,19 +44,56 @@ OWNER_LOCAL = {"_owner_local": True, "runtime_session_id": "s-skill", "turn_id":
 REMOTE = {"_owner_local": False, "runtime_session_id": "s-skill-r", "turn_id": "t-skill-r"}
 
 
-@pytest.fixture()
-def skill_installed(tmp_path, monkeypatch):
+MEDIA_TOOLS = {"media.open", "media.inspect", "media.edit", "media.undo", "media.redo", "media.export"}
+TRIM = "trim my video clip and make it square for a post"
+
+
+def _world(tmp_path, monkeypatch):
     (tmp_path / "plugins").mkdir()
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
-    staged = tmp_path / "staged.md"
-    staged.write_text(_SKILL, encoding="utf-8")
-    result = install_skill(str(staged))
-    assert result["status"] == "ok", result
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+
+
+@pytest.fixture()
+def skill_installed(tmp_path, monkeypatch):
+    _world(tmp_path, monkeypatch)
+    person_writes_skill(_SKILL, source_context=dict(OWNER_LOCAL))
     reset_skill_cache()
     cg.reset()
     yield tmp_path
     reset_skill_cache()
     cg.reset()
+
+
+def test_the_same_skill_installed_from_a_file_adds_no_tools_and_says_so(tmp_path, monkeypatch):
+    """Negative twin of round zero: a skill installed from a file (not written in VOOL) may
+    narrow the offer but never add to it, and the install reply tells the person so."""
+    from core.runtime_execution_tools import _skill_install
+    from core.skill_origin import TOOLS_NOT_ADDED
+
+    _world(tmp_path, monkeypatch)
+    reset_skill_cache()
+    cg.reset()
+    before = set(assemble_tool_offer(user_text=TRIM, task_class="media_editing",
+                                     source_context=dict(OWNER_LOCAL)).intents)
+    staged = tmp_path / "downloaded" / "media-trimmer" / "SKILL.md"
+    staged.parent.mkdir(parents=True)
+    staged.write_text(_SKILL, encoding="utf-8")
+    result = _skill_install({"path": str(staged)}, dict(OWNER_LOCAL))
+    assert result.ok, result.details
+    assert TOOLS_NOT_ADDED in result.response_text, result.response_text
+    reset_skill_cache()
+    cg.reset()
+    try:
+        offer = assemble_tool_offer(user_text=TRIM, task_class="media_editing",
+                                    source_context=dict(OWNER_LOCAL))
+        assert set(offer.intents) <= before, sorted(set(offer.intents) - before)
+        assert not set(offer.intents) & MEDIA_TOOLS, sorted(offer.intents)
+        rows = [row for row in offer.skill_guidance.skills if row.get("name") == "media-trimmer"]
+        assert rows and all(row.get("tools") == "narrow_only" for row in rows), rows
+    finally:
+        reset_skill_cache()
+        cg.reset()
 
 
 def test_a_matched_skills_allowed_tools_seat_on_round_zero(skill_installed):

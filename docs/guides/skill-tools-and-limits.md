@@ -14,7 +14,8 @@ asked to approve, and what each refusal means. Writing, testing and sharing a sk
 | A skill can | A skill can never |
 | --- | --- |
 | Add instructions to the turns where the person's message picks it. | Grant a permission, approve an action, raise a spending limit or turn a setting on. Its text is never an approval. |
-| Narrow the tools VOOL offers on those turns with `allowed-tools` (every name must be a real tool, see the table below). | Add a tool. Naming a tool that is switched off does not switch it on. |
+| Narrow the tools VOOL offers on those turns with `allowed-tools` (every name must be a real tool, see the table below). A skill the person made in VOOL (by asking VOOL to make it) also gets its listed tools offered on those turns. | Add a tool when someone else wrote it: an imported zip, a file installed from disk, a Skill Codex package, an add-on, a pack VOOL ships or an MCP server's skill only narrows. Naming a tool that is switched off does not switch it on. |
+| Start on its own when it is one of VOOL's built-in skills, a pack VOOL ships or a signed Skill Codex package that declares `id` and `task-families`. | Start without the person's words when anyone else wrote it. Its `id`, `task-families`, `type` and `priority` are ignored, and it is used only when the person's message picks it (see [Where a skill came from](#where-a-skill-came-from)). |
 | Ask VOOL to use a tool. The call goes through the same permission check as any other call. | Run by itself. It is loaded only when a person's message picks it: SKILL.md has no timer, schedule or background setting (`lint` and `try` warn about a `schedule`, `interval`, `cron` or `every` key). For something that should be checked over time, the skill can ask for `watch.add` (a wallet or a token price); the person approves it, and a watch checks only while VOOL is open. |
 | Write files where the tool allows: the chat's project folder (`workspace.*`) or ~/Desktop, ~/Downloads and ~/Documents (`machine.*`). | Write anywhere else (`I can only write inside this lane: ~/Desktop, ~/Downloads, ~/Documents.`), or touch startup files, credentials, Git metadata or release keys unless the person allows it for that turn. |
 | Run a command through the sandbox tools. | Reach the network from a command (`Network egress is disabled by execution policy.`). |
@@ -22,6 +23,27 @@ asked to approve, and what each refusal means. Writing, testing and sharing a sk
 | Prepare a payment as a proposal the owner then approves, once the owner has switched the wallet on. | Move money by itself. The wallet is off until the owner switches it on, and every payment waits for the owner's approval in every mode. |
 | Set a reminder, by putting "remind me on <date> at <time>" in the `text` of `operator.save_note` (see [Reminders from a skill](#reminders-from-a-skill)). | Set a reminder any other way: there is no reminder tool for skills. |
 | Ship as SKILL.md plus an optional LICENSE or README. | Carry scripts, programs or any other file. A zip with one is refused at import. |
+
+## Where a skill came from
+
+VOOL records where each installed skill came from when it is turned on, and decides two things
+from that record, not from the folder the skill sits in:
+
+| Where it came from | Its `allowed-tools` | Its `id` / `task-families` |
+| --- | --- | --- |
+| Made by the person in VOOL ("make me a skill that ...", `skill.create` then `skill.install`) | Offered on the turns it is picked, as long as the file is still the one VOOL wrote. If it is edited outside VOOL, or another skill replaces it under the same name, the list only narrows. | Not written by `skill.create`. |
+| Imported (a zip, `import this skill`), installed from a file, or added from GitHub (Browse) | Only narrows. Turning on an imported or file skill says so: *It was not written here in VOOL, so the tools it lists are not added.* | Ignored. Turning on an imported or file skill says so, and `skill.inspect` with its `id` answers "typed keys ignored: ...". |
+| A signed Skill Codex package | Only narrows. | Used: it can start on its own on the turns its `task-families` name. If its files change after install, it stops loading. |
+| A pack VOOL ships, or one of VOOL's built-in skills | Only narrows. | Used. |
+| A skill an MCP server ships (`skill://`) | Only narrows. | Ignored: it is checked by the same rules, used only when the person's message picks it, and refused if it fails the rules. |
+
+A built-in skill cannot be installed as a copy: `skill.install vool-feature-build` says it is
+already part of VOOL and is turned on or off in Skills.
+
+In the model's instructions each skill sits in its own block: a header with its name and where it
+came from, a line saying whose text it is (VOOL's, the person's, a signed package's, or untrusted
+third-party text), and a closing line the skill's own text cannot fake. A skill name is cut to one
+line of letters, digits and simple punctuation.
 
 ## What Manual and Auto mode do with a skill's tool calls
 
@@ -93,7 +115,8 @@ The reply has two parts: the note saved, and the reminder scheduled.
 
 ## Can a skill with allowed-tools be shared or published?
 
-`allowed-tools` only narrows what VOOL offers, so it is accepted wherever VOOL can check the
+`allowed-tools` from a shared or published skill only narrows what VOOL offers (see
+[Where a skill came from](#where-a-skill-came-from)), so it is accepted wherever VOOL can check the
 names, and refused where it cannot:
 
 | Route | A skill with `allowed-tools` |

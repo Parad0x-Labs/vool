@@ -325,3 +325,34 @@ __all__ = [
     "widget_skill",
     "write_mcp_config",
 ]
+
+
+def person_writes_skill(markdown: str, *, source_context: dict | None = None) -> dict:
+    """The person's own route for a skill: ``skill.create`` in their chat, then ``skill.install``.
+
+    Only a skill made this way may ADD tools to a turn (core.skill_origin): the two tool
+    handlers record that VOOL wrote these bytes for the person, and that the install was of
+    them. ``markdown`` is read for its fields only; ``skill.create`` renders the file itself.
+    """
+    from core.plugin_skills import parse_skill_content
+    from core.runtime_execution_tools import _skill_create, _skill_install
+
+    skill = parse_skill_content(markdown, path=Path("draft") / "SKILL.md")
+    assert skill is not None, "the fixture markdown has no frontmatter"
+    context = dict(source_context or {"_owner_local": True})
+    created = _skill_create(
+        {
+            "name": skill.name,
+            "description": skill.description,
+            "body": skill.body,
+            "allowed_tools": list(skill.allowed_tools),
+            "triggers": list(skill.triggers),
+        },
+        context,
+    )
+    assert created.ok, created.details
+    installed = _skill_install(
+        {"path": created.details["slug"], "sha256": created.details["sha256"]}, context
+    )
+    assert installed.ok, installed.details
+    return dict(installed.details)

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # annotation-only: the refusal type is imported lazily at the doors
     from core.effect_budget import EffectBudgetRefusedError
 
+import contextlib
 import json
 import os
 import platform
@@ -8058,6 +8059,13 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
         scope=scope,
         keys=_skill_scope_keys(source_context),
     )
+    if result.get("status") == "ok":
+        # The person wrote these exact bytes in VOOL: the one fact that lets this skill's
+        # allowed-tools add tools to a turn once it is installed (core.skill_origin).
+        with contextlib.suppress(Exception):
+            from core.skill_origin import note_created_here
+
+            note_created_here(str(result.get("sha256") or ""), slug=str(result.get("slug") or ""))
     where = (
         f"`{result.get('path')}`"
         if scope == "global"
@@ -8087,6 +8095,77 @@ def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | 
     )
 
 
+def _native_copy_refusal(path: str, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """VOOL's own library is never installed as a copy.
+
+    "turn on vool-feature-build" resolved the bare name to the native folder and copied it into
+    ``local-skills``, where it no longer carried the native lane's audience and trust rules and
+    seated workspace write tools with the developer setting off (red team t5). A built-in is
+    turned on or off where it lives; it has no installable copy.
+    """
+    try:
+        from core.native_skill_library import native_skills_root
+        from core.skill_tools import resolve_skill_markdown
+
+        resolved = resolve_skill_markdown(path, _skill_scope_keys(source_context)).resolve()
+        if resolved.is_relative_to(native_skills_root().resolve()):
+            return {
+                "status": "refused",
+                "reason": (
+                    f"`{Path(resolved).parent.name}` is one of VOOL's built-in skills. It is part of "
+                    "VOOL already and is turned on or off in Skills; it is not installed as a copy."
+                ),
+                "problems": ["built-in skills have no installable copy"],
+                "path": "",
+            }
+    except Exception:
+        return None
+    return None
+
+
+def _record_skill_install_origin(result: dict[str, Any]) -> list[str]:
+    """Record, durably, where the skill just installed came from (core.skill_origin), and return
+    the plain-words notes the person is told about what that origin means for this skill."""
+    notes: list[str] = []
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import _frontmatter_of
+        from core.skill_origin import (
+            ORIGIN_CREATED_HERE,
+            TOOLS_NOT_ADDED,
+            TYPED_KEYS_IGNORED,
+            _history_source,
+            decide_install_origin,
+            record_install,
+        )
+
+        path = Path(str(result.get("path") or ""))
+        digest = str(result.get("sha256") or "")
+        origin = decide_install_origin(digest, history_source=_history_source(path))
+        record_install(path, origin=origin, sha256=digest)
+        result["origin"] = origin
+        front = _frontmatter_of(path)
+        if str(front.get("id") or "").strip():
+            # Installed skills never hold typed contracts (core.native_skill_library).
+            notes.append(TYPED_KEYS_IGNORED)
+        if origin != ORIGIN_CREATED_HERE and (front.get("allowed-tools") or front.get("allowed_tools")):
+            notes.append(TOOLS_NOT_ADDED)
+    return notes
+
+
+def _record_pack_install_origin(result: dict[str, Any]) -> None:
+    """A pack's skills are the person's own only where their bytes are what skill.create wrote."""
+    with contextlib.suppress(Exception):
+        import hashlib as _hashlib
+
+        from core.skill_origin import ORIGIN_PACK, decide_install_origin, record_install
+
+        for skill_md in sorted(Path(str(result.get("path") or "")).glob("skills/*/SKILL.md")):
+            digest = _hashlib.sha256(skill_md.read_bytes()).hexdigest()
+            record_install(
+                skill_md, origin=decide_install_origin(digest, default=ORIGIN_PACK), sha256=digest,
+            )
+
+
 def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_scopes import SCOPE_LABELS
     from core.skill_tools import install_skill
@@ -8099,6 +8178,8 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
             expected_sha256=str(arguments.get("sha256") or ""),
             overwrite=bool(arguments.get("overwrite", False)),
         )
+        if result.get("status") == "ok":
+            _record_pack_install_origin(result)
         return _skill_result(
             "skill.install",
             result,
@@ -8110,6 +8191,9 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
             ),
         )
     scope = _skill_scope_arg(arguments)
+    refusal = _native_copy_refusal(str(arguments.get("path") or ""), source_context)
+    if refusal is not None:
+        return _skill_result("skill.install", refusal, response="")
     result = install_skill(
         str(arguments.get("path") or ""),
         plugin_id=str(arguments.get("plugin_id") or "local-skills"),
@@ -8118,6 +8202,11 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         keys=_skill_scope_keys(source_context),
         expected_sha256=str(arguments.get("sha256") or ""),
     )
+    notes: list[str] = []
+    if result.get("status") == "ok":
+        notes = _record_skill_install_origin(result)
+        if notes:
+            result["trust_notes"] = list(notes)
     display = _display_name(str(result.get("name") or ""))
     where = "" if scope == "global" else f" for {SCOPE_LABELS.get(scope, scope)}"
     try:
@@ -8133,6 +8222,7 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
         response=(
             f'{verb} the skill "{display}"{where}. '
             "It is on from your next message."
+            + "".join(f" {note}" for note in notes)
         ),
     )
 
