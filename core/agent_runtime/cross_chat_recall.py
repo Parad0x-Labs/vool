@@ -202,24 +202,52 @@ def _memory_rows(
         return None
 
 
+def _iso_utc(value: Any) -> str:
+    """A revocation time as the conversation log writes times (ISO-8601 UTC), so they compare."""
+    from datetime import datetime, timezone
+
+    text = str(value or "").strip()
+    try:
+        return datetime.fromtimestamp(float(text), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OverflowError, OSError):
+        return text
+
+
 def _forget_times(tokens: tuple[str, ...]) -> dict[str, str]:
-    """When the owner last said "forget …" naming each token, read from their own turns.
+    """When each token was last forgotten, from the memory store's own revocation records.
 
-    The forget ledger records WHAT was forgotten, not when; a fact said again AFTER the forget is new
-    information the owner gave (measured: "Forget my test parking spot", then a later chat "my test
-    parking spot is P-17" was never found again). A token with no such turn stays blocking."""
-    from core.memory.files import conversation_log_path, load_jsonl
-
+    A fact said again AFTER a forget is new information the owner gave (measured: "Forget my test
+    parking spot", then a later chat "my test parking spot is P-17" was never found again). Forget
+    turns are not kept in the conversation log, so the time comes from `memory_revocations`
+    (`revoked_at`, every chat scope). A token with no recorded time stays blocking."""
     latest: dict[str, str] = {}
-    for row in load_jsonl(conversation_log_path()):
-        said = " ".join(str(row.get("user") or "").casefold().split())
-        if "forget" not in said:
+    wanted = {str(token).casefold() for token in tokens if token}
+    if not wanted:
+        return latest
+    from core import context_retrieval as cr
+
+    for opener in (lambda: cr._open_memory_for_runtime(None), cr._open_memory):
+        memory = None
+        try:
+            memory = opener()
+            if memory is None:
+                continue
+            with memory._lock:
+                rows = memory._conn.execute("SELECT token, revoked_at FROM memory_revocations").fetchall()
+            for token, revoked_at in rows:
+                key = str(token or "").casefold()
+                when = _iso_utc(revoked_at)
+                if key in wanted and when > latest.get(key, ""):
+                    latest[key] = when
+        except Exception:
             continue
-        ts = str(row.get("ts") or "")
-        for token in tokens:
-            if token and token.casefold() in said and ts > latest.get(token, ""):
-                latest[token] = ts
-    return latest
+        finally:
+            if memory is not None:
+                try:
+                    memory.close()
+                except Exception:
+                    pass
+    return {token: latest[str(token).casefold()] for token in tokens if str(token).casefold() in latest}
 
 
 def _forget_state() -> tuple[tuple[str, ...], dict[str, str]] | None:
