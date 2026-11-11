@@ -41,6 +41,7 @@ scope; remove moves a skill out of the loader's tree without deleting it.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -663,11 +664,44 @@ def _request_digest(text: str, scope: str) -> str:
     return hashlib.sha256(f"{scope}\n{' '.join(str(text or '').split())}".encode()).hexdigest()
 
 
+def _offer_file(chat: str) -> Path | None:
+    """Where this chat's offer is kept on disk: one small file per chat, named by a digest of it.
+
+    The offer (what "turn it on" will activate, and the digest of the bytes the person was shown)
+    used to live only in memory, so a restart -- or a turn served by another worker -- lost the
+    digest, and activation fell back to matching the description on screen (red team t8). On disk
+    it survives both; the file names nothing the chat key could steer.
+    """
+    if not chat:
+        return None
+    try:
+        from core.runtime_paths import data_path
+        from core.skill_scopes import USER_SKILLS_DIRNAME, _safe_dir
+
+        return data_path(USER_SKILLS_DIRNAME, "offers", _safe_dir(chat) + ".json")
+    except Exception:
+        return None
+
+
 def _remember_pending(chat: str, entry: dict[str, Any]) -> None:
     if not chat:
         return
     with _STATE_LOCK:
         _PENDING[chat] = {**entry, "at": time.monotonic()}
+        path = _offer_file(chat)
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".tmp")
+            record = {key: value for key, value in entry.items() if key != "at"}
+            tmp.write_text(json.dumps({"chat": chat, "saved_at": time.time(), "entry": record}, default=str),
+                           encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            # The in-memory record still binds this process; a lost file only means a restart asks
+            # the person to see the skill again, never that it turns on unseen.
+            return
 
 
 def _pending_for(chat: str) -> dict[str, Any] | None:
@@ -678,12 +712,36 @@ def _pending_for(chat: str) -> dict[str, Any] | None:
         if entry and time.monotonic() - float(entry.get("at") or 0.0) > _PENDING_TTL_SECONDS:
             _PENDING.pop(chat, None)
             entry = None
+        if entry is None:
+            entry = _stored_offer_locked(chat)
     return dict(entry) if entry else None
+
+
+def _stored_offer_locked(chat: str) -> dict[str, Any] | None:
+    path = _offer_file(chat)
+    if path is None or not path.is_file():
+        return None
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        fresh = time.time() - float(stored.get("saved_at") or 0.0) <= _PENDING_TTL_SECONDS
+        entry = dict(stored.get("entry") or {}) if stored.get("chat") == chat and fresh else None
+    except (OSError, ValueError, TypeError, AttributeError):
+        entry = None
+    if entry is None:
+        with contextlib.suppress(OSError):
+            path.unlink()
+        return None
+    _PENDING[chat] = {**entry, "at": time.monotonic()}
+    return entry
 
 
 def _clear_pending(chat: str) -> None:
     with _STATE_LOCK:
         _PENDING.pop(chat, None)
+        path = _offer_file(chat)
+        if path is not None:
+            with contextlib.suppress(OSError):
+                path.unlink()
 
 
 # chat key -> a words-draft that is waiting only for the operator to name it (the ask line is
@@ -887,16 +945,69 @@ def _builtin_skill_named(name: str) -> str:
     return ""
 
 
-def _preview(draft: dict[str, Any], *, limit: int = 1400) -> str:
+def _preview(draft: dict[str, Any]) -> str:
+    """Everything a draft will tell me, word for word. Never cut short: what is turned on is what
+    was read, so a part left off the screen would be a part turned on unseen (red team t2)."""
     instructions = str(draft.get("instructions") or "").strip()
-    if len(instructions) > limit:
-        instructions = instructions[:limit].rstrip() + "\n…"
     triggers = ", ".join(str(t) for t in draft.get("triggers") or [])
     lines = [f"**When it applies:** {draft.get('description')}"]
     if triggers:
         lines.append(f"**Trigger words:** {triggers}")
+    tools = [str(t) for t in draft.get("allowed_tools") or [] if str(t).strip()]
+    if tools:
+        lines.append(f"**Tools:** This skill asks to use these tools: {', '.join(tools)}.")
     lines.append("**What it tells me to do:**")
     lines.append(instructions)
+    return "\n".join(lines)
+
+
+#: Header keys the preview already shows in their own words.
+_SHOWN_KEYS = frozenset({"name", "description", "triggers", "allowed-tools", "allowed_tools"})
+
+
+def _setting_words(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_setting_words(item) for item in value)
+    if isinstance(value, dict):
+        return "; ".join(f"{key}: {_setting_words(item)}" for key, item in value.items())
+    return " ".join(str(value).split())
+
+
+def _check_code(sha256: str) -> str:
+    """The first 12 characters of a digest in groups of four, so a person can compare two screens."""
+    digest = str(sha256 or "").strip().lower()[:12]
+    return " ".join(digest[index:index + 4] for index in range(0, len(digest), 4))
+
+
+def _import_preview(markdown: str, sha256: str) -> str:
+    """The whole imported skill in plain words: every header setting and every line of instructions.
+
+    Built from the exact bytes that were staged (and whose digest the turn-on is bound to), never
+    from a summary, so nothing in the file reaches the model that the person did not see here.
+    """
+    from core.skill_frontmatter import FrontmatterRefused, parse
+
+    try:
+        parsed = parse(markdown)
+    except FrontmatterRefused:
+        parsed = None
+    header, body = (parsed if parsed else ({}, markdown))
+    triggers = header.get("triggers")
+    tools = header.get("allowed-tools", header.get("allowed_tools"))
+    lines = [f"**When it applies:** {_setting_words(header.get('description') or '')}"]
+    if triggers:
+        lines.append(f"**Trigger words:** {_setting_words(triggers)}")
+    tool_words = _setting_words(tools) if tools else ""
+    lines.append(
+        f"**Tools:** This skill asks to use these tools: {tool_words}." if tool_words
+        else "**Tools:** This skill does not ask to use any tools."
+    )
+    others = [f"{key}: {_setting_words(value)}" for key, value in header.items() if str(key) not in _SHOWN_KEYS]
+    if others:
+        lines.append("**Other settings in the file:** " + "; ".join(others))
+    lines.append("**What it tells me to do:**")
+    lines.append(str(body or "").strip())
+    lines.append(f"**Check code:** {_check_code(sha256)}")
     return "\n".join(lines)
 
 
@@ -1088,6 +1199,12 @@ def _answer_pending_skill_name(
         draft["name"] = slug
     scope = str(pending.get("scope") or "global")
     author = str(pending.get("author") or "from your own words")
+    problem = _draft_refusal(draft)
+    if problem:
+        # Checked before asking to save: a draft that could never be turned on must not first cost
+        # the person an approval.
+        _clear_pending_name(chat)
+        return plain(problem, reason="skill_create_refused")
     result = run("skill.create", _create_arguments(draft, scope))
     if result is None:
         _clear_pending_name(chat)
@@ -1220,6 +1337,20 @@ def _answer_named_skill(
     )
 
 
+def _draft_refusal(draft: dict[str, Any]) -> str:
+    """Why this draft would be refused when saved (a built-in's name, or the safety check), or ""."""
+    from core.skill_tools import content_problem, render_skill_markdown, reserved_name_reason
+
+    reserved = reserved_name_reason(str(draft.get("name") or ""))
+    if reserved:
+        return reserved
+    rendered = render_skill_markdown(
+        name=str(draft.get("name") or ""), description=str(draft.get("description") or ""),
+        body=str(draft.get("instructions") or ""), triggers=tuple(draft.get("triggers") or ()),
+    )
+    return content_problem(rendered)
+
+
 def _create_arguments(draft: dict[str, Any], scope: str) -> dict[str, Any]:
     """The `skill.create` arguments for a draft, the same shape the create lane dispatches."""
     arguments: dict[str, Any] = {
@@ -1250,9 +1381,11 @@ def _drafted_reply(
 ) -> dict[str, Any]:
     """The success reply of a draft the operator just saw created, with its turn-on tail."""
     details = dict(getattr(result, "details", {}) or {})
+    existing = _active_digest(str(details.get("slug") or draft["name"]), scope, _turn_keys(source_context, session_id))
     _remember_pending(
         chat,
-        {"kind": "skill", "slug": details.get("slug") or draft["name"], "scope": scope, "sha256": details.get("sha256")},
+        {"kind": "skill", "slug": details.get("slug") or draft["name"], "scope": scope, "sha256": details.get("sha256"),
+         "replaces": bool(existing), "replaces_sha256": existing},
     )
     replaces = ""
     if _active_exists(draft["name"], scope, _turn_keys(source_context, session_id)):
@@ -1377,6 +1510,16 @@ def maybe_handle_skill_request(
                     "there is nothing to turn on yet. Ask me to create it again and approve the save.",
                     reason="skill_activate_nothing_saved",
                 )
+            if not str(pending.get("sha256") or "").strip():
+                # Only the words on screen are left (an offer from before this record was kept on
+                # disk): nothing says which bytes the person read, so nothing is turned on. A
+                # description that still matches proves nothing about the instructions under it.
+                what = "plugin" if pending.get("kind") == "plugin" else "skill"
+                return plain(
+                    f"I can't be sure the saved {what} is still the one I showed you here, so I did not turn it "
+                    f"on. Ask me to show it again (or import it again), then say turn it on.",
+                    reason="skill_activate_unbound",
+                )
 
     if action == "needs_name":
         # The walk-through docs/guides/make-your-own-skill.md describes, in the words a person
@@ -1491,13 +1634,36 @@ def maybe_handle_skill_request(
                 arguments["sha256"] = str(pending.get("sha256") or "")
             result = run("skill.install", arguments)
         else:
+            slug = str(pending.get("slug") or name)
+            target_scope = str(pending.get("scope") or "global")
+            keys = _turn_keys(source_context, session_id)
+            current = _active_digest(slug, target_scope, keys)
+            if pending and current and (not pending.get("replaces") or current != pending.get("replaces_sha256")):
+                # The person's own skill of this name was not part of what they were shown (it
+                # appeared, or changed, since): ask before replacing it, and remember the answer
+                # is now informed, so the next "turn it on" replaces exactly this version.
+                _remember_pending(chat, {**pending, "replaces": True, "replaces_sha256": current})
+                return plain(
+                    f'You already have a skill called "{_display_name(slug)}" for {_scope_label(target_scope)}. '
+                    "Turning this one on would replace yours; your current one is kept in its history, so "
+                    "you can go back to it. Say turn it on again to replace it, or leave it and nothing changes.",
+                    reason="skill_activate_confirm_replace",
+                )
             arguments = {
-                "path": str(pending.get("slug") or name),
-                "scope": str(pending.get("scope") or "global"),
+                "path": slug,
+                "scope": target_scope,
                 "sha256": str(pending.get("sha256") or ""),
-                "overwrite": True,
+                # Replacing is only ever what the person was told it would do.
+                "overwrite": bool(current and pending.get("replaces")),
             }
             result = run("skill.install", arguments)
+            if str(getattr(result, "status", "") or "") == "exists":
+                # Raced by a skill of this name landing after the check above: never replaced unasked.
+                return plain(
+                    f'You already have a skill called "{_display_name(slug)}" for {_scope_label(target_scope)}, '
+                    "so I did not turn this one on. Ask me to show it again if you want it to replace yours.",
+                    reason="skill_activate_exists",
+                )
         if result is None:
             return plain("This build has no `skill.install` tool, so I did not pretend to run it.", reason="skill_install_unsupported")
         if str(getattr(result, "status", "") or "") == "ok":
@@ -1615,18 +1781,26 @@ def maybe_handle_skill_request(
                         + ". It is staged, not active. Say **turn it on** to activate it for all of VOOL."
                     )
                 else:
+                    import_scope = str(details.get("scope") or "global")
+                    slug = str(details.get("slug") or "")
+                    existing = _active_digest(slug, import_scope, _turn_keys(source_context, session_id))
                     _remember_pending(
                         chat,
-                        {"kind": "skill", "slug": details.get("slug"), "scope": details.get("scope"), "sha256": details.get("sha256")},
+                        {"kind": "skill", "slug": slug, "scope": import_scope, "sha256": details.get("sha256"),
+                         "replaces": bool(existing), "replaces_sha256": existing},
                     )
-                    preview = _preview(
-                        {"description": details.get("description"), "instructions": _body_of(str(details.get("preview_markdown") or ""))}
+                    preview = _import_preview(str(details.get("preview_markdown") or ""), str(details.get("sha256") or ""))
+                    replaces = (
+                        f'\n\nYou already have a skill called "{_display_name(slug)}" for {_scope_label(import_scope)}. '
+                        "Turning this one on replaces yours; your current one is kept in its history, so you can "
+                        "go back to it."
+                        if existing else ""
                     )
                     # The file the person attached is "this file"; its zip name and the slug are
                     # machine words, and the skill is named the way the listing names it.
                     replies.append(
                         f'This file holds the skill "{_display_name(str(details.get("name") or ""))}", '
-                        f"ready for {_scope_label(str(details.get('scope') or 'global'))}.\n\n{preview}\n\n"
+                        f"ready for {_scope_label(import_scope)}.\n\n{preview}{replaces}\n\n"
                         "It is not on yet: say turn it on."
                     )
             else:
@@ -1781,31 +1955,36 @@ def _staged_matches_shown(pending: dict[str, Any], source_context: dict[str, Any
     shown = str(pending.get("shown_description") or "").strip()
     if not shown or pending.get("sha256"):
         return True
-    from core import skill_tools
     from core.plugin_skills import parse_skill
 
-    slug = str(pending.get("slug") or "")
-    scope = str(pending.get("scope") or "global")
-    if scope == "global":
-        path = skill_tools.staging_root() / slug / "SKILL.md"
-    else:
-        dirs = skill_tools._scoped_dirs(scope, _turn_keys(source_context, session_id))
-        if not dirs:
-            return False
-        path = dirs[0] / slug / "SKILL.md"
+    path = _staged_path(pending, source_context, session_id)
+    if path is None:
+        return False
     skill = parse_skill(path)
     return skill is not None and " ".join(skill.description.split()) == " ".join(shown.split())
 
 
-def _staged_exists(pending: dict[str, Any], source_context: dict[str, Any] | None, session_id: str) -> bool:
+def _staged_path(pending: dict[str, Any], source_context: dict[str, Any] | None, session_id: str) -> Path | None:
+    """The staged SKILL.md "turn it on" would read: this chat's imports first, then the scope's drafts."""
     from core import skill_tools
 
-    slug = str(pending.get("slug") or "")
+    slug = skill_tools._slug(str(pending.get("slug") or ""))
+    if not slug:
+        return None
     scope = str(pending.get("scope") or "global")
+    keys = _turn_keys(source_context, session_id)
+    imports = skill_tools.import_staging_dir(keys)
+    if imports is not None and (imports / slug / "SKILL.md").is_file():
+        return imports / slug / "SKILL.md"
     if scope == "global":
-        return (skill_tools.staging_root() / slug / "SKILL.md").is_file()
-    dirs = skill_tools._scoped_dirs(scope, _turn_keys(source_context, session_id))
-    return bool(dirs) and (dirs[0] / slug / "SKILL.md").is_file()
+        return skill_tools.staging_root() / slug / "SKILL.md"
+    dirs = skill_tools._scoped_dirs(scope, keys)
+    return dirs[0] / slug / "SKILL.md" if dirs else None
+
+
+def _staged_exists(pending: dict[str, Any], source_context: dict[str, Any] | None, session_id: str) -> bool:
+    path = _staged_path(pending, source_context, session_id)
+    return path is not None and path.is_file()
 
 
 def _attachment_session(session_id: str, source_context: dict[str, Any] | None) -> str:
@@ -1971,6 +2150,11 @@ def _create_or_edit(
         with _STATE_LOCK:
             _DRAFTS[digest_key] = {"draft": dict(draft), "author": author, "at": time.monotonic()}
 
+    problem = _draft_refusal(draft)
+    if problem:
+        # Checked before asking to save: a draft that could never be turned on must not first cost
+        # the person an approval.
+        return plain(problem, reason=f"skill_{action}_refused")
     result = run("skill.create", _create_arguments(draft, scope))
     if result is None:
         return plain(f"This build has no `skill.{action}` tool, so I did not pretend to run it.", reason=f"skill_{action}_unsupported")
@@ -1987,9 +2171,11 @@ def _create_or_edit(
     if refused(result) or status != "ok":
         return plain(str(getattr(result, "response_text", "") or ""), reason=f"skill_{action}", execution=result)
     details = dict(getattr(result, "details", {}) or {})
+    existing = _active_digest(str(details.get("slug") or draft["name"]), scope, keys)
     _remember_pending(
         chat,
-        {"kind": "skill", "slug": details.get("slug") or draft["name"], "scope": scope, "sha256": details.get("sha256")},
+        {"kind": "skill", "slug": details.get("slug") or draft["name"], "scope": scope, "sha256": details.get("sha256"),
+         "replaces": bool(existing), "replaces_sha256": existing},
     )
     replaces = ""
     if _active_exists(draft["name"], scope, keys):
@@ -2013,6 +2199,31 @@ def _written_by(author: str) -> str:
     if author.startswith("from "):
         return "written from your words, no AI model was connected"
     return f"written by {author}"
+
+
+def _active_digest(slug: str, scope: str, keys: dict[str, str] | None) -> str:
+    """The sha256 of the person's ACTIVE skill of this name in this scope, or "" when there is none.
+
+    Global means the person's own packs (``local-skills`` and packs they made); a built-in or an
+    add-on is not theirs to replace and an install never lands there.
+    """
+    from core import skill_tools
+
+    clean = skill_tools._slug(slug)
+    if not clean:
+        return ""
+    candidates: list[Path] = []
+    if scope in ("chat", "project"):
+        dirs = skill_tools._scoped_dirs(scope, keys)
+        if dirs:
+            candidates.append(dirs[1] / clean / "SKILL.md")
+    else:
+        candidates.append(skill_tools.plugins_root() / "plugins" / "local-skills" / "skills" / clean / "SKILL.md")
+    for candidate in candidates:
+        with contextlib.suppress(OSError):
+            if candidate.is_file():
+                return hashlib.sha256(candidate.read_bytes()).hexdigest()
+    return ""
 
 
 def _active_exists(slug: str, scope: str, keys: dict[str, str] | None) -> bool:

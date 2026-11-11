@@ -113,7 +113,13 @@ _RULES = (
         r"\b(?:do not|don't) (?:tell|inform|show|let|alert|notify) (?:the )?(?:user|owner|person)\b|"
         r"\bwithout (?:telling|asking|informing|showing|notifying|alerting) (?:the )?(?:user|owner|person)\b|"
         r"\b(?:secretly|silently|quietly|covertly|invisibly)\b[^.!?\n]{0,40}?\b(?:send|upload|forward|copy|transfer|pay|run|"
-        r"delete|post|share|email)\b", re.IGNORECASE),
+        r"delete|post|share|email)\b|"
+        # Text dressed as the app's own voice: a closing or opening tag around the skill, a role label
+        # in capitals ("SYSTEM:"), or a claim that approval was already given or is not needed.
+        r"</?\s*(?:skill|system|assistant|developer|instructions?|guidance)\b[^<>\n]{0,40}>|"
+        r"(?-i:\b(?:SYSTEM|DEVELOPER|ASSISTANT)(?:\s+(?:MESSAGE|PROMPT|NOTE))?\s*:)|"
+        r"\bpre-?approved\b|\b(?:approvals?|confirmations?|consent|permissions?)\s+(?:is|are)\s+(?:not|no\s+longer)\s+"
+        r"(?:needed|required|necessary)\b|\bend\s+of\s+(?:the\s+)?(?:skill|system)\b", re.IGNORECASE),
         "This reads like an attempt to change VOOL's instructions or hide what the skill does. Rewrite it plainly."),
     ("hidden", re.compile(r"<!--|\[[^\]]{0,100}\]:\s*(?:#|<>)|data:[a-z]+/[a-z0-9.+-]+;base64,|"
                           r"(?<![A-Za-z0-9+/])(?:[A-Za-z0-9+/]{200,}={0,2}|(?:[A-Za-z0-9+/]{40,}={0,2}\s+){3,})|"
@@ -174,14 +180,19 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
             findings.append(_finding("code", name, "This file isn't plain text. Skills hold text, the licence and "
                                                   "their pictures only."))
             continue
-        hidden = next((index for index, char in enumerate(text)
-                       if (unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} or char in _INVISIBLE) and
-                       char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
+        hidden = _hidden_char(text)
         if hidden is not None:
             findings.append(_finding("instructions-primary", name, "This file has invisible or control characters. "
                                      "Retype the line as plain text.", line=_line(text, hidden), rule="invisible"))
         texts[name] = text
     return texts, findings
+
+
+def _hidden_char(text: str) -> int | None:
+    """The offset of the first invisible or control character, or None."""
+    return next((index for index, char in enumerate(text)
+                 if (unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} or char in _INVISIBLE) and
+                 char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
 
 
 def _code(artifact: dict) -> list[dict]:
@@ -536,3 +547,99 @@ def evidence(outcome: dict, policy_value: dict, review: dict, *, now: int) -> di
         value["reports"][name] = report
     canonical(value)  # refuse anything that cannot be signed
     return value
+
+
+# ------------------------------------------------------------------------------------------------
+# The same text checks for a skill that never goes through the Skill Codex
+# ------------------------------------------------------------------------------------------------
+
+#: The name a skill file is checked under. Not ``*/SKILL.md``: the Codex's "escapes" rule is for
+#: published headers, and VOOL writes ``\"`` itself when it saves a description holding a quote.
+#: Escape codes that hide text (``\u200b``, ``\x41``) are still caught by the "hidden" rule.
+SKILL_FILE = "SKILL.md"
+#: Every text value of the parsed header, one per line: YAML escapes are decoded by then, so a
+#: ``"\L"`` or ``"\U0000202E"`` written in quotes is checked as the character it becomes.
+HEADER_VALUES = "SKILL.md header"
+_BOUNDARY_REASON = "This tries to override VOOL's own rules on spending, approvals or permissions. Take it out."
+
+
+def skill_text_findings(text: str, header: dict | None = None) -> list[dict]:
+    """Every Skill Codex text check over one SKILL.md: invisible characters, secrets, the instruction
+    rules and the native-boundaries rule. Used by every way a skill comes in (a zip, a chat import,
+    GitHub and Browse, a drafted skill, an install), so none of them is weaker than the Codex.
+
+    Returns the findings (empty when clean). Never raises for content: anything unexpected is one
+    finding, so a caller that refuses on findings fails closed.
+    """
+    from core.registry.rules import analyze
+
+    try:
+        texts = {SKILL_FILE: str(text or "")}
+        values = [line for value in _strings(header or {}) for line in str(value).splitlines()]
+        if values:
+            texts[HEADER_VALUES] = "\n".join(values)
+        findings: list[dict] = []
+        if sum(len(item) for item in texts.values()) > MAX_TEXT:
+            return [_finding("quality", SKILL_FILE, "This skill is too long to check. Keep all its text under "
+                             "120,000 characters.", rule="too-long")]
+        for name, item in texts.items():
+            hidden = _hidden_char(item)
+            if hidden is not None:
+                findings.append(_finding("instructions-primary", name, "This file has invisible or control "
+                                         "characters. Retype the line as plain text.",
+                                         line=_line(item, hidden) if name == SKILL_FILE else None, rule="invisible"))
+        secrets, secret_lines = _secrets(texts)
+        findings += secrets
+        findings += _instructions(texts, secret_lines)
+        boundaries = analyze({name: item.encode("utf-8") for name, item in texts.items()})
+        findings += [dict(item, reason=_BOUNDARY_REASON) for item in boundaries["conflicts"]]
+        for item in findings:
+            if item.get("path") == HEADER_VALUES:
+                item.pop("line", None)
+                if secret_lines.get(HEADER_VALUES):
+                    item.pop("quote", None)
+        return findings
+    except Exception:  # noqa: BLE001 - a check that cannot run must refuse, never pass
+        return [_finding("instructions-primary", SKILL_FILE, UNREADABLE)]
+
+
+#: For a skill coming into VOOL (not one published to the Skill Codex): why each rule refuses, in
+#: words about VOOL skills, and what to write instead. A rule without an entry keeps its own reason.
+SKILL_FIXES = {
+    "install": "VOOL skills can't carry install commands or ask anyone to run software. Describe the step in "
+               "words instead, for example: \"Open the notes folder and add a page for today.\"",
+    "download": "VOOL skills can't link to programs or archives to download. Take the link out, or name the "
+                "website in words.",
+    "address": "VOOL skills can't use short links, raw addresses or paste sites. Link to the real page, or take "
+               "the link out.",
+    "secret-ask": "VOOL skills can't ask for passwords, keys, recovery phrases or codes. Take that sentence out; "
+                  "a skill never needs them.",
+    "injection": "This reads like an attempt to change VOOL's own instructions or to hide what the skill does. "
+                 "Say plainly what the skill should do instead.",
+    "hidden": "VOOL skills can't carry hidden comments, escape codes or encoded text. Write everything as plain "
+              "visible text.",
+}
+
+
+def plain_findings(findings: list[dict], *, limit: int = 3) -> str:
+    """The findings as calm sentences a person can act on: which line, what it says, why it is not
+    allowed, and what to write instead."""
+    sentences: list[str] = []
+    for item in findings:
+        reason = SKILL_FIXES.get(str(item.get("rule") or "")) or str(item.get("reason") or "").replace(
+            "Skills on the Skill Codex can't", "VOOL skills can't")
+        if item.get("line"):
+            quote = str(item.get("quote") or "")
+            quote = (quote[:77] + "...") if len(quote) > 80 else quote
+            where = f"Line {item['line']}" + (f' ("{quote}")' if quote else "") + ": "
+        elif item.get("path") == HEADER_VALUES:
+            where = "In the skill's name or description: "
+        else:
+            where = ""
+        sentence = where + reason
+        if sentence not in sentences:
+            sentences.append(sentence)
+    shown = sentences[:limit]
+    if len(sentences) > limit:
+        shown.append("There is more to fix after that.")
+    return " ".join(shown)

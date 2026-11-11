@@ -130,11 +130,9 @@ def _effective_digest_for_bytes(content: bytes) -> str:
         match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", text, re.DOTALL)
         if match is None:
             return hashlib.sha256(content).hexdigest()
-        import yaml
+        from core.skill_frontmatter import load_header
 
-        manifest = yaml.safe_load(match.group(1))
-        if not isinstance(manifest, dict):
-            manifest = {}
+        manifest = load_header(match.group(1))
         clean, _ = strip_hidden_blocks(match.group(2) or "")
         return compute_effective_digest(manifest, clean)
     except Exception:
@@ -400,6 +398,200 @@ def staging_root() -> Path:
     return plugins_root() / STAGING_DIRNAME
 
 
+# Imports are staged per CHAT, never in the shared ``staging_root()/<slug>``: a second import of the
+# same name from another chat (or another tab) used to overwrite the draft a person had just
+# reviewed, and "turn it on" then activated the other one (red team t8, 2026-11-10). The leading dot
+# keeps the folder out of every ``*/SKILL.md`` scan and can never be a slug.
+IMPORTS_DIRNAME = ".imports"
+
+
+def import_staging_dir(keys: dict[str, str] | None) -> Path | None:
+    """This chat's own staging folder for imported skills, or None when the turn names no chat."""
+    from core.skill_scopes import _safe_dir
+
+    chat = str((keys or {}).get("chat") or "").strip()
+    if not chat:
+        return None
+    return staging_root() / IMPORTS_DIRNAME / _safe_dir(chat)
+
+
+def imported_mark(skill_dir: Path) -> dict[str, Any] | None:
+    """What an import recorded beside its draft (the digest of the bytes it staged), or None."""
+    mark = Path(skill_dir) / IMPORTED_MARK
+    if not mark.is_file():
+        return None
+    try:
+        data = json.loads(mark.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def reserved_skill_names() -> frozenset[str]:
+    """Slugs no skill from outside VOOL may take: every built-in skill's folder, id and name.
+
+    A skill named like a built-in could not be removed from chat (the remove lane answers "comes
+    with VOOL"), and the on/off setting is keyed by the bare name, so turning the copy off turned
+    the built-in off too (red team t9). Read from the shipped library itself, never a list kept here.
+    """
+    from core.native_skill_library import native_skills_root
+    from core.skill_frontmatter import FrontmatterRefused, parse
+
+    names: set[str] = set()
+    root = native_skills_root()
+    with contextlib.suppress(OSError):
+        for skill_md in sorted(root.glob("*/SKILL.md")):
+            names.add(_slug(skill_md.parent.name))
+            try:
+                parsed = parse(skill_md.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, FrontmatterRefused):
+                continue
+            header = parsed[0] if parsed else {}
+            for key in ("id", "name"):
+                value = header.get(key)
+                if isinstance(value, str) and _slug(value):
+                    names.add(_slug(value))
+    names.discard("")
+    return frozenset(names)
+
+
+#: A skill's name, as a person writes it: letters of any alphabet (accents included), digits,
+#: spaces, hyphens, underscores and apostrophes ("Mum's recipes", "Café notes"), at most 64.
+#: No line breaks, double quotes or brackets: the name is shown on screen and in the turn's skill
+#: header, and a 240-character name with line breaks forged text outside its block (red team t4).
+#: The slug (folder and id) is derived from it and stays strict: lowercase a-z, 0-9 and hyphens.
+MAX_NAME_CHARS = 64
+_NAME_RE = re.compile(r"[^\W_][\w '\u2019\-]{0,%d}" % (MAX_NAME_CHARS - 1))
+
+
+def name_problem(name: Any) -> str:
+    """The plain reason this skill name cannot be used, or "" when it is fine."""
+    text = name if isinstance(name, str) else ""
+    if not text.strip():
+        return "The skill needs a name at the top of the file (name: ...)."
+    if len(text.strip()) > MAX_NAME_CHARS or not _NAME_RE.fullmatch(text.strip()) or len(_slug(text)) > MAX_NAME_CHARS:
+        return (f"The skill's name must be one short line of at most {MAX_NAME_CHARS} letters, digits, spaces, "
+                "hyphens or apostrophes. Shorten it and try again.")
+    return ""
+
+
+#: Header keys that make a skill a typed VOOL contract (seated by task class, given a doctrine
+#: slot). Only VOOL's own, bundled or signed skills may carry them; on an import they would turn
+#: someone else's words into a skill that runs on every turn of those kinds (red team t2, t7).
+TYPED_KEYS = ("id", "task-families", "task_families", "type", "priority", "incompatible-with", "incompatible_with")
+
+
+def typed_keys_problem(header: dict[str, Any]) -> str:
+    found = [key for key in TYPED_KEYS if key in (header or {})]
+    if not found:
+        return ""
+    return ("This skill sets " + ", ".join(found) + ", which only VOOL's own skills may set. "
+            "Take those lines out of the top of the file and try again.")
+
+
+def reserved_name_reason(name: str) -> str:
+    """The plain refusal when ``name`` is a built-in's name (or uses VOOL's own prefix), else ""."""
+    slug = _slug(name)
+    if not slug:
+        return ""
+    reserved = reserved_skill_names()
+    if slug in reserved:
+        shown = builtin_display(slug)
+        return (
+            f'The name "{str(name).strip()}" is taken by one of VOOL\'s own skills ("{shown}"), so this skill needs '
+            f'another name. Pick a different one, for example "My {shown.lower()}", and try again.'
+        )
+    if slug.startswith("vool-"):
+        rest = slug[len("vool-"):].replace("-", " ").strip() or "skill"
+        return (
+            'Names that start with "vool-" are kept for VOOL\'s own skills, so this skill needs another name. '
+            f'Pick a different one, for example "My {rest}", and try again.'
+        )
+    return ""
+
+
+def builtin_display(slug: str) -> str:
+    """A built-in's plain name ("Answer presentation") from any of its slugs."""
+    plain = slug[len("vool-"):] if slug.startswith("vool-") else slug
+    return plain.replace("-", " ").strip().capitalize() or "VOOL"
+
+
+def builtin_not_here(slug: str) -> str:
+    """The plain answer when a bare name means a built-in, which has no draft or installable copy."""
+    shown = builtin_display(slug)
+    return (f'"{shown}" is one of VOOL\'s own skills. It is part of VOOL already, so there is nothing here to '
+            "check or install: turn it on or off in Skills, under My add-ons.")
+
+
+def skill_path_allowed(path: Path, keys: dict[str, str] | None = None) -> bool:
+    """Whether a SKILL.md path sits in one of VOOL's skill folders this turn may read.
+
+    ``skill.validate`` and ``skill.install`` take a path from the model. Without this they read any
+    file on the machine that opened with a ``---`` block and handed its words back (red team t17:
+    a private note in the VOOL home), past the file-reading gate that refuses the same path. The
+    folders: drafts, this chat's imports, installed packs, the built-in library, and this chat's and
+    this project's own skills. Symlinks are resolved first, so a link cannot point out of them.
+    """
+    from core.native_skill_library import native_skills_root
+    from core.skill_scopes import scope_root
+
+    candidate = Path(path)
+    if candidate.name != "SKILL.md":
+        return False
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return False
+    roots = [staging_root(), plugins_root() / "plugins", native_skills_root()]
+    for scope in ("chat", "project"):
+        root = scope_root(scope, keys)
+        if root is not None:
+            roots.append(root)
+    for root in roots:
+        with contextlib.suppress(OSError, RuntimeError, ValueError):
+            if resolved.is_relative_to(root.resolve()):
+                # Another chat's imports live under the drafts folder too; only this chat's count.
+                inside = resolved.relative_to(staging_root().resolve()).parts if root == staging_root() else ()
+                if inside and inside[0] == IMPORTS_DIRNAME:
+                    own = import_staging_dir(keys)
+                    if own is None or not resolved.is_relative_to(own.resolve()):
+                        continue
+                return True
+    return False
+
+
+def _is_native_path(path: Path) -> bool:
+    from core.native_skill_library import native_skills_root
+
+    try:
+        return Path(path).resolve().is_relative_to(native_skills_root().resolve())
+    except (OSError, RuntimeError):
+        return False
+
+
+SAFETY_LEAD = "This skill did not pass VOOL's safety check, so it was not kept. "
+
+
+def content_problem(markdown: str) -> str:
+    """The plain safety-check refusal for one SKILL.md text, or "" when it passes.
+
+    The Skill Codex's own text checks (core.registry.checks.skill_text_findings), run on every way
+    a skill comes in, so a zip, a chat import, a drafted skill and an install are never weaker than
+    a published one. A header that cannot be read safely is refused here too.
+    """
+    from core.registry.checks import plain_findings, skill_text_findings
+    from core.skill_frontmatter import FrontmatterRefused, parse
+
+    try:
+        parsed = parse(markdown)
+    except FrontmatterRefused as refused:
+        return refused.message
+    findings = skill_text_findings(markdown, parsed[0] if parsed else None)
+    if not findings:
+        return ""
+    return SAFETY_LEAD + plain_findings(findings)
+
+
 def _yaml_scalar(value: str) -> str:
     """Quote a frontmatter value so a colon or a hash in a description cannot break the header."""
 
@@ -468,6 +660,21 @@ def create_skill(
         }
     if not str(body or "").strip():
         return {"status": "invalid_arguments", "reason": "body is required - it is the instructions"}
+    named = name_problem(name)
+    if named:
+        return {"status": "invalid_arguments", "reason": named}
+    reserved = reserved_name_reason(name)
+    if reserved:
+        return {"status": "refused", "reason": reserved, "problems": [reserved]}
+    rendered = render_skill_markdown(
+        name=name, description=description, body=body,
+        allowed_tools=allowed_tools, triggers=triggers,
+    ).encode("utf-8")
+    # The same safety check every imported skill passes, before anything is written: a draft that
+    # could never be turned on is not saved, and the person reads why in plain words.
+    problem = content_problem(rendered.decode("utf-8"))
+    if problem:
+        return {"status": "refused", "reason": problem, "problems": [problem]}
 
     if scope == "global":
         directory = staging_root() / slug
@@ -491,13 +698,14 @@ def create_skill(
         }
     try:
         directory.mkdir(parents=True, exist_ok=True)
-        rendered = render_skill_markdown(
-            name=name, description=description, body=body,
-            allowed_tools=allowed_tools, triggers=triggers,
-        ).encode("utf-8")
         target.write_bytes(rendered)
     except OSError as exc:
         return {"status": "error", "reason": f"{type(exc).__name__}: could not write the skill"}
+    # The person wrote these exact bytes in VOOL, whoever called this (core.skill_origin).
+    with contextlib.suppress(Exception):
+        from core.skill_origin import note_created_here
+
+        note_created_here(hashlib.sha256(rendered).hexdigest(), slug=slug)
     return {
         "status": "ok",
         "path": str(target),
@@ -543,42 +751,57 @@ def resolve_skill_markdown(path: str, keys: dict[str, str] | None = None) -> Pat
 
 
 def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path]:
-    """Where a skill of this slug could live, IN SEARCH ORDER: staging, native, then installed.
+    """Where a skill of this slug could live, IN SEARCH ORDER: staging, then installed.
 
     Order is behaviour, not tidiness. A redraft of an already-installed skill is the copy the
     operator is validating; resolving to the installed one instead reports on the previous version
-    and calls it current. The native root sits between them: a first-party package is the shipped
-    source of truth, so a bare name resolves to it in preference to a stale installed copy.
+    and calls it current. VOOL's built-in library is not searched: a bare name used to resolve to
+    the native folder, and "turn on vool-feature-build" copied a developer skill into the person's
+    own skills, out of the native lane's audience and trust rules (red team t5). Built-ins are
+    turned on and off where they live.
 
     With scope keys, this chat's skills (draft, then active) come first, then this project's,
     then everything above: the narrowest scope is the one the operator is working in.
     """
-
-    from core.native_skill_library import native_skills_root
 
     locations: list[Path] = []
     for scope in ("chat", "project"):
         dirs = _scoped_dirs(scope, keys)
         if dirs is not None:
             locations.extend([dirs[0] / slug / "SKILL.md", dirs[1] / slug / "SKILL.md"])
+    imports = import_staging_dir(keys)
+    if imports is not None:
+        locations.append(imports / slug / "SKILL.md")
     locations.append(staging_root() / slug / "SKILL.md")
-    locations.append(native_skills_root() / slug / "SKILL.md")
     # Installed skills sit at plugins/<plugin_id>/skills/<slug>/SKILL.md.
     with contextlib.suppress(OSError):
         locations.extend(sorted((plugins_root() / "plugins").glob(f"*/skills/{slug}/SKILL.md")))
     return locations
 
 
-def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_contracts: tuple = ()) -> dict[str, Any]:
+def validate_skill(
+    path: str,
+    keys: dict[str, str] | None = None,
+    *,
+    candidate_contracts: tuple = (),
+    content_checks: bool | None = None,
+) -> dict[str, Any]:
     """Parse with the REAL loader and report what would stop this skill working.
 
     "It parsed" is the easy half and the less useful one. A skill with no description never ranks,
     and a skill naming a tool that does not exist will narrow the model to nothing on the turn it
     matches — both parse perfectly.
+
+    ``content_checks`` runs the Skill Codex's text checks (``content_problem``). Left as None they
+    run on everything except VOOL's own built-in library, which ships reviewed with the app; a
+    caller that has already run the full Codex suite on these bytes passes False.
     """
 
     candidate = resolve_skill_markdown(path, keys)
     if not candidate.is_file():
+        bare = _slug(str(path or "").strip().strip("`\"'"))
+        if bare and bare in reserved_skill_names() and not any(ch in str(path) for ch in "/~\\"):
+            return {"status": "not_found", "reason": builtin_not_here(bare), "path": ""}
         return {"status": "not_found", "reason": f"no SKILL.md at {candidate}", "path": str(candidate)}
 
     try:
@@ -590,7 +813,15 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
     except (OSError, UnicodeError, ValueError):
         return {"status": "invalid", "path": str(candidate),
                 "problems": ["the complete skill could not be read within the validation limit"]}
-    skill = parse_skill_content(preview_markdown, path=candidate)
+    from core.skill_frontmatter import FrontmatterRefused, parse
+
+    # The header is read once, bounded, before anything else looks at it (core.skill_frontmatter).
+    try:
+        parsed_header = parse(preview_markdown)
+    except FrontmatterRefused as refused:
+        return {"status": "invalid", "path": str(candidate), "problems": [refused.message],
+                "sha256": hashlib.sha256(raw).hexdigest()}
+    skill = parse_skill_content(preview_markdown, path=candidate) if parsed_header is not None else None
     if skill is None:
         return {
             "status": "invalid",
@@ -600,25 +831,28 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
                 "when it applies"
             ],
         }
+    header, full_body = parsed_header[0], parsed_header[1].strip()
 
     problems: list[str] = []
     from core.registry.rules import analyze
 
     boundaries = analyze({"SKILL.md": raw})
-    problems.extend(conflict["reason"] for conflict in boundaries["conflicts"])
-    full_match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", preview_markdown, re.DOTALL)
-    full_body = full_match.group(2).strip() if full_match else ""
+    if content_checks is None:
+        content_checks = not _is_native_path(candidate)
+    if content_checks:
+        problem = content_problem(preview_markdown)
+        if problem:
+            problems.append(problem)
+    else:
+        problems.extend(conflict["reason"] for conflict in boundaries["conflicts"])
     if len(full_body) > _MAX_BODY_CHARS:
         problems.append(f"body exceeds {_MAX_BODY_CHARS} characters; the loader would truncate instructions")
-    try:
-        import yaml
-
-        if not isinstance(yaml.safe_load(full_match.group(1)), dict):
-            problems.append("frontmatter must be a YAML object")
-    except Exception:
-        problems.append("frontmatter could not be validated as YAML")
     if not skill.name.strip():
         problems.append("name is empty")
+    elif "name" in header:
+        named = name_problem(header.get("name"))
+        if named:
+            problems.append(named)
     if not skill.description.strip():
         problems.append(
             "description is empty - it is most of what decides when the skill applies, so an empty "
@@ -692,6 +926,8 @@ def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_c
         "triggers": list(skill.triggers),
         "declared_permissions": list(skill.permissions),
         "preview_markdown": preview_markdown,
+        # Every header key, so a preview can name each one (core.agent_runtime.fast_paths_skill).
+        "frontmatter_keys": sorted(str(key) for key in header),
         "problems": problems,
     }
 
@@ -760,6 +996,9 @@ def _clear_staged_drafts(slug: str, keys: dict[str, str] | None) -> tuple[list[s
     if not clean:
         return [], ""
     candidates = [staging_root() / clean]
+    imports = import_staging_dir(keys)
+    if imports is not None:
+        candidates.append(imports / clean)
     for scope in ("chat", "project"):
         dirs = _scoped_dirs(scope, keys)
         if dirs is not None:
@@ -825,6 +1064,30 @@ def install_skill(
 
     source = resolve_skill_markdown(path, keys)
     expected = str(expected_sha256 or "").strip().lower()
+    recorded_import = imported_mark(source.parent) if source.is_file() else None
+    if recorded_import is not None:
+        # Someone else's file is turned on only as the exact bytes the person was shown: the
+        # digest from that showing must come with the request, and must still be the digest the
+        # import recorded when it staged the file. Without it, a draft swapped after the review
+        # (or a restart that lost the record of what was shown) went live unseen (red team t8).
+        staged_digest = str(recorded_import.get("sha256") or "").strip().lower()
+        if not expected:
+            return {
+                "status": "refused",
+                "reason": "This skill came from a file, so I can only turn it on as the exact version you "
+                          "were shown, and I no longer know which version that was. Ask me to show it "
+                          "again, then say turn it on.",
+                "path": str(source),
+                "problems": ["an imported skill needs the digest of the version that was shown"],
+            }
+        if expected != staged_digest:
+            return {
+                "status": "refused",
+                "reason": "The skill file changed after I showed it to you, so I did not turn it on. "
+                          "Import it again to see the new version.",
+                "path": str(source),
+                "problems": ["draft digest differs from the one that was reviewed"],
+            }
     if expected and source.is_file():
         try:
             actual = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -833,14 +1096,26 @@ def install_skill(
         if actual != expected:
             return {
                 "status": "refused",
-                "reason": "the draft changed after it was shown, so it was not activated; review it again",
+                "reason": "The skill file changed after I showed it to you, so I did not turn it on. "
+                          "Ask me to show it again.",
                 "path": str(source),
                 "problems": ["draft digest differs from the one that was reviewed"],
             }
+    if source.is_file() and _is_native_path(source):
+        return {
+            "status": "refused",
+            "reason": builtin_not_here(_slug(source.parent.name)),
+            "path": "",
+            "problems": ["built-in skills have no installable copy"],
+        }
     verdict = validate_skill(str(source))
     # A skill that is not THERE has not failed validation. Saying "the skill does not validate" about
     # a missing file names the wrong problem and sends the reader to fix the skill's contents.
     if verdict.get("status") == "not_found":
+        bare = _slug(str(path or "").strip().strip("`\"'"))
+        if bare and bare in reserved_skill_names() and not any(ch in str(path) for ch in "/~\\"):
+            plain = builtin_not_here(bare)  # a built-in by name: it has no copy to install
+            return {"status": "not_found", "reason": plain, "path": "", "problems": [plain]}
         return {
             "status": "not_found",
             "reason": f"no SKILL.md at {source} - create or stage it first",
@@ -852,15 +1127,26 @@ def install_skill(
         problems = problems or [str(verdict.get("reason") or "").strip() or "the file could not be read"]
         # The refusal carries the validator's own findings, so the author reads WHAT to fix
         # (an unknown tool name, an empty description) in the same line that says it was refused.
+        if len(problems) == 1 and problems[0].startswith(SAFETY_LEAD):
+            # The safety check already says what was refused, on which line, why and what to write.
+            reason = ("This skill did not pass VOOL's safety check, so it was not installed. "
+                      + problems[0][len(SAFETY_LEAD):])
+        else:
+            reason = "This skill was not installed because it needs fixing first: " + "; ".join(problems)
         return {
             "status": "refused",
-            "reason": "the skill was not installed because it does not pass the skill check: "
-                      + "; ".join(problems),
+            "reason": reason,
             "path": str(source),
             "problems": problems,
         }
 
     slug = _slug(str(verdict.get("name") or source.parent.name))
+    # Built-in names stay the built-ins': a copy under one could not be removed from chat and shared
+    # their on/off switch. That holds for a built-in's own folder too, so it is never copied out of
+    # the library into the person's skills.
+    reserved = reserved_name_reason(slug)
+    if reserved:
+        return {"status": "refused", "reason": reserved, "path": str(source), "problems": [reserved]}
     clean_plugin = _slug(plugin_id) or "local-skills"
     if scoped_dirs is not None:
         destination_dir = scoped_dirs[1] / slug
@@ -919,7 +1205,8 @@ def install_skill(
                     tmp.unlink()
                 return {
                     "status": "refused",
-                    "reason": "the draft changed after it was shown, so it was not activated; review it again",
+                    "reason": "The skill file changed after I showed it to you, so I did not turn it on. "
+                          "Ask me to show it again.",
                     "path": str(source),
                     "problems": ["draft digest differs from the one that was reviewed"],
                 }
@@ -950,6 +1237,16 @@ def install_skill(
                 "path": str(destination),
             }
 
+        # Where it came from, recorded by the install itself so every caller is covered: only
+        # bytes skill.create wrote count as the person's own (core.skill_origin).
+        try:
+            from core.skill_origin import decide_install_origin, record_install
+
+            installed_digest = hashlib.sha256(data).hexdigest()
+            record_install(destination, sha256=installed_digest, origin=decide_install_origin(
+                installed_digest, history_source="import" if origin == "import" else ""))
+        except Exception:  # noqa: BLE001 - a missing record reads as "not the person's own" (fails closed)
+            pass
         result: dict[str, Any] = {
             "status": "ok",
             "path": str(destination),
@@ -1014,6 +1311,11 @@ def list_skills(workspace: str = "", keys: dict[str, str] | None = None) -> dict
         )
 
     staged = [dict(row, scope="global") for row in _scan(staging_root(), ("*/SKILL.md",))]
+    imports = import_staging_dir(keys)
+    if imports is not None:
+        for row in _scan(imports, ("*/SKILL.md",)):
+            recorded = imported_mark(Path(row["path"]).parent) or {}
+            staged.append(dict(row, scope=str(recorded.get("scope") or "global"), imported=True))
     installed = [dict(row, scope="global") for row in _scan(plugins_root() / "plugins", ("*/skills/*/SKILL.md",))]
     # This chat's and this project's own skills: active ones are reported per scope, drafts join
     # the staged list carrying the scope they will be installed into.

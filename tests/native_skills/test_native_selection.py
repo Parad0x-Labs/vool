@@ -125,12 +125,22 @@ def test_words_no_package_declares_select_nothing(library_world) -> None:
 
 
 def test_explicit_invocation_through_the_real_skill_validate_tool(library_world) -> None:
+    """Naming a built-in to skill.validate is narrowed: VOOL's own skills are part of VOOL, so
+    there is no file to check or install. The person is told so plainly, and the built-in is
+    still reachable through the real skill.list door."""
     from core.runtime_execution_tools import execute_runtime_tool
 
     result = execute_runtime_tool("skill.validate", {"path": "vool-repo-onboarding"})
-    assert result is not None and result.ok is True
-    assert "vool-repo-onboarding" in result.response_text
-    assert "invalid" not in result.response_text
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+
+    listed = execute_runtime_tool("skill.list", {})
+    assert listed is not None and listed.ok is True
+    names = {entry.get("name") for entry in listed.details.get("native_skills") or []}
+    assert "repo-onboarding" in names
 
 
 def test_explicit_invocation_through_the_real_skill_list_tool(library_world) -> None:
@@ -392,10 +402,10 @@ def test_an_installed_twin_of_a_native_id_is_reported_and_the_original_keeps_ser
     assert [c.source for c in selection.selected if c.id == "code-review"] == ["native"]
 
 
-def test_a_native_package_is_never_installed_as_a_copy_and_keeps_serving(library_world, plugin_tree) -> None:
-    """create→validate→install is the lifecycle for a person's OWN skills. A native package is
-    already part of VOOL: installing it by name is refused in plain words, no copy lands, and
-    the original stays selectable (red team f109f118 #8: the copy escaped the audience law)."""
+def test_a_native_package_survives_the_full_install_lifecycle(library_world, plugin_tree) -> None:
+    """Copying a built-in into a plugin is refused (it would make a second, unreviewed twin of a
+    VOOL skill). The person is told plainly why and what to do instead; nothing is written, and
+    the original keeps serving."""
     from core.native_skill_library import select_native_skills
     from core.runtime_execution_tools import execute_runtime_tool
 
@@ -403,9 +413,12 @@ def test_a_native_package_is_never_installed_as_a_copy_and_keeps_serving(library
         "skill.install", {"path": "vool-cumulative-testing", "plugin_id": "parity-plugin",
                           "overwrite": True}
     )
-    assert result is not None and result.ok is False and result.status == "refused"
-    assert "built-in" in result.response_text and "not installed as a copy" in result.response_text
-    assert not list((plugin_tree / "plugins").glob("*/skills/vool-cumulative-testing/SKILL.md"))
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+    assert not [p for p in plugin_tree.rglob("SKILL.md") if "parity-plugin" in p.parts]
 
     selection = select_native_skills(
         task_class="debugging",
