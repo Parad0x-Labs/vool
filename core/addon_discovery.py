@@ -313,7 +313,10 @@ def inspect_source(source: dict, path: str, read_file) -> dict:
         reasons.append('This skill is larger than VOOL’s instruction limit. It needs adaptation; VOOL will not silently cut it short.')
     if front.get('allowed-tools') or front.get('allowed_tools'):
         reasons.append('This skill declares a host-specific tool list that needs a VOOL mapping.')
-    from core.skill_tools import content_problem, reserved_name_reason
+    from core.skill_tools import content_problem, reserved_name_reason, typed_keys_problem
+    typed = typed_keys_problem(front)
+    if typed:
+        reasons.append(typed)
     if isinstance(front.get('name'), str):
         reserved = reserved_name_reason(front['name'])
         if reserved:

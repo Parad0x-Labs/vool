@@ -723,6 +723,12 @@ def _content_refusal(slug: str, text: str, *, label: str = "") -> dict[str, Any]
     from core import skill_tools
 
     prefix = f"In {label}: " if label else ""
+    header = _frontmatter(text)
+    for problem in (skill_tools.name_problem(header.get("name")) if "name" in header else "",
+                    skill_tools.typed_keys_problem(header)):
+        if problem:
+            return {"status": "refused", "code": "invalid_skill", "reason": prefix + problem,
+                    "problems": [prefix + problem]}
     reserved = skill_tools.reserved_name_reason(slug)
     if reserved:
         return {"status": "refused", "code": "reserved_name", "reason": prefix + reserved,
@@ -876,6 +882,15 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
             for skill_dir in sorted((destination / "skills").iterdir()):
                 if (skill_dir / "SKILL.md").is_file():
                     skill_tools._record_version(skill_dir, source="plugin")
+                    # A pack's skills are the person's own only where skill.create wrote the bytes.
+                    try:
+                        from core.skill_origin import ORIGIN_IMPORTED, ORIGIN_PACK, decide_install_origin, record_install
+
+                        installed = hashlib.sha256((skill_dir / "SKILL.md").read_bytes()).hexdigest()
+                        record_install(skill_dir / "SKILL.md", sha256=installed, origin=decide_install_origin(
+                            installed, default=ORIGIN_IMPORTED if staged_by == "import" else ORIGIN_PACK))
+                    except Exception:  # noqa: BLE001 - no record reads as not the person's own
+                        pass
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not activate the plugin"}
     try:

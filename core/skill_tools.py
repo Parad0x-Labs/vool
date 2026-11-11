@@ -455,6 +455,38 @@ def reserved_skill_names() -> frozenset[str]:
     return frozenset(names)
 
 
+#: A skill's name: letters (any alphabet), digits, spaces, hyphens and underscores, at most 64.
+#: No line breaks, quotes or brackets: the name is shown on screen and in the turn's skill header,
+#: and a 240-character name with line breaks forged text outside its block (red team t4).
+MAX_NAME_CHARS = 64
+_NAME_RE = re.compile(r"[^\W_][\w \-]{0,%d}" % (MAX_NAME_CHARS - 1))
+
+
+def name_problem(name: Any) -> str:
+    """The plain reason this skill name cannot be used, or "" when it is fine."""
+    text = name if isinstance(name, str) else ""
+    if not text.strip():
+        return "The skill needs a name at the top of the file (name: ...)."
+    if len(text.strip()) > MAX_NAME_CHARS or not _NAME_RE.fullmatch(text.strip()) or len(_slug(text)) > MAX_NAME_CHARS:
+        return (f"The skill's name must be one short line of at most {MAX_NAME_CHARS} letters, digits, spaces "
+                "or hyphens. Shorten it and try again.")
+    return ""
+
+
+#: Header keys that make a skill a typed VOOL contract (seated by task class, given a doctrine
+#: slot). Only VOOL's own, bundled or signed skills may carry them; on an import they would turn
+#: someone else's words into a skill that runs on every turn of those kinds (red team t2, t7).
+TYPED_KEYS = ("id", "task-families", "task_families", "type", "priority", "incompatible-with", "incompatible_with")
+
+
+def typed_keys_problem(header: dict[str, Any]) -> str:
+    found = [key for key in TYPED_KEYS if key in (header or {})]
+    if not found:
+        return ""
+    return ("This skill sets " + ", ".join(found) + ", which only VOOL's own skills may set. "
+            "Take those lines out of the top of the file and try again.")
+
+
 def reserved_name_reason(name: str) -> str:
     """The plain refusal when ``name`` is a built-in's name (or uses VOOL's own prefix), else ""."""
     slug = _slug(name)
@@ -604,6 +636,9 @@ def create_skill(
         }
     if not str(body or "").strip():
         return {"status": "invalid_arguments", "reason": "body is required - it is the instructions"}
+    named = name_problem(name)
+    if named:
+        return {"status": "invalid_arguments", "reason": named}
     reserved = reserved_name_reason(name)
     if reserved:
         return {"status": "refused", "reason": reserved, "problems": [reserved]}
@@ -642,6 +677,11 @@ def create_skill(
         target.write_bytes(rendered)
     except OSError as exc:
         return {"status": "error", "reason": f"{type(exc).__name__}: could not write the skill"}
+    # The person wrote these exact bytes in VOOL, whoever called this (core.skill_origin).
+    with contextlib.suppress(Exception):
+        from core.skill_origin import note_created_here
+
+        note_created_here(hashlib.sha256(rendered).hexdigest(), slug=slug)
     return {
         "status": "ok",
         "path": str(target),
@@ -687,18 +727,18 @@ def resolve_skill_markdown(path: str, keys: dict[str, str] | None = None) -> Pat
 
 
 def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path]:
-    """Where a skill of this slug could live, IN SEARCH ORDER: staging, native, then installed.
+    """Where a skill of this slug could live, IN SEARCH ORDER: staging, then installed.
 
     Order is behaviour, not tidiness. A redraft of an already-installed skill is the copy the
     operator is validating; resolving to the installed one instead reports on the previous version
-    and calls it current. The native root sits between them: a first-party package is the shipped
-    source of truth, so a bare name resolves to it in preference to a stale installed copy.
+    and calls it current. VOOL's built-in library is not searched: a bare name used to resolve to
+    the native folder, and "turn on vool-feature-build" copied a developer skill into the person's
+    own skills, out of the native lane's audience and trust rules (red team t5). Built-ins are
+    turned on and off where they live.
 
     With scope keys, this chat's skills (draft, then active) come first, then this project's,
     then everything above: the narrowest scope is the one the operator is working in.
     """
-
-    from core.native_skill_library import native_skills_root
 
     locations: list[Path] = []
     for scope in ("chat", "project"):
@@ -709,7 +749,6 @@ def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path
     if imports is not None:
         locations.append(imports / slug / "SKILL.md")
     locations.append(staging_root() / slug / "SKILL.md")
-    locations.append(native_skills_root() / slug / "SKILL.md")
     # Installed skills sit at plugins/<plugin_id>/skills/<slug>/SKILL.md.
     with contextlib.suppress(OSError):
         locations.extend(sorted((plugins_root() / "plugins").glob(f"*/skills/{slug}/SKILL.md")))
@@ -783,6 +822,10 @@ def validate_skill(
         problems.append(f"body exceeds {_MAX_BODY_CHARS} characters; the loader would truncate instructions")
     if not skill.name.strip():
         problems.append("name is empty")
+    elif "name" in header:
+        named = name_problem(header.get("name"))
+        if named:
+            problems.append(named)
     if not skill.description.strip():
         problems.append(
             "description is empty - it is most of what decides when the skill applies, so an empty "
@@ -1031,6 +1074,14 @@ def install_skill(
                 "path": str(source),
                 "problems": ["draft digest differs from the one that was reviewed"],
             }
+    if source.is_file() and _is_native_path(source):
+        return {
+            "status": "refused",
+            "reason": f"`{source.parent.name}` is one of VOOL's built-in skills. It is part of VOOL already and "
+                      "is turned on or off in Skills; it is not installed as a copy.",
+            "path": "",
+            "problems": ["built-in skills have no installable copy"],
+        }
     verdict = validate_skill(str(source))
     # A skill that is not THERE has not failed validation. Saying "the skill does not validate" about
     # a missing file names the wrong problem and sends the reader to fix the skill's contents.
@@ -1151,6 +1202,16 @@ def install_skill(
                 "path": str(destination),
             }
 
+        # Where it came from, recorded by the install itself so every caller is covered: only
+        # bytes skill.create wrote count as the person's own (core.skill_origin).
+        try:
+            from core.skill_origin import decide_install_origin, record_install
+
+            installed_digest = hashlib.sha256(data).hexdigest()
+            record_install(destination, sha256=installed_digest, origin=decide_install_origin(
+                installed_digest, history_source="import" if origin == "import" else ""))
+        except Exception:  # noqa: BLE001 - a missing record reads as "not the person's own" (fails closed)
+            pass
         result: dict[str, Any] = {
             "status": "ok",
             "path": str(destination),
