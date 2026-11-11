@@ -453,3 +453,78 @@ def test_the_saved_memory_lane_does_not_list_unrelated_codes_for_another_chat_qu
     assert not handled, reply  # nothing saved covers it: the cross-chat lane and the model take it
     handled, reply = _command("list-b", "do you remember my test hotel booking code?")
     assert handled and "LOTUS-73" in reply and "HERON-7" not in reply, reply
+
+
+# --- battery v9 (2026-11-11) -------------------------------------------------------------------
+
+
+def test_a_fact_said_again_after_it_was_forgotten_can_be_quoted_from_that_chat():
+    from datetime import datetime, timedelta, timezone
+
+    from core.agent_runtime.cross_chat_recall import _not_forgotten
+
+    said = "my test parking spot at work is P-17 on level -2."
+    handled, reply = _command("again-a", "Remember that " + said)
+    assert handled and "Locked in" in reply, reply
+    handled, reply = _command("again-a", "Forget my test parking spot.")
+    assert handled and "Nothing was removed" not in reply, reply
+    before = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    after = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+    assert not _not_forgotten(said, before)  # said before the forget: stays forgotten
+    assert not _not_forgotten(said, "")  # unknown time: fail closed
+    assert _not_forgotten(said, after)  # said again afterwards: the owner's again
+
+
+def test_one_shared_word_is_never_the_closest_saved_fact():
+    _save_test_codes("near-a")
+    assert _lane_rows("which level is my test parking on", "near-b") == ([], [])
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["remind me which bakery i like most", "what day is test piano", "do u know the test parking spot i mentioned",
+     "can you find my test piano lesson time from earlier", "when is my dentist appointment"],
+)
+def test_a_question_without_a_question_mark_is_not_saved_as_a_fact(text):
+    from core.memory.learning import extract_memory_candidates
+
+    assert extract_memory_candidates(text) == []
+
+
+@pytest.mark.parametrize(
+    "text", ["When I travel I take the window seat.", "Whatever the weather, I cycle to work."]
+)
+def test_a_statement_that_opens_like_a_question_word_is_still_read(text):
+    from core.memory.learning import should_skip_memory_sentence
+
+    assert not should_skip_memory_sentence(text)
+
+
+@pytest.mark.parametrize(
+    "text", ["reply to the latest kucoin email saying thanks", "answer kucoin's last email with thanks"]
+)
+def test_a_reply_to_a_received_message_picked_by_recency_reads_the_mailbox_first(text):
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents(text) == ("email.read",)
+
+
+def test_a_compose_order_for_a_template_does_not_read_the_mailbox():
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents("Write the last email template for our newsletter") == ()
+
+
+@pytest.mark.parametrize("text", ["do I have any meetings this week?", "will we have any calls tomorrow"])
+def test_any_meetings_in_a_window_is_an_agenda_read(text):
+    from core.operator.parser import parse_operator_action_intent
+
+    intent = parse_operator_action_intent(text)
+    assert intent is not None and intent.kind == "show_agenda"
+
+
+def test_opening_a_named_page_without_a_url_seats_a_web_search():
+    from core.tool_demand_signals import resolve_demand_signals
+
+    signals = resolve_demand_signals("open the Wikipedia page for the Daugava river and tell me how long it is")
+    assert "web.search" in signals.explicit_intents

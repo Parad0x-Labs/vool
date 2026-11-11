@@ -217,7 +217,8 @@ def _memory_rows(
     memory answer it. One shared word ("test", "code") is not the fact asked for -- deferring on
     it let the model guess a parking level and hand back the bike-lock code for a forgotten hotel
     code (battery v8, 2026-11-11). Rows holding at least half the terms (and at least one) are
-    the CLOSEST saved facts, offered as such and never as the answer.
+    the CLOSEST saved facts, offered as such and never as the answer; one shared word is never
+    close (battery v9 offered the hotel and bike-lock codes for "which level is my test parking on").
     """
     try:
         from core.chat_housekeeping import _doc_stems, _term_in
@@ -235,7 +236,7 @@ def _memory_rows(
             held = sum(1 for term in terms if _term_in(term, stems))
             if held * 2 > len(terms):
                 covering.append(text)
-            elif held and held * 2 >= len(terms) - (len(terms) % 2):
+            elif held >= min(2, len(terms)) and held * 2 >= len(terms) - (len(terms) % 2):
                 closest.append((held, text))
         best = max((held for held, _ in closest), default=0)
         return covering, [text for held, text in closest if held == best]
@@ -316,21 +317,26 @@ def _not_forgotten(text: str, said_at: str = "", state: tuple[tuple[str, ...], d
     try:
         from core.chat_housekeeping import query_terms
         from core.memory.carriers import carries, memory_words
-        from core.memory.entries import _text_is_erased
+        from core.memory.entries import _text_erased_at
         if state is None:
             state = _forget_state()
         if state is None:
             return False
         tokens, forgot_at = state
         if said_at and tokens:
-            # Only forgets made BEFORE the statement was said apply to it.
+            # A forget applies to what was said BEFORE it; a later restatement is not forgotten.
             tokens = tuple(t for t in tokens if not forgot_at.get(t) or forgot_at[t] > said_at)
         words = memory_words(text)
         if any(carries(words, token) for token in tokens):
             return False
         fact = _REMEMBER_LEAD_RE.sub("", " ".join(str(text or "").split())).strip()
-        if _text_is_erased(fact) or _text_is_erased(fact.rstrip(".") + ".") or _text_is_erased(fact.rstrip(".")):
-            return False
+        for form in (fact, fact.rstrip(".") + ".", fact.rstrip(".")):
+            erased_at = _text_erased_at(form)
+            # Erased after it was said (or at an unknown time): it stays forgotten. Said again
+            # after the forget, it is the owner's again -- battery v9 lost a parking spot restated
+            # the day after it was forgotten, because the tombstone was read as "never again".
+            if erased_at is not None and (not erased_at or not said_at or erased_at >= said_at):
+                return False
         stated = set(query_terms(fact))
         for token in tokens:
             subject = {t for t in query_terms(token) if t not in {"the", "my", "a", "an"}}

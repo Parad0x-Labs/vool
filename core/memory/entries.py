@@ -338,6 +338,31 @@ def _text_is_erased(text: str) -> bool:
     return False
 
 
+def _text_erased_at(text: str) -> str | None:
+    """When this exact text was last erased ("" when the tombstone has no time); None if never.
+
+    A fact the owner forgot and then said AGAIN is theirs again from that moment: callers that
+    quote what was said compare this with when it was said (cross-chat recall, battery v9)."""
+    normalized = _erasure_digest_text(text)
+    if not normalized:
+        return None
+    latest: str | None = None
+    for row in _load_jsonl(memory_entries_path()):
+        if str(row.get("status") or "") != _ERASED_STATUS:
+            continue
+        salt = str(row.get("erasure_salt") or "")
+        digest = str(row.get("erasure_digest") or "")
+        if not salt or not digest:
+            continue
+        candidate = hashlib.sha256(f"{salt}:{normalized}".encode()).hexdigest()
+        if hmac.compare_digest(candidate, digest):
+            when = str(row.get("erased_at") or "")
+            if not when:
+                return ""
+            latest = when if latest is None or when > latest else latest
+    return latest
+
+
 def _row_is_active_memory(row: dict[str, Any]) -> bool:
     return (
         str(row.get("status") or "").strip().lower() == "active"

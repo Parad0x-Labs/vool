@@ -403,7 +403,12 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "web.search",
         "web",
         re.compile(
-            r"\b(?:search|google|look\s+up|find)\b[^.?!]{0,60}?\b(?:web|online|internet|google|bing|duckduckgo)\b", re.I
+            r"\b(?:search|google|look\s+up|find)\b[^.?!]{0,60}?\b(?:web|online|internet|google|bing|duckduckgo|wikipedia)\b"
+            # A named page with no URL: "open the Wikipedia page for the Daugava river and tell me
+            # how long it is" seated nothing (battery v9, installed build) and the model, with no
+            # tool, produced no usable answer. The search finds the page; the fetch reads it.
+            r"|\b(?:open|read|check|visit|go\s+to|pull\s+up)\b[^.?!]{0,30}?\b(?:wikipedia|website|web\s*page|web\s*site)\b",
+            re.I,
         ),
     ),
     ("web.fetch", "web", re.compile(r"\b(?:fetch|open|load|check)\b[^.?!]{0,40}?https?://", re.I)),
@@ -902,6 +907,10 @@ _MAILBOX_ANCHOR_RE = re.compile(
     r"|\b(?:did|has|have)\s+(?!i\b|you\b|we\b)[\w@&'.-]+(?:\s+[\w@&'.-]+){0,3}?\s+(?:send|sent|write|written|wrote)\s+(?:to\s+)?(?:me|us)\b"
     r"(?:\s+(?:anything|something|an?\s+(?:message|note|letter|update|reply)|mail|e-?mails?|back))?\s*(?:\?|$|\b(?:this|today|yesterday|recently|lately|since))"
     r"|\bdid\s+(?:i|we)\s+(?:get|receive)\s+(?:anything|something|any(?:thing)?\s+(?:mail|e-?mails?|messages?)|mail|an?\s+(?:message|e-?mail|reply))\s+from\b"
+    # A received message picked out by recency: "reply to the latest kucoin email saying thanks",
+    # "answer kucoin's last email". Measured 2026-11-11 (battery v9, installed build): no read was
+    # seated, so the model asked the owner for KuCoin's address instead of reading the mail.
+    rf"|\b(?:the|[\w-]+['\u2019]s)\s+(?:latest|last|newest|most\s+recent)\s+(?:(?!{_NOT_MAIL_CONTENT}\b)[\w@&'.-]+\s+){{0,3}}?{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
     rf"|^\s*(?:please\s+)?[a-z]+(?:\s+(?:up|out|through|over))?\s+(?:the\s+)?(?:inbox|mailbox|e-?mails?|mail)\b"
     rf"(?!\s+{_NOT_MAIL_CONTENT}\b)",
     re.IGNORECASE,

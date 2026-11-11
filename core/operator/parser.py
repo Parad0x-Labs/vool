@@ -105,7 +105,11 @@ _AGENDA_RE = re.compile(
     r"|\bagenda\s+(?:for|from)\b"
     r"|\bupcoming\s+(?:events?|meetings?|appointments?)\b"
     r"|\b(?:on|for)\s+(?:my|the)\s+calendar\b[^\n!?.]*\b(?:this week|next week|today|tomorrow)\b"
-    r"|\bcalendar\b[^\n!?.]*\bfrom\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\b",
+    r"|\bcalendar\b[^\n!?.]*\bfrom\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\b"
+    # "do I have any meetings this week?" -- measured 2026-11-11 (battery v9, installed build): it
+    # missed this lane, reached a model with no calendar read, and was refused by the evidence check.
+    r"|\b(?:do|will)\s+(?:i|we)\s+have\s+(?:any(?:thing)?\s+)?(?:meetings?|appointments?|events?|calls?)\b"
+    r"[^\n!?.]*\b(?:today|tonight|tomorrow|this week|next week|this weekend)\b",
     re.IGNORECASE,
 )
 _SEARCH_CALENDAR_RE = re.compile(
