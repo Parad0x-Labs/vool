@@ -20,9 +20,19 @@ Strength law (each row has a test):
   The authority persists it immediately and reports the exact change.
 * ``strong``    -- an imperative addressed to the assistant, or a first-person declaration of a
   stable preference ("call me X", "my name is X", "be concise", "reply in Lithuanian").
-  The authority makes a CANDIDATE the operator confirms.
+  The authority makes a CANDIDATE the operator confirms -- except the NAME, which is learned
+  the way a person learns it: stated once, it is saved, and a later statement replaces it.
 * ``weak``      -- a passing self-reference ("I'm Alex btw"), or a style instruction attached
-  to a one-off task ("short answer please, what is ..."). Chat-local only.
+  to a one-off task ("short answer please, what is ..."). Chat-local only -- except an
+  introduction (``learnable``), which fills an empty name and never overrides a stated one.
+
+Name law (see :mod:`core.name_learning` for the apply side):
+
+* only the operator's OWN words teach a name. A message that carries pasted material (a letter,
+  quoted lines, mail headers, many lines) is read for a statement on its first and last line
+  only; what the pasted part says about names is evidence, never a statement;
+* "I'm not X" / "that's not my name" / "don't call me X" drops the name, and a name the
+  operator dropped is not guessed again.
 
 Identity and account facts (signature, default accounts) are only ever proposed as ``explicit``;
 without the directive the clause yields nothing, by construction rather than by a later filter.
@@ -53,6 +63,15 @@ class ProfileProposal:
     scope: str = "global"
     action: str = "remember"  # remember | forget | undo | show
     clause: str = ""
+    #: An introduction ("I'm Alex", "Alex here"): may fill an EMPTY name, never replace one.
+    learnable: bool = field(default=False, compare=False)
+    #: The operator is correcting the name in use ("no, it's Sam"): it replaces the current one.
+    correction: bool = field(default=False, compare=False)
+    #: For a name drop that names a name ("I'm not Rick"): applies only when it IS the name in use.
+    rejected: str = field(default="", compare=False)
+    #: False when the clause says more than the name ("I'm Rick, can you help me ..."): the turn
+    #: still needs its answer, so the name is saved without the clause being taken out of it.
+    whole: bool = field(default=True, compare=False)
     source_start: int = field(default=-1, compare=False)
     source_end: int = field(default=-1, compare=False)
 
@@ -100,7 +119,9 @@ def _trim_trailing_fillers(text: str) -> str:
             break
     return text[:cutoff]
 
-_QUOTED_RE = re.compile(r"[\"“”'‘’]([^\"“”'‘’]{1,200})[\"“”'‘’]")
+# A quote opens after a non-letter and closes before one: the apostrophes in "I'm Rick, what's up"
+# are not a quoted span (read as one, the name between them was blanked out as "shown text").
+_QUOTED_RE = re.compile(r"(?<![^\W\d_])[\"“”'‘’]([^\"“”'‘’]{1,200})[\"“”'‘’](?![^\W\d_])")
 
 _DIRECTIVE_RE = re.compile(
     r"\b(?:remember|memori[sz]e|save|store|note(?:\s{1,32}down)?|keep\s{1,32}in\s{1,32}mind|from\s{1,32}now\s{1,32}on|going\s{1,32}forward|"
@@ -125,6 +146,50 @@ _SHOW_RE = re.compile(r"^(?:what\s{1,32}do\s{1,32}you\s{1,32}(?:remember|know)\s
 _NAME_IMPERATIVE_RE = re.compile(r"^(?:you\s{1,32}(?:can|may|should)\s{1,32})?(?:call|address|refer\s{1,32}to)\s{1,32}me\s{1,32}(?:as\s{1,32})?(?P<v>\S.*)$", re.IGNORECASE)
 _NAME_DECLARATION_RE = re.compile(r"^(?:my\s{1,32}name(?:'s|\s{1,32}is)|i\s{1,32}go\s{1,32}by|i\s{1,32}prefer\s{1,32}to\s{1,32}be\s{1,32}called|(?:set|change|update)\s{1,32}my\s{1,32}name\s{1,32}to)\s{1,32}(?P<v>\S.*)$", re.IGNORECASE)
 _NAME_WEAK_RE = re.compile(r"^(?i:i'?m|i\s{1,32}am|this\s{1,32}is|it'?s)\s{1,32}(?P<v>[A-Z][A-Za-z'\-]{1,30})$")
+# An introduction, as people actually type one: "I'm Rick, can you help me ...", "this is Ana from
+# the shop", "Tom here", "name's Lee". The name must be capitalized -- "i'm tired" and "im back" are
+# the common lowercase shapes and none of them is a name -- and must END there: a comma, a dash, the
+# end of the clause, or a continuation word. "It's X" is an introduction only after a greeting or a
+# correction word ("hey, it's Ana"); bare "It's Friday" is not.
+_NAME_TOKEN = r"[A-Z][^\W\d_]{1,30}(?:[-'][^\W\d_]{1,30})?"
+_NAME_INTRO_TAIL = r"(?:\s{1,8}here)?(?=$|\s{0,4}[,;:(–—-]|\s{1,8}(?i:btw|by\s{1,8}the\s{1,8}way|and|from|here|speaking)\b)"
+_NAME_INTRO_RE = re.compile(
+    r"^(?:(?i:i'?m|i\s{1,8}am|this\s{1,8}is|(?:my\s{1,8}|the\s{1,8})?name'?s)\s{1,8})(?P<v>" + _NAME_TOKEN + r"(?:\s{1,4}" + _NAME_TOKEN + r")?)" + _NAME_INTRO_TAIL
+)
+_NAME_INTRO_ITS_RE = re.compile(r"^(?i:it'?s|it\s{1,8}is)\s{1,8}(?P<v>" + _NAME_TOKEN + r")" + _NAME_INTRO_TAIL)
+_NAME_HERE_RE = re.compile(r"^(?P<v>" + _NAME_TOKEN + r")\s{1,8}here(?=$|\s{0,4}[,;:.!(–—-])")
+_GREETING_LEAD_RE = re.compile(r"^(?:hey|hi|hello|yo|hiya|howdy|good\s{1,8}(?:morning|afternoon|evening))\b", re.IGNORECASE)
+# "no, it's Sam", "actually I'm Sam", "sorry -- call me Sam": the operator is correcting the name.
+_CORRECTION_LEAD_RE = re.compile(r"^(?:(?:no+|nope|nah|actually|sorry|wrong|wait|correction|not\s{1,8}quite)\b[\s,.:;!–—-]{0,8})+", re.IGNORECASE)
+# "Sam, not Rick" / "Sam instead of Rick": the value is the first name; the second is the one being dropped.
+_NAME_NOT_TAIL_RE = re.compile(r"[\s,;]{1,8}(?:(?:and\s{1,8})?not|instead\s{1,8}of|rather\s{1,8}than)\s{1,8}(?P<old>\S.{0,60})$", re.IGNORECASE)
+# The operator saying the name in use is wrong. With a name ("I'm not Rick") it applies only when
+# that IS the name in use; "my name isn't Rick, it's Sam" also carries the replacement.
+_NAME_REJECT_RE = re.compile(
+    r"^(?:that(?:'s|\s{1,8}is|s)|this\s{1,8}is|it(?:'s|\s{1,8}is|s))\s{1,8}not\s{1,8}my\s{1,8}(?:real\s{1,8})?name\b"
+    r"|^(?:not\s{1,8}my\s{1,8}name|wrong\s{1,8}name|you\s{1,8}(?:got|have)\s{1,8}my\s{1,8}name\s{1,8}wrong|that\s{1,8}name\s{1,8}is\s{1,8}wrong)\b",
+    re.IGNORECASE,
+)
+_NAME_REJECT_NAMED_RE = re.compile(
+    r"^(?:(?:i'?m|i\s{1,8}am)\s{1,8}not|my\s{1,8}name\s{1,8}(?:isn'?t|is\s{1,8}not)|(?:please\s{1,8})?(?:don'?t|do\s{1,8}not|stop|quit)\s{1,8}(?:call(?:ing)?|address(?:ing)?)\s{1,8}me)\s{1,8}"
+    r"(?P<old>[^\W\d_][^\W\d_'\-]{1,30})(?:[\s,;:–—-]{1,8}(?:(?:it'?s|it\s{1,8}is|i'?m|i\s{1,8}am|my\s{1,8}name(?:'s|\s{1,8}is)|but|call\s{1,8}me|use|just)\s{1,8}){1,2}(?P<new>\S.{0,60}))?$",
+    re.IGNORECASE,
+)
+# Capitalized words that follow "I'm" / "It's" and are not names.
+_NOT_A_NAME = frozenset({
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "january", "february", "march",
+    "april", "may", "june", "july", "august", "september", "october", "november", "december", "christmas", "easter",
+    "american", "british", "canadian", "australian", "irish", "scottish", "welsh", "indian", "mexican", "brazilian",
+    "european", "asian", "african", "nigerian", "egyptian", "israeli", "iranian", "pakistani", "vietnamese", "thai",
+    "muslim", "jewish", "catholic", "hindu", "buddhist", "atheist", "vegan", "vegetarian", "ok", "okay", "fine",
+    "sorry", "done", "back", "here", "ready", "sure", "home", "in", "out", "on", "off", "not", "so", "too", "very",
+    "just", "still", "also", "really", "new", "good", "great", "glad", "happy", "sad", "mad", "sick", "ill", "broke",
+    "stuck", "lost", "late", "early", "free", "busy", "tired", "curious", "confused", "bored", "hungry", "wondering",
+    "looking", "trying", "working", "using", "thinking", "going", "getting", "having", "writing", "building", "making",
+    "running", "planning", "the", "a", "an", "your", "you", "me", "it", "that", "this", "vool", "nobody", "someone",
+    "anyone", "everyone", "god", "batman", "true", "false", "yes", "no", "what", "why", "how", "who", "when", "where",
+})
+
 _NAME_FORGET_RE = re.compile(r"^(?:forget|clear|drop|delete)\s{1,32}my\s{1,32}name\b|^stop\s{1,32}calling\s{1,32}me\b|^don'?t\s{1,32}(?:call|address)\s{1,32}me\s{1,32}(?:that|by\s{1,32}(?:my|any)\s{1,32}name|anything)\b", re.IGNORECASE)
 # "Calling me Skipper got old", "no more nicknames", "enough with the nickname": the owner is dropping the name
 # they are addressed by. It needs both halves -- the address frame AND a drop -- so "my cat's nickname is
@@ -263,6 +328,17 @@ def _clean_value(value: str) -> str:
     return text.strip(" ,.!;:\"'")
 
 
+# What follows "call me" in an idiom, not a name: "call me at 5", "call me crazy, but ...".
+_NAME_IDIOM_HEADS = frozenset({
+    "at", "on", "in", "if", "when", "to", "for", "with", "up", "out", "over", "asap", "now", "soon", "tonight",
+    "today", "once", "as", "by", "from", "about", "so", "and", "or", "but", "please", "back", "later", "again",
+    "maybe", "whatever", "anytime", "sometime", "names", "crazy", "old", "biased", "paranoid", "naive", "skeptical",
+    "sceptical", "cynical", "lazy", "silly", "dumb", "weird", "picky", "boring", "impressed", "surprised",
+    "confused", "curious", "stupid", "mad", "wrong", "stubborn", "cheap", "selfish", "nuts", "insane", "ignorant",
+    "romantic", "sentimental", "greedy", "impatient", "pessimistic", "optimistic", "superstitious", "what",
+})
+
+
 def _name_value(value: str) -> str:
     cleaned = _clean_requested_name(_clean_value(value))
     if not cleaned or not _looks_like_real_name(cleaned) or len(cleaned) > 60:
@@ -272,12 +348,60 @@ def _name_value(value: str) -> str:
         return ""
     if lowered.startswith(("a ", "an ", "the ", "your ", "that ", "this ", "it ", "not ")):
         return ""
-    if any(tok in lowered.split() for tok in ("later", "back", "when", "if", "after", "before", "tomorrow", "again")):
+    tokens = lowered.split()
+    if any(tok in tokens for tok in ("later", "back", "when", "if", "after", "before", "tomorrow", "again")):
         return ""
+    # A stated name is saved the moment it is said, so it has to BE a name: it starts with a
+    # letter, is not the head of a "call me ..." idiom, and is not a bare number.
+    if not tokens or tokens[0] in _NAME_IDIOM_HEADS or not tokens[0][0].isalpha() or all(tok.isdigit() for tok in tokens):
+        return ""
+    if cleaned.islower() and all(re.fullmatch(r"[^\W\d_]+(?:[-'][^\W\d_]+)?", tok) for tok in cleaned.split()):
+        # "my name is rick" -> Rick. Mixed or deliberate casing ("deShawn", "DJ") is kept as typed.
+        cleaned = " ".join(tok.capitalize() for tok in cleaned.split())
     return cleaned
 
 
-def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool) -> ProfileProposal | None:
+def _stated_name(raw_value: str) -> tuple[str, bool, bool]:
+    """``(name, correction, whole)`` for the value part of "call me ..." / "my name is ...".
+
+    "Sam, not Rick" is the name Sam and a correction. ``whole`` is False when the clause goes on
+    after the name ("Rick, what's the weather"), so the caller knows the turn still wants an answer.
+    """
+    text = str(raw_value or "").strip()
+    correction = False
+    not_tail = _NAME_NOT_TAIL_RE.search(text)
+    if not_tail:
+        text = text[: not_tail.start()].strip()
+        correction = True
+    value = _name_value(text)
+    if not value:
+        return "", False, True
+    rest = _clean_value(text)[len(value):] if _clean_value(text).lower().startswith(value.lower()) else ""
+    rest = _trim_trailing_fillers(rest.strip(" ,.!;:"))
+    return value, correction, not rest.strip(" ,.!;:")
+
+
+def _intro_name(normalized: str, *, greeted: bool) -> tuple[str, bool, bool]:
+    """``(name, correction, whole)`` for an introduction, or ``("", False, True)``."""
+    lead = _CORRECTION_LEAD_RE.match(normalized)
+    body = normalized[lead.end():] if lead else normalized
+    match = _NAME_INTRO_RE.match(body) or _NAME_HERE_RE.match(body)
+    if match is None and (greeted or lead):
+        match = _NAME_INTRO_ITS_RE.match(body)
+    if match is None:
+        return "", False, True
+    raw = match.group("v")
+    if any(tok.lower() in _NOT_A_NAME or tok.lower() in _LANGUAGES for tok in raw.split()):
+        return "", False, True
+    value = _name_value(raw)
+    if not value:
+        return "", False, True
+    rest = re.sub(r"^\s{0,8}here\b", "", body[match.end("v"):], flags=re.IGNORECASE)
+    rest = _trim_trailing_fillers(rest.strip(" ,.!;:"))
+    return value, bool(lead), not rest.strip(" ,.!;:")
+
+
+def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool, greeted: bool = False) -> ProfileProposal | None:
     """One clause -> at most one proposal. Order is by specificity, not by priority between
     competing readings: each frame requires its own head phrase, so at most one can match."""
     ctx = _CONTEXT_RE.match(_strip_directive(normalized) if explicit else normalized)
@@ -295,8 +419,21 @@ def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool)
         return ProfileProposal("*", "", "explicit", action="show", clause=clause)
     if _FORGET_ALL_RE.match(body):
         return ProfileProposal("*", "", "explicit", action="forget", clause=clause)
+    # "my name isn't Rick, it's Sam" / "don't call me Rick, call me Sam": the replacement is the
+    # statement. Without one ("I'm not Rick") it is a drop that applies only if Rick IS the name
+    # in use -- "I'm not sure" names nothing and must cost nothing.
+    named_reject = _NAME_REJECT_NAMED_RE.match(body)
+    if named_reject and named_reject.group("new"):
+        value, _, whole = _stated_name(named_reject.group("new"))
+        if value:
+            return ProfileProposal("preferred_name", value, "explicit" if explicit else "strong", scope=scope if scope != "chat" else "global",
+                                   clause=clause, correction=True, rejected=named_reject.group("old"), whole=whole)
+    if _NAME_REJECT_RE.match(body):
+        return ProfileProposal("preferred_name", "", "explicit", action="forget", clause=clause, correction=True)
     if _NAME_FORGET_RE.match(body) or (_NAME_FRAME_RE.search(normalized) and _NAME_DROP_RE.search(normalized)):
         return ProfileProposal("preferred_name", "", "explicit", action="forget", clause=clause)
+    if named_reject:
+        return ProfileProposal("preferred_name", "", "explicit", action="forget", clause=clause, correction=True, rejected=named_reject.group("old"))
     forget_cat = _FORGET_CATEGORY_RE.match(body)
     if forget_cat:
         label = " ".join(forget_cat.group("c").lower().split())
@@ -335,19 +472,26 @@ def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool)
                 return ProfileProposal(category, value, "explicit", scope=scope if scope != "chat" else "global", clause=clause)
             return None
 
-    name = _NAME_IMPERATIVE_RE.match(body) or _NAME_DECLARATION_RE.match(body)
+    # A correction word in front ("no, call me Sam", "actually my name is Sam") is still the statement.
+    lead = _CORRECTION_LEAD_RE.match(body)
+    name_body = body[lead.end():] if lead else body
+    name = _NAME_IMPERATIVE_RE.match(name_body) or _NAME_DECLARATION_RE.match(name_body)
     if name:
-        value = _name_value(name.group("v"))
+        value, correction, whole = _stated_name(name.group("v"))
         if not value:
             return None
-        if _NAME_DECLARATION_RE.match(body) and re.match(r"^(?:set|change|update)\s{1,32}my\s{1,32}name", body, re.IGNORECASE):
+        if _NAME_DECLARATION_RE.match(name_body) and re.match(r"^(?:set|change|update)\s{1,32}my\s{1,32}name", name_body, re.IGNORECASE):
             strength = "explicit"
-        return ProfileProposal("preferred_name", value, strength, scope=scope, clause=clause)
-    weak_name = _NAME_WEAK_RE.match(normalized)
-    if weak_name and not explicit:
-        value = _name_value(weak_name.group("v"))
+        return ProfileProposal("preferred_name", value, strength, scope=scope, clause=clause, correction=correction or bool(lead), whole=whole)
+    if not explicit:
+        value, correction, whole = _intro_name(normalized, greeted=greeted)
         if value:
-            return ProfileProposal("preferred_name", value, "weak", scope="chat", clause=clause)
+            return ProfileProposal("preferred_name", value, "weak", scope="chat", clause=clause, learnable=True, correction=correction, whole=whole)
+        weak_name = _NAME_WEAK_RE.match(normalized)
+        if weak_name:
+            value = _name_value(weak_name.group("v"))
+            if value and value.lower() not in _NOT_A_NAME and value.lower() not in _LANGUAGES:
+                return ProfileProposal("preferred_name", value, "weak", scope="chat", clause=clause)
 
     lang = _LANGUAGE_RE.match(body)
     if lang and lang.group("v").lower() in _LANGUAGES:
@@ -398,6 +542,9 @@ def interpret_profile_turn(text: str) -> list[ProfileProposal]:
     attached_task = bool(_ATTACHED_TASK_RE.search(without_quotes)) and not _DIRECTIVE_RE.search(without_quotes)
     proposals: list[ProfileProposal] = []
     seen: set[tuple[str, str, str]] = set()
+    from core.name_learning import own_voice_spans
+
+    own_voice = own_voice_spans(raw)
     for clause, source_start, source_end in _clause_spans(without_quotes):
         normalized = _normalize_clause(clause)
         if not normalized:
@@ -405,8 +552,15 @@ def interpret_profile_turn(text: str) -> list[ProfileProposal]:
         # Read the directive off the clause BEFORE trailing fillers are dropped: "by default" and
         # "from now on" are the directive, not filler, when they close the clause.
         explicit = bool(_DIRECTIVE_RE.search(_LEADING_FILLER_RE.sub("", clause)))
-        proposal = _frame(clause, normalized, explicit=explicit, attached_task=attached_task)
+        proposal = _frame(clause, normalized, explicit=explicit, attached_task=attached_task,
+                          greeted=bool(_GREETING_LEAD_RE.match(clause.strip())))
         if proposal is None:
+            continue
+        if proposal.category == "preferred_name" and own_voice is not None and not any(
+            start <= source_start < end for start, end in own_voice
+        ):
+            # The clause sits inside pasted material: what a pasted letter says about names is
+            # evidence (core.name_learning), never the operator's own statement.
             continue
         key = (proposal.category, proposal.value.lower(), proposal.action)
         if key in seen:

@@ -8,7 +8,9 @@ memory store -- and it does exactly three things:
    identity authority and the prompt assembler read the SAME resolution this turn used);
 2. interprets the turn (:mod:`core.operator_profile_interpretation`) and applies the memory law
    through :mod:`core.operator_profile`: explicit -> persist and report; strong -> candidate;
-   weak -> chat-local; contradiction -> conflict candidate; secrets -> refused;
+   weak -> chat-local; contradiction -> conflict candidate; secrets -> refused. The NAME is
+   learned the way a person learns one (``_apply_name``): said once it is saved, said again it
+   is replaced, an introduction or a pasted letter fills an empty name, and nothing asks;
 3. leaves the outcome on ``source_context["profile_observation"]`` so the transport door can put
    a ``vool_profile`` frame on the wire (chip / confirmation / "Used N preferences").
 
@@ -27,6 +29,7 @@ from core.operator_profile_interpretation import ProfileProposal, interpret_prof
 
 __all__ = [
     "bind_turn_scope",
+    "learn_name_from_mail",
     "clear_turn_scope",
     "current_turn_scope",
     "observe_profile_turn",
@@ -84,7 +87,99 @@ def _conflict_payload(change: profile.ProfileChange) -> dict[str, Any]:
     }
 
 
+#: Not a profile turn after all ("I'm not sure" names no name in use): nothing is said or saved.
+_IGNORED = profile.ProfileChange("ignored", "")
+
+
+def _same_name(left: str, right: str) -> bool:
+    a, b = str(left or "").strip().lower(), str(right or "").strip().lower()
+    return bool(a) and bool(b) and (a == b or a == b.split()[0] or b == a.split()[0])
+
+
+def _standing_name(principal: str) -> profile.ProfileItem | None:
+    """The name VOOL uses across chats (any scope but one chat's), or None."""
+    for item in reversed(profile.list_items(principal)):
+        if item.category == "preferred_name" and item.status == profile.STATUS_ACTIVE:
+            return item
+    return None
+
+
+def _apply_name(proposal: ProfileProposal, *, principal: str, session_id: str, turn_id: str) -> profile.ProfileChange:
+    """The name law. Stated -> saved, and a later statement replaces it (a correction always
+    wins, nothing asks). An introduction fills an empty name; where another name already stands
+    it applies to this chat only, unless it was said as a correction."""
+    standing = _standing_name(principal)
+    stated = proposal.strength in {"explicit", "strong"}
+    correcting = bool(proposal.correction and standing is not None)
+    if stated or (proposal.learnable and correcting):
+        scope = proposal.scope if stated else "global"
+        if correcting and scope == "global" and standing is not None:
+            # "no, it's Sam" corrects the name wherever it stands (a work-only name stays work-only).
+            scope = standing.scope
+        change = profile.remember(
+            principal, "preferred_name", proposal.value, scope=scope,
+            session_id=session_id, turn_id=turn_id, origin="explicit", confidence=1.0, actor="chat",
+            reason=f"stated: {proposal.clause[:120]}", replace=True,
+        )
+        if change.kind == "saved":
+            # As the whole reply this passes the same gate every reply does, and that gate reads
+            # "I'll call ..." as a promise of work not done; the line under an answer is not a reply.
+            said = f"Got it, {change.item.value_text}. I'll remember that." if proposal.whole else f"I'll call you {change.item.value_text}."
+            return profile.ProfileChange("saved", said, item=change.item)
+        if change.kind == "updated" and change.previous is not None:
+            return profile.ProfileChange(
+                "updated", f"Got it, {change.item.value_text} it is. I won't call you {change.previous.value_text} any more.",
+                item=change.item, previous=change.previous,
+            )
+        if change.kind == "unchanged" and change.item is not None:
+            if change.item.origin == "inferred":
+                # They confirmed a picked-up name by saying it themselves: it is theirs now.
+                try:
+                    profile.edit_item(change.item.item_id, change.item.value_text, expected_revision=change.item.revision,
+                                      actor="chat", reason="confirmed by the user")
+                except Exception:
+                    pass
+            if proposal.strength != "explicit":
+                return _IGNORED
+            return profile.ProfileChange("unchanged", f"I'm already calling you {change.item.value_text}.", item=change.item)
+        return change
+    if proposal.learnable:
+        if standing is None:
+            change = profile.learn_name(
+                principal, proposal.value, source="an introduction in chat", session_id=session_id, turn_id=turn_id, own_words=True,
+            )
+            if change.kind == "saved":
+                return profile.ProfileChange("saved", f"Nice to meet you, {change.item.value_text}.", item=change.item) if proposal.whole else change
+        elif _same_name(standing.value_text, proposal.value):
+            return _IGNORED
+    change = profile.note_chat_local(
+        principal, "preferred_name", proposal.value, session_id=session_id, turn_id=turn_id, confidence=0.5,
+    )
+    return change
+
+
+def _reject_name(proposal: ProfileProposal, *, principal: str, session_id: str) -> profile.ProfileChange:
+    """"I'm not Rick" / "that's not my name": drop the name in use. A named one applies only when
+    it IS the name in use; the dropped name is then never guessed again (``name_guess_blocked``)."""
+    current = profile.resolve(principal, "preferred_name", session_id=session_id)
+    if current is None or (proposal.rejected and not _same_name(current.value_text, proposal.rejected)):
+        return _IGNORED
+    old = current.value_text
+    last: profile.ProfileChange | None = None
+    for item in profile.list_items(principal, session_id=session_id):
+        if item.category == "preferred_name":
+            last = profile.forget_item(item.item_id, actor="chat", reason="forget: not my name")
+    return profile.ProfileChange(
+        "forgotten", f"Sorry about that. I won't call you {old} any more.",
+        item=last.item if last else None, previous=last.previous if last else None,
+    )
+
+
 def _apply(proposal: ProfileProposal, *, principal: str, session_id: str, turn_id: str) -> profile.ProfileChange:
+    if proposal.category == "preferred_name" and proposal.action == "forget" and proposal.correction:
+        return _reject_name(proposal, principal=principal, session_id=session_id)
+    if proposal.category == "preferred_name" and proposal.action == "remember":
+        return _apply_name(proposal, principal=principal, session_id=session_id, turn_id=turn_id)
     if proposal.action == "forget":
         return _forget(proposal, principal=principal, session_id=session_id)
     if proposal.action == "undo":
@@ -185,34 +280,62 @@ def observe_profile_turn(
             proposals = [p for p in proposals if getattr(p, "action", "") in {"forget", "undo", "show"}]
     except Exception:
         proposals = []
+    turn_id = str((source_context or {}).get("cancel_turn_id") or (source_context or {}).get("_canonical_user_turn_id") or "")
+    # A name VOOL picked up outside this chat (off the operator's own mail) is said out loud the
+    # first time it is used, with an Undo -- never used silently, never asked about.
+    unannounced = _unannounced_name(principal, session_id, project_id) if principal else None
     used_lines: list[str] = []
     used: list[dict[str, str]] = []
-    if principal:
+
+    def _hydrate() -> None:
+        nonlocal used_lines, used
         try:
             used_lines, used = profile.hydration_for_turn(principal, session_id=session_id, project_id=project_id)
         except Exception:
             used_lines, used = [], []
-    # The turn context is touched ONLY when the profile did something: an ordinary turn carries
-    # no profile keys at all (byte-equivalence law, and the frozen front-door tests pin the
-    # context they hand each lane).
-    if used and isinstance(source_context, dict):
-        source_context["profile_context_lines"] = used_lines
-        source_context["profile_used"] = used
-        _observation(source_context)["used"] = used
+        # The turn context is touched ONLY when the profile did something: an ordinary turn carries
+        # no profile keys at all (byte-equivalence law, and the frozen front-door tests pin the
+        # context they hand each lane).
+        if used and isinstance(source_context, dict):
+            source_context["profile_context_lines"] = used_lines
+            source_context["profile_used"] = used
+            _observation(source_context)["used"] = used
+
+    if principal:
+        _hydrate()
+    if unannounced is not None:
+        _observation(source_context)["saved"].append({
+            "report": f"I'll call you {unannounced.value_text}. I noticed the name on your email.",
+            "category": "preferred_name", "item_id": unannounced.item_id,
+        })
+    if principal and not private and not any(p.category == "preferred_name" for p in proposals):
+        # A pasted letter that names the operator (and agrees with the name on this computer's
+        # account) teaches the name without a word about it from them.
+        learned = _learn_name_from_pasted(raw_user_input, principal=principal, session_id=session_id, turn_id=turn_id)
+        if learned is not None:
+            _observation(source_context)["saved"].append({
+                "report": f"I'll call you {learned.value_text}. I noticed the name in what you pasted.",
+                "category": "preferred_name", "item_id": learned.item_id,
+            })
+            _hydrate()
     if not proposals:
         return None
     if not principal:
         _observation(source_context)["notices"].append("Profile memory is unavailable on this surface.")
         return None
     obs = _observation(source_context)
-    turn_id = str((source_context or {}).get("cancel_turn_id") or (source_context or {}).get("_canonical_user_turn_id") or "")
     claim_lines: list[str] = []
+    name_entries: list[dict[str, Any]] = []
+    name_changed = False
     consumed: list[str] = []
     consumed_spans: list[tuple[int, int]] = []
     claims_turn = True
     for proposal in proposals:
         change = _apply(proposal, principal=principal, session_id=session_id, turn_id=turn_id)
         kind = change.kind
+        if kind == "ignored":
+            claims_turn = False
+            continue
         if kind == "candidate":
             obs["candidates"].append(_candidate_payload(change))
             claims_turn = False
@@ -225,10 +348,20 @@ def observe_profile_turn(
             continue
         if kind == "chat_local":
             claims_turn = False
+            name_changed = name_changed or proposal.category == "preferred_name"
             continue
         if kind in {"saved", "updated", "forgotten"}:
-            obs["saved"].append({**change.as_dict(), "category": change.item.category if change.item else proposal.category, "item_id": change.item.item_id if change.item else ""})
+            entry = {**change.as_dict(), "category": change.item.category if change.item else proposal.category, "item_id": change.item.item_id if change.item else ""}
+            obs["saved"].append(entry)
             _record_receipt(change, proposal, session_id=session_id, source_context=source_context)
+            if proposal.category == "preferred_name":
+                name_changed = True
+                if not proposal.whole:
+                    # "I'm Rick, can you help me ...": the name is saved and the sentence stays in
+                    # the turn, so the question still gets its answer.
+                    claims_turn = False
+                    continue
+                name_entries.append(entry)
             claim_lines.append(change.report)
             consumed.append(proposal.clause)
             consumed_spans.append((proposal.source_start, proposal.source_end))
@@ -243,6 +376,13 @@ def observe_profile_turn(
                 claims_turn = False
             continue
         claims_turn = False
+    if name_changed:
+        # The answer to THIS turn already uses the name it just taught (or stops using the one it dropped).
+        if isinstance(source_context, dict):
+            for key in ("profile_context_lines", "profile_used"):
+                source_context.pop(key, None)
+            obs.pop("used", None)
+        _hydrate()
     remaining = _remaining_text(raw_user_input, consumed)
     memory_remaining = _remaining_memory_text(raw_user_input, consumed_spans)
     if not claim_lines:
@@ -256,6 +396,9 @@ def observe_profile_turn(
         obs["notices"].extend(claim_lines)
         return {"result": None, "remaining_text": raw_user_input}
     response = "\n".join(claim_lines)
+    for entry in name_entries:
+        # The reply itself says it; the line under it is just the Undo.
+        entry["report"] = ""
     return {
         "result": agent._fast_path_result(
             session_id=session_id,
@@ -267,6 +410,60 @@ def observe_profile_turn(
         ),
         "remaining_text": "",
     }
+
+
+def _unannounced_name(principal: str, session_id: str, project_id: str) -> profile.ProfileItem | None:
+    try:
+        item = profile.resolve(principal, "preferred_name", session_id=session_id, project_id=project_id)
+    except Exception:
+        return None
+    if item is None or item.origin != "inferred" or item.scope == "chat" or item.last_used_at:
+        return None
+    return item
+
+
+def _learn_name_from_pasted(raw_user_input: str, *, principal: str, session_id: str, turn_id: str) -> profile.ProfileItem | None:
+    try:
+        from core import name_learning
+
+        # The computer account is the owner's: it says nothing about a phone or channel user.
+        if principal != profile.OWNER_PRINCIPAL:
+            return None
+        if not name_learning.has_pasted_material(raw_user_input) or _standing_name(principal) is not None:
+            return None
+        name = name_learning.name_from_pasted_text(raw_user_input)
+        if not name:
+            return None
+        change = profile.learn_name(principal, name, source="a pasted message", session_id=session_id, turn_id=turn_id)
+    except Exception:
+        return None
+    return change.item if change.kind == "saved" else None
+
+
+def learn_name_from_mail(messages: Any, *, source_context: dict[str, Any] | None) -> profile.ProfileItem | None:
+    """Called after VOOL reads the operator's mail: a message to (or from) one of their own
+    configured addresses carries the name people use for them. Owner turns only, never a private
+    chat, and only into an empty name. It is announced on the next turn that uses it."""
+    try:
+        from core import name_learning
+        from core.email_accounts import configured_accounts
+        from core.private_chat import turn_is_private
+
+        principal = profile.principal_for_request(source_context)
+        context = source_context if isinstance(source_context, dict) else {}
+        session_id = str(context.get("runtime_session_id") or context.get("chat_id") or context.get("session_id") or "")
+        if not principal or principal != profile.OWNER_PRINCIPAL or turn_is_private(source_context, session_id):
+            return None
+        if _standing_name(principal) is not None:
+            return None
+        own = [str(getattr(record, "address", "") or "") for record in configured_accounts().values()]
+        name = name_learning.name_from_own_mail(list(messages or []), own)
+        if not name:
+            return None
+        change = profile.learn_name(principal, name, source="own mail", session_id=session_id)
+    except Exception:
+        return None
+    return change.item if change.kind == "saved" else None
 
 
 def _record_receipt(change: profile.ProfileChange, proposal: ProfileProposal, *, session_id: str, source_context: dict[str, Any] | None) -> None:
@@ -353,6 +550,10 @@ def profile_frame_for_result(result: dict[str, Any] | None) -> dict[str, Any] | 
     frame: dict[str, Any] = {}
     for key in ("saved", "candidates", "conflicts", "used", "notices"):
         values = [v for v in list(obs.get(key) or []) if v]
+        if key == "notices":
+            # A change already shown with its Undo is not repeated as a second line.
+            shown = {str(entry.get("report") or "") for entry in frame.get("saved") or [] if isinstance(entry, dict)}
+            values = [v for v in values if str(v) not in shown]
         if values:
             frame[key] = values
     # A standing instruction is saved for every later chat in the workspace; without its own line

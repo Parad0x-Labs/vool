@@ -250,6 +250,8 @@ def requires_forget_outcome(
         profile_spans = [
             (proposal.source_start, proposal.source_end)
             for proposal in interpret_profile_turn(command)
+            # A name picked up from a longer sentence leaves that sentence in the turn.
+            if proposal.whole and not proposal.rejected
         ]
         if profile_spans:
             command = _remaining_memory_text(command, profile_spans)
@@ -281,7 +283,7 @@ def forget_demand_targets(user_text: str) -> frozenset[str]:
     from core.within_turn_retraction import intake_request_text
 
     command = intake_request_text(str(user_text or ""))
-    spans = [(item.source_start, item.source_end) for item in interpret_profile_turn(command)]
+    spans = [(item.source_start, item.source_end) for item in interpret_profile_turn(command) if item.whole and not item.rejected]
     if spans:
         command = _remaining_memory_text(command, spans)
     targets = set()

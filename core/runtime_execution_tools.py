@@ -2105,7 +2105,9 @@ def _operator_profile_tool(intent: str, arguments: dict[str, Any], source_contex
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text,
                                       details={"observation": _tool_observation(intent=intent, tool_surface="profile", ok=True, status="ok")})
     if proposal.strength == "explicit":
-        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool")
+        # A name the user told the model to remember replaces the old one: a correction never raises a question.
+        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool",
+                                  replace=proposal.category == "preferred_name")
     else:
         change = profile.propose_candidate(principal, proposal.category, proposal.value, session_id=session_id)
     ok = change.kind in {"saved", "updated", "unchanged", "candidate", "conflict"}
@@ -3512,12 +3514,16 @@ def _dispatch_runtime_tool(
             return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
-        if intent == "email.read":
-            return _email_read(arguments)
+        if intent in {"email.read", "email.open"}:
+            _mail_result = _email_read(arguments) if intent == "email.read" else _email_open(arguments)
+            if _mail_result.ok:
+                # The operator's own mailbox shows the name people use for them.
+                from core.operator_profile_turn import learn_name_from_mail
+
+                learn_name_from_mail((_mail_result.details or {}).get("messages"), source_context=source_context)
+            return _mail_result
         if intent == "email.reply":
             return _email_reply(arguments)
-        if intent == "email.open":
-            return _email_open(arguments)
         if intent in {"email.draft.save", "email.draft.get", "email.draft.approve",
                       "email.draft.send", "email.draft.reconcile"}:
             return _email_draft_tool(intent, arguments, source_context)

@@ -12,7 +12,7 @@ It is not a second memory authority. It composes the authorities that already ex
   (``storage.migrations.ensure_operator_profile_tables``);
 * **privacy (A8)** -- every write consults ``core.finalization.writer_may_persist_text`` (the one
   ERASE-dominance predicate), every read re-verifies it AND the source turn's request lineage
-  (``payload_availability_for_request_id``), and the A8 erasure traversal runs a profile sweep step;
+  (``request_lineage_governed_state``), and the A8 erasure traversal runs a profile sweep step;
 * **secrets** -- ``core.secret_redaction.contains_secret`` OR ``core.privacy_guard.secret_material_present``
   refuse a value before it is stored anywhere; the reported change carries the scrubbed value;
 * **credentials** -- an account preference stores ``credential:<name>``, validated by presence
@@ -26,6 +26,10 @@ Memory law (each clause has a test):
 * explicit "remember/save/from now on" persists immediately and reports the exact change;
 * a strong implicit stable preference becomes a CANDIDATE (chat-scoped, status ``candidate``)
   that the operator confirms with Save / Edit / Only this chat;
+* the NAME is the exception, because nobody confirms their own name with a button: stated in
+  chat it is saved and a later statement replaces it (the seat passes ``replace``); picked up
+  from an introduction, the operator's own mail or a pasted letter it fills an EMPTY name only
+  (``learn_name``), is marked ``inferred``, and is never guessed again once the operator drops it;
 * a weak inference stays chat-local and is never promoted (``move_scope`` refuses it);
 * a contradiction with an active item creates a conflict candidate; the operator resolves it with
   replace / scope / keep both -- nothing is overwritten silently;
@@ -68,8 +72,10 @@ __all__ = [
     "history_for_item",
     "hydration_for_turn",
     "is_paused",
+    "learn_name",
     "list_items",
     "move_scope",
+    "name_guess_blocked",
     "note_chat_local",
     "principal_for_request",
     "propose_candidate",
@@ -334,21 +340,23 @@ def _servable(item: ProfileItem) -> bool:
 
     Two laws, both fail-closed: the value bytes must not be governed WITHHELD/ERASED
     (``writer_may_persist_text`` is the ONE predicate), and the source turn's request lineage
-    must not be governed either. A live-store failure suppresses the item."""
+    must not be governed either -- governed meaning somebody withheld or erased THAT turn
+    (``request_lineage_governed_state``), not that its reply happened to repeat the bytes of
+    another, erased reply. A live-store failure suppresses the item."""
     if item.status == STATUS_DELETED:
         return False
     try:
         from core.finalization import (
             AVAILABILITY_ERASED,
             AVAILABILITY_WITHHELD,
-            payload_availability_for_request_id,
+            request_lineage_governed_state,
             writer_may_persist_text,
         )
 
         if not writer_may_persist_text(item.value_text):
             return False
         if item.request_id:
-            verdict = payload_availability_for_request_id(item.request_id)
+            verdict = request_lineage_governed_state(item.request_id)
             if verdict in (AVAILABILITY_WITHHELD, AVAILABILITY_ERASED):
                 return False
     except Exception:
@@ -949,6 +957,100 @@ def propose_candidate(
             conn.close()
 
 
+def _name_history(principal: str) -> tuple[list[ProfileItem], set[str], bool]:
+    """``(active standing names, dropped values, latest standing name was dropped)``.
+
+    "Standing" is every scope but ``chat``: the name VOOL uses across chats. A value is dropped
+    when the operator forgot it (``forget`` -- by chat, Settings or Undo); an erasure or a
+    superseded suggestion is not the operator saying "not this name".
+    """
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM operator_profile_items WHERE principal = ? AND category = 'preferred_name' AND scope != 'chat' "
+            "ORDER BY updated_at, rowid",
+            (str(principal),),
+        ).fetchall()
+        items = [_row_to_item(row) for row in rows]
+        dropped: set[str] = set()
+        latest_dropped = False
+        for item in items:
+            was_dropped = False
+            if item.status == STATUS_DELETED:
+                last = conn.execute(
+                    "SELECT action, previous_json FROM operator_profile_history WHERE item_id = ? ORDER BY revision DESC, rowid DESC LIMIT 1",
+                    (item.item_id,),
+                ).fetchone()
+                if last is not None and str(last["action"]) == "forget":
+                    was_dropped = True
+                    value = item.value_text
+                    if not value:
+                        try:
+                            value = str(json.loads(str(last["previous_json"] or "{}")).get("value_text") or "")
+                        except Exception:
+                            value = ""
+                    if value:
+                        dropped.add(value.strip().lower())
+            latest_dropped = was_dropped
+    finally:
+        conn.close()
+    active = [item for item in items if item.status == STATUS_ACTIVE and _servable(item)]
+    return active, dropped, latest_dropped and not active
+
+
+def name_guess_blocked(principal: str, value: str = "", *, own_words: bool = False) -> bool:
+    """May a name the operator did not state be put in an empty name slot?
+
+    Never the value they dropped. And when the last thing they did with their name was drop it,
+    nothing read off mail or pasted text refills it -- only their own introduction of a
+    different name (``own_words``) does.
+    """
+    _, dropped, latest_dropped = _name_history(principal)
+    if str(value or "").strip().lower() in dropped:
+        return True
+    return latest_dropped and not own_words
+
+
+def learn_name(
+    principal: str,
+    value: Any,
+    *,
+    source: str,
+    session_id: str = "",
+    turn_id: str = "",
+    own_words: bool = False,
+    confidence: float = 0.8,
+) -> ProfileChange:
+    """Pick up the operator's name from an introduction, their own mail or a pasted letter.
+
+    Fills an EMPTY standing name and nothing else: a name that is stated, set in Settings or
+    already learned stays as it is (``unchanged``), and a name the operator dropped is not
+    guessed again (``declined``). The item is ``inferred`` so every reader can tell a picked-up
+    name from a stated one.
+    """
+    refusal, normalized, value_text = _preflight(principal, "preferred_name", value, "inferred")
+    if refusal is not None:
+        return refusal
+    with _WRITE_LOCK:
+        active, _, _ = _name_history(principal)
+        if active:
+            return ProfileChange("unchanged", "", item=active[-1])
+        if name_guess_blocked(principal, value_text, own_words=own_words):
+            return ProfileChange("declined", "")
+        conn = _conn()
+        try:
+            item = _insert(
+                conn, principal=principal, category="preferred_name", value=normalized, value_text=value_text,
+                scope="global", scope_key="", origin="inferred", confidence=max(STRONG_INFERENCE_CONFIDENCE, float(confidence)),
+                status=STATUS_ACTIVE, session_id=session_id, turn_id=turn_id, actor="runtime",
+                reason=f"learned: {str(source or 'conversation')[:80]}",
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return ProfileChange("saved", f"I'll call you {value_text}.", item=item)
+
+
 def _candidate_phrase(category: str, value_text: str) -> str:
     if category == "preferred_name":
         return f"address you as {value_text}"
@@ -1172,6 +1274,9 @@ def restore_previous(item_id: str, *, actor: str = "operator") -> ProfileChange:
     last = rows[-1]
     previous = last.get("previous")
     if not previous:
+        if str(last.get("action") or "") == "create":
+            # Undoing the change that created the item: the earlier state is "not remembered".
+            return forget_item(item_id, actor=actor, reason="undo")
         return ProfileChange("refused_invalid", "That item has no earlier version.")
     conn = _conn()
     try:
@@ -1241,6 +1346,11 @@ def hydration_for_turn(
         item = resolve(principal, category, session_id=session_id, project_id=project_id, touch=True)
         if item is None:
             continue
+        if category == "preferred_name" and item.origin == "inferred":
+            # A picked-up name is used the way a person uses one they overheard: naturally, and
+            # dropped without argument the moment the user says it is wrong.
+            phrase = ('The user\'s name appears to be "{v}" (picked up from conversation or their mail; they have not '
+                      "confirmed it). Use it naturally. If they say it is wrong, stop using it at once.")
         lines.append(phrase.format(v=item.value_text))
         used.append({"category": category, "label": item.label, "scope": item.scope, "item_id": item.item_id})
     return lines, used
