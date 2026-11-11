@@ -6,11 +6,6 @@ described by this table (base URL, credential slot, probe path, id style, catalo
 detection maps a pasted key to a provider by its prefix; a bare ``sk-…`` is deliberately ambiguous
 (OpenAI / DeepSeek / Moonshot share it), so callers must ASK rather than guess and store.
 
-The one exception to "Bearer key" is marked by ``auth_placement``: UsePod authenticates with a token
-in the URL path, has its own adapter (``adapters/usepod_adapter.py``) and its own URL builder
-(``core.usepod.descriptor``). Any consumer of this table that builds ``base_url + path`` with an
-``Authorization`` header must check ``auth_placement`` first.
-
 Nothing else in the codebase should hardcode a provider fact — import it from here.
 """
 from __future__ import annotations
@@ -30,11 +25,6 @@ AUTH_URL_PATH_TOKEN = "url_path_token"
 # The custom endpoint's base URL is user-supplied. It persists in the credential store (the store
 # is name-agnostic) so a Settings save survives a restart, with env overrides taking precedence.
 CUSTOM_BASE_URL_SLOT = "llm.cloud.custom_base_url"
-
-# UsePod's origin is the table's base_url unless the owner explicitly saved another one together
-# with the token (a loopback service, a staging gateway). No env var can set it: an environment
-# value silently re-pointing a credential-bearing request is an exfiltration route, not config.
-USEPOD_ORIGIN_SLOT = "llm.cloud.usepod_origin"
 
 # Where the custom endpoint's key travels, chosen by the operator because an endpoint they entered
 # documents nothing about its auth: "bearer" (``Authorization: Bearer <key>``, the OpenAI default),
@@ -114,7 +104,7 @@ class ProviderConfig:
     base_url: str
     probe_path: str  # auth-gated GET that is 200 with a good key, 401/403 without
     model_id_style: Literal["slash", "bare"]
-    model_catalog_source: Literal["openrouter_live", "static", "discover", "usepod_marketplace"]
+    model_catalog_source: Literal["openrouter_live", "static", "discover"]
     default_model: str = ""
     # Prefixes that HIGH-confidence identify this provider. A bare "sk-" is handled separately
     # (ambiguous) and is intentionally NOT listed here for openai/deepseek/moonshot.
@@ -261,32 +251,6 @@ PROVIDERS: dict[str, ProviderConfig] = {
         default_model="kimi-k2-0711-preview",
         key_prefixes=(),  # bare "sk-" — ambiguous
         env_names=("KIMI_API_KEY", "MOONSHOT_API_KEY", "VOOL_KIMI_API_KEY"),
-    ),
-    "usepod": ProviderConfig(
-        provider_id="usepod",
-        label="UsePod (inference marketplace)",
-        # The ORIGIN only. The token is a URL path segment (/proxy/<token>/v1) and never lives in
-        # this table, a manifest, or a URL built from it here -- see core.usepod.descriptor.
-        base_url="https://api.usepod.ai",
-        probe_path="/balance",  # under /proxy/<token>: an auth-gated read that spends nothing
-        # UsePod rejects the urllib default client with 403 even for a valid token. Save, Test
-        # and discovery share these headers through the provider verification descriptor.
-        extra_headers={"User-Agent": "VOOL/0.5"},
-        model_id_style="bare",
-        model_catalog_source="usepod_marketplace",
-        default_model="",  # none: a model is chosen from the live marketplace, with a price bound
-        key_prefixes=(),  # a UUID token has no vendor prefix; never auto-detected from a key alone
-        env_names=("VOOL_USEPOD_TOKEN",),
-        auth_placement=AUTH_URL_PATH_TOKEN,
-        credential_path_template="/proxy/{credential}",
-        endpoint_slot=USEPOD_ORIGIN_SLOT,
-        # GET /proxy/<token>/balance answers {"usdc_balance": <integer µUSDC>} (docs.usepod.ai
-        # api/deposit-on-chain, read 2026-09-15). A genuine answer carries that field; a zero balance
-        # is a valid token with no credit (exhausted), kept apart from the token's validity.
-        probe_response_path=("usdc_balance",),
-        probe_response_kind="value",
-        probe_account_fields={"usdc_balance_microunits": ("usdc_balance",)},
-        probe_exhausted_when_zero=("usdc_balance",),
     ),
     "custom": ProviderConfig(
         provider_id="custom",
@@ -464,9 +428,13 @@ def resolved_provider_pair(provider_id: str) -> tuple[str, str]:
     Legacy states without a recorded endpoint (rows written before this contract, raw
     pre-intake saves) keep their historical behavior — the live pair is returned and the
     caller's own verification decides it."""
-    cfg = config_for(provider_id)
+    return resolved_config_pair(config_for(provider_id))
+
+
+def resolved_config_pair(cfg: ProviderConfig | None) -> tuple[str, str]:
+    """Read a caller-owned configuration using the existing coherent-pair transaction."""
     if cfg is None or not cfg.endpoint_slot:
-        raise ValueError(f"{provider_id!r} is not a provider whose key commits with an endpoint")
+        raise ValueError("not a provider whose key commits with an endpoint")
     from core.credential_intelligence import binding as binding_module
     from core.credential_intelligence._state_lock import credential_state_lock
     from core.credential_intelligence.store import JOURNAL_FILE, StorageConflictError, StorageReadError
@@ -596,11 +564,6 @@ def _slot_value(slot: str, env_names: tuple[str, ...] | None = None) -> str:
         return ""
 
 
-def usepod_origin() -> str:
-    """The origin committed beside the UsePod token, else the documented origin."""
-    return _stored_endpoint(PROVIDERS["usepod"])
-
-
 def resolved_base_url(provider_id: str) -> str:
     """The effective base URL for a provider — the custom endpoint's is resolved from env/store.
 
@@ -611,8 +574,6 @@ def resolved_base_url(provider_id: str) -> str:
         return ""
     if provider_id == "custom":
         return custom_base_url()
-    if provider_id == "usepod":
-        return usepod_origin()
     return cfg.base_url.rstrip("/")
 
 
@@ -681,7 +642,9 @@ def active_provider(policy_provider: str = "", has_key=None) -> str:
     ``slot -> bool`` (defaults to the credential store) so this stays testable and import-light.
     """
     explicit = str(policy_provider or "").strip().lower()
-    if explicit in PROVIDERS:
+    from core.plugin_providers import is_provider_id
+
+    if explicit in PROVIDERS or is_provider_id(explicit):
         return explicit
     if has_key is None:
         try:
@@ -713,7 +676,6 @@ __all__ = [
     "CUSTOM_AUTH_NONE",
     "CUSTOM_NO_KEY_VALUE",
     "PROVIDERS",
-    "USEPOD_ORIGIN_SLOT",
     "Confidence",
     "ProviderConfig",
     "ProviderGuess",
@@ -733,6 +695,5 @@ __all__ = [
     "resolved_base_url",
     "resolved_custom_pair",
     "slot_for",
-    "usepod_origin",
     "uses_url_path_token",
 ]

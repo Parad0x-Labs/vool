@@ -26,9 +26,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.usepod._served_daemon import CENTRAL
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
 from tests.usepod.test_usepod_served_flow import MARKET, MARKET_ID, MODEL, REPO_ROOT, _answer_text, _keep, _session
-from tests.usepod.test_usepod_settings_ui import CENTRAL
 from tests.usepod.test_usepod_x402_composed_served import (
     PIN,
     WalletServedDaemon,

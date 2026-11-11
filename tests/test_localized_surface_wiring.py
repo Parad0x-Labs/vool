@@ -85,13 +85,13 @@ def test_provider_guide_resolves_copy_per_locale() -> None:
         guide = provider_key_guide(tag)
         catalog = catalog_for(tag)
         by_id = {g["id"]: g for g in guide}
-        assert by_id["security"]["title"] == catalog.text("keyguide.security.title"), tag
+        assert by_id["search"]["title"] == catalog.text("keyguide.search.title"), tag
         assert by_id["models"]["description"] == catalog.text("keyguide.models.description"), tag
-        eyebrow = by_id["security"]["providers"][0]
-        assert eyebrow["description"] == catalog.text("keyguide.provider.eyebrow.description"), tag
+        search = next(row for row in by_id["search"]["providers"] if row["provider"] == "brave")
+        assert search["description"] == catalog.text("keyguide.provider.search.description"), tag
         # brand identifiers never translate
-        assert eyebrow["label"] == "Eyebrow"
-        assert eyebrow["url"] == "https://eyebrow.cc/dashboard"
+        assert search["label"] == "Brave Search"
+        assert search["url"] == "https://api-dashboard.search.brave.com/"
 
 
 def test_settings_key_form_uses_family_markers_not_labels() -> None:

@@ -336,7 +336,9 @@ def provider_slot(provider_hint: str) -> str:
     try:
         from core.cloud_providers import PROVIDERS
 
-        known = set(PROVIDERS)
+        # Historical monetary identities outlive the selectable provider catalog.
+        # Recognition restores their existing refusal/ceiling rules, never selection.
+        known = set(PROVIDERS) | {"usepod"}
     except Exception:  # pragma: no cover - defensive
         known = set(_DIRECT_PRICE_TABLE) | {"openrouter"}
     return candidate if candidate in known else ""

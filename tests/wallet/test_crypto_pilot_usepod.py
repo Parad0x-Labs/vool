@@ -28,6 +28,9 @@ SAME_ORIGIN = {"Host": "127.0.0.1:11435", "Origin": "http://127.0.0.1:11435", "C
 
 @pytest.fixture
 def home(monkeypatch, tmp_path):
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     for name in ("VOOL_WALLET_NETWORK_ENVIRONMENT", "VOOL_WALLET_RPC_URLS", "VOOL_WALLET_TESTNET_RPC_URL", "VOOL_WALLET_UI_CAPABILITY_SHA256", "VOOL_ALLOWED_HOSTS"):
         monkeypatch.delenv(name, raising=False)

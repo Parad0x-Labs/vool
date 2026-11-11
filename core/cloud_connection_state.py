@@ -102,10 +102,6 @@ def _base_url(provider: str) -> str:
         from core.cloud_providers import custom_base_url
 
         return custom_base_url()
-    if provider == "usepod":
-        from core.cloud_providers import usepod_origin
-
-        return usepod_origin()
     return cfg.base_url.rstrip("/")
 
 
