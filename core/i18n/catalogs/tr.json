@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "Daha gizli bir klavye",
     "phone.ui.keyboard_can_go_online_heliboard": "Bu telefondaki klavye internete bağlanabilir. VOOL’da ya da başka herhangi bir uygulamada yazdığınız her şey önce ondan geçer. HeliBoard, internet erişimi olmayan ücretsiz ve açık bir klavyedir; yazdıklarınız telefonunuzda kalır.",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard’u VOOL değil, bağımsız geliştiriciler yapar. Yükledikten sonra HeliBoard’u açın ve onu klavyeniz yapmak için adımlarını izleyin.",
-    "phone.ui.get_heliboard": "HeliBoard’u edinin"
+    "phone.ui.get_heliboard": "HeliBoard’u edinin",
+    "phone.ui.address_away_from_home": "Ev dışı adresi",
+    "phone.ui.away_address_optional_used_by_itself": "İsteğe bağlı. Ev ağınıza ulaşılamadığında VOOL bunu kendiliğinden kullanır.",
+    "phone.ui.connected_from_away": "Ev dışından bağlı",
+    "phone.ui.connected_over_your_home_network": "Ev ağınız üzerinden bağlı"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

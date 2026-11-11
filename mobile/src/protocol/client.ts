@@ -20,6 +20,9 @@ import type {
 
 export interface DeviceCredentials {
   baseUrl: string;
+  /** A second way to the same computer for when the phone is away from home (its relay room or
+   *  private-network address). Optional; the computer's pinned key is the same on both. */
+  awayUrl?: string;
   deviceId: string;
   grantId: string;
   grantSecret: string;
@@ -37,6 +40,8 @@ export type FetchLike = (url: string, init: { method: string; headers: Record<st
  *  while the computer was still answering (real-model test 2026-10-28). A resend with the same key never
  *  runs the turn twice: the computer answers "still working" or the finished reply. */
 export const CHAT_TURN_TIMEOUT_MS = 240000;
+/** How long one "which way is open?" question may take before the other way is tried. */
+export const ROUTE_PROBE_TIMEOUT_MS = 5000;
 
 export interface ClientOptions {
   fetchImpl?: FetchLike;
@@ -51,6 +56,12 @@ export class CompanionError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+/** True when the failure is a verified refusal from the paired computer, not silence or a reply
+ *  that could not be checked as its own. */
+function answered(error: unknown): boolean {
+  return error instanceof CompanionError && error.code !== "sealed_response_invalid" && error.code !== "sealed_authentication_failed";
 }
 
 export class MobileCompanionClient {
@@ -71,9 +82,59 @@ export class MobileCompanionClient {
   get deviceId(): string { return this.creds.deviceId; }
   get baseUrl(): string { return this.creds.baseUrl; }
   get desktopFingerprint(): string { return this.creds.desktopFingerprint; }
-  setConnectionAddress(value: string) {this.creds = {...this.creds, baseUrl: connectionAddress(value)};}
+  get awayUrl(): string { return this.creds.awayUrl || ""; }
+  /** Which way the last answer came: over the home address or the away one. */
+  get route(): "home" | "away" { return this.away && this.creds.awayUrl ? "away" : "home"; }
+  setConnectionAddress(value: string) {this.creds = {...this.creds, baseUrl: connectionAddress(value)}; this.away = false;}
+  setAwayAddress(value: string) {
+    const next = {...this.creds};
+    if (value.trim()) next.awayUrl = connectionAddress(value); else delete next.awayUrl;
+    this.creds = next; this.away = false;
+  }
+  private away = false;
+  private finding: Promise<"home" | "away" | null> | null = null;
+  private address(away = this.away): string { return (away && this.creds.awayUrl ? this.creds.awayUrl : this.creds.baseUrl).replace(/\/$/, ""); }
+
+  /** Find which way reaches the computer now: home first, then away. Each try is a small signed
+   *  question with its own one-time number, so nothing is ever sent twice. Null when neither answers. */
+  findRoute(): Promise<"home" | "away" | null> {
+    if (!this.creds.awayUrl) return Promise.resolve(null);
+    if (this.finding) return this.finding;
+    this.finding = (async () => {
+      try {
+        for (const away of [false, true]) {
+          try {
+            await this.send<DeviceInfo>(this.address(away), "devices.me", {}, ROUTE_PROBE_TIMEOUT_MS);
+            this.away = away; reportLink(true);
+            return away ? "away" as const : "home" as const;
+          } catch (error) {
+            // A refusal is still an answer from this computer: the way works.
+            if (answered(error)) {this.away = away; return away ? "away" as const : "home" as const;}
+          }
+        }
+        return null;
+      } finally {this.finding = null;}
+    })();
+    return this.finding;
+  }
 
   protected async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
+    try {
+      const result = await this.send<T>(this.address(), action, params);
+      reportLink(true);
+      return result;
+    } catch (error) {
+      if (!answered(error)) {
+        // No answer, or an answer that could not be verified as this computer's.
+        reportLink(false);
+        // Look for the other way in the background; the caller's own retry then uses it.
+        if (this.creds.awayUrl) void this.findRoute().catch(() => {});
+      } else reportLink(true);
+      throw error;
+    }
+  }
+
+  private async send<T>(address: string, action: string, params: Record<string, unknown>, timeoutMs?: number): Promise<T> {
     const nonce = toHex(randomBytes(16)) + "-" + (++this.nonceCounter);
     const timestamp = this.now().toISOString();
     const payload = {
@@ -105,21 +166,13 @@ export class MobileCompanionClient {
       signature,
       device_signature: deviceSignature,
     };
-    let response;
-    try {
-      response = await this.doFetch(this.creds.baseUrl.replace(/\/$/, "") + "/api/mobile/companion", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-        ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
-      });
-    } catch (error) {
-      // No answer, or an answer that could not be verified as this computer's.
-      reportLink(false);
-      throw error;
-    }
     // The sealed transport only resolves for a reply it authenticated.
-    reportLink(true);
+    const response = await this.doFetch(address + "/api/mobile/companion", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      ...(timeoutMs ? {timeoutMs} : action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
+    });
     const parsed = (await response.json()) as CompanionResponse<T>;
     if (!parsed || parsed.ok !== true) {
       const err = parsed as { error?: string; code?: string };

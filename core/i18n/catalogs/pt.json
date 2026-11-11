@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "Um teclado mais privado",
     "phone.ui.keyboard_can_go_online_heliboard": "O teclado deste telemóvel pode ligar-se à internet. Tudo o que escreve, no VOOL ou em qualquer outra aplicação, passa primeiro por ele. O HeliBoard é um teclado gratuito e aberto, sem acesso à internet, por isso o que escreve fica no seu telemóvel.",
     "phone.ui.heliboard_is_independent_after_installing": "O HeliBoard é feito por programadores independentes, não pelo VOOL. Depois de o instalar, abra o HeliBoard e siga os passos para o definir como o seu teclado.",
-    "phone.ui.get_heliboard": "Obter o HeliBoard"
+    "phone.ui.get_heliboard": "Obter o HeliBoard",
+    "phone.ui.address_away_from_home": "Endereço fora de casa",
+    "phone.ui.away_address_optional_used_by_itself": "Opcional. O VOOL usa-o sozinho quando a sua rede de casa está fora de alcance.",
+    "phone.ui.connected_from_away": "Ligado fora de casa",
+    "phone.ui.connected_over_your_home_network": "Ligado pela sua rede de casa"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

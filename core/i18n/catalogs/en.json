@@ -3129,7 +3129,11 @@
     "phone.ui.a_more_private_keyboard": "A more private keyboard",
     "phone.ui.keyboard_can_go_online_heliboard": "The keyboard on this phone can go online. Whatever you type, in VOOL or any other app, passes through it first. HeliBoard is a free, open keyboard with no internet access, so what you type stays on your phone.",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard is made by independent developers, not by VOOL. After installing it, open HeliBoard and follow its steps to make it your keyboard.",
-    "phone.ui.get_heliboard": "Get HeliBoard"
+    "phone.ui.get_heliboard": "Get HeliBoard",
+    "phone.ui.address_away_from_home": "Address away from home",
+    "phone.ui.away_address_optional_used_by_itself": "Optional. VOOL uses it by itself when your home network is out of reach.",
+    "phone.ui.connected_from_away": "Connected from away",
+    "phone.ui.connected_over_your_home_network": "Connected over your home network"
   },
   "html_keys": [
     "bypass.modal_limits",

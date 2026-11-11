@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "更私密的键盘",
     "phone.ui.keyboard_can_go_online_heliboard": "这部手机上的键盘可以联网。无论在 VOOL 还是其他应用里，你输入的内容都会先经过它。HeliBoard 是一款免费、开放且不联网的键盘，你输入的内容只会留在手机上。",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard 由独立开发者制作，与 VOOL 无关。安装后打开 HeliBoard，按步骤把它设为你的键盘。",
-    "phone.ui.get_heliboard": "获取 HeliBoard"
+    "phone.ui.get_heliboard": "获取 HeliBoard",
+    "phone.ui.address_away_from_home": "外出时的地址",
+    "phone.ui.away_address_optional_used_by_itself": "可选。连不上家里的网络时，VOOL 会自动使用它。",
+    "phone.ui.connected_from_away": "已从外面连接",
+    "phone.ui.connected_over_your_home_network": "已通过家里的网络连接"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

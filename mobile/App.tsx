@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Platform, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, Pressable, View } from "react-native";
+import { AppState, Linking, Platform, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, Pressable, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 import { type DeviceCredentials } from "./src/protocol/client.ts";
@@ -142,6 +142,11 @@ function Root() {
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
     onTouch={lock.touch} startTab={startTab} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
+    }} onAwayConnection={async address => {
+      if (creds) {
+        const next = {...creds}; if (address) next.awayUrl = address; else delete next.awayUrl;
+        await store.saveDeviceCredentials(next); client.setAwayAddress(address); setCreds(next);
+      }
     }} />;
 }
 
@@ -153,11 +158,12 @@ interface ShellProps {
   onIdleMinutes: (value: number) => Promise<void>;
   onTouch: () => void;
   onConnection: (address: string) => Promise<void>;
+  onAwayConnection: (address: string) => Promise<void>;
   startTab?: Tab;
 }
 
 /** Everything a paired, unlocked phone shows: the side menu and the five screens. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, startTab = "chats"}: ShellProps) {
+export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats"}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
   const [pick, setPick] = useState<{id: string | null; seq: number} | null>(null);
   const [menu, setMenu] = useState(false);
@@ -168,6 +174,13 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
     if (moneyScreen) void ScreenCapture.preventScreenCaptureAsync("money-screen").catch(() => {});
     return () => {void ScreenCapture.allowScreenCaptureAsync("money-screen").catch(() => {});};
   }, [moneyScreen]);
+
+  // Home or away: ask which way reaches the computer when the app opens and each time it comes back to the front.
+  useEffect(() => {
+    void client.findRoute().catch(() => {});
+    const sub = AppState.addEventListener("change", state => {if (state === "active") void client.findRoute().catch(() => {});});
+    return () => sub.remove();
+  }, [client]);
 
   const notifications = useNotifications(client);
   const clearUnseen = notifications.clearUnseen;
@@ -241,7 +254,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
           ) : null}
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
-            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} />}
+            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection} />}
             {tab === "wallet" && <WalletScreen client={client} onRevoked={onRevoked} />}
             {tab === "notifications" && <NotificationsScreen client={client} onOpen={openAlert} osEnabled={notifications.osEnabled}
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}

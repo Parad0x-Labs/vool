@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "لوحة مفاتيح أكثر خصوصية",
     "phone.ui.keyboard_can_go_online_heliboard": "لوحة المفاتيح على هذا الهاتف يمكنها الاتصال بالإنترنت. كل ما تكتبه، في VOOL أو في أي تطبيق آخر، يمر عبرها أولًا. HeliBoard لوحة مفاتيح مجانية ومفتوحة بلا وصول إلى الإنترنت، فيبقى ما تكتبه على هاتفك.",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard من صنع مطورين مستقلين وليس من VOOL. بعد تثبيتها، افتح HeliBoard واتبع خطواتها لجعلها لوحة مفاتيحك.",
-    "phone.ui.get_heliboard": "احصل على HeliBoard"
+    "phone.ui.get_heliboard": "احصل على HeliBoard",
+    "phone.ui.address_away_from_home": "العنوان خارج المنزل",
+    "phone.ui.away_address_optional_used_by_itself": "اختياري. يستخدمه VOOL تلقائيًا عندما تكون شبكة المنزل خارج النطاق.",
+    "phone.ui.connected_from_away": "متصل من خارج المنزل",
+    "phone.ui.connected_over_your_home_network": "متصل عبر شبكة المنزل"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

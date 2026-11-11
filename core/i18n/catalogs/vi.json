@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "Bàn phím riêng tư hơn",
     "phone.ui.keyboard_can_go_online_heliboard": "Bàn phím trên điện thoại này có thể kết nối mạng. Mọi thứ bạn gõ, trong VOOL hay bất kỳ ứng dụng nào khác, đều đi qua nó trước. HeliBoard là bàn phím miễn phí, mã mở, không có quyền truy cập internet, nên những gì bạn gõ ở lại trên điện thoại của bạn.",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard do các nhà phát triển độc lập tạo ra, không phải VOOL. Sau khi cài đặt, hãy mở HeliBoard và làm theo các bước để đặt nó làm bàn phím của bạn.",
-    "phone.ui.get_heliboard": "Tải HeliBoard"
+    "phone.ui.get_heliboard": "Tải HeliBoard",
+    "phone.ui.address_away_from_home": "Địa chỉ khi xa nhà",
+    "phone.ui.away_address_optional_used_by_itself": "Không bắt buộc. VOOL tự dùng địa chỉ này khi không kết nối được mạng nhà.",
+    "phone.ui.connected_from_away": "Đã kết nối khi xa nhà",
+    "phone.ui.connected_over_your_home_network": "Đã kết nối qua mạng nhà"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

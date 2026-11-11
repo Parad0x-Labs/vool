@@ -5,6 +5,7 @@ import {errorText, permissionText, tr} from "../i18n/index.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../protocol/models.ts";
 import {connectionAddress} from "../protocol/connection.ts";
+import {useLink} from "../ui/LinkBadge.tsx";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { parsePairingUri } from "../protocol/pairing.ts";
 
@@ -14,15 +15,20 @@ interface Props {
   idleMinutes:number;
   onIdleMinutes:(value:number)=>Promise<void>;
   onConnection?: (address: string) => Promise<void>;
+  onAwayConnection?: (address: string) => Promise<void>;
 }
 
 /** Current model, local/cloud status, Proof Chip, and the device's own standing. */
-export default function StatusScreen({ client, onRevoked, onConnection, idleMinutes, onIdleMinutes }: Props) {
+export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes }: Props) {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
   const [device,setDevice]=useState<DeviceInfo|null>(null);
   const [proof, setProof] = useState<TurnProof | null>(null);
   const [error, setError] = useState("");
   const [connection, setConnection] = useState(client.baseUrl);
+  const [away, setAway] = useState(client.awayUrl);
+  const [route, setRoute] = useState(client.route);
+  const link = useLink();
+  useEffect(() => {setRoute(client.route);}, [client, link, snapshot]);
   const [scanning, setScanning] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
@@ -106,6 +112,14 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
       }} />
       <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}><Text style={styles.proofButtonText}>{tr("Cancel")}</Text></Pressable>
     </View>}
+    <Text style={[styles.label, {marginTop: 18}]}>{tr("Address away from home")}</Text>
+    <Text style={[styles.detail, {marginTop: 0, marginBottom: 8}]}>{tr("Optional. VOOL uses it by itself when your home network is out of reach.")}</Text>
+    <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Address away from home")} autoCapitalize="none" autoCorrect={false} value={away} onChangeText={setAway}/>
+    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
+      try {const next = away.trim() ? connectionAddress(away) : ""; await onAwayConnection?.(next); setAway(next); setError(""); void client.findRoute().then(() => setRoute(client.route)).catch(() => {});}
+      catch {setError(tr("Could not complete this. Check your computer."));}
+    })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
+    {client.awayUrl && link === "connected" ? <Text style={styles.detail}>{route === "away" ? tr("Connected from away") : tr("Connected over your home network")}</Text> : null}
   </View>;
   if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
   if (!snapshot) {

@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "Приватніша клавіатура",
     "phone.ui.keyboard_can_go_online_heliboard": "Клавіатура на цьому телефоні може виходити в інтернет. Усе, що ви друкуєте, у VOOL чи в будь-якому іншому застосунку, спершу проходить через неї. HeliBoard — безкоштовна відкрита клавіатура без доступу до інтернету, тож усе, що ви друкуєте, лишається на телефоні.",
     "phone.ui.heliboard_is_independent_after_installing": "HeliBoard створюють незалежні розробники, не VOOL. Після встановлення відкрийте HeliBoard і виконайте її кроки, щоб зробити її своєю клавіатурою.",
-    "phone.ui.get_heliboard": "Отримати HeliBoard"
+    "phone.ui.get_heliboard": "Отримати HeliBoard",
+    "phone.ui.address_away_from_home": "Адреса поза домом",
+    "phone.ui.away_address_optional_used_by_itself": "Необов’язково. VOOL сам використовує її, коли домашня мережа недоступна.",
+    "phone.ui.connected_from_away": "Підключено поза домом",
+    "phone.ui.connected_over_your_home_network": "Підключено через домашню мережу"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

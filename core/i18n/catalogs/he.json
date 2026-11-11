@@ -3129,9 +3129,13 @@
     "phone.ui.a_more_private_keyboard": "מקלדת פרטית יותר",
     "phone.ui.keyboard_can_go_online_heliboard": "המקלדת בטלפון הזה יכולה להתחבר לאינטרנט. כל מה שמקלידים, ב־VOOL או בכל אפליקציה אחרת, עובר קודם דרכה. HeliBoard היא מקלדת חינמית ופתוחה ללא גישה לאינטרנט, כך שמה שמקלידים נשאר בטלפון.",
     "phone.ui.heliboard_is_independent_after_installing": "את HeliBoard יוצרים מפתחים עצמאיים, לא VOOL. אחרי ההתקנה יש לפתוח את HeliBoard ולפעול לפי השלבים כדי להפוך אותה למקלדת שלכם.",
-    "phone.ui.get_heliboard": "להורדת HeliBoard"
+    "phone.ui.get_heliboard": "להורדת HeliBoard",
+    "phone.ui.address_away_from_home": "כתובת מחוץ לבית",
+    "phone.ui.away_address_optional_used_by_itself": "לא חובה. VOOL משתמש בה בעצמו כשרשת הבית מחוץ לטווח.",
+    "phone.ui.connected_from_away": "מחובר מחוץ לבית",
+    "phone.ui.connected_over_your_home_network": "מחובר דרך רשת הבית"
   },
-  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
+  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
