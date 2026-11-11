@@ -22,7 +22,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
     action = body.get("action")
     fields = {
         "save_key": {"action", "value"}, "remove_key": {"action"}, "test_key": {"action"},
-        "scan": {"action", "id", "approved"}, "install": {"action", "review_id", "accepted", "risk_override", "risk_acknowledged"},
+        "scan": {"action", "id", "approved"}, "local_install": {"action", "id", "approved"}, "install": {"action", "review_id", "accepted", "risk_override", "risk_acknowledged"},
         "reject": {"action", "review_id"}, "review": {"action", "review_id"},
         "local_check": {"action", "id"}, "local_report": {"action", "id"},
         "github_search": {"action", "query"},
@@ -66,6 +66,9 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             result = addon_store.local_check(str(body.get("id", "")))
         elif action == "local_report":
             result = addon_store.local_report_saved(str(body.get("id", "")))
+        elif action == "local_install":
+            # VOOL's own bundled skills only: the local check, no key and no network.
+            result = addon_store.prepare_local(str(body.get("id", "")), approved=body.get("approved") is True)
         elif action == "scan":
             result = addon_store.prepare(str(body.get("id", "")), approved=body.get("approved") is True)
         elif action == "install":

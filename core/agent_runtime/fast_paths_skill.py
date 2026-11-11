@@ -115,8 +115,37 @@ _INVENTORY_RE = re.compile(
 
 _HOW_TO_MANAGE_TAIL_RE = re.compile(
     r"[?.,!]*\s*(?:and\s+|&\s+)?how\s+(?:do|can|would)\s+i\s+"
-    r"(?:add|get|install|find|turn|switch|remove|enable|disable)\b[^?.!]{0,40}[?.!]*\s*$",
+    r"(?:(?:add|get|install|find|turn|switch|remove|enable|disable)\b[^?.!]{0,40}"
+    # "and how do I make my own?" -- make/create/write only with a skill as the object, so
+    # "what skills do you have and how do i make a cake" is not taken for the list.
+    r"|(?:make|create|write)\s+(?:(?:a|an|another|new|my|our|of)\s+)*(?:one|skills?|own)\b[^?.!]{0,30})"
+    r"[?.!]*\s*$",
     re.IGNORECASE,
+)
+# "how do I add a skill?" / "how would I make my own skill?" -- the whole message asks HOW to get
+# one, which has a fixed plain answer (Browse, or make one in chat). Left to a model it got a
+# generic chatbot answer that never named the Skills & Plugins page (measured on the Mac app).
+_HOW_TO_ADD_RE = re.compile(
+    r"(?:(?:ok(?:ay)?|hey|so|and)[,\s]+)*(?:please\s+)?(?:tell\s+me\s+)?"
+    r"how\s+(?:do|can|would|could|should)\s+(?:i|we)\s+"
+    r"(?:add|get|install|make|create|write|build|teach\s+you)\s+"
+    r"(?:(?:a|an|another|new|more|some|my|our|own|custom|of|your)\s+)*"
+    + _SKILL_WORD
+    + r"(?:\s+(?:of\s+my\s+own|of\s+our\s+own|myself|for\s+you|to\s+vool|in\s+vool|for\s+vool))?",
+    re.IGNORECASE,
+)
+# The fixed answer to _HOW_TO_ADD_RE, in the words the Skills & Plugins page uses.
+_HOW_TO_ADD_ANSWER = (
+    "There are two ways to add a skill.\n\n"
+    "- **Pick a ready-made one.** Open Skills & Plugins and choose Browse. Open a skill to "
+    "read what it does, then press Add this skill. Skills made by VOOL are checked on your "
+    "computer and need no key. Skills from other makers are scanned with Eyebrow, a security "
+    "checker, first, which needs an Eyebrow key in Settings, API Keys.\n"
+    "- **Make your own, no coding.** Tell me in your own words what it should do and when, "
+    "for example: make me a skill that sorts my shopping list by supermarket aisle whenever "
+    "I give you one. I show you a draft first, and nothing is switched on until you say "
+    "turn it on.\n\n"
+    "To see the skills you already have, ask me: which skills do I have?"
 )
 _PLUGIN_WORD = r"(?:plugins?|plug-ins?)"
 # Sharing. The noun is required on both sides, so "export the csv" and "import pandas" stay away.
@@ -431,6 +460,15 @@ def _skill_request_raw(text: str) -> dict[str, Any] | None:
 
     scope = scope_in(body)
     name = skill_name_in(body)
+
+    # "what skills do you have, and how would I add one of my own?" -- the list's own last lines
+    # answer the add half, so the whole message is the inventory ask. Decided before the question
+    # gate below, whose "how would i" read this exact message (asked on the Mac app) as discussion
+    # and left it to a generic answer that never named a skill.
+    stripped = body.strip(" .?!")
+    asked = _HOW_TO_MANAGE_TAIL_RE.sub("", stripped).strip(" .?!,")
+    if asked != stripped and _INVENTORY_RE.fullmatch(asked) and not _CREATE_RE.search(asked):
+        return {"action": "list", "name": "", "scope": scope}
 
     # A question ABOUT skills is answered by whoever answers questions, not by this lane. Checked
     # BEFORE listing: "what is a skill and how does it work?" matched the list pattern on "what ...
@@ -1476,6 +1514,10 @@ def maybe_handle_skill_request(
         if answered is not None:
             return answered
         _clear_pending(chat)
+        # A question about HOW to add a skill is still not a skill request (nothing is authored),
+        # but it has one plain answer that names the real page and the real chat ask.
+        if _HOW_TO_ADD_RE.fullmatch(" ".join(str(user_input or "").split()).strip(" .?!")):
+            return plain(_HOW_TO_ADD_ANSWER, reason="skill_how_to_add")
         return _answer_named_skill(user_input, session_id=session_id, source_context=source_context, plain=plain)
 
     action = str(request.get("action") or "")
@@ -1810,8 +1852,14 @@ def maybe_handle_skill_request(
 
     if action == "remove":
         if not name:
+            # "turn off the browser skill": a one-word name the name patterns cannot take. A name
+            # VOOL knows gets the on/off page; one it does not gets the list of names it has.
+            named = _answer_named_skill(user_input, session_id=session_id, source_context=source_context, plain=plain)
+            if named is not None:
+                return named
             return plain(
-                "Which skill should I turn off? For example: `remove the release-notes skill from this chat`.",
+                'Which skill should I turn off? Put its name in quotes, for example: '
+                'turn off the skill "Shopping list by aisle".',
                 reason="skill_remove_needs_name",
             )
         builtin = _builtin_skill_named(name)
@@ -1819,7 +1867,8 @@ def maybe_handle_skill_request(
             # Before the dispatch, so no approval prompt can appear for a removal that will
             # never run: a built-in's on/off belongs to the skills settings, not this lane.
             return plain(
-                f"{_display_name(builtin)} comes with VOOL and cannot be turned off here.",
+                f"{_display_name(builtin)} comes with VOOL, so I can't remove it. You can turn it "
+                "off in Skills & Plugins, under My add-ons, Skills.",
                 reason="skill_remove_builtin",
             )
         arguments = {"name": name}

@@ -1,6 +1,7 @@
 ---
 name: vool-browser
 description: "Drive a real, isolated browser: open a disposable-profile session, navigate with redirect control, inspect pages as untrusted evidence, click/type/assert, capture bounded screenshots, download and upload with bounds. Use when the user asks to browse, open a page, compare products, fill a form, or check that a page shows what it should."
+summary: "Opens web pages in a separate browser, so VOOL can look things up, compare products or check what a page shows."
 version: 1.0.0
 license: MIT
 author: sls_0x

@@ -17,8 +17,8 @@ refusal a skill can run into are listed in [Skill tools and limits](skill-tools-
 
 From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
 
-The `new`, `try`, `zip` and `call` commands are in the source checkout and planned for VOOL 0.7.7,
-not released yet. A `vool-community` command from an installed release has only `init`, `lint`,
+The `new`, `try`, `zip` and `call` commands are in the source checkout and planned for VOOL 0.7.8,
+not released yet (VOOL 0.7.7 shipped without them). A `vool-community` command from an installed release has only `init`, `lint`,
 `pack`, `check` and `submission-link`, so run every command on this page from the checkout as
 shown. `python -m tools.community_skills --help` lists the commands the checkout has.
 
@@ -105,6 +105,7 @@ Frontmatter keys VOOL reads:
 | --- | --- | --- |
 | `name` | yes | The skill's identity. Use lowercase words joined by hyphens, the same as the folder name. Lists show it as plain words ("Aisle sorter"). If missing, the folder name is used. |
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
+| `summary` | recommended | One plain sentence a person reads about the skill, on the Skills page and in *which skills do I have?*. Display only: picking never reads it, so it can be written for people, not for matching. Without it, VOOL shows the description. Keep it on one line; put it in double quotes if it holds a colon. Planned for VOOL 0.7.8, not released yet. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
 | `allowed-tools` | no | Narrows the tools offered on turns where the skill is picked. Every name must be a real VOOL tool, or validation fails: the names are listed in [Skill tools and limits](skill-tools-and-limits.md#the-tools-a-skill-may-name). Leaving it out narrows nothing. It never grants a permission. Only a skill the person made in VOOL also gets these tools offered; an imported, downloaded, published or MCP skill only narrows ([Where a skill came from](skill-tools-and-limits.md#where-a-skill-came-from)). |
 | `permissions` | no | A list of permission ids (such as `create_files`, `external_messages`). It grants nothing; see [the permissions key](#the-permissions-key). |

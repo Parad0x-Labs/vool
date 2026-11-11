@@ -2,9 +2,22 @@
 
 The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists VOOL's own skills first, including 51 text-only VOOL skills bundled with the app, then the reviewed catalogue add-ons, and can look up a public GitHub repository at a pinned revision. Skill Codex lists VOOL team skills first, above editor's picks and featured skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
 
-## First use
+## Skills made by VOOL: the local check
+
+Planned for VOOL 0.7.8, not released yet. In VOOL 0.7.7 every Browse skill uses the Eyebrow steps below.
+
+The 51 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no Eyebrow key, no scan allowance and no network request.
+
+1. VOOL reads the skill and licence from the app's own copy and refuses them unless their SHA-256 matches the pin (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
+2. VOOL's local check reads the skill for risky instructions and shows the result. A clean result can be added with **Add and turn on**; anything it flags needs your separate, explicit OK for that exact version. **Reject** discards it.
+3. Installation then follows the same lifecycle as below: the exact files are installed, verified and enabled. The installed skill is checked against its pinned SHA-256 every time it is loaded; a changed file makes it unavailable.
+
+The local check is a static reading of fixed bytes, not a guarantee of safety or answer quality. An Eyebrow scan remains available as an optional extra when a key is saved. Skills from other makers never take this path.
+
+## Skills from other makers: Eyebrow
 
 1. Save an Eyebrow API key in the Security tab, also available under Settings → API Keys. The existing credential store owns the key. Saving does not test the connection or scan anything; Test contacts Eyebrow explicitly.
+   Without a key, the skill's page explains why a scan is needed and offers the options in place: add a key, run the free local check for a report, or pick a skill made by VOOL.
 2. In Browse, choose a skill and approve downloading its public content and sending that content to Eyebrow. This consumes the service's scan allowance according to your plan. No automatic retries occur.
 3. Read the returned report. A successful HTTP response alone is not a clean result. This initial catalogue permits installation only with a complete `pass` report, no findings and no policy violations. Reject discards the staged download without installing it.
 4. Accept installation separately. VOOL preserves the licence, installs through its existing plugin lifecycle, verifies the exact reviewed package and enables the skill. Existing permissions still govern every action it might suggest.
@@ -21,7 +34,7 @@ These checks do not isolate malicious code already executing as the operating-sy
 
 ## API and failure handling
 
-`GET /api/addons` returns catalogue and local status without a connection test or scan. `POST /api/addons` supports `save_key`, `remove_key`, `test_key`, `scan`, `install` and `reject`. Mutations require loopback, JSON and same-origin browser requests; only operation-specific fields are accepted. Caller-provided source URLs and paths are refused.
+`GET /api/addons` returns catalogue and local status without a connection test or scan. `POST /api/addons` supports `save_key`, `remove_key`, `test_key`, `scan`, `local_install` (skills made by VOOL only; planned for 0.7.8), `install` and `reject`. Mutations require loopback, JSON and same-origin browser requests; only operation-specific fields are accepted. Caller-provided source URLs and paths are refused.
 
 The client uses Eyebrow v1's inline skill source request at `/v1/scan`, with bearer authentication, a fixed HTTPS origin, no redirects, bounded response size and no automatic retries. `/v1/version` is used for the explicit connection test. API reference: https://eyebrow.cc/api/reference .
 
@@ -34,6 +47,8 @@ Typical typed failures include:
 | `eyebrow_timeout` / `eyebrow_unreachable` | No automatic retry; a timed-out scan may still consume allowance. |
 | `eyebrow_invalid_report` / `eyebrow_no_coverage` | Evidence is incomplete; nothing is enabled. |
 | `addon_source_changed` / `addon_changed` | Pinned or reviewed bytes differ; do not activate them. |
+| `addon_bundled_changed` | A skill made by VOOL does not match the copy shipped with the app; update or reinstall VOOL. |
+| `local_install_not_offered` | Only skills made by VOOL can be added with the local check; scan others with Eyebrow. |
 | `review_untrusted` / `review_expired` | Obtain a new review before installation. |
 | `addon_already_installed` | Existing files were preserved. Automatic replacement is not implemented. |
 

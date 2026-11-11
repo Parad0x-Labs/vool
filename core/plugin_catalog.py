@@ -182,6 +182,9 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
                 # the add-ons page shows the state and its on/off button from this field.
                 "enabled": str(front.get("name") or skill_dir.name).strip() not in _disabled_skill_names(),
                 "description": front.get("description", ""),
+                # The one plain line a person reads (frontmatter `summary:`); the page falls back
+                # to the description when an author wrote none.
+                "summary": front.get("summary", "").strip(),
                 "slug": skill_dir.name,
                 # The Add-ons page offers "Publish to Skill Codex" only for a skill the person made.
                 "own": not first_party and is_own_skill(skill_dir),
@@ -216,6 +219,34 @@ def _disabled_skill_names() -> set[str]:
         return set()
 
 
+def skill_summary(skill_md: Path | str) -> str:
+    """The one plain line a person reads about a skill: its ``summary:`` frontmatter, or "".
+
+    ``description`` is what skill picking compares, so it is written for matching and often
+    reads as instructions. ``summary`` is display only: nothing picks a skill by it.
+    """
+    if not skill_md:
+        return ""
+    return _skill_frontmatter(Path(skill_md)).get("summary", "").strip()
+
+
+def native_skill_summaries() -> dict[str, str]:
+    """``{skill id: summary}`` for every loaded skill whose SKILL.md has a ``summary:`` line."""
+    try:
+        from core.native_skill_library import load_skill_contracts
+
+        contracts = load_skill_contracts().contracts
+    except Exception:
+        return {}
+    out: dict[str, str] = {}
+    for contract in contracts:
+        path = str(getattr(contract, "path", "") or "")
+        line = skill_summary(path) if path.endswith("SKILL.md") else ""
+        if line:
+            out[str(contract.id)] = line
+    return out
+
+
 def _native_library_entry() -> dict[str, Any] | None:
     """The first-party native skill library as one catalog entry, for the SAME projection.
 
@@ -232,10 +263,12 @@ def _native_library_entry() -> dict[str, Any] | None:
         return None
     if not rows:
         return None
+    summaries = native_skill_summaries()
     skills = [
         {
             "name": row["id"],
             "description": row.get("description") or "",
+            "summary": summaries.get(str(row["id"]), ""),
             "version": row.get("version") or "",
             "enabled": bool(row.get("enabled")),
             "available": bool(row.get("available")),
@@ -245,10 +278,10 @@ def _native_library_entry() -> dict[str, Any] | None:
     ]
     return {
         "id": "native-library",
-        "name": "Native Skill Library",
+        "name": "Built-in skills",
         "version": "1.0.0",
-        "description": "The skill packages shipped with the runtime itself.",
-        "category": "First-party",
+        "description": "The skills that come with VOOL. Turn any one of them on or off under Skills.",
+        "category": "Built in",
         "first_party": True,
         "tools": [],
         "permissions": [],
