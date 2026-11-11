@@ -38,7 +38,7 @@ fn(sandbox.window, sandbox.document, sandbox.matchMedia, function () {});
 const W = sandbox.window.VoolCompanionWorld;
 if (!W) { console.error('VoolCompanionWorld missing'); process.exit(2); }
 
-/* Usage: render_pets.js <world.js> <states-csv> <out.json> [elapsedMs] [chars-csv] [activity]
+/* Usage: render_pets.js <world.js> <states-csv> <out.json> [elapsedMs] [chars-csv] [activity] [reduced]
    elapsedMs omitted => use the shared documented per-state sample times. */
 const ids = process.argv[6] ? process.argv[6].split(',') : W.petIds();
 const states = process.argv[3] ? process.argv[3].split(',') :
@@ -49,12 +49,13 @@ const TIMES = { idle: 0, starting: 600, thinking: 1400, tool: 600, waiting: 0,
   approval: 1000, retry: 800, success: 400, failure: 200, cancelled: 0, unknown: 0 };
 const forced = process.argv[5] !== undefined && process.argv[5] !== '' ? Number(process.argv[5]) : null;
 const activity = process.argv[7] || null;
+const reduced = process.argv[8] === 'reduced';
 
 const out = {};
 for (const id of ids) {
   for (const st of states) {
     const ctx = makeCtx(48, 48);
-    W.drawPet(ctx, id, st, activity, forced === null ? TIMES[st] : forced, { ground: false });
+    W.drawPet(ctx, id, st, activity, forced === null ? TIMES[st] : forced, { ground: false, reduced });
     /* Rasterise to a 48x48 colour grid. Later writes win, matching real canvas order. */
     const grid = Array.from({ length: 48 }, () => Array(48).fill(null));
     for (const [x, y, c] of ctx._px) {
