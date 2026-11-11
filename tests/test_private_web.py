@@ -280,7 +280,10 @@ def test_an_unknown_route_value_is_never_treated_as_off(site, route) -> None:
     assert hits == []
 
 
-def test_system_vpn_refuses_until_checked(site, route) -> None:
+def test_system_vpn_refuses_while_the_vpn_is_not_carrying_traffic(site, route, monkeypatch) -> None:
+    from core import system_vpn_check
+
+    monkeypatch.setattr(system_vpn_check, "default_route_interface", lambda: "en0")
     _site_port, hits = site
     route("system_vpn")
     with pytest.raises(PrivateWebDownError) as refusal:
@@ -422,3 +425,45 @@ def test_cloud_model_worker_is_not_started_when_the_route_is_down(route) -> None
     route("tor", 0)
     with pytest.raises(provider_http.PrivateWebUnavailable):
         provider_http.get("https://api.example.test/v1/models", timeout=5)
+
+
+def test_system_vpn_lets_traffic_out_only_while_the_vpn_carries_it(site, route, monkeypatch) -> None:
+    from core import system_vpn_check
+
+    site_port, hits = site
+    iface = {"name": "utun4"}
+    monkeypatch.setattr(system_vpn_check, "default_route_interface", lambda: iface["name"])
+    monkeypatch.setattr(private_web, "_SYSTEM_VPN_RECHECK_SECONDS", 0.1)
+    monkeypatch.setattr(private_web, "_SYSTEM_VPN_VALID_SECONDS", 0.3)
+    route("system_vpn")
+    assert private_web.route_problem() is None
+    private_web._audit("socket.connect", (None, ("93.184.216.34", 443)))  # allowed while VPN is up
+
+    iface["name"] = "en0"  # the VPN app drops
+    import time as _time
+
+    _time.sleep(0.8)
+    with pytest.raises(PrivateWebBlocked):
+        private_web._audit("socket.connect", (None, ("93.184.216.34", 443)))
+    with pytest.raises(PrivateWebDownError):
+        _get("http://news.example.test/today")
+    assert hits == []
+
+
+@pytest.mark.parametrize(
+    "platform_name, output, expected",
+    [
+        ("darwin", "   route to: default\ndestination: default\n  interface: utun3\n", "utun3"),
+        ("darwin", "   route to: default\n    gateway: 192.168.1.1\n  interface: en0\n", "en0"),
+        ("linux", "1.1.1.1 dev wg0 table 51820 src 10.66.1.2 uid 1000\n", "wg0"),
+        ("linux", "1.1.1.1 via 192.168.1.1 dev wlp2s0 src 192.168.1.20\n", "wlp2s0"),
+    ],
+)
+def test_the_vpn_check_reads_the_route_the_computer_would_use(platform_name, output, expected, monkeypatch) -> None:
+    from core import system_vpn_check
+
+    monkeypatch.setattr(system_vpn_check.sys, "platform", platform_name)
+    monkeypatch.setattr(system_vpn_check.shutil, "which", lambda name: "/sbin/ip")
+    monkeypatch.setattr(system_vpn_check, "_run", lambda argv: output)
+    assert system_vpn_check.default_route_interface() == expected
+    assert system_vpn_check.is_tunnel_interface(expected) == expected.startswith(("utun", "wg"))

@@ -145,6 +145,7 @@ def refresh() -> RouteState:
     state = _route_from_policy()
     with _state_lock:
         _state = state
+    _ensure_vpn_watch(state)
     return state
 
 
@@ -173,6 +174,48 @@ def clear_system_vpn_verified() -> None:
 
 def _system_vpn_verified() -> bool:
     return time.monotonic() < _system_vpn_verified_until
+
+
+#: How long one passed check lets traffic leave directly, and how often the watcher re-checks.
+#: Short on purpose: after the VPN drops, direct traffic stops within this window.
+_SYSTEM_VPN_VALID_SECONDS = 4.0
+_SYSTEM_VPN_RECHECK_SECONDS = 2.0
+_vpn_watch: threading.Thread | None = None
+
+
+def check_system_vpn_now() -> bool:
+    """Ask the computer whether its VPN carries traffic now; record the answer for the guard."""
+    try:
+        from core.system_vpn_check import system_vpn_active
+
+        active = system_vpn_active()
+    except Exception:
+        active = False
+    if active:
+        mark_system_vpn_verified(_SYSTEM_VPN_VALID_SECONDS)
+    else:
+        clear_system_vpn_verified()
+    return active
+
+
+def _watch_system_vpn() -> None:
+    while _state.kind == ROUTE_SYSTEM_VPN:
+        check_system_vpn_now()
+        time.sleep(_SYSTEM_VPN_RECHECK_SECONDS)
+    clear_system_vpn_verified()
+
+
+def _ensure_vpn_watch(state: RouteState) -> None:
+    """While "My system VPN" is chosen, keep re-checking it, so code outside the fetch door
+    (cloud model calls, email) is allowed out only while the VPN is really on."""
+    global _vpn_watch
+    if state.kind != ROUTE_SYSTEM_VPN:
+        return
+    with _state_lock:
+        if _vpn_watch is not None and _vpn_watch.is_alive():
+            return
+        _vpn_watch = threading.Thread(target=_watch_system_vpn, name="private-web-vpn-watch", daemon=True)
+        _vpn_watch.start()
 
 
 # --- SOCKS5 (RFC 1928 / 1929), connect only -------------------------------------------------
@@ -285,7 +328,7 @@ def route_problem(state: RouteState | None = None) -> str | None:
     if state.kind not in ROUTES:
         return "Private web is set to a route VOOL does not know, so nothing was sent."
     if state.kind == ROUTE_SYSTEM_VPN:
-        if _system_vpn_verified():
+        if _system_vpn_verified() or check_system_vpn_now():
             return None
         return "Private web could not confirm your VPN is on, so nothing was sent."
     if not state.socks_port:
