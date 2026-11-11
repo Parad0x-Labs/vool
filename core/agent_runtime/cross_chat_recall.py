@@ -210,19 +210,35 @@ def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any
 
 def _memory_rows(
     question: str, terms: tuple[str, ...], session_id: str, source_context: dict[str, Any] | None
-) -> list[str] | None:
-    """Saved memory rows this chat may read that cover the question, or None when unknown."""
+) -> tuple[list[str], list[str]] | None:
+    """Saved memory rows this chat may read, split into (covering, closest); None when unknown.
+
+    A row COVERS the question when it holds more than half of its terms: only then does saved
+    memory answer it. One shared word ("test", "code") is not the fact asked for -- deferring on
+    it let the model guess a parking level and hand back the bike-lock code for a forgotten hotel
+    code (battery v8, 2026-11-11). Rows holding at least half the terms (and at least one) are
+    the CLOSEST saved facts, offered as such and never as the answer.
+    """
     try:
-        from core.chat_housekeeping import query_terms
+        from core.chat_housekeeping import _doc_stems, _term_in
         from core.context_scope import ContextAccessPolicy
         from core.memory.entries import search_relevant_memory
 
         policy = ContextAccessPolicy.for_request(session_id=session_id, source_context=source_context)
-        return [
-            " ".join(str(row.get("text") or "").split())
-            for row in search_relevant_memory(question, access_policy=policy, limit=6)
-            if (set(terms) & set(query_terms(str(row.get("text") or ""))))
-        ]
+        covering: list[str] = []
+        closest: list[tuple[int, str]] = []
+        for row in search_relevant_memory(question, access_policy=policy, limit=6):
+            text = " ".join(str(row.get("text") or "").split())
+            if not text:
+                continue
+            stems = _doc_stems(text)
+            held = sum(1 for term in terms if _term_in(term, stems))
+            if held * 2 > len(terms):
+                covering.append(text)
+            elif held and held * 2 >= len(terms) - (len(terms) % 2):
+                closest.append((held, text))
+        best = max((held for held, _ in closest), default=0)
+        return covering, [text for held, text in closest if held == best]
     except Exception:
         return None
 
@@ -409,8 +425,8 @@ def _short_question_the_owner_answered(text: str, session_id: str, source_contex
         terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
         if not terms:
             return False
-        saved = _memory_rows(text, terms, session_id, source_context)
-        if saved:
+        rows = _memory_rows(text, terms, session_id, source_context)
+        if rows and rows[0]:
             return True
         result = search_chats(text, current_session_id=session_id, limit=8)
         return bool(result.ok and _best_owner_statement(result, terms, []) is not None)
@@ -463,9 +479,10 @@ def cross_chat_recall(
         return None
     if _current_chat_holds_it(terms, source_context):
         return None
-    saved = _memory_rows(text, terms, session_id, source_context)
-    if saved is None:
+    rows = _memory_rows(text, terms, session_id, source_context)
+    if rows is None:
         return None  # unknown is not "absent": the ordinary path answers
+    saved, closest = rows
     result = search_chats(text, current_session_id=session_id, limit=12)
     if not result.ok:
         return None
@@ -501,10 +518,17 @@ def cross_chat_recall(
         f" or {result.projects_searched} project" + ("" if result.projects_searched == 1 else "s")
         if result.projects_searched else ""
     )
-    response = (
-        f"I don't have that saved, and I couldn't find it in any of your {chats}{projects}. "
-        "Tell me and I'll remember it."
-    )
+    if closest:
+        response = (
+            f"I don't have exactly that saved, and I couldn't find it in any of your {chats}{projects}. "
+            "The closest thing I have saved:\n" + "\n".join(f"- {row}" for row in closest[:3])
+            + "\n\nIf that's not it, tell me and I'll remember it."
+        )
+    else:
+        response = (
+            f"I don't have that saved, and I couldn't find it in any of your {chats}{projects}. "
+            "Tell me and I'll remember it."
+        )
     return CrossChatRecall(response=response, found=False, chats_searched=result.chats_searched)
 
 

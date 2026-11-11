@@ -779,6 +779,15 @@ def _memory_recall_value(text: str) -> str:
     return clean
 
 
+#: Words that frame a recall question rather than name the fact asked for.
+_RECALL_FRAME_TERMS = frozenset(
+    __import__("core.chat_housekeeping", fromlist=["query_terms"]).query_terms(
+        "tell told say said mention mentioned remember remembered recall know chat chats another "
+        "other earlier before previous conversation ask asked saved save me"
+    )
+)
+
+
 def _memory_recall_response(
     query: str,
     *,
@@ -803,6 +812,8 @@ def _memory_recall_response(
         )
     )
     stored_rows = list_memory_entries(access_policy=access_policy, limit=20)
+    stale_request = False
+    subject = ""
     if list_request:
         rows = stored_rows[:8]
     else:
@@ -885,6 +896,21 @@ def _memory_recall_response(
         wanted = set(_terms(query))
         overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
         rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == max(overlaps)]
+    if not list_request and not stale_request and not subject and rows:
+        # A saved row answers only when it holds most of what was asked. "What did I tell you in
+        # another chat about my test parking spot?" listed the hotel and bike-lock codes, which
+        # share nothing with it but "test" (battery v8, 2026-11-11). Typed slot questions ("the
+        # current exact identifier") are matched by their slot above, not here. With no such row
+        # this lane has nothing to say, and the turn goes on to the cross-chat lane and the conversation.
+        from core.chat_housekeeping import _doc_stems, _term_in, query_terms as _terms
+
+        asked = [term for term in _terms(query) if term not in _RECALL_FRAME_TERMS]
+        if asked:
+            rows = [
+                row
+                for row in rows
+                if 2 * sum(1 for term in asked if _term_in(term, _doc_stems(str(row.get("text") or "")))) > len(asked)
+            ]
     values: list[str] = []
     for row in rows:
         value = _memory_recall_value(str(row.get("text") or ""))
@@ -2455,9 +2481,14 @@ def maybe_handle_memory_command(
         # dressed up as "Active remembered value" answers a DIFFERENT question than the one asked.
         if _asks_about_transcript_order(text):
             return False, ""
-        asked_for_an_inventory = _memory_recall_empty_result_is_explicit(text) or (
-            any(marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS)
-            and not resolved_policy.allow_user_profile_context
+        about_other_chats = any(marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS)
+        # In the owner's own chat a question about another chat is not an inventory of saved
+        # memory: what was only SAID there is the cross-chat recall lane's to find, so an empty
+        # lookup here hands the turn on instead of answering "nothing in this chat".
+        asked_for_an_inventory = (
+            not resolved_policy.allow_user_profile_context
+            if about_other_chats
+            else _memory_recall_empty_result_is_explicit(text)
         )
         response = _memory_recall_response(
             text,

@@ -408,3 +408,48 @@ def test_a_reply_that_only_announces_its_own_next_steps_is_not_a_finished_answer
     assert inspect_answer_completeness(plan).reasons == ("plan_not_carried_out",)
     assert not inspect_answer_completeness("To change it: Step 1: Open Settings. Step 2: Click Accounts.").incomplete
     assert not inspect_answer_completeness("The Daugava is 1,020 km long. I'll check the source if you want.").incomplete
+
+
+# --- saved memory answers only what it covers (battery v8, 2026-11-11) -------------------------
+
+
+def _save_test_codes(chat: str) -> None:
+    for fact in ("Remember that my test hotel booking code is LOTUS-73.",
+                 "Remember that my test bike lock code word is HERON-7."):
+        handled, reply = _command(chat, fact)
+        assert handled and "Locked in" in reply, reply
+
+
+def _lane_rows(question: str, chat: str):
+    from core.agent_runtime.cross_chat_recall import _QUESTION_WORDS, _memory_rows, as_question
+    from core.chat_housekeeping import query_terms
+
+    text = as_question(question)
+    terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
+    ContextAccessPolicy.for_request(session_id=chat, source_context=OWNER_LOCAL)
+    return _memory_rows(text, terms, chat, OWNER_LOCAL)
+
+
+def test_one_shared_word_is_not_saved_memory_for_the_cross_chat_lane():
+    _save_test_codes("cover-a")
+    covering, closest = _lane_rows("Where is my test parking spot at work?", "cover-b")
+    assert covering == [] and closest == []
+    covering, _ = _lane_rows("whats my test hotel bookin code", "cover-b")
+    assert len(covering) == 1 and "LOTUS-73" in covering[0]
+
+
+def test_after_forget_the_other_code_is_offered_as_closest_never_as_the_answer():
+    _save_test_codes("close-a")
+    handled, _ = _command("close-a", "Forget my test hotel booking code.")
+    assert handled
+    covering, closest = _lane_rows("What is my test hotel booking code?", "close-b")
+    assert covering == []
+    assert len(closest) == 1 and "HERON-7" in closest[0]
+
+
+def test_the_saved_memory_lane_does_not_list_unrelated_codes_for_another_chat_question():
+    _save_test_codes("list-a")
+    handled, reply = _command("list-b", "What did I tell you in another chat about my test parking spot?")
+    assert not handled, reply  # nothing saved covers it: the cross-chat lane and the model take it
+    handled, reply = _command("list-b", "do you remember my test hotel booking code?")
+    assert handled and "LOTUS-73" in reply and "HERON-7" not in reply, reply
