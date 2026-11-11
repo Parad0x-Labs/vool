@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ja",
   "messages": {
+    "settings.private_web.add_file": "VPN の WireGuard ファイルを追加",
+    "settings.private_web.bad_file": "WireGuard ファイルではないようです。",
+    "settings.private_web.file_kept": "VPN ファイルが追加されています。",
+    "settings.private_web.file_needed": "VPN のアカウントから WireGuard ファイルをダウンロードして(Mullvad、Proton VPN、IVPN、NordVPN、Surfshark などで入手できます)、ここに追加してください。",
+    "settings.private_web.forget_file": "VPN ファイルを削除",
+    "settings.private_web.local_only": "このコンピューターはすべてを手元に置く設定なので、もともと何もオンラインに出ません。",
+    "settings.private_web.off": "オフ",
+    "settings.private_web.state.down": "今は動いていないため、何もオンラインに出ません。",
+    "settings.private_web.state.off": "オフ。Web 通信はご自身の接続からそのまま出ます。",
+    "settings.private_web.state.on": "オン。Web 通信はこの経路だけを通ります。",
+    "settings.private_web.state.starting": "接続中です。準備ができるまで、何もオンラインに出ません。",
+    "settings.private_web.system_vpn": "このコンピューターの VPN アプリ",
+    "settings.private_web.tor": "Tor(遅め)",
+    "settings.private_web.wireguard": "自分の VPN ファイル",
+    "settings.row.private_web.help": "VOOL の Web 通信を、インターネット接続から直接ではなく Tor またはご自身の VPN 経由で送ります。その経路が使えなくなったときは、迂回せず何も送りません。Tor は遅く、確認を求めるサイトもあります。既定ではオフです。プライバシーを最大にするには、ローカルモデルも使い、サイトにはログインしないでください。",
+    "settings.row.private_web.label": "プライベート Web",
     "activity.category.changes": "変更されたファイル",
     "activity.category.commands": "コマンド",
     "activity.category.edits": "編集呼び出し",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

@@ -8,6 +8,7 @@ and Tor exiting when its owner dies.)
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import stat
@@ -18,6 +19,7 @@ import pytest
 
 from core import private_web, tor_runtime
 from core.tor_runtime import TorRuntime, TorUnavailable
+from tests.first_run_pact_rig import pact_rig  # noqa: F401 - fixture
 
 FAKE = Path(__file__).parent / "fixtures" / "fake_tor.py"
 
@@ -113,3 +115,45 @@ def test_private_web_uses_the_running_tor_port(runtime, monkeypatch) -> None:
     finally:
         monkeypatch.undo()
         private_web.refresh()
+
+
+# ------------------------------------------------- Settings: the real owner routes, end to end
+
+
+def test_settings_turn_tor_on_and_off_through_the_owner_routes(pact_rig, fake_tor, monkeypatch, tmp_path) -> None:
+    rt = TorRuntime(data_dir=tmp_path / "tor-data", binary=fake_tor)
+    monkeypatch.setattr(tor_runtime, "shared", lambda: rt)
+    from core import private_web_service
+
+    try:
+        status, data = pact_rig.get("/api/private-web")
+        assert status == 200 and data["route"] == "off" and data["state"] == "off"
+
+        # someone else on the network cannot change it
+        status, _ = pact_rig.post("/api/private-web/settings", {"route": "tor"}, client_host="10.0.0.2")
+        assert status == 403
+        assert pact_rig.get("/api/private-web")[1]["route"] == "off"
+
+        status, data = pact_rig.post("/api/private-web/settings", {"route": "tor"})
+        assert status == 200 and data["route"] == "tor"
+        if private_web_service._starter is not None:
+            private_web_service._starter.join(timeout=15)
+        data = pact_rig.get("/api/private-web")[1]
+        assert data["state"] == "on", data
+        assert rt.running and "private_web" in rt.users()
+
+        status, data = pact_rig.post("/api/private-web/settings", {"route": "off"})
+        assert status == 200 and data["state"] == "off"
+        assert not rt.running, "Tor stops when Private web no longer needs it"
+
+        status, data = pact_rig.post("/api/private-web/settings", {"route": "carrier-pigeon"})
+        assert status == 400
+    finally:
+        rt.stop()
+        private_web.refresh()
+
+
+def test_settings_reject_a_bad_vpn_file_in_plain_words(pact_rig) -> None:
+    status, data = pact_rig.post("/api/private-web/vpn_file", {"text": "[Interface]\nPrivateKey = nope\n[Peer]\n"})
+    assert status == 400
+    assert "PrivateKey" in json.dumps(data)

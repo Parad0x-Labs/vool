@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "lt",
   "messages": {
+    "settings.private_web.add_file": "Pridėkite savo VPN WireGuard failą",
+    "settings.private_web.bad_file": "Tai nepanašu į WireGuard failą.",
+    "settings.private_web.file_kept": "VPN failas pridėtas.",
+    "settings.private_web.file_needed": "Atsisiųskite WireGuard failą iš savo VPN paskyros (jį siūlo Mullvad, Proton VPN, IVPN, NordVPN, Surfshark ir kiti) ir pridėkite jį čia.",
+    "settings.private_web.forget_file": "Pašalinti VPN failą",
+    "settings.private_web.local_only": "Šis kompiuteris nustatytas viską laikyti jame, todėl į internetą ir taip niekas neišeina.",
+    "settings.private_web.off": "Išjungta",
+    "settings.private_web.state.down": "Šiuo metu neveikia, todėl į internetą niekas neišeina.",
+    "settings.private_web.state.off": "Išjungta. Interneto srautas eina per jūsų pačių ryšį.",
+    "settings.private_web.state.on": "Įjungta. Interneto srautas eina tik šiuo keliu.",
+    "settings.private_web.state.starting": "Jungiamasi. Kol neparuošta, į internetą niekas neišeina.",
+    "settings.private_web.system_vpn": "Mano VPN programa šiame kompiuteryje",
+    "settings.private_web.tor": "Tor (lėčiau)",
+    "settings.private_web.wireguard": "Mano VPN failas",
+    "settings.row.private_web.help": "Siųskite VOOL interneto srautą per Tor arba savo VPN, o ne tiesiai per savo interneto ryšį. Jei šis kelias nustoja veikti, VOOL nieko nesiunčia, o ne jį apeina. Tor lėtesnis, o kai kurios svetainės prašo patikrinimo. Pagal numatytuosius nustatymus išjungta. Didžiausiam privatumui taip pat naudokite vietinius modelius ir neprisijunkite prie svetainių.",
+    "settings.row.private_web.label": "Privatus internetas",
     "activity.category.changes": "Pakeisti failai",
     "activity.category.commands": "Komandos",
     "activity.category.edits": "Redagavimo iškvietimai",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "pl",
   "messages": {
+    "settings.private_web.add_file": "Dodaj plik WireGuard ze swojego VPN",
+    "settings.private_web.bad_file": "To nie wygląda na plik WireGuard.",
+    "settings.private_web.file_kept": "Plik VPN jest dodany.",
+    "settings.private_web.file_needed": "Pobierz plik WireGuard ze swojego konta VPN (oferują go Mullvad, Proton VPN, IVPN, NordVPN, Surfshark i inni) i dodaj go tutaj.",
+    "settings.private_web.forget_file": "Usuń plik VPN",
+    "settings.private_web.local_only": "Ten komputer jest ustawiony tak, by wszystko zostawało na nim, więc i tak nic nie trafia do sieci.",
+    "settings.private_web.off": "Wył.",
+    "settings.private_web.state.down": "Teraz nie działa, więc nic nie trafia do sieci.",
+    "settings.private_web.state.off": "Wył. Ruch sieciowy wychodzi przez Twoje własne połączenie.",
+    "settings.private_web.state.on": "Wł. Ruch sieciowy idzie tylko tą drogą.",
+    "settings.private_web.state.starting": "Łączenie. Dopóki nie będzie gotowe, nic nie trafia do sieci.",
+    "settings.private_web.system_vpn": "Moja aplikacja VPN na tym komputerze",
+    "settings.private_web.tor": "Tor (wolniej)",
+    "settings.private_web.wireguard": "Mój plik VPN",
+    "settings.row.private_web.help": "Kieruj ruch sieciowy VOOL przez Tor lub własny VPN zamiast bezpośrednio przez swoje połączenie internetowe. Jeśli ta droga przestanie działać, VOOL nic nie wyśle, zamiast ją ominąć. Tor jest wolniejszy, a niektóre strony proszą o weryfikację. Domyślnie wyłączone. Dla największej prywatności używaj też modeli lokalnych i nie loguj się na stronach.",
+    "settings.row.private_web.label": "Prywatna sieć",
     "activity.category.changes": "Zmienione pliki",
     "activity.category.commands": "Polecenia",
     "activity.category.edits": "Wywołania edycji",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Obwód świtu",
     "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

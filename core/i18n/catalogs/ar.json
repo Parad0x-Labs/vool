@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ar",
   "messages": {
+    "settings.private_web.add_file": "أضف ملف WireGuard من شبكة VPN الخاصة بك",
+    "settings.private_web.bad_file": "لا يبدو هذا ملف WireGuard.",
+    "settings.private_web.file_kept": "تمت إضافة ملف VPN.",
+    "settings.private_web.file_needed": "نزّل ملف WireGuard من حساب VPN الخاص بك (توفره Mullvad وProton VPN وIVPN وNordVPN وSurfshark وغيرها) وأضفه هنا.",
+    "settings.private_web.forget_file": "إزالة ملف VPN",
+    "settings.private_web.local_only": "هذا الكمبيوتر مضبوط على إبقاء كل شيء عليه، لذا لا يخرج شيء إلى الإنترنت على أي حال.",
+    "settings.private_web.off": "إيقاف",
+    "settings.private_web.state.down": "لا يعمل الآن، لذا لا يخرج شيء إلى الإنترنت.",
+    "settings.private_web.state.off": "متوقف. حركة الويب تخرج من اتصالك المباشر.",
+    "settings.private_web.state.on": "يعمل. حركة الويب تمر عبر هذا المسار فقط.",
+    "settings.private_web.state.starting": "جارٍ الاتصال. حتى يجهز، لا يخرج شيء إلى الإنترنت.",
+    "settings.private_web.system_vpn": "تطبيق VPN الخاص بي على هذا الكمبيوتر",
+    "settings.private_web.tor": "Tor (أبطأ)",
+    "settings.private_web.wireguard": "ملف VPN الخاص بي",
+    "settings.row.private_web.help": "أرسل حركة الويب في VOOL عبر Tor أو شبكة VPN الخاصة بك بدلًا من اتصالك بالإنترنت مباشرة. إذا توقف هذا المسار عن العمل، لا يرسل VOOL شيئًا بدلًا من الالتفاف عليه. Tor أبطأ وبعض المواقع تطلب تحققًا. متوقف افتراضيًا. لأقصى خصوصية، استخدم أيضًا النماذج المحلية وابقَ غير مسجّل الدخول في المواقع.",
+    "settings.row.private_web.label": "ويب خاص",
     "activity.category.changes": "ملفات متغيرة",
     "activity.category.commands": "أوامر",
     "activity.category.edits": "نداءات تحرير",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "دائرة الفجر",
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "he",
   "messages": {
+    "settings.private_web.add_file": "הוסיפו את קובץ ה-WireGuard מה-VPN שלכם",
+    "settings.private_web.bad_file": "זה לא נראה כמו קובץ WireGuard.",
+    "settings.private_web.file_kept": "נוסף קובץ VPN.",
+    "settings.private_web.file_needed": "הורידו קובץ WireGuard מחשבון ה-VPN שלכם (Mullvad,‏ Proton VPN,‏ IVPN,‏ NordVPN,‏ Surfshark ואחרים מציעים כזה) והוסיפו אותו כאן.",
+    "settings.private_web.forget_file": "הסרת קובץ VPN",
+    "settings.private_web.local_only": "המחשב הזה מוגדר לשמור הכול אצלו, כך שממילא שום דבר לא יוצא לרשת.",
+    "settings.private_web.off": "כבוי",
+    "settings.private_web.state.down": "לא עובד כרגע, ולכן שום דבר לא יוצא לרשת.",
+    "settings.private_web.state.off": "כבוי. תעבורת הרשת יוצאת מהחיבור שלכם עצמכם.",
+    "settings.private_web.state.on": "פועל. תעבורת הרשת עוברת רק בדרך הזו.",
+    "settings.private_web.state.starting": "מתחבר. עד שזה מוכן, שום דבר לא יוצא לרשת.",
+    "settings.private_web.system_vpn": "אפליקציית ה-VPN שלי במחשב הזה",
+    "settings.private_web.tor": "Tor (איטי יותר)",
+    "settings.private_web.wireguard": "קובץ ה-VPN שלי",
+    "settings.row.private_web.help": "שלחו את תעבורת הרשת של VOOL דרך Tor או ה-VPN שלכם במקום ישירות מחיבור האינטרנט. אם הדרך הזו מפסיקה לעבוד, VOOL לא שולח כלום במקום לעקוף אותה. Tor איטי יותר וחלק מהאתרים מבקשים אימות. כבוי כברירת מחדל. לפרטיות מרבית, השתמשו גם במודלים מקומיים ואל תתחברו לאתרים.",
+    "settings.row.private_web.label": "רשת פרטית",
     "activity.category.changes": "קבצים ששונו",
     "activity.category.commands": "פקודות",
     "activity.category.edits": "קריאות עריכה",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "מעגל השחר",
     "toybox.skin_dawn-circuit_description": "חלום פיקסלים של שערי ירח, ענני סרט ושותפים קטנים ומלאי הבעה."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

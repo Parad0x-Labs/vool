@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "hi",
   "messages": {
+    "settings.private_web.add_file": "अपने VPN की WireGuard फ़ाइल जोड़ें",
+    "settings.private_web.bad_file": "यह WireGuard फ़ाइल जैसी नहीं लगती।",
+    "settings.private_web.file_kept": "एक VPN फ़ाइल जोड़ी गई है।",
+    "settings.private_web.file_needed": "अपने VPN खाते से WireGuard फ़ाइल डाउनलोड करें (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark और अन्य यह देते हैं) और उसे यहाँ जोड़ें।",
+    "settings.private_web.forget_file": "VPN फ़ाइल हटाएँ",
+    "settings.private_web.local_only": "यह कंप्यूटर सब कुछ अपने पास रखने के लिए सेट है, इसलिए वैसे भी कुछ ऑनलाइन नहीं जाता।",
+    "settings.private_web.off": "बंद",
+    "settings.private_web.state.down": "अभी काम नहीं कर रहा, इसलिए कुछ ऑनलाइन नहीं जाता।",
+    "settings.private_web.state.off": "बंद। वेब ट्रैफ़िक आपके अपने कनेक्शन से जाता है।",
+    "settings.private_web.state.on": "चालू। वेब ट्रैफ़िक केवल इसी रास्ते से जाता है।",
+    "settings.private_web.state.starting": "कनेक्ट हो रहा है। तैयार होने तक कुछ ऑनलाइन नहीं जाता।",
+    "settings.private_web.system_vpn": "इस कंप्यूटर पर मेरा VPN ऐप",
+    "settings.private_web.tor": "Tor (धीमा)",
+    "settings.private_web.wireguard": "मेरी VPN फ़ाइल",
+    "settings.row.private_web.help": "VOOL का वेब ट्रैफ़िक सीधे आपके इंटरनेट कनेक्शन से भेजने के बजाय Tor या आपके अपने VPN से भेजें। अगर वह रास्ता काम करना बंद कर दे, तो VOOL उसे दरकिनार करने के बजाय कुछ नहीं भेजता। Tor धीमा है और कुछ साइटें जाँच माँगती हैं। डिफ़ॉल्ट रूप से बंद। सबसे ज़्यादा निजता के लिए स्थानीय मॉडल भी इस्तेमाल करें और साइटों में साइन इन न करें।",
+    "settings.row.private_web.label": "निजी वेब",
     "activity.category.changes": "बदली गई फ़ाइलें",
     "activity.category.commands": "कमांड",
     "activity.category.edits": "संपादन कॉल",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "भोर का परिपथ",
     "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

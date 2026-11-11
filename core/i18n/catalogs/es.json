@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "es",
   "messages": {
+    "settings.private_web.add_file": "Añade el archivo WireGuard de tu VPN",
+    "settings.private_web.bad_file": "Esto no parece un archivo WireGuard.",
+    "settings.private_web.file_kept": "Hay un archivo VPN añadido.",
+    "settings.private_web.file_needed": "Descarga un archivo WireGuard desde tu cuenta de VPN (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark y otros lo ofrecen) y añádelo aquí.",
+    "settings.private_web.forget_file": "Quitar archivo VPN",
+    "settings.private_web.local_only": "Este ordenador está configurado para guardarlo todo en él, así que de todos modos nada sale a internet.",
+    "settings.private_web.off": "Desactivado",
+    "settings.private_web.state.down": "No funciona ahora mismo, así que nada sale a internet.",
+    "settings.private_web.state.off": "Desactivado. El tráfico web sale desde tu propia conexión.",
+    "settings.private_web.state.on": "Activado. El tráfico web solo pasa por esta ruta.",
+    "settings.private_web.state.starting": "Conectando. Hasta que esté listo, nada sale a internet.",
+    "settings.private_web.system_vpn": "Mi app de VPN en este ordenador",
+    "settings.private_web.tor": "Tor (más lento)",
+    "settings.private_web.wireguard": "Mi archivo VPN",
+    "settings.row.private_web.help": "Envía el tráfico web de VOOL a través de Tor o de tu propia VPN en lugar de directamente desde tu conexión a internet. Si esa ruta deja de funcionar, VOOL no envía nada en lugar de saltársela. Tor es más lento y algunos sitios piden una comprobación. Desactivado por defecto. Para la máxima privacidad, usa también modelos locales y no inicies sesión en los sitios.",
+    "settings.row.private_web.label": "Web privada",
     "activity.category.changes": "Archivos cambiados",
     "activity.category.commands": "Comandos",
     "activity.category.edits": "Llamadas de edición",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
     "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

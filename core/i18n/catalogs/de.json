@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "de",
   "messages": {
+    "settings.private_web.add_file": "WireGuard-Datei deines VPN hinzufügen",
+    "settings.private_web.bad_file": "Das sieht nicht wie eine WireGuard-Datei aus.",
+    "settings.private_web.file_kept": "Eine VPN-Datei ist hinzugefügt.",
+    "settings.private_web.file_needed": "Lade in deinem VPN-Konto eine WireGuard-Datei herunter (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark und andere bieten eine an) und füge sie hier hinzu.",
+    "settings.private_web.forget_file": "VPN-Datei entfernen",
+    "settings.private_web.local_only": "Dieser Computer ist so eingestellt, dass alles auf ihm bleibt, daher geht ohnehin nichts online.",
+    "settings.private_web.off": "Aus",
+    "settings.private_web.state.down": "Funktioniert gerade nicht, daher geht nichts online.",
+    "settings.private_web.state.off": "Aus. Webverkehr geht direkt über deine eigene Verbindung.",
+    "settings.private_web.state.on": "An. Webverkehr geht nur über diesen Weg.",
+    "settings.private_web.state.starting": "Verbindet sich. Bis es bereit ist, geht nichts online.",
+    "settings.private_web.system_vpn": "Meine VPN-App auf diesem Computer",
+    "settings.private_web.tor": "Tor (langsamer)",
+    "settings.private_web.wireguard": "Meine VPN-Datei",
+    "settings.row.private_web.help": "Leite den Webverkehr von VOOL über Tor oder dein eigenes VPN statt direkt über deine Internetverbindung. Wenn dieser Weg nicht funktioniert, sendet VOOL nichts, statt ihn zu umgehen. Tor ist langsamer und manche Seiten verlangen eine Prüfung. Standardmäßig aus. Für die meiste Privatsphäre nutze zusätzlich lokale Modelle und bleib auf Websites abgemeldet.",
+    "settings.row.private_web.label": "Privates Web",
     "activity.category.changes": "Geänderte Dateien",
     "activity.category.commands": "Befehle",
     "activity.category.edits": "Bearbeitungsaufrufe",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Morgenkreis",
     "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

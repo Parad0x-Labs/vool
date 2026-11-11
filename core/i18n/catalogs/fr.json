@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "fr",
   "messages": {
+    "settings.private_web.add_file": "Ajouter le fichier WireGuard de votre VPN",
+    "settings.private_web.bad_file": "Cela ne ressemble pas à un fichier WireGuard.",
+    "settings.private_web.file_kept": "Un fichier VPN est ajouté.",
+    "settings.private_web.file_needed": "Téléchargez un fichier WireGuard depuis votre compte VPN (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark et d'autres en proposent un) et ajoutez-le ici.",
+    "settings.private_web.forget_file": "Retirer le fichier VPN",
+    "settings.private_web.local_only": "Cet ordinateur est réglé pour tout garder sur lui, donc rien ne va en ligne de toute façon.",
+    "settings.private_web.off": "Désactivé",
+    "settings.private_web.state.down": "Ne fonctionne pas pour le moment, donc rien ne va en ligne.",
+    "settings.private_web.state.off": "Désactivé. Le trafic web part de votre propre connexion.",
+    "settings.private_web.state.on": "Activé. Le trafic web passe uniquement par cette voie.",
+    "settings.private_web.state.starting": "Connexion en cours. Tant que ce n'est pas prêt, rien ne va en ligne.",
+    "settings.private_web.system_vpn": "Mon app VPN sur cet ordinateur",
+    "settings.private_web.tor": "Tor (plus lent)",
+    "settings.private_web.wireguard": "Mon fichier VPN",
+    "settings.row.private_web.help": "Faites passer le trafic web de VOOL par Tor ou votre propre VPN au lieu de votre connexion internet directe. Si cette voie cesse de fonctionner, VOOL n'envoie rien plutôt que de la contourner. Tor est plus lent et certains sites demandent une vérification. Désactivé par défaut. Pour un maximum de confidentialité, utilisez aussi des modèles locaux et restez déconnecté des sites.",
+    "settings.row.private_web.label": "Web privé",
     "activity.category.changes": "Fichiers modifiés",
     "activity.category.commands": "Commandes",
     "activity.category.edits": "Appels d'édition",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
     "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

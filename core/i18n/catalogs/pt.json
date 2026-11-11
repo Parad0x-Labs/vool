@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "pt",
   "messages": {
+    "settings.private_web.add_file": "Adicione o arquivo WireGuard da sua VPN",
+    "settings.private_web.bad_file": "Isto não parece um arquivo WireGuard.",
+    "settings.private_web.file_kept": "Um arquivo de VPN foi adicionado.",
+    "settings.private_web.file_needed": "Baixe um arquivo WireGuard na sua conta de VPN (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark e outros oferecem um) e adicione-o aqui.",
+    "settings.private_web.forget_file": "Remover arquivo de VPN",
+    "settings.private_web.local_only": "Este computador está configurado para manter tudo nele, então nada fica online de qualquer forma.",
+    "settings.private_web.off": "Desativado",
+    "settings.private_web.state.down": "Não está funcionando agora, então nada fica online.",
+    "settings.private_web.state.off": "Desativado. O tráfego web sai pela sua própria conexão.",
+    "settings.private_web.state.on": "Ativado. O tráfego web passa somente por este caminho.",
+    "settings.private_web.state.starting": "Conectando. Até ficar pronto, nada fica online.",
+    "settings.private_web.system_vpn": "Meu app de VPN neste computador",
+    "settings.private_web.tor": "Tor (mais lento)",
+    "settings.private_web.wireguard": "Meu arquivo de VPN",
+    "settings.row.private_web.help": "Envie o tráfego web do VOOL pelo Tor ou pela sua própria VPN em vez de direto pela sua conexão de internet. Se esse caminho parar de funcionar, o VOOL não envia nada em vez de contorná-lo. O Tor é mais lento e alguns sites pedem uma verificação. Desativado por padrão. Para mais privacidade, use também modelos locais e não entre em sites com sua conta.",
+    "settings.row.private_web.label": "Web privada",
     "activity.category.changes": "Arquivos alterados",
     "activity.category.commands": "Comandos",
     "activity.category.edits": "Chamadas de edição",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Circuito da aurora",
     "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

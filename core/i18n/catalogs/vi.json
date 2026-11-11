@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "vi",
   "messages": {
+    "settings.private_web.add_file": "Thêm tệp WireGuard từ VPN của bạn",
+    "settings.private_web.bad_file": "Đây không giống tệp WireGuard.",
+    "settings.private_web.file_kept": "Đã thêm một tệp VPN.",
+    "settings.private_web.file_needed": "Tải một tệp WireGuard từ tài khoản VPN của bạn (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark và các dịch vụ khác đều có) rồi thêm vào đây.",
+    "settings.private_web.forget_file": "Gỡ tệp VPN",
+    "settings.private_web.local_only": "Máy tính này được đặt để giữ mọi thứ trên máy, nên dù sao cũng không có gì lên mạng.",
+    "settings.private_web.off": "Tắt",
+    "settings.private_web.state.down": "Hiện không hoạt động, nên không có gì lên mạng.",
+    "settings.private_web.state.off": "Tắt. Lưu lượng web đi từ kết nối của chính bạn.",
+    "settings.private_web.state.on": "Bật. Lưu lượng web chỉ đi qua đường này.",
+    "settings.private_web.state.starting": "Đang kết nối. Cho đến khi sẵn sàng, không có gì lên mạng.",
+    "settings.private_web.system_vpn": "Ứng dụng VPN của tôi trên máy này",
+    "settings.private_web.tor": "Tor (chậm hơn)",
+    "settings.private_web.wireguard": "Tệp VPN của tôi",
+    "settings.row.private_web.help": "Gửi lưu lượng web của VOOL qua Tor hoặc VPN của riêng bạn thay vì đi thẳng từ kết nối internet. Nếu đường đó ngừng hoạt động, VOOL không gửi gì thay vì đi vòng qua nó. Tor chậm hơn và một số trang yêu cầu xác minh. Mặc định tắt. Để riêng tư nhất, hãy dùng thêm mô hình cục bộ và không đăng nhập vào các trang.",
+    "settings.row.private_web.label": "Web riêng tư",
     "activity.category.changes": "Tệp đã đổi",
     "activity.category.commands": "Lệnh",
     "activity.category.edits": "Lượt gọi sửa",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

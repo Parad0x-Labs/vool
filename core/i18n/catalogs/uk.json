@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "uk",
   "messages": {
+    "settings.private_web.add_file": "Додайте файл WireGuard від вашого VPN",
+    "settings.private_web.bad_file": "Це не схоже на файл WireGuard.",
+    "settings.private_web.file_kept": "Файл VPN додано.",
+    "settings.private_web.file_needed": "Завантажте файл WireGuard у своєму обліковому записі VPN (його пропонують Mullvad, Proton VPN, IVPN, NordVPN, Surfshark та інші) і додайте його тут.",
+    "settings.private_web.forget_file": "Видалити файл VPN",
+    "settings.private_web.local_only": "Цей комп’ютер налаштовано тримати все на ньому, тож у мережу й так нічого не йде.",
+    "settings.private_web.off": "Вимк.",
+    "settings.private_web.state.down": "Зараз не працює, тож у мережу нічого не йде.",
+    "settings.private_web.state.off": "Вимк. Веб-трафік іде напряму через ваше з’єднання.",
+    "settings.private_web.state.on": "Увімк. Веб-трафік іде лише цим шляхом.",
+    "settings.private_web.state.starting": "З’єднання. Поки воно не готове, у мережу нічого не йде.",
+    "settings.private_web.system_vpn": "Мій VPN-застосунок на цьому комп’ютері",
+    "settings.private_web.tor": "Tor (повільніше)",
+    "settings.private_web.wireguard": "Мій файл VPN",
+    "settings.row.private_web.help": "Спрямовуйте веб-трафік VOOL через Tor або власний VPN замість прямого з’єднання з інтернетом. Якщо цей шлях перестає працювати, VOOL нічого не надсилає, а не обходить його. Tor повільніший, і деякі сайти просять пройти перевірку. Типово вимкнено. Для найбільшої приватності також використовуйте локальні моделі й не входьте в облікові записи на сайтах.",
+    "settings.row.private_web.label": "Приватний веб",
     "activity.category.changes": "Змінені файли",
     "activity.category.commands": "Команди",
     "activity.category.edits": "Виклики правок",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Контур світанку",
     "toybox.skin_dawn-circuit_description": "Піксельний сон про місячні брами, хмарні стрічки та виразних маленьких супутників."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

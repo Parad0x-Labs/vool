@@ -620,6 +620,11 @@ def main() -> int:
     from core.private_web import install_egress_guard
 
     install_egress_guard()
+    # The chosen route's helper (Tor or the VPN file) comes up in the background; until it is
+    # ready Private web refuses rather than waits. Off does nothing.
+    from core.private_web_service import activate_at_start
+
+    activate_at_start()
     # C15: the ONE bounded unattended preflight, before any bootstrap can reach an OS
     # credential API. A scratch/synthetic home gets non-interactive storage pinned; the
     # operator's established home is recorded, never rewritten.

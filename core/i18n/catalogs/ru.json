@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ru",
   "messages": {
+    "settings.private_web.add_file": "Добавьте файл WireGuard от вашего VPN",
+    "settings.private_web.bad_file": "Это не похоже на файл WireGuard.",
+    "settings.private_web.file_kept": "Файл VPN добавлен.",
+    "settings.private_web.file_needed": "Скачайте файл WireGuard в своём аккаунте VPN (его дают Mullvad, Proton VPN, IVPN, NordVPN, Surfshark и другие) и добавьте его здесь.",
+    "settings.private_web.forget_file": "Удалить файл VPN",
+    "settings.private_web.local_only": "Этот компьютер настроен держать всё у себя, поэтому в сеть и так ничего не уходит.",
+    "settings.private_web.off": "Выкл.",
+    "settings.private_web.state.down": "Сейчас не работает, поэтому в сеть ничего не уходит.",
+    "settings.private_web.state.off": "Выкл. Веб-трафик идёт напрямую через ваше подключение.",
+    "settings.private_web.state.on": "Вкл. Веб-трафик идёт только этим путём.",
+    "settings.private_web.state.starting": "Подключение. Пока оно не готово, в сеть ничего не уходит.",
+    "settings.private_web.system_vpn": "Моё VPN-приложение на этом компьютере",
+    "settings.private_web.tor": "Tor (медленнее)",
+    "settings.private_web.wireguard": "Мой файл VPN",
+    "settings.row.private_web.help": "Направляйте веб-трафик VOOL через Tor или свой VPN, а не напрямую через ваше подключение к интернету. Если этот путь перестаёт работать, VOOL ничего не отправляет, а не обходит его. Tor медленнее, и некоторые сайты просят пройти проверку. По умолчанию выключено. Для максимальной приватности также используйте локальные модели и не входите в аккаунты на сайтах.",
+    "settings.row.private_web.label": "Приватный веб",
     "activity.category.changes": "Изменённые файлы",
     "activity.category.commands": "Команды",
     "activity.category.edits": "Вызовы правок",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Контур рассвета",
     "toybox.skin_dawn-circuit_description": "Пиксельный сон о лунных вратах, облачных лентах и выразительных маленьких спутниках."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

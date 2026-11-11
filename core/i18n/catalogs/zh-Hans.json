@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "zh-Hans",
   "messages": {
+    "settings.private_web.add_file": "添加你的 VPN 提供的 WireGuard 文件",
+    "settings.private_web.bad_file": "这看起来不像 WireGuard 文件。",
+    "settings.private_web.file_kept": "已添加一个 VPN 文件。",
+    "settings.private_web.file_needed": "从你的 VPN 账户下载 WireGuard 文件(Mullvad、Proton VPN、IVPN、NordVPN、Surfshark 等都提供),然后在这里添加。",
+    "settings.private_web.forget_file": "移除 VPN 文件",
+    "settings.private_web.local_only": "这台电脑设置为所有内容都留在本机,所以本来就不会有任何内容联网。",
+    "settings.private_web.off": "关闭",
+    "settings.private_web.state.down": "现在无法使用,所以不会有任何内容联网。",
+    "settings.private_web.state.off": "关闭。网页流量直接从你自己的网络连接发出。",
+    "settings.private_web.state.on": "开启。网页流量只通过这条路线。",
+    "settings.private_web.state.starting": "正在连接。准备好之前,不会有任何内容联网。",
+    "settings.private_web.system_vpn": "这台电脑上我的 VPN 应用",
+    "settings.private_web.tor": "Tor(较慢)",
+    "settings.private_web.wireguard": "我的 VPN 文件",
+    "settings.row.private_web.help": "让 VOOL 的网页流量通过 Tor 或你自己的 VPN 发出,而不是直接从你的网络连接发出。如果这条路线停止工作,VOOL 宁可什么都不发送,也不会绕过它。Tor 较慢,有些网站会要求验证。默认关闭。若要最大程度保护隐私,还请使用本地模型,并且不要登录网站。",
+    "settings.row.private_web.label": "私密网页",
     "activity.category.changes": "已更改的文件",
     "activity.category.commands": "命令",
     "activity.category.edits": "编辑调用",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }

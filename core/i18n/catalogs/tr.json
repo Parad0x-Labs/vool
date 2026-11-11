@@ -2,6 +2,22 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "tr",
   "messages": {
+    "settings.private_web.add_file": "VPN'inizin WireGuard dosyasını ekleyin",
+    "settings.private_web.bad_file": "Bu bir WireGuard dosyasına benzemiyor.",
+    "settings.private_web.file_kept": "Bir VPN dosyası eklendi.",
+    "settings.private_web.file_needed": "VPN hesabınızdan bir WireGuard dosyası indirin (Mullvad, Proton VPN, IVPN, NordVPN, Surfshark ve diğerleri sunar) ve buraya ekleyin.",
+    "settings.private_web.forget_file": "VPN dosyasını kaldır",
+    "settings.private_web.local_only": "Bu bilgisayar her şeyi kendinde tutacak şekilde ayarlı, bu yüzden zaten hiçbir şey internete çıkmıyor.",
+    "settings.private_web.off": "Kapalı",
+    "settings.private_web.state.down": "Şu anda çalışmıyor, bu yüzden hiçbir şey internete çıkmıyor.",
+    "settings.private_web.state.off": "Kapalı. Web trafiği kendi bağlantınızdan çıkar.",
+    "settings.private_web.state.on": "Açık. Web trafiği yalnızca bu yoldan geçer.",
+    "settings.private_web.state.starting": "Bağlanıyor. Hazır olana kadar hiçbir şey internete çıkmaz.",
+    "settings.private_web.system_vpn": "Bu bilgisayardaki VPN uygulamam",
+    "settings.private_web.tor": "Tor (daha yavaş)",
+    "settings.private_web.wireguard": "VPN dosyam",
+    "settings.row.private_web.help": "VOOL'un web trafiğini doğrudan internet bağlantınız yerine Tor veya kendi VPN'iniz üzerinden gönderin. Bu yol çalışmayı bırakırsa VOOL onu atlamak yerine hiçbir şey göndermez. Tor daha yavaştır ve bazı siteler doğrulama ister. Varsayılan olarak kapalı. En fazla gizlilik için yerel modeller de kullanın ve sitelerde oturum açmayın.",
+    "settings.row.private_web.label": "Özel web",
     "activity.category.changes": "Değişen dosyalar",
     "activity.category.commands": "Komutlar",
     "activity.category.edits": "Düzenleme çağrıları",
@@ -3234,13 +3250,14 @@
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
     "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası."
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6e1a5a4cdfc2d6ece1ab435a4b1fd35348a0be9964bd71ef0b49d983728be7e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "private_web_addendum": "16 keys translated by the lane author (single writer)"
   }
 }
