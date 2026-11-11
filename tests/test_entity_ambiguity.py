@@ -187,7 +187,8 @@ class TestUnresolvedContract:
         text = render_unresolved_clarification("What is the population of Springfield?", attempts=2)
         assert "couldn't complete my check" in text
         assert "Springfield" in text
-        assert "tried 2x" in text
+        # Plain words: the attempt count is recorded state, never shown to the person.
+        assert "tried 2x" not in text and "well-known answer" not in text
 
     def test_the_probe_message_carries_prior_context(self) -> None:
         from core.entity_ambiguity import build_probe_user_message
@@ -284,7 +285,9 @@ class TestUnresolvedContract:
         assert result is not None, "unresolved never proceeds to an answering generation"
         assert result.get("reason") == "ambiguity_adjudication_unresolved"
         response = str(result.get("response") or "")
-        assert "couldn't complete my check" in response and "tried 2x" in response
+        assert "couldn't complete my check" in response
+        # The attempt count is bookkeeping: recorded in the adjudication state below, not shown.
+        assert "tried 2x" not in response and "well-known answer" not in response
         assert "John Smith" not in response, "the author's bytes are not the reply"
         assert _CTX["ambiguity_adjudication"] == {
             "state": "unresolved", "mode": "replied_without_verdict", "attempts": 2

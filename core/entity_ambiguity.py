@@ -122,8 +122,8 @@ def render_clarification(verdict: AmbiguityVerdict, question: str) -> str:
     lead = verdict.clarification or "That name can refer to more than one place or thing."
     names = ", ".join(verdict.referents)
     if names:
-        return f"{lead} Did you mean: {names}? (asked: {asked!r})"
-    return f"{lead} (asked: {asked!r})"
+        return f"{lead} Did you mean {names}? (You asked: “{asked}”)"
+    return f"{lead} (You asked: “{asked}”)"
 
 
 #: The three states the adjudication can end in. UNRESOLVED is a state of its own —
@@ -186,21 +186,15 @@ def render_unresolved_clarification(question: str, *, attempts: int) -> str:
     is the one resolution the runtime can still reach on its own.
     """
 
+    # Plain words only (acceptance 2026-11-11): the reply used to say "a single well-known
+    # answer (tried 2x)" and echo "(asked: '...')" -- the runtime's own bookkeeping, which the
+    # person cannot act on. The attempt count stays in the recorded adjudication state.
     asked = " ".join(str(question or "").strip().split())
-    if int(attempts) > 0:
-        lead = (
-            f"I couldn't complete my check for whether this question has a single "
-            f"well-known answer (tried {int(attempts)}x)"
-        )
-    else:
-        lead = (
-            "I couldn't run my check for whether this question has a single "
-            "well-known answer"
-        )
     return (
-        f"{lead}, so I'd rather confirm than guess. "
-        f"If you meant one specific place, person or thing, tell me which — or "
-        f"rephrase with a detail that pins it down. (asked: {asked!r})"
+        f"I couldn't {'complete' if int(attempts) > 0 else 'run'} my check on which one you mean, "
+        "so I'd rather ask than guess. "
+        "Which place, person or thing do you mean? A full name or a detail such as the country "
+        f"helps. (You asked: “{asked}”)"
     )
 
 

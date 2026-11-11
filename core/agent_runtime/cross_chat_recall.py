@@ -65,6 +65,10 @@ def as_question(text: str) -> str:
         r"^(?:do|did)\s+you\s+(?:remember|know|recall)\s+(?:what\s+)?(?:is\s+)?(my\s+.+?)\s*\??$",
         r"what's \1?", clean, flags=re.IGNORECASE,
     )
+    clean = re.sub(
+        r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?(?:of\s+|about\s+|what\s+)?(?:is\s+)?(my\s+[^.!?]+?)(?:\s+is)?\s*[.!?]?$",
+        r"what's \1?", clean, flags=re.IGNORECASE,
+    ) if not re.search(r"\bto\s+\w", clean) else clean
     if clean and not clean.endswith("?") and _QUESTION_HEAD_RE.match(clean):
         clean = clean.rstrip(" .!") + "?"
     return clean

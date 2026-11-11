@@ -291,6 +291,12 @@ _NOTE_DELETE_ACTION_RE = _head_words_re("delete", "remove")
 _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 
+_REMIND_ME_OWN_FACT_RE = re.compile(
+    r"^\s*(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?(?:of\s+|about\s+|what\s+)?(?:is\s+)?my\s+(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
+    re.IGNORECASE,
+)
+
+
 def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
 
@@ -301,7 +307,14 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
 
-    return conversation_recall_remainder(words) is not None and not time_expression_spans(words, word_dates=False)
+    if time_expression_spans(words, word_dates=False):
+        return False
+    # "remind me my bike lock code word" / "remind me of my gym locker number": the object is one of
+    # the speaker's OWN facts and nothing is to be done later (no "to ...", no time) -- a recall.
+    # Measured 2026-11-11 by the acceptance runner: it was parsed as a reminder to schedule.
+    if _REMIND_ME_OWN_FACT_RE.match(words):
+        return True
+    return conversation_recall_remainder(words) is not None
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:

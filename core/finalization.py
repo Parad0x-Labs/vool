@@ -1000,10 +1000,9 @@ def finalize_answer(
                     content = f"{_body}\n\n{_notice}"
                 else:
                     content = (
-                        "I couldn't complete my check for whether this question has a single "
-                        "well-known answer, and the reply I drafted rested on exact figures I "
-                        "can't stand behind without it. Tell me which place, person or thing you "
-                        "mean, and I'll answer precisely."
+                        "I couldn't complete my check on which one you mean, and the reply I "
+                        "drafted rested on exact figures I can't stand behind without it. Tell me "
+                        "which place, person or thing you mean, and I'll answer precisely."
                     )
     except Exception:  # pragma: no cover — enforcement may not kill a working answer
         _log.exception("ambiguity-adjudication enforcement failed; publishing ungated")
