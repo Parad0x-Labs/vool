@@ -351,3 +351,36 @@ def test_fast_command_surface_help_and_capability_truth_facades_delegate_to_extr
         capability_truth_for_request_fn=mock.ANY,
         render_capability_truth_response_fn=mock.ANY,
     )
+
+
+def test_the_failed_row_under_an_unanswered_browser_step_names_the_step() -> None:
+    """Mac run 5: under "You said no to opening ..." the Activity row still read the model's
+    narration, "The browser session was refused. Would you like to try again ..."."""
+    from core.vool_browser.live_requests import note_unanswered, turn_scope
+
+    url = "https://news.ycombinator.com"
+    narration = "The browser session was refused. Would you like to try again?"
+    for unanswered in (True, False):
+        agent = _build_agent()
+        events: list[dict] = []
+        with mock.patch.object(
+            agent,
+            "_emit_runtime_event",
+            side_effect=lambda source_context, **payload: events.append(payload),
+        ), mock.patch.object(agent, "_finalize_runtime_checkpoint") as finalize_checkpoint, turn_scope(
+            f"use the browser to open {url} and list the top story", "row-test"
+        ):
+            if unanswered:
+                note_unanswered("navigate", url, "refused")
+            agent._action_fast_path_result(
+                task_id="task-9", session_id="session-9", user_input="open it", response=narration,
+                confidence=0.5, source_context={"surface": "api"}, reason="model_tool_intent_tool_failed_narrated",
+                success=False, task_outcome="failed",
+            )
+        row = next(event["message"] for event in events if event["event_type"] == "task_failed")
+        failure = finalize_checkpoint.call_args.kwargs["failure_text"]
+        if unanswered:
+            assert "You said no to opening " + url in row and "try again" not in row
+            assert failure.startswith("You said no to opening " + url)
+        else:
+            assert "try again" in row and failure == narration

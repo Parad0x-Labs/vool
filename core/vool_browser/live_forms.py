@@ -56,7 +56,7 @@ OBSERVE = r'''() => {
       // What a person would call it: its words, then what it says about itself, then where a
       // picture-only link goes. Never the bare tag ("a") as a name.
       label:(String(e.innerText||'').replace(/\s+/g,' ').trim()||e.getAttribute('aria-label')||e.getAttribute('title')
-        ||(Element.prototype.querySelector.call(e,'img[alt]')||{}).alt||e.getAttribute('placeholder')||e.getAttribute('name')
+        ||[...Element.prototype.querySelectorAll.call(e,'img[alt]')].map(i=>i.alt.trim()).find(Boolean)||e.getAttribute('placeholder')||e.getAttribute('name')
         ||(e.tagName==='A'&&e.href?short(e.href):'')||(e.tagName==='A'?'':e.type)||'').trim().slice(0,120),
       type:e.type||'',navigates:!!e.href||!!f&&submits(e),submit_value:submits(e)&&e.type!=='image'?e.value:'',
       target:target.slice(0,4096),target_too_long:target.length>4096,method,

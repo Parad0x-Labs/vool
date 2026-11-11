@@ -115,7 +115,7 @@ def world(pact_rig, request):
             if path == '/styled': content=STYLED
             if path == '/unnamed':
                 # Links a person can see but that carry no words of their own.
-                content=b'''<h1>Index</h1><a href="/other"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Later trains" width="20" height="20"></a>
+                content=b'''<h1>Index</h1><a href="/other"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" width="20" height="20"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Later trains" width="20" height="20"></a>
                 <a href="/other" title="Timetable archive"><span style="display:inline-block;width:20px;height:20px"></span></a>
                 <a href="https://maps.example/riga/station" style="display:inline-block;width:20px;height:20px"></a>
                 <a href="#top" style="display:inline-block;width:20px;height:20px"></a>
