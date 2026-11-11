@@ -1,0 +1,32 @@
+MANIFEST.json
+Desktop/Screenshot 2026-10-20 at 11.40.png
+Desktop/Screenshot 2026-10-27 at 18.02.png
+Desktop/flat viewing notes.md
+Desktop/todo.txt
+Documents/CV_2026.pdf
+Documents/big_backup_archive.zip
+Documents/Recipes/grandma pancakes.txt
+Documents/Taxes/2025/receipts.txt
+Documents/Taxes/2025/tax_return_2025.pdf
+Documents/Work/Q3 report draft.txt
+Documents/Work/meeting notes 2026-10-21.txt
+Downloads/IMG_4021.jpg
+Downloads/IMG_4022.jpg
+Downloads/bank_export_october.csv
+Downloads/boarding-pass-VNO-LIS.pdf
+Downloads/dog_park.HEIC
+Downloads/invoice_4471.pdf
+Downloads/movie_night_trailer.mp4
+Downloads/old_meme.gif
+Downloads/screenshot 2026-10-26 at 09.14.png
+Downloads/setup_helper.dmg
+Downloads/wallpaper_mountains.png
+Movies/kids_school_play.mov
+Music/playlist_road_trip.m3u
+Pictures/cat_on_sofa.png
+Pictures/Family/mia_birthday.jpg
+Pictures/Holiday Lisbon 2026/lisbon_001.jpg
+Pictures/Holiday Lisbon 2026/lisbon_002.jpg
+Pictures/Holiday Lisbon 2026/lisbon_003.jpg
+Projects/garden-planner/README.md
+Projects/garden-planner/plan.py

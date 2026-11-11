@@ -1,0 +1,16 @@
+(version 1)
+(allow default)
+(deny file-write*)
+(allow file-write* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "/private/tmp") (subpath "/private/var/folders") (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (regex #"^/dev/fd/"))
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*"))
+(allow network-outbound (remote unix-socket))
+; v3 (2026-10-29): reads confined too. No reads of the real home or the work SSD except the test copy, the state dir,
+; the rival installs and the python runtime the Hermes venv links to.
+(deny file-read* (subpath "<home>") (subpath "/Volumes"))
+(allow file-read-metadata (literal "<home>") (literal "/Volumes") (literal "<work-volume>") (literal "<work>") (literal "<work>/cache") (literal "<work>/missions") (literal "<work>/missions/bench-win-20261028") (literal "<work>/missions/bench-win-20261028/h2h-computer") (subpath "<work>/missions/bench-win-20261028/h2h-computer/runs"))
+(allow file-read* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "<work>/cache/memory-h2h-20261005") (subpath "<home>/.local/share/uv/python"))
+; vool.sb = rival-v3b.sb (same rules) + read access to VOOL's own program files only: the fix14 repo, its venv and base
+; python, the frozen harness, and the cloud bench adapter script.
+(allow file-read-metadata (literal "<work>/missions/clean-loop-speed-20261028") (literal "<work>/missions/clean-loop-speed-20261028/remeasure") (literal "<work>/missions/drop-x-port-076-20261027") (literal "<work>/missions/clean-loop-audit-20261028"))
+(allow file-read* (subpath "<work>/missions/clean-loop-speed-20261028/remeasure/fix14-repo") (subpath "<work>/missions/drop-x-port-076-20261027/venv") (subpath "<home>/.local/share/uv/python/cpython-3.12-macos-aarch64-none") (subpath "<work>/missions/clean-loop-audit-20261028/harness") (literal "<work>/missions/bench-win-20261028/h2h-computer/vool_cloud_bench.py"))

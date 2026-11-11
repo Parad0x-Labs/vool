@@ -30,7 +30,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.21.4",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==7.0.0",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.1.0",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -138,7 +138,7 @@ dev = [
     "pytest==9.2.0",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     "mypy>=1.8",
     # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
     # are in flight. It was never declared, so it passed only on machines that happened to have it
@@ -221,6 +221,9 @@ conflicts = [
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+# Published benchmark evidence: scripts kept byte-for-byte as run (SHA256SUMS), with machine paths
+# scrubbed to <placeholders>, so they are records, not house code.
+extend-exclude = ["docs/benchmarks/computer-tasks-0.8"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF"]

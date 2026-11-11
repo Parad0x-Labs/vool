@@ -1,0 +1,12 @@
+(version 1)
+(allow default)
+(deny file-write*)
+(allow file-write* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "/private/tmp") (subpath "/private/var/folders") (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (regex #"^/dev/fd/"))
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*"))
+(allow network-outbound (remote unix-socket))
+; v3 (2026-10-29): reads confined too. No reads of the real home or the work SSD except the test copy, the state dir,
+; the rival installs and the python runtime the Hermes venv links to.
+(deny file-read* (subpath "<home>") (subpath "/Volumes"))
+(allow file-read-metadata (literal "<home>") (literal "/Volumes") (literal "<work-volume>") (literal "<work>") (literal "<work>/cache") (literal "<work>/missions") (literal "<work>/missions/bench-win-20261028") (literal "<work>/missions/bench-win-20261028/h2h-computer") (subpath "<work>/missions/bench-win-20261028/h2h-computer/runs"))
+(allow file-read* (subpath (param "HOME_CLONE")) (subpath (param "STATE_DIR")) (subpath "<work>/cache/memory-h2h-20261005") (subpath "<home>/.local/share/uv/python"))
