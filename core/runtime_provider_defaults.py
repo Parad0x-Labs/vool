@@ -218,10 +218,35 @@ def default_runtime_model_tag(*, env: Mapping[str, str] | None = None) -> str:
             return _installed_alternative_to(primary_model, env=env_map) or primary_model
     except Exception:
         pass
+    tier_tag = str(select_qwen_tier(probe_machine()).ollama_tag or "").strip()
+    if tier_tag:
+        # CERTIFIED-PREFERRED (measured 2026-11-05): the operator's default tag pointed at a
+        # model that was never certified, so every turn paid the authorship fence's refusal
+        # before falling through to the certified model that actually answered. When the tier
+        # tag has no verified run on this runtime but a smaller verified-catalog model DOES,
+        # the certified one becomes the default: a default that cannot author is a default
+        # that never serves. The fence at authoring time stays the authority either way.
+        try:
+            from core.local_model_catalog import CATALOG, catalog_fits, certified_tags
+
+            verified = certified_tags()
+            if verified and tier_tag not in verified:
+                probe = probe_machine()
+                certified_catalog = [
+                    entry
+                    for entry in CATALOG
+                    if entry.tag in verified and catalog_fits(entry, float(probe.ram_gb or 0.0))
+                ]
+                if certified_catalog:
+                    pick = max(certified_catalog, key=lambda entry: entry.footprint_gb)
+                    return pick.tag
+        except Exception:
+            pass
+        return tier_tag
     # Last-resort default if the tier tag resolves empty: qwen2.5:7b fits 7-8GB GPUs and CPU;
     # never qwen3:8b, which partial-offloads on 6-10GB VRAM (~47s/turn). Reachable paths above
     # already resolve correctly (guarded by test_runtime_provider_defaults_gpu_gating).
-    return str(select_qwen_tier(probe_machine()).ollama_tag or "").strip() or "qwen2.5:7b"
+    return "qwen2.5:7b"
 
 
 def _is_thinking_capable_model(model_tag: str) -> bool:

@@ -194,6 +194,18 @@ def build_server(
 
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
+            if any(
+                parsed.path == prefix or parsed.path.startswith(prefix + "/")
+                for prefix in ("/v1/hive", "/v1/voolbook", "/v1/tasks")
+            ):
+                from core.finalization import public_governed_read_scope
+
+                with public_governed_read_scope():
+                    self._dispatch_get(parsed)
+                return
+            self._dispatch_get(parsed)
+
+        def _dispatch_get(self, parsed) -> None:
             if _requires_auth_for_request(cfg.host) and _is_protected_api_path(parsed.path):
                 header_token = str(self.headers.get("X-Vool-Meet-Token") or "").strip()
                 if header_token != str(cfg.auth_token or ""):

@@ -14,6 +14,49 @@ MAX_PDF_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 100
 _FONT_LOCK = threading.Lock()
 
+#: Decorative character ranges the embedded font may legitimately lack: emoji and
+#: pictographs (U+1F000–U+1FFFF), misc symbols and dingbats (U+2600–U+27BF), plus the
+#: invisible modifiers that glue emoji together (variation selectors, ZWJ, keycap marks).
+#: A character in these ranges that the font cannot draw is DECORATION — stripped, never
+#: a reason to refuse the document. Measured 2026-11-05 (operator's live 0.7.8 test): a
+#: model-written iron-rich-diet PDF was refused whole because its prose carried 🥦🐟 emoji;
+#: four approval rounds and a restart of the whole tool loop later a smaller PDF shipped.
+#: Everything OUTSIDE these ranges that the font lacks is real content (a script the font
+#: cannot read) and still refuses honestly — a stripped letter is a lost word.
+_DECORATIVE_RANGES = (
+    (0x1F000, 0x1FFFF),
+    (0x2600, 0x27BF),
+)
+_INVISIBLE_CODEPOINTS = frozenset({0xFE00, 0xFE01, 0xFE02, 0xFE03, 0xFE04, 0xFE05, 0xFE06,
+                                   0xFE07, 0xFE08, 0xFE09, 0xFE0A, 0xFE0B, 0xFE0C, 0xFE0D,
+                                   0xFE0E, 0xFE0F, 0x200D, 0x20E3})
+
+
+def _is_decorative(codepoint: int) -> bool:
+    if codepoint in _INVISIBLE_CODEPOINTS:
+        return True
+    return any(low <= codepoint <= high for low, high in _DECORATIVE_RANGES)
+
+
+def _sanitize_to_font(text: str, font) -> str:
+    """Drop decorative characters the font cannot draw; keep everything else.
+
+    The per-glyph coverage law below still refuses the document when any surviving
+    character lacks a glyph — decoration removal must never become content removal.
+    """
+    if all(ord(c) in font.face.charToGlyph for c in text if not c.isspace()):
+        return text
+    kept: list[str] = []
+    for c in text:
+        codepoint = ord(c)
+        if c.isspace() or codepoint in font.face.charToGlyph:
+            kept.append(c)
+        elif _is_decorative(codepoint):
+            continue
+        else:
+            kept.append(c)
+    return "".join(kept)
+
 
 class PdfRefused(ValueError):
     """No partial document may be delivered after a representation failure."""
@@ -126,6 +169,7 @@ def render_document(document: RenderDocument, *, title: str = 'VOOL') -> bytes:
         if source_size > MAX_SOURCE_BYTES:
             raise PdfRefused('PDF source exceeds the bounded document limit')
         font = pdfmetrics.getFont(style.fontName)
+        text = _sanitize_to_font(text, font)
         if any(ord(c) not in font.face.charToGlyph for c in text if not c.isspace()):
             raise PdfRefused('The PDF font cannot represent every source character; no replacement glyphs were emitted')
         return PdfParagraph(escape(text).replace('\n','<br/>'),style)
@@ -136,6 +180,7 @@ def render_document(document: RenderDocument, *, title: str = 'VOOL') -> bytes:
         # because diagram titles render bold while labels render regular.
         for name in ('VoolPDF', 'VoolPDFBold'):
             font = pdfmetrics.getFont(name)
+            text = _sanitize_to_font(text, font)
             if any(ord(c) not in font.face.charToGlyph for c in text if not c.isspace()):
                 raise PdfRefused('The PDF font cannot represent every source character; no replacement glyphs were emitted')
 

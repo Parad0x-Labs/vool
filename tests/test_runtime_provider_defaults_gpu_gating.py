@@ -118,4 +118,8 @@ def test_select_qwen_tier_caps_small_gpu_below_the_10gb_step_up() -> None:
         tier = select_qwen_tier(_gpu_probe(vram))
         assert tier.ollama_tag == "qwen2.5:7b", f"{vram}GB -> {tier.ollama_tag}"
         assert tier.min_vram_gb <= vram
-    assert select_qwen_tier(_gpu_probe(10.0)).ollama_tag == "qwen2.5:14b"
+    # The 10GB step-up tag refreshed 2026-11-05: qwen3:14b (9.3GB) FULLY fits a 10GB card
+    # where the qwen2.5:14b equivalent (16GB) partial-offloads — the measured penalty the
+    # cap exists to prevent cannot occur on a full-fit model. The 6-9GB cap on qwen2.5:7b
+    # stays exactly as measured.
+    assert select_qwen_tier(_gpu_probe(10.0)).ollama_tag == "qwen3:14b"

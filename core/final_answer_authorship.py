@@ -75,6 +75,7 @@ that was actually served rather than a call that was merely attempted.
 from __future__ import annotations
 
 import contextlib
+import json
 import re
 import threading
 from collections import OrderedDict
@@ -228,7 +229,12 @@ class AuthorshipDecision:
             "detail": str(self.detail),
         }
 
-    def refusal_text(self, *, attempted_failed: tuple[str, ...] | list[str] | None = None) -> str:
+    def refusal_text(
+        self,
+        *,
+        attempted_failed: tuple[str, ...] | list[str] | None = None,
+        grounded_steps: int = 0,
+    ) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
         ``attempted_failed`` carries the certified authors this turn DID call and that failed
@@ -237,6 +243,15 @@ class AuthorshipDecision:
         permitted"); with them it reports what actually happened -- measured live 2026-09-08,
         the refusal claimed no certified model was tried while two free-cloud authors had been
         called and had failed, which sent the operator to debug routing that worked.
+
+        ``grounded_steps`` is the count of runtime-minted support rows this turn holds (the same
+        rows the publication gate adjudicates against). Measured 2026-11-03 (build 8af687ca,
+        served chats): "go fetch from online researches..." ran web.research 3-of-3 steps, the
+        synthesis model failed, the grounded summary replaced it — and the refusal STILL said
+        "nothing this turn retrieved, computed or observed backs it", contradicting the turn's
+        own trace on the wire. The sentence is now evidence-aware: with grounded rows it names
+        what actually happened — evidence WAS collected and kept; what was missing is a
+        certified writer.
         """
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
@@ -305,9 +320,16 @@ class AuthorshipDecision:
                 f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
                 "Setup under \u201cWhere should it think?\u201d, or start a local model."
             )
+        evidence_sentence = (
+            f"This turn did collect grounded evidence ({grounded_steps} step"
+            f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
+            "records — what was missing is a certified model to write the answer from it."
+            if grounded_steps > 0
+            else "nothing this turn retrieved, computed or observed backs it, so the answer "
+            "would rest on the writing model alone."
+        )
         return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} nothing this turn retrieved, computed or observed "
-            f"backs it, so the answer would rest on the writing model alone. {cause}\n\n"
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {evidence_sentence} {cause}\n\n"
             f"{remedy}"
         )
 
@@ -1110,7 +1132,11 @@ def record_runtime_support(
     bytes the runtime had every right to compose.
 
     Raise-only like the fields it writes: a later call may add rows and support,
-    never remove them, and the decision is untouched.
+    never remove them, and the decision is untouched. Add-only is enforced here
+    row by row (documented behaviour, previously implemented as replace — a second
+    lane's rows silently erased the first lane's): each new row whose exact content
+    is not already recorded is appended, so two lanes on one turn both keep their
+    minted rows.
     """
 
     try:
@@ -1125,9 +1151,23 @@ def record_runtime_support(
         with _LOCK:
             record = _record_for_unlocked(identity)
             if record is None:
+                # No record, no minting — the pinned raise-only contract (a support row alone
+                # does not create an authorship question). Real turns always have a record by
+                # the time the tool loop runs: the classification/planner calls before it are
+                # journalled by core.turn_model_call_ledger, which creates the record.
                 return False
+            existing = tuple(
+                dict(row) for row in getattr(record, "support_rows", ()) or () if isinstance(row, dict)
+            )
+            seen = {json.dumps(row, sort_keys=True, default=str) for row in existing}
+            merged = list(existing)
+            for row in rows:
+                key = json.dumps(row, sort_keys=True, default=str)
+                if key not in seen:
+                    merged.append(row)
+                    seen.add(key)
             record.supported_by_runtime = True
-            record.support_rows = rows
+            record.support_rows = tuple(merged)
             text = str(request_text or "").strip()
             if text and not record.request_text:
                 record.request_text = text
@@ -1271,7 +1311,11 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
         return text, payload
     payload["publication"] = "refused"
     payload["withheld_characters"] = len(text)
-    return record.decision.refusal_text(attempted_failed=record.attempted_failed), payload
+    payload["grounded_support_rows"] = len(record.support_rows or ())
+    return record.decision.refusal_text(
+        attempted_failed=record.attempted_failed,
+        grounded_steps=len(record.support_rows or ()),
+    ), payload
 
 
 # ---- execution claims ------------------------------------------------------------------------

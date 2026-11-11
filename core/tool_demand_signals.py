@@ -890,6 +890,11 @@ _MAILBOX_ANCHOR_RE = re.compile(
     r"|\b(?:did|does|do|has|have|had|will|would)\s+(?:[\w@&'.-]+\s+){1,5}?e-?mail\s+(?:me|us)\b"
     rf"|\b{_MAIL_ITEM}\b[^.?!]{{0,60}}?\b(?:sent|forwarded|wrote|replied)\s+(?:(?:it|that|this|them)\s+)?"
     r"(?:(?:over|back)\s+)?(?:to\s+)?(?:me|us)\b"
+    # Received-framing: "check the last 5 Kucoin emails i have received" — the mail noun and
+    # RECEIVED within one clause, no possessive needed. Measured 2026-11-05/06 (operator's
+    # live tests): this exact phrasing failed to seat email.read and the model answered a
+    # capability denial instead of reading the inbox.
+    rf"|\b{_MAIL_ITEM}\b[^.?!]{{0,60}}?\breceived\b"
     rf"|^\s*(?:please\s+)?[a-z]+(?:\s+(?:up|out|through|over))?\s+(?:the\s+)?(?:inbox|mailbox|e-?mails?|mail)\b"
     rf"(?!\s+{_NOT_MAIL_CONTENT}\b)",
     re.IGNORECASE,
@@ -905,6 +910,17 @@ _FIRST_PERSON_REPORT_RE = re.compile(
     r"am\s+looking|are\s+looking|was\s+wondering|were\s+wondering|wonder)\b)[a-z]+\b",
     re.IGNORECASE,
 )
+#: Sender-first framing, CASE-SENSITIVE: "Kucoin emails with deposit notification" — a
+#: capitalised NAME before the mail noun. The big anchor compiles case-insensitively, so a
+#: capitalised-name requirement inside it would match "an email" — this pattern lives alone
+#: so the capital letter actually means a name. Measured 2026-11-06: the operator's morning
+#: ask failed to seat because the recognizer only knew sender-AFTER-noun ("emails from
+#: Kucoin"). The instruction-authority gates in mailbox_retrieval_intents still decide first.
+_SENDER_FIRST_ANCHOR_RE = re.compile(
+    rf"\b[A-Z][\w'-]+\s+{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
+)
+
+
 _REQUEST_FRAME_RE = re.compile(r"\?|\b(?:please|can\s+you|could\s+you|would\s+you|will\s+you)\b", re.IGNORECASE)
 _SENTENCE_BREAK_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 
@@ -940,7 +956,10 @@ def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
     for sentence in _SENTENCE_BREAK_RE.split(eligible):
         anchor = _MAILBOX_ANCHOR_RE.search(sentence)
         if anchor is None:
-            continue
+            sender_first = _SENDER_FIRST_ANCHOR_RE.search(sentence)
+            if sender_first is None:
+                continue
+            anchor = sender_first
         example = _EXAMPLE_FRAME_RE.search(sentence)
         if example is not None and example.start() < anchor.start():
             continue

@@ -1164,6 +1164,17 @@ input[type=number].inp { min-width:140px; }
 .sw[aria-checked="true"] { background:rgba(var(--accent-rgb),.22); border-color:var(--accent); }
 .sw[aria-checked="true"]::after { transform:translateX(19px); background:var(--accent); }
 .sw:disabled { opacity:.45; cursor:not-allowed; }
+.sw-row { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+/* The state says itself, in words and color, never only in a knob's position: the toggle's
+   state word sits beside the switch and uses the same green/red vocabulary as every status
+   pill on this page (the pill.on/.off dots). Measured 2026-11-03 (served chats): the operator
+   could not tell an on toggle from an off one without studying the knob. */
+.sw-state { font-size:12px; font-weight:600; color:var(--muted); white-space:nowrap; }
+.sw-state .sw-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:var(--muted); vertical-align:1px; }
+.sw-state.on { color:var(--ok); }
+.sw-state.on .sw-dot { background:var(--ok); }
+.sw-state.off { color:var(--bad); }
+.sw-state.off .sw-dot { background:var(--bad); }
 .btn { background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:6px 13px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .btn:hover:not(:disabled) { border-color:var(--accent); }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
@@ -1483,7 +1494,21 @@ function snapBackToggle(row, st, attempted) {
     return;
   }
   const b = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] button.sw');
-  if (b) b.setAttribute('aria-checked', valueOf(row) ? 'true' : 'false');
+  if (b) paintSwitchState(b, valueOf(row));
+}
+
+/* One painter for every switch state change — initial render, click, refused-write snap-back and
+   Retry — so the words and the light can never drift from what aria-checked says. */
+function paintSwitchState(button, value) {
+  if (!button) return;
+  const on = !!value;
+  button.setAttribute('aria-checked', on ? 'true' : 'false');
+  const word = button.parentElement && button.parentElement.querySelector('.sw-state');
+  if (!word) return;
+  word.classList.toggle('on', on);
+  word.classList.toggle('off', !on);
+  const text = word.lastChild;
+  if (text && text.nodeType === 3) text.textContent = on ? 'On' : 'Off';
 }
 
 /* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.
@@ -1669,26 +1694,31 @@ function control(row) {
     wrap.appendChild(el('span', 'subtle', 'Unavailable — ' + state.sourceErr[row.read.url]));
   }
   else if (row.kind === 'toggle') {
+    const holder = el('div', 'sw-row');
     const b = el('button', 'sw');
     b.type = 'button';
     b.setAttribute('role', 'switch');
-    b.setAttribute('aria-checked', v ? 'true' : 'false');
     b.setAttribute('aria-label', row.label);
     /* The switch shows the value being written, then whatever the authority reports back. `v` was
        captured when the row was drawn, so it must never decide what a later click shows. One write at
        a time: a double click is one change, not two racing ones. A refused write snaps the switch back
        to the stored value; Retry resends the attempted one. */
+    const stateWord = el('span', 'sw-state');
+    stateWord.appendChild(el('span', 'sw-dot'));
+    stateWord.appendChild(document.createTextNode(''));
+    holder.appendChild(b); holder.appendChild(stateWord);
+    paintSwitchState(b, v);
     b.addEventListener('click', async () => {
       const st = rowState(row.id);
       if (st.pending) return;
       const next = !shownValue(row);
-      b.setAttribute('aria-checked', next ? 'true' : 'false');
+      paintSwitchState(b, next);
       b.setAttribute('aria-busy', 'true');
       await commit(row, next);
       b.removeAttribute('aria-busy');
-      b.setAttribute('aria-checked', shownValue(row) ? 'true' : 'false');
+      paintSwitchState(b, shownValue(row));
     });
-    wrap.appendChild(b);
+    wrap.appendChild(holder);
   }
   else if (row.kind === 'select') {
     const s = el('select', 'inp');

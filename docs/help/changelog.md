@@ -6,6 +6,25 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.8 — 2026-11-04
+
+A patch release about the two things a chat app must never do: forget what you just said, and
+die instead of answering.
+
+* **The chat remembers the conversation.** Follow-up messages ("why cant you?", "what context?", "and in NY?") are answered with the recent turns of your chat in front of the answering model.
+* **A selected model that cannot run no longer dead-ends the chat.** When the model you picked is blocked before it even starts, VOOL says so in one line and answers anyway through Auto, naming the model that answered. Your selector is not changed.
+* **A free model you picked runs without a spending reservation.** The runtime's own "free pin" clearance no longer blocks the model it cleared.
+* **Routing stops re-trying what it already refused.** The lane picker no longer puts a model the authorship gate will refuse at the front of the queue; a rejected cloud key rests for 10 minutes instead of failing on every turn.
+* **The double-checker checks again after a fallback.** An answer served by a fallback model still gets its independent second look.
+* **"What time in NY?" answers New York.** The clock lane knows "ny" and "nyc", and a two-city ask answers every named city in one reply.
+* **A connected email account works in chat.** The green "connected" state in Settings is what enables reading the mailbox in chat.
+* **"Go fetch data online" keeps what it fetched.** Research steps stay attached to the turn even when the writing model failed, and a refusal tells the truth about the evidence it kept.
+* **Toggles in Settings read plainly.** On is "On" with a green light; off is "Off" with a red light.
+
+### Updating
+* **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own" is on. Press Update.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.8 and install it over your current version. Your chats and settings stay in your profile.
+
 ## 0.7.7-beta — 2026-11-02
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

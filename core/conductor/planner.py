@@ -2493,6 +2493,18 @@ def _plan_carries_live_effects(plan: ConductorPlan) -> bool:
     return False
 
 
+def _shared_with_conversation(original: str, conversation_context: str) -> SharedTurnContext:
+    """The plan's shared context, carrying the chat's recent turns when the caller supplied them.
+
+    An empty `conversation_context` returns the plain extraction unchanged, so every caller that
+    does not know the session keeps the exact behaviour it had.
+    """
+    shared = extract_shared_context(original)
+    if not str(conversation_context or "").strip():
+        return shared
+    return replace(shared, conversation_context=str(conversation_context))
+
+
 def plan_conductor_turn(
     text: str,
     *,
@@ -2500,6 +2512,7 @@ def plan_conductor_turn(
     plan_id: str = "",
     propose_semantics: Callable[[str, str], str] | None = None,
     lane_coverage_probe: Callable[[ConductorPlan], bool] | None = None,
+    conversation_context: str = "",
 ) -> ConductorPlan | None:
     """The plan for `text`, or None when the conductor should not claim this turn.
 
@@ -2514,6 +2527,11 @@ def plan_conductor_turn(
       raising probe, or a False all keep the plan here -- fail closed, toward the lane that
       accounts for every clause.
 
+    `conversation_context` is the caller-supplied, scope-checked transcript of this chat's recent
+    turns (see `SharedTurnContext.conversation_context`); nodes' briefings show it so a reference
+    to a previous turn ("why cant you?") is answerable. Empty keeps every briefing byte-identical
+    to what it was.
+
     Every other failure -- an exception, an unparseable reply, an invented word, a single-clause
     plan, a graph that is not a DAG -- still yields None.
     """
@@ -2525,6 +2543,7 @@ def plan_conductor_turn(
     from core.plain_task_routing import is_ordinary_multi_part_plain_task
 
     original = str(text or "").strip()
+    shared = _shared_with_conversation(original, conversation_context)
     deterministic = _deterministic_unavailable_action_plan(original)
     if not deterministic:
         deterministic = _deterministic_reviewed_knowledge_plan(original)
@@ -2538,7 +2557,7 @@ def plan_conductor_turn(
                 deterministic,
                 original_request=original,
                 plan_id=plan_id or f"conductor-{uuid.uuid4().hex[:12]}",
-                shared_context=extract_shared_context(original),
+                shared_context=shared,
                 propose_semantics=propose_semantics,
             )
         except GraphRejectionError:
@@ -2565,7 +2584,7 @@ def plan_conductor_turn(
                     (ProposedClause(0, original, "structured_research", ()),),
                     original_request=original,
                     plan_id=plan_id or f"conductor-{uuid.uuid4().hex[:12]}",
-                    shared_context=extract_shared_context(original),
+                    shared_context=shared,
                     propose_semantics=propose_semantics,
                 )
             except GraphRejectionError:
@@ -2632,7 +2651,7 @@ def plan_conductor_turn(
             clauses,
             original_request=original,
             plan_id=plan_id or f"conductor-{uuid.uuid4().hex[:12]}",
-            shared_context=extract_shared_context(original),
+            shared_context=shared,
             propose_semantics=propose_semantics,
         )
     except GraphRejectionError:

@@ -164,7 +164,34 @@ class MacOSBundleInstaller:
             except OSError as undo_exc:
                 logger.error("swap undo ALSO failed: %s (prior kept at %s)", undo_exc, prior)
             return SwapOutcome(False, detail=f"could not move the new app into place: {exc}")
+        self.register_with_launch_services(target)
         return SwapOutcome(True, prior_path=prior)
+
+    def register_with_launch_services(self, app_path: Path) -> bool:
+        """Re-register the bundle at this path with LaunchServices, best-effort.
+
+        Measured 2026-11-04 (operator report, build 0.7.7 after a 0.7.6→0.7.7 update): the
+        rename-swap puts a NEW bundle under the Dock's tile — the tile's inode is now the hidden
+        `.VOOL.app.prior-*` folder — and the relaunch execs the bundle's shell-script main
+        directly, which never re-registers. The Dock then shows a blank paper icon and the
+        process reads as "Python" until LaunchServices learns the new bundle. `lsregister -f`
+        re-reads the bundle's plist (icon, display name) so the Dock tile follows the app the
+        person actually updated to. Best-effort by contract: a missing binary, a nonzero exit or
+        a timeout NEVER fails the update that just swapped successfully.
+        """
+        app = Path(app_path)
+        if not (app / "Contents/Info.plist").exists():
+            return False
+        try:
+            completed = self._run([
+                "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+                "LaunchServices.framework/Support/lsregister",
+                "-f",
+                str(app),
+            ])
+        except Exception:
+            return False
+        return int(getattr(completed, "returncode", 1) or 0) == 0
 
     def restore_prior(self, target_app: Path, prior_path: Path, *, txid: str) -> SwapOutcome:
         target = Path(target_app)
@@ -182,6 +209,7 @@ class MacOSBundleInstaller:
             return SwapOutcome(False, detail=f"could not restore the previous app: {exc}")
         if displaced.exists():
             shutil.rmtree(displaced, ignore_errors=True)
+        self.register_with_launch_services(target)
         return SwapOutcome(True, prior_path=prior)
 
     def prune_priors(self, target_app: Path, *, keep: int = 2) -> list[Path]:

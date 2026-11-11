@@ -46,6 +46,27 @@ from .write_limits import reserve_meet_write_rate_limit
 logger = logging.getLogger("vool.meet.http")
 
 
+class _GovernedReadScopeMiddleware:
+    """Hold the A8 read side through delivery of public governed response bodies."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        path = str(scope.get("path") or "")
+        governed_path = any(
+            path == prefix or path.startswith(prefix + "/")
+            for prefix in ("/v1/hive", "/v1/voolbook", "/v1/tasks")
+        )
+        if scope.get("type") == "http" and str(scope.get("method") or "").upper() == "GET" and governed_path:
+            from core.finalization import public_governed_async_read_scope
+
+            async with public_governed_async_read_scope():
+                await self.app(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
 def _cors_headers(cfg: MeetAndGreetServerConfig) -> dict[str, str]:
     origin = str(cfg.cors_allowed_origin or "").strip()
     if not origin:
@@ -333,6 +354,7 @@ def create_meet_app(
             Route("/{path:path}", _dispatch, methods=["GET", "POST", "HEAD", "OPTIONS"]),
         ],
     )
+    app.add_middleware(_GovernedReadScopeMiddleware)
     app.state.config = cfg
     app.state.service = service or MeetAndGreetService(MeetAndGreetConfig())
     app.state.hive_service = hive_service or BrainHiveService()

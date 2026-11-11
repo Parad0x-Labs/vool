@@ -17,6 +17,7 @@ this machine. A `:8b` probe is refused by it before the authorship question is e
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 import tempfile
 import textwrap
@@ -176,7 +177,10 @@ def test_served_uncertified_author_never_gets_its_generation_and_the_wire_says_w
 
 def test_served_escalation_calls_the_certified_author_and_not_the_uncertified_one():
     """S2. Both registered, one certified. The certified model writes; the uncertified one is
-    refused at the seam and never generates. The escalation happens before the spend."""
+    never asked to generate. The escalation happens before the spend — by candidate ORDER: the
+    certified author is ranked ahead of the uncertified one, so the daily lane reaches the
+    certified author first and the fence refusal the old ordering produced every turn
+    (30+ per chat, measured 2026-11-03, build 8af687ca) never fires at all."""
 
     with _Served(registered=(UNCERTIFIED, CERTIFIED), certified=(CERTIFIED,)) as served:
         payload = served.daemon.chat(DIRECT_REQUEST, session_id="served-s2")
@@ -187,12 +191,30 @@ def test_served_escalation_calls_the_certified_author_and_not_the_uncertified_on
     )
     assert served.provider.generations_for(CERTIFIED) >= 1, served.provider.calls
     assert "never inserted" in text, text[:400]
+    ranking: list[str] | None = None
+    for _kind, details in served.events("model_routing_started"):
+        match = re.search(r'"ranked_candidates":\s*\[(.*?)\]', details)
+        if match:
+            ranking = [
+                item.strip().strip('"') for item in match.group(1).split(",") if item.strip()
+            ]
+            break
+    assert ranking is not None, "the wire carries no ranked candidate order"
+    # The wire names the lane-qualified provider id (ollama-local:<model>); compare by suffix.
+    def _ends_with(entry: str, model: str) -> bool:
+        return entry == model or entry.endswith(f":{model}")
+
+    assert _ends_with(ranking[0], CERTIFIED), ranking
+    assert any(_ends_with(entry, UNCERTIFIED) for entry in ranking[1:]), ranking
     fenced = [
         details
         for _kind, details in served.events("model_lane_failed")
         if "author_not_certified_for_final_answer" in details
     ]
-    assert fenced, "the wire has no record of the fence refusing the uncertified candidate"
+    assert not fenced, (
+        "the certified author was ranked first, so the fence must never be reached; "
+        f"a refusal on the wire means the ordering regressed: {fenced}"
+    )
 
 
 def test_served_eligible_author_publishes_unchanged():

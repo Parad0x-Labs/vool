@@ -968,7 +968,7 @@ def build_semantic_proof_ask_model(
         agent,
         source_context,
         kind=PlannerCallKind.SEMANTIC_PROOF,
-        json_schema=_semantic_proposal_json_schema(),
+        json_schema=_planner_json_schema(),
         parse=_strict_semantic_proposal,
         max_output_tokens=_SEMANTIC_PROOF_MAX_OUTPUT_TOKENS,
         timeout_seconds=_SEMANTIC_PROOF_TIMEOUT_SECONDS,

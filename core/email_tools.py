@@ -344,10 +344,14 @@ def send_email(
     if creds is None:
         return EmailResult(
             False, "needs_credentials",
-            f"No SMTP credentials stored for account '{account}'. I can send once this account is "
-            "configured: store its host, port, username and an app password via the runtime's "
-            "credential setup (ask me to open email account setup). I will never ask you to paste "
-            "a password into chat." + _configured_choices("smtp", account),
+            f"No SMTP credentials stored for account '{account}'. Two ways forward: "
+            "(1) If the user meant mail involving this name as a CONTACT or SERVICE (not a "
+            "mailbox of theirs), do NOT pass `account`: retry without it to send from the "
+            "default account. "
+            "(2) Only if the user truly owns a separate mailbox by this name: it must be "
+            "configured first (host, port, username, app password via email account setup in "
+            "Settings; never ask you to paste a password into chat)."
+            + _configured_choices("smtp", account),
         )
     recipients = [to] if isinstance(to, str) else [str(r) for r in (to or [])]
     recipients = [r.strip() for r in recipients if str(r).strip()]
@@ -656,16 +660,28 @@ def _configured_choices(kind: str, account: str) -> str:
 
 def _needs_credentials(kind: str, account: str) -> EmailReadResult | EmailResult | None:
     if _load_account(kind, account) is None:
+        # MEASURED 2026-11-05 (operator's live 0.7.8 test): "check for Kucoin emails" — the
+        # model passed account='Kucoin' (a SENDER it hallucinated into an account name), this
+        # refusal answered "configure that account", and the model retried the same wrong
+        # account twice. The recoverable path for a mail-FROM-X ask is the DEFAULT account
+        # with the sender filter — say so explicitly, or the loop burns turns re-hallucinating.
         if kind == "imap":
             return EmailReadResult(
                 False, "needs_credentials",
-                f"No IMAP credentials stored for account '{account}'. I can read once this account "
-                "is configured: store its host, port, username and password via the runtime's "
-                "credential setup (ask me to open email account setup). I will never ask you to "
-                "paste a password into chat." + _configured_choices(kind, account),
+                f"No IMAP credentials stored for account '{account}'. Two ways forward: "
+                "(1) If the user meant mail FROM this name (a sender, contact or service — "
+                "e.g. emails from an exchange or a bank), do NOT pass `account`: retry with "
+                f"the default account and sender='{account}'. "
+                "(2) Only if the user truly owns a separate mailbox by this name: it must be "
+                "configured first (host, port, username, app password via email account setup "
+                "in Settings; never ask you to paste a password into chat)."
+                + _configured_choices(kind, account),
             )
         return EmailResult(False, "needs_credentials",
-                           f"No SMTP credentials stored for account '{account}'." + _configured_choices(kind, account))
+                           f"No SMTP credentials stored for account '{account}'. If the user meant "
+                           f"sending AS this name, it needs its own configured mailbox; otherwise "
+                           "retry without the `account` argument to send from the default account."
+                           + _configured_choices(kind, account))
     return None
 
 

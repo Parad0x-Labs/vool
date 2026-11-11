@@ -193,9 +193,12 @@ function toggleDrawer(){ if (isOpen()) closeDrawer(); else openDrawer(); }
 function mountNewChatKbd(){
   var btn = document.getElementById('newChat');
   if (!btn || btn.querySelector('kbd')) return;
+  var platform = navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || '';
+  var isApple = /mac|iphone|ipad|ipod/i.test(platform);
+  // Ctrl+N opens a new browser window in a plain browser tab, so do not advertise it there.
+  if (!isApple && !(window.pywebview && window.pywebview.api)) return;
   var chip = document.createElement('kbd');
-  chip.textContent = '\\u2318N';
-  if (typeof voolKeyLabel === 'function') chip.textContent = voolKeyLabel(chip.textContent);
+  chip.textContent = (isApple ? '\\u2318' : 'Ctrl+') + 'N';
   btn.appendChild(chip);
 }
 

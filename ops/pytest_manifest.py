@@ -22,6 +22,21 @@ class _ManifestPlugin:
     def __init__(self, *, repo_root: Path, output_path: Path) -> None:
         self._repo_root = repo_root.resolve()
         self._output_path = output_path
+        self._skipped_targets: set[str] = set()
+
+    def pytest_collectreport(self, report: Any) -> None:
+        """Keep module-level skips explicit so optional test extras are not mistaken for loss."""
+        if report.outcome != "skipped":
+            return
+        path = getattr(report, "fspath", None)
+        if path is None:
+            return
+        resolved = Path(str(path)).resolve()
+        if not resolved.is_relative_to(self._repo_root):
+            return
+        relative = resolved.relative_to(self._repo_root).as_posix()
+        if resolved.name.startswith("test_") and resolved.suffix == ".py":
+            self._skipped_targets.add(relative)
 
     def pytest_collection_finish(self, session: Any) -> None:
         targets: set[str] = set()
@@ -35,6 +50,7 @@ class _ManifestPlugin:
             "schema": "vool.pytest-manifest.v1",
             "item_count": len(session.items),
             "targets": sorted(targets),
+            "skipped_targets": sorted(self._skipped_targets),
             "items": sorted(items, key=lambda item: item["nodeid"]),
         }
         self._output_path.parent.mkdir(parents=True, exist_ok=True)

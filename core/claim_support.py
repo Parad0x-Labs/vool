@@ -184,6 +184,34 @@ def strip_emphasis_markers(text: str) -> str:
     """`text` without markdown emphasis / code markers, whitespace otherwise untouched."""
     return _EMPHASIS_MARKER_RE.sub("", str(text or ""))
 _CLAUSE_SPLIT_RE = re.compile(r",\s+(?=(?:and|but)\s)|;\s+")
+
+#: Parenthetical spans are MASKED before clause cutting, then restored. Measured 2026-11-05
+#: (operator's live 0.7.8 test, turn conductor-fbe48fc26537): the FX citation
+#: "USD/EUR: 1 USD = 0.88945 EUR (source: Frankfurter public institutional rates; observed:
+#: 2026-11-05T00:00:00+00:00)." was cut at the ";" INSIDE the parenthetical — the tail
+#: "observed: …)." became a claim of its own, matched no source, and the publication gate
+#: "withheld" half a citation: the served answer carried a dangling "(source: … rates;" and the
+#: withheld banner quoted the orphaned "observed: …)." fragment. A clause separator inside a
+#: balanced parenthetical is the citation's own punctuation, never a claim boundary.
+_PAREN_SPAN_RE = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
+_MASK = "\x00{}\x00"
+
+
+def _mask_parentheticals(sentence: str) -> tuple[str, list[str]]:
+    """Replace balanced (...) and [...] spans with placeholders; returns (masked, spans)."""
+    spans: list[str] = []
+
+    def _keep(match: re.Match[str]) -> str:
+        spans.append(match.group(0))
+        return _MASK.format(len(spans) - 1)
+
+    return _PAREN_SPAN_RE.sub(_keep, sentence), spans
+
+
+def _unmask_parentheticals(text: str, spans: list[str]) -> str:
+    for index, span in enumerate(spans):
+        text = text.replace(_MASK.format(index), span)
+    return text
 _BULLET_RE = re.compile(r"^\s*(?:[-*•>]+|\d+[.)])\s+")
 _TOKEN_RE = re.compile(r"[0-9]+(?:[.,][0-9]+)*|[^\W\d_]+", re.UNICODE)
 
@@ -453,7 +481,9 @@ def segment_claims(answer: Any) -> list[str]:
         # closing one left inside), and removing that segment from its line leaves a dangling "**".
         body = strip_emphasis_markers(body)
         for sentence in _SENTENCE_SPLIT_RE.split(body):
-            for clause in _CLAUSE_SPLIT_RE.split(sentence):
+            masked, spans = _mask_parentheticals(sentence)
+            for clause in _CLAUSE_SPLIT_RE.split(masked):
+                clause = _unmask_parentheticals(clause, spans)
                 clause = clause.strip(" \t*_`>")
                 if clause:
                     segments.append(clause)

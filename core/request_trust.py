@@ -59,6 +59,19 @@ RESERVED_TRUST_KEYS = (
     "cloud_escalation_approved",
     "autopilot_allow_heavy_model",
     "authorized_paid_call",
+    # Server-authored when the pin's reservation authority refuses with "free pin needs no
+    # reservation" (core.paid_call_reservation): the stamp carries the provider id the authority
+    # classified free, so the routing plan, the candidate filter and the invoke seam admit that
+    # ONE manifest without a reservation. A caller-written stamp would let a body declare its own
+    # paid pin reservation-free, so it is stripped here; only the router writes it, from the
+    # authority's own refusal.
+    "pin_reservation_free_provider",
+    # Server-authored when an email tool has executed in this turn (the tool loop stamps it):
+    # from that point the turn carries PRIVATE MAILBOX CONTENT and every model call stays on
+    # local providers. A caller-written stamp would be meaningless without the plan fence
+    # honoring it, but stripping it keeps the trust surface honest — only the runtime's own
+    # tool executions may raise the privacy ceiling.
+    "private_content_touch",
     # "Use the model's own tools" turn stamps (core.model_own_tools.STAMP_KEYS): server-written
     # at run_once; a caller copy would claim a provider search the owner's switch never granted.
     "model_own_tools_turn",

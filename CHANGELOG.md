@@ -3,6 +3,55 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## [0.7.8] — 2026-11-04
+
+A patch release about the two things a chat app must never do: forget what you just said, and
+die instead of answering.
+
+### Fixed
+- **The chat remembers the conversation.** Follow-up messages ("why cant you?", "what context?",
+  "and in NY?") are answered with the recent turns of your chat in front of the answering model.
+  Before this, a whole class of follow-ups was answered from your latest words alone — the
+  previous answer was one chat line away and invisible to the part of VOOL that wrote the reply.
+- **A selected model that cannot run no longer dead-ends the chat.** When the model you picked is
+  blocked before it even starts (a cloud lane your policy has not authorized, for example), VOOL
+  says so in one line and answers anyway through Auto, naming the model that answered. Your
+  selector is not changed. Before this, every ask returned the same "pick another model" note
+  until you switched by hand.
+- **A free model you picked runs without a spending reservation.** Picking an OpenRouter
+  ":free" model could fail with the runtime's own "free pins need no reservation" notice — a
+  clearance mistaken for a block. The verdict now travels with the turn: free stays free, and a
+  model that is not actually free is still refused, with the honest reason.
+- **Routing stops re-trying what it already refused.** The lane picker no longer puts a model
+  the authorship gate will refuse at the front of the queue — the same two-lane failure that
+  repeated on every turn of a chat is gone. A cloud key the provider rejects (HTTP 401) is
+  benched for 10 minutes instead of being re-paid on every turn; a model you pinned as your only
+  route is always still tried.
+- **The double-checker checks again after a fallback.** When the planned model fails and a
+  different one answers, the answer still gets its independent second look instead of being
+  marked "could not double-check" because the checker had become the answerer.
+- **"What time in NY?" answers New York.** The clock lane now knows the abbreviations people
+  type (ny, nyc), and a two-city ask ("time in riga and NY now") answers every named city in one
+  reply — before, the second city was silently dropped or the whole ask fell to a model that
+  guessed. A misspelled ask still declines rather than guessing.
+- **A connected email account works in chat.** Adding an email account in Settings (the green
+  "connected" state) is now what enables reading it in chat; before this, the chat tools read a
+  switch nothing in the app ever set, so a connected mailbox answered "I cannot access your
+  email directly". An explicit policy switch still wins in both directions.
+- **"Go fetch data online" keeps what it fetched.** The research steps now stay attached to the
+  turn even when the writing model failed, the answer is judged against what was actually
+  retrieved, and a refusal tells the truth about the evidence it kept — before this, a turn that
+  retrieved three times was refused as if it had retrieved nothing.
+- **Toggles in Settings read plainly.** A switch that is on says "On" with a green light and a
+  switch that is off says "Off" with a red light, in words and color, so the state never has to
+  be guessed from a control's position alone.
+
+### Updating
+- **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own"
+  is on. Press Update.
+- **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.7.8 and install it
+  over your current version. Your chats and settings stay in your profile.
+
 ## [0.7.7-beta] — 2026-11-02
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

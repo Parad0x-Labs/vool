@@ -759,34 +759,41 @@ class OpenAICompatibleAdapter(ModelAdapter):
             ),
         )
         headers = self._headers()
-        permit = seal_provider_invocation(
-            request=request,
-            provider_id=self.manifest.provider_id,
-            model_id=self.manifest.model_name,
-            operation="structured" if force_json else "chat",
-            payload=payload,
-            header_names=tuple(headers),
-        )
-        # Admission BEFORE the socket, so a queued turn does not burn its own read timeout waiting
-        # for a model that is busy with somebody else's turn. Measured at N=24 concurrent without
-        # this: 7 of 24 died on `Read timed out (read timeout=59.99)` having never been generated
-        # for. See core/local_model_admission.py.
-        with local_model_slot(provider_id=self.manifest.provider_id):
-            timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
-            body = permit.consume()
-            response = requests.post(
-                f"{base_url}/api/chat",
-                json=body,
-                headers=headers,
-                timeout=_request_timeout(timeout_seconds),
-                **_cancel_option(request),
+
+        def _post_chat(post_payload: dict) -> dict:
+            """One sealed, admitted socket round. Each round seals its own payload — a second
+            round carries different messages and must journal its own invocation."""
+            permit = seal_provider_invocation(
+                request=request,
+                provider_id=self.manifest.provider_id,
+                model_id=self.manifest.model_name,
+                operation="structured" if force_json else "chat",
+                payload=post_payload,
+                header_names=tuple(headers),
             )
+            # Admission BEFORE the socket, so a queued turn does not burn its own read timeout waiting
+            # for a model that is busy with somebody else's turn. Measured at N=24 concurrent without
+            # this: 7 of 24 died on `Read timed out (read timeout=59.99)` having never been generated
+            # for. See core/local_model_admission.py.
+            with local_model_slot(provider_id=self.manifest.provider_id):
+                bounded_timeout = effective_timeout_seconds(request, timeout_seconds)
+                body = permit.consume()
+                response = requests.post(
+                    f"{base_url}/api/chat",
+                    json=body,
+                    headers=headers,
+                    timeout=_request_timeout(bounded_timeout),
+                    **_cancel_option(request),
+                )
             _assert_response_timely(request, response)
             _raise_for_status_with_cause(response)
-        if request.is_cancelled():
-            raise RuntimeError("model_call_cancelled")
-        data = response.json()
-        self._record_benchmark_best_effort(request=request, response_payload=data)
+            if request.is_cancelled():
+                raise RuntimeError("model_call_cancelled")
+            data = response.json()
+            self._record_benchmark_best_effort(request=request, response_payload=data)
+            return data
+
+        data = _post_chat(payload)
         # A native tool call arrives beside `content`, not inside it, so it has to be read first
         # or a model that emits a call plus a sentence of preamble looks like it only chatted.
         native_tools = self._ollama_native_tools(request)
@@ -816,6 +823,37 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # call is missing" the moment `tool_calls` is absent/empty and `content` doesn't parse
             # as a call); this makes the Ollama lane raise the identical, identically-classified
             # error at the same boundary instead of deferring it downstream.
+            #
+            # ONE BOUNDED RE-ASK before that refusal. Measured 2026-11-06 (operator's live
+            # session): on tool-intent turns the local model answered with a PROSE PLAN
+            # ("Searching inbox for Kucoin emails...") instead of emitting the call — three
+            # models, three 50-85s rounds, then the fallback lane answered without the tool the
+            # demand recognizer had already seated, and the person got a capability denial for
+            # an ask the runtime could serve. The prose replies show the models UNDERSTOOD the
+            # task; a single explicit re-ask ("emit the tool call now") converts the plan into
+            # the call. Bounded to exactly one re-ask: the retry carries the original payload
+            # plus one explicit instruction, is sealed and admitted like the first, and on a
+            # second prose reply the typed refusal below stands.
+            if not request.is_cancelled():
+                repair_payload = {
+                    **payload,
+                    "messages": [
+                        *payload.get("messages", []),
+                        {"role": "user", "content": (
+                            "Your previous reply was plain prose, but this task requires a tool "
+                            "call. Respond with exactly one tool call from the offered tools for "
+                            "the user's request — no prose, no plan."
+                        )},
+                    ],
+                }
+                data = _post_chat(repair_payload)
+                if native_tools:
+                    native_tool_calls, output_text = _ollama_tool_calls_with_recovery(
+                        data, definitions=native_tools, request=request
+                    )
+                if not output_text:
+                    output_text = strip_reasoning_block(_extract_ollama_chat_text(data))
+        if bool(getattr(request, "tools_required", False)) and native_tools and not native_tool_calls:
             raise MalformedToolArgumentsError("required native tool call is missing")
         usage = {
             "prompt_eval_count": data.get("prompt_eval_count"),

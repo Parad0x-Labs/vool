@@ -97,19 +97,25 @@ class QwenTier:
 TIERS: list[QwenTier] = [
     QwenTier("titan", "qwen2.5:72b",  72.0, 48.0, 80.0),
     QwenTier("heavy", "qwen2.5:32b",  32.0, 20.0, 48.0),
-    QwenTier("mid",   "qwen2.5:14b",  14.0, 10.0, 24.0),
+    QwenTier("mid",   "qwen3:14b",    14.0, 10.0, 24.0),
     QwenTier("base",  "qwen2.5:7b",    7.0,  4.0, 12.0),
     QwenTier("lite",  "qwen2.5:3b",    3.0,  2.0,  6.0),
     QwenTier("nano",  "qwen2.5:0.5b",  0.5,  0.0,  0.0),
 ]
 
+#: Apple-unified-memory machines. Refreshed 2026-11-05 to the verified qwen3.x generation
+#: (core.local_model_catalog, ollama.com/library checked that day) — the shipped table was a
+#: full generation behind (all-qwen2.5) while the operator's own machine ran its daily work
+#: on qwen3:8b. Thresholds describe the machine classes and stay; the tags modernize. The
+#: runtime's own RAM gate + the per-process bench remain the safety net when the machine is
+#: tight at load time.
 MPS_TIERS: list[QwenTier] = [
-    QwenTier("titan", "qwen2.5:72b",  72.0, 48.0, 96.0),
-    QwenTier("heavy", "qwen2.5:32b",  32.0, 20.0, 64.0),
-    QwenTier("mid",   "qwen2.5:14b",  14.0, 10.0, 36.0),
-    QwenTier("base",  "qwen2.5:7b",    7.0,  4.0, 12.0),
-    QwenTier("lite",  "qwen2.5:3b",    3.0,  2.0,  6.0),
-    QwenTier("nano",  "qwen2.5:0.5b",  0.5,  0.0,  0.0),
+    QwenTier("titan", "qwen3.5:122b", 122.0, 82.0, 96.0),
+    QwenTier("heavy", "qwen3.5:35b-a3b", 35.0, 24.0, 48.0),
+    QwenTier("mid",   "qwen3.8:27b",  27.0, 18.0, 24.0),
+    QwenTier("base",  "qwen3.5:9b",    9.0,  6.0, 12.0),
+    QwenTier("lite",  "qwen3.5:4b",    4.0,  2.5,  6.0),
+    QwenTier("nano",  "qwen3.5:0.8b",  0.8,  0.0,  0.0),
 ]
 
 

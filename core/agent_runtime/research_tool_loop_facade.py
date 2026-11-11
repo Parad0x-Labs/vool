@@ -2586,6 +2586,28 @@ class ResearchToolLoopFacadeMixin:
         # run. Stripping the stream id buffers the synthesis; the validated final
         # message is streamed by the transport afterwards, and the live status card
         # keeps progress visible via the separate task-event channel.
+        # PRIVACY CEILING (measured 2026-11-06, operator's live session): once an email tool
+        # has executed, the turn's context carries PRIVATE MAILBOX CONTENT. From this point the
+        # turn must not route any model call to a remote provider — the synthesis and every
+        # later round stay on local models, or the turn refuses honestly with the grounded rows
+        # shown locally. The stamp is server-authored (`private_content_touch`, in
+        # RESERVED_TRUST_KEYS) and the plan mint turns it into a local-only ceiling.
+        # ORDERING LAW: this stamp runs BEFORE synthesis_context is derived from
+        # loop_source_context — the first deployment had it after the snapshot and the
+        # synthesis never saw the stamp (the leak the operator measured persisted).
+        try:
+            if any(
+                str(step.get("tool_name") or "").startswith("email.")
+                and step.get("ok") is not False
+                for step in executed_steps
+                if isinstance(step, dict)
+            ):
+                loop_source_context = {
+                    **(loop_source_context or {}),
+                    "private_content_touch": "email",
+                }
+        except Exception:
+            pass
         synthesis_context = {key: value for key, value in loop_source_context.items() if key != "runtime_event_stream_id"}
         # M3/M2: BIND what this loop retrieved into the call that is about to write the answer.
         #
@@ -2660,6 +2682,35 @@ class ResearchToolLoopFacadeMixin:
                 elif not any(_manifest_text in str(item.get("content") or "") for item in _history):
                     _history.append({"role": "user", "content": _manifest_text})
                 synthesis_context["conversation_history"] = _history[-12:]
+        # Runtime-minted support rows for THIS loop's successful steps, recorded BEFORE the
+        # synthesis branch — measured 2026-11-03 (build 8af687ca, served chats): "go fetch from
+        # online researches..." ran web.research 3-of-3 steps, the synthesis model failed, the
+        # grounded summary replaced the empty synthesis — and the publication gate refused the
+        # turn anyway ("nothing this turn retrieved...") because only the renders_final branch
+        # recorded its rows; the model-synthesis path recorded nothing, so the gate read the
+        # turn as empty-handed. Same closure the builder lane received (see
+        # test_builder_summary_publication_repair): one support row per executed step, raise-only,
+        # claiming no author. The renders_final branch's own recording below is unchanged in
+        # kind; record_runtime_support is add-only row by row, so the two cannot erase each other.
+        try:
+            from core.final_answer_authorship import record_runtime_support
+
+            record_runtime_support(
+                loop_source_context,
+                support_rows=[
+                    {
+                        "summary": str(step.get("summary") or step.get("response_text") or ""),
+                        "intent": str(step.get("tool_name") or ""),
+                        "source": "tool_loop_executed_steps",
+                        "observation": step.get("observation") if isinstance(step.get("observation"), dict) else {},
+                    }
+                    for step in executed_steps
+                    if str(step.get("summary") or step.get("response_text") or "").strip()
+                ],
+                request_text=str(effective_input or ""),
+            )
+        except Exception:
+            pass
         # A tool that DECLARES its result is the answer (`renders_final_answer`, e.g. the coding
         # assistant's evidence report) is published as the grounded tool result; a model is never
         # asked to narrate evidence it did not produce, and no authorship gate has to judge prose.

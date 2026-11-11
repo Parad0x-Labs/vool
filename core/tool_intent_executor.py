@@ -1537,6 +1537,44 @@ def _execute_tool_intent_impl(
                     else False
                 ),
             )
+        # BOUNDED ACCOUNT-NAME RECOVERY (measured 2026-11-05/06, operator's live sessions):
+        # the model repeatedly promoted a SENDER or a made-up name into `account=...`
+        # ('Kucoin', 'primary', 'user@example.com') and the needs_credentials refusal ended the
+        # turn — three times across two sessions — when the DEFAULT account the recognizer
+        # seated the ask for could serve it directly. One bounded retry without the `account`
+        # argument (the default account) turns the hallucinated-name failure into the read the
+        # person asked for. Only for email reads that failed on the account name, only once.
+        if (
+            not runtime_execution.ok
+            and str(runtime_execution.status or "") == "needs_credentials"
+            and str(intent) == "email.read"
+            and isinstance(arguments, dict)
+            and str(arguments.get("account") or "").strip()
+        ):
+            retry_arguments = {k: v for k, v in arguments.items() if k != "account"}
+            try:
+                retry_execution = execute_authorized_runtime_tool(
+                    intent,
+                    retry_arguments,
+                    source_context=source_context,
+                    trusted_local_only=trusted_local_only,
+                    permission_decision=permission,
+                )
+            except Exception:
+                retry_execution = None
+            if retry_execution is not None and bool(getattr(retry_execution, "ok", False)):
+                runtime_execution = retry_execution
+                runtime_details = dict(runtime_execution.details or {})
+                runtime_details.setdefault(
+                    "observation",
+                    _tool_observation(
+                        intent=intent,
+                        tool_surface="runtime_execution",
+                        ok=runtime_execution.ok,
+                        status=runtime_execution.status,
+                        response_preview=str(runtime_execution.response_text or "")[:280],
+                    ),
+                )
         runtime_details = dict(runtime_execution.details or {})
         runtime_details.setdefault(
             "observation",

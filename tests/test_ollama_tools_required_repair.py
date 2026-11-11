@@ -185,3 +185,74 @@ def test_ordinary_prose_still_succeeds_when_native_tools_flag_is_off(fixture_ser
         response = _adapter(fixture_server, supports_json_mode=True).run_structured_task(_tools_required_request())
     assert response.output_text == "The answer is 42."
     assert response.error is None
+
+
+# --- the bounded re-ask (2026-11-06) ----------------------------------------------------------
+
+class _CountingHandler(http.server.BaseHTTPRequestHandler):
+    """First POST: prose plan. Second POST: the tool call. Records every request body."""
+    calls: list[dict] = []
+    plan = json.dumps({
+        "model": "model",
+        "message": {"role": "assistant", "content": "Searching inbox for the emails now."},
+    }).encode("utf-8")
+    call = json.dumps({
+        "model": "model",
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"function": {"name": NATIVE_NAME, "arguments": json.dumps({"command": "ls"})}}],
+        },
+    }).encode("utf-8")
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        request_body = json.loads(self.rfile.read(length) or b"{}")
+        cls = type(self)
+        cls.calls.append(request_body)          # the REQUEST payload, for repair-prompt pins
+        served = cls.plan if len(cls.calls) == 1 else cls.call
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(served)))
+        self.end_headers()
+        self.wfile.write(served)
+
+
+def test_prose_plan_gets_one_bounded_re_ask_then_the_call_lands() -> None:
+    """The measured defect (2026-11-06, live session): the local model answered a tool-intent
+    turn with a PROSE PLAN instead of the tool call; three models burned 50-85s each and the
+    fallback answered tool-less, denying a capability the runtime had. The lane now re-asks
+    ONCE with an explicit emit-the-call instruction; the re-asked model emits the call and the
+    round completes instead of dying."""
+    _CountingHandler.calls = []
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _CountingHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        response = _adapter(port).run_structured_task(_tools_required_request())
+        assert len(_CountingHandler.calls) == 2, (
+            f"expected prose round then repair round, saw {len(_CountingHandler.calls)} posts"
+        )
+        repair_round = _CountingHandler.calls[1]
+        repair_messages = repair_round.get("messages") or []
+        assert any("tool call" in str(m.get("content") or "") and "no prose" in str(m.get("content") or "")
+                   for m in repair_messages), "the re-ask must carry the explicit emit-the-call instruction"
+        assert response.tool_calls, "the repaired round must carry the emitted tool call"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+
+def test_double_prose_still_fails_closed(fixture_server) -> None:
+    """One re-ask, exactly one: a second prose reply keeps the typed refusal."""
+    _FixtureHandler.body = json.dumps({
+        "model": "model",
+        "message": {"role": "assistant", "content": "I would search the inbox next."},
+    }).encode("utf-8")
+    with pytest.raises(Exception) as excinfo:
+        _adapter(fixture_server).run_structured_task(_tools_required_request())
+    assert "required native tool call is missing" in str(excinfo.value)

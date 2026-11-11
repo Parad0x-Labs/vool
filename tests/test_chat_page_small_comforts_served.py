@@ -13,6 +13,7 @@ Each check pins one thing a person notices:
 """
 from __future__ import annotations
 
+import re
 import time
 
 from tests import _reader_served_rig as rig
@@ -75,11 +76,19 @@ def test_small_comforts_on_the_served_chat_page(tmp_path):
                 page.wait_for_function("document.querySelector('.vn-bubble-title') && document.querySelector('.vn-bubble-title').textContent", timeout=10000)
                 assert page.locator(".vn-bubble-title").inner_text().strip() == "New chat"
 
-                # Off a Mac every shortcut cap reads Ctrl+ (the handlers accept Cmd or Ctrl).
+                # Shortcut labels follow the browser platform (the handlers accept Cmd or Ctrl).
+                platform = page.evaluate("navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || ''")
+                is_mac = bool(re.search(r"mac|iphone|ipad|ipod", platform, re.I))
+                is_shell = page.evaluate("!!(window.pywebview && window.pywebview.api)")
                 page.wait_for_selector("#vpHint", timeout=5000)
                 hint = page.locator("#vpHint").inner_text()
-                assert "Ctrl+K" in hint and "⌘" not in hint, hint
-                assert page.locator("#newChat kbd").inner_text() == "Ctrl+N"
+                modifier = "⌘" if is_mac else "Ctrl+"
+                assert f"{modifier}K" in hint, hint
+                new_chat_caps = page.locator("#newChat kbd")
+                if is_mac or is_shell:
+                    assert new_chat_caps.inner_text() == f"{modifier}N"
+                else:
+                    assert new_chat_caps.count() == 0
 
                 # A starter fills the box and sends nothing.
                 starters = page.locator(".empty-start")

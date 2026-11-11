@@ -236,12 +236,13 @@ def _email_account_action_demand(text: str) -> bool:
     would seat it; the account anchors (my/inbox/thread/unread/reply-to-the/forward/send-to)
     are what separate operating the account from writing about email."""
     try:
-        from core import policy_engine
+        from core.runtime_tool_contracts import _email_lane_available
 
-        if not (
-            bool(policy_engine.get("email.read_enabled", False))
-            or bool(policy_engine.get("email.send_enabled", False))
-        ):
+        # Same authority the tool contracts read: an explicit policy key wins both ways, an
+        # unset one (the shipped state — nothing in the product ever wrote it) follows the
+        # account the user connected. Reading the dead keys here kept a Settings-green mailbox
+        # from escalating its own asks into actions (measured 2026-11-03, build 8af687ca).
+        if not (_email_lane_available("read") or _email_lane_available("send")):
             return False
         from core.tool_demand_signals import resolve_demand_signals
 

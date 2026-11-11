@@ -683,24 +683,48 @@ function controlFolder(host, step) {
   };
   choose.addEventListener('click', async () => {
     const picked = await pickFolder();
-    if (picked) { path.value = picked; await bind(picked); }
+    if (picked && picked !== "NO_BRIDGE") { path.value = picked; await bind(picked); }
+    else if (picked === "NO_BRIDGE") { path.focus(); setNote('info', T('setup.folder.no_bridge', 'No folder browser in this window — open VOOL in its app window and press Browse again, or type the folder path.')); }
     else { path.focus(); setNote('info', T('setup.folder.none_chosen', 'No folder was chosen. You can type its path instead.')); }
   });
   use.addEventListener('click', () => bind(path.value));
   path.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bind(path.value); } });
-  // A browser tab has no folder picker: offer only what works there, and say how to do it.
-  if (hasFolderPicker()) row.appendChild(choose);
+  // The Browse button ALWAYS renders. In a plain browser tab no web API can hand over a real
+  // folder path (by browser design), so the click resolves to an honest note instead of a
+  // hidden button (measured 2026-11-05: the operator saw manual-typing only). hasFolderPicker()
+  // still gates the non-picker hint text below.
+  row.appendChild(choose);
   row.appendChild(path); row.appendChild(use);
   host.appendChild(row);
-  if (!hasFolderPicker()) host.appendChild(el('p', 'hint', T('setup.folder.type_help', 'Type the folder’s path, for example ~/Documents. VOOL shows the full folder once it is saved.')));
+  // The typed-path hint is now the CLICK-TIME failure path (no bridge here), not a render-time
+  // guess: the Browse button always renders and resolves its own capability on press.
   host.appendChild(el('p', 'hint', T('setup.folder.hint', 'Pick a normal folder such as Documents. Not your whole disk.')));
 }
-function pickFolder() {
-  // Own native window: the bridge is right here. Framed inside the chat: ask the host, which has it.
-  return new Promise((resolve) => {
+async function awaitNativeBridge(timeoutMs) {
+  // pywebview injects its bridge ASYNCHRONOUSLY after the page loads. A control that renders
+  // before the injection and checks once would hide the Browse button forever in the very
+  // window that has the picker (measured 2026-11-05: the operator saw manual-typing only).
+  // Wait a bounded moment for the bridge before concluding it is absent.
+  const deadline = Date.now() + (Number(timeoutMs) || 3000);
+  while (Date.now() < deadline) {
     try {
-      if (window.pywebview && window.pywebview.api && window.pywebview.api.pick_folder) {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.pick_folder) return true;
+    } catch (e) {}
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return !!(window.pywebview && window.pywebview.api && window.pywebview.api.pick_folder);
+}
+function pickFolder() {
+  // Own native window: the bridge is right here (once injected). Framed inside the chat: ask the host, which has it.
+  return new Promise(async (resolve) => {
+    try {
+      if (framed()) {
+        // framed path below; fall through
+      } else if (await awaitNativeBridge(3000)) {
         window.pywebview.api.pick_folder().then((res) => resolve(res && res.ok && res.path ? res.path : null)).catch(() => resolve(null));
+        return;
+      } else {
+        resolve("NO_BRIDGE");
         return;
       }
     } catch (e) {}

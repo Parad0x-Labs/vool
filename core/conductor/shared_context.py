@@ -182,6 +182,14 @@ class SharedTurnContext:
     facts: tuple[NumericFact, ...] = ()
     ambiguities: tuple[UnitAmbiguity, ...] = ()
     missing: tuple[MissingInformation, ...] = ()
+    #: Recent turns of THIS chat, verbatim and scope-checked, carried for reference resolution
+    # ("why cant you?", "what context?") the message alone cannot answer. Empty on turns with no
+    # readable chat history; the briefing then shows exactly what it showed before. Measured
+    # 2026-11-03 (build 8af687ca, served chat): a conductor `factual_explanation` node answering
+    # "why cant you?" saw the two words and nothing else, and answered "The question 'why cant
+    # you?' is incomplete and lacks context" -- the previous turn's failure notice was in the
+    # chat ledger, the memory store and the tiered context, and in none of the node's prompt.
+    conversation_context: str = ""
 
     @property
     def has_numbers(self) -> bool:
@@ -522,6 +530,13 @@ def render_briefing(
     lines: list[str] = ["The user's full message:", context.original_request.strip(), ""]
     if clause.strip():
         lines += ["The part of it you are answering:", clause.strip(), ""]
+    if context.conversation_context.strip():
+        lines += [
+            "Recent conversation in this chat (background for references like \"you\", \"it\", "
+            "\"that\" — not the request itself):",
+            context.conversation_context.strip(),
+            "",
+        ]
     if context.facts:
         lines.append("Numbers the message states (refer to these by label in any expression):")
         lines += [f"  {fact.describe()}" for fact in context.facts]

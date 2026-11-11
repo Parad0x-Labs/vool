@@ -1695,7 +1695,7 @@ function markTabTitle(kind) {
 // Mac shows the command sign and Linux/Windows show "Ctrl+". Unknown platforms keep the sign.
 const VOOL_IS_MAC = (() => {
   try {
-    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    const p = navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || '';
     return !p || /mac|iphone|ipad|ipod/i.test(p);
   } catch (e) { return true; }
 })();
@@ -9123,7 +9123,10 @@ async function runTurn(text, queueItemId, opts) {
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
   // `Working` header (measured 2026-09-06). `task.submitted` claims nothing about the server.
   if (typeof window !== 'undefined' && window.VoolCompanion) {
-    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start }); } catch (e) {}
+    // The user's own words ride the event so the companion's bubble follows the conversation
+    // ("as we go") instead of the frozen first-message chat title. Presentation only: the
+    // reducer bounds it, the screen-privacy mask covers it before it reaches the native pet.
+    try { window.VoolCompanion.consume(chatId, { type: 'task.submitted', ts: run.start, userText: text }); } catch (e) {}
   }
   run.attachments = turnAttachments;
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one

@@ -1337,6 +1337,56 @@ def _r3_open_turn_execution(
         raise
 
 
+def _conductor_conversation_context(
+    session_id: str,
+    *,
+    source_context: dict[str, object] | None,
+) -> str:
+    """This chat's recent turns, scope-checked, for conductor nodes' briefings.
+
+    Conductor nodes answer from the message and its typed facts alone; a follow-up that refers to
+    the previous turn ("why cant you?" after a refusal) was therefore unanswerable by construction
+    (measured 2026-11-03, build 8af687ca). This gathers the same turns the tiered loader's
+    dialogue layer would inject -- same store, same scope gate, same forget-law revocation check,
+    same per-turn cap -- so the node sees what the ordinary lane sees, and nothing more. Empty on
+    every refusal path: no active chat namespace, no readable store, an error anywhere.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return ""
+    try:
+        from core.memory.entries import resolve_memory_access_policy
+
+        scope_policy = resolve_memory_access_policy(chat_id=clean_session)
+        if scope_policy.namespace_state != "active":
+            return ""
+    except Exception:
+        return ""
+    try:
+        from core.context_retrieval import (
+            revoked_tokens_for_chat,
+            text_carries_revoked_token,
+        )
+        from storage.dialogue_memory import recent_dialogue_turns
+
+        revoked = revoked_tokens_for_chat(clean_session)
+        lines: list[str] = []
+        for turn in recent_dialogue_turns(clean_session, limit=6, speaker_roles=None):
+            role = str(turn.get("speaker_role") or "user").strip().lower() or "user"
+            content = str(
+                turn.get("normalized_input")
+                or turn.get("raw_input")
+                or turn.get("reconstructed_input")
+                or ""
+            ).strip()
+            if not content or text_carries_revoked_token(content, revoked):
+                continue
+            lines.append(f"{'user' if role == 'user' else 'assistant'}: {content[:260]}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
 class VoolAgent(
     RuntimeCheckpointSupportMixin,
     VoolBookRuntimeMixin,
@@ -5572,6 +5622,9 @@ class VoolAgent(
                     raw_input=conductor_text,
                     effective_input=effective_input,
                     source_context=turn_context,
+                ),
+                conversation_context=_conductor_conversation_context(
+                    session_id, source_context=turn_context
                 ),
             )
             if plan is None:

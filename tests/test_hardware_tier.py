@@ -42,18 +42,21 @@ def test_select_qwen_tier_uses_ram_thresholds_for_apple_unified_memory(monkeypat
 
     tier = select_qwen_tier(probe)
 
-    assert tier.tier_name == "base"
-    assert tier.ollama_tag == "qwen2.5:7b"
+    # MPS tiers refreshed 2026-11-05 to the verified qwen3.x generation
+    # (core.local_model_catalog; the all-qwen2.5 table was a generation behind).
+    assert tier.tier_name == "mid"
+    assert tier.ollama_tag == "qwen3.8:27b"
 
 
-def test_select_qwen_tier_unlocks_14b_on_higher_ram_apple_unified_memory(monkeypatch) -> None:
+def test_select_qwen_tier_unlocks_the_heavy_tier_on_higher_ram_apple_unified_memory(monkeypatch) -> None:
     monkeypatch.delenv("VOOL_OLLAMA_MODEL", raising=False)
     probe = MachineProbe(cpu_cores=12, ram_gb=36.0, gpu_name="Apple Silicon", vram_gb=36.0, accelerator="mps")
 
     tier = select_qwen_tier(probe)
 
+    # 36GB clears mid (24) but not heavy (48): mid carries the refreshed qwen3.8:27b tag.
     assert tier.tier_name == "mid"
-    assert tier.ollama_tag == "qwen2.5:14b"
+    assert tier.ollama_tag == "qwen3.8:27b"
 
 
 def test_select_qwen_tier_keeps_discrete_vram_selection_for_non_mps(monkeypatch) -> None:

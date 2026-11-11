@@ -437,6 +437,13 @@ function vnApply(view, ev) {
       // tool. Carrying the previous turn's category here would narrate work not yet started.
       view.started = false; view.category = null; view.catFp = null; view.catN = -1;
       view.activeTool = null; view.lastSummary = null; view.lastTool = null;
+      // The user's own words for THIS turn: the bubble follows the conversation ("as we go")
+      // instead of the chat title frozen at the first message (measured 2026-11-05: the pet
+      // said "yO BRO" for the whole chat). The page's own fact, presentation-only, bounded;
+      // the screen-privacy mask covers it before it reaches the native pet.
+      if (typeof ev.userText === "string" && ev.userText.trim()) {
+        view.lastUserText = ev.userText.trim().slice(0, 200);
+      }
     }
   }
   // Terminal truth is immutable: a late DONE can never repaint a FAILED turn
@@ -1247,8 +1254,11 @@ function vnPaintNow(now) {
      chat's activity, never model prose. Idle keeps the title and drops the activity line, so
      a finished turn stops advertising stale work. */
   {
-    // A chat with no title yet is named in words in the window, never by its id.
-    const bound = vnBoundChatTitle(chatId) || (chatId ? vnLabel("companion.untitled_chat", "New chat") : "");
+    // Line 1 follows the conversation: the user's latest words on THIS chat, falling back to
+    // the chat title when the page has not told the companion what was asked. The frozen
+    // first-message title alone read as the pet being stuck (measured 2026-11-05).
+    const bound = (view && view.lastUserText) ? view.lastUserText
+      : (vnBoundChatTitle(chatId) || (chatId ? vnLabel("companion.untitled_chat", "New chat") : ""));
     let line2;
     if (vnDevPuppet) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
@@ -1692,7 +1702,8 @@ function vnDesktopPayload(pres, state) {
      for the bound chat; neither is model prose, and the native side re-validates both. */
   const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat
     : (vnLastChat && VN_VIEWS.has(vnLastChat)) ? vnLastChat : "";
-  const title = vnBoundChatTitle(chatId);
+  const view = VN_VIEWS.get(String(chatId || ""));
+  const title = (view && view.lastUserText) ? view.lastUserText : vnBoundChatTitle(chatId);
   if (title) payload.chatTitle = title;
   const activity = vnActivity(pres);
   if (activity) payload.activity = activity;
