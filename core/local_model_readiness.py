@@ -58,20 +58,21 @@ def plain_readiness(status: Mapping[str, Any] | None) -> str:
 
 
 def _local_ollama_version(timeout_seconds: float = 2.0) -> str:
-    """The local Ollama's own version string, or "" when it cannot be read (never blocks long)."""
-    import json
-    import urllib.request
+    """The local Ollama's own version string, or "" when it cannot be read (never blocks long).
+
+    Only a loopback Ollama is asked; the read goes through the local Ollama inventory's own
+    transport, so this module opens no connection of its own."""
     from urllib.parse import urlparse
 
     try:
+        from core.local_ollama_inventory import local_ollama_version
         from core.runtime_guard import is_loopback_host
         from core.web.api.runtime import ollama_base_url
 
         base = str(ollama_base_url() or "").rstrip("/")
         if not base or not is_loopback_host(str(urlparse(base).hostname or "")):
             return ""
-        with urllib.request.urlopen(f"{base}/api/version", timeout=timeout_seconds) as response:
-            return str(json.loads(response.read().decode("utf-8", "replace") or "{}").get("version") or "")
+        return local_ollama_version(base_url=base, timeout_seconds=timeout_seconds)
     except Exception:
         return ""
 
