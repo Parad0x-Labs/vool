@@ -105,7 +105,7 @@ function security(host){
  const state=node('p',tr('loading','Loading…'),'addon-state');card.append(state);
  card.append(button(tr('manage_api_keys','Manage in API Keys'),()=>{if(window.VoolPageActions){window.VoolPageActions.openSettings('keys');return;}location.hash='keys';}));
  card.append(node('p',tr('quota_note','Scans use your Eyebrow allowance. Nothing is scanned in the background.'),'addon-meta'));
- read().then(j=>{if(state.isConnected)state.textContent=j.eyebrow.configured?tr('key_saved','Key saved. Connection is checked when you run a scan.'):tr('no_key','To add a skill from Browse, VOOL first scans it with Eyebrow. Add your Eyebrow key in API Keys, then come back and press Scan with Eyebrow.');}).catch(e=>{if(state.isConnected)state.textContent=e.message;});
+ read().then(j=>{if(state.isConnected)state.textContent=j.eyebrow.configured?tr('key_saved','Key saved. Connection is checked when you run a scan.'):tr('no_key','Skills from other makers are scanned with Eyebrow before VOOL adds them, which needs an Eyebrow key in API Keys. Skills made by VOOL need no key.');}).catch(e=>{if(state.isConnected)state.textContent=e.message;});
 }
 async function action(work){if(busy)return;busy=true;error='';refresh();try{await work();}catch(e){error=e.message;}finally{busy=false;refresh();}}
 function pending(host){
@@ -121,7 +121,7 @@ function render(query){
  if(!data){host.append(error?button(tr('retry','Try again'),()=>{error='';load();}):node('p',tr('loading','Loading…')));return true;}
  if(tab==='installed'){renderLibrary(host,query);return true;}
  if(review){renderReview(host);return true;}if(selected){renderDetail(host,selected);return true;}if(remote){renderRemote(host);return true;}
- hero(host,tr('discover_title','Find a skill'),tr('browse_ready_intro','Each skill teaches VOOL one job, like writing a cover letter, planning meals from what is in your cupboard or checking a message for scams. Open one to read what it does. Before VOOL adds a skill from here, it scans it with Eyebrow, a security checker, which needs an Eyebrow key in API Keys.'));
+ hero(host,tr('discover_title','Find a skill'),tr('browse_ready_intro','Each skill teaches VOOL one job, like writing a cover letter, planning meals from what is in your cupboard or checking a message for scams. Open one to read what it does. Skills made by VOOL are checked on your computer and need no key. Skills from other makers are scanned with Eyebrow first, which needs an Eyebrow key in API Keys.'));
  const collections=node('div',undefined,'addon-collections');[...new Set(data.entries.map(e=>e.ecosystem||e.publisher))].forEach(source=>{const ready=data.entries.filter(e=>(e.ecosystem||e.publisher)===source&&!e.discovery_only&&e.import_ready!==false).length;if(!ready&&availability==='ready'&&ecosystem!==source)return;const b=button('',()=>{ecosystem=ecosystem===source?'':source;category='';limit=24;refresh();});b.append(brand(source,'strong'),node('small',ready+' '+tr('ready_count','ready to add')));b.setAttribute('aria-pressed',String(ecosystem===source));collections.append(b);});host.append(collections);
  pending(host);
  const statusControls=node('div',undefined,'addon-controls');[['ready',tr('ready_filter','Ready to add')],['all',tr('all_filter','Show all')]].forEach(([v,label])=>{const b=button(label,()=>{availability=v;limit=24;refresh();});b.setAttribute('aria-pressed',String(availability===v));statusControls.append(b);});host.append(statusControls);
@@ -138,7 +138,7 @@ function render(query){
   const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3','Media Studio'),brand('VOOL','small','built-in'));head.append(name);card.append(head,node('p','Cut, trim and export media in a dedicated editor window.'));
   const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';card.append(a);grid.append(card);
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No skills match that search. Try another word, or choose Show all.'):tr('no_results','No skills match that search. Try another word.')));
- rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Ready to add'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);if(e.installed)card.append(node('span',e.scan==='checked'?tr('checked','Checked by Eyebrow'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));grid.append(card);});
+ rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Ready to add'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);if(e.installed)card.append(node('span',e.scan==='checked'?tr('checked','Checked by Eyebrow'):e.scan==='checked_local'?tr('checked_local','Checked by VOOL'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'||e.scan==='checked_local'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
  host.append(node('p',tr('scope','A skill being listed here does not mean VOOL vouches for it. Read what it does before you add it. Adding a skill gives VOOL instructions only, never new permissions.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
@@ -341,10 +341,46 @@ function renderDetail(host,e){
  else if(e.import_ready===false){acts.append(node('p',tr('not_supported','Not supported yet'),'addon-error'));}
  else if(e.installed){acts.append(button(tr('manage','Manage in My add-ons'),()=>{tab='installed';selected=null;_pluginMode='plugins';refresh();}));}
  else{const saved=(data.reviews||[]).find(r=>r.entry.id===e.id);if(saved)acts.append(button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:saved.review_id});selected=null;}),'addon-primary'));
- acts.append(button(e.bundled_source?tr('scan_saved','Scan with Eyebrow'):tr('scan','Download and scan'),()=>{if(!data.eyebrow.configured){tab='security';selected=null;}else{review={entry:e,consent:true};selected=null;}refresh();},saved?'':'addon-primary'));}
- if(!e.installed&&!e.discovery_only&&e.import_ready!==false&&!data.eyebrow.configured){const need=node('p',tr('needs_key_note','To add this skill, VOOL first scans it with Eyebrow, a security checker. That needs an Eyebrow key in API Keys.'),'addon-meta');need.setAttribute('role','note');acts.before(need);acts.append(button(tr('manage_api_keys','Manage in API Keys'),()=>{if(window.VoolPageActions){window.VoolPageActions.openSettings('keys');return;}location.hash='keys';}));}
+  const scanButton=(label,primary)=>button(label,()=>{review={entry:e,consent:true};selected=null;refresh();},primary?'addon-primary':'');
+  if(e.local_install){
+   // VOOL's own bundled skill: the local check on this device is enough. Eyebrow stays an optional extra.
+   acts.append(button(busy?tr('checking','Checking…'):tr('add_local','Add this skill'),()=>action(async()=>{review=await post({action:'local_install',id:e.id,approved:true});selected=null;data=await read();}),saved?'':'addon-primary'));
+   if(data.eyebrow.configured)acts.append(scanButton(tr('scan_extra','Also scan with Eyebrow'),false));
+   const note=node('p',tr('local_install_note','This skill is made by VOOL and came with the app. Before adding it, VOOL checks on your computer that the file is the one VOOL shipped and reads it for risky instructions. No key is needed and nothing is sent anywhere.'),'addon-meta');note.setAttribute('role','note');acts.before(note);
+  }else if(data.eyebrow.configured){acts.append(scanButton(e.bundled_source?tr('scan_saved','Scan with Eyebrow'):tr('scan','Download and scan'),!saved));}
+  else needsKey(acts,e);}
  if(!e.installed&&!e.discovery_only&&e.import_ready!==false)renderLocalCheck(detail,e);
  detail.append(node('p',tr('review_before_install','You review the scan before installing. Nothing runs when you browse.'),'addon-meta'));technical(detail,e);
+}
+// A skill from another maker, and no Eyebrow key saved: say why and what the person can do,
+// in place -- never a silent jump to another tab.
+function needsKey(acts,e){
+ const box=node('section',undefined,'addon-review addon-needs-key');box.setAttribute('role','status');
+ box.append(node('h3',tr('needs_key_title','This skill needs a scan with Eyebrow first')),node('p',tr('needs_key_why','It comes from another maker, so VOOL asks Eyebrow, a security checker, to scan it before adding it. That scan needs an Eyebrow key, and none is saved yet. You can:')));
+ const list=node('ul');list.append(node('li',tr('needs_key_add','Add an Eyebrow key in Settings, API Keys, then come back and scan.')),node('li',tr('needs_key_local',"Run VOOL's free local check below for a report on this skill. It can't add the skill on its own.")),node('li',tr('needs_key_vool','Or pick a skill made by VOOL. Those need no key.')));box.append(list);
+ const row=node('div',undefined,'addon-actions');
+ row.append(button(tr('manage_api_keys','Manage in API Keys'),()=>{if(window.VoolPageActions){window.VoolPageActions.openSettings('keys');return;}location.hash='keys';},'addon-primary'),
+  button(tr('show_vool_skills','Show VOOL skills'),()=>{selected=null;review=null;ecosystem='VOOL';category='';limit=24;refresh();}));
+ box.append(row);acts.before(box);
+}
+function renderLocalReview(detail,box){
+ const r=review.report||{};const findings=Array.isArray(r.findings)?r.findings:[];
+ box.append(node('h3',tr('local_review_title','VOOL local check')));
+ if(r.status==='clean')box.append(node('p',tr('local_review_clean',"No problems found in this skill's text.")));
+ else if(findings.length){box.append(node('p',tr('local_review_found',"VOOL's local check flagged this:")));const list=node('ul',undefined,'addon-findings');findings.forEach(f=>{const li=node('li');li.append(node('strong',String(f.severity||'').toUpperCase()+' · '+(f.ruleId||'')),node('span',f.explanation||f.message||f.ruleId||''));if(f.line)li.append(node('small',tr('line','Line')+' '+f.line));list.append(li);});box.append(list);}
+ else box.append(node('p',tr('local_review_incomplete',"VOOL's local check could not read all of this skill, so it is not a clean pass.")));
+ const gate=node('section',undefined,'addon-review'+(review.vool_check?.status==='blocked'?' blocked':''));
+ gate.append(node('p',review.vool_check?.message||review.reason||tr('review_again','Reopen this scan to check its installation status.')));detail.append(gate);
+ const acts=node('div',undefined,'addon-actions');gate.append(acts);
+ if(review.can_install)acts.append(button(tr('local_install','Add and turn on'),()=>installDecision(false),'addon-primary'));
+ acts.append(button(tr('reject','Reject'),()=>action(async()=>{await post({action:'reject',review_id:review.review_id});review=null;data=await read();})));
+ if(review.can_override){
+  const advanced=node('details',undefined,'addon-override');advanced.append(node('summary',tr('local_override','Add it anyway')));
+  const label=node('label');const check=node('input');check.type='checkbox';check.disabled=busy;label.append(check,node('span',tr('local_risk_ack',"I read what VOOL's local check flagged and still want to add this exact version.")));advanced.append(label);
+  const confirm=button(tr('install_with_risks','Accept risks and enable this version'),()=>{if(check.checked)installDecision(true);},'addon-risk-button');confirm.disabled=true;
+  check.onchange=()=>{confirm.disabled=busy||!check.checked;};advanced.append(confirm);gate.append(advanced);
+ }
+ detail.append(node('p',tr('local_permissions','Adding a skill gives VOOL instructions only, never new permissions. VOOL still asks before anything that needs your OK.'),'addon-meta'));
 }
 function riskExplanation(ruleId){
  const d=node('details',undefined,'addon-risk-explanation');
@@ -368,6 +404,7 @@ function renderReview(host){
  const box=node('section',undefined,'addon-review'+(!review.consent&&!review.can_install?' blocked':''));box.setAttribute('aria-live','polite');detail.append(box);
  if(review.consent){box.append(node('h3',tr('before_scan','One check before you install')),node('p',e.bundled_source?tr('scan_bundled_consent','Send this included skill to Eyebrow for one scan. No GitHub download is needed. No private files, chats or other keys are included. Nothing is installed or executed.'):tr('scan_consent','Download this public skill from GitHub and send its contents to Eyebrow for one scan. No private files, chats or keys are included. Nothing is installed or executed.')),node('p',tr('scan_allowance','Uses one scan from your Eyebrow allowance.'),'addon-meta'));const acts=node('div',undefined,'addon-actions');box.append(acts);
  acts.append(button(busy?tr('scanning','Scanning…'):tr('confirm_scan','Run one scan'),()=>action(async()=>{review=await post({action:'scan',id:e.id,approved:true});data=await read();}),'addon-primary'),button(tr('cancel','Cancel'),()=>{review=null;selected=e;refresh();}));return;}
+ if(review.check==='vool_local'){renderLocalReview(detail,box);return;}
  const r=review.report||{};const findings=Array.isArray(r.findings)?r.findings:[];
  box.append(node('h3',tr('eyebrow_report','Eyebrow security report')),node('p',tr('eyebrow_verdict','Eyebrow verdict:')+' '+String(r.verdict||tr('unknown','Unknown')).toUpperCase()));
  if(!findings.length)box.append(node('p',tr('no_eyebrow_findings','No findings listed in this report. This is not a guarantee of safety.')));

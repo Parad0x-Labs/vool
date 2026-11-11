@@ -177,7 +177,9 @@ def test_how_to_add_a_skill_has_one_plain_answer_and_authors_nothing(asked: str)
     body = reply["response"]
     assert "Skills & Plugins" in body and "Browse" in body
     assert "make me a skill that" in body
-    assert "Eyebrow key" in body, "Browse needs a key; the answer must not hide that"
+    # VOOL's own skills need no key; other makers' skills do, and the answer says which is which.
+    assert "Skills made by VOOL are checked on your computer and need no key" in body
+    assert "other makers" in body and "Eyebrow key" in body
 
 
 @pytest.mark.parametrize("asked", ["how do i make a skill that sorts my email", "how do I add a row to a table?"])

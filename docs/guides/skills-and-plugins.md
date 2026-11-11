@@ -37,9 +37,21 @@ Browse lists them without a lookup online. VOOL skills that use VOOL tools are l
 the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
 enable it.
 
-Before VOOL adds a skill from Browse, it scans it with **Eyebrow**, a security checker. That
-scan needs an Eyebrow key, which you add under **Settings → API Keys**. Without a key you can
-still read every skill, and you can make your own skill in chat with no key at all: see
+How a skill from Browse is added depends on who made it:
+
+* **Skills made by VOOL** (the 51 above): press **Add this skill**. VOOL checks on your
+  computer that the file is the exact one it shipped with and reads it for risky
+  instructions, then shows you the result. No key is needed and nothing is sent anywhere.
+  If the file does not match, VOOL refuses it and says so. A scan with **Eyebrow** stays
+  available as an optional extra when you have a key. Planned for VOOL 0.7.8, not released
+  yet; in VOOL 0.7.7 every Browse skill needs an Eyebrow scan.
+* **Skills from other makers** (other publishers, or a GitHub link you paste): VOOL first
+  scans the skill with **Eyebrow**, a security checker. That scan needs an Eyebrow key, which
+  you add under **Settings → API Keys**. Without a key, the skill's page says so and offers
+  the options: add a key, run VOOL's free local check for a report (it cannot add the skill on
+  its own), or pick a skill made by VOOL.
+
+You can also make your own skill in chat with no key at all: see
 [Make your own skill](make-your-own-skill.md).
 
 You can also ask in any chat: *which skills do I have?* lists them, and *how do I add a

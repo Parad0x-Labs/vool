@@ -137,8 +137,9 @@ _HOW_TO_ADD_RE = re.compile(
 _HOW_TO_ADD_ANSWER = (
     "There are two ways to add a skill.\n\n"
     "- **Pick a ready-made one.** Open Skills & Plugins and choose Browse. Open a skill to "
-    "read what it does. Before VOOL adds it, it scans it with Eyebrow, a security checker, "
-    "so you need an Eyebrow key in Settings, API Keys.\n"
+    "read what it does, then press Add this skill. Skills made by VOOL are checked on your "
+    "computer and need no key. Skills from other makers are scanned with Eyebrow, a security "
+    "checker, first, which needs an Eyebrow key in Settings, API Keys.\n"
     "- **Make your own, no coding.** Tell me in your own words what it should do and when, "
     "for example: make me a skill that sorts my shopping list by supermarket aisle whenever "
     "I give you one. I show you a draft first, and nothing is switched on until you say "
