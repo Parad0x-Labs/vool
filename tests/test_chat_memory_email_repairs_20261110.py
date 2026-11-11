@@ -557,7 +557,8 @@ def test_a_read_keeps_the_filters_the_person_asked_for():
 @pytest.mark.parametrize(
     "reply",
     ["I'm on it, baby! Let me fetch the Wikipedia page for the Daugava River and check its length. Just give me a sec...",
-     "Hey there! Let me open the page."],
+     "Hey there! Let me open the page.",
+     "Sure thing, let's check that out. I'll fetch the Wikipedia page for the Daugava River and find the length. One sec..."],
 )
 def test_an_acknowledged_plan_with_nothing_done_is_incomplete(reply):
     from core.incomplete_answer import _only_a_plan
@@ -572,3 +573,38 @@ def test_an_acknowledged_answer_is_not_a_plan(reply):
     from core.incomplete_answer import _only_a_plan
 
     assert not _only_a_plan(reply)
+
+
+def test_the_draft_send_card_shows_what_the_draft_will_send(monkeypatch):
+    import core.email_drafts as drafts
+    from core.mode_permission_policy import OperatingMode, PermissionAction, _new_approval_request
+
+    stored = {"draft_id": "ed-1", "to": ["no-reply@exchange.example"], "subject": "Re: Deposit Successful",
+              "body": "Thanks!", "account_resolved": "me-vooltest"}
+    asked: list[tuple[str, str]] = []
+
+    def _get(draft_id="", *, session_id="", principal=None, latest=False):
+        asked.append((draft_id, session_id))
+        return drafts.DraftResult(True, "ok", "Draft retrieved.", draft=stored)
+
+    monkeypatch.setattr(drafts, "get_draft", _get)
+    request = _new_approval_request(
+        session_id="card-s", task_id="card-t", intent="email.draft.send", arguments={"draft_id": "ed-1"},
+        actions=(PermissionAction.SEND_EXTERNAL_MESSAGES,), mode=OperatingMode.MANUAL, mode_revision=0,
+        source_context={"session_id": "card-s"}, fingerprint="fp-card",
+    )
+    assert asked == [("ed-1", "card-s")]
+    assert "no-reply@exchange.example" in request["affected_resources"]
+    preview = request["diff_preview"]
+    assert "To: no-reply@exchange.example" in preview and "Re: Deposit Successful" in preview and "Thanks!" in preview
+
+
+def test_an_explicit_web_ask_is_admitted_to_the_tool_loop():
+    from core.execution.planner import should_attempt_tool_intent
+
+    text = "open the Wikipedia page for the Daugava river and tell me how long it is"
+    assert should_attempt_tool_intent(text, task_class="unknown", source_context={"surface": "api", "platform": "api"})
+    assert not should_attempt_tool_intent(
+        "Do not search the web. Open the Wikipedia page for the Daugava river.",
+        task_class="unknown", source_context={"surface": "api", "platform": "api"},
+    )

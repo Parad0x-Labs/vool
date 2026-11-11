@@ -458,6 +458,16 @@ def should_attempt_tool_intent(
     if asks_for_a_file(text):
         return True
 
+    # An explicit web demand ("open the Wikipedia page for the Daugava river and tell me how long
+    # it is", "search the web for ...") is tool work, read through the same recogniser that seats
+    # the web tools in the offer. Measured 2026-11-11 (battery v11, installed build): this gate
+    # returned False for task_class 'unknown', no tool was offered, and the model replied "I'll
+    # fetch the Wikipedia page ... One sec" while nothing ran.
+    from core.tool_demand_signals import resolve_demand_signals
+
+    if "web" in resolve_demand_signals(text).required_families:
+        return True
+
     # A few ordinary knowledge/text requests in one message still need one plain answer, not the
     # always-on tool catalogue and its large intent-selection call.  The detector is intentionally
     # limited to non-operational request heads; file/web/machine/action verbs never enter this lane.

@@ -339,11 +339,14 @@ _PLAN_STEP_RE = re.compile(
 #: baby!", "Just give me a sec...", "Hang tight."). Battery v10 (2026-11-11, installed build):
 #: "I'm on it, baby! Let me fetch the Wikipedia page ... Just give me a sec..." -- no lookup ran
 #: -- passed as an answer because the acknowledgement stood in front of the announced step.
-_FILLER_SENTENCE_RE = re.compile(
+_FILLER_PHRASE = (
     r"(?:(?:hey|hi|hello)(?:\s+there)?|sure(?:\s+thing)?|okay|ok|alright|great|got\s+it|you\s+got\s+it|"
     r"(?:i'?m\s+)?on\s+it|no\s+problem|absolutely|of\s+course|(?:just\s+)?(?:give|gimme)\s+me\s+a\s+(?:sec|second|moment|minute)|"
-    r"(?:one|just\s+a)\s+(?:sec|second|moment|minute)|hang\s+tight|hold\s+on|stay\s+tuned|be\s+right\s+back)"
-    r"(?:[,\s]+[a-z]+)?\s*[!.…]*",
+    r"(?:one|just\s+a)\s+(?:sec|second|moment|minute)|hang\s+tight|hold\s+on|stay\s+tuned|be\s+right\s+back|"
+    r"let'?s\s+(?:check|see|find\s+out|take\s+a\s+look)(?:\s+(?:that|it|this))?(?:\s+out)?)"
+)
+_FILLER_SENTENCE_RE = re.compile(
+    rf"{_FILLER_PHRASE}(?:[,\s]+{_FILLER_PHRASE})*(?:[,\s]+[a-z]+){{0,2}}?\s*[!.…]*",
     re.IGNORECASE,
 )
 
