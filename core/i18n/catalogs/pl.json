@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Użyj {model}",
     "settings.local_models.suggest.download": "Pobierz {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Użyj modelu w chmurze",
+    "settings.local_models.suggest.newer": "Do tego komputera pasuje nowszy model:",
+    "settings.local_models.suggest.download_bigger": "Pobierz większy model, {model} ({gb} GB): mądrzejszy, ale wolniejszy",
+    "settings.local_models.suggest.picked_gpu": "Dobrano do karty graficznej {gb} GB tego komputera.",
+    "settings.local_models.suggest.picked_memory": "Dobrano do {gb} GB pamięci tego komputera.",
+    "settings.local_models.suggest.update_ollama": "Zaktualizuj Ollamę, aby dostać nowszy {model}.",
     "settings.local_models.download.progress": "Pobieranie {model}… {percent}%",
     "settings.local_models.download.starting": "Rozpoczynam pobieranie {model}…",
     "settings.local_models.download.failed": "Pobieranie {model} nie zakończyło się. Sprawdź połączenie z internetem i czy Ollama jest otwarta, a potem spróbuj ponownie.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Obwód świtu",
     "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

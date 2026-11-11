@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Использовать {model}",
     "settings.local_models.suggest.download": "Скачать {model} ({gb} ГБ)",
     "settings.local_models.suggest.cloud": "Использовать облачную модель",
+    "settings.local_models.suggest.newer": "Этому компьютеру подходит более новая модель:",
+    "settings.local_models.suggest.download_bigger": "Скачать модель побольше, {model} ({gb} ГБ): умнее, но медленнее",
+    "settings.local_models.suggest.picked_gpu": "Подобрано под видеокарту этого компьютера на {gb} ГБ.",
+    "settings.local_models.suggest.picked_memory": "Подобрано под {gb} ГБ памяти этого компьютера.",
+    "settings.local_models.suggest.update_ollama": "Обновите Ollama, чтобы получить более новую {model}.",
     "settings.local_models.download.progress": "Скачиваем {model}… {percent}%",
     "settings.local_models.download.starting": "Начинаем скачивание {model}…",
     "settings.local_models.download.failed": "Скачивание {model} не завершилось. Проверьте подключение к интернету и что Ollama открыта, затем попробуйте снова.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Контур рассвета",
     "toybox.skin_dawn-circuit_description": "Пиксельный сон о лунных вратах, облачных лентах и выразительных маленьких спутниках."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "استخدم {model}",
     "settings.local_models.suggest.download": "نزّل {model} ({gb} غيغابايت)",
     "settings.local_models.suggest.cloud": "استخدم نموذجًا سحابيًا بدلًا من ذلك",
+    "settings.local_models.suggest.newer": "يناسب هذا الحاسوب نموذج أحدث:",
+    "settings.local_models.suggest.download_bigger": "نزّل نموذجًا أكبر، {model} ({gb} غيغابايت): أذكى لكنه أبطأ",
+    "settings.local_models.suggest.picked_gpu": "تم اختياره لبطاقة الرسوميات بسعة {gb} غيغابايت في هذا الحاسوب.",
+    "settings.local_models.suggest.picked_memory": "تم اختياره لذاكرة هذا الحاسوب البالغة {gb} غيغابايت.",
+    "settings.local_models.suggest.update_ollama": "حدّث Ollama للحصول على النموذج الأحدث {model}.",
     "settings.local_models.download.progress": "جارٍ تنزيل {model}… {percent}٪",
     "settings.local_models.download.starting": "جارٍ بدء تنزيل {model}…",
     "settings.local_models.download.failed": "لم يكتمل تنزيل {model}. تحقّق من اتصالك بالإنترنت ومن أن Ollama مفتوح، ثم حاول مجددًا.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "دائرة الفجر",
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

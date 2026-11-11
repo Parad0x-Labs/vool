@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Dùng {model}",
     "settings.local_models.suggest.download": "Tải {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Dùng mô hình đám mây",
+    "settings.local_models.suggest.newer": "Có một mô hình mới hơn hợp với máy tính này:",
+    "settings.local_models.suggest.download_bigger": "Tải mô hình lớn hơn, {model} ({gb} GB): thông minh hơn nhưng chậm hơn",
+    "settings.local_models.suggest.picked_gpu": "Được chọn cho card đồ họa {gb} GB của máy tính này.",
+    "settings.local_models.suggest.picked_memory": "Được chọn cho {gb} GB bộ nhớ của máy tính này.",
+    "settings.local_models.suggest.update_ollama": "Cập nhật Ollama để dùng {model} mới hơn.",
     "settings.local_models.download.progress": "Đang tải {model}… {percent}%",
     "settings.local_models.download.starting": "Đang bắt đầu tải {model}…",
     "settings.local_models.download.failed": "Chưa tải xong {model}. Hãy kiểm tra kết nối internet và Ollama đang mở, rồi thử lại.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Utiliser {model}",
     "settings.local_models.suggest.download": "Télécharger {model} ({gb} Go)",
     "settings.local_models.suggest.cloud": "Utiliser plutôt un modèle cloud",
+    "settings.local_models.suggest.newer": "Un modèle plus récent convient à cet ordinateur :",
+    "settings.local_models.suggest.download_bigger": "Télécharger un modèle plus grand, {model} ({gb} Go) : plus intelligent, mais plus lent",
+    "settings.local_models.suggest.picked_gpu": "Choisi pour la carte graphique de {gb} Go de cet ordinateur.",
+    "settings.local_models.suggest.picked_memory": "Choisi pour les {gb} Go de mémoire de cet ordinateur.",
+    "settings.local_models.suggest.update_ollama": "Mettez Ollama à jour pour obtenir le modèle plus récent {model}.",
     "settings.local_models.download.progress": "Téléchargement de {model}… {percent} %",
     "settings.local_models.download.starting": "Démarrage du téléchargement de {model}…",
     "settings.local_models.download.failed": "Le téléchargement de {model} n’a pas abouti. Vérifiez votre connexion internet et qu’Ollama est ouvert, puis réessayez.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
     "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "{model} kullan",
     "settings.local_models.suggest.download": "{model} indir ({gb} GB)",
     "settings.local_models.suggest.cloud": "Bunun yerine bulut modeli kullan",
+    "settings.local_models.suggest.newer": "Bu bilgisayara daha yeni bir model uyuyor:",
+    "settings.local_models.suggest.download_bigger": "Daha büyük bir model indir, {model} ({gb} GB): daha akıllı ama daha yavaş",
+    "settings.local_models.suggest.picked_gpu": "Bu bilgisayarın {gb} GB ekran kartı için seçildi.",
+    "settings.local_models.suggest.picked_memory": "Bu bilgisayarın {gb} GB belleği için seçildi.",
+    "settings.local_models.suggest.update_ollama": "Daha yeni {model} için Ollama'yı güncelle.",
     "settings.local_models.download.progress": "{model} indiriliyor… %{percent}",
     "settings.local_models.download.starting": "{model} indirmesi başlatılıyor…",
     "settings.local_models.download.failed": "{model} indirmesi bitmedi. İnternet bağlantınızı ve Ollama’nın açık olduğunu kontrol edip tekrar deneyin.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
     "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

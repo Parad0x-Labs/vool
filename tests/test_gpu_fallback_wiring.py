@@ -253,12 +253,12 @@ def _probe(*, ram_gb: float, accelerator: str = "cpu", vram_gb: float | None = N
     )
 
 
-def test_cpu_fallback_prefers_qwen25_3b_on_capable_box(monkeypatch) -> None:
+def test_cpu_fallback_prefers_the_cpu_pick_on_capable_box(monkeypatch) -> None:
     monkeypatch.delenv("VOOL_OLLAMA_MODEL", raising=False)
     monkeypatch.delenv("VOOL_FORCE_OLLAMA_MODEL", raising=False)
-    # Plenty of RAM: the hardware pick would be large, but the CPU fallback caps at qwen2.5:3b.
+    # Plenty of RAM: the hardware pick would be large, but the CPU fallback caps at qwen3.5:4b.
     tag = cpu_fallback_model(_probe(ram_gb=64.0))
-    assert tag == "qwen2.5:3b"
+    assert tag == "qwen3.5:4b"
 
 
 def test_cpu_fallback_never_larger_than_hardware_pick(monkeypatch) -> None:
@@ -275,4 +275,4 @@ def test_cpu_fallback_is_fail_safe_on_probe_error(monkeypatch) -> None:
 
     monkeypatch.setattr("core.install_recommendations.select_qwen_tier", _boom)
     # Any error falls back to the preferred small tag rather than raising.
-    assert cpu_fallback_model(_probe(ram_gb=16.0)) == "qwen2.5:3b"
+    assert cpu_fallback_model(_probe(ram_gb=16.0)) == "qwen3.5:4b"

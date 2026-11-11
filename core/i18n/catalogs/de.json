@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "{model} verwenden",
     "settings.local_models.suggest.download": "{model} herunterladen ({gb} GB)",
     "settings.local_models.suggest.cloud": "Stattdessen ein Cloud-Modell verwenden",
+    "settings.local_models.suggest.newer": "Ein neueres Modell passt zu diesem Computer:",
+    "settings.local_models.suggest.download_bigger": "Größeres Modell herunterladen, {model} ({gb} GB): klüger, aber langsamer",
+    "settings.local_models.suggest.picked_gpu": "Ausgewählt für die {gb}-GB-Grafikkarte dieses Computers.",
+    "settings.local_models.suggest.picked_memory": "Ausgewählt für die {gb} GB Arbeitsspeicher dieses Computers.",
+    "settings.local_models.suggest.update_ollama": "Aktualisiere Ollama, um das neuere {model} zu bekommen.",
     "settings.local_models.download.progress": "{model} wird heruntergeladen… {percent}%",
     "settings.local_models.download.starting": "Download von {model} wird gestartet…",
     "settings.local_models.download.failed": "Der Download von {model} wurde nicht beendet. Prüfe deine Internetverbindung und ob Ollama geöffnet ist, und versuche es erneut.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Morgenkreis",
     "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

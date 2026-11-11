@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "{model} 사용",
     "settings.local_models.suggest.download": "{model} 다운로드 ({gb} GB)",
     "settings.local_models.suggest.cloud": "대신 클라우드 모델 사용",
+    "settings.local_models.suggest.newer": "이 컴퓨터에 맞는 더 새로운 모델이 있어요:",
+    "settings.local_models.suggest.download_bigger": "더 큰 모델 다운로드, {model} ({gb} GB): 더 똑똑하지만 더 느림",
+    "settings.local_models.suggest.picked_gpu": "이 컴퓨터의 {gb} GB 그래픽 카드에 맞춰 골랐어요.",
+    "settings.local_models.suggest.picked_memory": "이 컴퓨터의 {gb} GB 메모리에 맞춰 골랐어요.",
+    "settings.local_models.suggest.update_ollama": "더 새로운 {model}을(를) 쓰려면 Ollama를 업데이트하세요.",
     "settings.local_models.download.progress": "{model} 다운로드 중… {percent}%",
     "settings.local_models.download.starting": "{model} 다운로드를 시작하는 중…",
     "settings.local_models.download.failed": "{model} 다운로드가 끝나지 않았어요. 인터넷 연결과 Ollama가 열려 있는지 확인한 뒤 다시 시도하세요.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "새벽 회로",
     "toybox.skin_dawn-circuit_description": "달문과 리본 구름, 표정 풍부한 작은 친구들이 있는 픽셀 꿈."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

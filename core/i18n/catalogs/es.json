@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Usar {model}",
     "settings.local_models.suggest.download": "Descargar {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Usar un modelo en la nube",
+    "settings.local_models.suggest.newer": "Un modelo más nuevo encaja en este ordenador:",
+    "settings.local_models.suggest.download_bigger": "Descargar un modelo más grande, {model} ({gb} GB): más listo, pero más lento",
+    "settings.local_models.suggest.picked_gpu": "Elegido para la tarjeta gráfica de {gb} GB de este ordenador.",
+    "settings.local_models.suggest.picked_memory": "Elegido para los {gb} GB de memoria de este ordenador.",
+    "settings.local_models.suggest.update_ollama": "Actualiza Ollama para obtener el modelo más nuevo {model}.",
     "settings.local_models.download.progress": "Descargando {model}… {percent}%",
     "settings.local_models.download.starting": "Iniciando la descarga de {model}…",
     "settings.local_models.download.failed": "La descarga de {model} no terminó. Revisa tu conexión a internet y que Ollama esté abierto, e inténtalo de nuevo.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
     "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

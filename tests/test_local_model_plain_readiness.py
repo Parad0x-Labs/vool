@@ -78,8 +78,9 @@ def test_states_without_a_finished_run_are_not_ready() -> None:
 
 
 def test_the_recommended_model_fits_the_machine() -> None:
-    assert recommended_local_model(32.0)["model_name"] == "qwen3:8b"
-    assert recommended_local_model(8.0)["model_name"] == "qwen3:4b"
+    # RAM alone sizes a machine without a usable GPU (core.local_model_suggestions' CPU ladder).
+    assert recommended_local_model(32.0)["model_name"] == "qwen3.5:4b"
+    assert recommended_local_model(8.0)["model_name"] == "qwen3.5:2b"
 
 
 def test_the_run_route_and_the_listing_carry_readiness(monkeypatch, tmp_path: Path) -> None:
@@ -117,7 +118,9 @@ def test_the_run_route_and_the_listing_carry_readiness(monkeypatch, tmp_path: Pa
         )
     )
     assert listing["models"][0]["readiness"] == READY
-    assert listing["recommended"]["model_name"] in {"qwen3:8b", "qwen3:4b"}
+    from core.local_model_suggestions import suggested_tags
+
+    assert listing["recommended"]["model_name"] in suggested_tags()
 
 
 def test_the_download_door_takes_only_a_recommended_model_from_the_owner(monkeypatch) -> None:

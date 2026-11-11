@@ -17,13 +17,13 @@ from core.local_model_bundles import capacity_bucket_for_machine, local_multi_ll
 
 
 def test_select_qwen_tier_honors_env_override(monkeypatch) -> None:
-    monkeypatch.setenv("VOOL_OLLAMA_MODEL", "qwen2.5:7b")
+    monkeypatch.setenv("VOOL_OLLAMA_MODEL", "qwen3.5:4b")
     probe = MachineProbe(cpu_cores=10, ram_gb=24.0, gpu_name="Apple Silicon", vram_gb=24.0, accelerator="mps")
 
     tier = select_qwen_tier(probe)
 
     assert tier.tier_name == "base"
-    assert tier.ollama_tag == "qwen2.5:7b"
+    assert tier.ollama_tag == "qwen3.5:4b"
 
 
 def test_select_qwen_tier_supports_custom_override_tag(monkeypatch) -> None:
@@ -42,18 +42,19 @@ def test_select_qwen_tier_uses_ram_thresholds_for_apple_unified_memory(monkeypat
 
     tier = select_qwen_tier(probe)
 
-    assert tier.tier_name == "base"
-    assert tier.ollama_tag == "qwen3:8b"
+    # A 24 GB Mac gets qwen3.5:9b: qwen3.8:27b (18 GB) was RAM-refused there whenever busy.
+    assert tier.tier_name == "mid"
+    assert tier.ollama_tag == "qwen3.5:9b"
 
 
-def test_select_qwen_tier_unlocks_14b_on_higher_ram_apple_unified_memory(monkeypatch) -> None:
+def test_select_qwen_tier_keeps_the_9b_on_a_36gb_apple_unified_memory(monkeypatch) -> None:
     monkeypatch.delenv("VOOL_OLLAMA_MODEL", raising=False)
     probe = MachineProbe(cpu_cores=12, ram_gb=36.0, gpu_name="Apple Silicon", vram_gb=36.0, accelerator="mps")
 
     tier = select_qwen_tier(probe)
 
     assert tier.tier_name == "mid"
-    assert tier.ollama_tag == "qwen2.5:14b"
+    assert tier.ollama_tag == "qwen3.5:9b"
 
 
 def test_select_qwen_tier_keeps_discrete_vram_selection_for_non_mps(monkeypatch) -> None:
@@ -63,7 +64,7 @@ def test_select_qwen_tier_keeps_discrete_vram_selection_for_non_mps(monkeypatch)
     tier = select_qwen_tier(probe)
 
     assert tier.tier_name == "heavy"
-    assert tier.ollama_tag == "qwen2.5:32b"
+    assert tier.ollama_tag == "qwen3.8:27b"
 
 
 def test_select_qwen_tier_ignores_discrete_vram_when_accelerator_is_cpu(monkeypatch) -> None:
@@ -80,7 +81,7 @@ def test_select_qwen_tier_ignores_discrete_vram_when_accelerator_is_cpu(monkeypa
     tier = select_qwen_tier(probe)
 
     assert tier.tier_name == "lite"
-    assert tier.ollama_tag == "qwen2.5:3b"
+    assert tier.ollama_tag == "qwen3.5:2b"
     assert local_multi_llm_fit_from_probe(probe) == "single_model_only"
     assert capacity_bucket_for_machine(probe=probe, free_disk_gb=120.0) == "A"
 

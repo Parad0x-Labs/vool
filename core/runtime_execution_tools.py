@@ -5714,9 +5714,9 @@ def _machine_chip_name() -> str:
 def _inspect_machine_specs() -> RuntimeExecutionResult:
     probe = probe_machine()
     recommendation_summary = install_recommendation_machine_summary(probe=probe)
-    # Last-resort default if the summary carries no model: qwen2.5:7b fits 7-8GB GPUs and CPU,
-    # so the emergency default is not the oversized qwen3:8b (partial-offloads on 6-10GB VRAM).
-    recommended_model = str(recommendation_summary.get("ollama_model") or "").strip() or "qwen2.5:7b"
+    # Last-resort default if the summary carries no model: qwen3.5:4b fits a 6 GB card whole and
+    # answers on a CPU, so the emergency default never part-offloads on 6-10GB VRAM.
+    recommended_model = str(recommendation_summary.get("ollama_model") or "").strip() or "qwen3.5:4b"
     recommended_bundle_models = tuple(
         str(item).strip()
         for item in recommendation_summary.get("recommended_bundle_models") or ()

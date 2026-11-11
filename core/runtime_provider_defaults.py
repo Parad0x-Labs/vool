@@ -117,7 +117,7 @@ _FAST_LOCAL_DEFAULT_MODEL = "vool-qwen3-30b-a3b:nothink"
 # The vool-30b-a3b default is ~19 GB of weights; it only belongs as the default on a machine with
 # real headroom above that. On a 24 GB Mac it crowds out the OS + daemon (+ any second model) and
 # thrashes, so below this RAM we fall through to the hardware-tier recommendation, which picks a model
-# that actually fits (e.g. qwen3:8b). Override with VOOL_FAST_DEFAULT_MIN_RAM_GB.
+# that actually fits (e.g. qwen3.5:9b). Override with VOOL_FAST_DEFAULT_MIN_RAM_GB.
 _FAST_LOCAL_DEFAULT_MIN_RAM_GB = 32.0
 
 
@@ -218,10 +218,11 @@ def default_runtime_model_tag(*, env: Mapping[str, str] | None = None) -> str:
             return _installed_alternative_to(primary_model, env=env_map) or primary_model
     except Exception:
         pass
-    # Last-resort default if the tier tag resolves empty: qwen2.5:7b fits 7-8GB GPUs and CPU;
-    # never qwen3:8b, which partial-offloads on 6-10GB VRAM (~47s/turn). Reachable paths above
-    # already resolve correctly (guarded by test_runtime_provider_defaults_gpu_gating).
-    return str(select_qwen_tier(probe_machine()).ollama_tag or "").strip() or "qwen2.5:7b"
+    # Last-resort default if the tier tag resolves empty: qwen3.5:4b fits a 6 GB card whole and
+    # answers on a CPU; never a model that part-offloads on 6-10GB VRAM (qwen3:8b measured ~47s a
+    # turn there). Reachable paths above already resolve correctly (guarded by
+    # test_runtime_provider_defaults_gpu_gating).
+    return str(select_qwen_tier(probe_machine()).ollama_tag or "").strip() or "qwen3.5:4b"
 
 
 def _is_thinking_capable_model(model_tag: str) -> bool:

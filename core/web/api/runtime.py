@@ -724,7 +724,7 @@ def ready_a_local_model_on_boot(
         return
     try:
         from core.local_model_policy import manifest_is_local
-        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS, ready_local_models
+        from core.local_model_readiness import READY, boot_adoptable_tags, ready_local_models
 
         def _local_manifests() -> list[Any]:
             return [
@@ -736,10 +736,10 @@ def ready_a_local_model_on_boot(
         manifests = _local_manifests()
         rows = ready_local_models(manifests, primary_model=primary_model)
         if not any(row["readiness"] == READY for row in rows):
-            # None of the registered models could answer (or none was checkable). A recommended
-            # model that is installed but was never registered (an upgrade that pulled qwen3:8b
-            # beside the old qwen2.5:7b primary) is registered the way Use this model does it, and
-            # checked. Only the recommended tags: boot never adopts an arbitrary installed model.
+            # None of the registered models could answer (or none was checkable). A suggested
+            # model that is installed but was never registered (an upgrade that pulled qwen3:8b or
+            # qwen3.5:9b beside the old qwen2.5:7b primary) is registered the way Use this model
+            # does it, and checked. Only the suggested tags: boot never adopts an arbitrary model.
             from core.runtime_provider_defaults import register_installed_local_model
 
             registered = {str(m.model_name).strip().lower() for m in manifests}
@@ -748,7 +748,7 @@ def ready_a_local_model_on_boot(
                 for item in installed_ollama_model_inventory(env=env, base_url=ollama_base_url(env), timeout_seconds=2.0)
             }
             added = []
-            for tag, _ram_gb, _size_gb in RECOMMENDED_LOCAL_MODELS:
+            for tag in boot_adoptable_tags():
                 if tag in installed and tag not in registered:
                     manifest = register_installed_local_model(registry, model_tag=installed[tag])
                     if manifest is not None:

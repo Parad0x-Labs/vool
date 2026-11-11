@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "השתמשו ב-{model}",
     "settings.local_models.suggest.download": "הורידו את {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "השתמשו במודל ענן במקום",
+    "settings.local_models.suggest.newer": "מודל חדש יותר מתאים למחשב הזה:",
+    "settings.local_models.suggest.download_bigger": "הורדת מודל גדול יותר, {model} ({gb} GB): חכם יותר, אבל איטי יותר",
+    "settings.local_models.suggest.picked_gpu": "נבחר עבור כרטיס המסך של {gb} GB במחשב הזה.",
+    "settings.local_models.suggest.picked_memory": "נבחר עבור {gb} GB הזיכרון של המחשב הזה.",
+    "settings.local_models.suggest.update_ollama": "עדכנו את Ollama כדי לקבל את {model} החדש יותר.",
     "settings.local_models.download.progress": "מורידים את {model}… {percent}%",
     "settings.local_models.download.starting": "מתחילים להוריד את {model}…",
     "settings.local_models.download.failed": "ההורדה של {model} לא הסתיימה. בדקו את החיבור לאינטרנט ושה-Ollama פתוח, ואז נסו שוב.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "מעגל השחר",
     "toybox.skin_dawn-circuit_description": "חלום פיקסלים של שערי ירח, ענני סרט ושותפים קטנים ומלאי הבעה."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

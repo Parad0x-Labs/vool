@@ -28,14 +28,6 @@ CHECK_UNFINISHED = "check_unfinished"
 # Ollama was down, busy or slow. The person is told to try again, not to pick another model.
 _UNFINISHED_CODES = frozenset({"timeout", "probe_error"})
 
-# Recommended models, largest first, with the RAM they need to run beside VOOL and the download
-# size shown to the person. Both are Qwen3 tags that call tools natively.
-RECOMMENDED_LOCAL_MODELS: tuple[tuple[str, float, float], ...] = (
-    ("qwen3:8b", 12.0, 5.2),
-    ("qwen3:4b", 0.0, 2.5),
-)
-
-
 def plain_readiness(status: Mapping[str, Any] | None) -> str:
     """One of the plain states above for a certification status or run record."""
     if not isinstance(status, Mapping):
@@ -65,23 +57,97 @@ def plain_readiness(status: Mapping[str, Any] | None) -> str:
     return NOT_SUITABLE
 
 
-def recommended_local_model(ram_gb: float | None = None) -> dict[str, Any]:
-    if ram_gb is None:
-        try:
-            from core.hardware_tier import _detect_ram_gb
+def _local_ollama_version(timeout_seconds: float = 2.0) -> str:
+    """The local Ollama's own version string, or "" when it cannot be read (never blocks long)."""
+    import json
+    import urllib.request
+    from urllib.parse import urlparse
 
-            ram_gb = _detect_ram_gb()
-        except Exception:
-            ram_gb = 0.0
-    for tag, min_ram_gb, download_gb in RECOMMENDED_LOCAL_MODELS:
-        if float(ram_gb or 0.0) >= min_ram_gb:
-            return {"model_name": tag, "download_gb": download_gb}
-    tag, _min, download_gb = RECOMMENDED_LOCAL_MODELS[-1]
-    return {"model_name": tag, "download_gb": download_gb}
+    try:
+        from core.runtime_guard import is_loopback_host
+        from core.web.api.runtime import ollama_base_url
+
+        base = str(ollama_base_url() or "").rstrip("/")
+        if not base or not is_loopback_host(str(urlparse(base).hostname or "")):
+            return ""
+        with urllib.request.urlopen(f"{base}/api/version", timeout=timeout_seconds) as response:
+            return str(json.loads(response.read().decode("utf-8", "replace") or "{}").get("version") or "")
+    except Exception:
+        return ""
+
+
+def _model_disk_free_gb() -> float | None:
+    try:
+        from core.runtime_install_profiles import _disk_free_gb, _nearest_existing_path, default_ollama_models_path
+
+        return float(_disk_free_gb(_nearest_existing_path(default_ollama_models_path())))
+    except Exception:
+        return None
+
+
+def recommended_local_model(
+    ram_gb: float | None = None,
+    *,
+    probe: Any = None,
+    free_disk_gb: float | None = None,
+    ollama_version: str | None = None,
+) -> dict[str, Any]:
+    """The model the Download button offers on this computer, from the one suggestion table.
+
+    ``ram_gb`` alone sizes a computer without a usable GPU (kept for callers that only know RAM);
+    otherwise the live hardware probe decides Apple / NVIDIA / CPU sizing.
+    """
+    from core.local_model_suggestions import download_gb, suggest_local_models
+
+    if probe is None:
+        if ram_gb is not None:
+            probe = {"ram_gb": float(ram_gb or 0.0), "accelerator": "cpu"}
+        else:
+            try:
+                from core.hardware_tier import probe_machine
+
+                probe = probe_machine()
+            except Exception:
+                probe = {"ram_gb": 0.0, "accelerator": "cpu"}
+    if free_disk_gb is None and ram_gb is None:
+        free_disk_gb = _model_disk_free_gb()
+    if ollama_version is None:
+        ollama_version = "" if ram_gb is not None else _local_ollama_version()
+    suggestion = suggest_local_models(probe, free_disk_gb=free_disk_gb, ollama_version=ollama_version)
+    result: dict[str, Any] = {
+        "model_name": suggestion.daily,
+        "download_gb": download_gb(suggestion.daily),
+        "machine_kind": suggestion.machine_kind,
+        "sized_by_gb": round(suggestion.sized_by_gb, 1),
+    }
+    if suggestion.deep:
+        result["bigger"] = {"model_name": suggestion.deep, "download_gb": download_gb(suggestion.deep)}
+    if suggestion.ollama_update_unlocks:
+        result["ollama_update_unlocks"] = suggestion.ollama_update_unlocks
+    return result
 
 
 def is_recommended_tag(model_name: str) -> bool:
-    return str(model_name or "").strip() in {tag for tag, _ram, _gb in RECOMMENDED_LOCAL_MODELS}
+    from core.local_model_suggestions import suggested_tags
+
+    return str(model_name or "").strip() in suggested_tags()
+
+
+def boot_adoptable_tags(*, probe: Any = None) -> tuple[str, ...]:
+    """Suggested tags boot may register and check when no registered model is ready.
+
+    This computer's daily pick first, then every other tag the table can suggest (current and
+    previous generation), smallest download first: boot needs one model that can answer, and a
+    smaller one loads on a busy machine. Only these tags: boot never adopts an arbitrary model.
+    """
+    from core.local_model_suggestions import download_gb, suggested_tags
+
+    try:
+        daily = str(recommended_local_model(probe=probe, free_disk_gb=0.0, ollama_version="").get("model_name") or "")
+    except Exception:
+        daily = ""
+    rest = sorted((tag for tag in suggested_tags() if tag != daily), key=lambda tag: (download_gb(tag), tag))
+    return tuple(([daily] if daily else []) + rest)
 
 
 _PULLS: dict[str, Any] = {}

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Naudoti {model}",
     "settings.local_models.suggest.download": "Atsisiųsti {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Naudoti debesies modelį",
+    "settings.local_models.suggest.newer": "Šiam kompiuteriui tinka naujesnis modelis:",
+    "settings.local_models.suggest.download_bigger": "Atsisiųsti didesnį modelį, {model} ({gb} GB): protingesnis, bet lėtesnis",
+    "settings.local_models.suggest.picked_gpu": "Parinkta šio kompiuterio {gb} GB vaizdo plokštei.",
+    "settings.local_models.suggest.picked_memory": "Parinkta šio kompiuterio {gb} GB atminčiai.",
+    "settings.local_models.suggest.update_ollama": "Atnaujinkite Ollama, kad gautumėte naujesnį {model}.",
     "settings.local_models.download.progress": "Atsisiunčiamas {model}… {percent}%",
     "settings.local_models.download.starting": "Pradedamas {model} atsisiuntimas…",
     "settings.local_models.download.failed": "{model} atsisiuntimas nebaigtas. Patikrinkite interneto ryšį ir ar Ollama atidaryta, tada bandykite dar kartą.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

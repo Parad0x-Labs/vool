@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Використати {model}",
     "settings.local_models.suggest.download": "Завантажити {model} ({gb} ГБ)",
     "settings.local_models.suggest.cloud": "Використати хмарну модель",
+    "settings.local_models.suggest.newer": "Цьому комп’ютеру підходить новіша модель:",
+    "settings.local_models.suggest.download_bigger": "Завантажити більшу модель, {model} ({gb} ГБ): розумніша, але повільніша",
+    "settings.local_models.suggest.picked_gpu": "Підібрано під відеокарту цього комп’ютера на {gb} ГБ.",
+    "settings.local_models.suggest.picked_memory": "Підібрано під {gb} ГБ пам’яті цього комп’ютера.",
+    "settings.local_models.suggest.update_ollama": "Оновіть Ollama, щоб отримати новішу {model}.",
     "settings.local_models.download.progress": "Завантажуємо {model}… {percent}%",
     "settings.local_models.download.starting": "Починаємо завантаження {model}…",
     "settings.local_models.download.failed": "Завантаження {model} не завершилося. Перевірте з’єднання з інтернетом і чи відкрита Ollama, потім спробуйте знову.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Контур світанку",
     "toybox.skin_dawn-circuit_description": "Піксельний сон про місячні брами, хмарні стрічки та виразних маленьких супутників."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "Usar {model}",
     "settings.local_models.suggest.download": "Baixar {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Usar um modelo na nuvem",
+    "settings.local_models.suggest.newer": "Um modelo mais novo cabe neste computador:",
+    "settings.local_models.suggest.download_bigger": "Baixar um modelo maior, {model} ({gb} GB): mais inteligente, mas mais lento",
+    "settings.local_models.suggest.picked_gpu": "Escolhido para a placa de vídeo de {gb} GB deste computador.",
+    "settings.local_models.suggest.picked_memory": "Escolhido para os {gb} GB de memória deste computador.",
+    "settings.local_models.suggest.update_ollama": "Atualize o Ollama para obter o modelo mais novo {model}.",
     "settings.local_models.download.progress": "Baixando {model}… {percent}%",
     "settings.local_models.download.starting": "Iniciando o download de {model}…",
     "settings.local_models.download.failed": "O download de {model} não terminou. Verifique sua conexão com a internet e se o Ollama está aberto, depois tente de novo.",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "Circuito da aurora",
     "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos."
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

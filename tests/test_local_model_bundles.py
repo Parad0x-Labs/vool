@@ -103,9 +103,9 @@ def test_gpu_capability_rejected_falls_back_to_cpu_bundle() -> None:
 def test_detected_nvidia_gpu_gets_vram_sized_ollama_bundle_without_llamacpp_probe() -> None:
     # The Ollama-on-GPU path (the "1080 only got a 4B" regression): a usable GTX 1080 (8GB VRAM,
     # modest 8GB RAM) with NO live llama.cpp probe is still VRAM-sized to bucket B and gets the
-    # Ollama (no_gpu) bundle. Its daily model is qwen2.5:7b, not qwen3:8b: an 8B thinking model
-    # partial-offloads on a 6-10GB GPU (~47s/turn, some failures) where the 7B fits and answers in
-    # ~4s. gpu_capability_used stays False because this is Ollama CUDA offload, not llama.cpp/GGUF.
+    # Ollama (no_gpu) bundle. Its daily model is qwen3.5:4b, not an 8-9B: an 8B partial-offloads
+    # on a 6-10GB GPU (~47s/turn, some failures) where the 4B fits the card whole.
+    # gpu_capability_used stays False because this is Ollama CUDA offload, not llama.cpp/GGUF.
     probe = {"ram_gb": 8.0, "accelerator": "cuda", "vram_gb": 8.0, "accelerator_status": "usable"}
     rec = resolve_local_bundle_recommendation(
         probe=probe, free_disk_gb=300.0, secondary_local_model_name="gemma3:4b",
@@ -114,7 +114,7 @@ def test_detected_nvidia_gpu_gets_vram_sized_ollama_bundle_without_llamacpp_prob
     assert rec.recommended_bundle.bundle_id == "triple_bucket_b_no_gpu"
     assert not rec.gpu_capability_used
     daily = {item.role: item for item in rec.recommended_bundle.role_models}["daily_accelerated"]
-    assert daily.model == "qwen2.5:7b"
+    assert daily.model == "qwen3.5:4b"
     for role_model in rec.recommended_bundle.role_models:
         assert role_model.backend == "ollama"
 

@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "{model} を使う",
     "settings.local_models.suggest.download": "{model} をダウンロード ({gb} GB)",
     "settings.local_models.suggest.cloud": "代わりにクラウドモデルを使う",
+    "settings.local_models.suggest.newer": "このコンピューターに合う新しいモデルがあります:",
+    "settings.local_models.suggest.download_bigger": "大きいモデル {model} ({gb} GB) をダウンロード: 賢いけれど遅め",
+    "settings.local_models.suggest.picked_gpu": "このコンピューターの {gb} GB グラフィックカード向けに選びました。",
+    "settings.local_models.suggest.picked_memory": "このコンピューターの {gb} GB メモリー向けに選びました。",
+    "settings.local_models.suggest.update_ollama": "新しい {model} を使うには Ollama を更新してください。",
     "settings.local_models.download.progress": "{model} をダウンロード中… {percent}%",
     "settings.local_models.download.starting": "{model} のダウンロードを開始しています…",
     "settings.local_models.download.failed": "{model} のダウンロードが完了しませんでした。インターネット接続と Ollama が開いていることを確認して、もう一度お試しください。",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。"
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

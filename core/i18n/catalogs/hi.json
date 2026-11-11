@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "{model} इस्तेमाल करें",
     "settings.local_models.suggest.download": "{model} डाउनलोड करें ({gb} GB)",
     "settings.local_models.suggest.cloud": "इसके बजाय क्लाउड मॉडल इस्तेमाल करें",
+    "settings.local_models.suggest.newer": "इस कंप्यूटर पर एक नया मॉडल चल सकता है:",
+    "settings.local_models.suggest.download_bigger": "बड़ा मॉडल डाउनलोड करें, {model} ({gb} GB): ज़्यादा समझदार, पर धीमा",
+    "settings.local_models.suggest.picked_gpu": "इस कंप्यूटर के {gb} GB ग्राफ़िक्स कार्ड के लिए चुना गया।",
+    "settings.local_models.suggest.picked_memory": "इस कंप्यूटर की {gb} GB मेमोरी के लिए चुना गया।",
+    "settings.local_models.suggest.update_ollama": "नया {model} पाने के लिए Ollama अपडेट करें।",
     "settings.local_models.download.progress": "{model} डाउनलोड हो रहा है… {percent}%",
     "settings.local_models.download.starting": "{model} का डाउनलोड शुरू हो रहा है…",
     "settings.local_models.download.failed": "{model} का डाउनलोड पूरा नहीं हुआ। अपना इंटरनेट कनेक्शन और Ollama खुला है या नहीं, जाँचें, फिर दोबारा कोशिश करें।",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "भोर का परिपथ",
     "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।"
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4149,11 +4149,15 @@ function widgetLocalModels(stack) {
     catch (e) { pull.failed = true; render(); return; }
     setTimeout(pollPull, 800);
   };
-  const ways = (models) => {
+  /* anyReady: a model already answers here, so this block only offers the newer suggested model
+     (a person on last year's model is told a better one fits), not "what you can do instead". */
+  const ways = (models, anyReady) => {
     const wrap = el('div', 'stack');
-    if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
-    const line = el('div', 'inline');
     const rec = data && data.recommended;
+    const recHave = !!(rec && rec.model_name && models.some(x => x.model_name === rec.model_name));
+    if (anyReady) { if (rec && rec.model_name && !recHave) wrap.appendChild(el('div', 'subtle', LM('suggest.newer', 'A newer model fits this computer:'))); }
+    else if (models.length) wrap.appendChild(el('div', 'subtle', LM('suggest.title', 'What you can do instead:')));
+    const line = el('div', 'inline');
     if (pull) {
       wrap.appendChild(el('div', pull.failed ? 'state failed' : 'state loading', pull.failed
         ? LM('download.failed', 'The download of {model} didn’t finish. Check your internet connection and that Ollama is open, then try again.', { model: pull.model })
@@ -4174,10 +4178,29 @@ function widgetLocalModels(stack) {
         line.appendChild(b);
       }
     }
-    const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
-    cloud.addEventListener('click', () => mpOpenRow('model_pin'));
-    line.appendChild(cloud);
+    /* The bigger model is offered only once the daily one is on this computer: one download at a
+       time, the one that answers first. */
+    const big = rec && rec.bigger;
+    if (big && big.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === big.model_name) && (!pull || pull.failed)) {
+      const b = el('button', 'btn', LM('suggest.download_bigger', 'Download a bigger model, {model} ({gb} GB): smarter, but slower', { model: big.model_name, gb: big.download_gb }));
+      b.type = 'button'; b.disabled = !!busy;
+      b.addEventListener('click', () => startPull(big));
+      line.appendChild(b);
+    }
+    if (!anyReady) {
+      const cloud = el('button', 'btn', LM('suggest.cloud', 'Use a cloud model instead')); cloud.type = 'button';
+      cloud.addEventListener('click', () => mpOpenRow('model_pin'));
+      line.appendChild(cloud);
+    }
     wrap.appendChild(line);
+    if (rec && rec.model_name && rec.sized_by_gb) {
+      wrap.appendChild(el('div', 'subtle', rec.machine_kind === 'nvidia'
+        ? LM('suggest.picked_gpu', 'Picked for this computer’s {gb} GB graphics card.', { gb: Math.round(rec.sized_by_gb) })
+        : LM('suggest.picked_memory', 'Picked for this computer’s {gb} GB of memory.', { gb: Math.round(rec.sized_by_gb) })));
+    }
+    if (rec && rec.ollama_update_unlocks) {
+      wrap.appendChild(el('div', 'subtle', LM('suggest.update_ollama', 'Update Ollama to get the newer {model}.', { model: rec.ollama_update_unlocks })));
+    }
     return wrap;
   };
   const render = () => {
@@ -4194,7 +4217,7 @@ function widgetLocalModels(stack) {
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
-      body.appendChild(ways(models));
+      body.appendChild(ways(models, false));
       return;
     }
     for (const m of models) {
@@ -4223,7 +4246,12 @@ function widgetLocalModels(stack) {
       body.appendChild(rowEl);
     }
     const anyReady = models.some(m => m.readiness === 'ready');
-    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models));
+    const rec = data.recommended;
+    const recMissing = !!(rec && rec.model_name && !models.some(x => x.model_name === rec.model_name));
+    /* Once the suggested daily model is on this computer, the bigger-jobs model is the next offer. */
+    const bigMissing = !recMissing && !!(rec && rec.bigger && rec.bigger.model_name && !models.some(x => x.model_name === rec.bigger.model_name));
+    if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models, anyReady && !(outcome && outcome.kind !== 'ready')));
+    else if (anyReady && (recMissing || bigMissing)) body.appendChild(ways(models, true));
     body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
   };
   body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));

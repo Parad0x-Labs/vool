@@ -2871,6 +2871,11 @@
     "settings.local_models.suggest.use": "使用 {model}",
     "settings.local_models.suggest.download": "下载 {model}（{gb} GB）",
     "settings.local_models.suggest.cloud": "改用云端模型",
+    "settings.local_models.suggest.newer": "有更新的模型适合这台电脑:",
+    "settings.local_models.suggest.download_bigger": "下载更大的模型 {model}（{gb} GB）：更聪明，但更慢",
+    "settings.local_models.suggest.picked_gpu": "按这台电脑的 {gb} GB 显卡挑选。",
+    "settings.local_models.suggest.picked_memory": "按这台电脑的 {gb} GB 内存挑选。",
+    "settings.local_models.suggest.update_ollama": "更新 Ollama 即可使用更新的 {model}。",
     "settings.local_models.download.progress": "正在下载 {model}… {percent}%",
     "settings.local_models.download.starting": "正在开始下载 {model}…",
     "settings.local_models.download.failed": "{model} 没有下载完成。请检查网络连接以及 Ollama 是否已打开，然后重试。",
@@ -2952,7 +2957,7 @@
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。"
   },
-  "source_catalog_sha256": "b6b93b134c19af196f7f400a0407eeb4b1e41593b49997a58f7e1f2386e64b5d",
+  "source_catalog_sha256": "b140c72cc39d533ef78c4c077e89bb1adf1bdc63a2ebafedf1d6ace281c10141",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
