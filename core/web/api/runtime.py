@@ -1270,6 +1270,14 @@ def _certified_author_instead_of(model_tag: str) -> str:
         verified = [name for name, state in latest.items() if state == "verified"]
         if not verified or latest.get(str(model_tag or "").strip()) == "verified":
             return ""
+        # Only a model this machine still HAS: certification history outlives a removed model, and
+        # a history row for a model Ollama no longer lists must never become the boot primary.
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        installed = {str(name).strip() for name in installed_ollama_model_names()}
+        verified = [name for name in verified if name in installed]
+        if not verified:
+            return ""
         # The smallest verified author: it is the one most likely to stay resident beside the
         # small helper models (a verified 27B is RAM-gated on a 24 GiB machine whenever it is busy).
         def _size(name: str) -> float:
