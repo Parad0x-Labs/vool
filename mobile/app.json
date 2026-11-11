@@ -51,7 +51,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0d10"
-      }
+      },
+      "allowBackup": false
     },
     "scheme": "vool-pair",
     "icon": "./assets/icon.png",
@@ -78,6 +79,16 @@
       "uk": "./locales/uk.json",
       "vi": "./locales/vi.json",
       "zh-Hans": "./locales/zh-Hans.json"
-    }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
   }
 }
