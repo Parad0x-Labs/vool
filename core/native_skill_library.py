@@ -402,6 +402,76 @@ def is_developer_skill(skill_id: str) -> bool:
     )
 
 
+_DEVELOPER_IDENTITY_CACHE: dict[tuple[Any, ...], tuple[frozenset[str], frozenset[str]]] = {}
+
+
+def _developer_identities() -> tuple[frozenset[str], frozenset[str]]:
+    """(names, body fingerprints) of VOOL's own developer skills, from the native library only.
+
+    Names cover every way one is spelled on disk or in chat: its id, its frontmatter name and
+    its folder (``feature-build``, ``vool-feature-build``). The body fingerprint is the
+    whitespace-normalized text, so a renamed copy is still known by what it says. Cached on
+    the library files' own (name, mtime) list, so an edited library is re-read.
+    """
+    root = native_skills_root()
+    try:
+        key: tuple[Any, ...] | None = (
+            str(root),
+            tuple(sorted((str(p), p.stat().st_mtime_ns) for p in root.glob("*/SKILL.md"))),
+        )
+    except OSError:
+        key = None
+    if key is not None and key in _DEVELOPER_IDENTITY_CACHE:
+        return _DEVELOPER_IDENTITY_CACHE[key]
+    try:
+        contracts = load_native_library(root).contracts
+    except Exception:
+        return frozenset(), frozenset()
+    names: set[str] = set()
+    bodies: set[str] = set()
+    for contract in contracts:
+        if contract.audience != "developer":
+            continue
+        names.update(
+            n.strip().lower()
+            for n in (contract.id, contract.name, Path(contract.path).parent.name if contract.path else "")
+            if n and n.strip()
+        )
+        flattened = " ".join(str(contract.body or "").split())
+        if flattened:
+            bodies.add(flattened)
+    found = (frozenset(names), frozenset(bodies))
+    if key is not None:
+        _DEVELOPER_IDENTITY_CACHE.clear()
+        _DEVELOPER_IDENTITY_CACHE[key] = found
+    return found
+
+
+def is_developer_copy(*, name: str = "", path: str = "", body: str = "", by_folder: bool = True) -> bool:
+    """Whether an INSTALLED (lexical-lane) skill is for developers, wherever it sits.
+
+    The audience mark must hold in every lane, not only the typed one: a copy of a native
+    developer skill installed into ``local-skills`` (measured: "turn on vool-feature-build"
+    copied it there and it then seated workspace write tools on "build a new feature for my
+    recipe list" with the developer setting off) is the same developer skill. Known by its
+    name, its folder, its body, or an ``audience: developer`` mark in its own frontmatter.
+    """
+    names, bodies = _developer_identities()
+    candidates = {str(name or "").strip().lower()} - {""}
+    if path and by_folder:
+        candidates.add(Path(str(path)).parent.name.strip().lower())
+    if candidates & names:
+        return True
+    flattened = " ".join(str(body or "").split())
+    if flattened and flattened in bodies:
+        return True
+    if path:
+        front = _frontmatter_of(Path(str(path)))
+        if str(front.get("audience") or "").strip().lower() == "developer":
+            return True
+    return False
+
+
 def shown_to_people(skill_id: str) -> bool:
     """Whether a person-facing list or a turn may carry this skill."""
     return developer_skills_on() or not is_developer_skill(skill_id)
@@ -504,8 +574,66 @@ def _is_typed_frontmatter(front: dict[str, Any]) -> bool:
     return bool(str(front.get("id") or "").strip())
 
 
+#: Why a typed frontmatter from anywhere else is not a contract. A typed contract is seated by
+#: the turn's task class alone -- with no word from the person -- so it is a standing
+#: instruction in every such turn's system prompt. Only VOOL's own library, the packs VOOL
+#: ships, and Skill Codex packages whose signed admission still verifies may hold one.
+UNTRUSTED_TYPED_SOURCE = (
+    "typed keys ignored: {source} is not VOOL's own library, a pack VOOL ships, or a signed "
+    "Skill Codex package, so this skill is used only as a plain skill when the person's own "
+    "words match it"
+)
+
+
+def typed_source_trusted(plugin_id: str, plugin_dir: Path) -> bool:
+    """Whether a pack may contribute TYPED contracts (auto-seated by task class).
+
+    Two pack sources qualify, decided from where the pack is and what verifies it, never from
+    anything the pack says about itself:
+
+    - a pack VOOL ships (``core.plugin_catalog.bundled_plugin_dirs``: the app's own read-only
+      tree; an installed pack of the same id never displaces it), and
+    - a Skill Codex install (``registry-<id>``) whose lifecycle record is a registry record and
+      whose signed admission still verifies (``core.plugin_lifecycle.is_available`` runs
+      ``core.registry.native.runtime_allowed``: signature, revocation, digest).
+
+    Everything else -- ``local-skills`` (where chat and zip imports land), packs a person built,
+    GitHub/Browse add-ons, chat and project skills -- fails closed.
+    """
+    pid = str(plugin_id or "")
+    try:
+        resolved = Path(plugin_dir).resolve()
+    except OSError:
+        return False
+    try:
+        from core.plugin_catalog import bundled_plugin_dirs
+
+        if any(resolved == Path(b).resolve() for b in bundled_plugin_dirs()):
+            return True
+    except Exception:
+        pass
+    if pid.startswith("registry-"):
+        try:
+            from core.plugin_lifecycle import is_available, record_for
+
+            record = record_for(pid)
+            return (
+                record is not None
+                and str(getattr(record, "source", "") or "").startswith("registry:")
+                and bool(is_available(pid, root=Path(plugin_dir)))
+            )
+        except Exception:
+            return False
+    return False
+
+
 def load_plugin_typed_contracts() -> LibraryLoad:
-    """Typed contracts declared by INSTALLED (enabled) plugins, validated by the same law."""
+    """Typed contracts declared by INSTALLED (enabled) plugins, validated by the same law.
+
+    Only packs ``typed_source_trusted`` accepts contribute contracts. A typed frontmatter in
+    any other pack is reported (so its author can see why it never seats by task class) and its
+    skill stays in the lexical lane, where only the person's own words select it.
+    """
     from core.plugin_skills import parse_skill
 
     try:
@@ -521,6 +649,7 @@ def load_plugin_typed_contracts() -> LibraryLoad:
         if not skills_dir.is_dir():
             continue
         source = f"plugin:{plugin_id}"
+        trusted = typed_source_trusted(plugin_id, plugin_dir)
         for entry in sorted(skills_dir.iterdir()):
             candidate = entry / "SKILL.md" if entry.is_dir() else entry
             if candidate.name != "SKILL.md" or not candidate.is_file():
@@ -536,6 +665,14 @@ def load_plugin_typed_contracts() -> LibraryLoad:
                 source=source,
             )
             violations = contract_violations(contract)
+            if not trusted:
+                errors.append(
+                    SkillContractError(
+                        id=contract.id or "?", path=contract.path,
+                        violations=(UNTRUSTED_TYPED_SOURCE.format(source=source), *violations),
+                    )
+                )
+                continue
             if violations:
                 errors.append(
                     SkillContractError(id=contract.id or "?", path=contract.path, violations=violations)
@@ -630,14 +767,25 @@ def load_mcp_skill_contracts() -> LibraryLoad:
 
 
 def load_skill_contracts() -> LibraryLoad:
-    """EVERY skill this runtime can select: native + plugin-typed + MCP, one validated set."""
+    """EVERY typed skill this runtime can select: native + trusted plugin-typed, one validated
+    set. Untrusted typed sources (other packs, MCP servers) are reported on ``invalid``."""
     native = load_native_library()
     plugin = load_plugin_typed_contracts()
     mcp = load_mcp_skill_contracts()
+    # An MCP server's skill:// text is a third party's, delivered at run time by a process VOOL
+    # does not ship or verify: it is none of the three trusted typed sources, so it is reported
+    # and never selected by task class.
+    mcp_refused = tuple(
+        SkillContractError(
+            id=contract.id or "?", path=contract.path,
+            violations=(UNTRUSTED_TYPED_SOURCE.format(source=contract.source),),
+        )
+        for contract in mcp.contracts
+    )
     seen: set[str] = set()
     contracts: list[SkillContract] = []
     conflicts: list[SkillContractError] = []
-    for contract in (*native.contracts, *plugin.contracts, *mcp.contracts):
+    for contract in (*native.contracts, *plugin.contracts):
         if contract.id in seen:
             # First source wins deterministically (native > plugin > mcp by load order); a
             # duplicate id across sources is reported rather than silently shadowed.
@@ -652,7 +800,7 @@ def load_skill_contracts() -> LibraryLoad:
         contracts.append(contract)
     return LibraryLoad(
         contracts=tuple(contracts),
-        invalid=tuple((*native.invalid, *plugin.invalid, *mcp.invalid, *conflicts)),
+        invalid=tuple((*native.invalid, *plugin.invalid, *mcp.invalid, *mcp_refused, *conflicts)),
     )
 
 
