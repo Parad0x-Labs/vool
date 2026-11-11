@@ -2072,21 +2072,32 @@ _BROWSER_SYNTHESIS_FAILED = (
     "ask again to have it read, or read it there."
 )
 
+#: The same, for a follow-up that only read the page already open in the pane.
+_BROWSER_READ_SYNTHESIS_FAILED = (
+    "I read {url} in the browser, but the model ran out of time before it finished writing the "
+    "answer, so I have no answer from the page yet. The page is still open in the Browser pane: "
+    "ask again to have it read, or read it there."
+)
+
 
 def browser_synthesis_failed_reply() -> str:
     """The reply when this turn's browser steps ran but no answer was written, else ""."""
     try:
-        from core.vool_browser.live_requests import completed
+        from core.vool_browser.live_requests import completed, page_read
     except ImportError:
         return ""
     pages = [step.get("url") for step in completed() if step.get("url")]
-    return _BROWSER_SYNTHESIS_FAILED.format(url=pages[-1]) if pages else ""
+    if pages:
+        return _BROWSER_SYNTHESIS_FAILED.format(url=pages[-1])
+    read = page_read()
+    return _BROWSER_READ_SYNTHESIS_FAILED.format(url=read) if read else ""
 
 
 def _step_reply_pattern() -> "re.Pattern[str]":
     import re as _re
 
-    shapes = [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK, _BROWSER_SYNTHESIS_FAILED]
+    shapes = [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK, _BROWSER_SYNTHESIS_FAILED,
+              _BROWSER_READ_SYNTHESIS_FAILED]
     return _re.compile("|".join("(?:" + _re.escape(t).replace(_re.escape("{url}"), r"\S{1,4096}") + ")" for t in shapes))
 
 
