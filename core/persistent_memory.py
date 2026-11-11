@@ -786,6 +786,11 @@ def _memory_recall_response(
 ) -> str:
     lowered = " ".join(str(query or "").casefold().split())
     if any(marker in lowered for marker in _OTHER_CHAT_MEMORY_MARKERS):
+        if access_policy.allow_user_profile_context:
+            # The owner's own chat: their other chats are the cross-chat recall lane's to search
+            # (core.agent_runtime.cross_chat_recall). "I don't have access to memory from another
+            # chat" is false there; it stays the answer only where cross-chat reading is not allowed.
+            return _NO_ACTIVE_REMEMBERED_VALUE
         return (
             "I can only access active memory from this chat; I don't have access to memory from another chat."
         )
@@ -863,6 +868,17 @@ def _memory_recall_response(
                 access_policy=access_policy,
                 limit=4,
             )
+            # The best-matching rows only: measured 2026-11-11 on the installed build, "do you
+            # remember my test hotel booking code?" answered the bike lock code beside the hotel
+            # code, because both share "test" and "code". A row that matches fewer of the
+            # question's words than the best one answers a different question.
+            if len(rows) > 1:
+                from core.chat_housekeeping import query_terms as _terms
+
+                wanted = set(_terms(query))
+                overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
+                best_overlap = max(overlaps)
+                rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == best_overlap]
     values: list[str] = []
     for row in rows:
         value = _memory_recall_value(str(row.get("text") or ""))
@@ -885,8 +901,8 @@ def _memory_recall_response(
             f"- {value}" for value in values[:8]
         )
     if len(values) == 1:
-        return f"Active remembered value: {values[0]}."
-    return "Active remembered values: " + "; ".join(values[:4]) + "."
+        return f"From what you asked me to remember: {values[0]}."
+    return "From what you asked me to remember: " + "; ".join(values[:4]) + "."
 
 
 def _correction_values(body: str) -> list[str]:

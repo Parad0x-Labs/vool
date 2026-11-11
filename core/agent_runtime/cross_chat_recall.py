@@ -39,7 +39,13 @@ _QUESTION_HEAD_RE = re.compile(
 )
 _MEMORY_COMMAND_RE = re.compile(
     r"\b(?:memor(?:y|ies)|forg[eo]t|this\s+(?:chat|conversation|thread)|earlier|"
-    r"you\s+know\s+about\s+me|about\s+me)\b",
+    r"you\s+know\s+about\s+me|about\s+me|mention(?:ed)?|said|say|told|tell\s+you|asked|wrote|"
+    r"she|he|her|him|they|them|it|that|those|these)\b",
+    re.IGNORECASE,
+)
+_OTHER_CHAT_RE = re.compile(
+    r"\b(?:in|from)\s+(?:a|an|another|other|the\s+other|a\s+different|a\s+previous|my\s+other|an\s+old|a\s+past)\s+"
+    r"(?:chats?|conversations?|threads?)\b|\b(?:other|another|previous|past|different)\s+(?:chats?|conversations?)\b",
     re.IGNORECASE,
 )
 _REMEMBER_LEAD_RE = re.compile(r"^\s*(?:please\s+)?(?:remember|note|keep\s+in\s+mind)(?:\s+that)?\s*[:,]?\s*", re.IGNORECASE)
@@ -177,13 +183,37 @@ def _memory_rows(
 
 
 def _not_forgotten(text: str) -> bool:
-    try:
-        from core.memory.revocation import authorize_payload
+    """Whether a statement from another chat may be quoted: no forgotten words, no erased fact.
 
-        return bool(authorize_payload(text, chat_id=None))
+    Three checks, all fail-closed: (1) no word the owner told VOOL to forget, in ANY chat, occurs in
+    it (exact carriers); (2) the fact it states was not erased from memory -- a forgotten saved fact
+    must not come back from the chat where it was first said; (3) a subject the owner withdrew
+    ("forget the hotel booking code") names this statement's subject. The withdrawal grammar's own
+    matcher is chat-local by design and read too broadly here: measured on the installed build,
+    "Forget the test code word" withheld "my test parking spot at work is P-17", which shares only
+    the word "test" -- so the subject check here requires every content word of the withdrawn
+    subject to occur in the statement."""
+    try:
+        from core.chat_housekeeping import query_terms
+        from core.memory.carriers import carries, memory_words
+        from core.memory.entries import _text_is_erased
+        from core.memory.revocation import revoked_tokens
+
+        tokens = revoked_tokens(None)
+        words = memory_words(text)
+        if any(carries(words, token) for token in tokens):
+            return False
+        fact = _REMEMBER_LEAD_RE.sub("", " ".join(str(text or "").split())).strip()
+        if _text_is_erased(fact) or _text_is_erased(fact.rstrip(".") + ".") or _text_is_erased(fact.rstrip(".")):
+            return False
+        stated = set(query_terms(fact))
+        for token in tokens:
+            subject = {t for t in query_terms(token) if t not in {"the", "my", "a", "an"}}
+            if subject and subject <= stated:
+                return False
+        return True
     except Exception:
         return False
-
 
 def _when(ts: str) -> str:
     try:
@@ -258,7 +288,10 @@ def cross_chat_recall(
     # Questions ABOUT memory or this chat ("what do you remember about me?", "what did I say in
     # this chat?") belong to the memory-command and transcript lanes, which answer inventories
     # and same-chat recall exactly.
-    if _MEMORY_COMMAND_RE.search(text):
+    names_other_chat = bool(_OTHER_CHAT_RE.search(text))
+    if _MEMORY_COMMAND_RE.search(_OTHER_CHAT_RE.sub(" ", text)) and not (
+        names_other_chat and not re.search(r"\b(?:memor(?:y|ies)|forg[eo]t)\b", text, re.IGNORECASE)
+    ):
         return None
     try:
         from core.agent_runtime.turn_planner import recall_question_needs_no_planner
