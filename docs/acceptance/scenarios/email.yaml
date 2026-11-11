@@ -1,0 +1,101 @@
+lane: email
+# Email scenarios need a connected test mailbox in the throwaway profile (--have email_account).
+# The answers depend on that mailbox, so "right" checks the shape and a reviewer checks the facts
+# against the mailbox. Sends are always denied unless allow_send, and never on the real profile.
+scenarios:
+  - id: MAIL-UNREAD-01
+    title: Unread count, then "where are they from"
+    from_bug: "sls 2026-11-10: 'how many unread' got 'I can't publish this answer' after 6 minutes; 'where are they from?' got 'origin of the emails or something else?'"
+    needs: [email_account]
+    steps:
+      - chat: A
+        say:
+          - "how many unread emails do i have"
+          - "how many unread"
+          - "any unread mail?"
+          - "do i have new emails"
+        approve: once
+        expect:
+          any: ['(?i)\b\d+\b[^.]{0,40}unread|unread[^.]{0,40}\b\d+\b|no unread|(nothing|none) unread']
+          none: ["(?i)can'?t publish|cannot access|don'?t have access|no access to your"]
+          max_seconds: 120
+          review: "the number matches the mailbox"
+      - chat: A
+        say:
+          - "where are they from?"
+          - "who sent them"
+          - "and from who"
+        approve: once
+        expect:
+          any: ['(?i)@|\bfrom\b']
+          none: ['(?i)origin of the emails|or something else\?']
+          review: "lists the sender of each unread email"
+
+  - id: MAIL-SENDER-01
+    title: Last N emails from a sender, with a summary
+    from_bug: "sls 2026-11-10: 'find me 5 last emails from kucoin and give summary' got 'I cannot access your email inbox' after 8 minutes"
+    needs: [email_account]
+    vars: { n: "pick:3|5" }
+    steps:
+      - chat: A
+        say:
+          - "find me ${n} last emails from kucoin and give summary"
+          - "last ${n} kucoin emails, summarize pls"
+          - "what did kucoin email me about lately"
+        approve: once
+        expect:
+          any: ['(?i)kucoin']
+          none: ["(?i)cannot access|can'?t access|exchange or (a )?person"]
+          max_seconds: 180
+          review: "lists the right KuCoin emails, newest first, with a short summary"
+
+  - id: MAIL-NOTFOUND-01
+    title: A sender with no mail gets a plain "no emails from X"
+    needs: [email_account]
+    vars: { who: "pick:Zebrafin Holdings|Quillmont Studio|Brightwater Llama Club" }
+    steps:
+      - chat: A
+        say:
+          - "any emails from ${who}?"
+          - "did ${who} email me"
+          - "show emails from ${who} pls"
+        approve: once
+        expect:
+          any: ["(?i)(no|didn'?t find any|couldn'?t find any|not find any|haven'?t (got|received)) (emails?|messages?|mail)|nothing from"]
+          none: ['(?i)provided context']
+
+  - id: MAIL-REPLY-01
+    title: A reply goes only to a real address from the mailbox, and the send card shows To, Subject and text
+    from_bug: "PA thread 2026-11-10: a reply was drafted to an invented address; the approval card did not show the recipient"
+    needs: [email_account]
+    steps:
+      - chat: A
+        say: "show my latest email"
+        approve: once
+        grade: false
+      - chat: A
+        say:
+          - "reply to it saying thanks, I'll get back to you tomorrow"
+          - "answer that one: thx, will reply tmrw"
+          - "send a short reply saying thanks and that i'll answer tomorrow"
+        approve: deny
+        expect:
+          any: ['(?i)\bto\b|draft|reply']
+          none: ['(?i)example\.com|@domain\.']
+          review: "the draft is addressed to the sender of the latest email; the approval card (denied) showed To, Subject and the text; nothing was sent"
+
+  - id: MAIL-NOACCOUNT-01
+    title: With no mailbox connected, VOOL says how to connect one, in plain words
+    profile: any
+    min_phrasings: 3
+    steps:
+      - chat: A
+        say:
+          - "check my email"
+          - "any new mail"
+          - "read my inbox pls"
+        approve: deny
+        expect:
+          any: ['(?i)connect|set ?up|settings|add (an|your) (email|account|mailbox)|unread|inbox|email']
+          none: ["(?i)can'?t publish"]
+          review: "on a profile with no mailbox: plain steps to connect one. On a profile with one: it reads the mail"

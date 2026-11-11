@@ -15,6 +15,9 @@ path to a merged PR.
 
 A change is done when:
 
+- For anything a person can see or use: the lanes it touches pass the
+  [acceptance standard](docs/acceptance/STANDARD.md) on the real app's chat page, with the
+  run's pass table linked as evidence.
 - The owning contract is fixed, not the symptom (trace the failure to the module that
   owns the behavior; read it before editing).
 - The reported failure, a distinct valid case and the relevant refusal or boundary cases

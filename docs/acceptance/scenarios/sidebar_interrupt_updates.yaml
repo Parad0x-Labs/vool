@@ -1,0 +1,104 @@
+lane: sidebar_interrupt_updates
+scenarios:
+  - id: SIDE-TITLE-01
+    title: A chat gets a real title after its first message and keeps it after a reload
+    profile: any
+    vars: { topic: "pick:sourdough starter|tomato seedlings|bike chain|houseplant watering" }
+    steps:
+      - chat: A
+        say:
+          - "how do I look after a ${topic}?"
+          - "tips for ${topic} pls"
+          - "${topic} help"
+        expect:
+          any: ['\w{3,}']
+          ui:
+            - selector: "#sessions .session.active .s-title"
+              text_none: ['^\s*(New chat|\(new chat\))\s*$']
+      - chat: A
+        action: reload
+        expect:
+          ui:
+            - selector: "#sessions .session.active .s-title"
+              text_none: ['^\s*(New chat|\(new chat\))\s*$']
+            - selector: "#log .msg.user"
+              count_min: 1
+
+  - id: SIDE-PROJECT-01
+    title: A chat started in a project shows under that project
+    vars: { name: "pick:Garden|Kitchen redo|Trip plans" }
+    steps:
+      - chat: A
+        project: "${name}"
+        say:
+          - "list 3 first steps for this project"
+          - "where do i start"
+          - "first steps?"
+        expect:
+          any: ['\w{3,}']
+          ui:
+            - selector: ".proj-head .proj-name"
+              text_any: ['${name}']
+
+  - id: STOP-01
+    title: Stop keeps the question, says it stopped, and the chat keeps its title after a reload
+    from_bug: "row-icons thread 2026-11-10: a reply cut off came back as 'New chat' with no question and no sign it was stopped"
+    profile: any
+    steps:
+      - chat: A
+        say:
+          - "write a long story about a lighthouse keeper, at least 800 words"
+          - "tell me a really long story about a lighthouse keeper"
+          - "long story pls: lighthouse keeper, 800+ words"
+        stop_after: 6
+        expect:
+          ui:
+            - selector: "#log .msg.user"
+              count_min: 1
+              text_any: ['(?i)lighthouse']
+      - chat: A
+        action: reload
+        expect:
+          ui:
+            - selector: "#log .msg.user"
+              text_any: ['(?i)lighthouse']
+            - selector: "#log .msg.assistant"
+              text_any: ['(?i)stopped|interrupted|lighthouse']
+            - selector: "#sessions .session.active .s-title"
+              text_none: ['^\s*(New chat|\(new chat\))\s*$']
+
+  - id: INTERRUPT-01
+    title: VOOL restarting mid-reply keeps the title and question and offers a retry
+    from_bug: "row-icons thread 2026-11-10: daemon stop 10s into a reply left the chat named 'New chat' with nothing showing it was cut off"
+    steps:
+      - chat: A
+        say:
+          - "explain how tides work, in detail, at least 600 words"
+          - "how do tides work? long answer pls"
+          - "detailed explanation of tides"
+        restart_after: 10
+        expect:
+          ui:
+            - selector: "#log .msg.user"
+              text_any: ['(?i)tide']
+            - selector: "#sessions .session.active .s-title"
+              text_none: ['^\s*(New chat|\(new chat\))\s*$']
+            - selector: "#log"
+              text_any: ['(?i)interrupted|stopped|cut off|retry|try again|tide']
+          review: "the cut-off reply is marked as interrupted and there is a way to retry it"
+
+  - id: UPD-VERSION-01
+    title: Asking about the version or updates gets a plain answer
+    profile: any
+    steps:
+      - chat: A
+        say:
+          - "what version of VOOL am I on?"
+          - "am i on the latest version"
+          - "is there an update?"
+        expect:
+          any: ['(?i)\d+\.\d+\.\d+|up to date|latest|update (is )?available|check(s)? (for updates )?(are )?off']
+          none: ['(?i)provided context|\+macos\+|\b[0-9a-f]{12}\b']
+          ui:
+            - selector: "#updateCtrl"
+              count_min: 1

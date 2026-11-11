@@ -16,7 +16,8 @@ Instructions for any automated agent or contributor working in this repository. 
    Repairs go in an isolated copy that carries the complete candidate bytes.
 7. Fix the owning cause. Never suppress a symptom, weaken a protection or change an
    expectation only to get green.
-8. Prove the actual user workflow, not only a helper.
+8. Prove the actual user workflow, not only a helper: a user-facing change is accepted only by
+   the [acceptance standard](docs/acceptance/STANDARD.md), on the real app's chat page.
 9. Regression is cumulative: validate each step together with earlier affected behavior and
    finish with the combined end-to-end flow.
 10. No tests for tests' sake: every check resolves a concrete uncertainty or protects

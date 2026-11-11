@@ -1,0 +1,57 @@
+lane: chat_context
+scenarios:
+  - id: CTX-DATE-01
+    title: A follow-up date question uses the dates from this chat, not today
+    from_bug: "PA thread 2026-11-10: 'What date do I fly back?' was answered with today's date; '14 March + 5 nights' got a weak answer"
+    profile: any
+    vars: { day: "pick:14|9|21|3", month: "pick:March|April|June|October", nights: "pick:5|4|6" }
+    steps:
+      - chat: A
+        say: "I fly out on ${day} ${month} and I'm staying ${nights} nights."
+        grade: false
+      - chat: A
+        say:
+          - "What date do I fly back?"
+          - "so when do i fly back"
+          - "return date?"
+          - "whats the date i come home"
+        expect:
+          any: ['(?i)\d{1,2}(st|nd|rd|th)? (of )?(january|february|march|april|may|june|july|august|september|october|november|december)|(january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}']
+          review: "the date is the fly-out date plus the number of nights, in the same month or the next"
+          max_seconds: 120
+
+  - id: CTX-FOLLOW-01
+    title: Short follow-ups keep the topic
+    profile: any
+    vars: { city: "pick:Rome|Vilnius|Porto|Ghent" }
+    steps:
+      - chat: A
+        say: "give me 3 things to do in ${city} on a rainy day"
+        expect:
+          any: ['(?i)${city}|museum|gallery|cafe|market|church|cathedral|indoor']
+      - chat: A
+        say:
+          - "and for kids?"
+          - "what about with kids"
+          - "ok now same but for children"
+        expect:
+          any: ['(?i)kid|child|family|children']
+          none: ['(?i)which city|what city|where are you']
+
+  - id: CTX-CORRECT-01
+    title: A correction in the next message is used
+    profile: any
+    vars: { a: "pick:12|15|18", b: "pick:4|6|8" }
+    steps:
+      - chat: A
+        say: "split a ${a}0 euro dinner bill between ${b} people"
+        expect:
+          any: ['\d']
+      - chat: A
+        say:
+          - "sorry, one more person joined"
+          - "actually add one more person"
+          - "wait we are one more"
+        expect:
+          any: ['\d']
+          review: "the split uses one more person than before, and the arithmetic is right"
