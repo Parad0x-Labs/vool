@@ -144,6 +144,15 @@ def acknowledge_backup(wallet_id: str, *, ack_token: str, source_context: dict[s
     return _view(_require(row["wallet_id"], source_context=source_context))
 
 
+def confirm_backup_saved(wallet_id: str, *, credential: str = "", source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The owner closed the one-time backup without confirming and confirms it later: their own wallet's credential is
+    proven, then the wallet becomes ready. The backup is not shown again."""
+    row = _require(wallet_id, source_context=source_context)
+    custody.prove_owner(row["wallet_id"], credential=credential, purpose="confirm an agent wallet's backup key was saved", source_context=source_context)
+    pilot_custody.acknowledge_pilot_backup(row["wallet_id"], credential=_derive(row["creation_key"]), source_context=source_context)
+    return _view(_require(row["wallet_id"], source_context=source_context))
+
+
 def signing_credential(wallet_id: str, *, source_context: dict[str, Any] | None = None) -> str:
     """Package-private: the machine credential of a READY agent wallet, for ``core.wallet.agent_pay`` alone and only
     after the agent's allowance held the payment. Never returned to a caller outside this package, logged or stored."""
@@ -177,4 +186,4 @@ def list_agent_wallets() -> list[dict[str, Any]]:
     return [_view(row) for row in map(_row, ids) if row]
 
 
-__all__ = ["acknowledge_backup", "agent_wallet", "create_agent_wallet", "list_agent_wallets", "reveal_backup", "wallet_for"]
+__all__ = ["acknowledge_backup", "agent_wallet", "confirm_backup_saved", "create_agent_wallet", "list_agent_wallets", "reveal_backup", "wallet_for"]

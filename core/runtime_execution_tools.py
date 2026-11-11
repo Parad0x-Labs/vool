@@ -2957,7 +2957,14 @@ def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecution
         text = f"The resource answered {ridden.get('http_status')} and asked for no payment." + (f" It returned:\n{body}" if body else "")
         return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={"resource_body": body, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status)})
     proposal = proposals.get_proposal(proposal_id)
-    amount = f"{proposal.amount_minor} {proposal.asset} (minor units)" if proposal is not None else "the amount"
+    amount = "the amount"
+    if proposal is not None:
+        try:
+            from core.wallet import amounts, chains
+
+            amount = f"{amounts.format_minor(int(proposal.amount_minor), int(chains.asset_for(proposal.network, proposal.asset).decimals))} {proposal.asset}"
+        except Exception:
+            amount = "the amount"
     reason = agent_pay.explain(str(payment.get("reason") or ""))
     decision = str(payment.get("decision") or "")
     if decision == agent_allowances.DECISION_PAY and payment.get("paid"):

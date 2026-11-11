@@ -511,6 +511,16 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     del material
 
 
+def shown_approval_method(wallet_id: str) -> str:
+    """The approval method a surface asks the owner for on this wallet. An agent's wallet (or "") answers with the
+    owner's own proof wallet's method: its own credential is this machine's and is never typed by anyone."""
+    if wallet_id and not agent_of(wallet_id):
+        profile = get_wallet(wallet_id)
+        return str(getattr(profile, "approval_method", "") or APPROVAL_PIN)
+    owner = owner_proof_wallet()
+    return str(getattr(owner, "approval_method", "") or APPROVAL_PIN)
+
+
 def agent_of(wallet_id: str) -> str:
     """The agent this wallet belongs to, "" for the owner's own wallets (``core.wallet.agent_wallets``)."""
     with connection() as conn:
@@ -699,9 +709,10 @@ def require_wallet(wallet_id: str, *, source_context: dict[str, Any] | None = No
 
 def default_wallet() -> WalletProfile | None:
     with connection() as conn:
-        row = conn.execute(_SELECT + " WHERE is_default = 1 ORDER BY created_at DESC LIMIT 1").fetchone()
+        # an agent's own wallet is never the owner's default: nothing the owner starts without naming a wallet lands on it
+        row = conn.execute(_SELECT + " WHERE is_default = 1 AND COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
         if row is None:
-            row = conn.execute(_SELECT + " ORDER BY created_at DESC LIMIT 1").fetchone()
+            row = conn.execute(_SELECT + " WHERE COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
     return _row_to_profile(row) if row else None
 
 
@@ -709,13 +720,18 @@ def list_wallets() -> list[dict[str, Any]]:
     """Every registered account with its setup state and seal policy: a Crypto Pilot wallet in setup is listed, never hidden."""
     with connection() as conn:
         rows = conn.execute(
-            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy FROM wallet_profiles ORDER BY created_at ASC"
+            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy, agent_id FROM wallet_profiles ORDER BY created_at ASC"
         ).fetchall()
+    owner_method = shown_approval_method("")
     listed = []
     for row in rows:
         entry = _row_to_profile(row[:7]).to_dict()
         entry["setup_state"] = str(row[7] or "")
         entry["seal_policy"] = str(row[8] or "")
+        entry["agent_id"] = str(row[9] or "")
+        if entry["agent_id"]:
+            # the credential the owner is asked for on an agent's wallet is their own wallet's, never the machine's
+            entry["approval_method"] = owner_method
         listed.append(entry)
     return listed
 

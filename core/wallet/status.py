@@ -216,6 +216,8 @@ def wallet_status() -> dict[str, Any]:
                 "setup_state": str(entry.get("setup_state") or "") or "ready", "seal_policy": str(entry.get("seal_policy") or ""),
                 # tokens (USDT) go out only from a Crypto Pilot account (proposals._require_token_lane)
                 "can_send_tokens": str(entry.get("seal_policy") or "") == custody.PILOT_SEAL_POLICY,
+                # an agent's own wallet (Settings, Crypto, Agent spending): never offered as one of the owner's accounts
+                "agent_id": str(entry.get("agent_id") or ""),
             })
         status["declared_networks"] = [spec.network for spec in chains.all_networks()]
     except Exception:

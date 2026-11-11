@@ -385,7 +385,7 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         "estimated_after_minor": balance - amount - fee_estimate,
         "minimum_after_minor": balance - amount - fee_max,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
-        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        "approval_method": custody.shown_approval_method(profile.wallet_id),
         **_approval_block(profile),
         **_recipient_fields(recipient),
     }
@@ -535,7 +535,7 @@ def _mint_authorization_quote(spec: chains.ChainIdentity, proposal: Any, profile
         "fee_estimate_minor": 0, "fee_max_minor": 0, "fee_parts": {}, "cues": cues,
         "max_total_minor": amount, "estimated_after_minor": balance - amount, "minimum_after_minor": spendable - amount,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
-        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        "approval_method": custody.shown_approval_method(profile.wallet_id),
         **_approval_block(profile),
         "x402sdk": sdk,
     }
@@ -653,7 +653,7 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "estimated_after_minor": principal_balance - amount, "minimum_after_minor": principal_balance - held_token - amount,
         "fee_balance_after_minimum_minor": fee_balance - held_native - fee_minor,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
-        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        "approval_method": custody.shown_approval_method(profile.wallet_id),
         **_approval_block(profile),
     }
     if owner_route:
@@ -741,7 +741,7 @@ def _mint_evm_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: An
         "estimated_after_minor": principal_balance - amount, "minimum_after_minor": principal_balance - held_token - amount,
         "fee_balance_after_minimum_minor": fee_balance - held_native - fee_max,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
-        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        "approval_method": custody.shown_approval_method(profile.wallet_id),
         **_approval_block(profile),
         **_recipient_fields(recipient),
     }
