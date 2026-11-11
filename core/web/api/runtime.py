@@ -582,6 +582,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     )
     from core.provider_http import urlopen
 
+    # A model is several files (weights, a vision projector, small metadata), each reported with its
+    # own digest and its own completed/total. The percent is over every file seen so far and never
+    # goes back, so the person does not watch "78%, 51%, 94%" as Ollama moves from file to file.
+    layers: dict[str, tuple[float, float]] = {}
+    shown = 0
     with urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
@@ -600,7 +605,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
             completed = event.get("completed")
             percent = None
             if isinstance(total, (int, float)) and isinstance(completed, (int, float)) and total > 0:
-                percent = int(completed / total * 100)
+                layers[str(event.get("digest") or "")] = (float(completed), float(total))
+                done = sum(item[0] for item in layers.values())
+                size = sum(item[1] for item in layers.values())
+                shown = max(shown, int(done / size * 100))
+                percent = shown
             progress.update(status="pulling", percent=percent, detail=str(event.get("status") or ""))
 
 
