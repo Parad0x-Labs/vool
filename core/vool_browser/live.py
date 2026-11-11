@@ -243,6 +243,10 @@ def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
 
     if runtime_origin_refusal(url):
         raise BrowserFault("destination_refused")
+    from core import private_web
+
+    if private_web.resolved_at_far_end(parts.hostname):
+        return ()
     answers = tuple(sorted({r[4][0] for r in socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM)}))
     fixture = bool(fixture_origin) and f"{parts.scheme}://{parts.netloc}" == fixture_origin
     if not answers or (any(not ipaddress.ip_address(a).is_global or ipaddress.ip_address(a).is_multicast for a in answers) and not fixture):

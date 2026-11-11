@@ -64,7 +64,48 @@ def urlopen(request, *, timeout):
     if is_loopback_url(url):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _RefuseLoopbackRedirect())
         return opener.open(request, timeout=timeout)
+    route = _private_route()
+    if route is not None:
+        if route.uses_socks:
+            from core import private_web
+
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), *private_web.socks_http_handlers(route, isolation="vool")
+            )
+            return opener.open(request, timeout=timeout)
     return urllib.request.urlopen(request, timeout=timeout)
+
+
+class PrivateWebUnavailable(_requests.exceptions.ConnectionError):
+    """Private web is on and its route is down: the call was not made. The message is plain."""
+
+
+def _private_route():
+    """The Private web route in force, or None when it is off. Raises when it is on but down."""
+    try:
+        from core import private_web
+    except ImportError:  # the worker process, which has no package path
+        return None
+    route = private_web.current_route()
+    if not route.active:
+        return None
+    problem = private_web.route_problem(route)
+    if problem:
+        raise PrivateWebUnavailable(problem)
+    return route
+
+
+def _route_for_worker(url):
+    """What the worker must do with the route: nothing for loopback or Private web off."""
+    if is_loopback_url(url):
+        return None
+    route = _private_route()
+    if route is None:
+        return None
+    if route.uses_socks:
+        return {"kind": route.kind, "socks_port": int(route.socks_port)}
+    # A checked system VPN: traffic leaves directly through the person's VPN.
+    return None
 
 
 class _Transfer:
@@ -79,8 +120,10 @@ class _Transfer:
         self.expired = threading.Event()
         self.lock = threading.Lock()
         self.frames = queue.Queue(maxsize=8)
+        # Decided BEFORE a worker exists: a route that is down refuses here, with nothing spawned.
+        route = _route_for_worker(url)
         wire = json.dumps({"method": method, "url": url, "options": options,
-                           "deadline": self.deadline}).encode()
+                           "deadline": self.deadline, "private_route": route}).encode()
         env = dict(os.environ)
         for name in ("PYTHONPATH", "PYTHONSTARTUP", "PYTHONINSPECT"):
             env.pop(name, None)
@@ -283,10 +326,17 @@ def _worker():
         if isinstance(options.get("timeout"), list):
             options["timeout"] = tuple(options["timeout"])
         loopback = is_loopback_url(invocation["url"])
+        private_route = invocation.get("private_route")
+        if private_route:
+            _worker_use_private_route(private_route)
         return_redirect = options.get("allow_redirects") is False
         # Each transfer owns its session. A local invocation never changes the
         # proxy/redirect behavior of a later explicitly authorized cloud call.
         with _KeySafeSession() as session:
+            if loopback or private_route:
+                session.trust_env = False
+            if private_route:
+                options.pop("proxies", None)
             if loopback:
                 session.trust_env = False
                 options.pop("proxies", None)
@@ -304,6 +354,42 @@ def _worker():
     finally:
         if timer is not None:
             timer.cancel()
+
+
+def _worker_use_private_route(spec):
+    """Inside the worker: every socket goes through the route's SOCKS port, by name, and the
+    egress guard stops anything that would leave directly. The worker has no package path, so
+    the route module is loaded from its file next to this one."""
+    import importlib.util
+
+    import urllib3.util.connection as urllib3_connection
+
+    module_path = Path(__file__).resolve().with_name("private_web.py")
+    loader_spec = importlib.util.spec_from_file_location("vool_private_web_worker", module_path)
+    private_web = importlib.util.module_from_spec(loader_spec)
+    sys.modules["vool_private_web_worker"] = private_web
+    loader_spec.loader.exec_module(private_web)
+    route = private_web.RouteState(kind=str(spec["kind"]), socks_port=int(spec["socks_port"]))
+    if not route.uses_socks or not route.socks_port:
+        raise exceptions.ConnectionError("private route is not usable")
+    private_web.set_route_for_process(route)
+    private_web.install_egress_guard(refresh_state=False)
+
+    import socket as _socket
+
+    from urllib3.util.timeout import _DEFAULT_TIMEOUT
+
+    def create_connection(address, timeout=_DEFAULT_TIMEOUT, source_address=None, socket_options=None):
+        host, port = address
+        if timeout is _DEFAULT_TIMEOUT:
+            timeout = _socket._GLOBAL_DEFAULT_TIMEOUT
+        sock = private_web.socks5_connect(route.endpoint, str(host), int(port), timeout=timeout, isolation="vool")
+        for option in socket_options or ():
+            with suppress(OSError):
+                sock.setsockopt(*option)
+        return sock
+
+    urllib3_connection.create_connection = create_connection
 
 
 if __name__ == "__main__" and sys.argv[1:] == ["--worker"]:

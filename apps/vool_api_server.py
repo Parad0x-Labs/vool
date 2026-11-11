@@ -614,6 +614,12 @@ def main() -> int:
     # the moment SIGSEGV/SIGBUS/SIGABRT/SIGFPE/SIGILL lands, so a native fault names its
     # frames instead of vanishing. Verified arming -- never assumed.
     _arm_fatal_signal_diagnostics()
+    # Private web: installed before anything here can open a socket, so while the person has
+    # Tor or their VPN on, nothing in this process reaches the internet any other way. Does
+    # nothing while the setting is off.
+    from core.private_web import install_egress_guard
+
+    install_egress_guard()
     # C15: the ONE bounded unattended preflight, before any bootstrap can reach an OS
     # credential API. A scratch/synthetic home gets non-interactive storage pinned; the
     # operator's established home is recorded, never rewritten.

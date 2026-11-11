@@ -378,6 +378,11 @@ def _chrome_render_unchecked(
     selected = binary or find_browser_binary()
     if not selected:
         return {"status": "missing_dependency", "final_url": url}
+    from core import private_web
+
+    route = private_web.browser_route()
+    if route.problem:
+        return {"status": "private_web_down", "final_url": url, "detail": route.problem}
 
     timeout_s = max(5.0, float(timeout_ms) / 1000.0)
     virtual_time_ms = min(_DEFAULT_VIRTUAL_TIME_MS, max(1_000, int(timeout_s * 1000) - _LAUNCH_RESERVE_MS))
@@ -389,6 +394,10 @@ def _chrome_render_unchecked(
         screenshot_path=screenshot_path,
     )
 
+    if route.flags:
+        # Ahead of "--dump-dom <url>": Chrome reads switches only before the first plain argument.
+        at = argv.index("--dump-dom")
+        argv[at:at] = list(route.flags)
     try:
         returncode, raw, stderr_raw = _run_chrome(argv, timeout_s=timeout_s)
     except subprocess.TimeoutExpired:
@@ -505,8 +514,22 @@ def browser_render(
         )
 
     selected_engine = engine or os.getenv("BROWSER_ENGINE") or policy_engine.browser_engine()
+    from core import private_web
+
+    route = private_web.browser_route()
+    if route.problem:
+        return {"status": "private_web_down", "final_url": url, "detail": route.problem}
+    launch_options: dict[str, Any] = {"headless": True}
+    if route.playwright_proxy is not None:
+        if selected_engine != "chromium":
+            # Only the Chromium flags that stop DNS leaks are known here; another engine would
+            # be launched without them, so it is not launched.
+            return {"status": "private_web_down", "final_url": url,
+                    "detail": "Private web can only use the Chromium browser engine."}
+        launch_options["proxy"] = route.playwright_proxy
+        launch_options["args"] = list(route.flags)
     with sync_playwright() as playwright:
-        browser = getattr(playwright, selected_engine).launch(headless=True)
+        browser = getattr(playwright, selected_engine).launch(**launch_options)
         page = browser.new_page()
         page.set_default_timeout(timeout_ms)
         page.goto(url, wait_until="domcontentloaded")
