@@ -253,17 +253,38 @@ default is all of VOOL). VOOL replies that the zip `holds the skill aisle-sorter
 of VOOL`, shows the instructions, and says it is not on yet. In Manual mode the import first
 shows a **Permission needed** bar: click **Allow once**.
 
-### Route B: folder install with `skill.install`
+### Route B: folder install with `stage` and `skill.install`
+
+`skill.install` reads only VOOL's own skill folders. A full path to a folder of yours is refused
+(`not_allowed`), so a model cannot point it at a private file. Put the folder into VOOL's drafts
+first with `vool-community stage`: it runs VOOL's validator and safety check, copies only
+`SKILL.md` into the drafts folder of the profile that `HOME`, `VOOL_HOME` and `VOOL_PLUGINS_DIR`
+name, keeps its digest beside it, and prints the skill's short name and check code. Nothing is
+turned on yet.
+
+```sh
+HOME="$SKILL_TEST_HOME" VOOL_HOME="$SKILL_TEST_HOME/vool" VOOL_PLUGINS_DIR="$SKILL_TEST_HOME/plugins" \
+PYTHONPATH="$VOOL_SRC" python -m tools.community_skills stage my-skills/aisle-sorter --overwrite
+```
+
+It prints one JSON line with `"status":"staged"` and `"short_name":"aisle-sorter"`. Without
+`--overwrite`, a second `stage` of the same name stops and says a draft is already there. To
+stage into your own VOOL instead, leave out the three variables: the draft is then listed under
+**Drafts not turned on yet** in `which skills do I have?`, and `skill.install path=aisle-sorter`
+turns it on after **Allow once**.
 
 `skill.install` is a VOOL runtime tool, for an agent that calls VOOL's tools directly (it is
-a tool call, not a chat sentence). Its arguments: `path` (a folder holding `SKILL.md`, a
-`SKILL.md` file, or a skill name), `overwrite` (true to replace an installed skill of the same
-name), `scope` (`chat`, `project` or `global`, default `global`). It validates the skill and
-switches it on in the same step; there is no separate turn-on. Inside VOOL it still waits for
-**Allow once**, in Manual and Auto mode. Only `SKILL.md` is copied.
+a tool call, not a chat sentence). Its arguments: `path` (a skill name in VOOL's drafts, or a
+folder or `SKILL.md` inside them), `sha256` (optional: the digest to bind to), `overwrite` (true
+to replace an installed skill of the same name), `scope` (`chat`, `project` or `global`, default
+`global`). It validates the skill and switches it on in the same step; there is no separate
+turn-on. Inside VOOL it still waits for **Allow once**, in Manual and Auto mode; the card shows
+the check code and lists any tools the skill asks for. It installs the bytes `stage` checked or
+nothing: if `SKILL.md` in the drafts changed since, it refuses with `This draft changed after it
+was made, so it was not turned on. Make or stage it again, and try again.`
 
 ```text
-skill.install path=/full/path/to/my-skills/aisle-sorter
+skill.install path=aisle-sorter
 ```
 
 Without `overwrite`, a second install of the same name stops with `exists`.
@@ -272,26 +293,28 @@ The chat steps have matching tools for an agent: `skill.import` (zip), `skill.li
 `skill.validate` (with `path`: a folder, a `SKILL.md` file or a skill name, the same as
 `skill.install`), `skill.remove` and `skill.rollback` (with `skill` and `version`). Their replies
 are worded for a tool result, not word for word the chat replies quoted on this page. When
-`skill.install` refuses a skill, its reply lists what the validator found, for example
-`the skill was not installed because it does not pass the skill check: allowed-tools names tools
-this runtime does not have: workspace.writefile`.
+`skill.install` refuses a skill, its reply says what to fix, for example
+`This skill was not installed because it needs fixing first. It asks for tools VOOL does not
+have: workspace.writefile. Check each name in its allowed-tools line against the tool list in
+VOOL's guide "Skill tools and limits" ...`
 
-For automated tests from a source checkout, call the same tool against a **throwaway profile**
-(the variables from section 2).
+For automated tests from a source checkout, call the same tool against the **throwaway profile**
+you staged into (the variables from section 2).
 This skips the Allow prompt, so never point it at a person's real VOOL profile:
 
 ```sh
 HOME="$SKILL_TEST_HOME" VOOL_HOME="$SKILL_TEST_HOME/vool" VOOL_PLUGINS_DIR="$SKILL_TEST_HOME/plugins" \
 PYTHONPATH="$VOOL_SRC" python - <<'PY'
-import os
 from core.runtime_execution_tools import execute_runtime_tool
-result = execute_runtime_tool("skill.install", {"path": os.environ["SKILL_FOLDER"], "overwrite": True})
+result = execute_runtime_tool("skill.install", {"path": "aisle-sorter", "overwrite": True})
 print(result.status, result.response_text)
 PY
 ```
 
 It prints `ok Added the skill "Aisle sorter". It is on from your next message.` A
-"Keychain unavailable" line on a fresh profile is expected.
+"Keychain unavailable" line on a fresh profile is expected. A skill installed this way, with no
+**Allow once** on its card, works with the tools VOOL already offers; the tools in its
+`allowed-tools` are added only after the person allows them on the card.
 
 `execute_runtime_tool` is the inner door for the skill tools and a few others. For a tool another
 part of VOOL owns (`web.search`, every `operator.*` tool) it returns `None`, so `result.status`
@@ -360,7 +383,8 @@ turn it on
 
 VOOL asks with **Permission needed** in both Manual and Auto mode; click **Allow once**. The reply
 is `Added the skill "Aisle sorter". It is on from your next message.` Check it with
-`which skills do I have?`: the skill is listed under **Made by you** as `on`. In chat,
+`which skills do I have?`: the skill is listed under **Added from a file** as `on` (a skill you
+made in a VOOL chat from your own words is listed under **Made by you**). In chat,
 `validate the aisle-sorter skill` re-runs VOOL's validator on the installed copy.
 
 ## 5. Test it
@@ -378,7 +402,7 @@ that must pick the skill, and at least one ask that must **not** pick it:
 
 In chat, look for the skill's marker (here the heading "Shopping list by aisle" and the
 "Items: N" line). Picking needs no model, so you can also check it offline with the throwaway
-profile from Route B (install first). This uses the same function VOOL calls before each
+profile from Route B (run its `stage` and install commands first). This uses the same function VOOL calls before each
 answer:
 
 ```sh
@@ -452,7 +476,8 @@ Change `SKILL.md`, then lint again (section 2) and install again:
 
 * **Zip route:** zip it again, `import this skill /full/path/to/aisle-sorter.zip`, then
   `turn it on`.
-* **Folder route:** `skill.install` with `overwrite=true`.
+* **Folder route:** `stage` again with `--overwrite`, then `skill.install` with `overwrite=true`
+  (section 3, Route B).
 
 Both reply `Updated the skill "Aisle sorter". It is on from your next message.` (version 2 or
 later says **Updated**; the first install says **Added**). Re-run the tests from section 5.

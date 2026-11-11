@@ -7971,7 +7971,7 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
 
     seen: set[str] = set()
 
-    def _section(title: str, rows: list[dict[str, Any]], *, kind: str = "own") -> tuple[str, int, int]:
+    def _section(title: str, rows: list[dict[str, Any]], *, kind: str = "") -> tuple[str, int, int]:
         # Every skill once across the whole reply, first section wins: a draft of an
         # installed skill, or a Browse copy of it, must not earn a second row.
         lines: list[str] = []
@@ -7981,7 +7981,10 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             if not key or key in seen:
                 continue
             seen.add(key)
-            state = _state(row, kind=kind)
+            # A row in an installed pack other than the person's own folder follows that pack's
+            # on/off switch, whichever section it is listed under.
+            row_kind = kind or ("browse" if _plugin_id(row) not in ("", "local-skills") else "own")
+            state = _state(row, kind=row_kind)
             on_count += state == "on"
             lines.append(_row(row, state))
         if not lines:
@@ -7999,7 +8002,28 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
         return relative.parts[0] if relative.parts else ""
 
     installed = list(result.get("installed_skills") or [])
-    mine_rows = [row for row in installed if _plugin_id(row) == "local-skills"]
+
+    def _origin(row: dict[str, Any]) -> str:
+        # Where the skill came from, from VOOL's own install record (core.skill_origin): the folder
+        # it sits in says nothing, because imports land beside the person's own skills (audit M3).
+        try:
+            from types import SimpleNamespace
+
+            from core.skill_origin import origin_of
+
+            plugin_id = _plugin_id(row) or f"{row.get('scope') or 'local'}-skills"
+            return origin_of(SimpleNamespace(path=str(row.get("path") or ""), plugin_id=plugin_id))
+        except Exception:
+            return "installed"
+
+    def _browse(row: dict[str, Any]) -> bool:
+        plugin_id = _plugin_id(row)
+        return plugin_id.startswith("discover-") or _origin(row) in ("registry", "bundled")
+
+    yours = ("created_here", "drafted")
+    scoped_rows = [*(result.get("chat_skills") or []), *(result.get("project_skills") or [])]
+    mine_rows = [row for row in [*scoped_rows, *installed] if not _browse(row) and _origin(row) in yours]
+    file_rows = [row for row in [*scoped_rows, *installed] if not _browse(row) and _origin(row) not in yours]
     # VOOL's own developer skills are not the person's: never listed unless the developer setting
     # is on. And a workspace that is VOOL's own program folder (the 0.7.5 Linux launcher made it
     # so) holds the built-ins' source files, which are not skills the person made.
@@ -8023,23 +8047,22 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             return False
 
     workspace_rows = [row for row in (result.get("workspace_skills") or []) if not _from_vool_itself(row)]
-    browse_rows = [row for row in installed if _plugin_id(row) != "local-skills"]
+    browse_rows = [row for row in installed if _browse(row)]
     sections = [
-        _section("Made by you", [
-            *(result.get("chat_skills") or []),
-            *(result.get("project_skills") or []),
-            *workspace_rows,
-            *mine_rows,
-        ]),
+        _section("Made by you", mine_rows),
         _section("Built in", native_rows, kind="native"),
         _section("Added from Browse", browse_rows, kind="browse"),
+        # Someone else's file (a zip or a chat import, a pack, a copy put into VOOL's folders by
+        # hand): listed as such, never as the person's own.
+        _section("Added from a file", file_rows),
+        _section("In your project folder", workspace_rows, kind="own"),
         _section("Drafts not turned on yet", list(result.get("staged_skills") or []), kind="draft"),
     ]
     body = "\n\n".join(text for text, _count, _on in sections if text)
     total = sum(count for _text, count, _on in sections)
     if not total:
         body = "No skills found. I looked in this chat, this project and the installed skills."
-    elif sections[1][1] and not (sections[0][1] or sections[2][1] or sections[3][1]):
+    elif sections[1][1] and not any(section[1] for index, section in enumerate(sections) if index != 1):
         # Only built-ins exist: say the number in one line rather than opening with a heading,
         # counting only the ones that are really on here.
         count, on_count = sections[1][1], sections[1][2]
@@ -8074,14 +8097,11 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
         overwrite=bool(arguments.get("overwrite", False)),
         scope=scope,
         keys=_skill_scope_keys(source_context),
+        made_by_person=False,
     )
-    if result.get("status") == "ok":
-        # The person wrote these exact bytes in VOOL: the one fact that lets this skill's
-        # allowed-tools add tools to a turn once it is installed (core.skill_origin).
-        with contextlib.suppress(Exception):
-            from core.skill_origin import note_created_here
-
-            note_created_here(str(result.get("sha256") or ""), slug=str(result.get("slug") or ""))
+    # Not noted as the person's own here: a model can call this tool in a turn that is reading a web
+    # page, an email or someone else's skill (audit H1). create_skill records the bytes as drafted;
+    # only the chat lane answering the person's own "make me a skill that ..." records them as theirs.
     where = (
         f"`{result.get('path')}`"
         if scope == "global"
@@ -8100,7 +8120,8 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
 _SKILL_PATH_REFUSED = (
     "I did not open that file: I only check or turn on skills kept in VOOL's own skill folders, so a "
     "file elsewhere on this computer stays private. To add a skill from a file, attach its zip and say "
-    "import this skill, or name a skill you already have (for example: validate the trip-notes skill)."
+    "import this skill, or name a skill you already have (for example: validate the trip-notes skill). "
+    "A skill author can put a folder into VOOL's drafts first with: python -m tools.community_skills stage <folder>."
 )
 
 
@@ -8132,6 +8153,12 @@ def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | 
     if refusal is not None:
         return _skill_result("skill.validate", refusal, response="")
     result = validate_skill(str(arguments.get("path") or ""), keys=_skill_scope_keys(source_context))
+    if result.get("status") == "invalid" and result.get("problems"):
+        from core.skill_tools import plain_problem
+
+        # The validator's own words stay in the details; the reply says what to fix in plain words.
+        result["reason"] = "This skill needs fixing before it can be turned on. " + " ".join(
+            plain_problem(str(item)) for item in result["problems"])
     return _skill_result(
         "skill.validate",
         result,
@@ -8170,15 +8197,21 @@ def _native_copy_refusal(path: str, source_context: dict[str, Any] | None) -> di
     return None
 
 
-def _record_skill_install_origin(result: dict[str, Any]) -> list[str]:
+def _record_skill_install_origin(result: dict[str, Any], *, tools_confirmed: bool = False) -> list[str]:
     """Record, durably, where the skill just installed came from (core.skill_origin), and return
-    the plain-words notes the person is told about what that origin means for this skill."""
+    the plain-words notes the person is told about what that origin means for this skill.
+
+    ``tools_confirmed``: the person approved turning on exactly these bytes on a card that listed
+    the tools they ask for. It counts only for a skill ``skill.create`` drafted (core.skill_origin).
+    """
     notes: list[str] = []
     with contextlib.suppress(Exception):
         from core.native_skill_library import _frontmatter_of
         from core.skill_origin import (
             ORIGIN_CREATED_HERE,
+            ORIGIN_DRAFTED,
             TOOLS_NOT_ADDED,
+            TOOLS_NOT_CONFIRMED,
             TYPED_KEYS_IGNORED,
             _history_source,
             decide_install_origin,
@@ -8188,15 +8221,44 @@ def _record_skill_install_origin(result: dict[str, Any]) -> list[str]:
         path = Path(str(result.get("path") or ""))
         digest = str(result.get("sha256") or "")
         origin = decide_install_origin(digest, history_source=_history_source(path))
-        record_install(path, origin=origin, sha256=digest)
+        confirmed = bool(tools_confirmed and origin == ORIGIN_DRAFTED)
+        record_install(path, origin=origin, sha256=digest, tools_confirmed=confirmed)
         result["origin"] = origin
+        result["tools_confirmed"] = confirmed
         front = _frontmatter_of(path)
         if str(front.get("id") or "").strip():
             # Installed skills never hold typed contracts (core.native_skill_library).
             notes.append(TYPED_KEYS_IGNORED)
-        if origin != ORIGIN_CREATED_HERE and (front.get("allowed-tools") or front.get("allowed_tools")):
-            notes.append(TOOLS_NOT_ADDED)
+        if front.get("allowed-tools") or front.get("allowed_tools"):
+            if origin == ORIGIN_DRAFTED and not confirmed:
+                notes.append(TOOLS_NOT_CONFIRMED)
+            elif origin not in (ORIGIN_CREATED_HERE, ORIGIN_DRAFTED):
+                notes.append(TOOLS_NOT_ADDED)
     return notes
+
+
+def _install_approved_by_the_person(arguments: dict[str, Any], result: dict[str, Any]) -> bool:
+    """Whether the person approved THIS install on its card, bound to the bytes that went live.
+
+    Only the person's own click on the approval card for this exact call counts (the decision says
+    ``exact_approval``), and only when the call named the digest the card showed and that digest is
+    what was installed. A mode that allows the call by itself (Bypass), a task-wide grant or an
+    internal scope confirms nothing (audit H1).
+    """
+    try:
+        from core.authorized_tool_execution import current_permission_decision
+
+        decision = current_permission_decision()
+    except Exception:
+        return False
+    bound = str(arguments.get("sha256") or "").strip().lower()
+    return bool(
+        decision is not None
+        and decision.allowed
+        and str(getattr(decision, "granted_by", "") or "") == "exact_approval"
+        and bound
+        and bound == str(result.get("sha256") or "").strip().lower()
+    )
 
 
 def _record_pack_install_origin(result: dict[str, Any]) -> None:
@@ -8252,7 +8314,8 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
     )
     notes: list[str] = []
     if result.get("status") == "ok":
-        notes = _record_skill_install_origin(result)
+        notes = _record_skill_install_origin(
+            result, tools_confirmed=_install_approved_by_the_person(arguments, result))
         if notes:
             result["trust_notes"] = list(notes)
     display = _display_name(str(result.get("name") or ""))

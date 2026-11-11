@@ -471,7 +471,9 @@ def read_package(raw: bytes) -> dict[str, Any]:
     if extra:
         raise PackageRefused(
             "runnable_code" if any(_looks_runnable(name) for name in extra) else "unsupported_files",
-            "VOOL imports instruction-only skills; this zip also carries: " + ", ".join(sorted(extra)[:12]),
+            "VOOL imports instruction-only skills; this zip also carries: " + ", ".join(sorted(extra)[:12])
+            + ". A skill zip may hold only SKILL.md and, if you like, a LICENSE or README file. Take the "
+            "other files out of the zip, and try again.",
         )
     data = inner["SKILL.md"]
     _decode_skill(data, "SKILL.md")
@@ -637,7 +639,9 @@ def import_package(
         parsed_name = front_name.strip() if isinstance(front_name, str) else ""
         slug = skill_tools._slug(parsed_name or skill["slug"] or Path(source_name).stem)
         if not slug:
-            return {"status": "refused", "code": "invalid_skill", "reason": "the skill has no name"}
+            return {"status": "refused", "code": "invalid_skill",
+                    "reason": "This skill has no name. Add a line \"name: ...\" at the top of its SKILL.md, "
+                              "and try again."}
         refusal = _content_refusal(slug, text)
         if refusal:
             return refusal
@@ -703,7 +707,11 @@ def import_package(
     # A plugin pack is global by nature: the plugin catalog is one tree.
     name = skill_tools._slug(package["name"]) or skill_tools._slug(Path(source_name).stem)
     if not name:
-        return {"status": "refused", "code": "invalid_manifest", "reason": "the plugin has no name"}
+        return {"status": "refused", "code": "invalid_manifest",
+                "reason": "This plugin has no name. Add a \"name\" to its .codex-plugin/plugin.json, and try again."}
+    reserved = skill_tools.pack_name_problem(name)
+    if reserved:
+        return {"status": "refused", "code": "reserved_name", "reason": reserved, "problems": [reserved]}
     for item in package["skills"]:
         text = item["bytes"].decode("utf-8")
         front_name = _frontmatter(text).get("name")
@@ -799,6 +807,9 @@ def create_plugin(
     slug = skill_tools._slug(name)
     if not slug:
         return {"status": "invalid_arguments", "reason": "name the plugin"}
+    reserved = skill_tools.pack_name_problem(slug)
+    if reserved:
+        return {"status": "refused", "reason": reserved}
     wanted = [str(item).strip() for item in (skill_names or ()) if str(item).strip()]
     if not wanted:
         return {"status": "invalid_arguments", "reason": "name at least one of your skills to put in the plugin"}
@@ -839,6 +850,9 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
     staged = _staged_plugins_root() / slug
     if not slug or not (staged / ".codex-plugin" / "plugin.json").is_file():
         return {"status": "not_found", "reason": f"no staged plugin named {name!r}; create or import it first"}
+    reserved = skill_tools.pack_name_problem(slug)
+    if reserved:
+        return {"status": "refused", "reason": reserved}
     destination = skill_tools.plugins_root() / "plugins" / slug
     with skill_tools._ACTIVATION_LOCK:
         digest = pack_digest(staged)

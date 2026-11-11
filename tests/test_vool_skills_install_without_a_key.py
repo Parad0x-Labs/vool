@@ -143,6 +143,22 @@ def test_a_vool_skill_installs_with_no_key_and_no_network(home, no_network, monk
     assert [s.name for s in offers.loaded_skills()] == [entry["skill_name"]]
 
 
+@pytest.mark.parametrize("entry_id", [e["id"] for e in store.CATALOG if store.is_vool_bundled(e)])
+def test_every_vool_skill_in_browse_installs_with_no_key_and_no_network(home, no_network, entry_id):
+    """Audit H3: the first bundled entry passing proved nothing about the rest (command-explainer
+    was refused by its own safety check). Every entry VOOL ships goes the same route here."""
+    entry = next(dict(e) for e in store.CATALOG if e["id"] == entry_id)
+    status, review = _post({"action": "local_install", "id": entry_id, "approved": True})
+    assert status == 200, review
+    assert review["report"]["status"] == "clean", review
+    assert review["can_install"] is True, review
+    status, done = _post({"action": "install", "review_id": review["review_id"], "accepted": True})
+    assert status == 200, done
+    assert lifecycle.is_available(done["plugin_id"])
+    skill_md = home / "addons" / "plugins" / done["plugin_id"] / "skills" / entry["skill_name"] / "SKILL.md"
+    assert hashlib.sha256(skill_md.read_bytes()).hexdigest() == entry["sha256"]
+
+
 # ---------------------------------------------------------------------------
 # 2-3. Integrity at install and at load
 # ---------------------------------------------------------------------------
