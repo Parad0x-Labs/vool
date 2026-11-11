@@ -997,6 +997,15 @@ def bootstrap_runtime_services(
             configured_model_tag,
             runtime_model_tag,
         )
+    if not selection_pinned:
+        certified_tag = _certified_author_instead_of(runtime_model_tag)
+        if certified_tag and certified_tag != runtime_model_tag:
+            logger.info(
+                "Daily primary aligned with the certified local author: %s -> %s",
+                runtime_model_tag,
+                certified_tag,
+            )
+            runtime_model_tag = certified_tag
     runtime_parameter_size = parameter_size_for_model(runtime_model_tag)
     # Background, never inline: a first-run pull downloads gigabytes, and bootstrap runs BEFORE the
     # API server binds its port. The window that opens on first run must reach a server that reports
@@ -1138,6 +1147,40 @@ def bootstrap_runtime_services(
         model_pull=model_pull,
     )
 
+
+
+def _certified_author_instead_of(model_tag: str) -> str:
+    """The certified local author to run as the daily primary, when ``model_tag`` cannot author.
+
+    Measured 2026-11-11 on the installed 0.7.8 build (24 GiB Mac): the boot primary was
+    qwen2.5:7b, which is not certified to write final answers, so every answer was handed to the
+    certified qwen3:8b -- while qwen2.5:7b stayed prewarmed for 15 minutes and was reloaded on lane
+    fallbacks. Ollama could not keep both resident and evicted the author: 9 qwen3:8b reloads in
+    one hour of ordinary chat, turns of 35-180 s. A primary that can never author only costs
+    memory; the certified model the runtime already hands every answer to is the one to keep warm.
+    Unknown certification state keeps the configured tag (never guesses)."""
+    try:
+        from core.local_model_tool_certification import certification_history
+
+        latest: dict[str, str] = {}
+        for run in certification_history(limit=200):
+            name = str(run.get("model_name") or "").strip()
+            if name and name not in latest:
+                latest[name] = str(run.get("state") or "").strip().lower()
+        verified = [name for name, state in latest.items() if state == "verified"]
+        if not verified or latest.get(str(model_tag or "").strip()) == "verified":
+            return ""
+        # The smallest verified author: it is the one most likely to stay resident beside the
+        # small helper models (a verified 27B is RAM-gated on a 24 GiB machine whenever it is busy).
+        def _size(name: str) -> float:
+            import re as _re
+
+            match = _re.search(r"(\d+(?:\.\d+)?)", str(parameter_size_for_model(name) or ""))
+            return float(match.group(1)) if match else 1e9
+
+        return sorted(verified, key=_size)[0]
+    except Exception:
+        return ""
 
 def _profile_fast_default_model(
     *,
