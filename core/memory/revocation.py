@@ -609,10 +609,10 @@ def one_check_snapshot():
 def revoked_tokens(chat_id=None, runtime_home=None, *, owner_memory=None) -> tuple[str, ...]:
     """One authority for independent barriers and every selected owner ledger."""
     cache = _SNAPSHOT.get()
-    if cache is not None and owner_memory is None:
-        key = (str(chat_id or ""), str(runtime_home or ""))
+    if cache is not None:
+        key = (str(chat_id or ""), str(runtime_home or ""), id(owner_memory) if owner_memory is not None else 0)
         if key not in cache:
-            cache[key] = _revoked_tokens_uncached(chat_id, runtime_home, owner_memory=None)
+            cache[key] = _revoked_tokens_uncached(chat_id, runtime_home, owner_memory=owner_memory)
         return cache[key]
     return _revoked_tokens_uncached(chat_id, runtime_home, owner_memory=owner_memory)
 

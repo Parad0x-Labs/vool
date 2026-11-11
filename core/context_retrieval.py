@@ -8110,7 +8110,20 @@ def revoke_imported_history(
                 LOGGER.warning("historical import revoke close failed: %s", type(exc).__name__)
 
 
-def inject_retrieved(
+def inject_retrieved(*args: Any, **kwargs: Any) -> Any:
+    """Retrieval for one turn, reading the revocation authority once (see `_inject_retrieved`).
+
+    The semantic search re-checks every occurrence it serves, and each check took the authority's
+    lock: measured 2026-11-11 on the installed build, a turn's context build sat blocked in
+    occurrence_search_semantic -> revoked_tokens -> serialized for 80 minutes while other requests
+    queued on the same lock. One snapshot per retrieval, taken at first use."""
+    from core.memory.revocation import one_check_snapshot
+
+    with one_check_snapshot():
+        return _inject_retrieved(*args, **kwargs)
+
+
+def _inject_retrieved(
     session_id: str | None,
     query: str,
     transcript: list[dict[str, str]],
