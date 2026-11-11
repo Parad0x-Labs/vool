@@ -525,19 +525,28 @@ def _audience_ok(skills: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
     return tuple(kept)
 
 
-def _people_safe(selected: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
+def _people_safe(
+    selected: tuple[Any, ...], user_text: str, by_class_only: frozenset[str] = frozenset()
+) -> tuple[Any, ...]:
     """The selected native skills minus VOOL's own developer skills (``audience: developer``),
     unless the developer setting is on or the turn is about a developer's own work: its words
-    name code, a repository, a test suite or the like (``_DEVELOPER_WORDS_RE``), or ask for
-    what the skill does (its tool intents or families).
+    name code, tests, a repository or the like, or ask for what the skill does (its tool
+    intents or families). A developer skill the class ALONE seated (``by_class_only``: the ask's
+    words seated no task skill) stays out of a person's turn even then: "the pipeline under my
+    sink is leaking" says "pipeline" and is classed security, and is still not an audit.
 
     The task class alone is too weak for these: "write a polite complaint to my landlord, the
     heating has been broken for 3 weeks" is classed as debugging, and seated root-cause-repair,
     project-archaeology and cumulative-testing into an everyday letter (measured 2026-10-29).
     """
     developer = [c for c in selected if getattr(c, "audience", "") == "developer"]
-    if not developer or _developer_turn(user_text):
+    from core.native_skill_library import developer_skills_on
+
+    if not developer or developer_skills_on():
         return tuple(selected)
+    if _developer_turn(user_text):
+        return tuple(contract for contract in selected if contract.id not in by_class_only
+                     or getattr(contract, "audience", "") != "developer")
     from core.tool_demand_signals import resolve_demand_signals
 
     demands = resolve_demand_signals(user_text)
@@ -546,9 +555,21 @@ def _people_safe(selected: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
     return tuple(
         contract for contract in selected
         if getattr(contract, "audience", "") != "developer"
-        or intents & frozenset(contract.tool_intents)
-        or families & frozenset(contract.capability_families)
+        or (contract.id not in by_class_only and (
+            intents & frozenset(contract.tool_intents)
+            or families & frozenset(contract.capability_families)
+        ))
     )
+
+
+def _people_safe_lexical(skills: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:
+    """The plugin lane's half of ``_people_safe``: developer-audience skills leave a person's
+    everyday turn unless the developer setting is on or the words name a developer's own work."""
+    if not any(getattr(skill, "audience", "") == "developer" for skill in skills):
+        return tuple(skills)
+    if _developer_turn(user_text):
+        return tuple(skills)
+    return tuple(skill for skill in skills if getattr(skill, "audience", "") != "developer")
 
 
 def skill_guidance_for(
@@ -570,9 +591,9 @@ def skill_guidance_for(
        generic guess. Measured live 2026-10-05: a chat skill for meeting notes matched, and four
        first-party skills selected on the task class alone filled every slot first, so the
        operator's skill never reached the prompt. These render complete or not at all.
-    2. NATIVE skills (the repo's own library), selected by the typed law in
-       ``core.native_skill_library`` -- the turn's task class and its demand signals, never
-       user-text tokens -- with whatever budget is left.
+    2. NATIVE skills (the repo's own library), selected by the law in
+       ``core.native_skill_library`` -- the turn's task class, its demand signals and the ask's
+       words against each skill's own words -- with whatever budget is left.
     3. Other PLUGIN skills (bundled and add-on packs), by the loader's lexical ranking.
 
     With ``source_context``, chat and project skills are candidates; without it they are not: a
@@ -626,8 +647,16 @@ def skill_guidance_for(
         seen_names.add(key)
         unique.append(skill)
     user_made = _audience_ok(tuple(unique), str(user_text or ""))
-    others = _audience_ok(
-        _enabled(tuple(s for s in installed if not _user_authored(s))), str(user_text or "")
+    # A pack's copy of one of VOOL's developer skills (``audience: developer``, e.g. the bundled
+    # database pack) meets the same people rule as the native library's: off a person's
+    # everyday turns unless the developer setting is on or the words are a developer's own work.
+    # Measured before: "explain how vaccines work in simple terms" seated the bundled database
+    # skill for a person with the setting off, because this lane never asked.
+    others = _people_safe_lexical(
+        _audience_ok(
+            _enabled(tuple(s for s in installed if not _user_authored(s))), str(user_text or "")
+        ),
+        str(user_text or ""),
     )
 
     # 1. The operator's own skills.
@@ -647,7 +676,9 @@ def skill_guidance_for(
             task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget - user_slots
         )
         native_text, native_provenance, _native_permitted = guidance_for_selection(
-            _people_safe(selection.selected, str(user_text or "")),
+            _people_safe(
+                selection.selected, str(user_text or ""), getattr(selection, "by_class_only", frozenset())
+            ),
             task_chars=remaining if user_slots else task_chars,
             doctrine_chars=doctrine_chars,
         )
@@ -670,7 +701,15 @@ def skill_guidance_for(
     # dropped for budget is provenance, not a filled slot.
     filled = sum(1 for row in provenance if row.get("complete", True))
     if filled < budget and others:
-        ranked = plugin_skills.rank_skills(others, str(user_text), limit=budget - filled)
+        # Rarity is judged against the built-in library too: a lane of one bundled skill judged
+        # alone makes every word it carries look rare ("explain how vaccines work" met the
+        # bundled database pack on "work", "add a dark mode toggle" on "add" and "mode").
+        peers: tuple[Any, ...] = ()
+        with contextlib.suppress(Exception):
+            from core.native_skill_library import skill_cards
+
+            peers = skill_cards()
+        ranked = plugin_skills.rank_skills(others, str(user_text), limit=budget - filled, peers=peers)
         remaining = _render_lexical(
             ranked, remaining=remaining, blocks=blocks, provenance=provenance, allowed=allowed,
             complete_only=False,

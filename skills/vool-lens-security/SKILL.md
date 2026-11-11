@@ -10,6 +10,7 @@ type: expert_lens
 id: lens-security
 risk-class: read_only
 task-families: [security_hardening]
+triggers: [security, secure, threat model, attacker, trust boundary, attack surface, store passwords, encryption, authentication, permissions model]
 expected-outputs: [lens_findings]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens states at most five findings with their evidence, or states plainly that no security-relevant surface was found in the material already present"]

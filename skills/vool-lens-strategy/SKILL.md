@@ -10,6 +10,7 @@ type: expert_lens
 id: lens-strategy
 risk-class: read_only
 task-families: [business_advisory, general_advisory]
+triggers: [strategy, strategic, decide, decision, choose between, trade-off, trade-offs, tradeoff, prioritise, prioritize, priorities, pros and cons, next step, long term, worth it, weigh up, weigh the options, roadmap]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each tied to a stated goal, constraint, or option in the turn, or states that the material contains no decision to advise on"]
