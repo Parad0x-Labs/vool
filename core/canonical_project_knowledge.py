@@ -88,6 +88,8 @@ _ENTITY_TOKENS = frozenset(
 
 # A line made only of HTML tags (README banner images, badge rows, centring wrappers).
 _MARKUP_ONLY_RE = re.compile(r"^\s*(?:<[^<>]+>\s*)+$")
+# An HTML heading on its own line (a centred README title) is a heading like "# VOOL".
+_HTML_HEADING_RE = re.compile(r"^\s*<h[1-6][^<>]*>([^<>]+)</h[1-6]>\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -147,17 +149,19 @@ def _sections(path: Path) -> list[tuple[str, str]]:
     heading = path.name
     lines: list[str] = []
     for line in text.splitlines():
-        if _MARKUP_ONLY_RE.match(line):
-            # Banner, badge and layout HTML says nothing about the project and would crowd the
-            # section's real words out of the passage limit.
-            continue
-        if line.startswith("#"):
+        html_heading = _HTML_HEADING_RE.match(line)
+        if line.startswith("#") or html_heading:
             if lines:
                 content = "\n".join(lines).strip()
                 if content:
                     sections.append((heading, content))
-            heading = line.lstrip("#").strip() or path.name
+            title = html_heading.group(1) if html_heading else line.lstrip("#")
+            heading = title.strip() or path.name
             lines = []
+            continue
+        if _MARKUP_ONLY_RE.match(line):
+            # Banner, badge and layout HTML says nothing about the project and would crowd the
+            # section's real words out of the passage limit.
             continue
         lines.append(line)
     content = "\n".join(lines).strip()

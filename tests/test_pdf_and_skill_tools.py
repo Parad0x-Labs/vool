@@ -412,8 +412,8 @@ def test_no_package_was_added_to_this_project() -> None:
         line.strip() for line in pyproject.splitlines() if "pyobjc" in line.lower() and not line.strip().startswith("#")
     )
     assert pyobjc_lines == [
-        "\"pyobjc-framework-Contacts==12.2.2; sys_platform == 'darwin'\",",
-        "\"pyobjc-framework-EventKit==12.2.2; sys_platform == 'darwin'\",",
+        "\"pyobjc-framework-Contacts==13.0; sys_platform == 'darwin'\",",
+        "\"pyobjc-framework-EventKit==13.0; sys_platform == 'darwin'\",",
     ], pyobjc_lines
     # The one sanctioned pdf dependency is the confined-reader fallback, pinned exactly.
     assert "pypdf==7.0.0" in pyproject
