@@ -486,6 +486,81 @@ def is_developer_copy(*, name: str = "", path: str = "", body: str = "", by_fold
     return False
 
 
+#: Words that, in an ask, only ever mean software work.
+_CODE_ONLY_RE = re.compile(
+    r"\b(?:codebase|source\s+code|repos?|repository|git|github|gitlab|bitbucket|pull\s+requests?"
+    r"|merge\s+requests?|merge\s+conflicts?|rebase|diffs?|unit\s+tests?|test\s+suites?|pytest|jest"
+    r"|ci|ci/cd|stack\s*traces?|tracebacks?|exceptions?|compil(?:e|er|ed|ing|ation)|linter|lint(?:ing)?"
+    r"|refactor\w*|sql|sqlite|postgres\w*|mysql|endpoints?|hot\s+path|injection|regex|npm|pip"
+    r"|dependenc(?:y|ies)|python|javascript|typescript|golang|rust|kotlin|swift|backend|frontend"
+    r"|api|apis|cli|json|yaml|toml|dockerfile|docker|kubernetes|segfault|null\s+pointer"
+    r"|syntax\s+error|runtime\s+error|staged|unstaged|codebase|monorepo|cron\s+job|nightly\s+job"
+    r"|release\s+gate|code\s+review|databases?)\b",
+    re.IGNORECASE,
+)
+#: "code", "commit": software words unless the ask uses their everyday sense ("error code 45",
+#: "a dress code", "commit to sending it").
+_CODE_NOUN_RE = re.compile(
+    r"(?<!error )(?<!one-time )(?<!zip )(?<!postal )(?<!post )(?<!area )(?<!dress )(?<!promo )(?<!discount )"
+    r"(?<!voucher )(?<!coupon )(?<!bar )(?<!qr )(?<!morse )(?<!tax )(?<!country )(?<!access )"
+    r"(?<!door )(?<!gift )(?<!booking )(?<!confirmation )(?<!verification )(?<!security )"
+    r"\bcode\b(?!\s*#?\d)",
+    re.IGNORECASE,
+)
+_COMMIT_RE = re.compile(r"\bcommits?\b(?!\s+(?:to|myself|ourselves|yourself)\b)|\bcommitted\s+(?:it|this|that|the)\b",
+                        re.IGNORECASE)
+#: Words with a software sense AND an everyday one ("a branch of the bank", "the parcel was
+#: deployed", "the build of the house", "a bug in my argument"): two different ones together
+#: make software work; one alone does not.
+_CODE_LEANING_RE = re.compile(
+    r"\b(?:branch(?:es)?|builds?|deploy\w*|pipelines?|tests?|testing|release[sd]?|features?"
+    r"|bugs?|debug\w*|functions?|modules?|schemas?|databases?|query|queries|migrat\w*|secrets?"
+    r"|audit\w*|profil\w*|benchmark\w*|vulnerab\w*|implement\w*|scripts?|servers?|apps?"
+    r"|crash\w*|regressions?|merge[sd]?|push(?:ed|ing)?|staging|production|shippable|patch(?:es)?"
+    r"|install\w*|config\w*|files?|logs?|parser|snippet|handler|uploader|loader|generator)\b",
+    re.IGNORECASE,
+)
+#: What software work says about its object: it fails, breaks, runs, passes, is slow or red.
+_CODE_STATE_RE = re.compile(
+    r"\b(?:fail\w*|broken|breaks|red|green|run|runs|rerun|running|fix|fixed|crash\w*|slow"
+    r"|throws?|pass|passes|passing|errors?(?!\s+(?:code|number)\b)|reproduce|speed\s+up|takes\s+ages|add|adding|implement)\b",
+    re.IGNORECASE,
+)
+#: A name only software has: a path or file with an extension, snake_case, camelCase, `ticks`.
+_CODE_NAME_RE = re.compile(
+    r"\b[\w-]+/[\w./-]+|\b\w+\.(?:py|js|ts|tsx|jsx|go|rs|rb|java|kt|swift|c|cpp|h|cs|php|sh|sql"
+    r"|yaml|yml|toml|json|ini|cfg|lock|md)\b|\b[a-z]+_[a-z0-9_]+\b|\b[a-z]+[A-Z][A-Za-z]+\b|`[^`]+`"
+)
+
+
+def about_code(user_text: str) -> bool:
+    """Whether the ask is about software work: a word only software has ("diff", "traceback",
+    "the repo"), "code" or "commit" in their software sense, a name only software has
+    (``orders.py``, ``test_checkout_total``), or two different words that lean that way
+    ("the pipeline is red since the last merge"). "Review my cover letter before I commit to
+    sending it", "the self-checkout showed error code 45" and "my parcel was deployed to the
+    wrong depot" use everyday senses and are not. One leaning word counts when the ask says
+    what software does ("the nightly build is broken", "run the tests again")."""
+    text = str(user_text or "")
+    if _CODE_ONLY_RE.search(text) or _CODE_NOUN_RE.search(text) or _COMMIT_RE.search(text):
+        return True
+    if _CODE_NAME_RE.search(text):
+        return True
+    leaning = {match.group(0).lower().rstrip("s") for match in _CODE_LEANING_RE.finditer(text)}
+    return len(leaning) >= 2 or bool(leaning and _CODE_STATE_RE.search(text))
+
+
+def everyday_sense_only(user_text: str) -> bool:
+    """The ask says developer words, but only in their everyday senses: "before I commit to
+    sending it", "error code 17", "the bugs in my reasoning". An ask without any such word is
+    not this (the skill's own words decide it); an ask about software work is not either."""
+    text = str(user_text or "")
+    says = bool(
+        _CODE_LEANING_RE.search(text) or _CODE_ONLY_RE.search(text) or re.search(r"\b(?:code|commit\w*)\b", text, re.I)
+    )
+    return says and not about_code(text)
+
+
 def shown_to_people(skill_id: str) -> bool:
     """Whether a person-facing list or a turn may carry this skill."""
     return developer_skills_on() or not is_developer_skill(skill_id)
@@ -1146,6 +1221,8 @@ DEFAULT_MAX_SELECTED = 3
 #: Doctrine slots, held SEPARATELY from task slots. Two, because the measured
 #: advisory pairing is the presentation doctrine plus the strongest lens for the class.
 DEFAULT_MAX_DOCTRINE = 2
+#: Expert lenses on a turn with words: one (``select_native_skills``).
+_MAX_LENSES_BY_WORDS = 1
 
 
 def skill_cards(contracts: Any = None) -> tuple[Any, ...]:
@@ -1262,6 +1339,112 @@ def _strong_words(found: Any) -> bool:
     )
 
 
+def _lens_words(found: Any) -> bool:
+    """A lens's own words in the ask, even one, even inside a question.
+
+    A task skill needs more than a shared word, and none at all on a question about the world:
+    the model answers "is sms login secure enough" without a procedure. A lens is not a
+    procedure; it is how to weigh exactly such a question, and one of its own concern words
+    ("secure", "claim", "pricing", "cluttered") says which weighing the question is about. A
+    whole trigger or a word of the lens's name counts; words the ask merely shares with the
+    card ("time", "set") do not.
+    """
+    if found is None or not (found.qualified or getattr(found, "general", False)):
+        return False
+    return bool(found.anchored or any(
+        reason.startswith(('trigger "', "word from the skill's name")) for reason in found.reasons
+    ))
+
+
+_ALTERNATIVES_RE = re.compile(r"\b(?:or|versus|vs)\b")
+_CHOOSING_RE = re.compile(
+    r"\b(?:decide|deciding|decision|choose|choosing|pick|torn|dilemma|weigh|weighing|undecided)\b"
+)
+_ASKING_RE = re.compile(r"^(?:which|what|whether|should|would|could|can|is|are|do|does|shall)\b"
+                        r"|\b(?:should|shall) (?:i|we)\b|\bwhich (?:one|option|first|is)\b")
+_WEIGHING_RE = re.compile(
+    r"\b(?:good|bad|smart|wise|sensible|better|right) (?:idea|move|choice|call|plan|time)\b"
+    r"|\bis it (?:wise|smart|sensible|worth|better|too late|too risky|risky)\b"
+    r"|\b(?:smarter|wiser|worth it)\b"
+)
+_OWN_CASE_RE = re.compile(r"\b(?:i|we|my|our|me|us|i'm|im)\b")
+
+
+def _decision_shape(user_text: str) -> bool:
+    """The ask weighs a course of action: "should I lease or buy", "which first, the roof or the
+    kitchen", "is it wise to quit to open a bakery", "I'm torn between a gap year and uni".
+
+    Read from the grammar of choosing, not from a topic: alternatives the person asks to choose
+    between (an "or" in their question about their own case, or "between" with a word of
+    choosing), or a course of action put up for judgement ("a good idea", "is it worth",
+    "smarter"). "should I wear a jacket today?" offers no alternative and weighs no course, so
+    it is a plain verdict; "what's the difference between a crocodile and an alligator" chooses
+    nothing.
+    """
+    from core.plugin_skills import _raw_tokens
+
+    tokens = _raw_tokens(user_text)
+    if not tokens:
+        return False
+    spoken = " ".join(tokens)
+    if _WEIGHING_RE.search(spoken):
+        return True
+    choosing = bool(_CHOOSING_RE.search(spoken))
+    if choosing and ("between" in tokens or _ALTERNATIVES_RE.search(spoken)):
+        return True
+    asking = bool(_ASKING_RE.search(spoken)) or choosing
+    return bool(asking and _ALTERNATIVES_RE.search(spoken) and _OWN_CASE_RE.search(spoken))
+
+
+_ADVICE_RE = re.compile(
+    r"\b(?:how (?:do|can|could|should|would|to)|help me|advice|advise|thoughts on|what do you think"
+    r"|can i trust|is (?:that|this|it) (?:right|true|accurate|safe|secure|ok|okay))\b"
+)
+
+
+def _asks_for_judgement(user_text: str) -> bool:
+    """The ask wants something weighed: it is a question ("?", or a clause that opens on a
+    question word), asks how to, or asks for advice or a verdict. A lens weighs; an ask that
+    only names a thing to do ("sabotage proof lifecycle for my workspace", "write the
+    invoice") is not asking for a weighing, whatever words it shares with a lens."""
+    from core.plugin_skills import _QUESTION_OPENERS, _raw_tokens
+
+    text = str(user_text or "")
+    if "?" in text or _ADVICE_RE.search(" ".join(_raw_tokens(text))):
+        return True
+    for clause in _CLAUSE_RE.split(text):
+        words = _raw_tokens(clause)
+        if words and words[0] in _QUESTION_OPENERS:
+            return True
+    return False
+
+
+def _answers_decisions(contract: SkillContract) -> bool:
+    """The lens whose own card says it is for decision-shaped turns."""
+    return contract.kind == KIND_EXPERT_LENS and "decision-shaped" in str(contract.description or "").lower()
+
+
+def _instruction_head(user_text: str) -> str:
+    """The ask without the material it carries: "summarise this paragraph: <text>" is a request
+    about "this paragraph"; the words of the text after the colon are what the work is done to,
+    not what work is asked. Only a head that points at that material ("this", "these", "the
+    following", "here") is cut; "which is smarter right now: paying off ... or investing" keeps
+    its whole question."""
+    from core.plugin_skills import _DEICTICS, _MATERIAL_WORDS, _raw_tokens
+
+    text = str(user_text or "")
+    match = re.search(r":\s+", text)
+    if not match:
+        return text
+    head, rest = text[: match.start()], text[match.end():]
+    head_tokens = _raw_tokens(head)
+    if len(_raw_tokens(rest)) < 3 or not head_tokens or len(head_tokens) > 12:
+        return text
+    if not any(token in _DEICTICS or token in _MATERIAL_WORDS for token in head_tokens):
+        return text
+    return head
+
+
 #: How a skill is seated when the turn has words (``_seating_law``).
 LAW_TYPED = "typed"
 LAW_TASK_WORDS = "task_words"
@@ -1331,23 +1514,6 @@ def _plain_question(user_text: str) -> bool:
     return asked
 
 
-def _verdict_question(user_text: str) -> bool:
-    """A question that opens on its verb: "should I take ...", "is it worth ...", "can we ...".
-
-    The same reading the lexical ranker uses for a yes-or-no question about the person's own
-    case (``core.plugin_skills._VERDICT_OPENERS``); a request phrased as a question ("can you
-    ...") and "do a ..." are requests, not verdicts.
-    """
-    from core.plugin_skills import _REQUEST_RE, _VERDICT_OPENERS, _raw_tokens
-
-    tokens = _raw_tokens(user_text)
-    if not tokens or tokens[0] not in _VERDICT_OPENERS:
-        return False
-    if _REQUEST_RE.match(" ".join(tokens)):
-        return False
-    return not (tokens[0] == "do" and len(tokens) > 1 and tokens[1] in {"a", "an", "some"})
-
-
 def select_native_skills(
     *,
     task_class: str = "",
@@ -1373,7 +1539,8 @@ def select_native_skills(
       says" got project-archaeology through a ``workspace.read_file`` demand seven skills share,
       and every ``debugging`` turn got whichever debugging skill had the lowest priority number;
     - an EXPERT LENS with ``triggers``: on its class when the ask shows it is that kind of turn
-      (the lens's words, or a verdict question), or on strong words of its own;
+      (its words, or a decision shape), on one concern word of its own (``_lens_words``), or,
+      for the lens whose card declares decisions, on a decision-shaped ask (``_decision_shape``);
     - everything else -- the presentation doctrine, trigger-less typed contracts, a plugin
       pack's skill -- on its class or demand, as before.
 
@@ -1396,7 +1563,7 @@ def select_native_skills(
     disabled = _read_disabled_ids()
     invalid_ids = {error.id: error for error in library.invalid}
     records: list[SkillAvailabilityRecord] = []
-    scored: list[tuple[int, float, int, SkillContract]] = []
+    scored: list[tuple[int, float, float, int, SkillContract]] = []
     class_rank: dict[str, tuple[int, int, str]] = {}
 
     for error in invalid_ids.values():
@@ -1440,8 +1607,13 @@ def select_native_skills(
     from core.plugin_skills import _content_stems
 
     has_words = bool(_content_stems(str(user_text or "")))
-    verdict = has_words and _verdict_question(str(user_text or ""))
-    evidence = _word_evidence(available, str(user_text or "")) if has_words else {}
+    # An ask that carries its material is read by its request, not by the material's words.
+    asked = _instruction_head(str(user_text or ""))
+    carries_material = asked != str(user_text or "")
+    decision = has_words and _decision_shape(asked)
+    judgement = has_words and (decision or _asks_for_judgement(asked))
+    everyday_words = has_words and everyday_sense_only(asked)
+    evidence = _word_evidence(available, asked) if has_words else {}
     # How many available candidates declare each demanded intent / family: a demand only one
     # skill declares points at that skill; one that seven skills declare points at none of them.
     claimants: dict[str, int] = {}
@@ -1475,10 +1647,17 @@ def select_native_skills(
             seated = typed > 0 or (contract.kind == KIND_EXPERT_LENS and _strong_words(found))
             reason = "no typed signal ties this skill to the turn"
         elif law == LAW_LENS_WORDS:
-            # A lens: strong words of its own seat it; its class seats it when the ask shows it
-            # is that kind of turn (its words, or a verdict question).
-            shaped = words_pick or (found is not None and found.distinct >= 2) or verdict
-            seated = _strong_words(found) or (typed > 0 and shaped)
+            # A lens: its name or a whole trigger seats it; on an ask that wants something weighed,
+            # one of its concern words is enough (``_lens_words``); a
+            # decision-shaped ask seats the lens that declares itself for decisions; its class
+            # seats it when the ask shows it is that kind of turn.
+            shaped = _lens_words(found) or decision
+            seated = (
+                (found is not None and _words_pick(found) and found.anchored)
+                or (judgement and _lens_words(found))
+                or (decision and _answers_decisions(contract))
+                or (typed > 0 and shaped)
+            )
             reason = "the turn's class and words do not call for this lens"
         else:
             # A task skill: the words pick it and are strong on their own; or its class backs
@@ -1486,7 +1665,11 @@ def select_native_skills(
             # points at it alone.
             singled_out = any(claimants.get(name, 0) == 1 for name in intent_hits | family_hits)
             backed = class_hit and (words_pick or (found is not None and found.distinct >= 2))
-            seated = _strong_words(found) or backed or singled_out
+            # A developer skill's words do not count on an ask that uses developer words only in
+            # their everyday senses: "review my cover letter before I commit to sending it" says
+            # "review" and "commit" and is a letter (``everyday_sense_only``).
+            worded = _strong_words(found) and not (contract.audience == "developer" and everyday_words)
+            seated = worded or backed or singled_out
             reason = "the ask's words do not ask for what this skill does"
         judged.append((contract, seated, class_hit, word_worth, typed, law, words_pick, reason, found))
 
@@ -1495,7 +1678,7 @@ def select_native_skills(
     # are my meeting notes, give me the action items" classed debugging; "Write an X article"
     # classed creative_ideation). Words decide WHICH skill when they say anything; and a plain
     # question no skill's words answer to is answered plainly (``_plain_question``).
-    if has_words and not _plain_question(str(user_text or "")) and not any(
+    if has_words and not carries_material and not _plain_question(str(user_text or "")) and not any(
         seated and law in (LAW_TASK_WORDS, LAW_LENS_WORDS)
         for (_c, seated, _h, _w, _t, law, *_rest) in judged
     ):
@@ -1507,6 +1690,10 @@ def select_native_skills(
     for contract, seated, class_hit, word_worth, typed, law, words_pick, reason, found in judged:
         if not seated and law in silent:
             seated = class_hit if law == LAW_TASK_WORDS else typed > 0
+            # The class was misled by developer words used in their everyday senses ("the
+            # self-checkout said error code 45" classed debugging): no developer skill on it.
+            if seated and contract.audience == "developer" and everyday_words:
+                seated = False
             if seated:
                 by_class_only.add(contract.id)
         if seated:
@@ -1519,10 +1706,22 @@ def select_native_skills(
             # class, and the words say which one the turn is about. Lower declared priority
             # breaks exact ties; the id is the final deterministic word.
             anchored = bool(words_pick and found.anchored)
-            tier = 0 if (anchored and has_words and law == LAW_TASK_WORDS) else 1
+            # A lens its own words seat ranks ahead of one only the class or the decision shape
+            # seats: "should we keep one database or split into services" is a decision, and the
+            # words say the decision is about architecture.
+            tier = 0 if (
+                has_words and (
+                    (anchored and law == LAW_TASK_WORDS)
+                    or (law == LAW_LENS_WORDS and _lens_words(found))
+                )
+            ) else 1
             if contract.kind == KIND_EXPERT_LENS and _strong_words(found):
                 word_worth *= 2
-            scored.append((tier, -(typed + word_worth), contract.priority, contract))
+            # Among lenses its words seat, the one the ask's words say most about leads; a class
+            # several lenses share only breaks the tie ("the search page is confusing for
+            # customers" is about the page, whatever the class).
+            lead = word_worth if (law == LAW_LENS_WORDS and tier == 0) else 0.0
+            scored.append((tier, -lead, -(typed + word_worth), contract.priority, contract))
             class_rank[contract.id] = (-typed, contract.priority, contract.id)
         else:
             records.append(
@@ -1532,8 +1731,8 @@ def select_native_skills(
                 )
             )
 
-    scored.sort(key=lambda item: (item[0], item[1], item[2], item[3].id))
-    ordered = [item[3] for item in scored]
+    scored.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4].id))
+    ordered = [item[4] for item in scored]
     # The doctrine lane's FIRST seat stays the one its class alone gives it (the presentation
     # doctrine on an advisory turn, the security lens on a hardening turn): words choose which
     # lens fills the rest, they do not turn one lens into two at the doctrine's expense.
@@ -1554,8 +1753,23 @@ def select_native_skills(
     lane_taken: dict[str, int] = {LANE_TASK: 0, LANE_DOCTRINE: 0}
 
     selected: list[SkillContract] = []
+    lens_taken = 0
     for contract in ordered:
         lane = lane_for(contract)
+        word_lens = _seating_law(contract) == LAW_LENS_WORDS
+        if has_words and word_lens and lens_taken >= _MAX_LENSES_BY_WORDS:
+            # One way of weighing a question per turn: once the ask's words can seat a lens
+            # without its class, two lenses would otherwise share the doctrine lane's seats on
+            # any ask that brushes two concerns ("customers" and "safe"); the best-ranked one
+            # is the one the question is about.
+            records.append(
+                SkillAvailabilityRecord(
+                    id=contract.id, state="below_cutoff",
+                    reason="one expert lens per turn; a lens the ask is more about ranked first",
+                    version=contract.version,
+                )
+            )
+            continue
         if lane_taken[lane] >= lane_budget[lane]:
             records.append(
                 SkillAvailabilityRecord(
@@ -1581,6 +1795,7 @@ def select_native_skills(
             continue
         selected.append(contract)
         lane_taken[lane] += 1
+        lens_taken += word_lens
 
     return SkillSelection(
         selected=tuple(selected),

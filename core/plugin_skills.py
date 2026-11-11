@@ -21,6 +21,7 @@ turn where that skill matched*, which is a budget lever, not a permission decisi
 """
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from dataclasses import dataclass
@@ -590,6 +591,16 @@ def _qualify(skills: tuple[Skill, ...], user_text: str, peers: tuple[Skill, ...]
     return matches
 
 
+def _shares_pair(ask_stems: list[str], card_stems: list[str], anchors: set[str]) -> bool:
+    """An anchor word stands next to the same word, in the same order, in the ask and on the card."""
+    def pairs(stems: list[str]) -> set[tuple[str, str]]:
+        return {pair for pair in itertools.pairwise(stems) if pair[0] != pair[1]}
+
+    # In the card's order: "a packing list" is the card's "packing list"; "the rent this month"
+    # is not its "monthly rent".
+    return any(set(pair) & anchors for pair in pairs(ask_stems) & pairs(card_stems))
+
+
 def _assess(skills: tuple[Skill, ...], user_text: str, peers: tuple[Skill, ...] = ()) -> list[_Match]:
     """Every skill weighed against this request: qualified or not, with its score and support.
 
@@ -676,10 +687,22 @@ def _assess(skills: tuple[Skill, ...], user_text: str, peers: tuple[Skill, ...] 
         # word: "fix the spelling" reaches the proofreading skill, "explain how it works" must
         # not reach whichever skill happens to say "worked example".
         kind_backed = bool(ask_stem_set & _KIND_STEMS & found.card) and max(worth.values(), default=0.0) >= _KIND_PAIR_BAR
+        # One word of a name made of several ("rent" of rent-splitter, "split" of it) is half
+        # the job the name states, and an everyday word besides: "pay my rent late this month"
+        # and "split this PDF" are not asks to divide the rent between flatmates. Alone, or
+        # with one more shared word, it does not pick the skill; the rest of the name, a
+        # trigger, or two more words of its card must stand with it.
+        keys = {stem for stem in worth if stem in found.name or stem in found.triggers}
+        lone_name_word = (
+            len(found.name) >= 2 and len(keys) == 1 and not (keys & found.triggers) and len(worth) < 3
+            # ...unless it stands in the ask beside a word it stands beside on the card: "make
+            # me a packing list" says the card's own "packing list".
+            and not _shares_pair(ask_stems, _content_stems(skill.description), keys)
+        )
         qualified_without_backing = (
             named or name_covered or bool(hits) or bool((ask_stem_set - subject_only) & found.triggers)
-            or strong >= _STRONG_BAR
-            or (words >= _BAR and len(worth) >= 2)
+            or (strong >= _STRONG_BAR and not lone_name_word)
+            or (words >= _BAR and len(worth) >= 2 and not lone_name_word)
         )
         if not (qualified_without_backing or kind_backed):
             if words > 0:

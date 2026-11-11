@@ -10,7 +10,7 @@ type: expert_lens
 id: lens-security
 risk-class: read_only
 task-families: [security_hardening]
-triggers: [security, secure, threat model, attacker, trust boundary, attack surface, store passwords, encryption, authentication, permissions model]
+triggers: [security, secure, threat model, attacker, trust boundary, attack surface, store passwords, encryption, authentication, permissions model, safe enough, is it safe, hacked, hackers, breach, password, passwords, password reset, login, log in, sign in, two-factor, 2fa, one-time code, otp, sms code, api key, api keys, card numbers, credit card, personal data, phishing, encrypt, encrypted, access control]
 expected-outputs: [lens_findings]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens states at most five findings with their evidence, or states plainly that no security-relevant surface was found in the material already present"]

@@ -293,12 +293,195 @@ def test_a_plain_question_no_skills_words_answer_is_not_seated_by_its_class() ->
 
 
 def test_a_person_never_gets_a_developer_skill_the_class_alone_seated() -> None:
-    """Even when the words say "pipeline": the class seated it, not the ask."""
-    from core.native_skill_library import select_native_skills
+    """Even when the words are about code: the class seated it, not the ask."""
+    from core.native_skill_library import load_skill_contracts
     from core.tool_offer_assembly import _people_safe
 
-    text = "the pipeline under my sink is leaking again, sort out a plumber visit"
-    selection = select_native_skills(task_class="security_hardening", user_text=text)
-    assert "security-audit" in selection.by_class_only, "precondition: the class seats the audit here"
-    kept = _people_safe(selection.selected, text, selection.by_class_only)
-    assert not {c.id for c in kept} & DEVELOPER_IDS, [c.id for c in kept]
+    audit = next(c for c in load_skill_contracts().contracts if c.id == "security-audit")
+    text = "the build pipeline went red after the merge"
+    assert [c.id for c in _people_safe((audit,), text)] == ["security-audit"], (
+        "precondition: words about code let a developer skill through the gate"
+    )
+    assert _people_safe((audit,), text, frozenset({"security-audit"})) == ()
+
+
+# --------------------------------------------------------------------------- lenses read the question
+
+LENS_ASKS = [
+    # Decisions about the person's own course: the lens whose card declares decisions.
+    ("should we renovate the old house or sell it and move somewhere smaller?", "lens-strategy"),
+    ("which should I learn first, guitar or piano?", "lens-strategy"),
+    ("is it a good idea to take out a loan to expand my shop?", "lens-strategy"),
+    ("I can't decide between a cheaper flat with a long commute and a pricier one near work", "lens-strategy"),
+    # Willingness to pay, viability: the market lens.
+    ("would restaurants pay for software that tracks their food waste?", "lens-market"),
+    ("is a phone repair stall a viable business next to a train station", "lens-market"),
+    # Is this claim / study / article right: the evidence lens.
+    ("a newspaper article says eating eggs every day is bad for your heart, is that right?", "lens-evidence"),
+    ("my uncle shared a study claiming red wine helps you live longer, can I trust that", "lens-evidence"),
+    # Is this method secure: the security lens.
+    ("is a four-digit pin secure enough for the logins on my booking app?", "lens-security"),
+    ("is it safe to email customers their invoices as plain attachments", "lens-security"),
+    # A screen or flow that is hard to use: the ux lens.
+    ("the search page of my site is confusing for customers, how do I fix it", "lens-ux"),
+    ("the signup page asks for too many fields, how can I simplify it", "lens-ux"),
+    # How to structure a system: the architecture lens.
+    ("should our small shop app keep one database or give each service its own?", "lens-architecture"),
+    ("for a hobby project, is a monolith or microservices the better fit", "lens-architecture"),
+]
+
+
+@pytest.mark.parametrize(("text", "wanted"), LENS_ASKS)
+def test_an_advisory_question_gets_the_lens_its_concern_names(text: str, wanted: str) -> None:
+    _task_class, names = _served(text)
+    lenses = [name for name in names if name in LENS_IDS]
+    assert lenses == [wanted], (text, names)
+    assert not _task_skills(names), names
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "should I wear a scarf today?",
+        "what's the difference between a moth and a butterfly",
+        "is it going to rain this weekend",
+        "summarise this paragraph: the integration team wired the payment gateway into the "
+        "orchestration layer and the deployment pipeline now runs every night",
+        "rewrite this sentence so it sounds warmer: your request has been processed",
+    ],
+)
+def test_a_plain_verdict_or_carried_material_gets_no_lens(developer, text: str) -> None:
+    """No alternatives to weigh, nothing the person decides, or words that belong to pasted
+    material rather than to the request: no lens, no task skill."""
+    _task_class, names = _served(text)
+    assert not set(names) & LENS_IDS, names
+    assert not _task_skills(names), names
+
+
+def test_the_words_of_carried_material_do_not_pick_the_skill() -> None:
+    """The request is read by its head: the same words asked directly would pick a lens."""
+    from core.native_skill_library import _instruction_head
+
+    asked = "summarise this paragraph: our checkout flow is confusing and users drop off"
+    assert _instruction_head(asked) == "summarise this paragraph"
+    assert _instruction_head("which is smarter right now: renting or buying a flat") == (
+        "which is smarter right now: renting or buying a flat"
+    )
+
+
+def test_a_feature_for_the_persons_app_reaches_feature_build(developer) -> None:
+    task_class, names = _served("add a dark mode switch to my app's account page")
+    assert _task_skills(names)[:1] == ["feature-build"], (task_class, names)
+
+
+def test_sabotage_without_the_decision_shape_a_decision_with_no_lens_word_gets_no_lens(monkeypatch) -> None:
+    import core.native_skill_library as library
+
+    text = "which should I learn first, guitar or piano?"
+    assert "lens-strategy" in _served(text)[1]
+    monkeypatch.setattr(library, "_decision_shape", lambda user_text: False)
+    assert "lens-strategy" not in _served(text)[1], "sabotage no-op: the decision shape is not what seats it"
+
+
+# --------------------------------------------------------------------------- developer words in their everyday sense
+
+EVERYDAY_SENSES = [
+    "look over my cover letter before I commit to sending it to the recruiter",
+    "the ticket machine at the station showed error code 17 and ate my card",
+    "the council deployed extra gritters before the snow",
+    "go through my essay and point out the bugs in my reasoning",
+    "which branch of the bank is open on saturdays",
+    "the builders said the extension build is a week behind",
+]
+CODE_WORK = [
+    "look over my diff before I push and flag anything risky",
+    "the nightly build is broken since this morning's merge, fix it",
+    "why does parse_invoice() return None for an empty file?",
+    "the deploy script throws a traceback after my last commit",
+    "run the tests again and tell me which ones still fail",
+]
+
+
+@pytest.mark.parametrize("text", EVERYDAY_SENSES)
+def test_an_everyday_sense_of_a_developer_word_is_not_code(text: str) -> None:
+    from core.native_skill_library import about_code
+
+    assert not about_code(text), text
+
+
+@pytest.mark.parametrize("text", CODE_WORK)
+def test_software_work_is_code(text: str) -> None:
+    from core.native_skill_library import about_code
+
+    assert about_code(text), text
+
+
+@pytest.mark.parametrize("text", EVERYDAY_SENSES)
+def test_a_person_s_everyday_sense_seats_no_developer_skill(text: str) -> None:
+    _task_class, names = _served(text)
+    assert not set(names) & DEVELOPER_IDS, (text, names)
+
+
+def test_a_developer_s_word_skill_needs_code_even_with_the_setting_on(developer) -> None:
+    """The developer setting shows the developer skills; it does not turn a cover letter into
+    a code review. Where the class alone seats them (a turn no skill's words speak to) the
+    setting keeps them, as tests/test_skills_for_people.py pins."""
+    _task_class, names = _served("look over my cover letter before I commit to sending it to the recruiter")
+    assert "code-review" not in names, names
+    _task_class, names = _served("look over my diff before I push and flag anything risky")
+    assert _task_skills(names)[:1] == ["code-review"], names
+
+
+@pytest.mark.parametrize("text", [CODE_WORK[1], CODE_WORK[3], CODE_WORK[4]])
+def test_a_person_s_own_code_work_still_reaches_a_developer_skill(text: str) -> None:
+    """The setting off: the words that make it software work still let a developer skill in."""
+    _task_class, names = _served(text)
+    assert set(names) & DEVELOPER_IDS, (text, names)
+
+
+# --------------------------------------------------------------------------- one word of a name
+
+def _cards():
+    from core.native_skill_library import skill_cards
+    from core.plugin_skills import Skill
+
+    mine = (
+        Skill(name="rent-splitter",
+              description="Work out a fair split of the monthly rent and shared bills between flatmates.",
+              body="Ask for each room's size."),
+        Skill(name="trip-packer", description="Build a packing list for a trip from the destination, "
+              "the dates and the weather.", body="Ask where and when."),
+    )
+    return mine, skill_cards()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "split this scanned contract into one file per page",
+        "I'll be late with the rent this month, write a note to my landlord",
+        "what's the rent for a two-bed in Porto these days",
+        "we're on a trip to the coast, recommend a fish restaurant",
+    ],
+)
+def test_one_everyday_word_of_a_skill_s_name_does_not_pick_it(text: str) -> None:
+    from core.plugin_skills import rank_skills
+
+    mine, peers = _cards()
+    assert not rank_skills(mine, text, limit=2, peers=peers), text
+
+
+@pytest.mark.parametrize(
+    ("text", "wanted"),
+    [
+        ("help me split the rent fairly with my two flatmates", "rent-splitter"),
+        ("my flatmate's room is bigger, how should we share the rent and bills", "rent-splitter"),
+        ("make me a packing list for my trip to Iceland in March", "trip-packer"),
+        ("use the trip packer for my weekend in Rome", "trip-packer"),
+    ],
+)
+def test_the_name_with_its_card_still_picks_it(text: str, wanted: str) -> None:
+    from core.plugin_skills import rank_skills
+
+    mine, peers = _cards()
+    assert [s.name for s in rank_skills(mine, text, limit=1, peers=peers)] == [wanted], text

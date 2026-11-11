@@ -131,16 +131,42 @@ def test_without_the_plugin_the_skill_is_refused_by_prerequisite_not_by_capabili
 def test_an_unknown_capability_id_is_reported_as_unknown_not_as_unavailable() -> None:
     """The distinction that makes a contract typo findable.
 
-    media-studio declares nine capability ids this runtime does not define. That is
-    a contract defect in another lane, recorded here rather than edited: what this
-    lane fixes is that the record now SAYS the names are unknown instead of implying
-    the machine is missing something.
+    A contract that declares a capability id this runtime does not define is refused, and the
+    record SAYS the name is unknown instead of implying the machine is missing something. This
+    used to be shown on media-studio, whose ids were unknown everywhere because nothing
+    registered the media family; the runtime now registers it at boot where the media tools
+    exist, so the case is made with a made-up id -- on a graph where the real media family IS
+    registered, so a known family does not lend its standing to an id it does not define.
     """
-    selection = select_native_skills(task_class="creative_ideation", user_text="edit my video")
-    record = next((r for r in selection.records if r.id == "media-studio"), None)
-    if record is None or record.state != "capability_unavailable":
-        pytest.skip("media-studio is not in the capability_unavailable state on this machine")
-    assert "unknown capability id" in record.reason, record.reason
+    import dataclasses
+
+    from core import capability_graph
+    from core.media_capabilities import register_media_capabilities
+    from core.native_skill_library import LibraryLoad, load_skill_contracts
+
+    library = load_skill_contracts()
+    media = next(c for c in library.contracts if c.id == "media-studio")
+    typo = dataclasses.replace(media, capabilities=(*media.capabilities, "media.video.teleport"))
+    poisoned = LibraryLoad(
+        contracts=tuple(typo if c.id == "media-studio" else c for c in library.contracts),
+        invalid=library.invalid,
+    )
+    capability_graph.ensure_registry_bootstrap()
+    register_media_capabilities(available=True)
+    try:
+        healthy = select_native_skills(task_class="", user_text="edit my video", library=library)
+        sound = [r for r in healthy.records if r.id == "media-studio" and r.state == "capability_unavailable"]
+        assert not sound, ("precondition: the real ids resolve", sound)
+
+        selection = select_native_skills(task_class="", user_text="edit my video", library=poisoned)
+        record = next(r for r in selection.records if r.id == "media-studio")
+        assert record.state == "capability_unavailable", (record.state, record.reason)
+        assert "unknown capability id" in record.reason, record.reason
+        assert "media.video.teleport" in record.reason, record.reason
+        assert "media-studio" not in [c.id for c in selection.selected]
+    finally:
+        capability_graph.reset()
+        capability_graph.ensure_registry_bootstrap()
 
 
 # ── selection is not authority ───────────────────────────────────────────────

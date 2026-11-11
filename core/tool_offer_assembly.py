@@ -478,6 +478,18 @@ _DEVELOPER_WORDS_RE = re.compile(
 )
 
 
+#: Words that put a turn in a developer's own work: code, tests, repositories, releases. Any one of
+#: them lets VOOL's developer skills guide the turn; an everyday ask carries none.
+def _about_code(user_text: str) -> bool:
+    """The turn is about a developer's own work (``core.native_skill_library.about_code``):
+    software-only words, a software name, or software-leaning words in their software sense.
+    The everyday senses ("commit to sending it", "error code 45", "the parcel was deployed")
+    do not count."""
+    from core.native_skill_library import about_code
+
+    return about_code(user_text)
+
+
 #: "code" in its everyday senses is not code-context work.
 _EVERYDAY_CODE_RE = re.compile(
     r"\b(?:zip|post|postal|area|country|dial(?:ling)?|dress|promo|promotional|discount|voucher"
@@ -495,8 +507,11 @@ def _developer_turn(user_text: str) -> bool:
 
     if developer_skills_on():
         return True
+    # Both readings must agree: a code-context word (red team t12's list, which leaves out
+    # words with an everyday sense) AND the software sense of the ask as a whole (audit M4:
+    # "before I commit to sending it", "error code 45", "the parcel was deployed").
     text = _EVERYDAY_CODE_RE.sub(" ", str(user_text or ""))
-    return bool(_DEVELOPER_WORDS_RE.search(text))
+    return bool(_DEVELOPER_WORDS_RE.search(text)) and _about_code(str(user_text or ""))
 
 
 def _audience_ok(skills: tuple[Any, ...], user_text: str) -> tuple[Any, ...]:

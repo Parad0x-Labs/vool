@@ -163,12 +163,26 @@ class NebulaWorkerClient:
 _default_client: NebulaWorkerClient | None = None
 
 
+#: The worker VOOL ships with: a pinned snapshot of nebula-media under vendor/ (see its
+#: PROVENANCE.md). Used when NEBULA_MEDIA_HOME does not name another checkout.
+VENDORED_NEBULA_HOME = Path(__file__).resolve().parents[1] / "vendor" / "nebula-media"
+
+
+def default_nebula_home() -> str:
+    """Where the worker is: NEBULA_MEDIA_HOME when set, else the vendored snapshot when it is
+    on disk, else "" (the worker must then be importable on its own)."""
+    home = os.environ.get("NEBULA_MEDIA_HOME", "")
+    if home:
+        return str(Path(home).expanduser())
+    if (VENDORED_NEBULA_HOME / "nebula" / "worker.py").is_file():
+        return str(VENDORED_NEBULA_HOME)
+    return ""
+
+
 def get_media_worker() -> NebulaWorkerClient:
     global _default_client
     if _default_client is None:
-        home = os.environ.get("NEBULA_MEDIA_HOME", "")
-        resolved = str(Path(home).expanduser()) if home else ""
-        _default_client = NebulaWorkerClient(nebula_home=resolved)
+        _default_client = NebulaWorkerClient(nebula_home=default_nebula_home())
     return _default_client
 
 
