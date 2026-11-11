@@ -298,7 +298,7 @@ def test_a_person_never_gets_a_developer_skill_the_class_alone_seated() -> None:
     from core.tool_offer_assembly import _people_safe
 
     audit = next(c for c in load_skill_contracts().contracts if c.id == "security-audit")
-    text = "the build pipeline went red after the merge"
+    text = "the CI pipeline went red after the merge of my pull request"
     assert [c.id for c in _people_safe((audit,), text)] == ["security-audit"], (
         "precondition: words about code let a developer skill through the gate"
     )
@@ -395,7 +395,9 @@ EVERYDAY_SENSES = [
 ]
 CODE_WORK = [
     "look over my diff before I push and flag anything risky",
-    "the nightly build is broken since this morning's merge, fix it",
+    # Both readings must agree on a person's turn: a code-context word ("CI") and the software
+    # sense of the ask. "build" and "merge" alone also have everyday senses (red team t12).
+    "the nightly CI build is broken since this morning's merge, fix it",
     "why does parse_invoice() return None for an empty file?",
     "the deploy script throws a traceback after my last commit",
     "run the tests again and tell me which ones still fail",

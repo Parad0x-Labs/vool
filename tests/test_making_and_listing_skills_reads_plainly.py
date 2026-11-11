@@ -864,7 +864,10 @@ class TestTheSharingRepliesReadPlainly:
         ):
             reply = _lane("jobc-builtin", "turn off the answer-presentation skill")
         assert reply is not None
-        assert reply["response"] == "Answer presentation comes with VOOL and cannot be turned off here."
+        assert reply["response"] == (
+            "Answer presentation comes with VOOL, so I can't remove it. You can turn it off in "
+            "Skills & Plugins, under My add-ons, Skills."
+        )
 
     def test_turning_off_a_skill_you_made_still_turns_it_off(self) -> None:
         from core.mode_permission_policy import PermissionAction, grant_internal_authority
