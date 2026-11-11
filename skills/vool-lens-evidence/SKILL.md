@@ -8,7 +8,8 @@ status: p1
 type: expert_lens
 id: lens-evidence
 risk-class: read_only
-task-families: [research, general_advisory]
+task-families: [research]
+triggers: [evidence, is it true, fact check, studies, study, research says, scientific consensus, proof, sources for, cite sources, what the data says, claim, myth]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations naming claim and support, or states that every claim present already carries its receipt"]

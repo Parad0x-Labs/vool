@@ -7,7 +7,7 @@ author: sls_0x
 status: p1
 type: capability_skill
 audience: developer
-triggers: [code review, review my changes, review my diff, review this diff, review this patch, review my last commit, look over my change, before i push, check this snippet, review this snippet, review this code]
+triggers: [code review, review my changes, review my diff, review this diff, review this patch, review my last commit, look over my change, before i push, check this snippet, review this snippet, review this code, pull request, pr, staged changes, code changes, my changes, diff, patch, go over my code]
 allowed-tools: [workspace.git_diff, workspace.read_file, workspace.search_text, workspace.run_lint]
 capabilities: [workspace.read, workspace.git, workspace.validate]
 permissions: [read_files]

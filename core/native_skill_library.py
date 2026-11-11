@@ -26,11 +26,15 @@ The contract lives in SKILL.md frontmatter (same file, same loader, richer keys)
     incompatible-with            skill ids that must not be co-selected
     priority                     tiebreak rank among equal-scored skills (lower = first)
 
-**Selection is typed.** A skill is selected from the turn's task class (the production
-classifier's output) and its demand signals (``core.tool_demand_signals``) — both already
-canonical vocabularies. No user-text token matching is added here; that is the law of the
-place, because a second phrase-regex pile is exactly the failure mode Section 2 of CLAUDE.md
-bans.
+**Selection reads the skill's own words.** A skill is selected from the turn's task class (the
+production classifier's output), its demand signals (``core.tool_demand_signals``) and the ask's
+words weighed against the words the skill's author wrote for it -- its id, description and
+``triggers`` -- through the ONE lexical scorer the plugin lanes already use
+(``core.plugin_skills.word_evidence``). No phrase list lives here: every word that can pick a
+skill is in that skill's own SKILL.md. The class alone used to decide, and measured on the served
+path it could not: "review the code changes in my project before I push", "my CI is red, fix
+it" and "cut the first 10 seconds of this video" classify ``unknown`` and got nothing, while every
+``general_advisory`` turn got the same evidence lens. ``select_native_skills`` states the law.
 
 **A skill grants nothing.** ``permitted-tools`` narrows an offer (the budget lever
 ``core.tool_offer_assembly`` already applies) and can never seat a tool that is unavailable,
@@ -123,6 +127,9 @@ class SkillContract:
     #: Who the skill is for. "developer" marks the skills the VOOL team builds VOOL with (code
     #: review, test runs, release gates ...): left out of a person's list and everyday turns.
     audience: str = ""
+    #: The author's own words for when this skill applies (the same ``triggers`` key plugin
+    #: skills use). Selection weighs them with the name and description against the ask.
+    triggers: tuple[str, ...] = ()
 
     @property
     def task_family_set(self) -> frozenset[str]:
@@ -158,11 +165,15 @@ class SkillAvailabilityRecord:
 class SkillSelection:
     selected: tuple[SkillContract, ...]
     records: tuple[SkillAvailabilityRecord, ...]
+    # Ids seated by the task class alone because the ask's words seated nothing of that law.
+    # Callers that gate on what the person asked (``tool_offer_assembly._people_safe``) read it.
+    by_class_only: frozenset[str] = frozenset()
 
 
 # Selection weights. Task class is the strongest typed signal (the production classifier's
 # deliberate output); demand-signal matches are the user's own words mapped through the
-# EXISTING deterministic rules. No other signal is consulted.
+# EXISTING deterministic rules. The ask's words, weighed against the skill's own card, add their
+# lexical score on top (``select_native_skills``).
 _WEIGHT_TASK_CLASS = 4
 _WEIGHT_DEMAND = 2
 
@@ -263,6 +274,7 @@ def contract_from_frontmatter(
         capabilities=_as_list(front, "capabilities"),
         kind=_normalized_kind(front.get("type")),
         audience=str(front.get("audience") or "").strip().lower(),
+        triggers=_as_list(front, "triggers"),
         source=str(source or "native"),
         path=str(path),
         body=str(body or ""),
@@ -759,6 +771,7 @@ def contract_to_dict(contract: SkillContract) -> dict[str, Any]:
         "stopping_conditions": list(contract.stopping_conditions),
         "incompatible_with": list(contract.incompatible_with),
         "capabilities": list(contract.capabilities),
+        "triggers": list(contract.triggers),
         "priority": contract.priority,
         "path": contract.path,
     }
@@ -953,6 +966,206 @@ DEFAULT_MAX_SELECTED = 3
 DEFAULT_MAX_DOCTRINE = 2
 
 
+def skill_cards(contracts: Any = None) -> tuple[Any, ...]:
+    """Each contract's CARD as a ``core.plugin_skills.Skill``: its id as the name, its
+    description, and its triggers (hollow phrases left out, see ``_hollow_trigger``).
+
+    What selection matches words against, and what the plugin lane counts as the built-in
+    library when it judges how rare a word is. ``contracts`` defaults to every loaded contract.
+    """
+    from core.plugin_skills import Skill
+
+    if contracts is None:
+        try:
+            contracts = load_skill_contracts().contracts
+        except Exception:
+            contracts = ()
+    return tuple(
+        Skill(
+            name=contract.id,
+            description=contract.description,
+            triggers=tuple(trigger for trigger in contract.triggers if not _hollow_trigger(trigger)),
+        )
+        for contract in contracts
+    )
+
+
+def _word_evidence(contracts: list[SkillContract], user_text: str) -> dict[str, Any]:
+    """contract id -> the ask's word evidence for it, read from the skill's OWN words.
+
+    The card a skill is matched on is what its author wrote about when it applies: its id
+    (the name a person says), its description (the "Use when ..." sentence) and its
+    ``triggers``. Never its body: instructions are written for the model, and every body says
+    "read", "run" and "report". The scoring is the one lexical path the plugin lanes already
+    use (``core.plugin_skills.word_evidence``), with rarity judged across THIS turn's
+    candidates, so a word every built-in skill carries says little and one word only one skill
+    carries says a lot; its "none fits" guards (a question about the world, the subject after
+    "about", kind-of-help words alone) apply here unchanged.
+    """
+    from core.plugin_skills import WordEvidence, _raw_tokens, word_evidence
+
+    text = str(user_text or "")
+    if not contracts or not text.strip():
+        return {}
+    found = dict(word_evidence(skill_cards(contracts), text))
+    # A hollow trigger counts only as the author wrote it, word for word: "where in the code",
+    # "before i push", "is it true". Said verbatim it is the author's own wording, so it anchors
+    # the skill even inside a question.
+    spoken = " " + " ".join(_raw_tokens(text)) + " "
+    for contract in contracts:
+        said = [
+            trigger for trigger in contract.triggers
+            if _hollow_trigger(trigger) and f" {' '.join(_raw_tokens(trigger))} " in spoken
+        ]
+        if not said:
+            continue
+        before = found.get(contract.id)
+        found[contract.id] = WordEvidence(
+            qualified=True,
+            score=(before.score if before else 0.0) + _HOLLOW_PHRASE_WORTH * len(said),
+            support=(before.support if before else 0.0) + _HOLLOW_PHRASE_WORTH * len(said),
+            reasons=(*(before.reasons if before else ()), *(f'trigger "{trigger}"' for trigger in said)),
+            anchored=True,
+            distinct=max(1, before.distinct if before else 0),
+        )
+    return found
+
+
+#: What a hollow trigger said word for word is worth: a whole multi-word trigger in the lexical
+#: ranker is worth its phrase bonus plus its words, about one point.
+_HOLLOW_PHRASE_WORTH = 1.0
+
+
+def _words_pick(found: Any) -> bool:
+    """The ask's words pick the skill.
+
+    The lexical law qualifies it -- or it would, and only the general-question guard held it
+    back while the ask still names the skill, carries a whole trigger, or meets its card on
+    three or more different words. That guard keeps questions about the world ("why do cats
+    sleep so much") away from everyday skills; "why does the checkout test fail on Windows?" or
+    "which commit changed the payments file last week" are questions about the person's own work
+    in the skill's own words.
+    """
+    if found is None:
+        return False
+    if found.qualified:
+        return True
+    return bool(getattr(found, "general", False) and (found.anchored or found.distinct >= 3))
+
+
+def _hollow_trigger(trigger: str) -> bool:
+    """A phrase that keeps one content word once its function words go.
+
+    "why is this broken" was written as a phrase; read as the single word "broken" it claims
+    "the boiler has been broken for a week" (measured: root-cause-repair seated on a letter to a
+    landlord). A trigger the author wrote as one word stays a word; a phrase that leaves one word
+    behind counts only when the ask says it word for word (``_word_evidence``).
+    """
+    from core.plugin_skills import _content_stems, _raw_tokens
+
+    return len(_raw_tokens(trigger)) > 1 and len(set(_content_stems(trigger, particles=True))) <= 1
+
+
+def _strong_words(found: Any) -> bool:
+    """Words that say what the skill does, not one word it happens to share.
+
+    The ask names the skill, carries one of its multi-word triggers whole, or meets its card on
+    two or more different words, at least one of them from its name or triggers. One shared word
+    ("review the book I just finished", "we're migrating to Spain") is ordinary English, and so
+    are two words of a long description ("whether", "time"); those need the turn's class.
+    """
+    return bool(
+        _words_pick(found)
+        and (found.anchored or (found.distinct >= 2 and getattr(found, "keyed", True)))
+    )
+
+
+#: How a skill is seated when the turn has words (``_seating_law``).
+LAW_TYPED = "typed"
+LAW_TASK_WORDS = "task_words"
+LAW_LENS_WORDS = "lens_words"
+
+
+def _seating_law(contract: SkillContract) -> str:
+    """Which evidence seats this skill on a turn that has words to read.
+
+    ``task_words`` -- a TASK skill that wrote down its ``triggers``. It does a job, so the job
+    must be asked for: the router's class is a guess at the turn's broad shape, and one class is
+    claimed by many task skills (five claim ``debugging``), so the class alone cannot say which
+    job. The words pick it; the class only backs them.
+
+    ``lens_words`` -- an EXPERT LENS that wrote down its ``triggers``. A lens is, by its own
+    contract, automatic on the turns of its class, so the class still seats it -- when the ask
+    also shows it is that kind of turn: it shares the lens's words, or it is a yes-or-no /
+    either-or question about the person's own case (the decision a lens weighs). Measured before
+    this law: every ``general_advisory`` turn got the same evidence lens, "how long should I
+    boil an egg" included, because the class alone seated whichever lens had the lowest priority.
+
+    ``typed`` -- everything else keeps the typed law it was written against (class and demand):
+    a doctrine or task skill that declares no ``triggers`` (the presentation doctrine, which is
+    meant for every turn of its classes; an installed plugin's or MCP server's typed contract
+    written before this law); and a skill whose prerequisite is a plugin pack, which works only
+    through that pack's tools, whose typed demand rules own the line between doing the work and
+    talking about it ("back up my database" is work, "what is a database index?" is context) --
+    the pack's own copy of the skill is ranked by words in the plugin lane.
+    """
+    if not contract.triggers:
+        return LAW_TYPED
+    if getattr(contract, "kind", KIND_CAPABILITY) == KIND_EXPERT_LENS:
+        return LAW_LENS_WORDS
+    if any(prereq.startswith("plugin:") for prereq in contract.prerequisites):
+        return LAW_TYPED
+    return LAW_TASK_WORDS
+
+
+_CLAUSE_RE = re.compile(r"[,.;:!?\n]+")
+
+
+def _plain_question(user_text: str) -> bool:
+    """A question about the world that points at nothing of the person's: "how long should I
+    boil an egg", "the pipe under my sink is leaking, who should I call".
+
+    The classifier still files such a question under a class ("general_advisory", "research",
+    "security_hardening"), but when not one skill's words answer to it, the class is a guess
+    about its topic, not a job: the model answers it plainly. A request ("write ...", "here are
+    my notes, give me ..."), a question that is a request ("can you ...", "do a ..."), and a
+    question about the person's own file, page or pasted material are not plain questions.
+    """
+    from core.plugin_skills import _QUESTION_OPENERS, _REQUEST_RE, _points_at_material, _raw_tokens
+
+    tokens = _raw_tokens(user_text)
+    if not tokens or _points_at_material(user_text, tokens, None):
+        return False
+    asked = False
+    for clause in _CLAUSE_RE.split(str(user_text or "")):
+        words = _raw_tokens(clause)
+        if not words:
+            continue
+        if _REQUEST_RE.match(" ".join(words)) or (
+            words[0] == "do" and len(words) > 1 and words[1] in {"a", "an", "some"}
+        ):
+            return False
+        asked = asked or words[0] in _QUESTION_OPENERS
+    return asked
+
+
+def _verdict_question(user_text: str) -> bool:
+    """A question that opens on its verb: "should I take ...", "is it worth ...", "can we ...".
+
+    The same reading the lexical ranker uses for a yes-or-no question about the person's own
+    case (``core.plugin_skills._VERDICT_OPENERS``); a request phrased as a question ("can you
+    ...") and "do a ..." are requests, not verdicts.
+    """
+    from core.plugin_skills import _REQUEST_RE, _VERDICT_OPENERS, _raw_tokens
+
+    tokens = _raw_tokens(user_text)
+    if not tokens or tokens[0] not in _VERDICT_OPENERS:
+        return False
+    if _REQUEST_RE.match(" ".join(tokens)):
+        return False
+    return not (tokens[0] == "do" and len(tokens) > 1 and tokens[1] in {"a", "an", "some"})
+
+
 def select_native_skills(
     *,
     task_class: str = "",
@@ -961,12 +1174,31 @@ def select_native_skills(
     doctrine_limit: int = DEFAULT_MAX_DOCTRINE,
     library: LibraryLoad | None = None,
 ) -> SkillSelection:
-    """The typed selection decision for one turn. Pure function of typed inputs + disk config.
+    """The selection decision for one turn. Pure function of the turn + disk config.
 
-    Signals, in weight order: the turn's task class (the production classifier's output) and
-    the turn's demand signals (``core.tool_demand_signals`` — explicit intents and required
-    families). The user's raw tokens are NOT read here. The candidate set is EVERY source:
-    repo-native, plugin-typed, and MCP-shipped skills — one contract, one law, one selection.
+    Signals: the turn's task class (the production classifier's output), its demand signals
+    (``core.tool_demand_signals`` -- explicit intents and required families), and the ask's own
+    words weighed against each skill's own words (``_word_evidence``: id, description,
+    ``triggers``). The candidate set is EVERY source: repo-native, plugin-typed and MCP-shipped
+    skills -- one contract, one law, one selection.
+
+    Who may take a seat on a turn with words (``_seating_law`` says which law a skill is under):
+
+    - a TASK skill with ``triggers``: when its words pick it strongly (``_strong_words``), when
+      its class backs words of its own card, or when a demand signal points at it alone (an
+      intent or family no other candidate declares). Measured before (class alone): "my CI is
+      red, fix it" classed ``unknown`` and got nothing, "open example.com and tell me what it
+      says" got project-archaeology through a ``workspace.read_file`` demand seven skills share,
+      and every ``debugging`` turn got whichever debugging skill had the lowest priority number;
+    - an EXPERT LENS with ``triggers``: on its class when the ask shows it is that kind of turn
+      (the lens's words, or a verdict question), or on strong words of its own;
+    - everything else -- the presentation doctrine, trigger-less typed contracts, a plugin
+      pack's skill -- on its class or demand, as before.
+
+    Within a lane, an ask that names a task skill or carries a whole trigger of it ranks that
+    skill first; otherwise typed weight plus word score, then the declared priority, then the
+    id. The doctrine lane's first seat stays the one its class alone gives it. With no words at
+    all (a caller that only knows the class) the class alone still seats, as it always did.
     """
     from core.tool_demand_signals import resolve_demand_signals
 
@@ -982,7 +1214,8 @@ def select_native_skills(
     disabled = _read_disabled_ids()
     invalid_ids = {error.id: error for error in library.invalid}
     records: list[SkillAvailabilityRecord] = []
-    scored: list[tuple[int, int, SkillContract]] = []
+    scored: list[tuple[int, float, int, SkillContract]] = []
+    class_rank: dict[str, tuple[int, int, str]] = {}
 
     for error in invalid_ids.values():
         records.append(
@@ -993,6 +1226,7 @@ def select_native_skills(
             )
         )
 
+    available: list[SkillContract] = []
     for contract in library.contracts:
         if contract.id in disabled:
             records.append(
@@ -1019,33 +1253,115 @@ def select_native_skills(
                 )
             )
             continue
-        score = 0
-        if cleaned_class and cleaned_class in contract.task_family_set:
-            score += _WEIGHT_TASK_CLASS
-        score += _WEIGHT_DEMAND * len(explicit_intents & frozenset(contract.tool_intents))
-        score += _WEIGHT_DEMAND * len(required_families & frozenset(contract.capability_families))
-        if score > 0:
-            # Lower declared priority breaks exact ties; id is the final deterministic word.
-            #
-            # A specificity term was tried here -- rank a skill claiming the turn's class
-            # as a larger share of its declared families ahead of a generalist -- and
-            # REJECTED on measurement: on a debugging turn it lifted `performance`
-            # (one family, priority 45) above `project-archaeology`, which the very
-            # turn under test asks for by name. The eviction it was meant to fix was
-            # never a ranking problem; it was two slots for a composition that needs
-            # three.
-            scored.append((-score, contract.priority, contract))
+        available.append(contract)
+
+    from core.plugin_skills import _content_stems
+
+    has_words = bool(_content_stems(str(user_text or "")))
+    verdict = has_words and _verdict_question(str(user_text or ""))
+    evidence = _word_evidence(available, str(user_text or "")) if has_words else {}
+    # How many available candidates declare each demanded intent / family: a demand only one
+    # skill declares points at that skill; one that seven skills declare points at none of them.
+    claimants: dict[str, int] = {}
+    for contract in available:
+        for name in (explicit_intents & frozenset(contract.tool_intents)) | (
+            required_families & frozenset(contract.capability_families)
+        ):
+            claimants[name] = claimants.get(name, 0) + 1
+
+    # First pass: what each candidate's words (and typed signals) say on their own.
+    judged: list[tuple] = []
+    for contract in available:
+        class_hit = bool(cleaned_class) and cleaned_class in contract.task_family_set
+        intent_hits = explicit_intents & frozenset(contract.tool_intents)
+        family_hits = required_families & frozenset(contract.capability_families)
+        found = evidence.get(contract.id)
+        law = _seating_law(contract)
+        words_pick = _words_pick(found)
+        word_worth = 0.0 if found is None else float(found.score if words_pick else found.support)
+        typed = (
+            (_WEIGHT_TASK_CLASS if class_hit else 0)
+            + _WEIGHT_DEMAND * len(intent_hits)
+            + _WEIGHT_DEMAND * len(family_hits)
+        )
+        if not has_words:
+            # Nothing to read: the typed signals alone, as they always decided.
+            seated = typed > 0
+            reason = "no typed signal ties this skill to the turn"
+        elif law == LAW_TYPED:
+            # The typed law alone; a doctrine may also be picked by strong words of its own.
+            seated = typed > 0 or (contract.kind == KIND_EXPERT_LENS and _strong_words(found))
+            reason = "no typed signal ties this skill to the turn"
+        elif law == LAW_LENS_WORDS:
+            # A lens: strong words of its own seat it; its class seats it when the ask shows it
+            # is that kind of turn (its words, or a verdict question).
+            shaped = words_pick or (found is not None and found.distinct >= 2) or verdict
+            seated = _strong_words(found) or (typed > 0 and shaped)
+            reason = "the turn's class and words do not call for this lens"
+        else:
+            # A task skill: the words pick it and are strong on their own; or its class backs
+            # words that pick it, or two different words of its own card; or a demand signal
+            # points at it alone.
+            singled_out = any(claimants.get(name, 0) == 1 for name in intent_hits | family_hits)
+            backed = class_hit and (words_pick or (found is not None and found.distinct >= 2))
+            seated = _strong_words(found) or backed or singled_out
+            reason = "the ask's words do not ask for what this skill does"
+        judged.append((contract, seated, class_hit, word_worth, typed, law, words_pick, reason, found))
+
+    # Where the words are silent, the class still speaks. When the words seat no task skill and
+    # no lens, the class seats the task skills and the lens it names, as it always did ("here
+    # are my meeting notes, give me the action items" classed debugging; "Write an X article"
+    # classed creative_ideation). Words decide WHICH skill when they say anything; and a plain
+    # question no skill's words answer to is answered plainly (``_plain_question``).
+    if has_words and not _plain_question(str(user_text or "")) and not any(
+        seated and law in (LAW_TASK_WORDS, LAW_LENS_WORDS)
+        for (_c, seated, _h, _w, _t, law, *_rest) in judged
+    ):
+        silent = {LAW_TASK_WORDS, LAW_LENS_WORDS}
+    else:
+        silent = set()
+
+    by_class_only: set[str] = set()
+    for contract, seated, class_hit, word_worth, typed, law, words_pick, reason, found in judged:
+        if not seated and law in silent:
+            seated = class_hit if law == LAW_TASK_WORDS else typed > 0
+            if seated:
+                by_class_only.add(contract.id)
+        if seated:
+            # Typed signals keep their weights and the words add their own worth, so among the
+            # seated skills of a lane the one the ask describes best comes first. An ask that
+            # names a task skill or carries one of its whole trigger phrases states the job
+            # outright and ranks ahead of a skill its class merely shares ("give my last commit
+            # a review" is classed debugging; the review skill, not the history one, is asked
+            # for). A lens the words pick outright counts them twice: several lenses claim a
+            # class, and the words say which one the turn is about. Lower declared priority
+            # breaks exact ties; the id is the final deterministic word.
+            anchored = bool(words_pick and found.anchored)
+            tier = 0 if (anchored and has_words and law == LAW_TASK_WORDS) else 1
+            if contract.kind == KIND_EXPERT_LENS and _strong_words(found):
+                word_worth *= 2
+            scored.append((tier, -(typed + word_worth), contract.priority, contract))
+            class_rank[contract.id] = (-typed, contract.priority, contract.id)
         else:
             records.append(
                 SkillAvailabilityRecord(
-                    id=contract.id, state="below_cutoff",
-                    reason="no typed signal ties this skill to the turn",
+                    id=contract.id, state="below_cutoff", reason=reason,
                     version=contract.version,
                 )
             )
 
-    scored.sort(key=lambda item: (item[0], item[1], item[2].id))
-    ordered = [item[2] for item in scored]
+    scored.sort(key=lambda item: (item[0], item[1], item[2], item[3].id))
+    ordered = [item[3] for item in scored]
+    # The doctrine lane's FIRST seat stays the one its class alone gives it (the presentation
+    # doctrine on an advisory turn, the security lens on a hardening turn): words choose which
+    # lens fills the rest, they do not turn one lens into two at the doctrine's expense.
+    doctrine_at = [i for i, contract in enumerate(ordered) if lane_for(contract) == LANE_DOCTRINE]
+    by_class = [ordered[i] for i in doctrine_at if class_rank[ordered[i].id][0] < 0]
+    if doctrine_at and by_class:
+        first = min(by_class, key=lambda contract: class_rank[contract.id])
+        rest = [ordered[i] for i in doctrine_at if ordered[i] is not first]
+        for slot, contract in zip(doctrine_at, [first, *rest], strict=True):
+            ordered[slot] = contract
 
     # Slots are PER LANE. A doctrine and a task skill are not substitutes, so they
     # never take each other's seat; within a lane the ranking is unchanged.
@@ -1087,6 +1403,7 @@ def select_native_skills(
     return SkillSelection(
         selected=tuple(selected),
         records=tuple(records),
+        by_class_only=frozenset(by_class_only & {contract.id for contract in selected}),
     )
 
 
@@ -1225,5 +1542,6 @@ __all__ = [
     "select_native_skills",
     "set_skill_enabled",
     "shown_to_people",
+    "skill_cards",
     "skill_inventory",
 ]

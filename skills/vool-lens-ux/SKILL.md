@@ -8,7 +8,8 @@ status: p1
 type: expert_lens
 id: lens-ux
 risk-class: read_only
-task-families: [creative_ideation, general_advisory]
+task-families: [creative_ideation]
+triggers: [ux, user experience, usability, user flow, signup flow, onboarding flow, checkout flow, screens, interface, confusing for users, friction, drop off, empty state, error message, button copy, wireframe]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each tied to a specific step or word in the material shown, or states that the material shows no user-facing flow to assess"]
