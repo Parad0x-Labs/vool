@@ -69,8 +69,12 @@ TINY_HELPER_MODEL = "qwen3:0.6b"
 @dataclass(frozen=True)
 class SuggestedModel:
     tag: str
-    #: Largest download Ollama lists for this tag, in GB (what the person waits for and stores).
+    #: Largest download Ollama lists for this tag, in GB (an Apple Silicon Mac may get the bigger
+    #: MLX build). Free-disk checks use this one, so a pick never runs a disk out.
     download_gb: float
+    #: What every other computer pulls (the GGUF build): the total of the tag's layers in the
+    #: Ollama registry manifest, checked 2026-11-11. The Download button shows this size there.
+    gguf_download_gb: float
     parameter_count: str
     architecture: str  # "dense" | "moe"
     active_parameter_count: str
@@ -86,42 +90,42 @@ SUGGESTED_MODELS: dict[str, SuggestedModel] = {
     item.tag: item
     for item in (
         SuggestedModel(
-            tag="qwen3.5:0.8b", download_gb=1.3, parameter_count="0.8B", architecture="dense",
+            tag="qwen3.5:0.8b", download_gb=1.3, gguf_download_gb=1.3, parameter_count="0.8B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.5-0.8B",
             library_url="https://ollama.com/library/qwen3.5", previous_generation="qwen3:0.6b",
             tool_evidence="BFCL-V4 25.3, TAU2 11.6 (Qwen card); only for machines too small for more.",
         ),
         SuggestedModel(
-            tag="qwen3.5:2b", download_gb=3.1, parameter_count="2B", architecture="dense",
+            tag="qwen3.5:2b", download_gb=3.1, gguf_download_gb=2.7, parameter_count="2B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.5-2B",
             library_url="https://ollama.com/library/qwen3.5", previous_generation="qwen3:1.7b",
             tool_evidence="BFCL-V4 43.6, TAU2 48.8 (Qwen card) vs Qwen3-4B-2507 39.9 / 43.2.",
         ),
         SuggestedModel(
-            tag="qwen3.5:4b", download_gb=4.0, parameter_count="4B", architecture="dense",
+            tag="qwen3.5:4b", download_gb=4.0, gguf_download_gb=3.3, parameter_count="4B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.5-4B",
             library_url="https://ollama.com/library/qwen3.5", previous_generation="qwen3:4b",
             tool_evidence="BFCL-V4 50.3, TAU2 79.9 (Qwen card) vs Qwen3-8B 42.6 on the BFCL board.",
         ),
         SuggestedModel(
-            tag="qwen3.5:9b", download_gb=7.6, parameter_count="9B", architecture="dense",
+            tag="qwen3.5:9b", download_gb=7.6, gguf_download_gb=6.6, parameter_count="9B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.5-9B",
             library_url="https://ollama.com/library/qwen3.5", previous_generation="qwen3:8b",
             tool_evidence="BFCL-V4 66.1, TAU2 79.1 (Qwen card) vs Qwen3-8B 42.6 on the BFCL board.",
         ),
         SuggestedModel(
-            tag="qwen3.6:35b", download_gb=24.0, parameter_count="35B", architecture="moe",
+            tag="qwen3.6:35b", download_gb=24.0, gguf_download_gb=22.6, parameter_count="35B", architecture="moe",
             active_parameter_count="3B", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
             library_url="https://ollama.com/library/qwen3.6", previous_generation="qwen3:30b",
             tool_evidence="TAU3 67.2, MCPMark 37.0, MCP-Atlas 62.8 (Qwen card).",
         ),
         SuggestedModel(
-            tag="qwen3.8:27b", download_gb=18.0, parameter_count="27B", architecture="dense",
+            tag="qwen3.8:27b", download_gb=18.0, gguf_download_gb=17.7, parameter_count="27B", architecture="dense",
             active_parameter_count="", license_name="Apache-2.0",
             license_reference="https://huggingface.co/Qwen/Qwen3.8-27B",
             library_url="https://ollama.com/library/qwen3.8", previous_generation="qwen3:32b",
@@ -263,6 +267,15 @@ def download_gb(tag: str) -> float:
     if entry is not None:
         return entry.download_gb
     return PREVIOUS_GENERATION_DOWNLOAD_GB.get(str(tag or "").strip(), 0.0)
+
+
+def download_gb_for(tag: str, machine_kind: str) -> float:
+    """The download size this computer will get: the larger listed size on Apple Silicon (Ollama
+    may serve the MLX build there), the GGUF size everywhere else."""
+    entry = SUGGESTED_MODELS.get(str(tag or "").strip())
+    if entry is not None and str(machine_kind or "").strip() != "apple":
+        return entry.gguf_download_gb
+    return download_gb(tag)
 
 
 def _fits_disk(tag: str, free_disk_gb: float | None) -> bool:

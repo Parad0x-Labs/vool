@@ -203,9 +203,10 @@ def test_the_download_button_offers_the_table_pick_and_its_bigger_model() -> Non
 
     rec = recommended_local_model(probe=_cpu(15.6), free_disk_gb=200.0, ollama_version="0.40.3")
     assert rec["model_name"] == "qwen3.5:4b"
-    assert rec["download_gb"] == SUGGESTED_MODELS["qwen3.5:4b"].download_gb
+    # The size this computer will download: the GGUF build off Apple Silicon.
+    assert rec["download_gb"] == SUGGESTED_MODELS["qwen3.5:4b"].gguf_download_gb == 3.3
     assert rec["machine_kind"] == "cpu"
-    assert rec["bigger"]["model_name"] == "qwen3.5:9b"
+    assert rec["bigger"] == {"model_name": "qwen3.5:9b", "download_gb": 6.6}
     assert "ollama_update_unlocks" not in rec
 
     old = recommended_local_model(probe=_cpu(15.6), free_disk_gb=200.0, ollama_version="0.21.2")
@@ -214,3 +215,18 @@ def test_the_download_button_offers_the_table_pick_and_its_bigger_model() -> Non
 
     assert is_recommended_tag("qwen3.5:9b") and is_recommended_tag("qwen3:8b")
     assert not is_recommended_tag("gpt-oss:20b") and not is_recommended_tag("qwen2.5:7b")
+
+
+def test_the_download_size_shown_is_the_one_this_computer_gets() -> None:
+    from core.local_model_readiness import recommended_local_model
+    from core.local_model_suggestions import download_gb_for
+
+    for tag, entry in SUGGESTED_MODELS.items():
+        # A Mac may get the bigger MLX build, so free-disk checks and the Mac label use the larger.
+        assert 0.0 < entry.gguf_download_gb <= entry.download_gb, tag
+        assert download_gb_for(tag, "apple") == entry.download_gb, tag
+        assert download_gb_for(tag, "nvidia") == download_gb_for(tag, "cpu") == entry.gguf_download_gb, tag
+    mac = recommended_local_model(probe=_apple(16.0), free_disk_gb=200.0, ollama_version="0.40.3")
+    assert (mac["model_name"], mac["download_gb"]) == ("qwen3.5:4b", 4.0)
+    old = recommended_local_model(probe=_cpu(15.6), free_disk_gb=200.0, ollama_version="0.21.2")
+    assert (old["model_name"], old["download_gb"]) == ("qwen3:4b", 2.5)

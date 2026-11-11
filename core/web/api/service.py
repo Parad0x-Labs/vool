@@ -2165,7 +2165,9 @@ def _dispatch_get(
                 manifest = registry.get_manifest("ollama-local", item.name)
                 entry: dict[str, Any] = {
                     "model_name": item.name,
-                    "size_gb": round(float(item.size_bytes or 0) / (1024.0 ** 3), 2),
+                    # Decimal GB, as Ollama and the Download button count it, so the model the
+                    # button fetched shows the size it said (3.3 GB, not 3.1 "GB" of GiB).
+                    "size_gb": round(float(item.size_bytes or 0) / 1e9, 1),
                     "registered": manifest is not None,
                     "enabled": bool(getattr(manifest, "enabled", False)),
                 }
