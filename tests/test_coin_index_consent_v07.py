@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from core import policy_engine, runtime_paths
-from core.auto_local_only_mode import CONTEXT_KEY
+from core.auto_local_only_mode import OFFLINE_KEY  # Offline closes the web; Computer + web does not (2026-11-11)
 from core.effect_gateway import (
     current_effect_ledger,
     effect_outcomes,
@@ -222,7 +222,7 @@ def test_local_only_veto_does_not_poison_a_later_permitted_turn(
     fresh_index_home, index_service, dns_observer,
 ):
     _enable_web()
-    with remote_fetch_policy_scope({"surface": "api", CONTEXT_KEY: True}):
+    with remote_fetch_policy_scope({"surface": "api", OFFLINE_KEY: True}):
         assert coin_index.resolve_symbol("vexx") == ""
         assert remote_fetch_attempt_count() == 0
     assert dns_observer == []

@@ -1272,11 +1272,13 @@ body:not(.panel-open) #xpanel { display:none; }
     <div class="popover below" id="modelPop" role="menu" aria-label="Model" data-i18n-aria-label="header.model_popover_title">
       <div class="pop-title" id="runTitle" data-i18n="header.run_title">Where VOOL can run</div>
       <div class="run-switch" role="radiogroup" aria-labelledby="runTitle">
+        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-offline"><b data-i18n="header.run_offline">Offline</b><small data-i18n="header.run_offline_hint">nothing goes online</small></button>
+        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">Computer + web</b><small data-i18n="header.run_computer_only_hint">no cloud AI</small></button>
         <button type="button" class="run-choice" role="radio" aria-checked="true" data-run-model="vool"><b data-i18n="header.run_local_first">Local first</b><small data-i18n="header.run_local_first_hint">free cloud only if needed</small></button>
-        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">This computer only</b><small data-i18n="header.run_computer_only_hint">cloud blocked</small></button>
       </div>
+      <div class="run-hint" id="runModeNote" data-i18n="header.run_local_first_explainer">Uses this computer first, and free cloud AI only if needed. Looks things up on the web when a question needs it.</div>
+      <div class="run-hint" id="runWebNote" hidden></div>
       <div class="run-hint" data-i18n="header.run_explainer">Auto never picks a paid model. Choosing a model below pins it.</div>
-      <div class="run-hint" id="runLocalDisclosure" hidden data-i18n="header.model_local_only_explainer">Local Only routes among the models and tools on this machine and never reaches a cloud provider — not paid, not free, not for planning.</div>
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
       <div class="pop-prov" id="modelProv" hidden></div>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_auto_option">VOOL Auto</span> <span class="pi-hint" data-i18n="header.model_auto_hint">local-first &middot; free</span></span></button>
@@ -2090,12 +2092,19 @@ function reapplyActivitySearch() {
 // mode preference per chat only so a chat reopens consistently; the server remains authoritative.
 // Bypass is deliberately excluded from durable browser preferences and always expires server-side.
 const MODE_LABELS = { manual: pageT('mode.js.manual', 'Manual'), review_edits: pageT('mode.js.review_edits', 'Review edits'), plan: pageT('mode.js.plan', 'Plan'), auto: pageT('mode.js.auto', 'Auto'), bypass_permissions: pageT('mode.js.bypass_permissions', 'Bypass permissions') };
-const MODEL_LABELS = { 'vool': pageT('header.model_auto_option', 'VOOL Auto'), 'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only') };
+const MODEL_LABELS = { 'vool': pageT('header.model_auto_option', 'VOOL Auto'), 'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only'), 'vool-offline': pageT('header.model_auto_option', 'VOOL Auto') };
 // The Local Only lane, by the one value the server recognises. Kept as a named constant because
 // several checks below have to agree about it exactly: the cloud list is suppressed under it, the
 // no-key revert must not treat it as a stale cloud pin, and the footer disclosure keys off it.
 const LOCAL_ONLY_MODEL = 'vool-local-only';
-function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
+// The Offline lane: no cloud AI AND nothing goes online. Every "no cloud" check below treats it
+// exactly like Computer + web (isNoCloudModel); only the web note and the egress door differ.
+const OFFLINE_MODEL = 'vool-offline';
+// The three run modes, in menu order (arrow keys walk this list).
+const RUN_MODES = [OFFLINE_MODEL, LOCAL_ONLY_MODEL, 'vool'];
+function isNoCloudModel(m) { return m === LOCAL_ONLY_MODEL || m === OFFLINE_MODEL; }
+function isLocalOnlyMode() { return isNoCloudModel(modelValue); }
+function isOfflineMode() { return modelValue === OFFLINE_MODEL; }
 // A concrete cloud model id chosen from the dropdown: a bare id (gpt-4.1-mini, what the direct
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
@@ -2147,7 +2156,7 @@ function armTryOnce(chatId, model, label) {
   // One-turn trials may serve a turn even under an explicit pin (the click IS operator
   // intent), but they never REPLACE it: the grant dies with its one turn and the pin
   // is untouched. The send-time paid-ack gate still evaluates the trial model itself.
-  if (modelForChat(chatId) === LOCAL_ONLY_MODEL && !isLocalModel(model)) setModelValue('vool', chatId);
+  if (isNoCloudModel(modelForChat(chatId)) && !isLocalModel(model)) setModelValue('vool', chatId);
   tryOnceGrant = { chatId: String(chatId), model: String(model), label: String(label || model), consumed: false };
   return true;
 }
@@ -4875,7 +4884,7 @@ function provenancePlain(rawLine) {
     ? T('try_failed_cloud', 'a cloud model try failed') : T('try_failed', 'an AI model try failed'));
   for (const c of facts.cost) out.push(c);
   if (facts.costPartial) out.push(T('cost_partial', 'cost not fully reported'));
-  if (facts.localOnly) out.push(T('local_only', 'Local Only: cloud blocked'));
+  if (facts.localOnly) out.push(T('local_only', 'no cloud AI'));
   return out.join(' · ');
 }
 
@@ -9228,12 +9237,12 @@ async function runTurn(text, queueItemId, opts) {
     // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
     // Local Only must override queued or trial models without a later page-state lookup.
     const chatModel = modelForChat(chatId);
-    const selectedModel = chatModel === LOCAL_ONLY_MODEL ? LOCAL_ONLY_MODEL : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
+    const selectedModel = isNoCloudModel(chatModel) ? chatModel : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
     // A try-once grant serving THIS turn reports "sticky" (a concrete id that degrades to
     // auto if unresolvable), never "pin" — it is not the operator's pin and must not
     // inherit the pin's hard-refusal semantics.
-    const trialServing = chatModel !== LOCAL_ONLY_MODEL && activeTryOnce(chatId, lastUser.content || '');
-    const modelSelection = chatModel === LOCAL_ONLY_MODEL ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
+    const trialServing = !isNoCloudModel(chatModel) && activeTryOnce(chatId, lastUser.content || '');
+    const modelSelection = isNoCloudModel(chatModel) ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
     // Restored pins need an explicit decision in this app session. A successful paid selection
     // already supplies it for the selected conversation, so the first send never asks twice.
     let sendRequiresPaidAck = false;
@@ -10709,12 +10718,12 @@ function compactLabel(text, max) {
 }
 function reflectModel() {
   // Label priority: known tier -> friendly cloud name -> the raw id itself (never blank).
-  const label = modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
+  const label = isLocalOnlyMode() ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   reflectControl('modelPop', 'modelLbl', modelValue, { [modelValue]: label }, '');
   // When Auto is sticking to this chat's cloud model, mark the pill (📌) so the switching-stop is visible.
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
-  const laneKind = (modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL) ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
+  const laneKind = (modelValue === 'vool' || isLocalOnlyMode()) ? 'auto' : (isLocalModel(modelValue) ? 'local' : 'cloud');
   if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind); lane.className = 'model-lane ' + laneKind; }  // caps via CSS so the DOM i18n pass and this render agree
   if (lastConnectionSelection !== modelValue) {
     lastConnectionSelection = modelValue;
@@ -10728,11 +10737,15 @@ function reflectModel() {
   } else if (lbl) lbl.textContent = compactLabel(label);
   const where = document.getElementById('modelWhere');
   const known = !!modelValue && (MODEL_LABELS[modelValue] || isLocalModel(modelValue) || CLOUD_MODEL_ID_RE.test(modelValue));
-  if (where) where.textContent = isLocalOnlyMode()
-    ? pageT('header.run_computer_only', 'This computer only')
+  if (where) where.textContent = isOfflineMode()
+    ? pageT('header.run_offline', 'Offline')
+    : isLocalOnlyMode()
+    ? pageT('header.run_computer_only', 'Computer + web')
     : (known ? pageT('header.run_local_first', 'Local first') : String(modelValue || pageT('header.run_unknown', 'Unknown')));
   document.querySelectorAll('#modelPop .run-choice').forEach((it) => {
-    const checked = known && (it.getAttribute('data-run-model') === LOCAL_ONLY_MODEL) === isLocalOnlyMode();
+    const runModel = it.getAttribute('data-run-model');
+    // A concrete model pin (not one of the three run modes) shows under Local first, as before.
+    const checked = known && (RUN_MODES.includes(modelValue) ? runModel === modelValue : runModel === 'vool');
     it.setAttribute('aria-checked', checked ? 'true' : 'false'); it.tabIndex = checked || (!known && it.getAttribute('data-run-model') === 'vool') ? 0 : -1;
   });
   const autoRow = document.querySelector('#modelPop .pop-item[data-model="vool"]');
@@ -10741,9 +10754,9 @@ function reflectModel() {
     autoRow.setAttribute('aria-checked', auto ? 'true' : 'false');
     const check = autoRow.querySelector('.pi-check'); if (check) check.textContent = auto ? '✓' : '';
     const hint = autoRow.querySelector('.pi-hint');
-    if (hint) hint.textContent = isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'cloud blocked') : pageT('header.model_auto_hint', 'local-first · free');
+    if (hint) hint.textContent = isOfflineMode() ? pageT('header.run_offline_hint', 'nothing goes online') : isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'no cloud AI') : pageT('header.model_auto_hint', 'local-first · free');
   }
-  const disclosure = document.getElementById('runLocalDisclosure'); if (disclosure) disclosure.hidden = !isLocalOnlyMode();
+  paintRunModeNote();
   if (isLocalOnlyMode()) renderSelectionProvenance(null);
   renderConnections(lastConnectionRows || []);
   syncModelConnectionTitle();
@@ -10829,6 +10842,7 @@ function initComposerControls() {
           // box, 2026-09-10: test green, Quick Pick empty). Re-read the credential NAMES on
           // open — the same cheap GET boot already does; setCloudConnected renders when it flips.
           refreshCredentials();
+          refreshRunWebState();
         }
       }
     });
@@ -10895,7 +10909,9 @@ function initComposerControls() {
     it.addEventListener('keydown', (e) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
       e.preventDefault();
-      const next = document.querySelector('#modelPop .run-choice[data-run-model="' + (isLocalOnlyMode() ? 'vool' : LOCAL_ONLY_MODEL) + '"]');
+      const at = Math.max(0, RUN_MODES.indexOf(RUN_MODES.includes(modelValue) ? modelValue : 'vool'));
+      const step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+      const next = document.querySelector('#modelPop .run-choice[data-run-model="' + RUN_MODES[(at + step + RUN_MODES.length) % RUN_MODES.length] + '"]');
       if (next) { next.click(); next.focus(); }
     });
   });
@@ -10904,7 +10920,7 @@ function initComposerControls() {
       e.stopPropagation();
       // Paid/OpenRouter tiers are disabled until a key is wired -- never select a dead tier.
       if (it.disabled || it.getAttribute('aria-disabled') === 'true') return;
-      modelValue = it.getAttribute('data-model') === 'vool' && isLocalOnlyMode() ? LOCAL_ONLY_MODEL : it.getAttribute('data-model');
+      modelValue = it.getAttribute('data-model') === 'vool' && isLocalOnlyMode() ? modelValue : it.getAttribute('data-model');
       rememberActiveModel();
       releaseServerChatPin(displayedChat);
       // Selecting (or leaving) Local Only changes which rows may be offered at all, so the cloud
@@ -10992,14 +11008,14 @@ function chatRoute() {
   const selected = sticky ? view.stickyModel : modelValue;
   if (selected === 'vool') return { kind: 'auto', provider: '', model: '' };
   if (!selected || (!MODEL_LABELS[selected] && !isLocalModel(selected) && !CLOUD_MODEL_ID_RE.test(selected))) return { kind:'unknown', provider:'', model:String(selected || '') };
-  if (selected === LOCAL_ONLY_MODEL) return { kind: 'local-only', provider: '', model: '' };
+  if (isNoCloudModel(selected)) return { kind: 'local-only', provider: '', model: '' };
   if (isLocalModel(selected) || MODEL_LABELS[selected]) return { kind: 'local', provider: '', model: String(selected) };
   const match = String(selected).match(/^(openrouter|openai|anthropic|groq|google|deepseek|moonshot|usepod|custom):/);
   return { kind: sticky ? 'sticky' : 'pin', provider: match ? match[1] : 'openrouter', model: match ? String(selected).slice(match[0].length) : String(selected) };
 }
 function selectedCloudProvider() { return chatRoute().provider; }
 function selectRunMode(value) {
-  if (value !== 'vool' && value !== LOCAL_ONLY_MODEL) return;
+  if (!RUN_MODES.includes(value)) return;
   view.stickyModel = '';
   if (tryOnceGrant && tryOnceGrant.chatId === String(displayedChat)) tryOnceGrant = null;
   setModelValue(value);
@@ -11007,7 +11023,56 @@ function selectRunMode(value) {
   releaseServerChatPin(displayedChat);
   if (cloudKeyConnected) { if (isLocalOnlyMode()) clearCloudModels(); else renderCloudModels(); }
   reflectModel();
+  // Picking a mode that may go online IS the operator's opt-in to web lookups (owner decision
+  // 2026-11-11): a fresh install keeps Web lookups off until someone picks Computer + web or
+  // Local first here, and the Settings switch reads the same authority.
+  if (value !== OFFLINE_MODEL) ensureWebLookupsOn(); else refreshRunWebState();
   positionPopover(document.getElementById('modelPop'), document.getElementById('modelBtn'));
+}
+// The live web-lookups truth (same authority as Settings > Web lookups): null = not read yet / unreadable.
+let runWebState = null;
+let runWebJustEnabled = false;
+async function refreshRunWebState() {
+  try {
+    const r = await fetch('/api/onboarding/pact?view=boundary', { cache: 'no-store' });
+    const j = await r.json().catch(() => null);
+    runWebState = (r.ok && j && j.ok !== false && typeof j.allow_web_fallback === 'boolean' && typeof j.local_only_mode === 'boolean')
+      ? { web: j.allow_web_fallback && !j.local_only_mode, machineOffline: j.local_only_mode } : null;
+  } catch (e) { runWebState = null; }
+  paintRunModeNote();
+}
+async function ensureWebLookupsOn() {
+  await refreshRunWebState();
+  if (!runWebState || runWebState.web || runWebState.machineOffline) return;
+  try {
+    const r = await fetch('/api/onboarding/pact/boundary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'web_lookups', value: true }),
+    });
+    const j = await r.json().catch(() => null);
+    runWebJustEnabled = !!(r.ok && j && j.ok !== false);
+  } catch (e) { runWebJustEnabled = false; }
+  await refreshRunWebState();
+}
+// The short notice under the three run modes: what the selected mode does, plus the live web state
+// when it changes what the mode can do. Never claims web access the authority did not report.
+function paintRunModeNote() {
+  const note = document.getElementById('runModeNote');
+  if (note) note.textContent = isOfflineMode()
+    ? pageT('header.run_offline_explainer', 'Nothing leaves this computer. No cloud AI, no web lookups.')
+    : isLocalOnlyMode()
+    ? pageT('header.run_computer_only_explainer', 'The AI runs on this computer. If a question needs fresh info like weather, prices or Wikipedia, VOOL looks it up online. Only the lookup itself goes out, not your chats or files.')
+    : pageT('header.run_local_first_explainer', 'Uses this computer first, and free cloud AI only if needed. Looks things up on the web when a question needs it.');
+  const web = document.getElementById('runWebNote');
+  if (!web) return;
+  let text = '';
+  if (!isOfflineMode() && runWebState) {
+    if (runWebState.machineOffline) text = pageT('header.run_web_machine_offline', 'This computer is set to keep everything on this machine, so VOOL stays offline in every mode.');
+    else if (!runWebState.web) text = pageT('header.run_web_off', 'Web lookups are off, so VOOL will not look things up online. Turn them on in Settings, Privacy & Permissions.');
+    else if (runWebJustEnabled) text = pageT('header.run_web_turned_on', 'Web lookups are now on.');
+  }
+  web.textContent = text;
+  web.hidden = !text;
 }
 function renderConnections(conns) {
   lastConnectionRows = conns || [];
@@ -11040,7 +11105,7 @@ function renderConnections(conns) {
     const d = document.createElement('span'); d.className = 'dot ok'; cloudPillEl.appendChild(d);
     const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.cloud_local', 'Local'); cloudPillEl.appendChild(t);
     cloudPillEl.title = route.kind === 'local-only'
-      ? pageT('header.run_blocked_title', 'This chat runs on this computer; cloud blocked. Click to choose a model.')
+      ? (isOfflineMode() ? pageT('header.run_offline_title', 'This chat is Offline: nothing leaves this computer. Click to choose a mode.') : pageT('header.run_blocked_title', 'The AI for this chat runs on this computer; it may look things up on the web. Click to choose a mode.'))
       : pageTF('header.run_local_title', 'This chat is pinned to the local model {model} — no cloud provider is used. Click to choose a model.', {model:route.model});
     syncModelConnectionTitle(); return;
   }
@@ -11076,7 +11141,7 @@ function renderConnections(conns) {
 }
 function syncModelConnectionTitle() {
   const btn = document.getElementById('modelBtn'), where = document.getElementById('modelWhere');
-  const label = modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
+  const label = modelValue === 'vool' || isLocalOnlyMode() ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   const detail = document.getElementById('modelConnectionDetail');
   const sticky = modelValue === 'vool' && view.stickyModel ? pageT('header.run_sticky_suffix', ' — Auto is staying on ') + view.stickyModel : '';
   if (btn) btn.title = [label, where ? where.textContent : '', cloudPillEl ? cloudPillEl.title + sticky : '', detail ? detail.textContent : ''].filter(Boolean).join(' — ');
@@ -11114,7 +11179,7 @@ function setCloudConnected(on) {
   if (orKeyEl) orKeyEl.value = '';
   const note = document.querySelector('#modelPop .pop-note');
   if (note) note.textContent = isLocalOnlyMode()
-    ? pageT('header.model_local_only_explainer', 'Local Only never reaches a cloud provider.')
+    ? pageT('header.model_local_only_explainer', 'This chat never uses a cloud AI.')
     : (cloudKeyConnected ? pageT('header.run_explainer', 'Auto never picks a paid model. Choosing a model below pins it.') : pageT('header.model_connect_note', 'Connect a provider key in Settings.'));
   // Add the live model list when connected; strip it back to the static popover when not.
   // Only the false->true TRANSITION renders: renderCloudModels() clears the rows before its
@@ -11318,7 +11383,7 @@ function renderSelectionProvenance(sel) {
   if (!el) return;
   if (sel == null && isLocalOnlyMode()) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_title', 'Where VOOL can run')) + '</b><span>' + esc(pageT('header.run_prov_local_only', 'Local Only — this machine; cloud blocked')) + '</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_title', 'Where VOOL can run')) + '</b><span>' + esc(isOfflineMode() ? pageT('header.run_prov_offline', 'Offline — nothing leaves this computer') : pageT('header.run_prov_local_only', 'Computer + web — no cloud AI')) + '</span></span>';
     return;
   }
   if (!sel || !sel.ok) {
@@ -11385,7 +11450,7 @@ function serverSelectionId(j) {
 }
 function isCloudPinId(id) {
   const value = String(id || '');
-  if (!value || value === 'vool' || value === LOCAL_ONLY_MODEL || MODEL_LABELS[value] || isLocalModel(value)) return false;
+  if (!value || value === 'vool' || isNoCloudModel(value) || MODEL_LABELS[value] || isLocalModel(value)) return false;
   return value.indexOf('openrouter') === 0 || CLOUD_MODEL_ID_RE.test(value);
 }
 // For a chat entered mid-session: a cloud pin the server holds for THIS chat is adopted, so the
@@ -14665,7 +14730,7 @@ function noModelNeeded() {
   const cd = noModelState;
   if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
   const m = String((typeof modelValue === 'string' && modelValue) || 'vool');
-  if (m === LOCAL_ONLY_MODEL) return true;                                   // only a local model may answer
+  if (isNoCloudModel(m)) return true;                                        // only a local model may answer
   if (m !== 'vool' && !MODEL_LABELS[m] && !isLocalModel(m)) return false;     // this chat names a cloud model
   if (m === 'vool' && view && view.stickyModel) return false;                 // Auto sticks to this chat's cloud model
   const saved = cd.decision === 'use_cloud' && !!cd.model && Array.isArray(cd.candidates)

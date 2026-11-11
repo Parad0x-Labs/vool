@@ -1,4 +1,10 @@
-"""Local Only means zero public egress. Every door, for the whole turn.
+"""Offline means zero public egress. Every door, for the whole turn.
+
+Owner decision 2026-11-11: the model menu offers three run modes. "Offline"
+(``vool-offline``, or the machine-wide "Keep everything on this machine") carries
+the zero-egress law this file proves. "Computer + web" (``vool-local-only``) keeps
+the cloud-model ban but may look things up on the web; the last section of this
+file proves that split. History of the law follows.
 
 The composer offers "VOOL Auto Local Only — this machine only · cloud blocked".
 The README and the runtime capability copy say the same. The policy did not:
@@ -28,7 +34,14 @@ import urllib.request
 
 import pytest
 
-from core.auto_local_only_mode import CONTEXT_KEY, SELECTED_KEY, SELECTOR_VALUE
+from core.auto_local_only_mode import (
+    CONTEXT_KEY,
+    OFFLINE_KEY,
+    OFFLINE_SELECTED_KEY,
+    OFFLINE_SELECTOR_VALUE,
+    SELECTED_KEY,
+    SELECTOR_VALUE,
+)
 from core.remote_fetch_policy import (
     RemoteFetchRefusedError,
     open_remote,
@@ -54,9 +67,21 @@ LOCAL_URLS = [
 
 
 def _local_only_context() -> dict:
-    """The context a turn carries when the operator picked the Local Only lane."""
+    """The context a turn carries when the operator picked the Offline lane (bind_turn's stamp)."""
     return {
-        "session_id": "local-only-egress",
+        "session_id": "offline-egress",
+        CONTEXT_KEY: True,
+        SELECTED_KEY: True,
+        OFFLINE_KEY: True,
+        OFFLINE_SELECTED_KEY: True,
+        "requested_model": OFFLINE_SELECTOR_VALUE,
+    }
+
+
+def _computer_web_context() -> dict:
+    """The context a turn carries when the operator picked the Computer + web lane."""
+    return {
+        "session_id": "computer-web-egress",
         CONTEXT_KEY: True,
         SELECTED_KEY: True,
         "requested_model": SELECTOR_VALUE,
@@ -76,7 +101,7 @@ def test_no_public_url_can_be_opened_in_local_only(url: str) -> None:
     with remote_fetch_policy_scope(_local_only_context()):
         with pytest.raises(RemoteFetchRefusedError) as caught:
             _open(url)
-    assert "local only" in str(caught.value).lower(), str(caught.value)
+    assert "offline" in str(caught.value).lower(), str(caught.value)
 
 
 def test_the_refusal_names_local_only_not_a_generic_denial(  ) -> None:
@@ -85,7 +110,7 @@ def test_the_refusal_names_local_only_not_a_generic_denial(  ) -> None:
         with pytest.raises(RemoteFetchRefusedError) as caught:
             _open(PUBLIC_URLS[0])
     message = str(caught.value).lower()
-    assert "local only" in message
+    assert "offline" in message
     assert "no active turn" not in message, message
 
 
@@ -125,7 +150,7 @@ def test_loopback_and_operator_owned_lan_endpoints_are_not_blocked(url: str) -> 
         try:
             _open(url)
         except RemoteFetchRefusedError as refusal:
-            assert "local only" not in str(refusal).lower(), (
+            assert "offline" not in str(refusal).lower(), (
                 f"{url} is an operator-owned local endpoint and was refused as public egress"
             )
         except Exception:
@@ -142,7 +167,7 @@ def test_a_normal_auto_turn_is_not_blocked_by_this_law() -> None:
         try:
             _open(PUBLIC_URLS[0])
         except RemoteFetchRefusedError as refusal:
-            assert "local only" not in str(refusal).lower(), (
+            assert "offline" not in str(refusal).lower(), (
                 "an ordinary Auto turn was refused by the Local Only law"
             )
         except Exception:
@@ -165,7 +190,7 @@ def test_enable_web_env_cannot_override_an_active_local_only_selection(
     with remote_fetch_policy_scope(_local_only_context()):
         with pytest.raises(RemoteFetchRefusedError) as caught:
             _open(PUBLIC_URLS[0])
-    assert "local only" in str(caught.value).lower()
+    assert "offline" in str(caught.value).lower()
 
 
 def test_the_profile_policy_binds_the_same_veto(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,7 +201,7 @@ def test_the_profile_policy_binds_the_same_veto(monkeypatch: pytest.MonkeyPatch)
     with remote_fetch_policy_scope({"session_id": "profile-local-only"}):
         with pytest.raises(RemoteFetchRefusedError) as caught:
             _open(PUBLIC_URLS[0])
-    assert "local only" in str(caught.value).lower()
+    assert "offline" in str(caught.value).lower()
 
 
 # ── capability truth ─────────────────────────────────────────────────────────
@@ -214,7 +239,7 @@ def test_sabotage_disabling_the_local_only_veto_reopens_every_public_door(
             try:
                 _open(url)
             except RemoteFetchRefusedError as refusal:
-                assert "local only" not in str(refusal).lower(), (
+                assert "offline" not in str(refusal).lower(), (
                     "sabotage no-op: the local-only refusal survived with its check "
                     "disabled, so that check is not what closes the door"
                 )
@@ -282,3 +307,66 @@ def test_the_same_probe_does_open_a_socket_without_local_only(
         "the probe never reached a connect() at all, so the zero-socket assertion "
         "above would have passed for the wrong reason"
     )
+
+
+# ── Computer + web: no cloud AI, but the web door stays open ─────────────────
+
+
+def test_computer_web_lane_is_not_refused_at_the_web_door() -> None:
+    """A local AI asked for today's weather may look it up (owner decision 2026-11-11).
+
+    The door must not raise the Offline refusal. The request then fails at the test
+    suite's own network guard, which is the proof the door let it through.
+    """
+    with remote_fetch_policy_scope(_computer_web_context()):
+        try:
+            _open(PUBLIC_URLS[0])
+        except RemoteFetchRefusedError as refusal:
+            assert "offline" not in str(refusal).lower(), (
+                "the Computer + web lane was refused by the Offline law"
+            )
+        except Exception:
+            pass
+
+
+def test_computer_web_reports_web_available_when_web_lookups_are_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core import policy_engine
+    from core.remote_fetch_policy import effective_web_available
+
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
+    assert effective_web_available(_computer_web_context()) is True
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: False)
+    assert effective_web_available(_computer_web_context()) is False, (
+        "Computer + web must still obey the Web lookups switch"
+    )
+
+
+def test_computer_web_still_refuses_a_cloud_model_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The web door opening must not open the cloud-model door: the transport seam still refuses."""
+    from core import policy_engine
+    from core.auto_local_only_mode import CloudEgressBlockedError, assert_endpoint_allowed
+
+    monkeypatch.setattr(policy_engine, "local_only_mode", lambda: False)
+    with pytest.raises(CloudEgressBlockedError):
+        assert_endpoint_allowed(
+            "https://openrouter.ai/api/v1/chat/completions", lane="openrouter",
+            source_context=_computer_web_context(),
+        )
+    assert_endpoint_allowed("http://127.0.0.1:11434/api/chat", lane="ollama",
+                            source_context=_computer_web_context())
+
+
+def test_bind_turn_stamps_offline_only_for_the_offline_lane() -> None:
+    from core.auto_local_only_mode import bind_turn, turn_is_local_only, turn_is_offline
+
+    offline: dict = {}
+    assert bind_turn(offline, OFFLINE_SELECTOR_VALUE) is True
+    assert turn_is_local_only(offline) and turn_is_offline(offline)
+
+    web: dict = {}
+    assert bind_turn(web, SELECTOR_VALUE) is True
+    assert turn_is_local_only(web)
+    assert not web.get(OFFLINE_KEY) and not web.get(OFFLINE_SELECTED_KEY)
