@@ -971,6 +971,9 @@ function agentControls(cp){
     var count = field(form, 'vwAgCount_' + key, 'Most payments in total', 'e.g. 100', current ? String(current.max_payments) : '');
     var days = field(form, 'vwAgDays_' + key, current ? 'Days from now until it ends (leave empty to keep the end date)' : 'Days until it ends (1 to ' + (d.max_days || 90) + ')', String(d.default_days || 30), '');
     var ask = field(form, 'vwAgAsk_' + key, 'Always ask me above (optional)', 'e.g. 0.5', current && current.ask_above);
+    form.appendChild(el('div', 'vw-cx-env', 'Helper agents (optional). When VOOL splits a job between helper agents, each helper may spend this much out of this allowance, on the same services. Leave both empty and helpers pay nothing.'));
+    var helperPer = field(form, 'vwAgHelperPer_' + key, 'Most for one helper payment', 'empty: helpers pay nothing', current && current.helper_per_payment);
+    var helperTotal = field(form, 'vwAgHelperTotal_' + key, 'Most one helper may spend in total', 'empty: helpers pay nothing', current && current.helper_total);
     form.appendChild(el('div', 'vw-cx-env', 'Services it may pay. Type each service address, and the most it may get in total. The address a service is paid at is fixed when you approve its first payment; if it ever changes, VOOL asks you.'));
     var list = el('div', 'vw-cx-agent-services'); form.appendChild(list);
     var rows = [];
@@ -989,7 +992,7 @@ function agentControls(cp){
     acts.appendChild(more); acts.appendChild(save); acts.appendChild(cancel); form.appendChild(acts);
     cancel.addEventListener('click', function(){ form.remove(); cxMsg(msg, ''); });
     save.addEventListener('click', function(){
-      var payload = { per_payment: per.value, period: period.value, period_amount: periodAmount.value, total: total.value, max_payments: count.value, days: days.value, ask_above: ask.value,
+      var payload = { per_payment: per.value, period: period.value, period_amount: periodAmount.value, total: total.value, max_payments: count.value, days: days.value, ask_above: ask.value, helper_per_payment: helperPer.value, helper_total: helperTotal.value,
         services: rows.map(function(r){ return { address: r.address.value, limit: r.limit.value }; }).filter(function(s){ return String(s.address || '').trim(); }) };
       if (current) payload.allowance_id = current.allowance_id; else { payload.wallet_id = wallet.wallet_id; payload.asset = coin.value; }
       save.disabled = true;
@@ -1010,6 +1013,8 @@ function agentControls(cp){
       var word = AGENT_PERIOD_WORD[a.period] || a.period;
       var facts = el('div', 'vw-cx-env', 'Up to ' + a.per_payment + ' ' + a.asset + ' for one payment · ' + a.period_used + ' of ' + a.period_amount + ' ' + a.asset + ' used this ' + word + ' · ' + a.total_used + ' of ' + a.total + ' ' + a.asset + ' used in total · ' + a.payments + ' of ' + a.max_payments + ' payments · ' + (a.state === 'expired' ? 'ended' : (a.days_left + (a.days_left === 1 ? ' day left' : ' days left'))) + (a.ask_above ? ' · asks you above ' + a.ask_above + ' ' + a.asset : ''));
       facts.setAttribute('data-allowance-facts', a.allowance_id); card.appendChild(facts);
+      var helpers = el('div', 'vw-cx-env', a.helper_total ? ('Helper agents: each may spend up to ' + a.helper_per_payment + ' ' + a.asset + ' for one payment and ' + a.helper_total + ' ' + a.asset + ' in total, out of this allowance.') : 'Helper agents pay nothing.');
+      helpers.setAttribute('data-allowance-helpers', a.helper_total ? 'on' : 'off'); card.appendChild(helpers);
       (a.services || []).forEach(function(s){
         var line = el('div', 'vw-cx-env', s.address + ' · ' + s.used + ' of ' + s.limit + ' ' + a.asset + ' used · ' + (s.pinned ? 'paid at ' + short(s.pay_to) : 'its first payment asks you'));
         line.setAttribute('data-service', s.address); card.appendChild(line);

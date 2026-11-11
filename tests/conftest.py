@@ -147,6 +147,7 @@ RUNTIME_TABLES = (
     "wallet_agent_allowance_services",
     "wallet_agent_spends",
     "wallet_agent_decisions",
+    "wallet_agent_helper_terms",
     "response_feedback",
     "event_log_v2",
     "fault_records",

@@ -342,3 +342,91 @@ def test_the_reply_says_when_a_payment_used_half_or_all_of_the_allowance_and_whe
         assert third.status == "pending_approval" and "Nothing was paid" in third.response_text and "used up" in third.response_text
         assert "change the allowance in Settings, under Crypto, Agent spending" in third.response_text
         assert len(resource.paid_requests) == 2 and chain.token_balance(PAYEE) == AMOUNT * 2
+
+
+class _Team:
+    """What the team's gate binds a helper's session to: the team's own coordinator (only its id is read here)."""
+
+    team_id = "team-abc123"
+
+    def gate_write(self, agent_id, abs_path):
+        return False, "outside the agent's claim"
+
+    def run_token(self, agent_id):
+        return ""
+
+
+@pytest.fixture
+def helper_session():
+    from core.agent_team import gate
+
+    gate.bind_session("helper-session", _Team(), "researcher-1")
+    try:
+        yield {"session_id": "helper-session", "_owner_local": True, "_http_ingress": True, "turn_author": "agent"}
+    finally:
+        gate.unbind_session("helper-session")
+
+
+def test_a_helper_agent_pays_nothing_until_the_owner_opens_the_allowance_to_helpers_and_then_only_its_slice(agent, helper_session):
+    from core.agent_team import gate
+    from core.request_trust import in_process_owner_source_context
+    from core.wallet import agent_pay
+    from core.wallet import allowances as alw
+    from core.wallet.security import WalletFault
+
+    chain = agent["chain"]
+    wallet = _assistant(agent)
+    owner_turn = {"session_id": "chat-1", **in_process_owner_source_context()}
+    assert agent_pay.agent_for_turn(helper_session) == "team:team-abc123:researcher-1"
+    assert agent_pay.agent_for_turn({**helper_session, "session_id": "some-other-session"}) == "", "an agent-written turn no team bound is nobody's"
+    assert agent_pay.agent_for_turn({**helper_session, "_owner_local": False}) == "", "a remote turn is nobody's, bound or not"
+    with Site(chain, amount_minor=AMOUNT, pay_to=PAYEE) as resource:
+        parent = _allow({"wallet": wallet}, resource, pay_to=PAYEE, agent_id="assistant", window_minor=AMOUNT * 4, total_minor=AMOUNT * 4)
+        ask = {"resource_url": resource.url + "?h=0"}
+
+        # helpers are off by default: the team's fence refuses the call, and the tool itself parks nothing anywhere
+        assert "agents may not run `x402.propose`" in gate.check_tool("x402.propose", ask, helper_session)
+        resource.asked_at = ask["resource_url"]
+        refused = _tool(resource.asked_at, helper_session)
+        assert refused.status == "not_paid" and "Nothing was paid and nothing was requested" in refused.response_text, refused.response_text
+        from core.wallet import proposals
+
+        assert proposals.list_proposals() == [] and resource.requests == [] and chain.token_balance(PAYEE) == 0
+        assert chain.token_balance(agent["owner"]["address"]) == 0 and alw.list_allowances(agent_id="team:team-abc123:researcher-1") == []
+
+        # opening it is the owner's act; wider than the allowance is refused
+        with pytest.raises(WalletFault):
+            alw.set_helper_terms(parent, per_payment_minor=AMOUNT, total_minor=AMOUNT)
+        with pytest.raises(WalletFault):
+            alw.set_helper_terms(parent, per_payment_minor=AMOUNT, total_minor=AMOUNT * 40, credential=PIN)
+        alw.set_helper_terms(parent, per_payment_minor=AMOUNT, total_minor=AMOUNT, credential=PIN)
+        assert gate.check_tool("x402.propose", ask, helper_session) == ""
+        # only the plain paid fetch is opened: a hand-written offer, or any other tool, stays behind the fence
+        assert gate.check_tool("x402.propose", {**ask, "body": {"accepts": []}}, helper_session) != ""
+        assert gate.check_tool("wallet.propose", {"destination": THIEF, "amount": "1"}, helper_session) != ""
+
+        resource.asked_at = resource.url + "?h=1"
+        paid = _tool(resource.asked_at, helper_session)
+        assert paid.status == "paid" and "inside the spending allowance" in paid.response_text, paid.response_text
+        assert len(resource.paid_requests) == 1 and chain.token_balance(PAYEE) == AMOUNT
+
+        # the slice is one payment's worth: the helper's second request waits for the owner, the assistant's own still pays
+        resource.asked_at = resource.url + "?h=2"
+        over = _tool(resource.asked_at, helper_session)
+        assert over.status == "pending_approval" and "Nothing was paid" in over.response_text, over.response_text
+        assert len(resource.paid_requests) == 1
+        resource.asked_at = resource.url + "?a=1"
+        mine = _tool(resource.asked_at, owner_turn)
+        assert mine.status == "paid" and len(resource.paid_requests) == 2
+
+        # what the helper spent counts against the assistant's allowance too
+        view = alw.allowance_view(parent)
+        assert (view["total_used_minor"], view["payments"]) == (AMOUNT * 2, 2)
+        helper = alw.list_allowances(agent_id="team:team-abc123:researcher-1")[0]
+        assert (helper["parent_id"], helper["total_minor"], helper["total_used_minor"], helper["per_payment_minor"]) == (parent, AMOUNT, AMOUNT, AMOUNT)
+
+        # turning helpers off needs no credential, ends the slice and closes the fence again
+        alw.set_helper_terms(parent, per_payment_minor=0, total_minor=0)
+        assert alw.list_allowances(agent_id="team:team-abc123:researcher-1") == []
+        assert gate.check_tool("x402.propose", ask, helper_session) != ""
+        assert chain.token_balance(agent["owner"]["address"]) == 0, "the owner's own wallet never paid"

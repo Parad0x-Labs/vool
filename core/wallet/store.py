@@ -107,6 +107,9 @@ SCHEMA = (
     """CREATE TABLE IF NOT EXISTS wallet_agent_allowance_services (
         allowance_id TEXT NOT NULL, origin TEXT NOT NULL, total_minor INTEGER NOT NULL, pay_to TEXT NOT NULL DEFAULT '',
         pinned_at TEXT NOT NULL DEFAULT '', PRIMARY KEY (allowance_id, origin))""",
+    # what one helper of the allowance's agent may spend out of it (core.wallet.allowances.helper_slice); no row = none
+    """CREATE TABLE IF NOT EXISTS wallet_agent_helper_terms (
+        allowance_id TEXT PRIMARY KEY, per_payment_minor INTEGER NOT NULL, total_minor INTEGER NOT NULL, updated_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS wallet_agent_spends (
         id INTEGER PRIMARY KEY AUTOINCREMENT, allowance_id TEXT NOT NULL, root_id TEXT NOT NULL, agent_id TEXT NOT NULL,
         proposal_id TEXT NOT NULL UNIQUE, origin TEXT NOT NULL, request_digest TEXT NOT NULL, pay_to TEXT NOT NULL,
@@ -123,7 +126,7 @@ TABLES: tuple[str, ...] = (
     "wallet_profiles", "wallet_proposals", "wallet_proposal_events", "wallet_spend_ledger", "wallet_limits",
     "wallet_card_tokens", "wallet_receipts", "wallet_signing_requests", "wallet_x402_bindings", "wallet_controls",
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
-    "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions",
+    "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions", "wallet_agent_helper_terms",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.

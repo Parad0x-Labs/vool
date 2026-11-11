@@ -2882,6 +2882,10 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 ridden = agent_pay.fetch_for_turn(resource_url, source_context=context)
                 if ridden is not None:
                     return _agent_fetch_result(intent, ridden)
+                if agent_pay.is_team_turn(context):
+                    # a team agent never parks a payment on the owner's own wallet: with no slice to pay from, nothing happens
+                    text = "Nothing was paid and nothing was requested: helper agents can pay only from the assistant's own wallet, and it has none that fits this service."
+                    return RuntimeExecutionResult(handled=True, ok=False, status="not_paid", response_text=text, details={"observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status="not_paid")})
                 outcome = wallet_x402.fetch_paid_resource(resource_url, wallet_id=wallet_id, source_context=context)
                 if outcome.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and outcome.proposal_id:
                     text = f"x402 offer parked as proposal {outcome.proposal_id} (state pending_approval). Nothing has been signed; approve it in your wallet."

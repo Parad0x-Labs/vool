@@ -171,3 +171,24 @@ def test_tightening_pausing_and_ending_need_no_pin_but_loosening_and_resuming_do
 def test_the_overview_names_refusals_in_plain_words(network):
     assert agent_settings.refusal_text("invalid_allowance", "anything else").startswith("Those limits cannot be saved")
     assert agent_settings.refusal_text("credential_required") == ""
+
+
+def test_helper_amounts_are_set_with_the_allowance_need_the_pin_to_open_and_none_to_close(network):
+    wallet = _ready_wallet(network)
+    body = {**TERMS, "wallet_id": wallet["wallet_id"], "asset": _coin(network), "credential": PIN}
+    status, saved = _post("/api/wallet/agents/allowance", body)
+    assert status == 200 and (saved["allowance"]["helper_per_payment"], saved["allowance"]["helper_total"]) == ("", "")
+    keep = {**TERMS, "allowance_id": saved["allowance"]["allowance_id"], "days": ""}
+    status, half = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "0.01", "helper_total": ""})
+    assert status == 400 and "type both amounts" in half["message"]
+    status, wide = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "0.01", "helper_total": "50", "credential": PIN})
+    assert status == 403 and "inside the allowance total" in wide["message"]
+    status, asked = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "0.01", "helper_total": "0.5"})
+    assert status == 400 and asked["fault"]["context"]["reason"] == "credential_required"
+    assert alw.helper_terms(keep["allowance_id"]) is None
+    status, opened = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "0.01", "helper_total": "0.5", "credential": PIN})
+    assert status == 200 and (opened["allowance"]["helper_per_payment"], opened["allowance"]["helper_total"]) == ("0.01", "0.5")
+    status, lower = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "0.01", "helper_total": "0.2"})
+    assert status == 200 and lower["allowance"]["helper_total"] == "0.2"
+    status, closed = _post("/api/wallet/agents/allowance", {**keep, "helper_per_payment": "", "helper_total": ""})
+    assert status == 200 and closed["allowance"]["helper_total"] == "" and alw.helper_terms(keep["allowance_id"]) is None

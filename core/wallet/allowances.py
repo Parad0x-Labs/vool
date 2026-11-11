@@ -440,6 +440,8 @@ def change_allowance(allowance_id: str, spec: AllowanceSpec, *, credential: str 
              clean.ask_above_minor, clean.expires_at, utcnow(), allowance_id),
         )
         _write_services(conn, allowance_id, clean.services, keep_pins=stored.services)
+        # helpers' slices were cut from the old terms: they end here and are cut again, on the new terms, when next needed
+        conn.execute("UPDATE wallet_agent_allowances SET state = ?, updated_at = ? WHERE parent_id = ? AND state <> ?", (STATE_REVOKED, utcnow(), allowance_id, STATE_REVOKED))
     _journal("wallet_agent_allowance_changed", {"allowance_id": allowance_id, "agent_id": current.agent_id, "loosened": proven}, source_context)
 
 
@@ -545,6 +547,103 @@ def delegate_slice(parent_allowance_id: str, spec: AllowanceSpec, *, now: float 
         raise _refused("allowance_exists", source_context=source_context, agent_id=clean.agent_id) from None
     _journal("wallet_agent_allowance_delegated", {"allowance_id": slice_id, "parent_id": parent_allowance_id, "agent_id": clean.agent_id}, source_context)
     return slice_id
+
+
+def helper_terms(allowance_id: str, *, conn: Any = None) -> tuple[int, int] | None:
+    """``(per payment, total)`` one helper of this allowance's agent may spend out of it, or None when helpers get
+    nothing (the default). A row that cannot be read as written gives nothing."""
+    def read(c: Any) -> tuple[int, int] | None:
+        found = c.execute("SELECT per_payment_minor, total_minor FROM wallet_agent_helper_terms WHERE allowance_id = ?", (str(allowance_id),)).fetchone()
+        if not found:
+            return None
+        try:
+            per_payment, total = _whole(found[0]), _whole(found[1])
+        except ValueError:
+            return None
+        return (per_payment, total) if 0 < per_payment <= total else None
+
+    if conn is not None:
+        return read(conn)
+    with connection() as own:
+        return read(own)
+
+
+def set_helper_terms(allowance_id: str, *, per_payment_minor: int, total_minor: int, credential: str = "", source_context: dict[str, Any] | None = None) -> None:
+    """What one helper agent may spend out of this allowance: both 0 turns helpers off. Turning it on or raising it
+    is the owner's act; lowering it or turning it off needs no credential. Either way the slices already cut are
+    ended, so every helper is held to the terms as they now stand."""
+    current = _read(allowance_id, source_context=source_context)
+    if current.parent_id:
+        raise _refused("slice_terms_are_fixed", source_context=source_context)
+    for value in (per_payment_minor, total_minor):
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _INT64_MAX:
+            raise _refused("invalid_allowance", source_context=source_context, detail="helper amounts must be whole numbers")
+    off = per_payment_minor == 0 and total_minor == 0
+    if not off and not 0 < per_payment_minor <= total_minor <= current.total_minor:
+        raise _refused("invalid_allowance", source_context=source_context, detail="a helper's payment must fit its total, and its total must fit the allowance total")
+    if not off and per_payment_minor > current.per_payment_minor:
+        raise _refused("invalid_allowance", source_context=source_context, detail="a helper's payment must fit the allowance's payment limit")
+    held = helper_terms(allowance_id)
+    proven = False
+    if not off and (held is None or per_payment_minor > held[0] or total_minor > held[1]):
+        custody.prove_owner(current.wallet_id, credential=credential, purpose="let helper agents use a spending allowance", source_context=source_context)
+        proven = True
+    with connection() as conn:
+        _begin_immediate(conn)
+        stored = helper_terms(allowance_id, conn=conn)
+        if not off and not proven and (stored is None or per_payment_minor > stored[0] or total_minor > stored[1]):
+            raise _refused("credential_required", source_context=source_context)
+        if off:
+            conn.execute("DELETE FROM wallet_agent_helper_terms WHERE allowance_id = ?", (str(allowance_id),))
+        else:
+            conn.execute("INSERT INTO wallet_agent_helper_terms (allowance_id, per_payment_minor, total_minor, updated_at) VALUES (?, ?, ?, ?) "
+                         "ON CONFLICT(allowance_id) DO UPDATE SET per_payment_minor = excluded.per_payment_minor, total_minor = excluded.total_minor, updated_at = excluded.updated_at",
+                         (str(allowance_id), int(per_payment_minor), int(total_minor), utcnow()))
+        if stored != (None if off else (per_payment_minor, total_minor)):
+            conn.execute("UPDATE wallet_agent_allowances SET state = ?, updated_at = ? WHERE parent_id = ? AND state <> ?", (STATE_REVOKED, utcnow(), str(allowance_id), STATE_REVOKED))
+    _journal("wallet_agent_helper_terms_set", {"allowance_id": allowance_id, "on": not off, "loosened": proven}, source_context)
+
+
+def helper_slice(parent_allowance_id: str, helper_agent_id: str, *, now: float | None = None, source_context: dict[str, Any] | None = None) -> str:
+    """The slice ``helper_agent_id`` spends from under this allowance: the one it already has, or one cut now on the
+    owner's helper terms and never wider than what the allowance has left. "" when helpers get nothing here, the
+    allowance cannot delegate, or nothing is left to cut -- the helper's payment then waits for the owner."""
+    moment = float(now if now is not None else time.time())
+    helper = str(helper_agent_id or "").strip().lower()
+    if not _AGENT_ID.match(helper):
+        return ""
+    try:
+        with connection() as conn:
+            terms = helper_terms(parent_allowance_id, conn=conn)
+            parent = _load(conn, "allowance_id = ?", (str(parent_allowance_id),))
+            if terms is None or parent is None or parent.parent_id or parent.agent_id == helper:
+                return ""
+            have = conn.execute("SELECT allowance_id FROM wallet_agent_allowances WHERE parent_id = ? AND agent_id = ? AND state <> ?",
+                                (parent.allowance_id, helper, STATE_REVOKED)).fetchone()
+            if have:
+                return str(have[0])
+            left_total = parent.total_minor - _held(conn, parent.allowance_id)
+            left_window = parent.window_minor - _held(conn, parent.allowance_id, since=moment - parent.window_seconds)
+            left_count = parent.max_payments - _held_count(conn, parent.allowance_id)
+    except (ValueError, TypeError):
+        return ""
+    per_payment = min(terms[0], parent.per_payment_minor)
+    total = min(terms[1], left_total)
+    window = min(total, left_window)
+    if left_count <= 0 or per_payment <= 0 or window < per_payment:
+        return ""
+    spec = AllowanceSpec(agent_id=helper, wallet_id=parent.wallet_id, network=parent.network, asset=parent.asset, per_payment_minor=per_payment,
+                         window_seconds=parent.window_seconds, window_minor=window, total_minor=total, max_payments=left_count,
+                         min_interval_seconds=parent.min_interval_seconds, expires_at=parent.expires_at, ask_above_minor=parent.ask_above_minor,
+                         services=tuple(ServiceRule(origin, min(service_total, total)) for origin, (service_total, _pay_to) in parent.services.items()))
+    try:
+        return delegate_slice(parent.allowance_id, spec, now=moment, source_context=source_context)
+    except Exception:
+        # raced with another cut, a pause or a spend that left less: nothing is cut, and the payment waits for the owner
+        with connection() as conn:
+            have = conn.execute("SELECT allowance_id FROM wallet_agent_allowances WHERE parent_id = ? AND agent_id = ? AND state <> ?",
+                                (parent.allowance_id, helper, STATE_REVOKED)).fetchone()
+        return str(have[0]) if have else ""
 
 
 # ---------------------------------------------------------------------------
@@ -799,6 +898,8 @@ __all__ = [
     "create_allowance",
     "decisions",
     "delegate_slice",
+    "helper_slice",
+    "helper_terms",
     "list_allowances",
     "normalize_origin",
     "pause_allowance",
@@ -807,5 +908,6 @@ __all__ = [
     "release",
     "resume_allowance",
     "revoke_allowance",
+    "set_helper_terms",
     "settle",
 ]

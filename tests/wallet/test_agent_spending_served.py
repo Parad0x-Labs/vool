@@ -253,6 +253,17 @@ def test_the_owner_sets_up_agent_spending_in_settings_and_vool_pays_from_chat_in
             text = _ask(daemon, site.asked_at, "agent-spend-1")
             assert "Nothing was paid" in text and "more than the allowance permits for one payment" in text and len(site.paid_requests) == 2, text
             assert chain.token_balance(owner["address"]) == FUNDED, "the owner's own wallet never paid"
+
+            # --- helper agents get nothing until the owner types what one helper may spend, with the PIN -------------------
+            allowance = page.locator('#vwCxAgents [data-allowance][data-state="active"]')
+            assert allowance.locator('[data-allowance-helpers="off"]').text_content() == "Helper agents pay nothing."
+            allowance.locator('[data-allowance-action="change"]').click()
+            page.fill(f"#vwAgHelperPer_{allowance_id}", "0.1")
+            page.fill(f"#vwAgHelperTotal_{allowance_id}", "0.3")
+            page.click(f"#vwAgSave_{allowance_id}")
+            _prove(page, PIN)
+            page.locator('#vwCxAgents [data-allowance-helpers="on"]').wait_for(timeout=15_000)
+            assert "each may spend up to 0.1 USDC for one payment and 0.3 USDC in total" in page.locator('#vwCxAgents [data-allowance-helpers="on"]').text_content()
             assert errors == [] and chat_errors == [], (errors, chat_errors)
     finally:
         browser.close()

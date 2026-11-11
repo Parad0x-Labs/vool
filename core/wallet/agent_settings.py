@@ -32,6 +32,9 @@ _INVALID_TEXT = {
     "a service is listed twice": "The same service is listed twice.",
     "a service total must fit the allowance total": "A service's limit has to fit inside the total.",
     "a service recipient is not an address on this network": "A service's pay-to address is not an address on this network.",
+    "helper amounts must be whole numbers": "The helper amounts could not be read.",
+    "a helper's payment must fit its total, and its total must fit the allowance total": "A helper's payment has to fit inside the helper's total, and that inside the allowance total.",
+    "a helper's payment must fit the allowance's payment limit": "A helper's payment cannot be more than the allowance's limit for one payment.",
 }
 _REFUSAL_TEXT = {
     "allowance_exists": "This agent already has an allowance for this coin on this wallet. Change that one instead.",
@@ -117,6 +120,9 @@ def _allowance_shown(view: dict[str, Any], *, now: float) -> dict[str, Any]:
     for name, key in (("per_payment", "per_payment_minor"), ("period_amount", "window_minor"), ("period_used", "window_used_minor"), ("total", "total_minor"),
                       ("total_used", "total_used_minor")):
         shown[name] = _human(view[key], asset)
+    helpers = allowances.helper_terms(view["allowance_id"])
+    shown["helper_per_payment"] = _human(helpers[0], asset) if helpers else ""
+    shown["helper_total"] = _human(helpers[1], asset) if helpers else ""
     shown["ask_above"] = _human(view["ask_above_minor"], asset) if int(view["ask_above_minor"] or 0) else ""
     shown["services"] = [{"address": service["origin"], "limit": _human(service["total_minor"], asset), "used": _human(service["used_minor"], asset),
                           "pay_to": service["pay_to"], "pinned": bool(service["pinned"])} for service in view["services"]]
@@ -290,6 +296,16 @@ def save_allowance(body: dict[str, Any], *, now: float | None = None, source_con
         allowances.change_allowance(allowance_id, spec, credential=credential, now=moment, source_context=source_context)
     else:
         allowance_id = allowances.create_allowance(spec, credential=credential, now=moment, source_context=source_context)
+    if "helper_per_payment" in body or "helper_total" in body:
+        # what one helper agent may spend out of this allowance; both empty turns helpers off
+        asset = _asset(wallet["network"], asset_symbol)
+        per_helper = _minor(body.get("helper_per_payment"), asset, "one helper payment", optional=True)
+        helper_total = _minor(body.get("helper_total"), asset, "a helper's total", optional=True)
+        if bool(per_helper) != bool(helper_total):
+            raise SettingsRefused("For helpers, type both amounts, or leave both empty to give helpers nothing.")
+        held = allowances.helper_terms(allowance_id)
+        if (held or (0, 0)) != (per_helper, helper_total):
+            allowances.set_helper_terms(allowance_id, per_payment_minor=per_helper, total_minor=helper_total, credential=credential, source_context=source_context)
     return {"allowance": _allowance_shown(allowances.allowance_view(allowance_id, now=moment) or {"allowance_id": allowance_id, "unreadable": True}, now=moment)}
 
 

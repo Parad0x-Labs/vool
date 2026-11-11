@@ -254,23 +254,77 @@ def raise_hint(reason: str) -> str:
     return "To let it pay this kind of request without asking, change the allowance in Settings, under Crypto, Agent spending." if reason in _RAISABLE else ""
 
 
+def _helper_identity(source_context: dict[str, Any] | None) -> str:
+    """The identity of the team agent whose session this turn runs in, from the team's own server-side binding
+    (``core.agent_team.gate``), or "". Never read from the request: a turn cannot name itself a helper."""
+    try:
+        from core.agent_team import gate
+        from core.council import containment
+
+        bound = gate.binding(containment._context_session_id(source_context))
+    except Exception:
+        return ""
+    if bound is None:
+        return ""
+    owner, member = bound
+    raw = f"team:{getattr(owner, 'team_id', '') or 'team'}:{member}".lower()
+    clean = "".join(ch if ch.isalnum() or ch in ":_.-" else "-" for ch in raw)
+    if len(clean) > 64:
+        import hashlib
+
+        clean = clean[:47] + "-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return clean
+
+
 def agent_for_turn(source_context: dict[str, Any] | None) -> str:
-    """The agent identity the SERVER gives this turn, or "" when no agent may pay unattended on it. Only the owner's
-    own turn at this computer is the assistant's: a remote or phone turn, a turn that did not come from the owner's
-    session, and a turn another agent wrote are nobody's, and pay nothing without the owner."""
+    """The agent identity the SERVER gives this turn, or "" when no agent may pay unattended on it. The owner's own
+    turn at this computer is the assistant's. A turn a team agent wrote, in a session the team itself bound on this
+    computer, is that helper's. A remote or phone turn, a turn that did not come from the owner's session, and an
+    agent-written turn no team bound are nobody's, and pay nothing without the owner."""
     from core.request_trust import OWNER_LOCAL_KEY, turn_is_owner_authored, turn_is_remote
 
     stamped = isinstance(source_context, dict) and source_context.get(OWNER_LOCAL_KEY) is True
     # stricter than the tools' own rule: money needs the explicit owner stamp, never the absence of a remote one
-    if not stamped or turn_is_remote(source_context) or not turn_is_owner_authored(source_context):
+    if not stamped or turn_is_remote(source_context):
         return ""
-    return ASSISTANT_AGENT
+    helper = _helper_identity(source_context)
+    if helper:
+        return helper
+    return ASSISTANT_AGENT if turn_is_owner_authored(source_context) else ""
+
+
+def is_team_turn(source_context: dict[str, Any] | None) -> bool:
+    """Whether this turn runs in a session a team bound to one of its agents (whatever else it claims to be)."""
+    return bool(_helper_identity(source_context))
+
+
+def is_helper(agent_id: str) -> bool:
+    return str(agent_id or "").startswith("team:")
+
+
+def helpers_enabled() -> bool:
+    """Whether the owner lets helper agents use any part of the assistant's allowance right now."""
+    try:
+        return any(allowances.helper_terms(view["allowance_id"]) is not None for view in allowances.list_allowances(agent_id=ASSISTANT_AGENT)
+                   if not view.get("unreadable") and not view.get("parent_id") and view.get("state") == allowances.STATE_ACTIVE)
+    except Exception:
+        return False
+
+
+def helper_may_ask(intent: str, arguments: Any) -> bool:
+    """Whether a team agent's tool call is the one paid fetch the owner opened to helpers: ``x402.propose`` naming
+    only a resource address, while helper terms are on. Anything else stays behind the team's own fence."""
+    if str(intent or "") != "x402.propose" or not isinstance(arguments, dict):
+        return False
+    given = {key for key, value in arguments.items() if value not in (None, "", {}, [])}
+    return given == {"resource_url"} and helpers_enabled()
 
 
 def fetch_for_turn(url: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """Fetch a paid resource for the agent this turn belongs to, from that agent's own wallet, paying only what its
-    allowance permits. None when this turn has no agent or that agent has no ready wallet whose lane meets the offer:
-    the caller then does what it did before any allowance existed (parks the offer on the owner's wallet).
+    """Fetch a paid resource for the agent this turn belongs to, paying only what its allowance permits. The
+    assistant pays from its own wallet; a helper pays from the assistant's wallet through a slice of the assistant's
+    allowance, cut on the owner's helper terms. None when this turn has no agent or no ready wallet's lane meets the
+    offer: the caller then does what it did before any allowance existed.
 
     Returns ``agent_id``, ``wallet_id``, ``status`` (the fetch outcome), ``proposal_id``, ``payment`` (:func:`pay`'s
     answer, None when nothing asked for payment) and ``body`` (the delivered resource, bytes, when one was)."""
@@ -280,9 +334,16 @@ def fetch_for_turn(url: str, *, source_context: dict[str, Any] | None = None) ->
     agent = agent_for_turn(source_context)
     if not agent:
         return None
+    if is_helper(agent) and not helpers_enabled():
+        return None  # the owner gave helpers nothing: nothing is fetched, parked or asked on a helper's word
+    holder = ASSISTANT_AGENT if is_helper(agent) else agent
     for wallet in agent_wallets.list_agent_wallets():
-        if wallet["agent_id"] != agent or not wallet["ready"]:
+        if wallet["agent_id"] != holder or not wallet["ready"]:
             continue
+        if is_helper(agent):
+            for view in allowances.list_allowances(agent_id=holder):
+                if not view.get("unreadable") and not view.get("parent_id") and view.get("wallet_id") == wallet["wallet_id"]:
+                    allowances.helper_slice(view["allowance_id"], agent, source_context=source_context)
         try:
             outcome = x402.fetch_paid_resource(url, wallet_id=wallet["wallet_id"], source_context=source_context)
         except WalletFault:
@@ -302,4 +363,4 @@ def fetch_for_turn(url: str, *, source_context: dict[str, Any] | None = None) ->
     return None
 
 
-__all__ = ["ASSISTANT_AGENT", "agent_for_turn", "approve_as_owner", "explain", "fetch_for_turn", "notice_text", "pay", "raise_hint", "reconcile"]
+__all__ = ["ASSISTANT_AGENT", "agent_for_turn", "approve_as_owner", "explain", "fetch_for_turn", "helper_may_ask", "helpers_enabled", "is_helper", "is_team_turn", "notice_text", "pay", "raise_hint", "reconcile"]
