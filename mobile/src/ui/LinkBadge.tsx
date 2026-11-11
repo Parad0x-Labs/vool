@@ -17,7 +17,7 @@ export function linkLabel(state: LinkState): string {
     : tr("Connecting to your computer…");
 }
 
-/** Two plugs: joined and green when the computer answers, apart and red when it does not. */
+/** A computer screen: green when the computer answers, amber while trying, crossed out and red when it does not. */
 export default function LinkBadge({onPress}: {onPress?: () => void}) {
   const state = useLink();
   const pulse = useRef(new Animated.Value(1)).current;
@@ -34,7 +34,7 @@ export default function LinkBadge({onPress}: {onPress?: () => void}) {
   return (
     <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={linkLabel(state)} style={styles.wrap}>
       <Animated.View style={{opacity: pulse}}>
-        <Icon name={state === "offline" ? "power-plug-off-outline" : "connection"} size={26} color={color} />
+        <Icon name={state === "offline" ? "monitor-off" : "monitor"} size={26} color={color} />
       </Animated.View>
     </Pressable>
   );
@@ -46,7 +46,7 @@ export function LinkLine() {
   const color = state === "connected" ? C.ok : state === "offline" ? C.bad : C.wait;
   return (
     <View style={styles.line}>
-      <Icon name={state === "offline" ? "power-plug-off-outline" : "connection"} size={18} color={color} />
+      <Icon name={state === "offline" ? "monitor-off" : "monitor"} size={18} color={color} />
       <Text style={[styles.lineText, {color}]}>{linkLabel(state)}</Text>
     </View>
   );
