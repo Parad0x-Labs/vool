@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Être listé ici ne signifie pas que VOOL le recommande.",
     "addons.plugin_local_check_advisory": "Cette vérification est un indice, pas une promesse de sécurité.",
     "addons.plugin_eyebrow_verdict": "Verdict de l'analyse :",
+    "addons.plugin_file_program": "peut s’exécuter comme programme",
+    "addons.plugin_files": "Fichiers de ce paquet",
     "addons.plugin_scan_saved": "Lancer les vérifications d'installation.",
     "addons.plugin_risk_unknown": "Le moteur a signalé un risque possible. VOOL ne peut pas encore expliquer ce constat.",
     "addons.plugin_scan_bundled_consent": "Tester cette compétence publique incluse sur cet appareil. Un plugin d'analyse activé reçoit également son contenu. Aucun fichier privé, chat ou clé n'est inclus. Aucune installation ni exécution n'est effectuée.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

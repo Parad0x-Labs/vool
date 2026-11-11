@@ -166,3 +166,41 @@ def test_package_errors_have_plain_owner_visible_messages(package):
                                       {"Content-Type": "application/json"}, "127.0.0.1")
     assert status == 400 and "invalid" in result["message"]
     assert result["message_key"].startswith("addons.plugin_message_")
+
+
+def test_review_names_every_file_the_person_is_asked_to_review(package):
+    (package / "bin").mkdir()
+    (package / "bin/run").write_text("#!/bin/sh\n")
+    (package / "bin/run").chmod(0o755)
+    review = manager.prepare_local(str(package))
+    files = {row["path"]: row for row in review["files"]}
+    assert set(files) == {".codex-plugin/plugin.json", "LICENSE", "bin/run"}
+    assert files["bin/run"]["program"] is True and files["LICENSE"]["program"] is False
+    assert files["LICENSE"]["bytes"] == len("MIT License\n")
+
+
+def test_a_refused_package_says_its_own_reason_on_the_page(package):
+    def refusal():
+        return handle_addon_post({"action": "plugin_prepare", "path": str(package)},
+                                 {"Content-Type": "application/json"}, "127.0.0.1")[1]["message"]
+
+    changed = manifest()
+    changed["vool"]["network"] = ["*.example.com"]
+    (package / ".codex-plugin/plugin.json").write_text(json.dumps(changed))
+    assert "websites" in refusal()
+    (package / ".codex-plugin/plugin.json").write_text(json.dumps(manifest()))
+    (package / "extra").symlink_to(package / "LICENSE")
+    assert "Linked files" in refusal()
+
+
+def test_wallet_paid_service_card_offers_no_key_test_or_model_list(package, monkeypatch):
+    from core import plugin_providers
+
+    info = installed(package)
+    assert manager.inspect(info["id"])["wallet_service"] is False
+    monkeypatch.setattr(plugin_providers, "money_governed", lambda url: True)
+    assert manager.inspect(info["id"])["wallet_service"] is True
+    manager.enable(info["id"], accepted=True, approval_digest=info["approval_digest"])
+    status, result = handle_addon_post({"action": "plugin_test", "id": info["id"]},
+                                      {"Content-Type": "application/json"}, "127.0.0.1")
+    assert status == 400 and result["message"] == manager.WALLET_SERVICE

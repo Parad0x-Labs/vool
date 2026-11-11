@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Įrašas šiame sąraše nereiškia, kad VOOL tai rekomenduoja.",
     "addons.plugin_local_check_advisory": "Šis patikrinimas yra tik užuomina, o ne saugumo pažadas.",
     "addons.plugin_eyebrow_verdict": "Nuskaitymo verdiktas:",
+    "addons.plugin_file_program": "gali būti paleistas kaip programa",
+    "addons.plugin_files": "Šio paketo failai",
     "addons.plugin_scan_saved": "Vykdyti diegimo patikrinimus",
     "addons.plugin_risk_unknown": "Skaitytuvas pažymėjo galimą riziką. VOOL dar negali paaiškinti šio radinio.",
     "addons.plugin_scan_bundled_consent": "Patikrinkite šį įtrauktą viešąjį įgūdį šiame įrenginyje. Įjungtas skaitytuvo papildinys taip pat gauna savo turinį. Neįtraukiami jokie privatūs failai, pokalbiai ar raktai. Niekas neįdiegiama ar nevykdoma.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

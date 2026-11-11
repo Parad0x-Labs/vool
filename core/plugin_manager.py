@@ -97,10 +97,22 @@ def summary(plugin) -> dict:
                 isinstance(spec, dict) and spec.get("env") for spec in block.get("mcpServers", {}).values())),
             "executable_runtime_available": not bool(refusal := plugin_isolation_refusal(plugin)),
             "mac_process_note": sys.platform == "darwin",
+            "wallet_service": _wallet_service(block),
             "executable_runtime_refusal": refusal, "executable_runtime_refusal_key": message_key(refusal) if refusal else "",
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
                        "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}
+
+
+WALLET_SERVICE = "This service is paid from your wallet balance, so VOOL uses it only with your wallet approvals each time."
+
+
+def _wallet_service(block: dict) -> bool:
+    """A service VOOL pays from the wallet balance: no plugin key, test or model list ever applies to it."""
+    from core.plugin_providers import money_governed
+
+    spec = block.get("model_provider")
+    return isinstance(spec, dict) and money_governed(spec.get("base_url", ""))
 
 
 def message_key(message: str) -> str:
@@ -140,6 +152,8 @@ def prepare_local(folder: str, *, update=False, source="local") -> dict:
         _write(_state() / "reviews" / (review_id + ".json"), value)
         return {"ok": True, "review_id": review_id, "digest": captured.digest,
                 "reviewed_by_store": False, "plugin": summary(plugin),
+                "files": [{"path": entry["path"], "bytes": entry["bytes"], "program": bool(entry["executable"])}
+                          for entry in captured.entries if entry["type"] == "file"],
                 "message": "Not reviewed by the VOOL store. Review the entire package before installing it."}
     except Exception:
         _remove(stage)
@@ -397,6 +411,8 @@ def test_connection(plugin_id: str) -> dict:
     if not kind:
         raise ServiceRefused("This plugin does not declare a service connection test.")
     spec = plugin.vool[kind]
+    if _wallet_service(plugin.vool):
+        raise ServiceRefused(WALLET_SERVICE)
     path = spec["test_path"] if kind == "scanner" else spec["model_list_path"]
     response = native_request(plugin_id, kind, "GET", spec["base_url"].rstrip("/") + path)
     try:
@@ -478,5 +494,10 @@ def handle(action: str, body: dict) -> dict:
         raise lifecycle.LifecycleError("The plugin service timed out. No automatic retry was made.") from None
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None
-    except (PackageError, PluginManifestError):
-        raise lifecycle.LifecycleError("The plugin's setup file is invalid or missing. Review it before installing.") from None
+    except (PackageError, PluginManifestError) as exc:
+        reason = str(exc)
+        if isinstance(exc, PackageError) and "links" in reason:
+            reason = "Linked files and embedded projects can't be added."
+        if user_message(reason)["message"] != reason:
+            reason = "The plugin's setup file is invalid or missing. Review it before installing."
+        raise lifecycle.LifecycleError(reason) from None

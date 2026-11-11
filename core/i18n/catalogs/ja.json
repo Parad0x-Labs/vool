@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "ここに載っていることは、VOOLのおすすめを意味しません。",
     "addons.plugin_local_check_advisory": "このチェックは参考情報であり、安全の保証ではありません。",
     "addons.plugin_eyebrow_verdict": "スキャン結果：",
+    "addons.plugin_file_program": "プログラムとして実行可能",
+    "addons.plugin_files": "このパッケージのファイル",
     "addons.plugin_scan_saved": "インストールチェックを実行してください",
     "addons.plugin_risk_unknown": "スキャナーが潜在的なリスクを指摘しました。VOOLはまだこの検出を説明できません。",
     "addons.plugin_scan_bundled_consent": "このデバイスで、含まれている公開スキルを確認してください。有効化されたスキャナープラグインもそのコンテンツを受け取ります。プライベートファイル、チャット、キーは含まれません。何もインストールまたは実行されません。",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

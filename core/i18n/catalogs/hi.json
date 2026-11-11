@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "यहाँ सूचीबद्ध होना इस बात का प्रमाण नहीं है कि VOOL इसकी सिफ़ारिश करता है।",
     "addons.plugin_local_check_advisory": "यह जाँच एक संकेत है, सुरक्षा का वादा नहीं।",
     "addons.plugin_eyebrow_verdict": "स्कैन का फ़ैसला:",
+    "addons.plugin_file_program": "प्रोग्राम की तरह चल सकती है",
+    "addons.plugin_files": "इस पैकेज की फ़ाइलें",
     "addons.plugin_scan_saved": "इंस्टॉलेशन चेक चलाएं",
     "addons.plugin_risk_unknown": "स्कैनर ने संभावित जोखिम का संकेत दिया। VOOL अभी इस निष्कर्ष की व्याख्या नहीं कर सकता।",
     "addons.plugin_scan_bundled_consent": "इस डिवाइस पर इस शामिल पब्लिक स्किल को चेक करें। एक इनेबल्ड स्कैनर प्लगइन को भी इसका कंटेंट मिलता है। कोई प्राइवेट फ़ाइल, चैट या कीज़ शामिल नहीं हैं। कुछ भी इंस्टॉल या एग्जीक्यूट नहीं है।",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

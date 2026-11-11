@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Obecność na tej liście nie oznacza, że VOOL to poleca.",
     "addons.plugin_local_check_advisory": "Ta kontrola jest wskazówką, nie obietnicą bezpieczeństwa.",
     "addons.plugin_eyebrow_verdict": "Werdykt skanowania:",
+    "addons.plugin_file_program": "można uruchomić jako program",
+    "addons.plugin_files": "Pliki w tym pakiecie",
     "addons.plugin_scan_saved": "Uruchom kontrole instalacji",
     "addons.plugin_risk_unknown": "Skaner oznaczył możliwe ryzyko. VOOL nie potrafi jeszcze wyjaśnić tego wyniku.",
     "addons.plugin_scan_bundled_consent": "Sprawdź, czy ta dołączona umiejętność publiczna jest na tym urządzeniu. Włączona wtyczka skanera również otrzymuje jej zawartość. Nie są dołączone żadne prywatne pliki, czaty ani klucze. Nic nie jest instalowane ani wykonywane.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
     "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

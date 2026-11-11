@@ -2951,6 +2951,8 @@
     "addons.plugin_scope": "Being listed here doesn't mean VOOL recommends it.",
     "addons.plugin_local_check_advisory": "This check is a hint, not a safety promise.",
     "addons.plugin_eyebrow_verdict": "Scan verdict:",
+    "addons.plugin_file_program": "can run as a program",
+    "addons.plugin_files": "Files in this package",
     "addons.plugin_scan_saved": "Run installation checks",
     "addons.plugin_risk_unknown": "The scanner flagged a possible risk. VOOL can't explain this finding yet.",
     "addons.plugin_scan_bundled_consent": "Check this included public skill on this device. An enabled scanner plugin also receives its contents. No private files, chats or keys are included. Nothing is installed or executed.",

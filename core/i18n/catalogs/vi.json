@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Việc được liệt kê ở đây không có nghĩa là VOOL giới thiệu nó.",
     "addons.plugin_local_check_advisory": "Lượt kiểm tra này chỉ là gợi ý, không phải lời cam kết an toàn.",
     "addons.plugin_eyebrow_verdict": "Kết luận quét:",
+    "addons.plugin_file_program": "có thể chạy như một chương trình",
+    "addons.plugin_files": "Các tệp trong gói này",
     "addons.plugin_scan_saved": "Chạy kiểm tra cài đặt",
     "addons.plugin_risk_unknown": "Trình quét đánh dấu một rủi ro có thể có. VOOL chưa thể giải thích phát hiện này.",
     "addons.plugin_scan_bundled_consent": "Kiểm tra kỹ năng công khai này trên thiết bị này. Một plugin quét đã được bật cũng nhận được nội dung của nó. Không có tệp riêng tư, cuộc trò chuyện hoặc khóa nào được bao gồm. Không có gì được cài đặt hoặc thực thi.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
     "settings.row.hide_name_on_screen.effect": "Áp dụng ngay."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

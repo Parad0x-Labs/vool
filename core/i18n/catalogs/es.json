@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Estar listado aquí no significa que VOOL lo recomiende.",
     "addons.plugin_local_check_advisory": "Esta comprobación es una pista, no una promesa de seguridad.",
     "addons.plugin_eyebrow_verdict": "Veredicto del análisis:",
+    "addons.plugin_file_program": "se puede ejecutar como programa",
+    "addons.plugin_files": "Archivos de este paquete",
     "addons.plugin_scan_saved": "Ejecutar comprobaciones de instalación",
     "addons.plugin_risk_unknown": "El analizador marcó un posible riesgo. VOOL todavía no puede explicar este hallazgo.",
     "addons.plugin_scan_bundled_consent": "Compruebe esta habilidad pública incluida en este dispositivo. Un complemento de escáner habilitado también recibe su contenido. No se incluyen archivos privados, chats ni claves. No se instala ni se ejecuta nada.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

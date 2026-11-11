@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "在此列出并不代表 VOOL 推荐它。",
     "addons.plugin_local_check_advisory": "这项检查只是提示，不是安全保证。",
     "addons.plugin_eyebrow_verdict": "扫描结果：",
+    "addons.plugin_file_program": "可作为程序运行",
+    "addons.plugin_files": "此软件包中的文件",
     "addons.plugin_scan_saved": "运行安装检查",
     "addons.plugin_risk_unknown": "扫描器标记了可能的风险。VOOL 暂时无法解释这一发现。",
     "addons.plugin_scan_bundled_consent": "请在此设备上检查此内置的公共技能。已启用的扫描程序插件也会接收其内容。不包含任何私人文件、聊天记录或密钥。不会安装或执行任何内容。",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "直播或共享屏幕前请打开此项。VOOL 会把你的个人文件夹显示为 ~，把你的名字和这台电脑的名字显示为 •••，在这里和手机上都是如此。只有显示内容会变：你的文件、聊天以及 VOOL 所做的一切都保持不变。你正在输入的文字不会被隐藏。",
     "settings.row.hide_name_on_screen.effect": "立即生效。"
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

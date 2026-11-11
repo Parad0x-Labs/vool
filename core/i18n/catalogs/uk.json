@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Присутність у цьому списку не означає, що VOOL це рекомендує.",
     "addons.plugin_local_check_advisory": "Ця перевірка — підказка, а не обіцянка безпеки.",
     "addons.plugin_eyebrow_verdict": "Висновок сканування:",
+    "addons.plugin_file_program": "може запускатися як програма",
+    "addons.plugin_files": "Файли в цьому пакеті",
     "addons.plugin_scan_saved": "Виконайте перевірки встановлення",
     "addons.plugin_risk_unknown": "Сканер позначив можливий ризик. VOOL ще не може пояснити цю знахідку.",
     "addons.plugin_scan_bundled_consent": "Перевірте це включено до публічної навички на цьому пристрої. Увімкнений плагін сканера також отримує свій вміст. Жодні приватні файли, чати чи ключі не включаються. Нічого не встановлюється та не виконується.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Увімкніть це перед трансляцією або показом екрана. VOOL показуватиме домашню папку як ~, а ваше ім’я та ім’я комп’ютера як •••, тут і на телефоні. Змінюється лише те, що ви бачите: файли, чати й усе, що робить VOOL, залишаються такими самими. Текст, який ви вводите, не приховується.",
     "settings.row.hide_name_on_screen.effect": "Діє негайно."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

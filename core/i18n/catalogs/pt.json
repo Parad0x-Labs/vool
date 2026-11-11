@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Estar listado aqui não significa que o VOOL o recomende.",
     "addons.plugin_local_check_advisory": "Esta verificação é uma pista, não uma promessa de segurança.",
     "addons.plugin_eyebrow_verdict": "Veredito da análise:",
+    "addons.plugin_file_program": "pode ser executado como programa",
+    "addons.plugin_files": "Ficheiros deste pacote",
     "addons.plugin_scan_saved": "Execute as verificações de instalação",
     "addons.plugin_risk_unknown": "O scanner sinalizou um possível risco. O VOOL ainda não consegue explicar esta descoberta.",
     "addons.plugin_scan_bundled_consent": "Verifique esta habilidade pública incluída neste dispositivo. Um plugin de scanner ativado também recebe seu conteúdo. Nenhum arquivo privado, chat ou chave está incluído. Nada é instalado ou executado.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
     "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

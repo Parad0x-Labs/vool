@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "وجودها في القائمة هنا لا يعني أن VOOL يوصي بها.",
     "addons.plugin_local_check_advisory": "هذا الفحص مجرد إشارة، لا وعد بالسلامة.",
     "addons.plugin_eyebrow_verdict": "نتيجة الفحص:",
+    "addons.plugin_file_program": "يمكن تشغيله كبرنامج",
+    "addons.plugin_files": "الملفات في هذه الحزمة",
     "addons.plugin_scan_saved": "تشغيل فحوصات التثبيت",
     "addons.plugin_risk_unknown": "أشار الماسح إلى خطر محتمل. لا يستطيع VOOL تفسير هذه الملاحظة بعد.",
     "addons.plugin_scan_bundled_consent": "تحقق من هذه المهارة العامة المضمنة على هذا الجهاز. يتلقى مكون الماسح الضوئي المُفعّل محتوياتها أيضًا. لا يتم تضمين أي ملفات أو محادثات أو مفاتيح خاصة. لا يتم تثبيت أو تشغيل أي شيء.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "شغّل هذا قبل أن تبث أو تشارك شاشتك. سيعرض VOOL عندها مجلد المنزل على شكل ~، واسمك واسم الكمبيوتر على شكل •••، هنا وعلى هاتفك. يتغير ما تراه فقط: تبقى ملفاتك ومحادثاتك وكل ما يفعله VOOL كما هي. النص الذي تكتبه لا يُخفى.",
     "settings.row.hide_name_on_screen.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

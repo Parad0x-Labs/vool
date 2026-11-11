@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "여기에 실린 것은 VOOL의 추천을 뜻하지 않습니다.",
     "addons.plugin_local_check_advisory": "이 검사는 참고 사항이지 안전 약속이 아닙니다.",
     "addons.plugin_eyebrow_verdict": "스캔 결과:",
+    "addons.plugin_file_program": "프로그램으로 실행 가능",
+    "addons.plugin_files": "이 패키지의 파일",
     "addons.plugin_scan_saved": "설치 검사 실행",
     "addons.plugin_risk_unknown": "검사기가 가능한 위험을 표시했습니다. VOOL은 아직 이 발견 사항을 설명할 수 없습니다.",
     "addons.plugin_scan_bundled_consent": "이 기기에서 포함된 공개 스킬을 확인하십시오. 활성화된 스캐너 플러그인도 해당 콘텐츠를 수신합니다. 개인 파일, 채팅 또는 키는 포함되지 않습니다. 아무것도 설치되거나 실행되지 않습니다.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

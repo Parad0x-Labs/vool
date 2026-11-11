@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "הופעתו ברשימה כאן לא אומרת ש-VOOL ממליץ עליו.",
     "addons.plugin_local_check_advisory": "הבדיקה הזאת היא רמז, לא הבטחת בטיחות.",
     "addons.plugin_eyebrow_verdict": "פסק דין סריקה:",
+    "addons.plugin_file_program": "יכול לפעול כתוכנית",
+    "addons.plugin_files": "הקבצים בחבילה הזו",
     "addons.plugin_scan_saved": "הפעל בדיקות התקנה",
     "addons.plugin_risk_unknown": "הסורק סימן סיכון אפשרי. VOOL עדיין לא יכול להסביר את הממצא הזה.",
     "addons.plugin_scan_bundled_consent": "בדוק את המיומנות הציבורית הכלולה הזו במכשיר זה. תוסף סורק מופעל מקבל גם את תוכנו. לא כלולים קבצים פרטיים, צ'אטים או מפתחות. שום דבר לא מותקן או מופעל.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "הפעילו את זה לפני שאתם משדרים או משתפים את המסך. VOOL יציג אז את תיקיית הבית כ־~, ואת השם שלכם ואת שם המחשב כ־•••, כאן ובטלפון. רק מה שרואים משתנה: הקבצים, הצ׳אטים וכל מה ש־VOOL עושה נשארים אותו דבר. טקסט שאתם מקלידים לא מוסתר.",
     "settings.row.hide_name_on_screen.effect": "חל מיד."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

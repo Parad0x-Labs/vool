@@ -114,7 +114,9 @@ function pending(host){
  const group=node('details',undefined,'addon-saved-scans');group.append(node('summary',tr('saved_scans','Saved scans to review')+' ('+data.reviews.length+')'));group.style.marginBottom='18px';host.append(group);host=group;
  (data.reviews||[]).forEach(r=>{const row=node('div',undefined,'addon-pending');const label=node('div',r.entry.name);label.append(node('small',r.can_install?tr('ready_review','Scan ready · awaiting your decision'):tr('needs_review','Scan saved · needs review')));row.append(label,button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:r.review_id});selected=null;}),'addon-linkbtn'));host.append(row);});
 }
-function renderError(host){if(!error)return;const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.prepend(p);}
+function renderError(host){if(!error)return;const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.prepend(p);
+ // A refusal is drawn at the top; someone working further down the page must still see it.
+ requestAnimationFrame(()=>{if(p.isConnected)p.scrollIntoView({block:'nearest'});});}
 function render(query){
  const host=document.getElementById('pluginsBody');if(!host)return false;host.replaceChildren();nav();host.classList.remove('addon-library-grid');
  if(tab==='security'){security(host);return true;}

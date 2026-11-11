@@ -2949,6 +2949,8 @@
     "addons.plugin_scope": "Burada listelenmiş olması VOOL'un bunu önerdiği anlamına gelmez.",
     "addons.plugin_local_check_advisory": "Bu kontrol bir ipucudur, güvenlik garantisi değildir.",
     "addons.plugin_eyebrow_verdict": "Tarama sonucu:",
+    "addons.plugin_file_program": "program olarak çalışabilir",
+    "addons.plugin_files": "Bu paketteki dosyalar",
     "addons.plugin_scan_saved": "Kurulum kontrollerini çalıştırın",
     "addons.plugin_risk_unknown": "Tarayıcı olası bir riski işaretledi. VOOL bu bulguyu henüz açıklayamıyor.",
     "addons.plugin_scan_bundled_consent": "Bu cihazda dahil edilen bu genel beceriyi kontrol edin. Etkinleştirilmiş bir tarayıcı eklentisi de içeriğini alır. Özel dosyalar, sohbetler veya anahtarlar dahil edilmez. Hiçbir şey yüklenmez veya çalıştırılmaz.",
@@ -3066,7 +3068,7 @@
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
     "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "21e00dbff5d98796345680f634d77a545d0db23a7eb72c1016e2f210354fa18a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
