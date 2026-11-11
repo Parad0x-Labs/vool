@@ -148,6 +148,7 @@ _UNFINISHED_ENUMERATION = "unfinished_enumeration"
 _DANGLING_TAIL = "dangling_tail"
 _FEWER_ITEMS_THAN_ANNOUNCED = "fewer_items_than_announced"
 _TABLE_CUT_MID_ROW = "table_cut_mid_row"
+_PLAN_NOT_CARRIED_OUT = "plan_not_carried_out"
 
 # Reasons that mean there is no answer at all, as opposed to a partial one. The distinction decides
 # what the final backstop may do: replacing text costs the user nothing when the text carries
@@ -162,6 +163,7 @@ _REASON_DESCRIPTIONS = {
     _DANGLING_TAIL: "the last sentence ends mid-clause",
     _FEWER_ITEMS_THAN_ANNOUNCED: "fewer items were listed than the answer said it would list",
     _TABLE_CUT_MID_ROW: "the table stops part-way through a row",
+    _PLAN_NOT_CARRIED_OUT: "it only says what I would do next, and I did not do it",
 }
 
 
@@ -310,6 +312,38 @@ def _table_truncation_reasons(text: str) -> list[str]:
     return []
 
 
+
+#: A reply that announces VOOL's OWN next actions ("I'll open the link...", "Let me navigate to...",
+#: "First, I'll search...") and stops there. Measured 2026-11-11 (browser round 6, case 5): qwen3:8b
+#: published "I'll open the link... Step 1: Navigate to..." as the final answer without clicking
+#: anything, and it showed "Record verified". Instructions written FOR the person ("Step 1: open
+#: Settings") are an answer and are never matched: only the first person promising to act is.
+_ANNOUNCED_ACTION_RE = re.compile(
+    r"^\s*(?:(?:sure|okay|ok|alright|great|got\s+it)[,!.]?\s+)?(?:(?:first|now|next)[,]?\s+)?"
+    r"(?:i'?ll|i\s+will|let\s+me|i'?m\s+going\s+to|i\s+am\s+going\s+to|i\s+need\s+to|i'?m\s+about\s+to)\s+"
+    r"(?:now\s+|first\s+|quickly\s+|go\s+(?:ahead\s+and\s+)?)?"
+    r"(?:open|navigate|go\s+to|click|search|look\s+(?:up|for|at)|check|visit|browse|read|fetch|scroll|find|"
+    r"follow|load|access|pull\s+up|start\s+by|begin\s+by|head\s+to|try)\b",
+    re.IGNORECASE,
+)
+_PLAN_STEP_RE = re.compile(
+    r"^\s*(?:(?:step\s*\d+|\d+[.)]|[-*•])\s*:?\s*)?(?:then|next|after\s+that|finally|first)?[,\s]*"
+    r"(?:i'?ll\s+|i\s+will\s+|let\s+me\s+)?"
+    r"(?:open|navigate|go\s+to|click|search|look|check|visit|browse|read|fetch|scroll|find|follow|load|access|"
+    r"locate|extract|identify|return|report|summari[sz]e|compile|gather)\b",
+    re.IGNORECASE,
+)
+
+
+def _only_a_plan(text: str) -> bool:
+    sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?])\s+)", str(text or "")) if part.strip()]
+    lead = sentences[0] if sentences and not re.fullmatch(r"(?:sure|okay|ok|alright|great|got it)[!.]?", sentences[0], re.I) else (sentences[1] if len(sentences) > 1 else "")
+    if not lead or not _ANNOUNCED_ACTION_RE.match(lead):
+        return False
+    planned = sum(1 for part in sentences if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part))
+    substantive = [part for part in sentences if not re.fullmatch(r"(?:sure|okay|ok|alright|great|got it)[!.]?", part, re.I)]
+    return planned * 3 >= len(substantive) * 2
+
 def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:
     """Whether `text` has the shape of an answer that was cut off before it finished.
 
@@ -349,6 +383,8 @@ def inspect_answer_completeness(text: str, *, question: str | None = None) -> An
         )
 
     reasons.extend(_table_truncation_reasons(text))
+    if _only_a_plan(text):
+        reasons.append(_PLAN_NOT_CARRIED_OUT)
 
     announced = _announced_item_count(text)
     if announced and markers and len(markers) < announced:

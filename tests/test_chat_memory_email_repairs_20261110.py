@@ -398,3 +398,13 @@ def test_a_chat_pointer_word_is_this_chats_only_when_this_chat_has_statements():
     assert _chat_has_owner_statements({"conversation_history": [
         {"role": "user", "content": "She loves ceramics and jazz."},
         {"role": "user", "content": "which hobby did I mention second?"}]})
+
+
+def test_a_reply_that_only_announces_its_own_next_steps_is_not_a_finished_answer():
+    from core.incomplete_answer import inspect_answer_completeness
+
+    plan = ("I'll open the link to the Daugava article and find its length.\n"
+            "Step 1: Navigate to the Daugava page.\nStep 2: Locate the length in the infobox.\nStep 3: Report it.")
+    assert inspect_answer_completeness(plan).reasons == ("plan_not_carried_out",)
+    assert not inspect_answer_completeness("To change it: Step 1: Open Settings. Step 2: Click Accounts.").incomplete
+    assert not inspect_answer_completeness("The Daugava is 1,020 km long. I'll check the source if you want.").incomplete
