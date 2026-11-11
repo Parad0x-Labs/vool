@@ -300,8 +300,9 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
-#sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
-#sessions .session:hover .s-actions, #sessions .session:focus-within .s-actions { display:flex; }
+#sessions .s-actions { display:none; gap:1px; flex:0 0 auto; }
+/* Keyboard focus shows a row's actions; a mouse click on one of them does not keep them pinned open. */
+#sessions .session:hover .s-actions, #sessions .session:has(:focus-visible) .s-actions { display:flex; }
 #sessions .s-title:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
 #sessions .session { cursor:pointer; }
 /* Touch screens have no hover: the row actions are always there. */
@@ -312,7 +313,7 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
   #sessions .session.pinned:not(.active) .s-actions > :not(.s-pin) { display:none; }
   #sessions .session.more-open.active .s-actions > .s-act:not(.s-more-toggle) { display:none; }
 }
-#sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
+#sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 3px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
 /* Row actions: pin, rename, archive, delete always; emoji/colour and move-to-project open from the
    chevron. A pinned chat keeps its (filled) pin showing when the row is idle -- that one icon is
@@ -320,12 +321,14 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .s-more { display:none; gap:2px; }
 #sessions .session.more-open .s-more { display:inline-flex; }
 /* Open, the chevron swaps the row's actions instead of adding to them, so the title keeps its room. */
-#sessions .session.more-open:is(:hover, :focus-within) .s-actions > .s-act:not(.s-more-toggle) { display:none; }
+#sessions .session.more-open:is(:hover, :has(:focus-visible)) .s-actions > .s-act:not(.s-more-toggle) { display:none; }
+/* While the actions show, the wide "Needs you" pill steps aside for the title (it is back on leave). */
+#sessions .session:is(:hover, :has(:focus-visible)) .lc-badge.lc-needs { display:none; }
 #sessions .s-more-toggle::before { transition:transform .15s ease; }
 #sessions .session.more-open .s-more-toggle::before { transform:scaleX(-1); }
 #sessions .s-act.s-pin.on { color:var(--accent); }
 #sessions .session.pinned .s-actions { display:flex; }
-#sessions .session.pinned:not(:hover):not(:focus-within) .s-actions > :not(.s-pin) { display:none; }
+#sessions .session.pinned:not(:hover):not(:has(:focus-visible)) .s-actions > :not(.s-pin) { display:none; }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
 #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
