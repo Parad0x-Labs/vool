@@ -174,7 +174,11 @@ def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any
         if str(item.get("role") or "") != "user":
             continue
         content = str(item.get("content") or "")
-        if content and _is_statement(content) and _covers(terms, query_terms(content)):
+        # ANY shared word defers to the conversation: an answer that has to be worked out from what
+        # was said here ("I fly out on 14 October and stay 6 nights" -> "What date do I fly back?")
+        # shares only "fly" with its question, and the model reading this chat answers it; the
+        # recall lane would say "not saved" (acceptance runner CTX-DATE-01, 2026-11-11).
+        if content and _is_statement(content) and set(terms) & set(query_terms(content)):
             return True
     return False
 

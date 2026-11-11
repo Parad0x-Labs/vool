@@ -375,3 +375,10 @@ def test_a_one_off_order_to_produce_a_thing_is_not_a_standing_instruction():
 
     assert read_turn("Write a short packing list for a weekend in Lisbon with emojis") == ([], [])
     assert read_turn("Use emojis.")[0] == ["Use emojis."]
+
+
+def test_a_question_worked_out_from_this_chat_stays_with_the_conversation():
+    from core.agent_runtime.cross_chat_recall import _current_chat_holds_it
+
+    history = {"conversation_history": [{"role": "user", "content": "I fly out on 14 October and I'm staying 6 nights"}]}
+    assert _current_chat_holds_it(("date", "fly", "back"), history)
