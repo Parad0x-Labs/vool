@@ -21,6 +21,7 @@ mailed a guessed stranger had the account resolved.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,7 @@ RECIPIENT_INTENTS = frozenset({"email.send", "email.reply", "email.draft.save"})
 _READ_INTENTS = frozenset({"email.read", "email.open", "email.thread", "contacts.lookup", "contacts.list"})
 _ADDRESS_RE = re.compile(r"[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 REFUSAL_STATUS = "invalid_arguments"
+_LOG = logging.getLogger("vool.email_argument_guard")
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,7 @@ def _read_senders(source_context: dict[str, Any] | None) -> list[str]:
 def _resolve_named_recipients(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any] | None:
     senders = _read_senders(source_context)
     if not senders:
+        _LOG.info("no read senders in this turn to resolve recipient names against")
         return None
     changed = False
     out = dict(args)
@@ -149,15 +152,18 @@ def _resolve_named_recipients(args: dict[str, Any], source_context: dict[str, An
                 resolved.append(text)
                 continue
             needle = re.escape(text.casefold())
-            matches = sorted({
+            # Newest message first (reads list newest first): "reply to the latest kucoin email" means
+            # the latest one's address, even when older mail from the same sender used another.
+            match = next((
                 _ADDRESS_RE.search(sender).group(0).casefold()
                 for sender in senders
                 if re.search(rf"(?<![\w]){needle}(?![\w])", sender.casefold())
-            })
-            if len(matches) == 1:
-                resolved.append(matches[0])
+            ), "")
+            if match:
+                resolved.append(match)
                 changed = True
             else:
+                _LOG.info("recipient name %r matched none of %d senders read in this turn", text, len(senders))
                 resolved.append(text)
         if entries:
             out[key] = resolved if not isinstance(value, str) else ", ".join(resolved)

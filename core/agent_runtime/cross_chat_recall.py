@@ -198,7 +198,38 @@ def _memory_rows(
         return None
 
 
-def _not_forgotten(text: str) -> bool:
+def _forget_times(tokens: tuple[str, ...]) -> dict[str, str]:
+    """When the owner last said "forget …" naming each token, read from their own turns.
+
+    The forget ledger records WHAT was forgotten, not when; a fact said again AFTER the forget is new
+    information the owner gave (measured: "Forget my test parking spot", then a later chat "my test
+    parking spot is P-17" was never found again). A token with no such turn stays blocking."""
+    from core.memory.files import conversation_log_path, load_jsonl
+
+    latest: dict[str, str] = {}
+    for row in load_jsonl(conversation_log_path()):
+        said = " ".join(str(row.get("user") or "").casefold().split())
+        if "forget" not in said:
+            continue
+        ts = str(row.get("ts") or "")
+        for token in tokens:
+            if token and token.casefold() in said and ts > latest.get(token, ""):
+                latest[token] = ts
+    return latest
+
+
+def _forget_state() -> tuple[tuple[str, ...], dict[str, str]] | None:
+    """Every forgotten token and when it was forgotten, read once per recall; None when unknown."""
+    try:
+        from core.memory.revocation import revoked_tokens
+
+        tokens = tuple(revoked_tokens(None))
+        return tokens, (_forget_times(tokens) if tokens else {})
+    except Exception:
+        return None
+
+
+def _not_forgotten(text: str, said_at: str = "", state: tuple[tuple[str, ...], dict[str, str]] | None = None) -> bool:
     """Whether a statement from another chat may be quoted: no forgotten words, no erased fact.
 
     Three checks, all fail-closed: (1) no word the owner told VOOL to forget, in ANY chat, occurs in
@@ -213,9 +244,14 @@ def _not_forgotten(text: str) -> bool:
         from core.chat_housekeeping import query_terms
         from core.memory.carriers import carries, memory_words
         from core.memory.entries import _text_is_erased
-        from core.memory.revocation import revoked_tokens
-
-        tokens = revoked_tokens(None)
+        if state is None:
+            state = _forget_state()
+        if state is None:
+            return False
+        tokens, forgot_at = state
+        if said_at and tokens:
+            # Only forgets made BEFORE the statement was said apply to it.
+            tokens = tuple(t for t in tokens if not forgot_at.get(t) or forgot_at[t] > said_at)
         words = memory_words(text)
         if any(carries(words, token) for token in tokens):
             return False
@@ -254,6 +290,7 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
     if not chats:
         return None
     best = None
+    forget_state = None
     for row in load_jsonl(conversation_log_path()):
         sid = str(row.get("session_id") or "")
         hit = chats.get(sid)
@@ -267,7 +304,9 @@ def _best_owner_statement(result: Any, terms: tuple[str, ...], saved_folded: lis
             continue
         if any(saved and saved in said.casefold() for saved in saved_folded):
             continue
-        if not _not_forgotten(said):
+        if forget_state is None:
+            forget_state = _forget_state()
+        if not _not_forgotten(said, str(row.get("ts") or ""), forget_state):
             continue
         rank = (len(found), str(row.get("ts") or ""))
         if best is None or rank > best[0]:

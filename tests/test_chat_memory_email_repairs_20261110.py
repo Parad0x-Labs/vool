@@ -368,3 +368,10 @@ def test_an_own_situation_question_about_the_calendar_is_not_a_memory_recall():
     from core.agent_runtime.cross_chat_recall import _owned_by_another_lane
 
     assert _owned_by_another_lane("do I have any meetings this week?")
+
+
+def test_a_one_off_order_to_produce_a_thing_is_not_a_standing_instruction():
+    from core.standing_instructions import read_turn
+
+    assert read_turn("Write a short packing list for a weekend in Lisbon with emojis") == ([], [])
+    assert read_turn("Use emojis.")[0] == ["Use emojis."]

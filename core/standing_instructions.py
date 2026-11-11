@@ -537,6 +537,18 @@ def _order_names_the_format(sentence: str) -> bool:
                                           or not _about_presentation(opener))
 
 
+#: An order to PRODUCE one new thing ("Write a short packing list for a weekend in Lisbon with emojis",
+#: "Make me a shopping list"): a task, whatever format words shape it. Measured 2026-11-11 on the installed
+#: build: that packing-list request was saved as a standing instruction for the whole workspace, and every later
+#: chat got a Lisbon packing list and emojis ("My sister Rasa turns 31" was answered with the list).
+_PRODUCE_A_THING_RE = re.compile(
+    r"^(?:write|draft|make|create|compose|generate|prepare|plan|build|draw|design|produce|put\s+together|"
+    r"come\s+up\s+with|give\s+me|send\s+me|get\s+me)\s+(?:(?:me|us)\s+)?"
+    r"(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|some|\d+)\b",
+    re.IGNORECASE,
+)
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -546,6 +558,8 @@ def _plain_kind(sentence: str) -> str:
     if any(_NAMED_THING_RE.search(word) for word in verb_and_object):
         return ""
     s = " ".join(_NAMED_THING_RE.sub(" ", s).split())
+    if _PRODUCE_A_THING_RE.match(_main_clause(s)):
+        return ""
     if _addressed_to_vool(s) and not _SPECIFIC_OBJECT_RE.search(s) and not _TASK_QUANTITY_RE.search(s):
         if _WORKFLOW_RE.search(s):
             return "workflow"
