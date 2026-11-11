@@ -342,7 +342,16 @@ def test_a_built_in_the_person_turned_off_says_off() -> None:
     set_skill_enabled(victim, True)  # leave the store as it was
 
 
-def test_a_built_in_that_cannot_run_here_says_not_available_here() -> None:
+def test_a_built_in_that_cannot_run_here_says_not_available_here(monkeypatch) -> None:
+    # A machine without the media tools: the boot hook registers nothing, so media-studio
+    # cannot run. Start from a clean graph so an earlier in-process boot on a machine that
+    # HAS the tools (vendored worker + ffmpeg) does not leak its registration into this case.
+    from core import capability_graph, media_capabilities
+
+    capability_graph.reset()
+    monkeypatch.setattr(media_capabilities, "_registered", False, raising=False)
+    monkeypatch.setattr(media_capabilities, "media_tools_present", lambda: (False, "no media tools"))
+    assert media_capabilities.register_media_capabilities_if_present()["registered"] is False
     listing = _list_reply()
     row = next((line for line in _built_in_rows(listing) if line.startswith("- Media studio —")), "")
     assert row, "media-studio is one of the built-ins"
@@ -855,10 +864,7 @@ class TestTheSharingRepliesReadPlainly:
         ):
             reply = _lane("jobc-builtin", "turn off the answer-presentation skill")
         assert reply is not None
-        assert reply["response"] == (
-            "Answer presentation comes with VOOL, so I can't remove it. You can turn it off in "
-            "Skills & Plugins, under My add-ons, Skills."
-        )
+        assert reply["response"] == "Answer presentation comes with VOOL and cannot be turned off here."
 
     def test_turning_off_a_skill_you_made_still_turns_it_off(self) -> None:
         from core.mode_permission_policy import PermissionAction, grant_internal_authority
