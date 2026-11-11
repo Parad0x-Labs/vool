@@ -322,13 +322,36 @@ def security_action(action: str, value: str = "") -> dict:
     raise AddonError("unsupported_action", "Unknown security action.")
 
 
+def _shipped(entry: dict) -> bool:
+    """Whether these exact bytes ship inside VOOL (release-time reviewed), not fetched from GitHub."""
+    return bool(entry.get('bundled_source')) or any(
+        item['id'] == entry.get('id') and item.get('bundled_source')
+        and all(item.get(key) == entry.get(key) for key in ('repository', 'ref', 'sha256', 'license_sha256'))
+        for item in CATALOG)
+
+
+def _content_refusal(entry: dict, content: bytes) -> None:
+    """Hold a skill fetched from GitHub to the Skill Codex's own text checks, failing closed.
+
+    Shipped catalogue files were checked when the release was made and are pinned by digest; a
+    GitHub one was only inspected when it was found, so it is checked again on these exact bytes
+    before its review is saved and again before it is installed.
+    """
+    if _shipped(entry):
+        return
+    from core.skill_tools import content_problem
+    try:
+        problem = content_problem(content.decode("utf-8"))
+    except UnicodeDecodeError:
+        problem = "The skill is not plain text."
+    if problem:
+        raise AddonError("addon_failed_safety_check", problem + " Nothing was installed.")
+
+
 def _download(entry: dict, filename: str, expected: str) -> bytes:
     # All URL components are shipped catalogue constants, never caller-supplied paths.
     try:
-        shipped = next((item for item in CATALOG if item['id'] == entry['id']
-                        and item.get('bundled_source') and all(item.get(key) == entry.get(key)
-                        for key in ('repository','ref','sha256','license_sha256'))), None)
-        if entry.get('bundled_source') or shipped:
+        if _shipped(entry):
             from core.addon_packages import source
             data = source(expected)
         elif entry.get('skill_path'):
@@ -370,7 +393,8 @@ def prepare(identifier: str, *, approved: bool) -> dict:
             match = _FRONTMATTER_RE.match(text)
             if not match or len(match.group(2).strip()) > _MAX_BODY_CHARS:
                 raise AddonError("addon_incompatible", "This skill cannot be loaded in full by this VOOL version.")
-            result = validate_skill(str(stage / "SKILL.md"))
+            _content_refusal(entry, content)
+            result = validate_skill(str(stage / "SKILL.md"), content_checks=False)
             if result.get("status") != "ok":
                 raise AddonError("addon_incompatible", "This skill requires a format or tools unavailable in this VOOL version.")
             report = scan_skill(entry["skill_name"], text)
@@ -437,6 +461,7 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
             files.append(content)
     except OSError:
         raise AddonError("addon_files_missing", "The downloaded files are missing or unreadable. Download and scan again.") from None
+    _content_refusal(entry, files[0])
     return files[0], files[1], report
 
 

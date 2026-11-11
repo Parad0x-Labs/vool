@@ -3305,6 +3305,80 @@ def _edit_preview(intent: str, arguments: dict[str, Any], source_context: dict[s
     return preview if len(preview) <= 6000 else preview[:5999] + "…"
 
 
+def _skill_install_card(arguments: dict[str, Any], source_context: dict[str, Any]) -> dict[str, Any]:
+    """What turning a skill on will do, for the approval card: its name, check code and tools.
+
+    "Run skill.install / trip-notes" asked the person to approve a name, not a skill: whatever sat
+    in the draft folder by then was what went live (red team t15). The card now reads the staged
+    file the install will read and names the skill, the check code of the version the request is
+    bound to (the same code the chat showed), every tool it asks for, and whether it replaces a
+    skill the person already has. The fingerprint already binds the digest argument, so approving
+    this card approves exactly that version. Plain words; any failure reading it leaves the
+    ordinary card.
+    """
+    try:
+        import hashlib
+
+        from core import skill_tools
+        from core.skill_frontmatter import parse
+        from core.skill_scopes import scope_keys
+
+        if str(arguments.get("kind") or "").strip().lower() == "plugin":
+            name = str(arguments.get("path") or arguments.get("name") or "").strip()
+            code = str(arguments.get("sha256") or "").strip().lower()[:12]
+            words = " ".join(code[i:i + 4] for i in range(0, len(code), 4))
+            preview = (f'Turn on the plugin "{name}" for all of VOOL.\n'
+                       + (f"Check code: {words}" if words else "No check code: this is not bound to a version you saw."))
+            return {"action": f'Turn on the plugin "{name}"', "preview": preview,
+                    "skill": {"name": name, "kind": "plugin", "sha256": str(arguments.get("sha256") or "")}}
+        keys = scope_keys(source_context) if isinstance(source_context, dict) else None
+        source = skill_tools.resolve_skill_markdown(str(arguments.get("path") or ""), keys)
+        if not source.is_file() or not skill_tools.skill_path_allowed(source, keys):
+            asked = " ".join(re.sub(r"[-_/]+", " ", source.parent.name or str(arguments.get("path") or "")).split())
+            asked = asked[:1].upper() + asked[1:]
+            return {"action": f'Turn on the skill "{asked}"',
+                    "preview": "VOOL found no saved skill by this name in its skill folders, so this will not "
+                               "turn anything on.",
+                    "skill": {"name": asked, "sha256": str(arguments.get("sha256") or ""), "found": False}}
+        raw = source.read_bytes()
+        parsed = parse(raw.decode("utf-8"))
+        header = parsed[0] if parsed else {}
+        name = str(header.get("name") or source.parent.name).strip()
+        shown = " ".join(re.sub(r"[-_/]+", " ", name).split()).strip()
+        shown = shown[:1].upper() + shown[1:]
+        bound = str(arguments.get("sha256") or "").strip().lower()
+        actual = hashlib.sha256(raw).hexdigest()
+        code = (bound or actual)[:12]
+        words = " ".join(code[i:i + 4] for i in range(0, len(code), 4))
+        tools = header.get("allowed-tools", header.get("allowed_tools")) or []
+        tools = [str(item) for item in (tools if isinstance(tools, (list, tuple)) else str(tools).split(","))
+                 if str(item).strip()]
+        scope = str(arguments.get("scope") or "global").strip().lower()
+        where = {"chat": "this chat", "project": "this project"}.get(scope, "all of VOOL")
+        lines = [f'Turn on the skill "{shown}" for {where}.',
+                 f"Check code: {words}" if bound else
+                 f"Check code: {words} (not bound to a version you saw; it turns on whatever the file holds now)"]
+        if bound and bound != actual:
+            lines.append("The file changed since you saw it, so this will be refused.")
+        lines.append("This skill asks to use these tools: " + ", ".join(tools) + "." if tools
+                     else "This skill does not ask to use any tools.")
+        slug = skill_tools._slug(name)
+        if bool(arguments.get("overwrite")) and slug:
+            if scope in ("chat", "project"):
+                dirs = skill_tools._scoped_dirs(scope, keys)
+                existing = bool(dirs) and (dirs[1] / slug / "SKILL.md").is_file()
+            else:
+                existing = (skill_tools.plugins_root() / "plugins" / (skill_tools._slug(str(arguments.get("plugin_id") or "")) or "local-skills")
+                            / "skills" / slug / "SKILL.md").is_file()
+            if existing:
+                lines.append(f'It replaces your skill "{shown}"; your current one is kept in its history.')
+        return {"action": f'Turn on the skill "{shown}"', "preview": "\n".join(lines),
+                "skill": {"name": name, "sha256": bound or actual, "bound": bool(bound), "tools": tools,
+                          "scope": scope}}
+    except Exception:  # noqa: BLE001 - the card falls back to the ordinary one; the install still checks
+        return {}
+
+
 def _prior_allow_covers_locked(
     fingerprint: str,
     *,
@@ -3675,11 +3749,15 @@ def _new_approval_request(
         if command_line
         else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
     )
+    skill_card = _skill_install_card(display_arguments, display_context) if display_intent == "skill.install" else {}
+    if skill_card:
+        action_text = skill_card["action"]
     request = {
         "approval_id": token,
         "task_id": task_id,
         "intent": intent,
         "action": action_text,
+        **({"skill": skill_card["skill"]} if skill_card else {}),
         **({"command": command_line} if command_line else {}),
         "affected_resources": _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": _approval_effect_summary(actions),
@@ -3687,7 +3765,8 @@ def _new_approval_request(
         "scope_options": scope_options,
         "one_time": True,
         "edit_batch": edit_batch,
-        "diff_preview": _edit_preview(display_intent, display_arguments, display_context) if edit_batch else "",
+        "diff_preview": (skill_card["preview"] if skill_card else
+                         _edit_preview(display_intent, display_arguments, display_context) if edit_batch else ""),
         "expires_at": time.time() + 86400,
         # What the "allow all planned changes" button would actually cover, named file by file, so
         # the operator approves a visible list rather than a count.

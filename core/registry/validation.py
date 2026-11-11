@@ -44,7 +44,9 @@ def native_format_findings(root: Path, artifact: dict) -> list[dict]:
                  if name.startswith("skills/") and Path(name).name == "SKILL.md"}
     findings = []
     for name in sorted(inventory):
-        result = validate_skill(str(root / name), candidate_contracts=tuple(loaded.contracts))
+        # The Skill Codex runs its full text checks itself (core.registry.checks.run); this is the
+        # format check only, so it reports exactly what it always has.
+        result = validate_skill(str(root / name), candidate_contracts=tuple(loaded.contracts), content_checks=False)
         if result.get("status") != "ok":
             # A reason-only refusal must not silently become a format pass.
             problems = result.get("problems") or ["native skill validation refused this file"]

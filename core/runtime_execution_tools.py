@@ -8073,9 +8073,39 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
     )
 
 
+_SKILL_PATH_REFUSED = (
+    "I can only check or turn on skills kept in VOOL's skill folders. Name the skill instead "
+    "of giving a file path (for example: validate the trip-notes skill)."
+)
+
+
+def _skill_path_refusal(path: str, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A refusal when a model-supplied skill path leads outside VOOL's skill folders, else None.
+
+    The validator hands the file's words back and the installer loads them into every later turn,
+    so neither may be pointed at an arbitrary file (red team t17). A name that is not on disk yet is
+    left to the tool, which says it was not found.
+    """
+    from core.skill_tools import resolve_skill_markdown, skill_path_allowed
+
+    raw = str(path or "").strip().strip("`\"'")
+    if not raw:
+        return None
+    keys = _skill_scope_keys(source_context)
+    candidate = resolve_skill_markdown(raw, keys)
+    if not candidate.exists():
+        return None  # nothing there to read: the tool says it was not found
+    if skill_path_allowed(candidate, keys):
+        return None
+    return {"status": "not_allowed", "reason": _SKILL_PATH_REFUSED, "path": str(path)}
+
+
 def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_tools import validate_skill
 
+    refusal = _skill_path_refusal(str(arguments.get("path") or ""), source_context)
+    if refusal is not None:
+        return _skill_result("skill.validate", refusal, response="")
     result = validate_skill(str(arguments.get("path") or ""), keys=_skill_scope_keys(source_context))
     return _skill_result(
         "skill.validate",
@@ -8110,6 +8140,9 @@ def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | N
             ),
         )
     scope = _skill_scope_arg(arguments)
+    refusal = _skill_path_refusal(str(arguments.get("path") or ""), source_context)
+    if refusal is not None:
+        return _skill_result("skill.install", refusal, response="")
     result = install_skill(
         str(arguments.get("path") or ""),
         plugin_id=str(arguments.get("plugin_id") or "local-skills"),

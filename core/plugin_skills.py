@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
+from core.skill_frontmatter import FRONTMATTER_RE as _FRONTMATTER_RE  # one header shape everywhere
 _MAX_BODY_CHARS = 8000
 
 
@@ -93,16 +93,19 @@ def parse_skill_content(text: str, *, path: Path, plugin_id: str = "") -> Skill 
     if not match:
         return None
 
+    from core.skill_frontmatter import FrontmatterRefused, load_header
+
     front: dict[str, Any] = {}
     try:
-        import yaml
-
-        loaded = yaml.safe_load(match.group(1))
-        if isinstance(loaded, dict):
-            front = loaded
-    except Exception:
-        # A malformed skill must not take down the plugin that ships it. Falling through with an
-        # empty header still yields a usable skill: the body is the valuable part.
+        front = load_header(match.group(1))
+    except FrontmatterRefused as refused:
+        if refused.unsafe:
+            # A header built to blow up when read (YAML aliases, or far past any real size) is
+            # refused outright: loading its body under the folder's name would still put a file
+            # nobody could check into the prompt.
+            return None
+        # A merely malformed skill must not take down the plugin that ships it. Falling through
+        # with an empty header still yields a usable skill: the body is the valuable part.
         front = {}
 
     body = (match.group(2) or "").strip()[:_MAX_BODY_CHARS]
