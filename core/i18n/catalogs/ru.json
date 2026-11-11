@@ -2877,6 +2877,11 @@
     "settings.local_models.suggest.use": "Использовать {model}",
     "settings.local_models.suggest.download": "Скачать {model} ({gb} ГБ)",
     "settings.local_models.suggest.cloud": "Использовать облачную модель",
+    "settings.local_models.suggest.newer": "Этому компьютеру подходит более новая модель:",
+    "settings.local_models.suggest.download_bigger": "Скачать модель побольше, {model} ({gb} ГБ): умнее, но медленнее",
+    "settings.local_models.suggest.picked_gpu": "Подобрано под видеокарту этого компьютера на {gb} ГБ.",
+    "settings.local_models.suggest.picked_memory": "Подобрано под {gb} ГБ памяти этого компьютера.",
+    "settings.local_models.suggest.update_ollama": "Обновите Ollama, чтобы получить более новую {model}.",
     "settings.local_models.download.progress": "Скачиваем {model}… {percent}%",
     "settings.local_models.download.starting": "Начинаем скачивание {model}…",
     "settings.local_models.download.failed": "Скачивание {model} не завершилось. Проверьте подключение к интернету и что Ollama открыта, затем попробуйте снова.",
@@ -2885,7 +2890,7 @@
     "settings.local_models.mp_open": "Выбрать локальную модель",
     "settings.models.local_pick": "На этом компьютере есть модель. Откройте её и нажмите «Использовать эту модель», чтобы начать."
   },
-  "source_catalog_sha256": "fe178c6842893512ef6878a058fda89afb01cda6575f26d37bf62639f9162832",
+  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -93,32 +93,31 @@ def local_multi_llm_fit(probe: MachineProbe | Mapping[str, Any] | None = None) -
     return local_multi_llm_fit_from_probe(active_probe)
 
 
-# The CPU-responsive tag to prefer when a live GPU-inference check fails and VOOL must
-# fall back to pure CPU. qwen2.5:3b is small enough to answer a full agent turn inside the
-# larger CPU budget, and is the "lite" tier in core/hardware_tier.TIERS.
-_CPU_FALLBACK_PREFERRED_MODEL = "qwen2.5:3b"
+# The largest tag the CPU fallback hands out when a live GPU-inference check fails and VOOL must
+# run on the CPU: a 4B answers a full agent turn inside the CPU budget, and it is the daily model
+# the suggestion table gives CPU machines from 11 to 44 GB (core.local_model_suggestions).
+_CPU_FALLBACK_PREFERRED_MODEL = "qwen3.5:4b"
 
 
 def cpu_fallback_model(probe: MachineProbe | None = None) -> str:
     """Return a smaller, CPU-responsive model tag for use when GPU verification fails.
 
-    Prefers ``qwen2.5:3b`` (the "lite" tier), but never returns a model LARGER by
-    parameter count than what this hardware would otherwise pick via ``select_qwen_tier``
-    — so a weak box that can only carry ``qwen2.5:0.5b`` still gets the smaller tag rather
-    than being handed a model it cannot answer with. Fail-safe: any error falls back to the
-    preferred small tag.
+    The machine is re-sized as a CPU machine by the one suggestion table, capped at
+    ``qwen3.5:4b``, and never larger by parameter count than what this hardware would otherwise
+    pick via ``select_qwen_tier`` -- so a weak box still gets its small tag rather than a model
+    it cannot answer with. Fail-safe: any error falls back to the preferred small tag.
     """
     try:
         active_probe = probe or probe_machine()
         hardware_tag = str(select_qwen_tier(active_probe).ollama_tag or "").strip()
+        from core.local_model_suggestions import suggest_local_models
+
+        cpu_tag = suggest_local_models({"ram_gb": float(active_probe.ram_gb or 0.0), "accelerator": "cpu"}).daily
     except Exception:
         return _CPU_FALLBACK_PREFERRED_MODEL
-    if not hardware_tag:
-        return _CPU_FALLBACK_PREFERRED_MODEL
-    # Never larger than the hardware pick: compare by parameter count, not tag string.
-    if model_parameter_billions(hardware_tag) < model_parameter_billions(_CPU_FALLBACK_PREFERRED_MODEL):
-        return hardware_tag
-    return _CPU_FALLBACK_PREFERRED_MODEL
+    candidates = [tag for tag in (cpu_tag, _CPU_FALLBACK_PREFERRED_MODEL, hardware_tag) if tag]
+    # Never larger than the hardware pick or the cap: compare by parameter count, not tag string.
+    return min(candidates, key=model_parameter_billions)
 
 
 def _env_truthy(env: Mapping[str, str], name: str) -> bool:
@@ -191,9 +190,9 @@ def build_install_recommendation_truth(
     )
     recommended_bundle = bundle_recommendation.recommended_bundle
     fallback_bundle = bundle_recommendation.fallback_bundle
-    # Last-resort default, only if bundle primary AND tier tag both resolve empty: qwen2.5:7b fits
-    # 7-8GB GPUs and CPU; the emergency default must not be qwen3:8b (partial-offloads on 6-10GB VRAM).
-    primary_local_model = recommended_bundle.primary_model or str(active_tier.ollama_tag or "").strip() or "qwen2.5:7b"
+    # Last-resort default, only if bundle primary AND tier tag both resolve empty: qwen3.5:4b fits a
+    # 6 GB card whole and answers on a CPU; never a model that part-offloads on 6-10GB VRAM.
+    primary_local_model = recommended_bundle.primary_model or str(active_tier.ollama_tag or "").strip() or "qwen3.5:4b"
 
     reasons = [
         (

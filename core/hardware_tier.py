@@ -1,26 +1,19 @@
-"""Hardware-aware Qwen model tier selection.
+"""Hardware probe, and the tier name for the local model this machine gets.
 
-Probes GPU VRAM, system RAM, and CPU cores, then picks the heaviest
-Qwen variant the machine can comfortably run via Ollama.
+Which model a machine gets is decided in ONE place, `core.local_model_suggestions` (Apple Silicon
+sized by RAM, a usable NVIDIA card by its VRAM, a CPU machine for speed, free disk as the cap).
+This module probes the hardware and names the tier of that pick, so the installer, the runtime
+backbone and the logs all report the same model the Settings Download button offers.
 
-Baseline tier ladder (all Apache-2.0 Qwen family):
-  titan   – qwen2.5:72b   (needs ≥48 GB VRAM or ≥80 GB RAM)
-  heavy   – qwen2.5:32b   (needs ≥20 GB VRAM or ≥48 GB RAM)
-  mid     – qwen2.5:14b   (needs ≥10 GB VRAM or ≥24 GB RAM)
-  base    – qwen2.5:7b    (needs ≥4 GB VRAM  or ≥12 GB RAM)
-  lite    – qwen2.5:3b    (needs ≥2 GB VRAM  or ≥6 GB RAM)
-  nano    – qwen2.5:0.5b  (anything else)
-
-Apple Silicon uses unified memory, so the effective thresholds are more
-conservative:
-  titan   – qwen2.5:72b   (needs ≥96 GB RAM)
-  heavy   – qwen2.5:32b   (needs ≥64 GB RAM)
-  mid     – qwen2.5:14b   (needs ≥36 GB RAM)
-  base    – qwen2.5:7b    (needs ≥12 GB RAM)
-  lite    – qwen2.5:3b    (needs ≥6 GB RAM)
-  nano    – qwen2.5:0.5b  (anything else)
+Tier names, smallest to largest (the daily model for each):
+  nano  – qwen3.5:0.8b  (under ~6 GB of memory)
+  lite  – qwen3.5:2b    (8 GB machines)
+  base  – qwen3.5:4b    (12-16 GB Macs, CPU-only PCs up to 44 GB, 6-10 GB NVIDIA cards)
+  mid   – qwen3.5:9b    (18-44 GB Macs, 10-22 GB NVIDIA cards)
+  heavy – qwen3.8:27b   (22 GB+ NVIDIA cards)
+  titan – qwen3.6:35b   (44 GB+ Macs and CPU machines; a 35B mixture of experts, 3B active)
+An Ollama older than 0.40 gets the qwen3 tag of the same tier instead.
 """
-
 from __future__ import annotations
 
 import os
@@ -94,29 +87,37 @@ class QwenTier:
     min_ram_gb: float
 
 
+#: Reference rows of the suggestion table (core.local_model_suggestions holds the ladders that
+#: decide). min_ram_gb is the least machine memory any ladder gives this model as the daily one,
+#: min_vram_gb the least NVIDIA card memory; 0.0 where that ladder never picks it.
 TIERS: list[QwenTier] = [
-    QwenTier("titan", "qwen2.5:72b",  72.0, 48.0, 80.0),
-    QwenTier("heavy", "qwen2.5:32b",  32.0, 20.0, 48.0),
-    QwenTier("mid",   "qwen3:14b",    14.0, 10.0, 24.0),
-    QwenTier("base",  "qwen2.5:7b",    7.0,  4.0, 12.0),
-    QwenTier("lite",  "qwen2.5:3b",    3.0,  2.0,  6.0),
-    QwenTier("nano",  "qwen2.5:0.5b",  0.5,  0.0,  0.0),
-]
-
-#: Apple-unified-memory machines. Refreshed 2026-11-05 to the verified qwen3.x generation
-#: (core.local_model_catalog, ollama.com/library checked that day) — the shipped table was a
-#: full generation behind (all-qwen2.5) while the operator's own machine ran its daily work
-#: on qwen3:8b. Thresholds describe the machine classes and stay; the tags modernize. The
-#: runtime's own RAM gate + the per-process bench remain the safety net when the machine is
-#: tight at load time.
-MPS_TIERS: list[QwenTier] = [
-    QwenTier("titan", "qwen3.5:122b", 122.0, 82.0, 96.0),
-    QwenTier("heavy", "qwen3.5:35b-a3b", 35.0, 24.0, 48.0),
-    QwenTier("mid",   "qwen3.8:27b",  27.0, 18.0, 24.0),
-    QwenTier("base",  "qwen3.5:9b",    9.0,  6.0, 12.0),
-    QwenTier("lite",  "qwen3.5:4b",    4.0,  2.5,  6.0),
+    QwenTier("titan", "qwen3.6:35b",  35.0,  0.0, 44.0),
+    QwenTier("heavy", "qwen3.8:27b",  27.0, 22.0,  0.0),
+    QwenTier("mid",   "qwen3.5:9b",    9.0, 10.0, 17.0),
+    QwenTier("base",  "qwen3.5:4b",    4.0,  6.0, 11.0),
+    QwenTier("lite",  "qwen3.5:2b",    2.0,  0.0,  5.5),
     QwenTier("nano",  "qwen3.5:0.8b",  0.8,  0.0,  0.0),
 ]
+
+#: Apple Silicon rows (unified memory): min_ram_gb is the Mac's total memory for the row.
+MPS_TIERS: list[QwenTier] = [
+    QwenTier("titan", "qwen3.6:35b",  35.0, 0.0, 44.0),
+    QwenTier("mid",   "qwen3.5:9b",    9.0, 0.0, 17.0),
+    QwenTier("base",  "qwen3.5:4b",    4.0, 0.0, 11.0),
+    QwenTier("lite",  "qwen3.5:2b",    2.0, 0.0,  5.5),
+    QwenTier("nano",  "qwen3.5:0.8b",  0.8, 0.0,  0.0),
+]
+
+#: The same tiers on an Ollama older than 0.40 (core.local_model_suggestions previous_generation).
+_TIER_NAME_BY_TAG: dict[str, str] = {
+    **{tier.ollama_tag: tier.tier_name for tier in TIERS},
+    "qwen3:0.6b": "nano",
+    "qwen3:1.7b": "lite",
+    "qwen3:4b": "base",
+    "qwen3:8b": "mid",
+    "qwen3:32b": "heavy",
+    "qwen3:30b": "titan",
+}
 
 
 def probe_machine() -> MachineProbe:
@@ -140,7 +141,7 @@ def probe_machine() -> MachineProbe:
 
 
 def select_qwen_tier(probe: MachineProbe | None = None) -> QwenTier:
-    """Pick the best Qwen tier this machine can handle."""
+    """The tier of the daily model this machine gets (see core.local_model_suggestions)."""
     override_tag = _override_model_tag()
     if override_tag:
         for tier in TIERS:
@@ -151,20 +152,21 @@ def select_qwen_tier(probe: MachineProbe | None = None) -> QwenTier:
     if probe is None:
         probe = probe_machine()
 
-    normalized_accelerator = str(probe.accelerator or "").strip().lower()
-    if normalized_accelerator == "mps":
-        for tier in MPS_TIERS:
-            if probe.ram_gb >= tier.min_ram_gb:
-                return tier
-        return MPS_TIERS[-1]
+    from core.local_model_suggestions import suggest_local_models
 
-    discrete_accelerator = normalized_accelerator in {"cuda", "directml"}
+    tag = suggest_local_models(probe).daily
     for tier in TIERS:
-        if discrete_accelerator and probe.vram_gb is not None and probe.vram_gb >= tier.min_vram_gb:
+        if tier.ollama_tag == tag:
             return tier
-        if probe.ram_gb >= tier.min_ram_gb:
-            return tier
-    return TIERS[-1]
+    name = _TIER_NAME_BY_TAG.get(tag, "base")
+    reference = next((tier for tier in TIERS if tier.tier_name == name), TIERS[-1])
+    try:
+        from core.local_model_bundles import model_total_parameter_billions
+
+        params = float(model_total_parameter_billions(tag))
+    except Exception:
+        params = reference.param_billions
+    return QwenTier(name, tag, params, reference.min_vram_gb, reference.min_ram_gb)
 
 
 def recommended_ollama_model(probe: MachineProbe | None = None) -> str:

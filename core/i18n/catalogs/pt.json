@@ -2877,6 +2877,11 @@
     "settings.local_models.suggest.use": "Usar {model}",
     "settings.local_models.suggest.download": "Baixar {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Usar um modelo na nuvem",
+    "settings.local_models.suggest.newer": "Um modelo mais novo cabe neste computador:",
+    "settings.local_models.suggest.download_bigger": "Baixar um modelo maior, {model} ({gb} GB): mais inteligente, mas mais lento",
+    "settings.local_models.suggest.picked_gpu": "Escolhido para a placa de vídeo de {gb} GB deste computador.",
+    "settings.local_models.suggest.picked_memory": "Escolhido para os {gb} GB de memória deste computador.",
+    "settings.local_models.suggest.update_ollama": "Atualize o Ollama para obter o modelo mais novo {model}.",
     "settings.local_models.download.progress": "Baixando {model}… {percent}%",
     "settings.local_models.download.starting": "Iniciando o download de {model}…",
     "settings.local_models.download.failed": "O download de {model} não terminou. Verifique sua conexão com a internet e se o Ollama está aberto, depois tente de novo.",
@@ -2885,7 +2890,7 @@
     "settings.local_models.mp_open": "Escolher um modelo local",
     "settings.models.local_pick": "Há um modelo neste computador. Abra-o e toque em Usar este modelo para começar."
   },
-  "source_catalog_sha256": "fe178c6842893512ef6878a058fda89afb01cda6575f26d37bf62639f9162832",
+  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

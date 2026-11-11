@@ -1,4 +1,12 @@
-"""The verified local-model catalog — the ONE authority for download suggestions.
+"""The verified local-model catalog: reference entries and their staleness, for the doctor check.
+
+Which model a machine is OFFERED (the Settings Download button, the installer's pull, the boot
+default, the tier ladder) is decided in one place, `core.local_model_suggestions`, checked against
+each model card's licence and VOOL's own tool check on 2026-11-11. This catalog's rank-based
+`top_picks_for_machine` is not used for any download: on a 24 GB Mac it ranks qwen3.8:27b (RAM-
+refused there whenever the machine is busy) and gpt-oss:20b (fails VOOL's tool check) first.
+
+Original note (2026-11-05):
 
 Born 2026-11-05: the default tier table (`core.hardware_tier`) was a full generation behind
 (all-qwen2.5) while newer, smaller-footprint generations sat verified on the ollama library —
@@ -257,18 +265,22 @@ __all__ = [
 
 
 def _main() -> None:
-    """`python -m core.local_model_catalog --top-picks` prints the machine's top tags, one per line."""
+    """`python -m core.local_model_catalog --top-picks` prints the model the installer pulls.
+
+    One line: this machine's daily model from the suggestion table (the same model the Settings
+    Download button offers), sized by Apple memory, NVIDIA VRAM or CPU speed, capped by free disk,
+    and on an Ollama older than 0.40 the previous-generation tag of the same class.
+    """
     import sys
 
     if "--top-picks" not in sys.argv:
         print(__doc__ or "local model catalog")
         return
-    from core.hardware_tier import probe_machine
+    from core.local_model_readiness import recommended_local_model
 
-    probe = probe_machine()
-    ram = float(probe.ram_gb or 0.0)
-    for entry in top_picks_for_machine(ram, count=2):
-        print(entry.tag)
+    tag = str(recommended_local_model().get("model_name") or "").strip()
+    if tag:
+        print(tag)
 
 
 if __name__ == "__main__":

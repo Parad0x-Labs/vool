@@ -2877,6 +2877,11 @@
     "settings.local_models.suggest.use": "Dùng {model}",
     "settings.local_models.suggest.download": "Tải {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Dùng mô hình đám mây",
+    "settings.local_models.suggest.newer": "Có một mô hình mới hơn hợp với máy tính này:",
+    "settings.local_models.suggest.download_bigger": "Tải mô hình lớn hơn, {model} ({gb} GB): thông minh hơn nhưng chậm hơn",
+    "settings.local_models.suggest.picked_gpu": "Được chọn cho card đồ họa {gb} GB của máy tính này.",
+    "settings.local_models.suggest.picked_memory": "Được chọn cho {gb} GB bộ nhớ của máy tính này.",
+    "settings.local_models.suggest.update_ollama": "Cập nhật Ollama để dùng {model} mới hơn.",
     "settings.local_models.download.progress": "Đang tải {model}… {percent}%",
     "settings.local_models.download.starting": "Đang bắt đầu tải {model}…",
     "settings.local_models.download.failed": "Chưa tải xong {model}. Hãy kiểm tra kết nối internet và Ollama đang mở, rồi thử lại.",
@@ -2885,7 +2890,7 @@
     "settings.local_models.mp_open": "Chọn mô hình cục bộ",
     "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu."
   },
-  "source_catalog_sha256": "fe178c6842893512ef6878a058fda89afb01cda6575f26d37bf62639f9162832",
+  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

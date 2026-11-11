@@ -2877,6 +2877,11 @@
     "settings.local_models.suggest.use": "Naudoti {model}",
     "settings.local_models.suggest.download": "Atsisiųsti {model} ({gb} GB)",
     "settings.local_models.suggest.cloud": "Naudoti debesies modelį",
+    "settings.local_models.suggest.newer": "Šiam kompiuteriui tinka naujesnis modelis:",
+    "settings.local_models.suggest.download_bigger": "Atsisiųsti didesnį modelį, {model} ({gb} GB): protingesnis, bet lėtesnis",
+    "settings.local_models.suggest.picked_gpu": "Parinkta šio kompiuterio {gb} GB vaizdo plokštei.",
+    "settings.local_models.suggest.picked_memory": "Parinkta šio kompiuterio {gb} GB atminčiai.",
+    "settings.local_models.suggest.update_ollama": "Atnaujinkite Ollama, kad gautumėte naujesnį {model}.",
     "settings.local_models.download.progress": "Atsisiunčiamas {model}… {percent}%",
     "settings.local_models.download.starting": "Pradedamas {model} atsisiuntimas…",
     "settings.local_models.download.failed": "{model} atsisiuntimas nebaigtas. Patikrinkite interneto ryšį ir ar Ollama atidaryta, tada bandykite dar kartą.",
@@ -2885,7 +2890,7 @@
     "settings.local_models.mp_open": "Pasirinkti vietinį modelį",
     "settings.models.local_pick": "Šiame kompiuteryje yra modelis. Atidarykite jį ir paspauskite Naudoti šį modelį, kad pradėtumėte."
   },
-  "source_catalog_sha256": "fe178c6842893512ef6878a058fda89afb01cda6575f26d37bf62639f9162832",
+  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

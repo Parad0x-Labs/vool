@@ -582,6 +582,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     )
     from core.provider_http import urlopen
 
+    # A model is several files (weights, a vision projector, small metadata), each reported with its
+    # own digest and its own completed/total. The percent is over every file seen so far and never
+    # goes back, so the person does not watch "78%, 51%, 94%" as Ollama moves from file to file.
+    layers: dict[str, tuple[float, float]] = {}
+    shown = 0
     with urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
@@ -600,7 +605,11 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
             completed = event.get("completed")
             percent = None
             if isinstance(total, (int, float)) and isinstance(completed, (int, float)) and total > 0:
-                percent = int(completed / total * 100)
+                layers[str(event.get("digest") or "")] = (float(completed), float(total))
+                done = sum(item[0] for item in layers.values())
+                size = sum(item[1] for item in layers.values())
+                shown = max(shown, int(done / size * 100))
+                percent = shown
             progress.update(status="pulling", percent=percent, detail=str(event.get("status") or ""))
 
 
@@ -724,9 +733,7 @@ def ready_a_local_model_on_boot(
         return
     try:
         from core.local_model_policy import manifest_is_local
-        from core.local_model_readiness import ready_local_models
-
-        from core.local_model_readiness import READY, RECOMMENDED_LOCAL_MODELS
+        from core.local_model_readiness import READY, boot_adoptable_tags, ready_local_models
 
         def _local_manifests() -> list[Any]:
             return [
@@ -738,10 +745,10 @@ def ready_a_local_model_on_boot(
         manifests = _local_manifests()
         rows = ready_local_models(manifests, primary_model=primary_model)
         if not any(row["readiness"] == READY for row in rows):
-            # None of the registered models could answer (or none was checkable). A recommended
-            # model that is installed but was never registered (an upgrade that pulled qwen3:8b
-            # beside the old qwen2.5:7b primary) is registered the way Use this model does it, and
-            # checked. Only the recommended tags: boot never adopts an arbitrary installed model.
+            # None of the registered models could answer (or none was checkable). A suggested
+            # model that is installed but was never registered (an upgrade that pulled qwen3:8b or
+            # qwen3.5:9b beside the old qwen2.5:7b primary) is registered the way Use this model
+            # does it, and checked. Only the suggested tags: boot never adopts an arbitrary model.
             from core.runtime_provider_defaults import register_installed_local_model
 
             registered = {str(m.model_name).strip().lower() for m in manifests}
@@ -750,7 +757,7 @@ def ready_a_local_model_on_boot(
                 for item in installed_ollama_model_inventory(env=env, base_url=ollama_base_url(env), timeout_seconds=2.0)
             }
             added = []
-            for tag, _ram_gb, _size_gb in RECOMMENDED_LOCAL_MODELS:
+            for tag in boot_adoptable_tags():
                 if tag in installed and tag not in registered:
                     manifest = register_installed_local_model(registry, model_tag=installed[tag])
                     if manifest is not None:

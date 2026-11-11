@@ -2877,6 +2877,11 @@
     "settings.local_models.suggest.use": "{model} 사용",
     "settings.local_models.suggest.download": "{model} 다운로드 ({gb} GB)",
     "settings.local_models.suggest.cloud": "대신 클라우드 모델 사용",
+    "settings.local_models.suggest.newer": "이 컴퓨터에 맞는 더 새로운 모델이 있어요:",
+    "settings.local_models.suggest.download_bigger": "더 큰 모델 다운로드, {model} ({gb} GB): 더 똑똑하지만 더 느림",
+    "settings.local_models.suggest.picked_gpu": "이 컴퓨터의 {gb} GB 그래픽 카드에 맞춰 골랐어요.",
+    "settings.local_models.suggest.picked_memory": "이 컴퓨터의 {gb} GB 메모리에 맞춰 골랐어요.",
+    "settings.local_models.suggest.update_ollama": "더 새로운 {model}을(를) 쓰려면 Ollama를 업데이트하세요.",
     "settings.local_models.download.progress": "{model} 다운로드 중… {percent}%",
     "settings.local_models.download.starting": "{model} 다운로드를 시작하는 중…",
     "settings.local_models.download.failed": "{model} 다운로드가 끝나지 않았어요. 인터넷 연결과 Ollama가 열려 있는지 확인한 뒤 다시 시도하세요.",
@@ -2885,7 +2890,7 @@
     "settings.local_models.mp_open": "로컬 모델 고르기",
     "settings.models.local_pick": "이 컴퓨터에 모델이 있어요. 열어서 '이 모델 사용'을 누르면 시작돼요."
   },
-  "source_catalog_sha256": "fe178c6842893512ef6878a058fda89afb01cda6575f26d37bf62639f9162832",
+  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
