@@ -185,4 +185,4 @@ Wallet and payment features are optional, off until you set them up, and every p
 
 ---
 
-<p align="center">Built by <a href="https://github.com/Parad0x-Labs"><strong>Parad0x Labs</strong></a> · Contributors: <strong>sls_0x</strong> · <strong>SteveON</strong> · <strong>P3dr0</strong></p>
+<p align="center">Built by <a href="https://github.com/Parad0x-Labs"><strong>Parad0x Labs</strong></a> · Contributors: <a href="https://github.com/Parad0x-Labs"><strong>sls_0x</strong></a> · <a href="https://github.com/KAS-049"><strong>KAS</strong></a> · <a href="https://github.com/ermitdab"><strong>ermitdab</strong></a> · <strong>SteveON</strong> · <strong>P3dr0</strong></p>
