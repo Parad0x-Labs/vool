@@ -281,3 +281,45 @@ def test_an_exact_value_recall_keeps_the_owners_profile_memory_from_another_chat
     )
     assert [(i.metadata["scope"], i.metadata["origin_chat_id"]) for i in kept] == [
         ("user_profile", "chat-a"), ("chat", "chat-b")]
+
+
+@pytest.mark.parametrize(
+    "said,expected",
+    [
+        ("whats my gym lockr number", "what's my gym lockr number?"),
+        ("do you remember my gym locker number?", "what's my gym locker number?"),
+        ("remind me my bike lok code word", "what's my bike lok code word?"),
+        ("remind me to buy milk", "remind me to buy milk"),
+    ],
+)
+def test_an_own_fact_ask_is_read_as_the_question_it_is(said, expected):
+    from core.agent_runtime.cross_chat_recall import as_question
+
+    assert as_question(said) == expected
+
+
+def test_remind_me_my_fact_is_not_a_reminder_to_schedule():
+    from core.operator.parser import parse_operator_action_intent
+
+    assert parse_operator_action_intent("remind me my bike lok code word") is None
+    assert parse_operator_action_intent("remind me tomorrow at 9 to call the dentist").kind == "schedule_reminder"
+
+
+def test_a_cut_off_first_reply_keeps_its_question_as_the_chat_title(monkeypatch):
+    from core.memory import entries
+    import core.runtime_continuity as continuity
+
+    monkeypatch.setattr(continuity, "interrupted_chat_requests", lambda: {
+        "chat-cut": {"request_preview": "Write an essay about Trakai Castle.", "updated_at": "2026-11-11T01:00:00+00:00"},
+    })
+    by_session = {"chat-cut": {"session_id": "chat-cut", "title": "New chat", "updated_at": "", "turn_count": 0}}
+    entries._overlay_interrupted_turns(by_session, namespaces={}, meta={})
+    assert by_session["chat-cut"]["title"] == "Write an essay about Trakai Castle."
+    assert by_session["chat-cut"]["interrupted"] is True
+
+
+def test_the_entity_check_ask_back_has_no_bookkeeping_words():
+    from core.entity_ambiguity import render_unresolved_clarification
+
+    text = render_unresolved_clarification("What is the population of Springfield?", attempts=2)
+    assert "well-known answer" not in text and "tried 2x" not in text and "Springfield" in text
