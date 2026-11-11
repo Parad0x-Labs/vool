@@ -558,10 +558,10 @@ def parse_skill_text(text: str, *, source: str = "native", path: str = "") -> Sk
     if not match:
         return None
     try:
-        import yaml
+        from core.skill_frontmatter import load_header
 
-        loaded = yaml.safe_load(match.group(1))
-        front = loaded if isinstance(loaded, dict) else {}
+        # The one bounded header reader: no alias expansion, capped size and depth (red team #6).
+        front = load_header(match.group(1))
     except Exception:
         front = {}
     body = (match.group(2) or "").strip()[:8000]
@@ -851,10 +851,9 @@ def _frontmatter_of(path: Path) -> dict[str, Any]:
     if not match:
         return {}
     try:
-        import yaml
+        from core.skill_frontmatter import load_header
 
-        loaded = yaml.safe_load(match.group(1))
-        return loaded if isinstance(loaded, dict) else {}
+        return load_header(match.group(1))
     except Exception:
         return {}
 
