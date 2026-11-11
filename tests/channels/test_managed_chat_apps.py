@@ -278,3 +278,27 @@ def test_malformed_provider_response_is_contained_and_bridge_recovers(bots,platf
     host.poll_unavailable=False;host.add(platform,'A turn after the outside service recovered')
     wait_for(lambda:any(row['kind']=='bot.turn_finished' for row in receipts(base)))
     assert token not in json.dumps(host.outgoing)
+
+
+def test_a_refused_connection_says_its_own_reason_and_never_echoes_the_key(bots):
+    """One vague sentence for every refusal leaves the person guessing which box was wrong."""
+    from core.mobile_companion import bot_runtime as words
+    desktop,hosts=bots;base=desktop[0]
+    private='https://discord.com/channels/@me/444'
+    def refused(platform,token,link=''):
+        status,answer=http(base,'/api/mobile/settings',{'operation':'bot_connect','platform':platform,'token':token,'channel_link':link})
+        assert status==400 and answer['code']=='chat_app_unavailable',answer
+        assert not token or token not in json.dumps(answer)
+        return answer['error']
+    good=lambda:secrets.token_urlsafe(40)
+    assert refused('telegram','')==words.KEY_SHAPE
+    assert refused('telegram','hello')==words.KEY_SHAPE
+    assert refused('discord',good(),'')==words.PRIVATE_LINK_NEEDED
+    assert refused('discord',good(),'https://discord.com/channels/123/444')==words.PRIVATE_LINK_NEEDED
+    for platform in ('telegram','discord'):
+        hosts[platform].identity_valid=False
+        assert refused(platform,good(),private)==words.KEY_NOT_ACCEPTED.format(app=platform.capitalize())
+        hosts[platform].identity_valid=True
+    hosts['discord'].poll_unavailable=True   # the conversation lookup no longer answers as a private one
+    assert refused('discord',good(),private)==words.NOT_A_PRIVATE_CONVERSATION
+    assert len({words.KEY_SHAPE,words.PRIVATE_LINK_NEEDED,words.KEY_NOT_ACCEPTED,words.NOT_A_PRIVATE_CONVERSATION,words.NOT_REACHED})==5

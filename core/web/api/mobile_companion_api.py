@@ -2049,7 +2049,7 @@ def handle_mobile_companion_post(
             service.ingress.refused("security.settings_caller_refused", reason=code)
             return _err(403, code)
         if body.get("operation") in {"bot_connect", "bot_disconnect", "bot_notifications"}:
-            from core.mobile_companion.bot_runtime import connect, disconnect
+            from core.mobile_companion.bot_runtime import ConnectRefused, connect, disconnect
             from core.wallet import caller_binding
             if caller_binding.refusal_reason(headers):
                 return _err(403, "owner_caller_required")
@@ -2066,6 +2066,9 @@ def handle_mobile_companion_post(
                         raise ValueError("This chat app is disconnected.")
                     code, result = preferences_set(body.get("preferences") or {}, service=service, device=device)
                     return _json(code, {"ok": code == 200, **result})
+            except ConnectRefused as refused:
+                # Its own reason: a fixed sentence for the person, never what they typed.
+                return _err(400, "chat_app_unavailable", str(refused))
             except (ValueError, OSError):
                 return _err(400, "chat_app_unavailable", "Could not connect this chat app. Check its connection details on your computer.")
             return _json(200, {"ok": True, **result})

@@ -13,6 +13,7 @@ import re
 import secrets
 import threading
 import time
+import urllib.error
 from urllib.parse import urlsplit
 
 from core import remote_fetch_policy
@@ -20,6 +21,24 @@ from core.mobile_companion.policy import defaults, enabled
 
 PLATFORMS = frozenset({"telegram", "discord"})
 BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose"})
+
+
+class ConnectRefused(ValueError):
+    """Connecting a chat app was refused for a reason the person can act on. The words are fixed
+    sentences written for them, and never carry anything they typed."""
+
+
+ACCESS_OFF = "Turn on \u201cUse VOOL from my phone\u201d first."
+KEY_SHAPE = "That does not look like a bot key. Copy the whole key and paste it here."
+PRIVATE_LINK_NEEDED = (
+    "Paste the link to your private conversation with this bot. It starts with https://discord.com/channels/@me/"
+)
+KEY_NOT_ACCEPTED = "{app} did not accept this bot key. Copy the key again and paste the whole thing."
+NOT_REACHED = "VOOL could not reach {app}. Check your internet connection and try again."
+NOT_A_PRIVATE_CONVERSATION = (
+    "Discord could not open that link as a private conversation with this bot. "
+    "Send the bot a direct message, then copy that conversation\u2019s link."
+)
 
 
 def background_scope(platform):
@@ -53,7 +72,7 @@ def provider_class(platform):
 def private_discord_channel(value):
     match = re.fullmatch(r"https://(?:www\.)?discord\.com/channels/@me/([0-9]{1,22})/?", value.strip())
     if not match:
-        raise ValueError("Paste the link to your private conversation with this bot.")
+        raise ConnectRefused(PRIVATE_LINK_NEEDED)
     return match[1]
 
 
@@ -64,15 +83,22 @@ def connect(runtime, platform, token, *, channel_link=""):
     from core.mobile_companion.sealing import VERSION
     from core.secret_redaction import register_exact_secret
 
-    if platform not in PLATFORMS or not load_settings()["enabled"]:
-        raise ValueError("Turn phone and chat access on first.")
+    if platform not in PLATFORMS:
+        raise ValueError("Unknown chat app.")
+    if not load_settings()["enabled"]:
+        raise ConnectRefused(ACCESS_OFF)
     if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{20,256}", token):
-        raise ValueError("Enter the bot token on this computer.")
+        raise ConnectRefused(KEY_SHAPE)
+    app = platform.capitalize()
     channel_id = private_discord_channel(channel_link) if platform == "discord" else ""
     register_exact_secret(token)
     target = manager_for(runtime)
     # Validate only with the selected provider before replacing a working connection.
     probe = provider_class(platform)(runtime, token, remote_base=target.provider_origins.get(platform))
+    # Which question the service was being asked when it failed decides what the person is told:
+    # a key it turns away, a conversation it will not open, or a service that never answered.
+    key_refused = KEY_NOT_ACCEPTED.format(app=app)
+    asking, said_no = key_refused, {401, 404}
     try:
         with background_scope(platform):
             identity = probe.call("getMe" if platform == "telegram" else "/users/@me")
@@ -83,12 +109,21 @@ def connect(runtime, platform, token, *, channel_link=""):
             )
             if not valid:
                 raise ValueError("invalid bot identity")
+            asking, said_no = NOT_A_PRIVATE_CONVERSATION, {400, 403, 404}
             if platform == "discord" and probe.call("/channels/" + channel_id).get("type") != 1:
                 raise ValueError("private conversation required")
-    except (OSError, ValueError, KeyError, TypeError, remote_fetch_policy.RemoteFetchRefusedError):
-        raise ValueError(
-            "Could not verify this bot. Check its token and private conversation on this computer."
-        ) from None
+    except urllib.error.HTTPError as answered:
+        # The service answered and said no. Only its own "no such key" / "not yours to open"
+        # answers count; a busy service or a network gate in between is not the key's fault.
+        if answered.code == 401:
+            raise ConnectRefused(key_refused) from None
+        if answered.code in said_no:
+            raise ConnectRefused(asking) from None
+        raise ConnectRefused(NOT_REACHED.format(app=app)) from None
+    except (OSError, remote_fetch_policy.RemoteFetchRefusedError):
+        raise ConnectRefused(NOT_REACHED.format(app=app)) from None
+    except (ValueError, KeyError, TypeError, AttributeError):
+        raise ConnectRefused(asking) from None
     target.stop(platform)
     store_credential("mobile.bot." + platform, token, label=platform.capitalize() + " chat bot")
     code = "".join(secrets.choice("ABCDEFGHJKMNPQRSTUVWXYZ23456789") for _ in range(12))
