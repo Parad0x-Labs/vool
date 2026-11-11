@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "המחשב שלך",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "לא ניתן להגיע למחשב שלך. כדאי לבדוק שהוא דולק וש־VOOL פתוח.",
     "phone.ui.pairing_code_no_longer_works": "קוד הצימוד הזה כבר לא פעיל. יש להתחיל צימוד חדש במחשב.",
-    "phone.ui.phone_access_is_off_on_your_computer": "הגישה מהטלפון כבויה במחשב שלך. אפשר להפעיל אותה בהגדרות שם."
+    "phone.ui.phone_access_is_off_on_your_computer": "הגישה מהטלפון כבויה במחשב שלך. אפשר להפעיל אותה בהגדרות שם.",
+    "phone.ui.a_more_private_keyboard": "מקלדת פרטית יותר",
+    "phone.ui.keyboard_can_go_online_heliboard": "המקלדת בטלפון הזה יכולה להתחבר לאינטרנט. כל מה שמקלידים, ב־VOOL או בכל אפליקציה אחרת, עובר קודם דרכה. HeliBoard היא מקלדת חינמית ופתוחה ללא גישה לאינטרנט, כך שמה שמקלידים נשאר בטלפון.",
+    "phone.ui.heliboard_is_independent_after_installing": "את HeliBoard יוצרים מפתחים עצמאיים, לא VOOL. אחרי ההתקנה יש לפתוח את HeliBoard ולפעול לפי השלבים כדי להפוך אותה למקלדת שלכם.",
+    "phone.ui.get_heliboard": "להורדת HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

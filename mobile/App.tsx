@@ -27,6 +27,7 @@ import {resetLink} from "./src/protocol/linkState.ts";
 import type {ChatSummary} from "./src/protocol/models.ts";
 import Header from "./src/ui/Header.tsx";
 import Frame from "./src/ui/Frame.tsx";
+import KeyboardTip from "./src/ui/KeyboardTip.tsx";
 import {SafeAreaProvider} from "react-native-safe-area-context";
 import Drawer, {type DrawerItem} from "./src/ui/Drawer.tsx";
 import Icon from "./src/ui/Icon.tsx";
@@ -246,6 +247,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
           </ScrollView>
         </>}
+      <KeyboardTip />
       <Drawer open={menu} onClose={() => setMenu(false)} items={items} active={tab}
         onSelect={key => {selectTab(key as Tab); setMenu(false);}}
         chats={recent.slice(0, 12).map(chat => ({id: chat.chat_id, title: chat.title || chat.chat_id}))}

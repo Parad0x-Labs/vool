@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "你的电脑",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "无法连接到你的电脑。请确认电脑已开机并且 VOOL 已打开。",
     "phone.ui.pairing_code_no_longer_works": "此配对码已失效。请在电脑上重新开始配对。",
-    "phone.ui.phone_access_is_off_on_your_computer": "你的电脑上已关闭手机访问。请在电脑的设置中开启。"
+    "phone.ui.phone_access_is_off_on_your_computer": "你的电脑上已关闭手机访问。请在电脑的设置中开启。",
+    "phone.ui.a_more_private_keyboard": "更私密的键盘",
+    "phone.ui.keyboard_can_go_online_heliboard": "这部手机上的键盘可以联网。无论在 VOOL 还是其他应用里，你输入的内容都会先经过它。HeliBoard 是一款免费、开放且不联网的键盘，你输入的内容只会留在手机上。",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard 由独立开发者制作，与 VOOL 无关。安装后打开 HeliBoard，按步骤把它设为你的键盘。",
+    "phone.ui.get_heliboard": "获取 HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

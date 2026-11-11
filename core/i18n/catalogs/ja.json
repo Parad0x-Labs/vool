@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "お使いのコンピューター",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "コンピューターに接続できません。電源が入っていて、VOOL が開いているか確認してください。",
     "phone.ui.pairing_code_no_longer_works": "このペアリングコードは使えなくなりました。コンピューターで新しいペアリングを開始してください。",
-    "phone.ui.phone_access_is_off_on_your_computer": "コンピューターでスマートフォンからのアクセスがオフになっています。コンピューターの設定でオンにしてください。"
+    "phone.ui.phone_access_is_off_on_your_computer": "コンピューターでスマートフォンからのアクセスがオフになっています。コンピューターの設定でオンにしてください。",
+    "phone.ui.a_more_private_keyboard": "よりプライベートなキーボード",
+    "phone.ui.keyboard_can_go_online_heliboard": "この電話のキーボードはインターネットに接続できます。VOOL でも他のアプリでも、入力した内容はまずキーボードを通ります。HeliBoard はインターネットにアクセスしない無料のオープンなキーボードなので、入力した内容は電話の中にとどまります。",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard は VOOL ではなく、独立した開発者が作っています。インストール後に HeliBoard を開き、案内に沿ってキーボードとして設定してください。",
+    "phone.ui.get_heliboard": "HeliBoard を入手"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

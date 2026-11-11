@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "Jūsų kompiuteris",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Nepavyksta pasiekti jūsų kompiuterio. Patikrinkite, ar jis įjungtas ir ar VOOL atidarytas.",
     "phone.ui.pairing_code_no_longer_works": "Šis susiejimo kodas nebeveikia. Pradėkite naują susiejimą kompiuteryje.",
-    "phone.ui.phone_access_is_off_on_your_computer": "Telefono prieiga jūsų kompiuteryje išjungta. Įjunkite ją kompiuterio nustatymuose."
+    "phone.ui.phone_access_is_off_on_your_computer": "Telefono prieiga jūsų kompiuteryje išjungta. Įjunkite ją kompiuterio nustatymuose.",
+    "phone.ui.a_more_private_keyboard": "Privatesnė klaviatūra",
+    "phone.ui.keyboard_can_go_online_heliboard": "Šio telefono klaviatūra gali jungtis prie interneto. Viskas, ką rašote, VOOL ar bet kurioje kitoje programėlėje, pirmiausia pereina per ją. HeliBoard yra nemokama, atvira klaviatūra be interneto prieigos, todėl tai, ką rašote, lieka jūsų telefone.",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard kuria nepriklausomi kūrėjai, ne VOOL. Įdiegę atidarykite HeliBoard ir atlikite nurodytus veiksmus, kad ji taptų jūsų klaviatūra.",
+    "phone.ui.get_heliboard": "Gauti HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

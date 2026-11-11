@@ -34,6 +34,11 @@ class VoolApprovalKeyModule : Module() {
       // expo-screen-capture owns FLAG_SECURE for this Activity.
       Unit
     }
+    AsyncFunction("currentKeyboard") { ->
+      // The id of the keyboard app the phone uses now, e.g. "com.google.android.inputmethod.latin/...".
+      val context = appContext.reactContext ?: return@AsyncFunction ""
+      android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD) ?: ""
+    }
     AsyncFunction("setPrivateTyping") { ->
       // Ask the phone's keyboard, every time a text box takes focus, not to learn from or keep
       // what is typed in VOOL (the keyboard's "incognito" request). A keyboard may ignore it.

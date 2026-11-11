@@ -3125,7 +3125,11 @@
     "phone.ui.your_computer": "Your computer",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Can't reach your computer. Check that it is on and VOOL is open.",
     "phone.ui.pairing_code_no_longer_works": "This pairing code no longer works. Start a new pairing on the computer.",
-    "phone.ui.phone_access_is_off_on_your_computer": "Phone access is off on your computer. Switch it on in Settings there."
+    "phone.ui.phone_access_is_off_on_your_computer": "Phone access is off on your computer. Switch it on in Settings there.",
+    "phone.ui.a_more_private_keyboard": "A more private keyboard",
+    "phone.ui.keyboard_can_go_online_heliboard": "The keyboard on this phone can go online. Whatever you type, in VOOL or any other app, passes through it first. HeliBoard is a free, open keyboard with no internet access, so what you type stays on your phone.",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard is made by independent developers, not by VOOL. After installing it, open HeliBoard and follow its steps to make it your keyboard.",
+    "phone.ui.get_heliboard": "Get HeliBoard"
   },
   "html_keys": [
     "bypass.modal_limits",

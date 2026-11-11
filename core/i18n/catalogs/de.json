@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "Ihr Computer",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Ihr Computer ist nicht erreichbar. Prüfen Sie, ob er eingeschaltet und VOOL geöffnet ist.",
     "phone.ui.pairing_code_no_longer_works": "Dieser Kopplungscode funktioniert nicht mehr. Starten Sie auf dem Computer eine neue Kopplung.",
-    "phone.ui.phone_access_is_off_on_your_computer": "Der Telefonzugriff ist auf Ihrem Computer ausgeschaltet. Schalten Sie ihn dort in den Einstellungen ein."
+    "phone.ui.phone_access_is_off_on_your_computer": "Der Telefonzugriff ist auf Ihrem Computer ausgeschaltet. Schalten Sie ihn dort in den Einstellungen ein.",
+    "phone.ui.a_more_private_keyboard": "Eine privatere Tastatur",
+    "phone.ui.keyboard_can_go_online_heliboard": "Die Tastatur auf diesem Telefon kann online gehen. Alles, was du tippst, in VOOL oder jeder anderen App, läuft zuerst durch sie. HeliBoard ist eine kostenlose, offene Tastatur ohne Internetzugang, sodass dein Getipptes auf deinem Telefon bleibt.",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard stammt von unabhängigen Entwicklern, nicht von VOOL. Öffne HeliBoard nach der Installation und folge den Schritten, um es als Tastatur festzulegen.",
+    "phone.ui.get_heliboard": "HeliBoard holen"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

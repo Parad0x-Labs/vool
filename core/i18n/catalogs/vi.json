@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "Máy tính của bạn",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Không thể kết nối với máy tính của bạn. Hãy kiểm tra máy đã bật và VOOL đang mở.",
     "phone.ui.pairing_code_no_longer_works": "Mã ghép nối này không còn dùng được. Hãy bắt đầu ghép nối mới trên máy tính.",
-    "phone.ui.phone_access_is_off_on_your_computer": "Quyền truy cập từ điện thoại đang tắt trên máy tính của bạn. Hãy bật trong Cài đặt trên máy tính."
+    "phone.ui.phone_access_is_off_on_your_computer": "Quyền truy cập từ điện thoại đang tắt trên máy tính của bạn. Hãy bật trong Cài đặt trên máy tính.",
+    "phone.ui.a_more_private_keyboard": "Bàn phím riêng tư hơn",
+    "phone.ui.keyboard_can_go_online_heliboard": "Bàn phím trên điện thoại này có thể kết nối mạng. Mọi thứ bạn gõ, trong VOOL hay bất kỳ ứng dụng nào khác, đều đi qua nó trước. HeliBoard là bàn phím miễn phí, mã mở, không có quyền truy cập internet, nên những gì bạn gõ ở lại trên điện thoại của bạn.",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard do các nhà phát triển độc lập tạo ra, không phải VOOL. Sau khi cài đặt, hãy mở HeliBoard và làm theo các bước để đặt nó làm bàn phím của bạn.",
+    "phone.ui.get_heliboard": "Tải HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

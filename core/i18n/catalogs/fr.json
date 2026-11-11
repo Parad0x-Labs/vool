@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "Votre ordinateur",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Impossible de joindre votre ordinateur. Vérifiez qu’il est allumé et que VOOL est ouvert.",
     "phone.ui.pairing_code_no_longer_works": "Ce code d’association ne fonctionne plus. Lancez une nouvelle association sur l’ordinateur.",
-    "phone.ui.phone_access_is_off_on_your_computer": "L’accès depuis le téléphone est désactivé sur votre ordinateur. Activez-le dans ses Réglages."
+    "phone.ui.phone_access_is_off_on_your_computer": "L’accès depuis le téléphone est désactivé sur votre ordinateur. Activez-le dans ses Réglages.",
+    "phone.ui.a_more_private_keyboard": "Un clavier plus privé",
+    "phone.ui.keyboard_can_go_online_heliboard": "Le clavier de ce téléphone peut se connecter à Internet. Tout ce que vous tapez, dans VOOL ou dans toute autre application, passe d’abord par lui. HeliBoard est un clavier gratuit et ouvert, sans accès à Internet : ce que vous tapez reste sur votre téléphone.",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard est créé par des développeurs indépendants, pas par VOOL. Après l’installation, ouvrez HeliBoard et suivez ses étapes pour en faire votre clavier.",
+    "phone.ui.get_heliboard": "Obtenir HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

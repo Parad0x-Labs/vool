@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "O seu computador",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "Não é possível contactar o seu computador. Verifique se está ligado e se o VOOL está aberto.",
     "phone.ui.pairing_code_no_longer_works": "Este código de emparelhamento já não funciona. Inicie um novo emparelhamento no computador.",
-    "phone.ui.phone_access_is_off_on_your_computer": "O acesso pelo telemóvel está desligado no seu computador. Ligue-o nas Definições do computador."
+    "phone.ui.phone_access_is_off_on_your_computer": "O acesso pelo telemóvel está desligado no seu computador. Ligue-o nas Definições do computador.",
+    "phone.ui.a_more_private_keyboard": "Um teclado mais privado",
+    "phone.ui.keyboard_can_go_online_heliboard": "O teclado deste telemóvel pode ligar-se à internet. Tudo o que escreve, no VOOL ou em qualquer outra aplicação, passa primeiro por ele. O HeliBoard é um teclado gratuito e aberto, sem acesso à internet, por isso o que escreve fica no seu telemóvel.",
+    "phone.ui.heliboard_is_independent_after_installing": "O HeliBoard é feito por programadores independentes, não pelo VOOL. Depois de o instalar, abra o HeliBoard e siga os passos para o definir como o seu teclado.",
+    "phone.ui.get_heliboard": "Obter o HeliBoard"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

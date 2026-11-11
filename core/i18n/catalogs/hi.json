@@ -3125,9 +3125,13 @@
     "phone.ui.your_computer": "आपका कंप्यूटर",
     "phone.ui.can_t_reach_your_computer_check_on_and_open": "आपके कंप्यूटर तक नहीं पहुँच पा रहे। जाँचें कि वह चालू है और VOOL खुला है।",
     "phone.ui.pairing_code_no_longer_works": "यह पेयरिंग कोड अब काम नहीं करता। कंप्यूटर पर नई पेयरिंग शुरू करें।",
-    "phone.ui.phone_access_is_off_on_your_computer": "आपके कंप्यूटर पर फ़ोन की पहुँच बंद है। उसे वहाँ सेटिंग्स में चालू करें।"
+    "phone.ui.phone_access_is_off_on_your_computer": "आपके कंप्यूटर पर फ़ोन की पहुँच बंद है। उसे वहाँ सेटिंग्स में चालू करें।",
+    "phone.ui.a_more_private_keyboard": "ज़्यादा निजी कीबोर्ड",
+    "phone.ui.keyboard_can_go_online_heliboard": "इस फ़ोन का कीबोर्ड इंटरनेट से जुड़ सकता है। आप VOOL या किसी भी दूसरे ऐप में जो भी लिखते हैं, वह पहले इसी से होकर जाता है। HeliBoard एक मुफ़्त, खुला कीबोर्ड है जिसे इंटरनेट की पहुँच नहीं है, इसलिए आपका लिखा आपके फ़ोन पर ही रहता है।",
+    "phone.ui.heliboard_is_independent_after_installing": "HeliBoard को स्वतंत्र डेवलपर बनाते हैं, VOOL नहीं। इंस्टॉल करने के बाद HeliBoard खोलें और उसे अपना कीबोर्ड बनाने के लिए उसके चरणों का पालन करें।",
+    "phone.ui.get_heliboard": "HeliBoard पाएँ"
   },
-  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
+  "source_catalog_sha256": "133a7886ad1ba4dba1906d0ad1607701b4e06ec306c9cb4a73cebf3e8376ac6f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
