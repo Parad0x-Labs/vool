@@ -2060,6 +2060,44 @@ def _unanswered_browser_response(step: dict[str, str]) -> str:
     return template.format(url=step["url"])
 
 
+#: A browser step ran after Allow, then the model never finished writing the answer (a local
+#: model's time limit on a long page). Mac run 4 showed "Incomplete — model synthesis failed
+#: (empty_synthesis) ... 3 of 3 tool steps succeeded. Last result: [Browser](...)" instead.
+_BROWSER_SYNTHESIS_FAILED = (
+    "I opened {url} in the browser, but the model ran out of time before it finished writing the "
+    "answer, so I have no answer from the page yet. The page is still open in the Browser pane: "
+    "ask again to have it read, or read it there."
+)
+
+
+def browser_synthesis_failed_reply() -> str:
+    """The reply when this turn's browser steps ran but no answer was written, else ""."""
+    try:
+        from core.vool_browser.live_requests import completed
+    except ImportError:
+        return ""
+    pages = [step.get("url") for step in completed() if step.get("url")]
+    return _BROWSER_SYNTHESIS_FAILED.format(url=pages[-1]) if pages else ""
+
+
+def _step_reply_pattern() -> "re.Pattern[str]":
+    import re as _re
+
+    shapes = [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK, _BROWSER_SYNTHESIS_FAILED]
+    return _re.compile("|".join("(?:" + _re.escape(t).replace(_re.escape("{url}"), r"\S{1,4096}") + ")" for t in shapes))
+
+
+_STEP_REPLY = _step_reply_pattern()
+
+
+def is_browser_step_reply(text: str) -> bool:
+    """Whether `text` is, whole, the runtime's own reply for a browser step that never ran.
+
+    It reports what happened to the step (refused, expired, not loaded); it states nothing
+    about the page, so no later answer gate has anything in it to withhold or replace."""
+    return bool(_STEP_REPLY.fullmatch(str(text or "").strip()))
+
+
 def unanswered_browser_reply() -> str:
     """This turn's true reply when the browser step the model asked for never ran, else ""."""
     step = _unanswered_browser_step()

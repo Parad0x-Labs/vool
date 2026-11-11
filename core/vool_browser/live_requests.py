@@ -243,7 +243,14 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
         if arguments is None:
             return bool(boundary.urls - boundary.proposed_urls)
         destination = _url(str(arguments.get('start_url') if intent.endswith('.open') else arguments.get('url')))
-        return destination not in boundary.proposed_urls and destination in boundary.urls
+        if destination in boundary.proposed_urls:
+            return False
+        if destination in boundary.urls:
+            return True
+        # "opne exmaple.com": the model may open the site it reads the typo as, once, while
+        # nothing of a page was read yet. The card shows the exact address; Allow decides.
+        return bool(boundary.chosen is None and not boundary.page_read and not boundary.completed
+                    and any(_misspelt(destination, written) for written in boundary.urls))
     if intent == 'vool-browser.click':
         return boundary.follow or boundary.submit
     if intent == 'vool-browser.type':
@@ -251,6 +258,30 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     if intent == 'vool-browser.download':
         return boundary.download
     return False
+
+
+def _host(url: str) -> str:
+    host = (urlsplit(url).hostname or '').lower()
+    return host[4:] if host.startswith('www.') else host
+
+
+def _misspelt(destination: str, written: str) -> bool:
+    """Whether `written`'s site name is `destination`'s with at most two typing slips
+    (a swapped, missing, extra or wrong letter), on the same top-level domain."""
+    a, b = _host(destination), _host(written)
+    if not a or not b or a == b or a.rsplit('.', 1)[-1] != b.rsplit('.', 1)[-1] or min(len(a), len(b)) < 6:
+        return False
+    previous2, previous = None, list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        row = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            value = min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost)
+            if previous2 is not None and i > 1 and j > 1 and ca == b[j - 2] and a[i - 2] == cb:
+                value = min(value, previous2[j - 2] + 1)
+            row.append(value)
+        previous2, previous = previous, row
+    return previous[-1] <= 2
 
 
 def _may_choose(boundary: "_TurnBoundary") -> bool:

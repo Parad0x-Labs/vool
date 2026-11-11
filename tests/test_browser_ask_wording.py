@@ -62,3 +62,19 @@ def test_words_that_ask_nothing_grant_nothing(text):
     # Not a browser turn at all: no browser tool is offered, so nothing can be proposed.
     seen = boundary(text)
     assert not requested(text) and not seen['active'] and not seen['open']
+
+
+def test_the_site_a_typo_meant_may_be_opened_once():
+    """Mac run 4: the model read "exmaple.com" as example.com and was refused with no card."""
+    from core.vool_browser.live_requests import note_navigation_proposal
+
+    with turn_scope('opne exmaple.com in teh browser and tel me what it says', 'wording-test'):
+        assert tool_allowed('vool-browser.session.open', {'start_url': 'https://example.com'})
+        assert tool_allowed('vool-browser.navigate', {'url': 'https://www.example.com/'})
+        # Not a slip of the hand: a different site, or another top-level domain.
+        assert not tool_allowed('vool-browser.navigate', {'url': 'https://evil.com/'})
+        assert not tool_allowed('vool-browser.navigate', {'url': 'https://example.org/'})
+        note_navigation_proposal('https://example.com')
+        # Once only: the written one stays open to it, nothing else.
+        assert not tool_allowed('vool-browser.navigate', {'url': 'https://exampel.com/'})
+        assert tool_allowed('vool-browser.navigate', {'url': 'https://exmaple.com/'})

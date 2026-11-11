@@ -2831,6 +2831,12 @@ class ResearchToolLoopFacadeMixin:
                 f"Incomplete — {reason_text}. The grounded work collected so far is below; "
                 f"this is not a completed audit.\n\n{rendered}"
             ).strip()
+            if reject_reason:
+                # A page the person allowed was opened, then no answer was written: say that in
+                # plain words instead of the step dump (Mac run 4, qwen3:8b at its time limit).
+                from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
+
+                rendered = browser_synthesis_failed_reply() or rendered
         # A turn that ends by narrating a FAILED tool's typed refusal is a truthful answer, not a
         # completed effect: the evidence reaches the user, but the turn never claims the tool's
         # work succeeded (never convert a failed tool into success merely to get narration).

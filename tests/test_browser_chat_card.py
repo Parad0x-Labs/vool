@@ -53,6 +53,20 @@ def _serve(rig, tmp_path):
     return server
 
 
+def _model_types(chat, selector, text):
+    from core.runtime_flags import override
+    from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live_requests import turn_scope
+    from tests._toolchain_fixtures import executor_kwargs
+
+    with override('plugin_runtime_tools', True), turn_scope('use the browser to search the timetable for Riga', chat):
+        return execute_tool_intent(
+            {'intent': 'vool-browser.type', 'arguments': {'selector': selector, 'text': text, 'submit': True}},
+            **executor_kwargs(chat, runtime_session_id=chat, surface='api', platform='web_companion',
+                              mode='manual', live_browser_wait_for_owner=True),
+        )
+
+
 def _model_asks(chat, url):
     from core.runtime_flags import override
     from core.tool_intent_executor import execute_tool_intent
@@ -153,6 +167,18 @@ def test_card_in_chat_answers_the_waiting_model_call(world, tmp_path):
             expect(card.locator('.vbc-head')).to_have_text('You took over')
             expect(page.locator('#log .vbc[data-state=done]')).to_have_count(1)
             rig.post('/api/browser/takeover', {'chat': chat_id, 'value': False})
+            # The card for a search shows exactly what will be typed and sent before Approve
+            # (Mac run 4: "Type into · q" showed no words at all).
+            field = next(n['selector'] for n in item.nodes if n['name'] == 'destination')
+            future = pool.submit(contextvars.copy_context().run, _model_types, chat_id, field, 'Riga')
+            expect(page.locator('#log .vbc[data-state=waiting]')).to_have_count(1, timeout=10000)
+            card = page.locator('#log .vbc').last
+            expect(card.locator('.vbc-detail')).to_have_text('destination: “Riga”\nservice: “day”')
+            if shots:
+                page.screenshot(path=str(Path(shots) / 'chat-card-search.png'))
+            before = list(requests)
+            card.locator('.vbc-btn', has_text='Refuse').click()
+            assert not future.result(timeout=20).ok and requests == before
             # 4. "Open browser" on the card opens the pane over the chat on the same page.
             done.locator('.vbc-link').click()
             pane = page.frame_locator('#settingsFrame')

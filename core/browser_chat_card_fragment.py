@@ -34,6 +34,8 @@ _CSS = """
 .vbc-head svg{width:15px;height:15px;flex:0 0 auto}
 .vbc-verb{margin-top:6px;color:var(--ink,#e6e2dc);font-size:14px}
 .vbc-target{font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted,#aaa5a0);overflow-wrap:anywhere}
+.vbc-detail{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink,#e6e2dc);font-size:13px}
+.vbc-detail[hidden]{display:none}
 .vbc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .vbc-btn{height:32px;padding:0 14px;border-radius:9px;border:1px solid var(--border,#39393f);background:var(--panel,#1b1b1e);
   color:var(--ink,#e6e2dc);font:inherit;font-size:13px;cursor:pointer}
@@ -61,6 +63,22 @@ function T(key, fallback, params){
 function actions(){ return window.VoolPageActions || null; }
 function displayedChat(){ var a = actions(); return a && a.displayedChat ? String(a.displayedChat() || '') : ''; }
 function el(tag, cls, text){ var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; }
+
+function detailFor(p){
+  var a = p.args || {};
+  var shown = function(field){
+    if (field.secret) return '••••••';
+    if (field.file) return T('live.upload', 'Upload') + ': ' + String(field.value || '');
+    return '“' + String(field.value == null ? '' : field.value) + '”';
+  };
+  if (Array.isArray(p.submission) && p.submission.length) {
+    var rows = p.submission.slice(0, 8).map(function(f){ return (f.name || '?') + ': ' + shown(f); });
+    if (p.submission.length > 8) rows.push('+' + (p.submission.length - 8));
+    return rows.join('\n');
+  }
+  if (p.op === 'type' && typeof a.text === 'string') return shown({value: a.text, secret: a.type === 'password'});
+  return '';
+}
 
 function verbFor(p){
   if (p.submission) return T('composer.send', 'Send');
@@ -94,6 +112,7 @@ function build(rec){
   card.setAttribute('aria-label', rec.headText.textContent);
   rec.verbEl = el('div', 'vbc-verb'); card.appendChild(rec.verbEl);
   rec.targetEl = el('div', 'vbc-target'); card.appendChild(rec.targetEl);
+  rec.detailEl = el('div', 'vbc-detail'); card.appendChild(rec.detailEl);
   rec.rowEl = el('div', 'vbc-row');
   rec.refuseEl = el('button', 'vbc-btn', T('live.refuse', 'Refuse')); rec.refuseEl.type = 'button';
   rec.approveEl = el('button', 'vbc-btn primary', T('live.approve', 'Approve once')); rec.approveEl.type = 'button';
@@ -117,6 +136,9 @@ function paint(rec){
   rec.card.dataset.state = rec.state;
   rec.verbEl.textContent = verbFor(p) + (a.label ? (' · ' + a.label) : '');
   rec.targetEl.textContent = a.url || a.target || '';
+  // What will be typed or sent, exactly, before the person allows it.
+  rec.detailEl.textContent = detailFor(p);
+  rec.detailEl.hidden = !rec.detailEl.textContent;
   var waiting = rec.state === 'waiting';
   rec.refuseEl.hidden = rec.approveEl.hidden = !waiting;
   rec.refuseEl.disabled = rec.approveEl.disabled = !!rec.busy;
