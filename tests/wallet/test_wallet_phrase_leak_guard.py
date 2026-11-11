@@ -90,3 +90,17 @@ def test_browser_storage_still_detects_complete_partial_and_split_phrase_leaks()
     ]
     for surface in surfaces:
         assert phrase_leaked(PHRASE, surface, run=2) is not None, surface
+
+
+def test_common_phrase_words_spread_over_a_long_system_prompt_are_not_a_leak():
+    # Main CI #673: a draw of "beach limit treat include culture long wool people right brick own noble" met a
+    # system prompt of thousands of words that used include, limit, own, people, right and treat far apart.
+    phrase = "beach limit treat include culture long wool people right brick own noble"
+    filler = " ".join(["the assistant keeps answers short and plain"] * 12)
+    prompt = filler.join(f" {word} " for word in ("include", "limit", "own", "people", "right", "treat"))
+    assert phrase_leaked(phrase, prompt) is None
+    # The same six words together are still a leak, and so is the whole phrase reordered inside the prompt.
+    assert phrase_leaked(phrase, "please include the limit and treat your own people right") is not None
+    shuffled = phrase.split()
+    random.Random(7).shuffle(shuffled)
+    assert phrase_leaked(phrase, filler + " " + ", ".join(shuffled) + " " + filler) is not None
