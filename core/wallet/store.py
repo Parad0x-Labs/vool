@@ -95,12 +95,35 @@ SCHEMA = (
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_transfers_nonce ON wallet_transfers(network, from_address, nonce) "
     "WHERE family = 'evm' AND state IN ('claimed', 'signed', 'signed_revoked', 'dispatching', 'unknown', 'pending', 'confirmed', 'failed_on_chain')",
     "CREATE INDEX IF NOT EXISTS idx_wallet_transfers_state ON wallet_transfers(state, updated_at)",
+    # agent allowances (core.wallet.allowances): the terms, the listed services, the holds and the decision log
+    """CREATE TABLE IF NOT EXISTS wallet_agent_allowances (
+        allowance_id TEXT PRIMARY KEY, parent_id TEXT NOT NULL DEFAULT '', agent_id TEXT NOT NULL, wallet_id TEXT NOT NULL,
+        network TEXT NOT NULL, asset TEXT NOT NULL, state TEXT NOT NULL, pause_reason TEXT NOT NULL DEFAULT '',
+        per_payment_minor INTEGER NOT NULL, window_seconds INTEGER NOT NULL, window_minor INTEGER NOT NULL, total_minor INTEGER NOT NULL,
+        max_payments INTEGER NOT NULL, min_interval_seconds INTEGER NOT NULL, ask_above_minor INTEGER NOT NULL DEFAULT 0,
+        expires_at REAL NOT NULL, strikes_refused INTEGER NOT NULL DEFAULT 0, strikes_undelivered INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_agent_allowances_live ON wallet_agent_allowances(agent_id, wallet_id, network, asset) WHERE state <> 'revoked'",
+    """CREATE TABLE IF NOT EXISTS wallet_agent_allowance_services (
+        allowance_id TEXT NOT NULL, origin TEXT NOT NULL, total_minor INTEGER NOT NULL, pay_to TEXT NOT NULL DEFAULT '',
+        pinned_at TEXT NOT NULL DEFAULT '', PRIMARY KEY (allowance_id, origin))""",
+    """CREATE TABLE IF NOT EXISTS wallet_agent_spends (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, allowance_id TEXT NOT NULL, root_id TEXT NOT NULL, agent_id TEXT NOT NULL,
+        proposal_id TEXT NOT NULL UNIQUE, origin TEXT NOT NULL, request_digest TEXT NOT NULL, pay_to TEXT NOT NULL,
+        amount_minor INTEGER NOT NULL, state TEXT NOT NULL, delivered TEXT NOT NULL DEFAULT 'unknown', spent_at REAL NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS idx_wallet_agent_spends_window ON wallet_agent_spends(root_id, spent_at)",
+    """CREATE TABLE IF NOT EXISTS wallet_agent_decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL, allowance_id TEXT NOT NULL DEFAULT '', proposal_id TEXT NOT NULL DEFAULT '',
+        origin TEXT NOT NULL DEFAULT '', pay_to TEXT NOT NULL DEFAULT '', amount_minor INTEGER NOT NULL DEFAULT 0, decision TEXT NOT NULL,
+        reason TEXT NOT NULL, created_at REAL NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS idx_wallet_agent_decisions_agent ON wallet_agent_decisions(agent_id, created_at)",
 )
 
 TABLES: tuple[str, ...] = (
     "wallet_profiles", "wallet_proposals", "wallet_proposal_events", "wallet_spend_ledger", "wallet_limits",
     "wallet_card_tokens", "wallet_receipts", "wallet_signing_requests", "wallet_x402_bindings", "wallet_controls",
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
+    "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.
