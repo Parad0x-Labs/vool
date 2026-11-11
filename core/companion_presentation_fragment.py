@@ -443,6 +443,9 @@ function vnApply(view, ev) {
       // the screen-privacy mask covers it before it reaches the native pet.
       if (typeof ev.userText === "string" && ev.userText.trim()) {
         view.lastUserText = ev.userText.trim().slice(0, 200);
+        // The bubble names the TASK, not the raw message (operator 2026-11-11: "instead of my
+        // message it should show the title of that current task"). "" for a greeting-only turn.
+        view.taskTitle = vnTaskTitle(view.lastUserText);
       }
     }
   }
@@ -683,6 +686,58 @@ function vnClampBubble() {
   if (b.left < m) dx = m - b.left;
   else if (b.right > window.innerWidth - m) dx = window.innerWidth - m - b.right;
   vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
+}
+/* A short task title from the user's own words, for the bubble's first line. Deterministic and
+   local (no model call): the first clause, with greetings, request wrappers ("can you", "please",
+   "what's") and pronoun filler dropped, at most VN_TASK_TITLE_WORDS words, sentence case, no
+   trailing connector or punctuation. "can you check my email from Anna and summarize it" ->
+   "Check email from Anna"; "whats the weather in Paris?" -> "Weather in Paris". A turn that is
+   only a greeting ("yo bro") has no task to name: "" (the bubble then shows its fun line only).
+   Wrapper words are English; other languages keep their first clause, shortened. */
+const VN_TASK_TITLE_WORDS = 6;
+const VN_TITLE_LEAD = new RegExp("^(?:" + [
+  "hey+", "hi+", "hello", "yo+", "bro", "dude", "mate", "ok(?:ay)?", "so", "well", "um+", "hmm+",
+  "pl[sz]", "please", "kindly", "btw", "quick question", "also", "and", "then", "now", "just",
+  "can (?:you|u)", "could (?:you|u)", "would (?:you|u)", "will (?:you|u)", "would you mind",
+  "i (?:want|need) (?:you )?to", "i(?:['\u2019]?d| would) like (?:you )?to", "i need", "i want",
+  "help me(?: to)?", "let['\u2019]?s", "go ahead and", "tell me(?: about)?",
+  "what(?:['\u2019]?s| is| are)", "who(?:['\u2019]?s| is)",
+  "remind me to", "(?:on|in|at|about|for)(?= )"
+].join("|") + ")\\b[\\s,!.:;-]*", "i");
+const VN_TITLE_DROP = { the: 1, a: 1, an: 1, my: 1, me: 1, our: 1, your: 1, please: 1, pls: 1,
+  plz: 1, thanks: 1, thank: 1, thx: 1, some: 1 };
+const VN_TITLE_TAIL = { and: 1, or: 1, but: 1, to: 1, in: 1, on: 1, at: 1, of: 1, for: 1, with: 1,
+  from: 1, about: 1, it: 1, then: 1, the: 1, a: 1, an: 1, by: 1, into: 1, is: 1, are: 1 };
+function vnTaskTitle(text) {
+  const strip = function (v) {
+    for (let i = 0; i < 12; i++) {
+      const next = v.replace(VN_TITLE_LEAD, "").trim();
+      if (next === v) break;
+      v = next;
+    }
+    return v;
+  };
+  let s = String(text || "").replace(/https?:\/\/(?:www\.)?([^\/\s]+)\S*/gi, "$1");
+  // Greetings go before the clause split, so "hi! how do I ..." names the question, not "hi".
+  s = strip(s.split(/\n/)[0].replace(/\s+/g, " ").trim());
+  s = strip(s.split(/[.!?;,](?:\s|$)|:\s/)[0].trim());
+  let words = s.split(" ").map(function (w) { return w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""); })
+    .filter(function (w) { return w && !VN_TITLE_DROP[w.toLowerCase()]; });
+  // A clause of "X and Y" keeps X: the title names the first thing asked.
+  const cut = words.findIndex(function (w, i) { return i > 1 && /^(?:and|then)$/i.test(w); });
+  if (cut > 0) words = words.slice(0, cut);
+  words = words.slice(0, VN_TASK_TITLE_WORDS);
+  while (words.length && VN_TITLE_TAIL[words[words.length - 1].toLowerCase()]) words.pop();
+  if (!words.length) return "";
+  const title = words.join(" ");
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+/* Line 1 of the bubble (in-app and detached pet alike): the current task's title; a turn with
+   no nameable task (a greeting) shows no title line; a legacy turn with no user words falls back
+   to the chat's REAL title only (an untitled chat sends none; the in-app bubble says "New chat"). */
+function vnBubbleTitleFor(view, chatId) {
+  if (view && typeof view.taskTitle === "string") return view.taskTitle;
+  return vnBoundChatTitle(chatId) || "";
 }
 /* The BOUND chat's title. The chat page already owns chat titles, so reuse that owner instead
    of duplicating the lookup. A chat with no title yet reads "New chat" in the UI language, never
@@ -1254,11 +1309,12 @@ function vnPaintNow(now) {
      chat's activity, never model prose. Idle keeps the title and drops the activity line, so
      a finished turn stops advertising stale work. */
   {
-    // Line 1 follows the conversation: the user's latest words on THIS chat, falling back to
-    // the chat title when the page has not told the companion what was asked. The frozen
-    // first-message title alone read as the pet being stuck (measured 2026-11-05).
-    const bound = (view && view.lastUserText) ? view.lastUserText
-      : (vnBoundChatTitle(chatId) || (chatId ? vnLabel("companion.untitled_chat", "New chat") : ""));
+    // Line 1 names THIS turn's task (a short title made from the latest ask, never the raw
+    // message), so it follows the conversation; the frozen first-message chat title alone read
+    // as the pet being stuck (measured 2026-11-05). The chat title is the fallback only when the
+    // page has not told the companion what was asked.
+    const bound = vnBubbleTitleFor(view, chatId)
+      || ((view && typeof view.taskTitle === "string") || !chatId ? "" : vnLabel("companion.untitled_chat", "New chat"));
     let line2;
     if (vnDevPuppet) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
@@ -1703,7 +1759,7 @@ function vnDesktopPayload(pres, state) {
   const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat
     : (vnLastChat && VN_VIEWS.has(vnLastChat)) ? vnLastChat : "";
   const view = VN_VIEWS.get(String(chatId || ""));
-  const title = (view && view.lastUserText) ? view.lastUserText : vnBoundChatTitle(chatId);
+  const title = vnBubbleTitleFor(view, chatId);
   if (title) payload.chatTitle = title;
   const activity = vnActivity(pres);
   if (activity) payload.activity = activity;

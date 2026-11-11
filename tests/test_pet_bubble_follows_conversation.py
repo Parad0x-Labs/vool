@@ -8,8 +8,9 @@ as it goes, and VOOL's work in action (the activity line already did the second 
 The repaired contract, pinned on the real fragment JS under the node DOM stub:
 - the page passes the user's own words with every `task.submitted`;
 - the reducer keeps the latest one per chat (bounded, presentation-only);
-- the bubble's first line shows the latest user words, falling back to the chat title only
-  when the page has not said what was asked;
+- the bubble's first line shows a short TITLE of the latest task, made from those words (never
+  the raw message: operator 2026-11-11), falling back to the chat title only when the page has
+  not said what was asked;
 - the DETACHED native pet receives the same line in its payload, and the screen-privacy mask
   still covers it before it leaves the page.
 """
@@ -44,6 +45,10 @@ try {
   VC.paintNow(T + 61000);
   const view = VC.view("c1");
   out.lastUserText = view.lastUserText || "";
+  out.taskTitle = view.taskTitle;
+  // Turn 3: a greeting names no task, so the title line goes empty (never the raw words).
+  VC.consume("c1", { type: "task.submitted", ts: T + 120000, userText: "yo bro" });
+  out.greetingTitle = VC.view("c1").taskTitle;
   out.payload = (typeof vnDesktopPayload === "function") ? vnDesktopPayload(VC.resolve(view), "MIDDLE") : null;
 } catch (e) { out.error = String((e && e.message) || e); }
 globalThis.__out = out;
@@ -55,6 +60,41 @@ def test_the_pet_bubble_follows_the_latest_user_message() -> None:
     # The harness flattens the driver's out() into the top-level object.
     assert not result.get("error"), result
     assert result.get("lastUserText") == "whats the weather in Paris?", result
+    # The bubble names the task, not the raw message.
+    assert result.get("taskTitle") == "Weather in Paris", result
+    assert result.get("greetingTitle") == "", result
+
+
+DRIVER_TITLES = r"""
+const out = {};
+try {
+  const VC = window.VoolCompanion;
+  const asks = %s;
+  out.titles = asks.map(function (t, i) {
+    VC.consume("t" + i, { type: "task.submitted", ts: 99000000000000, userText: t });
+    return VC.view("t" + i).taskTitle;
+  });
+} catch (e) { out.error = String((e && e.message) || e); }
+globalThis.__out = out;
+"""
+
+TITLE_CASES = [
+    ("can you check my email from Anna and summarize it", "Check email from Anna"),
+    ("hey can you please find me a flight to Rome next friday", "Find flight to Rome next friday"),
+    ("What\u2019s on my calendar tomorrow", "Calendar tomorrow"),
+    ("hi! how do I reset my wifi router password, it keeps failing", "How do I reset wifi router"),
+    ("translate this to Spanish: good morning", "Translate this to Spanish"),
+    ("Summarize https://www.bbc.com/news/article-123 for me", "Summarize bbc.com"),
+    ("ok thanks", ""),
+]
+
+
+def test_the_bubble_title_is_a_short_task_title_not_the_message() -> None:
+    import json
+
+    result = _boot(DRIVER_TITLES % json.dumps([ask for ask, _ in TITLE_CASES]))
+    assert not result.get("error"), result
+    assert result.get("titles") == [want for _, want in TITLE_CASES], result
 
 
 DRIVER_FALLBACK = r"""
@@ -92,7 +132,8 @@ def test_the_page_emits_the_user_text_with_every_submit() -> None:
 def test_the_reducer_bounds_the_user_line() -> None:
     fragment = render_companion_fragment()
     assert "view.lastUserText = ev.userText.trim().slice(0, 200)" in fragment
-    # The bubble's first line prefers the latest user words over the frozen title, and the
-    # detached pet's payload (chatTitle key) follows the same precedence.
-    assert "(view && view.lastUserText) ? view.lastUserText" in fragment
-    assert "(view && view.lastUserText) ? view.lastUserText : vnBoundChatTitle(chatId)" in fragment
+    # The bubble's first line and the detached pet's payload (chatTitle key) share one owner:
+    # the task title first, the chat title only for a turn with no user words.
+    assert "view.taskTitle = vnTaskTitle(view.lastUserText)" in fragment
+    assert "const bound = vnBubbleTitleFor(view, chatId)\n" in fragment
+    assert "const title = vnBubbleTitleFor(view, chatId)" in fragment
