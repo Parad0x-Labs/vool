@@ -920,9 +920,17 @@ var AGENT_PAUSE_TEXT = {
   breaker_refusals: 'VOOL paused it after three requests in a row that looked wrong (a changed pay-to address, a sudden price jump or requests coming too fast).',
   breaker_undelivered: 'VOOL paused it after two payments whose service did not deliver.'
 };
+var agentsBlock = null;
 function agentControls(cp){
   // Agent spending: an agent's own small wallet and the limits a payment must pass before it goes out without asking.
   // Every rule is the wallet's; this block only shows them and sends what the person typed to the trusted Settings doors.
+  // The Crypto surface is redrawn whenever its status is read again (another control's action, the page's refresh).
+  // This block is ONE node that survives those redraws: what the person is typing, an open PIN box and the message
+  // line stay as they are, and its facts are read again in place only when nothing is open in it.
+  if (agentsBlock) {
+    if (!agentsBlock.node.querySelector('[data-agent-form], #vwOwnerProof')) agentsBlock.reload();
+    return agentsBlock.node;
+  }
   var box = el('div', 'vw-cx-row vw-cx-agents'); box.id = 'vwCxAgents';
   box.appendChild(el('div', 'vw-cx-title', 'Agent spending'));
   box.appendChild(el('div', 'vw-cx-env', 'Let VOOL pay small amounts to services you name without asking you each time. It pays only from its own small wallet, which you fill. Your own wallets are never used without you. Anything outside the limits you set waits for your approval.'));
@@ -1059,7 +1067,7 @@ function agentControls(cp){
           proved('/api/wallet/agents/backup', { wallet_id: w.wallet_id, confirm_saved: true }).then(function(res){
             saved.disabled = false;
             if (!res.ok) { cxMsg(msg, faultMessage(res, 'Not confirmed.'), true); return; }
-            cxMsg(msg, 'The wallet is ready. Send it only what you are willing to let VOOL spend.'); load();
+            cxMsg(msg, 'The wallet is ready. Send it only what you are willing to let VOOL spend.'); renderCrypto();
           }).catch(function(){ saved.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
         });
         acts.appendChild(saved);
@@ -1073,7 +1081,7 @@ function agentControls(cp){
           show.disabled = false;
           if (!res.ok) { cxMsg(msg, faultMessage(res, 'The backup key was not shown.'), true); return; }
           cxMsg(msg, '');
-          showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: w.network_name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The backup key will not be shown again.'); load(); });
+          showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: w.network_name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The backup key will not be shown again.'); renderCrypto(); });
         }).catch(function(){ show.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
       });
       acts.appendChild(show);
@@ -1129,7 +1137,7 @@ function agentControls(cp){
             if (!res.ok) { cxMsg(msg, faultMessage(res, 'The wallet was not created.'), true); return; }
             cxMsg(msg, '');
             var w = res.data.wallet || {};
-            showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The wallet is created but not finished: its backup key was not confirmed and will not be shown again.'); load(); });
+            showBackup({ wallet_id: w.wallet_id, network: w.network, display_name: chosen.name, address: w.address }, res.data.backup, function(done){ cxMsg(msg, done ? 'The wallet is ready. Send it only what you are willing to let VOOL spend.' : 'The wallet is created but not finished: its backup key was not confirmed and will not be shown again.'); renderCrypto(); });
           }).catch(function(){ create.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
         });
         row.appendChild(pick); row.appendChild(create); block.appendChild(row);
@@ -1155,6 +1163,7 @@ function agentControls(cp){
     }
   }
   body.appendChild(el('div', 'vw-cx-env', 'Reading…'));
+  agentsBlock = { node: box, reload: load };
   load();
   return box;
 }

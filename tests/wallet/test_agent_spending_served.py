@@ -172,6 +172,11 @@ def test_the_owner_sets_up_agent_spending_in_settings_and_vool_pays_from_chat_in
             page.fill(f"#vwAgTotal_{key}", "3")
             page.fill(f"#vwAgCount_{key}", "10")
             page.fill(f"#vwAgSvc_{key}_0", origin)
+            # the page reading its status again (another control, its own refresh) keeps what is being typed here
+            page.evaluate("window.VoolWallet.refresh()")
+            page.wait_for_timeout(1500)
+            assert page.input_value(f"#vwAgTotal_{key}") == "3" and page.input_value(f"#vwAgSvc_{key}_0") == origin
+            assert page.locator("#vwCxAgents").count() == 1
             page.click(f"#vwAgSave_{key}")
             _said(page, "One payment has to fit inside the period amount, and the period amount inside the total. Nothing was changed.")
             page.fill(f"#vwAgPer_{key}", "1")
