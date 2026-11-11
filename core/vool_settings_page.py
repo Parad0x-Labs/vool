@@ -360,7 +360,7 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="live_browser", label="Browser", kind="custom", widget="live_browser",
-                    help="Review every action before it runs. Page scripts are off. Use the wallet for payments.",
+                    help="VOOL asks before it acts or sends anything. Pages load with images and styles; page scripts stay off. Use the wallet for payments.",
                     read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
                 ),
                 _row(

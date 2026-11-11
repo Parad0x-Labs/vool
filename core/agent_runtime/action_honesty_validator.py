@@ -1995,6 +1995,47 @@ _UNFETCHED_URL_SENTINEL = "did not open it on this turn"
 assert _UNFETCHED_URL_SENTINEL in _UNFETCHED_URL_RESPONSE.lower()
 
 
+# The page was not fetched because the person's browser step never ran, not because nobody
+# tried. Saying "ask me to fetch it" there blamed them for a request they never saw (the
+# approval used to live only in the Browser pane). Each reply keeps the sentinel, so the
+# post-admission verify of this same backstop recognises it and changes nothing.
+_UNANSWERED_BROWSER_RESPONSES = {
+    "refused": "You said no to opening {url} in the browser, so I did not open it on this turn.",
+    "stale_approval": (
+        "I asked to open {url} in the browser, but the request was not approved within two minutes, "
+        "so I did not open it on this turn. Ask again and press Allow on the card that appears in this chat."
+    ),
+    "paused": (
+        "You took over the browser before {url} opened, so I did not open it on this turn. "
+        "The browser is yours to drive until you hand it back."
+    ),
+    "web_off": (
+        "Web access was switched off before {url} opened, so I did not open it on this turn. "
+        "Turn on Web lookups and Browser in Settings, then ask again."
+    ),
+}
+_UNANSWERED_BROWSER_RESPONSES["operation_timeout"] = _UNANSWERED_BROWSER_RESPONSES["stale_approval"]
+_UNANSWERED_BROWSER_FALLBACK = (
+    "The browser stopped before {url} opened, so I did not open it on this turn. Ask again to retry."
+)
+assert all(_UNFETCHED_URL_SENTINEL in text.lower() for text in
+           [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK])
+
+
+def _unanswered_browser_step() -> dict[str, str] | None:
+    try:
+        from core.vool_browser.live_requests import unanswered
+    except ImportError:
+        return None
+    step = unanswered()
+    return step if step and step.get("url") else None
+
+
+def _unanswered_browser_response(step: dict[str, str]) -> str:
+    template = _UNANSWERED_BROWSER_RESPONSES.get(step.get("status", ""), _UNANSWERED_BROWSER_FALLBACK)
+    return template.format(url=step["url"])
+
+
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:
     """Whether the model answered ABOUT a URL it never fetched. If a URL is named with a
     review/check/score intent and no web fetch happened this turn, any substantive answer is a
@@ -2022,10 +2063,11 @@ def enforce_url_grounding(result: dict[str, Any], *, user_input: str, fetch_atte
     ):
         return output
     original = str(output.get("response") or "")
-    output["response"] = _UNFETCHED_URL_RESPONSE
+    browser_step = _unanswered_browser_step()
+    output["response"] = _unanswered_browser_response(browser_step) if browser_step else _UNFETCHED_URL_RESPONSE
     output["url_grounding_validator"] = {
         "applied": True,
-        "reason": "url_named_but_not_fetched",
+        "reason": "browser_request_not_approved" if browser_step else "url_named_but_not_fetched",
         "original_response_excerpt": original[:240],
     }
     output["route"] = "url_grounding_validator"

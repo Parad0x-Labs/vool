@@ -137,6 +137,8 @@ class _TurnBoundary:
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
         self.open = bool(self.urls and (self.active or _asks(executable, r'open|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
+        # How this turn's browser request ended when it never ran: the honest reply names it.
+        self.unanswered: dict[str, str] | None = None
         # A follow-up acts on the page already open in this chat. Its authority is
         # what its own words grant (fill, submit, follow); it opens nothing new
         # unless it names an address itself.
@@ -207,6 +209,19 @@ def note_navigation_proposal(url: str) -> None:
     boundary = _CONFINED.get()
     if boundary is not None and boundary.active:
         boundary.proposed_urls.add(_url(url))
+
+
+def note_unanswered(op: str, url: str, status: str) -> None:
+    """Record that this turn's browser step did not run, and why, for the turn's reply."""
+    boundary = _CONFINED.get()
+    if boundary is not None:
+        boundary.unanswered = {"op": str(op or ""), "url": str(url or ""), "status": str(status or "")}
+
+
+def unanswered() -> dict[str, str] | None:
+    """This turn's browser step that never ran (refused, timed out, taken over), if any."""
+    boundary = _CONFINED.get()
+    return dict(boundary.unanswered) if boundary is not None and boundary.unanswered else None
 
 
 def turn_request() -> str:

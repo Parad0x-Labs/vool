@@ -62,9 +62,14 @@ OBSERVE = r'''() => {
       ...(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)&&!['password','file','submit','button','reset','image'].includes(e.type)&&!private_(e)
         ?(['checkbox','radio'].includes(e.type)?{checked:e.checked}:{value:String(e.value||'').slice(0,2000),value_truncated:String(e.value||'').length>2000})
         :{}),
-      payment:!!within(e,'[data-payment]')};
+      payment:!!within(e,'[data-payment]'),
+      // Where the control sits in the owner's picture of the page (viewport pixels), so the
+      // pane can make the picture itself clickable. Only controls inside the view get a box.
+      ...(()=>{const r=e.getBoundingClientRect();
+        return r.width>0&&r.height>0&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth
+          ?{box:[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)]}:{};})()};
   });
-  return {nodes,forms};
+  return {nodes,forms,view:[innerWidth,innerHeight]};
 }'''
 
 

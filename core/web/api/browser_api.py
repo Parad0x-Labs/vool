@@ -77,6 +77,8 @@ def perform(path, body):
             result = item.decide(str(body.get("id") or ""), body["approve"])
         elif path == "/api/browser/propose":
             result = item.propose(str(body.get("op") or ""), dict(body.get("args") or {}), actor="owner")
+            if body.get("now") is True:
+                result = item.run_owner_step(result["proposal"]["id"]) or result
         else:
             raise live.BrowserFault("unsupported")
         return json_response(200, result, headers={"Cache-Control": "no-store"})
