@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Endereço do servidor",
     "phone.relay_enable": "Ligar através do meu servidor",
     "phone.relay_help": "O seu próprio servidor reencaminha mensagens encriptadas entre o telemóvel e o computador. Consegue ver quando se ligam. Emparelhe primeiro em casa.",
+    "phone.away.label": "Usar o VOOL também fora de casa",
+    "phone.away.help": "O seu telemóvel chega a este computador por dados móveis através de uma rota privada. Nada para configurar: ligue, depois associe ou leia o código de novo. As mensagens continuam seladas. A primeira ligação fora de casa demora um pouco mais.",
+    "phone.away.failed": "Não foi possível iniciar a rota privada. O Wi‑Fi de casa continua a funcionar. Desligue e volte a ligar para tentar de novo.",
     "phone.relay_phone": "Endereço de ligação do telefone",
     "phone.relay_room": "Código da sala",
     "phone.relay_title": "Ligar fora de casa (avançado)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Ligado fora de casa",
     "phone.ui.connected_over_your_home_network": "Ligado pela sua rede de casa"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

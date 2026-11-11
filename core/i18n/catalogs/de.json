@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Serveradresse",
     "phone.relay_enable": "Über meinen Server verbinden",
     "phone.relay_help": "Dein eigener Server leitet verschlüsselte Nachrichten zwischen Telefon und Computer weiter. Er kann sehen, wann sie sich verbinden. Kopple zuerst zu Hause.",
+    "phone.away.label": "VOOL auch unterwegs nutzen",
+    "phone.away.help": "Dein Telefon erreicht diesen Computer über mobile Daten auf einem privaten Weg. Nichts einzurichten: einschalten, dann koppeln oder den Code erneut scannen. Nachrichten bleiben versiegelt. Die erste Verbindung unterwegs dauert etwas länger.",
+    "phone.away.failed": "Der private Weg konnte nicht gestartet werden. Das Heim-WLAN funktioniert weiter. Zum erneuten Versuch aus- und wieder einschalten.",
     "phone.relay_phone": "Verbindungsadresse fürs Telefon",
     "phone.relay_room": "Raumcode",
     "phone.relay_title": "Von unterwegs verbinden (erweitert)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Von unterwegs verbunden",
     "phone.ui.connected_over_your_home_network": "Über dein Heimnetz verbunden"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

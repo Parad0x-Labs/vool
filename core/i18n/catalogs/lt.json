@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Serverio adresas",
     "phone.relay_enable": "Prisijungti per mano serverį",
     "phone.relay_help": "Jūsų pats serveris persiunčia užšifruotas žinutes tarp telefono ir kompiuterio. Jis mato, kada jie prisijungia. Pirmiausia susiekite namuose.",
+    "phone.away.label": "Naudoti VOOL ir ne namuose",
+    "phone.away.help": "Telefonas šį kompiuterį pasiekia per mobiliuosius duomenis privačiu maršrutu. Nieko nustatyti nereikia: įjunkite, tada susiekite arba dar kartą nuskaitykite kodą. Žinutės lieka užantspauduotos. Pirmas prisijungimas ne namuose trunka šiek tiek ilgiau.",
+    "phone.away.failed": "Privataus maršruto paleisti nepavyko. Namų „Wi‑Fi“ veikia toliau. Išjunkite ir vėl įjunkite, kad pabandytumėte dar kartą.",
     "phone.relay_phone": "Telefono ryšio adresas",
     "phone.relay_room": "Kambario kodas",
     "phone.relay_title": "Prisijungti ne namuose (išplėstinis)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Prisijungta ne iš namų",
     "phone.ui.connected_over_your_home_network": "Prisijungta per namų tinklą"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

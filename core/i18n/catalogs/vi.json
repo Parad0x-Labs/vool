@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Địa chỉ máy chủ",
     "phone.relay_enable": "Kết nối qua máy chủ của tôi",
     "phone.relay_help": "Máy chủ riêng của bạn chuyển các tin nhắn đã mã hóa giữa điện thoại và máy tính. Nó có thể thấy khi hai máy kết nối với nhau. Hãy ghép đôi ở nhà trước.",
+    "phone.away.label": "Dùng VOOL cả khi xa nhà",
+    "phone.away.help": "Điện thoại kết nối tới máy tính này qua dữ liệu di động bằng một tuyến riêng tư. Không cần thiết lập gì: bật lên, rồi ghép đôi hoặc quét lại mã. Tin nhắn vẫn được niêm phong. Lần kết nối đầu tiên khi xa nhà sẽ lâu hơn một chút.",
+    "phone.away.failed": "Không thể khởi động tuyến riêng tư. Wi‑Fi ở nhà vẫn hoạt động. Hãy tắt rồi bật lại để thử lần nữa.",
     "phone.relay_phone": "Địa chỉ kết nối điện thoại",
     "phone.relay_room": "Mã phòng",
     "phone.relay_title": "Kết nối khi xa nhà (nâng cao)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Đã kết nối khi xa nhà",
     "phone.ui.connected_over_your_home_network": "Đã kết nối qua mạng nhà"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

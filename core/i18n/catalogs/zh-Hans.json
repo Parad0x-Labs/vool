@@ -2978,6 +2978,9 @@
     "phone.relay_address": "服务器地址",
     "phone.relay_enable": "通过我的服务器连接",
     "phone.relay_help": "你自己的服务器在手机和电脑之间传递加密消息。它能看到它们何时连接。请先在家中配对。",
+    "phone.away.label": "在外也能使用 VOOL",
+    "phone.away.help": "手机可通过移动数据经由私密线路连接到这台电脑。无需任何设置：打开开关，然后配对或重新扫描二维码。消息始终保持密封。在外的首次连接会稍慢一些。",
+    "phone.away.failed": "私密线路无法启动。家里的 Wi‑Fi 仍可使用。关闭再打开即可重试。",
     "phone.relay_phone": "手机连接地址",
     "phone.relay_room": "房间代码",
     "phone.relay_title": "在外连接（高级）",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "已从外面连接",
     "phone.ui.connected_over_your_home_network": "已通过家里的网络连接"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

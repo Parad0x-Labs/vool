@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Sunucu adresi",
     "phone.relay_enable": "Sunucum üzerinden bağlan",
     "phone.relay_help": "Kendi sunucunuz, şifreli iletileri telefon ile bilgisayar arasında aktarır. Ne zaman bağlandıklarını görebilir. Önce evde eşleştirin.",
+    "phone.away.label": "VOOL’u ev dışında da kullan",
+    "phone.away.help": "Telefonunuz bu bilgisayara mobil veriyle özel bir yoldan ulaşır. Ayarlanacak bir şey yok: açın, sonra eşleştirin ya da kodu yeniden tarayın. Mesajlar mühürlü kalır. Ev dışındaki ilk bağlantı biraz daha uzun sürer.",
+    "phone.away.failed": "Özel yol başlatılamadı. Ev Wi‑Fi’ı çalışmaya devam ediyor. Yeniden denemek için kapatıp açın.",
     "phone.relay_phone": "Telefon bağlantı adresi",
     "phone.relay_room": "Oda kodu",
     "phone.relay_title": "Evden uzakta bağlan (gelişmiş)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Ev dışından bağlı",
     "phone.ui.connected_over_your_home_network": "Ev ağınız üzerinden bağlı"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

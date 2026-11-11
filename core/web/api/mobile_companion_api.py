@@ -74,6 +74,7 @@ import json
 import logging
 import os
 import secrets
+import re
 import threading
 import time
 import uuid
@@ -608,7 +609,7 @@ def _new_pairing_code() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
-def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str, *, companion_host: str = ""):
+def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str, *, companion_host: str = "", away_host: str = ""):
     from urllib.parse import urlsplit
 
     store = service.store
@@ -660,6 +661,8 @@ def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
         + "&pid=" + pairing_id
         + "&code=" + code
         + "&exp=" + str(int(expires_at_epoch))
+        # The computer's hidden address for away from home: a route only, the phone still checks fp.
+        + ("&away=" + away_host if re.fullmatch(r"[a-z2-7]{56}\.onion", away_host or "") else "")
     ) if advertise_host else ""
     return _json(200, {
         "ok": True,
@@ -2147,7 +2150,7 @@ def handle_mobile_companion_post(
 
         try:
             result = listener_for(runtime).configure(enabled=body.get("enabled"),
-                address=str(body.get("address") or ""), port=body.get("port", 0))
+                address=str(body.get("address") or ""), port=body.get("port", 0), away=body.get("away") is True)
         except (ValueError, OSError):
             return _err(400, "phone_network_unavailable", "Choose an available home or private-network address.")
         service.store.append_receipt("listener.changed", detail={"enabled": result["enabled"]})
@@ -2170,7 +2173,8 @@ def handle_mobile_companion_post(
         if listener.server is not None:
             address, port = listener.server.server_address
             companion_host = f"{address}:{port}"
-        return start_pairing(body, headers, service, client_host, companion_host=companion_host)
+        away_host = listener.away.host if listener.away is not None else ""
+        return start_pairing(body, headers, service, client_host, companion_host=companion_host, away_host=away_host)
     if path == "/api/mobile/pairing/claim":
         return claim_pairing(body, headers, service, client_host)
     if path == "/api/mobile/companion":

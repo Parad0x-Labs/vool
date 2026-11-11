@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Adresse du serveur",
     "phone.relay_enable": "Se connecter via mon serveur",
     "phone.relay_help": "Votre propre serveur fait passer les messages chiffrés entre le téléphone et l’ordinateur. Il peut voir quand ils se connectent. Associez d’abord chez vous.",
+    "phone.away.label": "Utiliser VOOL aussi hors de chez vous",
+    "phone.away.help": "Votre téléphone joint cet ordinateur en données mobiles par une route privée. Rien à configurer : activez, puis associez ou rescannez le code. Les messages restent scellés. La première connexion hors de chez vous prend un peu plus de temps.",
+    "phone.away.failed": "La route privée n’a pas pu démarrer. Le Wi‑Fi de la maison fonctionne toujours. Désactivez puis réactivez pour réessayer.",
     "phone.relay_phone": "Adresse de connexion du téléphone",
     "phone.relay_room": "Code de salle",
     "phone.relay_title": "Se connecter hors de chez vous (avancé)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Connecté hors de chez vous",
     "phone.ui.connected_over_your_home_network": "Connecté par votre réseau domestique"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

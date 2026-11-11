@@ -2978,6 +2978,9 @@
     "phone.relay_address": "サーバーのアドレス",
     "phone.relay_enable": "自分のサーバー経由で接続",
     "phone.relay_help": "自分のサーバーが、スマホとコンピュータの間で暗号化されたメッセージをやり取りします。いつ接続したかは見えます。先に自宅でペアリングしてください。",
+    "phone.away.label": "外出先でも VOOL を使う",
+    "phone.away.help": "電話はモバイル通信でも、プライベートな経路を通ってこのコンピュータに届きます。設定は不要です。オンにしてから、ペアリングするかコードをもう一度読み取ってください。メッセージは封印されたままです。外出先での最初の接続は少し時間がかかります。",
+    "phone.away.failed": "プライベートな経路を開始できませんでした。自宅の Wi‑Fi は引き続き使えます。もう一度試すには、オフにしてからオンにしてください。",
     "phone.relay_phone": "端末の接続先アドレス",
     "phone.relay_room": "ルームコード",
     "phone.relay_title": "外出先から接続（上級者向け）",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "外出先から接続中",
     "phone.ui.connected_over_your_home_network": "自宅のネットワークで接続中"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

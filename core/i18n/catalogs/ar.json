@@ -2978,6 +2978,9 @@
     "phone.relay_address": "عنوان الخادم",
     "phone.relay_enable": "الاتصال عبر خادمي",
     "phone.relay_help": "يمرر خادمك الخاص الرسائل المشفرة بين الهاتف والكمبيوتر. يمكنه رؤية وقت اتصالهما. اربط الهاتف في المنزل أولاً.",
+    "phone.away.label": "استخدم VOOL خارج المنزل أيضًا",
+    "phone.away.help": "يصل هاتفك إلى هذا الكمبيوتر عبر بيانات الجوال من خلال مسار خاص. لا شيء يحتاج إلى إعداد: شغّله ثم اقترن أو امسح الرمز مجددًا. تبقى الرسائل مختومة. أول اتصال خارج المنزل يستغرق وقتًا أطول قليلًا.",
+    "phone.away.failed": "تعذّر بدء المسار الخاص. شبكة Wi‑Fi المنزلية ما زالت تعمل. أوقفه ثم شغّله للمحاولة مجددًا.",
     "phone.relay_phone": "عنوان اتصال الهاتف",
     "phone.relay_room": "رمز الغرفة",
     "phone.relay_title": "الاتصال من خارج المنزل (متقدم)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "متصل من خارج المنزل",
     "phone.ui.connected_over_your_home_network": "متصل عبر شبكة المنزل"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

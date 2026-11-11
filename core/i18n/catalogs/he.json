@@ -2978,6 +2978,9 @@
     "phone.relay_address": "כתובת השרת",
     "phone.relay_enable": "התחברות דרך השרת שלי",
     "phone.relay_help": "השרת הפרטי שלך מעביר הודעות מוצפנות בין הטלפון למחשב. הוא יכול לראות מתי הם מתחברים. יש לצמד תחילה בבית.",
+    "phone.away.label": "להשתמש ב־VOOL גם מחוץ לבית",
+    "phone.away.help": "הטלפון מגיע למחשב הזה דרך נתונים סלולריים במסלול פרטי. אין מה להגדיר: מפעילים, ואז מצמדים או סורקים שוב את הקוד. ההודעות נשארות חתומות. החיבור הראשון מחוץ לבית לוקח קצת יותר זמן.",
+    "phone.away.failed": "לא ניתן היה להפעיל את המסלול הפרטי. ה־Wi‑Fi הביתי ממשיך לעבוד. יש לכבות ולהפעיל כדי לנסות שוב.",
     "phone.relay_phone": "כתובת חיבור הטלפון",
     "phone.relay_room": "קוד חדר",
     "phone.relay_title": "התחברות מחוץ לבית (מתקדם)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "מחובר מחוץ לבית",
     "phone.ui.connected_over_your_home_network": "מחובר דרך רשת הבית"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

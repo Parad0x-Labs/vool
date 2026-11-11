@@ -50,6 +50,7 @@ def load_settings() -> dict:
             "mode": str(value.get("mode") or "lan"),
             "relay_endpoint": str(value.get("relay_endpoint") or ""),
             "relay_room": str(value.get("relay_room") or ""),
+            "away": value.get("away") is True,
         }
     except (OSError, ValueError, TypeError):
         return {"enabled": False, "address": "", "port": 0}
@@ -213,7 +214,7 @@ class _Server(ThreadingHTTPServer):
             self._release_source(client_address[0], request)
 
 
-def _handler(manager):
+def _handler(manager, client_host=None):
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -274,7 +275,7 @@ def _handler(manager):
                     parse_qs(parsed.query),
                     runtime=manager.runtime,
                     model_name=manager.model_name,
-                    client_host=self.client_address[0],
+                    client_host=client_host or self.client_address[0],
                 )
             lengths = self.headers.get_all("Content-Length") or []
             try:
@@ -311,7 +312,7 @@ def _handler(manager):
                 dict(self.headers),
                 runtime=manager.runtime,
                 model_name=manager.model_name,
-                client_host=self.client_address[0],
+                client_host=client_host or self.client_address[0],
                 active=lambda: manager.running,
             )
 
@@ -333,6 +334,7 @@ class CompanionListener:
         self.server = None
         self.thread = None
         self.relay = None
+        self.away = None
         self._lock = threading.RLock()
 
     @property
@@ -346,10 +348,12 @@ class CompanionListener:
             value.update(address=self.server.server_address[0], port=self.server.server_address[1])
         value["addresses"] = network_addresses()
         value["relay_connected"] = bool(self.relay and self.relay.connected)
+        value["away"] = value.get("away") is True
+        value["away_address"] = self.away.host if self.away is not None else ""
         return value
 
-    def configure(self, *, enabled, address="", port=0, mode="lan", relay_endpoint="", relay_room=""):
-        if type(enabled) is not bool or type(port) is not int or not 0 <= port <= 65535:
+    def configure(self, *, enabled, address="", port=0, mode="lan", relay_endpoint="", relay_room="", away=False):
+        if type(enabled) is not bool or type(port) is not int or not 0 <= port <= 65535 or type(away) is not bool:
             raise ValueError("Invalid phone connection settings.")
         with self._lock:
             if not enabled:
@@ -399,6 +403,7 @@ class CompanionListener:
             if self.server is not None:
                 if (address, port) not in {self.server.server_address, (self.server.server_address[0], 0)}:
                     raise ValueError("Turn phone access off before changing its network.")
+                self._set_away(away)
                 return self.snapshot()
             remembered = _remembered_port() if port == 0 else 0
             try:
@@ -410,7 +415,7 @@ class CompanionListener:
             try:
                 self.server = server
                 _save_settings({"enabled": True, "address": address, "port": server.server_address[1],
-                                "last_port": server.server_address[1]})
+                                "last_port": server.server_address[1], "away": away})
                 self.thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
                 self.thread.start()
                 from core.mobile_companion.bot_runtime import manager_for
@@ -420,7 +425,32 @@ class CompanionListener:
                 self.server = None
                 server.server_close()
                 raise
+            if away:
+                # The home network stays usable when the private route cannot start; the choice
+                # stays saved, so the next start tries again.
+                with suppress(OSError, ValueError, RuntimeError):
+                    self._set_away(True)
             return self.snapshot()
+
+    def _set_away(self, wanted):
+        """Away from home is an addition to the home-network listener, never a replacement."""
+        with self._lock:
+            if self.server is None:
+                wanted = False
+            saved = {key: value for key, value in load_settings().items()}
+            if wanted and self.away is None:
+                from core.mobile_companion.away import AwayLink
+
+                link = AwayLink(lambda address: _Server(address, _handler(self, client_host="away")))
+                link.start()
+                self.away = link
+            elif not wanted and self.away is not None:
+                link, self.away = self.away, None
+                link.close()
+            if saved.get("enabled") and saved.get("away") is not wanted:
+                saved["away"] = wanted
+                last = _remembered_port()
+                _save_settings({**saved, **({"last_port": last} if last else {})})
 
     def restore(self):
         value = load_settings()
@@ -439,6 +469,9 @@ class CompanionListener:
             relay, self.relay = self.relay, None
             if relay is not None:
                 relay.close()
+            away, self.away = self.away, None
+            if away is not None:
+                away.close()
             server, thread = self.server, self.thread
             self.server = None
             self.thread = None

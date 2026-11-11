@@ -2978,6 +2978,9 @@
     "phone.relay_address": "Adres serwera",
     "phone.relay_enable": "Połącz przez mój serwer",
     "phone.relay_help": "Twój własny serwer przekazuje zaszyfrowane wiadomości między telefonem a komputerem. Widzi, kiedy się łączą. Najpierw sparuj w domu.",
+    "phone.away.label": "Używaj VOOL także poza domem",
+    "phone.away.help": "Telefon łączy się z tym komputerem przez dane komórkowe prywatną trasą. Nic nie trzeba ustawiać: włącz, potem sparuj lub zeskanuj kod ponownie. Wiadomości pozostają zapieczętowane. Pierwsze połączenie poza domem trwa nieco dłużej.",
+    "phone.away.failed": "Nie udało się uruchomić prywatnej trasy. Domowe Wi‑Fi nadal działa. Wyłącz i włącz, aby spróbować ponownie.",
     "phone.relay_phone": "Adres połączenia telefonu",
     "phone.relay_room": "Kod pokoju",
     "phone.relay_title": "Łącz poza domem (zaawansowane)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "Połączono spoza domu",
     "phone.ui.connected_over_your_home_network": "Połączono przez sieć domową"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

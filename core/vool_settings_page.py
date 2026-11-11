@@ -5301,11 +5301,31 @@ function widgetPhoneAccess(host) {
   const pair = el('button', 'btn', T('phone.pair', 'Pair a phone')); pair.type = 'button'; pair.disabled = !src.running;
   line.appendChild(pair); stack.appendChild(line);
   const note = el('div', 'state idle'); note.setAttribute('role', 'status'); stack.appendChild(note);
+  // Away from home: off until the owner switches it on. It adds a private route; home stays as it is.
+  const awayLine = el('div', 'inline');
+  const awayToggle = el('button', 'sw'); awayToggle.type = 'button'; awayToggle.setAttribute('role', 'switch');
+  awayToggle.setAttribute('aria-label', T('phone.away.label', 'Also use VOOL away from home'));
+  awayToggle.setAttribute('aria-checked', src.away ? 'true' : 'false'); awayToggle.disabled = !src.running || src.mode === 'relay';
+  awayLine.appendChild(awayToggle); awayLine.appendChild(el('span', '', T('phone.away.label', 'Also use VOOL away from home')));
+  stack.appendChild(awayLine);
+  stack.appendChild(el('p', 'help', src.away && !src.away_address
+    ? T('phone.away.failed', 'The private route could not start. Home Wi-Fi still works. Switch this off and on to try again.')
+    : T('phone.away.help', 'Your phone reaches this computer over mobile data through a private route. Nothing to set up: switch it on, then pair or scan the code again. Messages stay sealed. The first connection away from home takes a little longer.')));
+  awayToggle.onclick = async () => {
+    awayToggle.disabled = true;
+    try {
+      const wanted = !src.away;
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:true,address:src.address,port:src.port,away:wanted})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error();
+      state.sources[url] = await getJSON(url); redrawPhoneSettings();
+    } catch (_) {note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); awayToggle.disabled = false;}
+  };
   toggle.onclick = async () => {
     toggle.disabled = true;
     try {
       const wanted = !src.enabled;
-      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:wanted,address:network.value})});
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:wanted,address:network.value,away:!!src.away})});
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error();
       const back = await getJSON(url);

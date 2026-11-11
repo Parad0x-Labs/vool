@@ -2978,6 +2978,9 @@
     "phone.relay_address": "सर्वर का पता",
     "phone.relay_enable": "मेरे सर्वर के माध्यम से जुड़ें",
     "phone.relay_help": "आपका अपना सर्वर फ़ोन और कंप्यूटर के बीच एन्क्रिप्ट किए गए संदेश पहुँचाता है। उसे दिखता है कि वे कब जुड़ते हैं। पहले घर पर पेयर करें।",
+    "phone.away.label": "घर से बाहर भी VOOL इस्तेमाल करें",
+    "phone.away.help": "आपका फ़ोन मोबाइल डेटा पर एक निजी रास्ते से इस कंप्यूटर तक पहुँचता है। कुछ सेट नहीं करना है: इसे चालू करें, फिर पेयर करें या कोड दोबारा स्कैन करें। संदेश सीलबंद रहते हैं। घर से बाहर पहला कनेक्शन थोड़ा ज़्यादा समय लेता है।",
+    "phone.away.failed": "निजी रास्ता शुरू नहीं हो सका। घर का Wi‑Fi अब भी चलता है। दोबारा कोशिश के लिए इसे बंद करके चालू करें।",
     "phone.relay_phone": "फ़ोन कनेक्शन पता",
     "phone.relay_room": "रूम कोड",
     "phone.relay_title": "घर से बाहर जुड़ें (उन्नत)",
@@ -3135,7 +3138,7 @@
     "phone.ui.connected_from_away": "घर से बाहर से जुड़ा है",
     "phone.ui.connected_over_your_home_network": "घर के नेटवर्क से जुड़ा है"
   },
-  "source_catalog_sha256": "f14f1049a8bfe1bef3407369bae2110179ce93c4c99a0adc59ef67da33b8d809",
+  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
