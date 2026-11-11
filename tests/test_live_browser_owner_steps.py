@@ -237,3 +237,22 @@ def test_page_look_shares_one_budget_per_load(world, monkeypatch):
     finish(world, 'navigate', {'url': origin + '/many'})
     fetched = len([p for p in paths(requests) if p.startswith('/many-')])
     assert 3 <= fetched < 100, fetched
+
+
+def test_owner_click_follows_a_redirect_and_an_agent_click_stops_at_it(world):
+    rig, item, origin, requests = world
+    snap = owner_now(rig, item, 'navigate', {'url': origin + '/other'})[2]
+    moved = next(n for n in snap['nodes'] if n['label'] == 'Moved timetable')
+    started = time.monotonic()
+    snap = owner_now(rig, item, 'click', {'selector': moved['selector']})[2]
+    assert snap['state'] == 'ready' and snap['url'] == origin + '/secret', snap
+    assert time.monotonic() - started < 6 and paths(requests)[1:3] == ['/redirect', '/secret']
+    # The same link clicked on VOOL's request stops at the redirect and only offers it.
+    snap = owner_now(rig, item, 'navigate', {'url': origin + '/other'})[2]
+    moved = next(n for n in snap['nodes'] if n['label'] == 'Moved timetable')
+    before = len(requests)
+    token = item.propose('click', {'selector': moved['selector']}, actor='agent')['proposal']['id']
+    rig.post('/api/browser/decide', {'chat': 'live-test', 'id': token, 'approve': True})
+    snap = settle(item)
+    assert snap['state'] == 'redirect_refused' and snap['result']['redirect']['text'] == origin + '/secret', snap
+    assert paths(requests)[before:] == ['/redirect'] and item.url == origin + '/other'
