@@ -48,8 +48,10 @@ MAX_DOCTRINE_SKILLS = 2
 #: which needed root-cause-repair (1760) + bug-reproduction (1690) +
 #: project-archaeology (3735) = 7185 (bug-reproduction has since merged into
 #: root-cause-repair: 2761 + 3735 = 6496 today), and the doctrine lane's is
-#: answer-presentation (1481) + the widest lens (1082) = 2563; each block adds one
-#: ~150-char header.
+#: answer-presentation (1697) + the widest lens (1082) = 2779; each block adds its
+#: fence (header, source line and closing line, ~230 chars), so 3239 for the
+#: presentation doctrine plus the one lens the picker seats on a decision. At 3200
+#: the fence pushed the strategy lens off every "should I ... or ...?" turn.
 #:
 #: Three task slots for the same reason: that turn genuinely needs all three, and
 #: the previous two-slot budget is what made archaeology and the repair doctrine
@@ -61,7 +63,7 @@ MAX_DOCTRINE_SKILLS = 2
 #: silently -- a body that does not fit is dropped and recorded, never trimmed -- so
 #: adding a skill to the library cannot quietly enlarge the prompt.
 MAX_SKILL_CHARS = 7800
-MAX_DOCTRINE_CHARS = 3200
+MAX_DOCTRINE_CHARS = 3400
 
 #: The TOOL-INTENT lane's tighter share.
 #:
@@ -286,7 +288,7 @@ def _fenced(skill: Any, body: str) -> str:
     header = _skill_header(skill)
     clean = _FORGED_BOUNDARY_RE.sub(lambda m: "(" + m.group(1) + m.group(2), body)
     source = _trust_label(skill)
-    tag = hashlib.sha256(f"{header}\n{source}\n{clean}".encode("utf-8")).hexdigest()[:12]
+    tag = hashlib.sha256(f"{header}\n{source}\n{clean}".encode()).hexdigest()[:12]
     return f"{header}\n(source: {source}; block {tag})\n{clean}\n[end of skill block {tag}]"
 
 

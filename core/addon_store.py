@@ -353,6 +353,24 @@ def _content_refusal(entry: dict, content: bytes) -> None:
         raise AddonError("addon_failed_safety_check", problem + " Nothing was installed.")
 
 
+def _validation_refusal(verdict: dict) -> AddonError:
+    """The plain refusal for a skill file the validator did not pass.
+
+    A file that fails the Skill Codex's text checks is refused as a safety problem, with the line,
+    the reason and what to write instead, the same words every other way in uses. Saying "a format
+    or tools unavailable in this VOOL version" there named the wrong problem.
+    """
+    from core.skill_tools import SAFETY_LEAD
+
+    problems = [str(item).strip() for item in (verdict.get("problems") or []) if str(item).strip()]
+    safety = next((item for item in problems if item.startswith(SAFETY_LEAD)), "")
+    if safety:
+        return AddonError("addon_failed_safety_check",
+                          "This skill did not pass VOOL's safety check, so it was not added. "
+                          + safety[len(SAFETY_LEAD):] + " Nothing was installed.")
+    return AddonError("addon_incompatible", "This skill requires a format or tools unavailable in this VOOL version.")
+
+
 def _download(entry: dict, filename: str, expected: str) -> bytes:
     # All URL components are shipped catalogue constants, never caller-supplied paths.
     try:
@@ -506,8 +524,9 @@ def prepare_local(identifier: str, *, approved: bool) -> dict:
             match = _FRONTMATTER_RE.match(content.decode("utf-8"))
             if not match or len(match.group(2).strip()) > _MAX_BODY_CHARS:
                 raise AddonError("addon_incompatible", "This skill cannot be loaded in full by this VOOL version.")
-            if validate_skill(str(stage / "SKILL.md")).get("status") != "ok":
-                raise AddonError("addon_incompatible", "This skill requires a format or tools unavailable in this VOOL version.")
+            verdict = validate_skill(str(stage / "SKILL.md"))
+            if verdict.get("status") != "ok":
+                raise _validation_refusal(verdict)
             report = scan_bytes(entry["skill_name"], content)
             now = time.time()
             _write(stage / "review.json", {"entry": entry, "report": report, "check": LOCAL_CHECK,

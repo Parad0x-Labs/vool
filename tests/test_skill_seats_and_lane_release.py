@@ -76,7 +76,17 @@ def test_the_same_skill_installed_from_a_file_adds_no_tools_and_says_so(tmp_path
     cg.reset()
     before = set(assemble_tool_offer(user_text=TRIM, task_class="media_editing",
                                      source_context=dict(OWNER_LOCAL)).intents)
-    staged = tmp_path / "downloaded" / "media-trimmer" / "SKILL.md"
+    # skill.install reads only VOOL's own skill folders (red team t17): a file elsewhere on the
+    # machine is not opened at all.
+    downloaded = tmp_path / "downloaded" / "media-trimmer" / "SKILL.md"
+    downloaded.parent.mkdir(parents=True)
+    downloaded.write_text(_SKILL, encoding="utf-8")
+    outside = _skill_install({"path": str(downloaded)}, dict(OWNER_LOCAL))
+    assert not outside.ok and outside.status == "not_allowed", outside.details
+    # The same file copied by hand into VOOL's drafts folder is a file VOOL did not write.
+    from core.skill_tools import staging_root
+
+    staged = staging_root() / "media-trimmer" / "SKILL.md"
     staged.parent.mkdir(parents=True)
     staged.write_text(_SKILL, encoding="utf-8")
     result = _skill_install({"path": str(staged)}, dict(OWNER_LOCAL))

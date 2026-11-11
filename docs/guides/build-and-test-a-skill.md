@@ -103,7 +103,7 @@ Frontmatter keys VOOL reads:
 
 | Key | Required | What VOOL does with it |
 | --- | --- | --- |
-| `name` | yes | The skill's identity. Use lowercase words joined by hyphens, the same as the folder name. Lists show it as plain words ("Aisle sorter"). If missing, the folder name is used. |
+| `name` | yes | The skill's identity. Use lowercase words joined by hyphens, the same as the folder name. Lists show it as plain words ("Aisle sorter"). If missing, the folder name is used. It cannot be the name of one of VOOL's own skills or start with `vool-`: making, importing or installing such a skill is refused with another name suggested. |
 | `description` | yes | When the skill applies. Part of what picking compares (see section 6). An empty description fails validation. |
 | `summary` | recommended | One plain sentence a person reads about the skill, on the Skills page and in *which skills do I have?*. Display only: picking never reads it, so it can be written for people, not for matching. Without it, VOOL shows the description. Keep it on one line; put it in double quotes if it holds a colon. Planned for VOOL 0.7.8, not released yet. |
 | `triggers` | recommended | Phrases a person says when they want this skill. A YAML list, or one comma-separated string. |
@@ -113,8 +113,10 @@ Frontmatter keys VOOL reads:
 
 `id`, `task-families`, `type`, `priority` and the other keys of VOOL's built-in skills let a
 skill start on its own, without the person's words. VOOL reads them only from its built-in skills,
-the packs it ships and signed Skill Codex packages. In a skill you share as a zip, install from a
-file, add from GitHub or serve from an MCP server they are ignored: turning it on says *Its
+the packs it ships and signed Skill Codex packages. A skill imported as a zip or added from GitHub
+that sets them is refused: *This skill sets id, ..., which only VOOL's own skills may set. Take
+those lines out of the top of the file and try again.* In a file copied by hand into VOOL's skill
+folders, or a skill served from an MCP server, they are ignored: turning it on says *Its
 automatic settings (id, task-families and the like) are ignored*, and the skill is used only when
 the person's message picks it.
 
