@@ -42,6 +42,24 @@ export type FetchLike = (url: string, init: { method: string; headers: Record<st
 export const CHAT_TURN_TIMEOUT_MS = 240000;
 /** How long one "which way is open?" question may take before the other way is tried. */
 export const ROUTE_PROBE_TIMEOUT_MS = 5000;
+/** The away address is reached over the private route, which first has to connect: allow it time. */
+export const AWAY_PROBE_TIMEOUT_MS = 90000;
+/** Requests over the private route take longer end to end than on the home network. */
+export const AWAY_REQUEST_TIMEOUT_MS = 60000;
+
+/** The private route (Tor inside the app). The app registers it at start; tests register a fake. */
+export interface PrivateRoute {
+  fetch: FetchLike;
+  /** Wake the route and wait until it can carry a request. A request is signed with the time it
+   *  was made, so it is only made once the route is up. */
+  ready(timeoutMs: number): Promise<void>;
+  /** Called when the home address answers again, so the route can rest. */
+  stop(): void;
+}
+/** Any address whose host ends in .onion, whatever else it carries: such a request never uses the normal network. */
+const HIDDEN_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*\.onion\.?(?::\d*)?(?:[/?#]|$)/i;
+let privateRoute: PrivateRoute | null = null;
+export function setPrivateRoute(route: PrivateRoute | null) {privateRoute = route;}
 
 export interface ClientOptions {
   fetchImpl?: FetchLike;
@@ -104,12 +122,17 @@ export class MobileCompanionClient {
       try {
         for (const away of [false, true]) {
           try {
-            await this.send<DeviceInfo>(this.address(away), "devices.me", {}, ROUTE_PROBE_TIMEOUT_MS);
+            if (away && HIDDEN_URL.test(this.address(true))) {
+              if (!privateRoute) continue;
+              await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
+            }
+            await this.send<DeviceInfo>(this.address(away), "devices.me", {}, away ? AWAY_PROBE_TIMEOUT_MS : ROUTE_PROBE_TIMEOUT_MS);
             this.away = away; reportLink(true);
+            if (!away) privateRoute?.stop();
             return away ? "away" as const : "home" as const;
           } catch (error) {
             // A refusal is still an answer from this computer: the way works.
-            if (answered(error)) {this.away = away; return away ? "away" as const : "home" as const;}
+            if (answered(error)) {this.away = away; if (!away) privateRoute?.stop(); return away ? "away" as const : "home" as const;}
           }
         }
         return null;
@@ -171,7 +194,8 @@ export class MobileCompanionClient {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
-      ...(timeoutMs ? {timeoutMs} : action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
+      ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
+      ...(timeoutMs ? {timeoutMs} : {}),
     });
     const parsed = (await response.json()) as CompanionResponse<T>;
     if (!parsed || parsed.ok !== true) {
@@ -331,6 +355,12 @@ export class MobileCompanionClient {
 }
 
 export async function defaultFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string; timeoutMs?: number }) {
+  if (HIDDEN_URL.test(url)) {
+    // A hidden address is only ever reached over the private route. It never goes to the phone's
+    // normal network, where even looking the name up would give it away.
+    if (!privateRoute) throw new Error("private route unavailable");
+    return privateRoute.fetch(url, {...init, timeoutMs: Math.max(init.timeoutMs ?? 0, AWAY_REQUEST_TIMEOUT_MS)});
+  }
   const controller = new AbortController();
   const {timeoutMs, ...request} = init;
   const timer = setTimeout(() => controller.abort(), timeoutMs ?? 30000);

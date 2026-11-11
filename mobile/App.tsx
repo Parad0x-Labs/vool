@@ -28,10 +28,14 @@ import type {ChatSummary} from "./src/protocol/models.ts";
 import Header from "./src/ui/Header.tsx";
 import Frame from "./src/ui/Frame.tsx";
 import KeyboardTip from "./src/ui/KeyboardTip.tsx";
+import {installPrivateRoute} from "./src/security/privateRoute.ts";
 import {SafeAreaProvider} from "react-native-safe-area-context";
 import Drawer, {type DrawerItem} from "./src/ui/Drawer.tsx";
 import Icon from "./src/ui/Icon.tsx";
 import {C, R} from "./src/ui/theme.ts";
+
+// Connects the built-in private route for away-from-home addresses. Starts nothing by itself.
+installPrivateRoute();
 
 type Tab = "chats" | "approvals" | "notifications" | "wallet" | "status";
 const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Alerts", wallet: "Wallet", status: "Status"};
