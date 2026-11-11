@@ -39,6 +39,7 @@ scenarios:
           - "this is ${name} from the bakery, whats the capital of Portugal"
         expect:
           all: ['(?i)lisbon']
+          none: ['(?i)could not be answered']
           ui:
             - selector: "#log .pconfirm"
               text_any: ["I'll call you ${name}"]
@@ -46,6 +47,29 @@ scenarios:
               count_max: 0
       - chat: B
         say: "do you know my name?"
+        expect:
+          all: ['${name}']
+          max_seconds: 30
+
+  - id: NAME-INTRO-03
+    title: A name said beside several requests is saved, and every request is still answered
+    from_bug: "2026-11-11 real build with a local model: 'Hi, I'm Kofi, what is the capital of Portugal?' answered Lisbon plus 'Could not be answered: Hi, I'm Kofi', name not learned"
+    vars: { name: "pick:Marta|Kofi|Linh|Oskar|Ines|Teo|Noor|Bex" }
+    steps:
+      - chat: A
+        say:
+          - "I'm ${name}. What is the capital of Portugal, and what is 12 times 12?"
+          - "hi my name is ${name} and what is the capital of Portugal? also whats 12 times 12"
+          - "Hi I'm ${name} can you tell me the capital of Portugal and what 12 times 12 is?"
+          - "what is the capital of Portugal? and 12 times 12? I'm ${name} btw"
+        expect:
+          all: ['(?i)lisbon', '144']
+          none: ['(?i)could not be answered']
+          ui:
+            - selector: "#log .pchip"
+              count_max: 0
+      - chat: B
+        say: "whats my name?"
         expect:
           all: ['${name}']
           max_seconds: 30
