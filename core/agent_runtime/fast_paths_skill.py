@@ -2090,9 +2090,9 @@ def _staged_path(pending: dict[str, Any], source_context: dict[str, Any] | None,
         return None
     scope = str(pending.get("scope") or "global")
     keys = _turn_keys(source_context, session_id)
-    imports = skill_tools.import_staging_dir(keys)
-    if imports is not None and (imports / slug / "SKILL.md").is_file():
-        return imports / slug / "SKILL.md"
+    for own in (skill_tools.import_staging_dir(keys), skill_tools.draft_staging_dir(keys)):
+        if own is not None and (own / slug / "SKILL.md").is_file():
+            return own / slug / "SKILL.md"
     if scope == "global":
         return skill_tools.staging_root() / slug / "SKILL.md"
     dirs = skill_tools._scoped_dirs(scope, keys)

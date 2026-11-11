@@ -7958,7 +7958,24 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
                 return "off"
             if plugin_id and plugin_serving is not None and plugin_id not in plugin_serving:
                 return "not available here"
-        return "on"
+        kept_off = _kept_off(row) if kind != "native" else ""
+        return kept_off or "on"
+
+    def _kept_off(row: dict[str, Any]) -> str:
+        # A file that got into the skill folders without an import or an install (copied by hand)
+        # meets the safety check when it loads; one that fails is kept off, and this says why (M1).
+        try:
+            from types import SimpleNamespace
+
+            from core.skill_tools import load_problem
+
+            plugin_id = _plugin_id(row) or f"{row.get('scope') or 'local'}-skills"
+            problem = load_problem(SimpleNamespace(path=str(row.get("path") or ""), plugin_id=plugin_id))
+        except Exception:
+            return ""
+        if not problem:
+            return ""
+        return "kept off: " + problem.replace("so it was not kept", "so VOOL does not use it")
 
     def _row(row: dict[str, Any], state: str) -> str:
         label = _display_name(str(row.get("name") or "?"))

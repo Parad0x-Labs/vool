@@ -449,10 +449,24 @@ def import_staging_dir(keys: dict[str, str] | None) -> Path | None:
     return staging_root() / IMPORTS_DIRNAME / _safe_dir(chat)
 
 
-#: Left beside every draft ``skill.create`` writes (audit M7, 2026-11-11): the digest of the bytes it
-#: wrote (and showed), so turning the draft on later, after a restart included, installs those bytes
-#: or nothing, whatever sat in the shared drafts folder by then.
+# Drafts ``skill.create`` writes from a chat are staged per CHAT too (audit M7, 2026-11-11): the old
+# shared ``staging_root()/<slug>`` let a same-name draft from another chat (or a model's call there)
+# replace the one this chat showed, and what went live was whatever sat in the folder by then. A turn
+# that names no chat keeps the shared folder.
+DRAFTS_DIRNAME = ".drafts"
+#: Left beside every draft ``skill.create`` writes: the digest of the bytes it wrote (and showed), so
+#: turning the draft on later, after a restart included, installs those bytes or nothing.
 DRAFTED_MARK = "drafted.json"
+
+
+def draft_staging_dir(keys: dict[str, str] | None) -> Path | None:
+    """This chat's own folder for drafts made for all of VOOL, or None when the turn names no chat."""
+    from core.skill_scopes import _safe_dir
+
+    chat = str((keys or {}).get("chat") or "").strip()
+    if not chat:
+        return None
+    return staging_root() / DRAFTS_DIRNAME / _safe_dir(chat)
 
 
 def drafted_mark(skill_dir: Path) -> dict[str, Any] | None:
@@ -603,6 +617,7 @@ def skill_path_allowed(path: Path, keys: dict[str, str] | None = None) -> bool:
     except (OSError, RuntimeError):
         return False
     roots = [staging_root(), plugins_root() / "plugins", native_skills_root()]
+    own_folders = {IMPORTS_DIRNAME: import_staging_dir(keys), DRAFTS_DIRNAME: draft_staging_dir(keys)}
     for scope in ("chat", "project"):
         root = scope_root(scope, keys)
         if root is not None:
@@ -610,10 +625,10 @@ def skill_path_allowed(path: Path, keys: dict[str, str] | None = None) -> bool:
     for root in roots:
         with contextlib.suppress(OSError, RuntimeError, ValueError):
             if resolved.is_relative_to(root.resolve()):
-                # Another chat's imports live under the drafts folder too; only this chat's count.
+                # Another chat's imports and drafts live under the drafts folder too; only this chat's count.
                 inside = resolved.relative_to(staging_root().resolve()).parts if root == staging_root() else ()
-                if inside and inside[0] == IMPORTS_DIRNAME:
-                    own = import_staging_dir(keys)
+                if inside and inside[0] in own_folders:
+                    own = own_folders[inside[0]]
                     if own is None or not resolved.is_relative_to(own.resolve()):
                         continue
                 return True
@@ -781,7 +796,8 @@ def create_skill(
         return {"status": "refused", "reason": problem, "problems": [problem]}
 
     if scope == "global":
-        directory = staging_root() / slug
+        own = draft_staging_dir(keys)
+        directory = (own if own is not None else staging_root()) / slug
     else:
         from core.skill_scopes import scope_unavailable_reason
 
@@ -881,6 +897,9 @@ def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path
     imports = import_staging_dir(keys)
     if imports is not None:
         locations.append(imports / slug / "SKILL.md")
+    drafts = draft_staging_dir(keys)
+    if drafts is not None:
+        locations.append(drafts / slug / "SKILL.md")
     locations.append(staging_root() / slug / "SKILL.md")
     # Installed skills sit at plugins/<plugin_id>/skills/<slug>/SKILL.md.
     with contextlib.suppress(OSError):
@@ -1105,9 +1124,9 @@ def _clear_staged_drafts(slug: str, keys: dict[str, str] | None) -> tuple[list[s
     if not clean:
         return [], ""
     candidates = [staging_root() / clean]
-    imports = import_staging_dir(keys)
-    if imports is not None:
-        candidates.append(imports / clean)
+    for own in (import_staging_dir(keys), draft_staging_dir(keys)):
+        if own is not None:
+            candidates.append(own / clean)
     for scope in ("chat", "project"):
         dirs = _scoped_dirs(scope, keys)
         if dirs is not None:
@@ -1451,6 +1470,9 @@ def list_skills(workspace: str = "", keys: dict[str, str] | None = None) -> dict
         for row in _scan(imports, ("*/SKILL.md",)):
             recorded = imported_mark(Path(row["path"]).parent) or {}
             staged.append(dict(row, scope=str(recorded.get("scope") or "global"), imported=True))
+    drafts = draft_staging_dir(keys)
+    if drafts is not None:
+        staged.extend(dict(row, scope="global") for row in _scan(drafts, ("*/SKILL.md",)))
     installed = [dict(row, scope="global") for row in _scan(plugins_root() / "plugins", ("*/skills/*/SKILL.md",))]
     # This chat's and this project's own skills: active ones are reported per scope, drafts join
     # the staged list carrying the scope they will be installed into.
@@ -1501,8 +1523,9 @@ _CHECKED_ELSEWHERE = frozenset({"native", "bundled", "registry"})
 def load_problem(skill: Any) -> str:
     """The safety-check refusal for a skill about to reach a turn, or "" when it may (audit M1).
 
-    Every way IN runs the check (``content_problem``); a skill an MCP server serves never comes in
-    that way, so it is checked here, on the text the turn would carry, cached by that text's digest.
+    Every way IN runs the check (``content_problem``); a skill an MCP server serves, or a file copied
+    by hand into a skill folder, never comes in that way, so it is checked here, on the text the turn
+    would carry, cached by that text's digest. A skill that fails is kept off, never fenced and used.
     VOOL's own library, the packs it ships, signed packages and Browse add-ons are checked before
     they are installed and bound to their digest, so they are never re-read here.
     """
@@ -1513,6 +1536,14 @@ def load_problem(skill: Any) -> str:
         plugin_id = str(getattr(skill, "plugin_id", "") or "").removeprefix("plugin:")
         if origin in _CHECKED_ELSEWHERE or plugin_id.startswith("discover-"):
             return ""
+        if plugin_id and plugin_id not in ("local-skills", "chat-skills", "project-skills"):
+            # A plugin pack admitted through the plugin lifecycle is bound to its verified digest
+            # (an edited pack stops loading), so it is not re-read here; a pack with no record
+            # got into the folders by hand and is checked like any hand-copied skill.
+            from core.plugin_lifecycle import record_for
+
+            if record_for(plugin_id) is not None:
+                return ""
         path = str(getattr(skill, "path", "") or "")
         text = ""
         if path and not path.startswith("skill://"):
@@ -1561,7 +1592,9 @@ def scoped_skills(keys: dict[str, str] | None) -> tuple[Any, ...]:
                 skill = _parse_cached(skill_md, f"{scope}-skills")
                 if skill is not None:
                     found.append(skill)
-    return tuple(found)
+    # A file copied by hand into a chat's or project's skills folder meets the safety check too
+    # (audit M1): one that fails is kept off.
+    return passing_load_check(found)
 
 
 _PARSE_CACHE: dict[tuple[str, float, str], Any] = {}

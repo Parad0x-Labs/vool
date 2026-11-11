@@ -190,13 +190,17 @@ def loaded_skills() -> tuple[Any, ...]:
                 with _lock:
                     _skill_cache[key] = skill
             skills.append(skill)
+    from core.skill_tools import passing_load_check
+
+    # A skill copied by hand into the skill folders never came in through an import or an install,
+    # so every skill whose text VOOL did not ship or verify by digest meets the same safety check
+    # here, before its text can reach a turn (audit M1). One that fails is kept off; "which skills
+    # do I have?" tells the person why.
+    skills = list(passing_load_check(skills))
     # MCP servers' valid skill:// skills are plain skills too (never typed contracts).
     with contextlib.suppress(Exception):
         from core.native_skill_library import mcp_lexical_skills
-        from core.skill_tools import passing_load_check
 
-        # An MCP server's skill never came in through an import or an install, so it meets the same
-        # safety check here, before its text can reach a turn (audit M1).
         skills.extend(passing_load_check(mcp_lexical_skills()))
     return tuple(skills)
 

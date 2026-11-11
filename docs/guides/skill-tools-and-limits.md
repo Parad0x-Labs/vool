@@ -38,6 +38,14 @@ from that record, not from the folder the skill sits in:
 | A pack VOOL ships, or one of VOOL's built-in skills | Only narrows. | Used. |
 | A skill an MCP server ships (`skill://`) | Only narrows. | Ignored: it is checked by the same rules and the same safety check as an import each time it loads, used only when the person's message picks it, and left out if it fails them. |
 
+A file copied by hand into VOOL's skill folders (or a chat's or project's) never went through an
+import, so it meets the same safety check each time it loads. One that fails is kept off, and
+`which skills do I have?` lists it as *kept off: This skill did not pass VOOL's safety check, so VOOL
+does not use it. ...*, naming the line and what to change.
+
+A draft made with `skill.create` in a chat stays in that chat's own drafts until it is turned on;
+another chat cannot turn it on.
+
 A built-in skill cannot be installed as a copy: `skill.install vool-feature-build` says it is
 already part of VOOL and is turned on or off in Skills.
 

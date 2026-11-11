@@ -185,7 +185,9 @@ def _run_in_profile(source: Path, skill: Any, picks: tuple[str, ...],
                 taken = f" (picked instead: {', '.join(chosen)})" if chosen else ""
                 print(f'FAIL {"pick":<8} "{text}" -> not picked: {_miss_reason(text, skill)}{taken}')
             elif not picked:
-                print(f'ok   {"not-pick":<8} "{text}"')
+                lone = _lone_name_word(text, skill)
+                note = f" ({lone})" if lone else ""
+                print(f'ok   {"not-pick":<8} "{text}"{note}')
             else:
                 failures["not-pick"] += 1
                 why = "; ".join(_pick_reasons(text, skill, slug))
@@ -278,6 +280,32 @@ def _fallback_reasons(ask: str, skill: Any, slug: str) -> list[str]:
     return reasons
 
 
+def _lone_name_word(ask: str, skill: Any) -> str:
+    """Why one word of a several-word name in the ask did not pick the skill, or "".
+
+    The picker does not take one word of a name made of several, alone or with one more shared
+    word, as an ask for the skill (core.plugin_skills._assess): "split this PDF" is not an ask to
+    divide the rent. Said in the author's words, so `try` names the real reason.
+    """
+    from core.plugin_skills import _contains_phrase, _content_stems
+
+    name_stems = list(dict.fromkeys(_content_stems(str(skill.name or ""))))
+    if len(name_stems) < 2:
+        return ""
+    ask_stems = _content_stems(ask)
+    if any(_contains_phrase(ask_stems, _content_stems(phrase)) for phrase in tuple(skill.triggers or ())):
+        return ""
+    in_ask = [stem for stem in name_stems if stem in set(ask_stems)]
+    if len(in_ask) != 1:
+        return ""
+    corpus = set(name_stems) | set(_content_stems(str(skill.description or "")))
+    if len({stem for stem in ask_stems if stem in corpus}) >= 3:
+        return ""
+    return ("one word from the skill's name " + _quoted(in_ask, _spoken_forms(ask))
+            + " alone does not pick it: the rest of the name, a trigger, or more words from the"
+            " description must be in the ask too")
+
+
 def _miss_reason(ask: str, skill: Any) -> str:
     """Why an ask the author meant for the skill did not pick it."""
 
@@ -296,6 +324,9 @@ def _miss_reason(ask: str, skill: Any) -> str:
     if not topic:
         return ("no trigger matched; shares only kind-of-help words " + _quoted(shared, forms)
                 + ", which never pick a skill alone")
+    lone = _lone_name_word(ask, skill)
+    if lone:
+        return "no trigger matched; " + lone
     if len(shared) == 1:
         return "no trigger matched; shares only " + _quoted(shared, forms)
     return ("no trigger matched; shares " + _quoted(shared, forms)
