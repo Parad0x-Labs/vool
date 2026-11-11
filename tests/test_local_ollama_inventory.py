@@ -28,3 +28,16 @@ def test_explicit_name_only_inventory_does_not_fabricate_measured_bytes() -> Non
         ("qwen2.5:7b", 0),
         ("vool-qwen3-30b-a3b:nothink", 0),
     ]
+
+
+def test_the_local_ollama_version_is_read_through_the_inventory_transport() -> None:
+    # The Settings suggestion asks the local Ollama its version (older than 0.40 cannot pull the
+    # current tags). It goes through the same reader as the model list, so no module grows a
+    # second way out; an unreadable answer is "" and never blocks.
+    from core.local_ollama_inventory import local_ollama_version
+
+    with mock.patch("core.local_ollama_inventory._ollama_json", return_value={"version": "0.40.3"}) as read:
+        assert local_ollama_version(base_url="http://127.0.0.1:11434") == "0.40.3"
+    assert read.call_args.kwargs["path"] == "/api/version"
+    with mock.patch("core.local_ollama_inventory._ollama_json", return_value=None):
+        assert local_ollama_version(base_url="http://127.0.0.1:11434") == ""
