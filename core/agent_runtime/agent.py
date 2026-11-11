@@ -2798,7 +2798,8 @@ class VoolAgent(
         conductor_result = None if browser_turn or parts_single_request else self._maybe_answer_conductor_turn(
             effective_input=parts_effective_input,
             raw_input=parts_raw_text,
-            plan_text=parts_plan_text,
+            # Named only when there is one: every other turn calls the conductor exactly as before.
+            **({"plan_text": parts_plan_text} if parts_plan_text else {}),
             session_id=session_id,
             source_context=runtime_source_context,
         )
