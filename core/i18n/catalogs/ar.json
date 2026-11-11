@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "من الكمبيوتر",
     "phone.ui.saving": "جارٍ الحفظ…",
     "phone.ui.saved_on_phone": "تم الحفظ على هذا الهاتف.",
-    "phone.ui.save_file_failed": "تعذّر حفظ هذا الملف. حاول مرة أخرى."
+    "phone.ui.save_file_failed": "تعذّر حفظ هذا الملف. حاول مرة أخرى.",
+    "phone.ui.connected_to_your_computer": "متصل بحاسوبك",
+    "phone.ui.can_t_reach_your_computer": "تعذّر الوصول إلى حاسوبك",
+    "phone.ui.connecting_to_your_computer": "جارٍ الاتصال بحاسوبك…",
+    "phone.ui.open_menu": "افتح القائمة",
+    "phone.ui.recent_chats": "المحادثات الأخيرة",
+    "phone.ui.add_to_this_message": "أضف إلى هذه الرسالة",
+    "phone.ui.sending_to_your_computer": "جارٍ الإرسال إلى حاسوبك…",
+    "phone.ui.your_computer_is_working_on_it": "حاسوبك يعمل على ذلك…",
+    "phone.ui.your_computer": "حاسوبك",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "تعذّر الوصول إلى حاسوبك. تأكد من أنه يعمل وأن VOOL مفتوح.",
+    "phone.ui.pairing_code_no_longer_works": "رمز الاقتران هذا لم يعد صالحًا. ابدأ اقترانًا جديدًا على الحاسوب.",
+    "phone.ui.phone_access_is_off_on_your_computer": "وصول الهاتف متوقف على حاسوبك. شغّله من الإعدادات هناك."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

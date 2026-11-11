@@ -9,6 +9,8 @@ export interface QueuedTurn {
   attachments: string[];
   state: "queued" | "blocked";
   reason?: string;
+  /** The computer's refusal code, so the screen can say why in plain words. */
+  code?: string;
 }
 export interface OutboxStore {
   load(): Promise<QueuedTurn[]>;
@@ -162,7 +164,7 @@ export class Outbox {
       if(this.stopped)throw new Error("Pair this phone again before saving another message.");
       const turns=await this.store.load();const turn=turns.find(value=>value.key===key);
       if(!turn || turn.state!=="blocked")return;
-      turn.state="queued";delete turn.reason;
+      turn.state="queued";delete turn.reason;delete turn.code;
       await this.store.save(turns);this.emit(turns);
     });
     await this.flush();
@@ -192,7 +194,7 @@ export class Outbox {
           await this.serialize(async () => {
             const turns = await this.store.load();
             const current = turns.find(item => item.key === turn.key);
-            if (current) {current.state = "blocked"; current.reason = error.message;}
+            if (current) {current.state = "blocked"; current.reason = error.message; current.code = error.code;}
             await this.store.save(turns); this.emit(turns);
           });
         }

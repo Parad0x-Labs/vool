@@ -11,6 +11,7 @@ import { canonicalBytes } from "./canonical.ts";
 import {connectionAddress} from './connection.ts';
 import { hmacSha256, randomBytes, toHex } from "./sha256.ts";
 import { keypairFromSeed, signRequestProof } from "./ed25519.ts";
+import { reportLink } from "./linkState.ts";
 import type {
   ApprovalRecord, ChatMessage, ChatSummary, CompanionResponse, DeviceInfo,
   NotificationEvent, PairingChallenge, PairingClaimResponse, PendingApproval,
@@ -104,12 +105,21 @@ export class MobileCompanionClient {
       signature,
       device_signature: deviceSignature,
     };
-    const response = await this.doFetch(this.creds.baseUrl.replace(/\/$/, "") + "/api/mobile/companion", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
-    });
+    let response;
+    try {
+      response = await this.doFetch(this.creds.baseUrl.replace(/\/$/, "") + "/api/mobile/companion", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        ...(action === "chats.send" ? { timeoutMs: CHAT_TURN_TIMEOUT_MS } : {}),
+      });
+    } catch (error) {
+      // No answer, or an answer that could not be verified as this computer's.
+      reportLink(false);
+      throw error;
+    }
+    // The sealed transport only resolves for a reply it authenticated.
+    reportLink(true);
     const parsed = (await response.json()) as CompanionResponse<T>;
     if (!parsed || parsed.ok !== true) {
       const err = parsed as { error?: string; code?: string };

@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Từ máy tính của bạn",
     "phone.ui.saving": "Đang lưu…",
     "phone.ui.saved_on_phone": "Đã lưu trên điện thoại này.",
-    "phone.ui.save_file_failed": "Không thể lưu tệp này. Hãy thử lại."
+    "phone.ui.save_file_failed": "Không thể lưu tệp này. Hãy thử lại.",
+    "phone.ui.connected_to_your_computer": "Đã kết nối với máy tính của bạn",
+    "phone.ui.can_t_reach_your_computer": "Không thể kết nối với máy tính của bạn",
+    "phone.ui.connecting_to_your_computer": "Đang kết nối với máy tính của bạn…",
+    "phone.ui.open_menu": "Mở menu",
+    "phone.ui.recent_chats": "Cuộc trò chuyện gần đây",
+    "phone.ui.add_to_this_message": "Thêm vào tin nhắn này",
+    "phone.ui.sending_to_your_computer": "Đang gửi đến máy tính của bạn…",
+    "phone.ui.your_computer_is_working_on_it": "Máy tính của bạn đang xử lý…",
+    "phone.ui.your_computer": "Máy tính của bạn",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Không thể kết nối với máy tính của bạn. Hãy kiểm tra máy đã bật và VOOL đang mở.",
+    "phone.ui.pairing_code_no_longer_works": "Mã ghép nối này không còn dùng được. Hãy bắt đầu ghép nối mới trên máy tính.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Quyền truy cập từ điện thoại đang tắt trên máy tính của bạn. Hãy bật trong Cài đặt trên máy tính."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

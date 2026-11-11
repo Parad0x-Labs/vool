@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
 
 import {errorText, permissionText, tr} from "../i18n/index.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
@@ -75,14 +75,14 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
 
   const connectionForm = <View style={styles.card}>
     <Text style={styles.label}>{tr("Phone connection address")}</Text>
-    <TextInput style={[styles.detail,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Phone connection address")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
+    <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Phone connection address")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
     <Pressable style={styles.proofButton} onPress={() => {void (async () => {
       try {await onConnection?.(connectionAddress(connection));}
       catch {setError(tr("Could not complete this. Check your computer."));}
     })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
     {/* The computer moved to a new address: its pairing QR carries the new one. Only a QR from the
         SAME computer (its pinned fingerprint) may change where this phone connects. */}
-    <Pressable style={[styles.proofButton, {marginTop: 8}]} onPress={() => {void (async () => {
+    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
       if (!cameraPermission?.granted && !(await requestCameraPermission()).granted) {
         setError(tr("Camera permission is needed to scan your computer’s pairing QR."));
         return;
@@ -109,7 +109,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
   </View>;
   if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
   if (!snapshot) {
-    return <View><ActivityIndicator style={styles.center} color="#7d8794" />{connectionForm}</View>;
+    return <View><ActivityIndicator style={styles.center} color="#868b90" />{connectionForm}</View>;
   }
 
   const cloudOn = snapshot.model.cloud_state === "ok";
@@ -117,7 +117,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
   return (
     <ScrollView>
       {connectionForm}
-      <Text style={styles.section}>{tr("Desktop")}</Text>
+      <Text style={styles.section}>{tr("Your computer")}</Text>
       <View style={styles.card}>
         <Text style={styles.label}>
           {snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")}
@@ -126,11 +126,11 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
           <View style={[styles.pill, cloudOn ? styles.pillGreen : styles.pillGrey]}>
             <Text style={styles.pillText}>{cloudOn ? tr("Cloud connected") : tr("Local")}</Text>
           </View>
-          <View style={[styles.pill, snapshot.relay.enabled ? styles.pillAmber : styles.pillGrey]}>
+          {snapshot.relay.enabled ? <View style={[styles.pill, styles.pillAmber]}>
             <Text style={styles.pillText}>{snapshot.relay.mode}</Text>
-          </View>
+          </View> : null}
         </View>
-        <Text style={styles.fingerprint}>{tr("Computer check code")}{snapshot.desktop.short_fingerprint}</Text>
+        <Text style={styles.fingerprint}>{tr("Computer check code")}: {snapshot.desktop.short_fingerprint}</Text>
         {snapshot.model.cloud_state && snapshot.model.cloud_state !== "ok" ? (
           <Text style={styles.detail}>{tr("Cloud untested")}</Text>
         ) : null}
@@ -153,8 +153,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
             </View>
             <Text style={styles.detail}>
               {proof.compact.actions} {tr("Actions")} · {proof.compact.sources} {tr("Sources")}</Text>
-            <Text style={styles.detail}>{tr("request")}{proof.request_id.slice(0, 18)}…</Text>
-          </View>
+                      </View>
         ) : (
           <Pressable style={styles.proofButton} onPress={() => void loadLatestProof()}>
             <Text style={styles.proofButtonText}>{tr("Refresh")}</Text>
@@ -169,13 +168,14 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
         {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
       </Text>)}
       <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
-      {[1,5,15].map(value=><Pressable key={value} style={styles.proofButton} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
-        <Text style={styles.proofButtonText}>{tr("Lock after {count} min",{count:value})}</Text>
-      </Pressable>)}
+      <View style={styles.segment}>{[1,5,15].map(value=><Pressable key={value} accessibilityLabel={tr("Lock after {count} min",{count:value})}
+        style={[styles.segmentItem, idleMinutes===value && styles.segmentOn]} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
+        <Text style={[styles.proofButtonText, idleMinutes===value && styles.segmentOnText]}>{value}</Text>
+      </Pressable>)}</View>
       <Text style={styles.section}>{tr("This device")}</Text>
       <View style={styles.card}>
         <Text style={styles.detail}>{client.deviceId}</Text>
-        <Text style={styles.detail}>{tr("Computer check code")}{client.desktopFingerprint.slice(0, 24)}…</Text>
+        <Text style={styles.detail}>{tr("Computer check code")}: {client.desktopFingerprint.slice(0, 24)}…</Text>
         <Pressable
           style={styles.unpairButton}
           onPress={() => {
@@ -230,24 +230,29 @@ export default function StatusScreen({ client, onRevoked, onConnection, idleMinu
 
 const styles = StyleSheet.create({
   center: { marginTop: 40 },
-  section: { color: "#7d8794", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2, marginVertical: 10 },
-  card: { backgroundColor: "#12161b", borderRadius: 10, padding: 14, marginBottom: 6 },
-  label: { color: "#e8ecf1", fontSize: 15, fontWeight: "600", marginBottom: 8 },
+  section: { color: "#868b90", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 22, marginBottom: 8 },
+  card: { backgroundColor: "#1f2224", borderRadius: 16, padding: 16, marginBottom: 6 },
+  label: { color: "#edece7", fontSize: 15, fontWeight: "600", marginBottom: 8 },
   row: { flexDirection: "row", gap: 8, marginBottom: 6 },
-  pill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  pillGreen: { backgroundColor: "#14532d" },
-  pillBlue: { backgroundColor: "#1e3a5f" },
-  pillAmber: { backgroundColor: "#713f12" },
-  pillGrey: { backgroundColor: "#1b2027" },
-  pillText: { color: "#d3d9e0", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  fingerprint: { color: "#8fa0b2", fontSize: 11, fontFamily: "menlo" },
-  detail: { color: "#aeb9c4", fontSize: 12, marginTop: 4 },
-  footnote: { color: "#5b6570", fontSize: 11, marginTop: 10, lineHeight: 16 },
-  proofButton: { backgroundColor: "#1b2027", borderRadius: 8, padding: 12, alignItems: "center" },
-  proofButtonText: { color: "#d3d9e0", fontWeight: "600" },
-  scanBox: { height: 320, marginTop: 12, borderRadius: 8, overflow: "hidden", backgroundColor: "#000" },
+  pill: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  pillGreen: { backgroundColor: "#22382b" },
+  pillBlue: { backgroundColor: "#26292c" },
+  pillAmber: { backgroundColor: "#3d3120" },
+  pillGrey: { backgroundColor: "#26292c" },
+  pillText: { color: "#edece7", fontSize: 12, fontWeight: "600" },
+  fingerprint: { color: "#868b90", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  detail: { color: "#bfc2c4", fontSize: 13, lineHeight: 19, marginTop: 4 },
+  footnote: { color: "#5d6166", fontSize: 11, marginTop: 10, lineHeight: 16 },
+  proofButton: { backgroundColor: "#26292c", borderRadius: 24, padding: 12, alignItems: "center", marginTop: 8 },
+  segment: { flexDirection: "row", backgroundColor: "#1f2224", borderRadius: 24, padding: 4, gap: 4 },
+  segmentItem: { flex: 1, borderRadius: 20, paddingVertical: 10, alignItems: "center" },
+  segmentOn: { backgroundColor: "#edece7" },
+  segmentOnText: { color: "#111314" },
+  proofButtonText: { color: "#edece7", fontWeight: "600" },
+  scanBox: { height: 320, marginTop: 12, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" },
   scanCancel: { position: "absolute", bottom: 12, alignSelf: "center", padding: 10 },
-  unpairButton: { backgroundColor: "#2a1416", borderRadius: 8, padding: 12, alignItems: "center", marginTop: 12, borderWidth: 1, borderColor: "#5b2027" },
-  unpairButtonText: { color: "#ff8a8a", fontWeight: "600" },
-  error: { color: "#ff6b6b", fontSize: 13, marginTop: 8 },
+  unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, padding: 13, alignItems: "center", marginTop: 12 },
+  unpairButtonText: { color: "#d86a56", fontWeight: "600" },
+  error: { color: "#d86a56", fontSize: 13, marginTop: 8 },
+  address: { color: "#edece7", fontSize: 14, backgroundColor: "#111314", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
 });

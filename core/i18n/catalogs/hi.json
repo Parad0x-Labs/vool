@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "आपके कंप्यूटर से",
     "phone.ui.saving": "सहेजा जा रहा है…",
     "phone.ui.saved_on_phone": "इस फ़ोन पर सहेजा गया।",
-    "phone.ui.save_file_failed": "यह फ़ाइल सहेजी नहीं जा सकी। फिर से कोशिश करें।"
+    "phone.ui.save_file_failed": "यह फ़ाइल सहेजी नहीं जा सकी। फिर से कोशिश करें।",
+    "phone.ui.connected_to_your_computer": "आपके कंप्यूटर से जुड़ा है",
+    "phone.ui.can_t_reach_your_computer": "आपके कंप्यूटर तक नहीं पहुँच पा रहे",
+    "phone.ui.connecting_to_your_computer": "आपके कंप्यूटर से जुड़ रहा है…",
+    "phone.ui.open_menu": "मेनू खोलें",
+    "phone.ui.recent_chats": "हाल की चैट",
+    "phone.ui.add_to_this_message": "इस संदेश में जोड़ें",
+    "phone.ui.sending_to_your_computer": "आपके कंप्यूटर को भेजा जा रहा है…",
+    "phone.ui.your_computer_is_working_on_it": "आपका कंप्यूटर इस पर काम कर रहा है…",
+    "phone.ui.your_computer": "आपका कंप्यूटर",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "आपके कंप्यूटर तक नहीं पहुँच पा रहे। जाँचें कि वह चालू है और VOOL खुला है।",
+    "phone.ui.pairing_code_no_longer_works": "यह पेयरिंग कोड अब काम नहीं करता। कंप्यूटर पर नई पेयरिंग शुरू करें।",
+    "phone.ui.phone_access_is_off_on_your_computer": "आपके कंप्यूटर पर फ़ोन की पहुँच बंद है। उसे वहाँ सेटिंग्स में चालू करें।"
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

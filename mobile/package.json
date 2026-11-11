@@ -17,6 +17,7 @@
     "test:i18n": "node --test tests/i18n.test.mjs tests/message-time.test.mjs"
   },
   "dependencies": {
+    "@expo/vector-icons": "~14.0.4",
     "expo": "~52.0.0",
     "expo-asset": "~11.0.0",
     "expo-av": "15.0.2",

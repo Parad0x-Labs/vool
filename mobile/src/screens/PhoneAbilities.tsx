@@ -1,5 +1,8 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, AppState, Pressable, Text, View} from 'react-native';
+import {Alert, AppState, Pressable, StyleSheet} from 'react-native';
+import Icon from '../ui/Icon.tsx';
+import Sheet from '../ui/Sheet.tsx';
+import {C} from '../ui/theme.ts';
 import {Audio} from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import {CompanionError} from '../protocol/client.ts';
@@ -10,7 +13,6 @@ import type {MobileCompanionClient} from '../protocol/client.ts';
 import {HoldRecording} from '../security/holdRecording.ts';
 import {tr} from '../i18n/index.ts';
 
-const ink = {color:'#d3d9e0', padding:10};
 function consent(title: string, message: string): Promise<boolean> {
   return new Promise(resolve => Alert.alert(title,message,[{text:tr("Cancel"),style:'cancel',onPress:()=>resolve(false)},
     {text:tr("Continue"),onPress:()=>resolve(true)}],{cancelable:true,onDismiss:()=>resolve(false)}));
@@ -19,10 +21,16 @@ async function removeCapture(uri: string | null) {
   if (uri && FileSystem.cacheDirectory && uri.startsWith(FileSystem.cacheDirectory)) await FileSystem.deleteAsync(uri,{idempotent:true});
 }
 
-export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onAttachment,onDraft}: {
+/** The message box's "+" choices (file, photo, camera, location) and its microphone button.
+ *  It draws the microphone in place and the choices as a sheet; words for the person go to onNote. */
+export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onAttachment,onDraft,sheetOpen,onSheetClose,onNote}: {
   client:MobileCompanionClient; chatId:string|null; attachmentCount:number; onChat:(id:string)=>void; onAttachment:(id:string)=>void; onDraft:(text:string)=>void;
+  sheetOpen:boolean; onSheetClose:()=>void; onNote:(text:string)=>void;
 }) {
-  const [recording,setRecording]=useState(false), [busy,setBusy]=useState(false), [note,setNote]=useState(''), [voiceReady,setVoiceReady]=useState(false);
+  const [recording,setRecording]=useState(false), [busy,setBusy]=useState(false), [voiceReady,setVoiceReady]=useState(false);
+  const noteRef=useRef(onNote);noteRef.current=onNote;
+  const hinting=useRef(false);
+  const setNote=(text:string)=>{if(text)hinting.current=false;noteRef.current(text);};
   const armed=useRef(false);
   const current = useRef({chatId,onChat,onAttachment,onDraft});current.current={chatId,onChat,onAttachment,onDraft};
   const alive=useRef(true), epoch=useRef(0);
@@ -104,11 +112,34 @@ export default function PhoneAbilities({client,chatId,attachmentCount,onChat,onA
       if(valid())current.current.onDraft(result.text);
     }catch(error){if(valid())fail(error);}finally{if(alive.current)setBusy(false);}
   }
-  return <View><View style={{flexDirection:'row',flexWrap:'wrap'}}>
-    <Pressable disabled={busy || recording || attachmentCount>=4} onPress={()=>void file()}><Text style={ink}>{tr("Choose a file")}</Text></Pressable>
-    <Pressable disabled={busy || recording || attachmentCount>=4} onPress={()=>void photo(false)}><Text style={ink}>{tr("Choose a photo")}</Text></Pressable>
-    <Pressable disabled={busy || recording || attachmentCount>=4} onPress={()=>void photo(true)}><Text style={ink}>{tr("Take a photo")}</Text></Pressable>
-    <Pressable disabled={busy} onPress={()=>void location()}><Text style={ink}>{tr("Share location")}</Text></Pressable>
-    {!voiceReady && !recording ? <Pressable disabled={busy} onPress={()=>void prepareVoice()}><Text style={ink}>{tr("Voice note")}</Text></Pressable> : <Pressable disabled={busy} onPressIn={()=>{setNote('');void hold.begin();}} onPressOut={()=>{setBusy(true);void hold.end().finally(()=>{if(alive.current){setVoiceReady(false);setBusy(false);}});}}><Text style={ink}>{recording?tr("Let go and it becomes text"):tr("Hold to talk")}</Text></Pressable>}
-  </View>{note?<Text style={ink}>{note}</Text>:null}</View>;
+  // The hint for the armed microphone shares the note line; an error shown there is never wiped by it.
+  useEffect(()=>{
+    if(recording||voiceReady){hinting.current=true;noteRef.current(recording?tr("Let go and it becomes text"):tr("Hold to talk"));}
+    else if(hinting.current){hinting.current=false;noteRef.current('');}
+  },[recording,voiceReady]);
+  const full=attachmentCount>=4;
+  return <>
+    <Sheet open={sheetOpen} onClose={onSheetClose} actions={[
+      {key:'file',label:tr("Choose a file"),icon:'paperclip',disabled:busy||recording||full,onPress:()=>void file()},
+      {key:'photo',label:tr("Choose a photo"),icon:'image-outline',disabled:busy||recording||full,onPress:()=>void photo(false)},
+      {key:'camera',label:tr("Take a photo"),icon:'camera-outline',disabled:busy||recording||full,onPress:()=>void photo(true)},
+      {key:'location',label:tr("Share location"),icon:'map-marker-outline',disabled:busy,onPress:()=>void location()},
+    ]} />
+    {!voiceReady && !recording
+      ? <Pressable disabled={busy} onPress={()=>void prepareVoice()} style={styles.mic} hitSlop={6}
+          accessibilityRole="button" accessibilityLabel={tr("Voice note")}>
+          <Icon name="microphone-outline" size={22} color={C.soft} />
+        </Pressable>
+      : <Pressable disabled={busy} style={[styles.mic,recording?styles.live:styles.ready]} hitSlop={6}
+          accessibilityRole="button" accessibilityLabel={recording?tr("Let go and it becomes text"):tr("Hold to talk")}
+          onPressIn={()=>{setNote('');void hold.begin();}}
+          onPressOut={()=>{setBusy(true);void hold.end().finally(()=>{if(alive.current){setVoiceReady(false);setBusy(false);}});}}>
+          <Icon name="microphone" size={22} color={recording?'#fff':C.sendInk} />
+        </Pressable>}
+  </>;
 }
+const styles=StyleSheet.create({
+  mic:{width:38,height:42,borderRadius:21,alignItems:'center',justifyContent:'center'},
+  ready:{backgroundColor:C.send,width:42},
+  live:{backgroundColor:C.bad,width:42},
+});

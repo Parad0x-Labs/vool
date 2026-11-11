@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Bilgisayarınızdan",
     "phone.ui.saving": "Kaydediliyor…",
     "phone.ui.saved_on_phone": "Bu telefona kaydedildi.",
-    "phone.ui.save_file_failed": "Bu dosya kaydedilemedi. Yeniden deneyin."
+    "phone.ui.save_file_failed": "Bu dosya kaydedilemedi. Yeniden deneyin.",
+    "phone.ui.connected_to_your_computer": "Bilgisayarınıza bağlı",
+    "phone.ui.can_t_reach_your_computer": "Bilgisayarınıza ulaşılamıyor",
+    "phone.ui.connecting_to_your_computer": "Bilgisayarınıza bağlanılıyor…",
+    "phone.ui.open_menu": "Menüyü aç",
+    "phone.ui.recent_chats": "Son sohbetler",
+    "phone.ui.add_to_this_message": "Bu mesaja ekle",
+    "phone.ui.sending_to_your_computer": "Bilgisayarınıza gönderiliyor…",
+    "phone.ui.your_computer_is_working_on_it": "Bilgisayarınız üzerinde çalışıyor…",
+    "phone.ui.your_computer": "Bilgisayarınız",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Bilgisayarınıza ulaşılamıyor. Açık olduğunu ve VOOL’un çalıştığını kontrol edin.",
+    "phone.ui.pairing_code_no_longer_works": "Bu eşleştirme kodu artık geçerli değil. Bilgisayarda yeni bir eşleştirme başlatın.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Telefon erişimi bilgisayarınızda kapalı. Oradaki Ayarlar’dan açın."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1,8 +1,9 @@
 import {errorText, rightToLeft, tr} from "../i18n/index.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Linking } from "react-native";
+import Icon from "../ui/Icon.tsx";
 
 import {
   fetchPairingChallenge,
@@ -157,12 +158,13 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <Text style={styles.hint}>
         {tr("On your computer, open Settings, choose Phone and chat apps, then Pair a phone. Scan its code or enter the details below.")}</Text>
       <Pressable style={styles.scanButton} onPress={() => void startScanning()}>
+        <Icon name="qrcode-scan" size={20} color="#111314" />
         <Text style={styles.scanButtonText}>{tr("Scan pairing QR")}</Text>
       </Pressable>
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Computer address")}
-        placeholderTextColor="#5b6570"
+        placeholderTextColor="#5d6166"
         autoCapitalize="none"
         autoCorrect={false}
         value={desktopUrl}
@@ -171,7 +173,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Pairing ID")}
-        placeholderTextColor="#5b6570"
+        placeholderTextColor="#5d6166"
         autoCapitalize="none"
         value={pairingId}
         onChangeText={setPairingId}
@@ -179,7 +181,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input, styles.codeInput]}
         placeholder={tr("8-character code")}
-        placeholderTextColor="#5b6570"
+        placeholderTextColor="#5d6166"
         autoCapitalize="characters"
         value={code}
         onChangeText={setCode}
@@ -187,7 +189,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Computer check code")}
-        placeholderTextColor="#5b6570"
+        placeholderTextColor="#5d6166"
         autoCapitalize="none"
         autoCorrect={false}
         value={fingerprint}
@@ -196,13 +198,13 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <TextInput
         style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
         placeholder={tr("Device name")}
-        placeholderTextColor="#5b6570"
+        placeholderTextColor="#5d6166"
         value={deviceName}
         onChangeText={setDeviceName}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={pair} disabled={busy}>
-        {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.buttonText}>{tr("Pair")}</Text>}
+        {busy ? <ActivityIndicator color="#edece7" /> : <Text style={styles.buttonText}>{tr("Pair")}</Text>}
       </Pressable>
       <Text style={styles.footnote}>
         {tr("The connection is encrypted. Your wallet and model credentials stay on your computer.")}</Text>
@@ -211,20 +213,20 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0b0d10" },
-  content: { padding: 20, paddingTop: 60 },
-  title: { color: "#e8ecf1", fontSize: 24, fontWeight: "700", marginBottom: 8 },
-  hint: { color: "#7d8794", fontSize: 13, lineHeight: 18, marginBottom: 16 },
-  scanButton: { backgroundColor: "#14532d", borderRadius: 8, padding: 14, alignItems: "center", marginBottom: 16 },
-  scanButtonText: { color: "#bbf7d0", fontWeight: "700" },
-  input: { backgroundColor: "#12161b", color: "#e8ecf1", borderRadius: 8, padding: 14, marginBottom: 12, fontSize: 15 },
-  codeInput: { letterSpacing: 3, fontFamily: "menlo" },
-  error: { color: "#ff6b6b", marginBottom: 12, fontSize: 13 },
-  button: { backgroundColor: "#e8ecf1", borderRadius: 8, padding: 16, alignItems: "center" },
-  buttonText: { color: "#0b0d10", fontWeight: "700", fontSize: 16 },
-  footnote: { color: "#5b6570", fontSize: 11, lineHeight: 16, marginTop: 16 },
+  root: { flex: 1, backgroundColor: "#111314" },
+  content: { padding: 20, paddingTop: 72, paddingBottom: 40 },
+  title: { color: "#edece7", fontSize: 30, fontWeight: "600", marginBottom: 10 },
+  hint: { color: "#bfc2c4", fontSize: 15, lineHeight: 22, marginBottom: 22 },
+  scanButton: { backgroundColor: "#edece7", borderRadius: 28, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 24 },
+  scanButtonText: { color: "#111314", fontWeight: "700", fontSize: 16 },
+  input: { backgroundColor: "#1f2224", color: "#edece7", borderRadius: 16, padding: 14, marginBottom: 12, fontSize: 15 },
+  codeInput: { letterSpacing: 3, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  error: { color: "#d86a56", marginBottom: 12, fontSize: 13 },
+  button: { backgroundColor: "#26292c", borderRadius: 28, padding: 16, alignItems: "center" },
+  buttonText: { color: "#edece7", fontWeight: "600", fontSize: 16 },
+  footnote: { color: "#868b90", fontSize: 12, lineHeight: 18, marginTop: 18, textAlign: "center" },
   scanRoot: { flex: 1, backgroundColor: "#000" },
-  scanFrame: { position: "absolute", left: 40, right: 40, top: 140, bottom: 260, borderWidth: 2, borderColor: "#e8ecf1", borderRadius: 12 },
+  scanFrame: { position: "absolute", left: 40, right: 40, top: 140, bottom: 260, borderWidth: 2, borderColor: "#edece7", borderRadius: 24 },
   scanCancel: { position: "absolute", bottom: 60, alignSelf: "center", padding: 12 },
-  scanCancelText: { color: "#e8ecf1", fontSize: 16 },
+  scanCancelText: { color: "#edece7", fontSize: 16 },
 });

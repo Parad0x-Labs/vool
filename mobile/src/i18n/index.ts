@@ -27,6 +27,12 @@ export function errorText(value: unknown): string {
   if (error?.code === "device_revoked") return tr("This phone is unpaired. Pair it again on your computer.");
   if (error?.code === "sealed_response_invalid" || error?.code === "sealed_authentication_failed") return tr("The computer’s identity could not be verified. Check it before pairing again.");
   if (error?.code === "phone_right_off_or_expired" || error?.code === "phone_history_required") return tr("Change this phone’s permissions on your computer.");
+  if (error?.code === "pairing_expired" || error?.code === "pairing_code_expired") return tr("This pairing QR has expired — start a new pairing on the computer.");
+  if (error?.code === "pairing_used" || error?.code === "pairing_unknown" || error?.code === "pairing_locked" || error?.code === "pairing_unavailable") return tr("This pairing code no longer works. Start a new pairing on the computer.");
+  if (error?.code === "phone_access_off") return tr("Phone access is off on your computer. Switch it on in Settings there.");
+  // No answer at all (computer off, asleep, or on another network): there is no refusal code.
+  const name = String((value as {name?: string} | null)?.name || "");
+  if (!error?.code && (name === "AbortError" || name === "TypeError" || /network request failed|failed to fetch|aborted/i.test(message))) return tr("Can't reach your computer. Check that it is on and VOOL is open.");
   // The screen stays plain; the cause goes to the developer log (Expo terminal) for diagnosis.
   console.warn("VOOL phone error", error?.code || "", message);
   return tr("Could not complete this. Check your computer.");

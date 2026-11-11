@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "コンピューターから",
     "phone.ui.saving": "保存中…",
     "phone.ui.saved_on_phone": "このスマートフォンに保存しました。",
-    "phone.ui.save_file_failed": "このファイルを保存できませんでした。もう一度お試しください。"
+    "phone.ui.save_file_failed": "このファイルを保存できませんでした。もう一度お試しください。",
+    "phone.ui.connected_to_your_computer": "コンピューターに接続済み",
+    "phone.ui.can_t_reach_your_computer": "コンピューターに接続できません",
+    "phone.ui.connecting_to_your_computer": "コンピューターに接続中…",
+    "phone.ui.open_menu": "メニューを開く",
+    "phone.ui.recent_chats": "最近のチャット",
+    "phone.ui.add_to_this_message": "このメッセージに追加",
+    "phone.ui.sending_to_your_computer": "コンピューターに送信中…",
+    "phone.ui.your_computer_is_working_on_it": "コンピューターが処理しています…",
+    "phone.ui.your_computer": "お使いのコンピューター",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "コンピューターに接続できません。電源が入っていて、VOOL が開いているか確認してください。",
+    "phone.ui.pairing_code_no_longer_works": "このペアリングコードは使えなくなりました。コンピューターで新しいペアリングを開始してください。",
+    "phone.ui.phone_access_is_off_on_your_computer": "コンピューターでスマートフォンからのアクセスがオフになっています。コンピューターの設定でオンにしてください。"
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

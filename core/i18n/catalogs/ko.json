@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "내 컴퓨터에서",
     "phone.ui.saving": "저장 중…",
     "phone.ui.saved_on_phone": "이 휴대폰에 저장했습니다.",
-    "phone.ui.save_file_failed": "이 파일을 저장할 수 없습니다. 다시 시도하세요."
+    "phone.ui.save_file_failed": "이 파일을 저장할 수 없습니다. 다시 시도하세요.",
+    "phone.ui.connected_to_your_computer": "컴퓨터에 연결됨",
+    "phone.ui.can_t_reach_your_computer": "컴퓨터에 연결할 수 없습니다",
+    "phone.ui.connecting_to_your_computer": "컴퓨터에 연결하는 중…",
+    "phone.ui.open_menu": "메뉴 열기",
+    "phone.ui.recent_chats": "최근 채팅",
+    "phone.ui.add_to_this_message": "이 메시지에 추가",
+    "phone.ui.sending_to_your_computer": "컴퓨터로 보내는 중…",
+    "phone.ui.your_computer_is_working_on_it": "컴퓨터가 처리하는 중…",
+    "phone.ui.your_computer": "내 컴퓨터",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "컴퓨터에 연결할 수 없습니다. 컴퓨터가 켜져 있고 VOOL이 열려 있는지 확인하세요.",
+    "phone.ui.pairing_code_no_longer_works": "이 페어링 코드는 더 이상 사용할 수 없습니다. 컴퓨터에서 새 페어링을 시작하세요.",
+    "phone.ui.phone_access_is_off_on_your_computer": "컴퓨터에서 휴대폰 접근이 꺼져 있습니다. 컴퓨터의 설정에서 켜세요."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

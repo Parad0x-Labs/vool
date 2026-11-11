@@ -37,13 +37,13 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
     catch (_) {setNotice(tr("Could not complete this. Check your computer."));}
     finally {setBusy(false);}
   };
-  if (!preferences) return <View><ActivityIndicator color="#7d8794" />{notice ? <Text style={styles.note}>{notice}</Text> : null}</View>;
+  if (!preferences) return <View><ActivityIndicator color="#868b90" />{notice ? <Text style={styles.note}>{notice}</Text> : null}</View>;
   const row = (label: string, value: boolean, changed: (value: boolean) => void, fixed = false) => (
     <View style={styles.row}><Text style={styles.text}>{tr(label)}</Text><Switch accessibilityLabel={tr(label)}
-      value={value} disabled={busy || fixed} onValueChange={changed} /></View>
+      value={value} disabled={busy || fixed} onValueChange={changed}
+      trackColor={{false: "#2a2d31", true: "#3f6b52"}} thumbColor={value ? "#6fbf8f" : "#868b90"} /></View>
   );
   return <ScrollView contentContainerStyle={styles.root}>
-    <Text style={styles.title}>{tr("Notifications")}</Text>
     {row(tr("Phone notifications"), osEnabled, value => {void (async () => {
       try {
         if (value) {if (!await enableOs?.()) setNotice(tr("Phone notifications are blocked or unavailable. Check your phone’s settings."));}
@@ -55,7 +55,7 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
     <View style={styles.presets}>{[["everything", "Everything"], ["important", "Important only"], ["off", "Off"]].map(([value, label]) =>
       <Pressable key={value} disabled={busy} onPress={() => void save({preset: value})}
         style={[styles.button, preferences.preset === value && styles.chosen]}>
-        <Text style={styles.text}>{tr(label)}</Text>
+        <Text style={[styles.text, preferences.preset === value && styles.chosenText]}>{tr(label)}</Text>
       </Pressable>)}</View>
     {Object.entries(preferences.types).map(([kind, value]) => <View key={kind} style={styles.group}>
       {row(LABELS[kind] || kind, value.enabled,
@@ -90,10 +90,10 @@ export default function NotificationsScreen({client, onOpen, osEnabled=false, en
 }
 
 const styles = StyleSheet.create({
-  root: {paddingBottom: 32}, title: {color: "#e8ecf1", fontSize: 20, fontWeight: "600", marginVertical: 14},
+  root: {paddingBottom: 32}, title: {color: "#868b90", fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase", marginTop: 24, marginBottom: 6},
   row: {flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingVertical: 6},
-  text: {color: "#e8ecf1", fontSize: 14, flexShrink: 1}, note: {color: "#aeb9c4", fontSize: 12, lineHeight: 18, marginVertical: 6},
-  group: {paddingVertical: 12, borderBottomColor: "#28313b", borderBottomWidth: 1}, presets: {flexDirection: "row", gap: 8},
-  button: {padding: 10, borderRadius: 8, backgroundColor: "#28313b"}, input: {color: "#e8ecf1", backgroundColor: "#12161b", padding: 10, minWidth: 65},
-  chosen: {borderWidth: 1, borderColor: "#aeb9c4"},
+  text: {color: "#edece7", fontSize: 15, flexShrink: 1}, note: {color: "#bfc2c4", fontSize: 12, lineHeight: 18, marginVertical: 6},
+  group: {paddingVertical: 10, borderBottomColor: "#2a2d31", borderBottomWidth: StyleSheet.hairlineWidth}, presets: {flexDirection: "row", gap: 8, marginVertical: 8},
+  button: {paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22, backgroundColor: "#1f2224"}, input: {color: "#edece7", backgroundColor: "#1f2224", padding: 10, minWidth: 70, borderRadius: 12, textAlign: "center", fontSize: 15},
+  chosen: {backgroundColor: "#edece7"}, chosenText: {color: "#111314", fontWeight: "600"},
 });

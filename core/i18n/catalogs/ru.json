@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "С вашего компьютера",
     "phone.ui.saving": "Сохранение…",
     "phone.ui.saved_on_phone": "Сохранено на этом телефоне.",
-    "phone.ui.save_file_failed": "Не удалось сохранить этот файл. Попробуйте ещё раз."
+    "phone.ui.save_file_failed": "Не удалось сохранить этот файл. Попробуйте ещё раз.",
+    "phone.ui.connected_to_your_computer": "Подключено к вашему компьютеру",
+    "phone.ui.can_t_reach_your_computer": "Не удаётся связаться с вашим компьютером",
+    "phone.ui.connecting_to_your_computer": "Подключение к вашему компьютеру…",
+    "phone.ui.open_menu": "Открыть меню",
+    "phone.ui.recent_chats": "Недавние чаты",
+    "phone.ui.add_to_this_message": "Добавить к этому сообщению",
+    "phone.ui.sending_to_your_computer": "Отправка на ваш компьютер…",
+    "phone.ui.your_computer_is_working_on_it": "Ваш компьютер работает над этим…",
+    "phone.ui.your_computer": "Ваш компьютер",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Не удаётся связаться с вашим компьютером. Проверьте, что он включён и VOOL открыт.",
+    "phone.ui.pairing_code_no_longer_works": "Этот код сопряжения больше не действует. Начните новое сопряжение на компьютере.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Доступ с телефона выключен на вашем компьютере. Включите его там в настройках."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

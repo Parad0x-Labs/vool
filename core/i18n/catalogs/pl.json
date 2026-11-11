@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Z twojego komputera",
     "phone.ui.saving": "Zapisywanie…",
     "phone.ui.saved_on_phone": "Zapisano na tym telefonie.",
-    "phone.ui.save_file_failed": "Nie udało się zapisać tego pliku. Spróbuj ponownie."
+    "phone.ui.save_file_failed": "Nie udało się zapisać tego pliku. Spróbuj ponownie.",
+    "phone.ui.connected_to_your_computer": "Połączono z komputerem",
+    "phone.ui.can_t_reach_your_computer": "Nie można połączyć się z komputerem",
+    "phone.ui.connecting_to_your_computer": "Łączenie z komputerem…",
+    "phone.ui.open_menu": "Otwórz menu",
+    "phone.ui.recent_chats": "Ostatnie czaty",
+    "phone.ui.add_to_this_message": "Dodaj do tej wiadomości",
+    "phone.ui.sending_to_your_computer": "Wysyłanie do komputera…",
+    "phone.ui.your_computer_is_working_on_it": "Komputer nad tym pracuje…",
+    "phone.ui.your_computer": "Twój komputer",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Nie można połączyć się z komputerem. Sprawdź, czy jest włączony i czy VOOL jest otwarty.",
+    "phone.ui.pairing_code_no_longer_works": "Ten kod parowania już nie działa. Rozpocznij nowe parowanie na komputerze.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Dostęp z telefonu jest wyłączony na komputerze. Włącz go tam w Ustawieniach."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

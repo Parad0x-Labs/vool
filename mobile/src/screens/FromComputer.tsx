@@ -88,13 +88,13 @@ export default function FromComputer({client, refreshKey}: {client: MobileCompan
 }
 
 const styles = StyleSheet.create({
-  box: {backgroundColor: '#12161b', borderRadius: 8, padding: 10, marginBottom: 10},
-  title: {color: '#aeb9c4', fontSize: 12, marginBottom: 6},
+  box: {backgroundColor: '#1f2224', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8, marginBottom: 4},
+  title: {color: '#bfc2c4', fontSize: 12, marginBottom: 6},
   row: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingVertical: 6, gap: 8},
   meta: {flex: 1},
-  name: {color: '#e8ecf1', fontSize: 14},
-  detail: {color: '#8fa0b2', fontSize: 12, marginTop: 2},
-  save: {backgroundColor: '#e8ecf1', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12},
-  saveText: {color: '#0b0d10', fontWeight: '700'},
-  preview: {width: '100%', height: 180, borderRadius: 8, marginTop: 6},
+  name: {color: '#edece7', fontSize: 14},
+  detail: {color: '#868b90', fontSize: 12, marginTop: 2},
+  save: {backgroundColor: '#edece7', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 16},
+  saveText: {color: '#111314', fontWeight: '700'},
+  preview: {width: '100%', height: 180, borderRadius: 16, marginTop: 6},
 });

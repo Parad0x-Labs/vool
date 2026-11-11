@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Desde tu ordenador",
     "phone.ui.saving": "Guardando…",
     "phone.ui.saved_on_phone": "Guardado en este teléfono.",
-    "phone.ui.save_file_failed": "No se pudo guardar este archivo. Inténtalo de nuevo."
+    "phone.ui.save_file_failed": "No se pudo guardar este archivo. Inténtalo de nuevo.",
+    "phone.ui.connected_to_your_computer": "Conectado a tu ordenador",
+    "phone.ui.can_t_reach_your_computer": "No se puede conectar con tu ordenador",
+    "phone.ui.connecting_to_your_computer": "Conectando con tu ordenador…",
+    "phone.ui.open_menu": "Abrir menú",
+    "phone.ui.recent_chats": "Chats recientes",
+    "phone.ui.add_to_this_message": "Añadir a este mensaje",
+    "phone.ui.sending_to_your_computer": "Enviando a tu ordenador…",
+    "phone.ui.your_computer_is_working_on_it": "Tu ordenador está trabajando en ello…",
+    "phone.ui.your_computer": "Tu ordenador",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "No se puede conectar con tu ordenador. Comprueba que esté encendido y que VOOL esté abierto.",
+    "phone.ui.pairing_code_no_longer_works": "Este código de emparejamiento ya no funciona. Inicia un nuevo emparejamiento en el ordenador.",
+    "phone.ui.phone_access_is_off_on_your_computer": "El acceso desde el teléfono está desactivado en tu ordenador. Actívalo allí en Ajustes."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

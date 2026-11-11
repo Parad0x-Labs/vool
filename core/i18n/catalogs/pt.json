@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Do seu computador",
     "phone.ui.saving": "Salvando…",
     "phone.ui.saved_on_phone": "Salvo neste telefone.",
-    "phone.ui.save_file_failed": "Não foi possível salvar este arquivo. Tente novamente."
+    "phone.ui.save_file_failed": "Não foi possível salvar este arquivo. Tente novamente.",
+    "phone.ui.connected_to_your_computer": "Ligado ao seu computador",
+    "phone.ui.can_t_reach_your_computer": "Não é possível contactar o seu computador",
+    "phone.ui.connecting_to_your_computer": "A ligar ao seu computador…",
+    "phone.ui.open_menu": "Abrir o menu",
+    "phone.ui.recent_chats": "Conversas recentes",
+    "phone.ui.add_to_this_message": "Adicionar a esta mensagem",
+    "phone.ui.sending_to_your_computer": "A enviar para o seu computador…",
+    "phone.ui.your_computer_is_working_on_it": "O seu computador está a tratar disso…",
+    "phone.ui.your_computer": "O seu computador",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Não é possível contactar o seu computador. Verifique se está ligado e se o VOOL está aberto.",
+    "phone.ui.pairing_code_no_longer_works": "Este código de emparelhamento já não funciona. Inicie um novo emparelhamento no computador.",
+    "phone.ui.phone_access_is_off_on_your_computer": "O acesso pelo telemóvel está desligado no seu computador. Ligue-o nas Definições do computador."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4,6 +4,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import PhoneAbilities from "./PhoneAbilities.tsx";
 import FromComputer from "./FromComputer.tsx";
+import Header from "../ui/Header.tsx";
+import Icon from "../ui/Icon.tsx";
+import Gears from "../ui/Gears.tsx";
+import {C, R} from "../ui/theme.ts";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { ChatMessage, ChatSummary } from "../protocol/models.ts";
@@ -13,11 +17,17 @@ import { randomBytes, toHex } from "../protocol/sha256.ts";
 interface Props {
   client: MobileCompanionClient;
   onRevoked: () => void | Promise<void>;
-  initialChatId?: string | null;
+  /** A chat picked outside this screen (side menu, an alert). `seq` changes on every pick. */
+  pick?: {id: string | null; seq: number} | null;
+  onMenu: () => void;
+  onLink: () => void;
+  menuDot: boolean;
+  /** The recent chats, for the side menu. */
+  onChats: (chats: ChatSummary[]) => void;
 }
 
-/** View chats, send messages, attach a photo or file. */
-export default function ChatsScreen({ client, onRevoked, initialChatId }: Props) {
+/** The chat list, and one chat: read it, write to the computer, attach a photo or file. */
+export default function ChatsScreen({ client, onRevoked, pick, onMenu, onLink, menuDot, onChats }: Props) {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -27,8 +37,12 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   const [queued, setQueued] = useState<QueuedTurn[]>([]);
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
+  const [abilityNote, setAbilityNote] = useState("");
+  const [sheet, setSheet] = useState(false);
   const [progress, setProgress] = useState("");
   const [progressAt, setProgressAt] = useState("");
+  // The computer has this message and is working on it (its progress feed answered for this turn).
+  const [received, setReceived] = useState<string | null>(null);
   // The message whose time is showing (tap or hold it); a second tap or four seconds hides it.
   const [timeShown, setTimeShown] = useState<number | null>(null);
   const [proof, setProof] = useState("");
@@ -36,6 +50,9 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   const hadHistory = useRef(false);
   const activeRef = useRef(activeChat);
   activeRef.current = activeChat;
+  const scroll = useRef<ScrollView>(null);
+  const chatsRef = useRef(onChats);
+  chatsRef.current = onChats;
 
   const guard = useCallback(
     (exc: unknown) => {
@@ -52,7 +69,9 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
 
   const refreshChats = useCallback(async () => {
     try {
-      setChats(await client.listChats(search));
+      const listed = await client.listChats(search);
+      setChats(listed);
+      if (!search) chatsRef.current(listed);
       hadHistory.current = true;
       setNotice("");
     } catch (exc) {
@@ -91,12 +110,14 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   }, [outbox]);
 
   useEffect(() => {
-    if (!busy) {setProgress(""); setProgressAt(""); return;}
+    if (!busy) {setProgress(""); setProgressAt(""); setReceived(null); return;}
     let after = 0;
     const timer = setInterval(() => {
-      if (!outbox.activeKey) return;
-      void client.turnProgress(outbox.activeKey, after).then(value => {
+      const key = outbox.activeKey;
+      if (!key) return;
+      void client.turnProgress(key, after).then(value => {
         after = value.next_after;
+        setReceived(key);
         const last = value.events[value.events.length - 1];
         if (last?.message) {setProgress(last.message); setProgressAt(typeof last.created_at === "string" ? last.created_at : "");}
       }).catch(() => {});
@@ -117,7 +138,7 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
   const openChat = useCallback(
     async (chatId: string) => {
       setActiveChat(chatId); activeRef.current=chatId;
-      setMessages([]); setProof(""); setTimeShown(null);
+      setMessages([]); setProof(""); setTimeShown(null); setAbilityNote("");
       try {
         const history=await client.chatHistory(chatId);
         if (activeRef.current === chatId) setMessages(history);
@@ -129,7 +150,19 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
     [client, guard],
   );
 
-  useEffect(() => {if (initialChatId) void openChat(initialChatId);}, [initialChatId, openChat]);
+  const newChat = useCallback(() => {
+    const id = "mob-" + toHex(randomBytes(10));
+    setActiveChat(id); activeRef.current = id;
+    setMessages([]); setProof(""); setTimeShown(null); setAbilityNote("");
+  }, []);
+
+  const pickSeq = pick?.seq;
+  useEffect(() => {
+    if (!pick) return;
+    if (pick.id) void openChat(pick.id); else newChat();
+    // One run per pick: `seq` is its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickSeq]);
 
   const send = useCallback(async () => {
     const text = draft.trim();
@@ -149,98 +182,141 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
     }
   }, [activeChat, attachmentIds, draft, guard, outbox]);
 
-  if (chats === null && !notice) {
-    return <ActivityIndicator style={styles.center} color="#7d8794" />;
-  }
-
   if (!activeChat) {
     return (
-      <View>
-        <TextInput style={styles.draftInput} placeholder={tr("Search recent chats")} placeholderTextColor="#5b6570"
-          value={search} onChangeText={setSearch} />
-        {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
-        {queued.length ? <Text style={styles.pendingAttachments}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
-        <FromComputer client={client} refreshKey={filesKey} />
-        <Pressable
-          style={styles.newChat}
-          onPress={() => {
-            setActiveChat("mob-" + toHex(randomBytes(10)));
-            setMessages([]);
-          }}
-        >
+      <View style={styles.screen}>
+        <Header title="VOOL" big lead="menu" onLead={onMenu} onLink={onLink} dot={menuDot} />
+        <ScrollView style={styles.fill} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.search}>
+            <Icon name="magnify" size={20} color={C.mute} />
+            <TextInput style={styles.searchInput} placeholder={tr("Search recent chats")} placeholderTextColor={C.faint}
+              value={search} onChangeText={setSearch} />
+          </View>
+          {notice ? <Text style={styles.note}>{notice}</Text> : null}
+          {queued.length ? <Text style={styles.note}>{tr("Saved messages: {count}", {count: queued.length})}</Text> : null}
+          <FromComputer client={client} refreshKey={filesKey} />
+          {chats === null && !notice ? <ActivityIndicator style={styles.center} color={C.mute} /> : null}
+          {(chats || []).map((chat) => (
+            <Pressable key={chat.chat_id} style={styles.chatRow} onPress={() => void openChat(chat.chat_id)} accessibilityRole="button">
+              <Icon name="message-outline" size={20} color={C.mute} />
+              <View style={styles.fill}>
+                <Text style={styles.chatTitle} numberOfLines={1}>
+                  {chat.title || chat.chat_id}
+                </Text>
+                <Text style={styles.chatMeta}>
+                  {tr("Replies: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Pressable style={styles.newChat} onPress={newChat} accessibilityRole="button">
+          <Icon name="plus" size={20} color={C.sendInk} />
           <Text style={styles.newChatText}>{tr("New chat")}</Text>
         </Pressable>
-        {(chats || []).map((chat) => (
-          <Pressable key={chat.chat_id} style={styles.chatRow} onPress={() => void openChat(chat.chat_id)}>
-            <Text style={styles.chatTitle} numberOfLines={1}>
-              {chat.title || chat.chat_id}
-            </Text>
-            <Text style={styles.chatMeta}>
-              {tr("Replies: {count}", {count: chat.turn_count ?? 0})}{chatUpdatedText(chat.updated_at) ? " · " + chatUpdatedText(chat.updated_at) : ""}
-            </Text>
-          </Pressable>
-        ))}
       </View>
     );
   }
 
+  const title = (chats || []).find(chat => chat.chat_id === activeChat)?.title || tr("New chat");
+  const waiting = queued.filter(turn => turn.chatId === activeChat);
+  const sending = busy ? outbox.activeKey : null;
+  const canSend = !busy && (draft.trim().length > 0 || attachmentIds.length > 0);
+
   return (
-    <View style={styles.thread}>
-      <Pressable onPress={() => setActiveChat(null)}>
-        <Text style={styles.back}>{tr("Chats")}</Text>
-      </Pressable>
-      {notice ? <Text style={styles.pendingAttachments}>{notice}</Text> : null}
-      <FromComputer client={client} refreshKey={filesKey} />
-      <ScrollView style={styles.messages}>
+    <View style={styles.screen}>
+      <Header title={title} lead="back" onLead={() => setActiveChat(null)} onLink={onLink} />
+      {notice ? <Text style={[styles.note, styles.inset]}>{notice}</Text> : null}
+      <ScrollView ref={scroll} style={styles.fill} contentContainerStyle={styles.threadContent}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({animated: true})} keyboardShouldPersistTaps="handled">
+        <FromComputer client={client} refreshKey={filesKey} />
         {messages.map((m, i) => (
-          <Pressable key={i} style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.agentBubble]}
+          <Pressable key={i} style={m.role === "user" ? styles.userBubble : styles.agentBlock}
             onPress={() => setTimeShown(shown => shown === i ? null : i)}
             onLongPress={() => setTimeShown(i)}>
             <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
             {m.attachments?.map((a) => (
-              <Text key={a.id} style={styles.attachmentTag}>
-                {a.name}
-              </Text>
+              <View key={a.id} style={styles.attachmentTag}>
+                <Icon name="paperclip" size={14} color={C.mute} />
+                <Text style={styles.attachmentText}>{a.name}</Text>
+              </View>
             ))}
             {m.answer_state ? <Text style={styles.answerState}>{m.answer_state}</Text> : null}
+            {m.role === "user" ? <View style={styles.tick}><Icon name="check-all" size={15} color={C.mute} /></View> : null}
             {timeShown === i && messageTimeText(m.ts) ? <Text style={styles.messageTime}>{messageTimeText(m.ts)}</Text> : null}
           </Pressable>
         ))}
-      </ScrollView>
-      {queued.filter(turn => turn.chatId === activeChat).map(turn => (
-        <View key={turn.key}>
-          <Text style={styles.pendingAttachments}>
-            {turn.state === "blocked" ? errorText({message:turn.reason}) : tr("Saved on this phone. Waiting for your computer.")}
+        {waiting.map(turn => {
+          const blocked = turn.state === "blocked";
+          const isSending = sending === turn.key;
+          const got = isSending && received === turn.key;
+          return (
+            <View key={turn.key}>
+              <View style={[styles.userBubble, blocked && styles.blockedBubble]}>
+                <Text style={styles.userText}>{turn.text}</Text>
+                <View style={styles.tick}>
+                  <Icon name={blocked ? "alert-circle-outline" : got ? "check-all" : isSending ? "check" : "clock-outline"}
+                    size={15} color={blocked ? C.bad : got ? C.ok : C.mute} />
+                </View>
+              </View>
+              {blocked ? <View style={styles.blocked}>
+                <Text style={styles.blockedText}>{errorText({code: turn.code, message: turn.reason})}</Text>
+                <View style={styles.row}>
+                  <Pressable style={styles.chip} onPress={()=>{void outbox.retryBlocked(turn.key).catch(error=>setNotice(errorText(error)));}}>
+                    <Icon name="refresh" size={16} color={C.ink} /><Text style={styles.chipText}>{tr("Retry")}</Text>
+                  </Pressable>
+                  <Pressable style={styles.chip} onPress={() => void outbox.removeBlocked(turn.key)}>
+                    <Icon name="trash-can-outline" size={16} color={C.ink} /><Text style={styles.chipText}>{tr("Discard")}</Text>
+                  </Pressable>
+                </View>
+              </View> : !isSending ? <Text style={styles.waitText}>{tr("Saved on this phone. Waiting for your computer.")}</Text> : null}
+            </View>
+          );
+        })}
+        {busy ? <View style={styles.working}>
+          <Gears size={20} color={received ? C.ok : C.mute} />
+          <Text style={styles.workingText} numberOfLines={2}>
+            {progress ? (stepTimeText(progressAt) ? stepTimeText(progressAt) + " · " : "") + progress
+              : received ? tr("Your computer is working on it…") : tr("Sending to your computer…")}
           </Text>
-          {turn.state === "blocked" ? <View>
-            <Pressable onPress={()=>{void outbox.retryBlocked(turn.key).catch(error=>setNotice(errorText(error)));}}><Text style={styles.back}>{tr("Retry")}</Text></Pressable>
-            <Pressable onPress={() => void outbox.removeBlocked(turn.key)}><Text style={styles.back}>{tr("Discard")}</Text></Pressable>
-          </View> : null}
-        </View>
-      ))}
-      {progress ? <Text style={styles.pendingAttachments}>{stepTimeText(progressAt) ? stepTimeText(progressAt) + " · " : ""}{progress}</Text> : null}
-      {proof ? <Text style={styles.pendingAttachments}>{proof === "VERIFIED" ? tr("Checked") : tr("Saved to history")}</Text> : null}
-      {busy ? <Pressable onPress={() => {
-        if (outbox.activeKey) void client.cancelTurn(outbox.activeKey).then(value =>
-          setNotice(value.state === "cancelled" ? tr("Stop requested.") : tr("This reply has stopped."))
-        ).catch(() => setNotice(tr("Could not complete this. Check your computer.")));
-      }}><Text style={styles.back}>{tr("Stop")}</Text></Pressable> : null}
+          <Pressable style={styles.chip} onPress={() => {
+            if (outbox.activeKey) void client.cancelTurn(outbox.activeKey).then(value =>
+              setNotice(value.state === "cancelled" ? tr("Stop requested.") : tr("This reply has stopped."))
+            ).catch(() => setNotice(tr("Could not complete this. Check your computer.")));
+          }}>
+            <Icon name="stop" size={16} color={C.ink} /><Text style={styles.chipText}>{tr("Stop")}</Text>
+          </Pressable>
+        </View> : null}
+        {proof && !busy ? <View style={styles.proof}>
+          <Icon name="shield-check-outline" size={15} color={proof === "VERIFIED" ? C.ok : C.mute} />
+          <Text style={styles.proofText}>{proof === "VERIFIED" ? tr("Checked") : tr("Saved to history")}</Text>
+        </View> : null}
+      </ScrollView>
+      {abilityNote ? <Text style={[styles.note, styles.inset]}>{abilityNote}</Text> : null}
       {attachmentIds.length > 0 ? (
-        <Text style={styles.pendingAttachments}>{tr("Attachments ready: {count}", {count: attachmentIds.length})}</Text>
+        <View style={[styles.proof, styles.inset]}>
+          <Icon name="paperclip" size={15} color={C.soft} />
+          <Text style={styles.proofText}>{tr("Attachments ready: {count}", {count: attachmentIds.length})}</Text>
+        </View>
       ) : null}
-      <PhoneAbilities client={client} chatId={activeChat} attachmentCount={attachmentIds.length} onChat={setActiveChat}
-        onAttachment={id=>setAttachmentIds(previous=>[...previous,id])} onDraft={text=>setDraft(previous=>previous ? previous+"\n"+text : text)} />
       <View style={styles.composer}>
+        <Pressable style={styles.plus} onPress={() => setSheet(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={tr("Add to this message")}>
+          <Icon name="plus" size={24} color={C.ink} />
+        </Pressable>
         <TextInput
           style={styles.draftInput}
           placeholder={tr("Message your computer…")}
-          placeholderTextColor="#5b6570"
+          placeholderTextColor={C.faint}
           value={draft}
           onChangeText={setDraft}
           multiline
         />
-        <Pressable style={styles.sendButton} onPress={() => void send()} disabled={busy}>
-          {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.sendButtonText}>{tr("Send")}</Text>}
+        <PhoneAbilities client={client} chatId={activeChat} attachmentCount={attachmentIds.length} onChat={setActiveChat}
+          sheetOpen={sheet} onSheetClose={() => setSheet(false)} onNote={setAbilityNote}
+          onAttachment={id=>setAttachmentIds(previous=>[...previous,id])} onDraft={text=>setDraft(previous=>previous ? previous+"\n"+text : text)} />
+        <Pressable style={[styles.sendButton, !canSend && styles.sendOff]} onPress={() => void send()} disabled={!canSend}
+          accessibilityRole="button" accessibilityLabel={tr("Send")}>
+          {busy ? <ActivityIndicator color={C.sendInk} /> : <Icon name="arrow-up" size={24} color={C.sendInk} />}
         </Pressable>
       </View>
     </View>
@@ -248,28 +324,43 @@ export default function ChatsScreen({ client, onRevoked, initialChatId }: Props)
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  fill: { flex: 1 },
   center: { marginTop: 40 },
-  newChat: { backgroundColor: "#12161b", borderRadius: 8, padding: 14, marginBottom: 12, alignItems: "center" },
-  newChatText: { color: "#e8ecf1", fontWeight: "600" },
-  chatRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#161b21" },
-  chatTitle: { color: "#e8ecf1", fontSize: 15 },
-  chatMeta: { color: "#5b6570", fontSize: 12, marginTop: 3 },
-  thread: { flex: 1 },
-  back: { color: "#7d8794", marginBottom: 10 },
-  messages: { flex: 1 },
-  bubble: { borderRadius: 10, padding: 12, marginBottom: 10, maxWidth: "90%" },
-  userBubble: { backgroundColor: "#1d4ed8", alignSelf: "flex-end" },
-  agentBubble: { backgroundColor: "#12161b", alignSelf: "flex-start" },
-  userText: { color: "#f4f6f9" },
-  agentText: { color: "#d3d9e0" },
-  attachmentTag: { color: "#aeb9c4", fontSize: 12, marginTop: 6 },
-  messageTime: { color: "#aeb9c4", fontSize: 11, marginTop: 6 },
-  answerState: { color: "#8fa0b2", fontSize: 10, marginTop: 6, textTransform: "uppercase" },
-  pendingAttachments: { color: "#8fa0b2", fontSize: 12, paddingVertical: 6 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  attachButton: { backgroundColor: "#12161b", borderRadius: 8, padding: 12 },
-  attachButtonText: { fontSize: 16 },
-  draftInput: { flex: 1, backgroundColor: "#12161b", color: "#e8ecf1", borderRadius: 8, padding: 12, maxHeight: 120 },
-  sendButton: { backgroundColor: "#e8ecf1", borderRadius: 8, padding: 12 },
-  sendButtonText: { color: "#0b0d10", fontWeight: "700" },
+  inset: { paddingHorizontal: 18 },
+  row: { flexDirection: "row", gap: 8 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 110 },
+  search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.raised, borderRadius: R.pill, paddingHorizontal: 16, height: 48, marginTop: 4, marginBottom: 10 },
+  searchInput: { flex: 1, color: C.ink, fontSize: 16, padding: 0 },
+  note: { color: C.soft, fontSize: 13, lineHeight: 19, paddingVertical: 8 },
+  chatRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, paddingHorizontal: 4 },
+  chatTitle: { color: C.ink, fontSize: 17 },
+  chatMeta: { color: C.mute, fontSize: 13, marginTop: 3 },
+  newChat: { position: "absolute", right: 18, bottom: 22, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 54, elevation: 6 },
+  newChatText: { color: C.sendInk, fontSize: 16, fontWeight: "600" },
+  threadContent: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
+  userBubble: { alignSelf: "flex-end", maxWidth: "86%", backgroundColor: C.pill, borderRadius: R.bubble, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, marginTop: 14 },
+  blockedBubble: { borderWidth: 1, borderColor: C.bad },
+  agentBlock: { alignSelf: "stretch", marginTop: 14 },
+  userText: { color: C.ink, fontSize: 17, lineHeight: 24 },
+  agentText: { color: C.ink, fontSize: 17, lineHeight: 26 },
+  tick: { alignSelf: "flex-end", marginTop: -1, marginRight: -4 },
+  attachmentTag: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  attachmentText: { color: C.soft, fontSize: 13 },
+  messageTime: { color: C.mute, fontSize: 12, marginTop: 6 },
+  answerState: { color: C.mute, fontSize: 11, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  waitText: { color: C.mute, fontSize: 12, textAlign: "right", marginTop: 4 },
+  blocked: { alignItems: "flex-end", gap: 8, marginTop: 6 },
+  blockedText: { color: C.bad, fontSize: 13, textAlign: "right" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.pill, borderRadius: R.pill, paddingHorizontal: 14, height: 36 },
+  chipText: { color: C.ink, fontSize: 14 },
+  working: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 18 },
+  workingText: { flex: 1, color: C.soft, fontSize: 14 },
+  proof: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  proofText: { color: C.mute, fontSize: 12 },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, backgroundColor: C.raised, borderRadius: R.pill, borderWidth: 1, borderColor: C.line, marginHorizontal: 12, marginBottom: 12, marginTop: 6, padding: 7 },
+  plus: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.pill, alignItems: "center", justifyContent: "center" },
+  draftInput: { flex: 1, color: C.ink, fontSize: 16, lineHeight: 22, maxHeight: 132, minHeight: 42, paddingHorizontal: 4, paddingTop: 10, paddingBottom: 10, textAlignVertical: "center" },
+  sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.send, alignItems: "center", justifyContent: "center" },
+  sendOff: { opacity: 0.35 },
 });

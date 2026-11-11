@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Von deinem Computer",
     "phone.ui.saving": "Wird gespeichert…",
     "phone.ui.saved_on_phone": "Auf diesem Telefon gespeichert.",
-    "phone.ui.save_file_failed": "Diese Datei konnte nicht gespeichert werden. Versuche es erneut."
+    "phone.ui.save_file_failed": "Diese Datei konnte nicht gespeichert werden. Versuche es erneut.",
+    "phone.ui.connected_to_your_computer": "Mit Ihrem Computer verbunden",
+    "phone.ui.can_t_reach_your_computer": "Ihr Computer ist nicht erreichbar",
+    "phone.ui.connecting_to_your_computer": "Verbindung zu Ihrem Computer wird hergestellt…",
+    "phone.ui.open_menu": "Menü öffnen",
+    "phone.ui.recent_chats": "Letzte Chats",
+    "phone.ui.add_to_this_message": "Zu dieser Nachricht hinzufügen",
+    "phone.ui.sending_to_your_computer": "Wird an Ihren Computer gesendet…",
+    "phone.ui.your_computer_is_working_on_it": "Ihr Computer arbeitet daran…",
+    "phone.ui.your_computer": "Ihr Computer",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Ihr Computer ist nicht erreichbar. Prüfen Sie, ob er eingeschaltet und VOOL geöffnet ist.",
+    "phone.ui.pairing_code_no_longer_works": "Dieser Kopplungscode funktioniert nicht mehr. Starten Sie auf dem Computer eine neue Kopplung.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Der Telefonzugriff ist auf Ihrem Computer ausgeschaltet. Schalten Sie ihn dort in den Einstellungen ein."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

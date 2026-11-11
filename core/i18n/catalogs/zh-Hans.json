@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "来自你的电脑",
     "phone.ui.saving": "正在保存…",
     "phone.ui.saved_on_phone": "已保存到这部手机。",
-    "phone.ui.save_file_failed": "无法保存此文件。请重试。"
+    "phone.ui.save_file_failed": "无法保存此文件。请重试。",
+    "phone.ui.connected_to_your_computer": "已连接到你的电脑",
+    "phone.ui.can_t_reach_your_computer": "无法连接到你的电脑",
+    "phone.ui.connecting_to_your_computer": "正在连接你的电脑…",
+    "phone.ui.open_menu": "打开菜单",
+    "phone.ui.recent_chats": "最近的对话",
+    "phone.ui.add_to_this_message": "添加到这条消息",
+    "phone.ui.sending_to_your_computer": "正在发送到你的电脑…",
+    "phone.ui.your_computer_is_working_on_it": "你的电脑正在处理…",
+    "phone.ui.your_computer": "你的电脑",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "无法连接到你的电脑。请确认电脑已开机并且 VOOL 已打开。",
+    "phone.ui.pairing_code_no_longer_works": "此配对码已失效。请在电脑上重新开始配对。",
+    "phone.ui.phone_access_is_off_on_your_computer": "你的电脑上已关闭手机访问。请在电脑的设置中开启。"
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

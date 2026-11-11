@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "מהמחשב שלך",
     "phone.ui.saving": "שומר…",
     "phone.ui.saved_on_phone": "נשמר בטלפון הזה.",
-    "phone.ui.save_file_failed": "לא ניתן לשמור את הקובץ. נסה שוב."
+    "phone.ui.save_file_failed": "לא ניתן לשמור את הקובץ. נסה שוב.",
+    "phone.ui.connected_to_your_computer": "מחובר למחשב שלך",
+    "phone.ui.can_t_reach_your_computer": "לא ניתן להגיע למחשב שלך",
+    "phone.ui.connecting_to_your_computer": "מתחבר למחשב שלך…",
+    "phone.ui.open_menu": "פתיחת התפריט",
+    "phone.ui.recent_chats": "צ׳אטים אחרונים",
+    "phone.ui.add_to_this_message": "הוספה להודעה הזו",
+    "phone.ui.sending_to_your_computer": "שולח למחשב שלך…",
+    "phone.ui.your_computer_is_working_on_it": "המחשב שלך עובד על זה…",
+    "phone.ui.your_computer": "המחשב שלך",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "לא ניתן להגיע למחשב שלך. כדאי לבדוק שהוא דולק וש־VOOL פתוח.",
+    "phone.ui.pairing_code_no_longer_works": "קוד הצימוד הזה כבר לא פעיל. יש להתחיל צימוד חדש במחשב.",
+    "phone.ui.phone_access_is_off_on_your_computer": "הגישה מהטלפון כבויה במחשב שלך. אפשר להפעיל אותה בהגדרות שם."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Depuis votre ordinateur",
     "phone.ui.saving": "Enregistrement…",
     "phone.ui.saved_on_phone": "Enregistré sur ce téléphone.",
-    "phone.ui.save_file_failed": "Impossible d’enregistrer ce fichier. Réessayez."
+    "phone.ui.save_file_failed": "Impossible d’enregistrer ce fichier. Réessayez.",
+    "phone.ui.connected_to_your_computer": "Connecté à votre ordinateur",
+    "phone.ui.can_t_reach_your_computer": "Impossible de joindre votre ordinateur",
+    "phone.ui.connecting_to_your_computer": "Connexion à votre ordinateur…",
+    "phone.ui.open_menu": "Ouvrir le menu",
+    "phone.ui.recent_chats": "Discussions récentes",
+    "phone.ui.add_to_this_message": "Ajouter à ce message",
+    "phone.ui.sending_to_your_computer": "Envoi à votre ordinateur…",
+    "phone.ui.your_computer_is_working_on_it": "Votre ordinateur y travaille…",
+    "phone.ui.your_computer": "Votre ordinateur",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Impossible de joindre votre ordinateur. Vérifiez qu’il est allumé et que VOOL est ouvert.",
+    "phone.ui.pairing_code_no_longer_works": "Ce code d’association ne fonctionne plus. Lancez une nouvelle association sur l’ordinateur.",
+    "phone.ui.phone_access_is_off_on_your_computer": "L’accès depuis le téléphone est désactivé sur votre ordinateur. Activez-le dans ses Réglages."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

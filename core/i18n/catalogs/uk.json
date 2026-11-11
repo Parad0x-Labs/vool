@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "З вашого комп’ютера",
     "phone.ui.saving": "Збереження…",
     "phone.ui.saved_on_phone": "Збережено на цьому телефоні.",
-    "phone.ui.save_file_failed": "Не вдалося зберегти цей файл. Спробуйте ще раз."
+    "phone.ui.save_file_failed": "Не вдалося зберегти цей файл. Спробуйте ще раз.",
+    "phone.ui.connected_to_your_computer": "Підключено до вашого комп’ютера",
+    "phone.ui.can_t_reach_your_computer": "Не вдається зв’язатися з вашим комп’ютером",
+    "phone.ui.connecting_to_your_computer": "Підключення до вашого комп’ютера…",
+    "phone.ui.open_menu": "Відкрити меню",
+    "phone.ui.recent_chats": "Нещодавні чати",
+    "phone.ui.add_to_this_message": "Додати до цього повідомлення",
+    "phone.ui.sending_to_your_computer": "Надсилання на ваш комп’ютер…",
+    "phone.ui.your_computer_is_working_on_it": "Ваш комп’ютер працює над цим…",
+    "phone.ui.your_computer": "Ваш комп’ютер",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Не вдається зв’язатися з вашим комп’ютером. Перевірте, що його ввімкнено і VOOL відкрито.",
+    "phone.ui.pairing_code_no_longer_works": "Цей код сполучення більше не діє. Почніть нове сполучення на комп’ютері.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Доступ із телефона вимкнено на вашому комп’ютері. Увімкніть його там у налаштуваннях."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

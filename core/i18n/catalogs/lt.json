@@ -3113,9 +3113,21 @@
     "phone.ui.from_your_computer": "Iš jūsų kompiuterio",
     "phone.ui.saving": "Išsaugoma…",
     "phone.ui.saved_on_phone": "Išsaugota šiame telefone.",
-    "phone.ui.save_file_failed": "Nepavyko išsaugoti šio failo. Bandykite dar kartą."
+    "phone.ui.save_file_failed": "Nepavyko išsaugoti šio failo. Bandykite dar kartą.",
+    "phone.ui.connected_to_your_computer": "Prisijungta prie jūsų kompiuterio",
+    "phone.ui.can_t_reach_your_computer": "Nepavyksta pasiekti jūsų kompiuterio",
+    "phone.ui.connecting_to_your_computer": "Jungiamasi prie jūsų kompiuterio…",
+    "phone.ui.open_menu": "Atidaryti meniu",
+    "phone.ui.recent_chats": "Naujausi pokalbiai",
+    "phone.ui.add_to_this_message": "Pridėti prie šios žinutės",
+    "phone.ui.sending_to_your_computer": "Siunčiama į jūsų kompiuterį…",
+    "phone.ui.your_computer_is_working_on_it": "Jūsų kompiuteris dirba…",
+    "phone.ui.your_computer": "Jūsų kompiuteris",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Nepavyksta pasiekti jūsų kompiuterio. Patikrinkite, ar jis įjungtas ir ar VOOL atidarytas.",
+    "phone.ui.pairing_code_no_longer_works": "Šis susiejimo kodas nebeveikia. Pradėkite naują susiejimą kompiuteryje.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Telefono prieiga jūsų kompiuteryje išjungta. Įjunkite ją kompiuterio nustatymuose."
   },
-  "source_catalog_sha256": "13efc68e1946bf7841f6e02903c7fdfeaff1093dbccd7bfc45f0c4c564128a6d",
+  "source_catalog_sha256": "272d8b69e9d8994631410907b693cd7c7c0af72ebd79e2686f8ddcca62a786ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3113,7 +3113,19 @@
     "phone.ui.from_your_computer": "From your computer",
     "phone.ui.saving": "Saving…",
     "phone.ui.saved_on_phone": "Saved on this phone.",
-    "phone.ui.save_file_failed": "Could not save this file. Try again."
+    "phone.ui.save_file_failed": "Could not save this file. Try again.",
+    "phone.ui.connected_to_your_computer": "Connected to your computer",
+    "phone.ui.can_t_reach_your_computer": "Can't reach your computer",
+    "phone.ui.connecting_to_your_computer": "Connecting to your computer…",
+    "phone.ui.open_menu": "Open menu",
+    "phone.ui.recent_chats": "Recent chats",
+    "phone.ui.add_to_this_message": "Add to this message",
+    "phone.ui.sending_to_your_computer": "Sending to your computer…",
+    "phone.ui.your_computer_is_working_on_it": "Your computer is working on it…",
+    "phone.ui.your_computer": "Your computer",
+    "phone.ui.can_t_reach_your_computer_check_on_and_open": "Can't reach your computer. Check that it is on and VOOL is open.",
+    "phone.ui.pairing_code_no_longer_works": "This pairing code no longer works. Start a new pairing on the computer.",
+    "phone.ui.phone_access_is_off_on_your_computer": "Phone access is off on your computer. Switch it on in Settings there."
   },
   "html_keys": [
     "bypass.modal_limits",
