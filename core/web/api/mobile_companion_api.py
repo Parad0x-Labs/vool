@@ -2110,7 +2110,17 @@ def handle_mobile_companion_post(
             except WalletFault as exc:
                 service.store.append_receipt("payments.freeze_change_refused",
                                              detail={"operation": body["operation"], "reason": exc.code})
-                return _err(403, exc.code, exc.user_message)
+                # Wording only: the wallet's decision above is untouched. Its bare code
+                # ("wallet_approval_rejected") was what the person read on the page.
+                said = exc.user_message or (
+                    "Payments could not be frozen. Try again."
+                    if body["operation"] == "freeze"
+                    else "Payments stay frozen. That wallet PIN or password was not accepted."
+                    if str(body.get("wallet_id") or "")
+                    else "Payments stay frozen. Unfreezing needs your wallet PIN or password, "
+                    "and no wallet is set up on this computer yet."
+                )
+                return _err(403, exc.code, said)
             service.store.append_receipt("payments.freeze_changed", detail={"frozen": limits.is_frozen(), "via": "computer",
                 **({"legacy_mirror": "not_updated"} if body["operation"] == "freeze" and not mirrored else {})})
             return _json(200, {"ok": True, "frozen": limits.is_frozen()})
