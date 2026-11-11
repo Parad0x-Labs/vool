@@ -111,7 +111,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "./plugins/withoutGoogleReporting.cjs"
     ]
   }
 }
