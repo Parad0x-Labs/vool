@@ -121,6 +121,12 @@ def _apply_name(proposal: ProfileProposal, *, principal: str, session_id: str, t
             session_id=session_id, turn_id=turn_id, origin="explicit", confidence=1.0, actor="chat",
             reason=f"stated: {proposal.clause[:120]}", replace=True,
         )
+        if change.kind in {"saved", "updated"} and scope != "chat":
+            # The name they just gave is the name in this chat too: an earlier this-chat-only
+            # nickname must not keep outranking it here.
+            for item in profile.list_items(principal, session_id=session_id):
+                if item.category == "preferred_name" and item.scope == "chat":
+                    profile.forget_item(item.item_id, actor="chat", reason="superseded by a stated name")
         if change.kind == "saved":
             # As the whole reply this passes the same gate every reply does, and that gate reads
             # "I'll call ..." as a promise of work not done; the line under an answer is not a reply.
@@ -167,8 +173,13 @@ def _reject_name(proposal: ProfileProposal, *, principal: str, session_id: str) 
     old = current.value_text
     last: profile.ProfileChange | None = None
     for item in profile.list_items(principal, session_id=session_id):
-        if item.category == "preferred_name":
-            last = profile.forget_item(item.item_id, actor="chat", reason="forget: not my name")
+        if item.category != "preferred_name":
+            continue
+        # A nickname used in this chat only is dropped alone; the name that stands everywhere else
+        # was not what they objected to.
+        if current.scope == "chat" and item.item_id != current.item_id:
+            continue
+        last = profile.forget_item(item.item_id, actor="chat", reason="forget: not my name")
     return profile.ProfileChange(
         "forgotten", f"Sorry about that. I won't call you {old} any more.",
         item=last.item if last else None, previous=last.previous if last else None,
@@ -305,7 +316,7 @@ def observe_profile_turn(
         _hydrate()
     if unannounced is not None:
         _observation(source_context)["saved"].append({
-            "report": f"I'll call you {unannounced.value_text}. I noticed the name on your email.",
+            "report": f"I'll call you {unannounced.value_text}.{_where_noticed(unannounced)}",
             "category": "preferred_name", "item_id": unannounced.item_id,
         })
     if principal and not private and not any(p.category == "preferred_name" for p in proposals):
@@ -420,6 +431,19 @@ def _unannounced_name(principal: str, session_id: str, project_id: str) -> profi
     if item is None or item.origin != "inferred" or item.scope == "chat" or item.last_used_at:
         return None
     return item
+
+
+def _where_noticed(item: profile.ProfileItem) -> str:
+    try:
+        rows = profile.history_for_item(item.item_id)
+        reason = str(rows[0].get("reason") or "") if rows else ""
+    except Exception:
+        reason = ""
+    if "own mail" in reason:
+        return " I noticed the name on your email."
+    if "pasted" in reason:
+        return " I noticed the name in what you pasted."
+    return ""
 
 
 def _learn_name_from_pasted(raw_user_input: str, *, principal: str, session_id: str, turn_id: str) -> profile.ProfileItem | None:

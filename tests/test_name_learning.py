@@ -167,6 +167,61 @@ def test_an_introduction_never_replaces_a_name_the_operator_stated(profile_env):
     assert [i["value"] for i in _items(agent)] == ["Marta"]
 
 
+def test_a_this_chat_nickname_is_dropped_alone_and_a_stated_name_outranks_it(profile_env):
+    agent = make_agent()
+    chat(agent, "my name is Marta", "n-a")
+    chat(agent, "hi, I'm Kofi", "n-b")
+    turn = chat(agent, "I'm not Kofi", "n-b")
+    assert turn["text"] == "Sorry about that. I won't call you Kofi any more."
+    assert "Marta" in _name(agent, "n-b") and [i["value"] for i in _items(agent)] == ["Marta"]
+    chat(agent, "hi, I'm Kofi", "n-c")
+    chat(agent, "call me Ines", "n-c")
+    assert "Ines" in _name(agent, "n-c") and "Ines" in _name(agent, "n-d")
+
+
+def test_a_private_chat_teaches_no_name(profile_env, monkeypatch):
+    from core.private_chat import PRIVATE_TURN_KEY
+    from core.request_trust import OWNER_LOCAL_KEY
+
+    monkeypatch.setattr(name_learning, "account_given_name", lambda: "Dana")
+    agent = make_agent()
+    ctx = {OWNER_LOCAL_KEY: True, PRIVATE_TURN_KEY: True, "runtime_session_id": "n-private"}
+    for text in ("hey I'm Noor", "my name is Noor", _LETTER.format(to="Dana", sender="Piotr")):
+        run_once_in_thread(agent, text, session_id="n-private", source_context=dict(ctx))
+    assert _items(agent) == [] and "Noor" not in _name(agent, "n-b") and "Dana" not in _name(agent, "n-b")
+    from core.operator_profile_turn import learn_name_from_mail
+
+    store_email_credential("work")
+    assert learn_name_from_mail([_mail(to="Dana Whitfield <work@example.invalid>")], source_context=dict(ctx)) is None
+
+
+def test_saying_your_name_again_after_deleting_the_chat_it_was_said_in_keeps_it(profile_env):
+    """Measured on the chat page 2026-11-11: say your name, delete that chat, say it again. The
+    acknowledgement repeated the erased reply byte for byte, so the new turn was born under the
+    old reply's erasure and the name VOOL had just acknowledged was gone at the first read."""
+    from tests.operator_profile_rig import canonical_session
+
+    agent = make_agent()
+    for said_as in ("hey I'm Noor", "my name is Bex"):
+        name = said_as.split()[-1]
+        h = {k: f"d-{name.lower()}-{k}" for k in ("a", "probe", "b", "c", "e")}
+
+        def delete(key):
+            return int(served_post(agent, "/api/chat/session", {"session_id": canonical_session(h[key]), "delete": True}).status)
+
+        chat(agent, said_as, h["a"])
+        chat(agent, said_as, h["probe"])
+        assert delete("a") == 200 and delete("probe") == 200
+        assert _items(agent) == []  # deleting the chat it was learned in still forgets it
+        said = chat(agent, said_as, h["b"])["text"]
+        assert name in said and name in _name(agent, h["c"]), (said, _name(agent, h["c"]))
+        # ... and deleting THAT chat forgets it again: the erasure sweep still reaches the item.
+        assert delete("b") == 200
+        assert _items(agent) == [] and name not in _name(agent, h["e"])
+        delete("c")
+        delete("e")
+
+
 def test_a_correction_replaces_the_name_and_nothing_asks(profile_env):
     agent = make_agent()
     chat(agent, "I'm Noor", "n-a")
