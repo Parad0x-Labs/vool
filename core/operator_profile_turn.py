@@ -35,6 +35,7 @@ __all__ = [
     "current_turn_scope",
     "observe_profile_turn",
     "profile_frame_for_result",
+    "turn_only_states_a_name",
 ]
 
 _TURN_SCOPE: ContextVar[tuple[str, str, str]] = ContextVar("operator_profile_turn_scope", default=("", "", ""))
@@ -341,6 +342,22 @@ def observe_name_beside_request(
         return {"raw": blanked, "effective": effective, "single": single}
     except Exception:
         return {"raw": str(raw_user_input or ""), "effective": str(effective_input or ""), "single": False}
+
+
+def turn_only_states_a_name(raw_user_input: str) -> bool:
+    """Whether the whole message is the person saying (or correcting, or taking back) their name.
+
+    "my name isnt Agnes, its Sam" has a comma and reads, to the lanes that split a message into
+    parts, like two requests: measured 2026-11-11 with a local model, a planning call ran for 25
+    seconds before the profile seat answered "Got it, Sam it is." without using it. The seat
+    answers such a turn by itself, so there is nothing for those lanes to plan."""
+    try:
+        proposals = interpret_profile_turn(str(raw_user_input or ""))
+        if not proposals or any(p.category != "preferred_name" or not p.whole for p in proposals):
+            return False
+        return not _remaining_text(str(raw_user_input or ""), [p.clause for p in proposals]).strip()
+    except Exception:
+        return False
 
 
 def observe_profile_turn(

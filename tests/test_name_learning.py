@@ -537,3 +537,24 @@ def test_served_a_name_beside_several_requests_is_learned_and_the_parts_are_plan
     assert "capital of Portugal" in planned[0] and len(planned[0]) == len(text)  # same positions as typed
     assert [entry.get("report") for entry in _frame(turn).get("saved") or []] == ["I'll call you Bex."], _frame(turn)
     assert [i["value"] for i in _items(agent)] == ["Bex"] and "Bex" in _name(agent, "several-b")
+
+
+@pytest.mark.parametrize("text", ("my name isnt Agnes, its Sam", "dont call me Agnes, call me Ines", "no, it's Sam", "call me Sam not Agnes"))
+def test_served_a_turn_that_only_states_a_name_is_answered_without_planning_parts(profile_env, monkeypatch, text):
+    """Measured with a local model 2026-11-11: the comma made the part lanes plan (a 25 s model
+    call) before the profile seat answered without using it."""
+    agent = make_agent()
+    chat(agent, "my name is Agnes", "only-a")
+    planned: list[str] = []
+    for lane in ("_maybe_answer_conductor_turn", "_maybe_answer_demand_owned_turn", "_maybe_answer_planned_turn"):
+        monkeypatch.setattr(type(agent), lane, lambda self, *a, _lane=lane, **k: planned.append(_lane))
+    turn = chat(agent, text, "only-a")
+    assert not planned, planned
+    assert turn["text"].startswith("Got it,") and "Agnes any more" in turn["text"], turn["text"]
+
+
+def test_a_message_with_requests_and_no_name_still_reaches_the_part_lanes():
+    from core.operator_profile_turn import turn_only_states_a_name
+
+    for text in ("what is 2+2, and what's the weather in Kaunas?", "my name is Sam, what's 2+2?", "my name is Sam. always answer in French", "hello"):
+        assert not turn_only_states_a_name(text), text

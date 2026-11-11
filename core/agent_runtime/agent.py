@@ -2728,7 +2728,7 @@ class VoolAgent(
         # request it cannot serve (core.operator_profile_turn.observe_name_beside_request).
         parts_raw_text, parts_effective_input, parts_single_request, parts_plan_text = raw_turn_text, effective_input, False, ""
         if not browser_turn:
-            from core.operator_profile_turn import observe_name_beside_request
+            from core.operator_profile_turn import observe_name_beside_request, turn_only_states_a_name
 
             name_beside = observe_name_beside_request(
                 raw_turn_text, effective_input, session_id=session_id,
@@ -2739,6 +2739,9 @@ class VoolAgent(
                 parts_effective_input = name_beside["effective"] or effective_input
                 parts_single_request = bool(name_beside["single"])
                 parts_plan_text = str(name_beside.get("plan") or "")
+            elif turn_only_states_a_name(raw_turn_text):
+                # "my name isnt Agnes, its Sam": the profile seat answers it; there are no parts to plan.
+                parts_single_request = True
 
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor
         # first bought a real local-model planner call for exact haikus and user-supplied FX math,
