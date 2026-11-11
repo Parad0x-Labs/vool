@@ -159,6 +159,7 @@ class _TurnBoundary:
         from core.instructional_request import asks_for_instructions_not_execution
 
         self.text = str(text or "")
+        self.chat = str(chat or "")
         self.followup = False
         self.active = requested(text)
         # The person's own words asked to browse (never set later by a tool call or child text).
@@ -311,6 +312,20 @@ def note_completed(op: str, url: str) -> None:
     boundary = _CONFINED.get()
     if boundary is not None and len(boundary.completed) < 20:
         boundary.completed.append({"op": str(op or ""), "url": str(url or "")})
+
+
+def page_read() -> str:
+    """The address of this chat's open page when this turn read it (inspect or status), else ""."""
+    from core.vool_browser import live
+
+    boundary = _CONFINED.get()
+    if boundary is None or not boundary.page_read or not boundary.chat:
+        return ""
+    try:
+        item = live.session(boundary.chat)
+    except live.BrowserFault:
+        return ""
+    return str(item.url or "") if item is not None and not item.closed else ""
 
 
 def completed() -> list[dict[str, str]]:

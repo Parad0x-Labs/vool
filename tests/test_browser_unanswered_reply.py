@@ -325,3 +325,23 @@ def test_a_model_timeout_after_an_opened_page_says_so_plainly():
     assert is_browser_step_reply(reply)
     lifecycle = GroundingLifecycle(lifecycle_id='browser-timeout', identity=TurnIdentity(), request_text=ASK, model_authored=True)
     assert publication_verdict(lifecycle, reply).content == reply
+
+
+def test_a_model_timeout_after_reading_the_open_page_says_so_plainly(world):
+    """Mac run 5, case 5: a follow-up only read the page already open (status, inspect), the model
+    timed out, and the reply was still "Incomplete — model synthesis failed ... 2 of 2 tool steps"."""
+    from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply, is_browser_step_reply
+    from core.vool_browser.live_requests import turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    finish(world, 'navigate', {'url': origin + '/'})
+    follow_up = 'use the browser and open the link for Later trains on that page'
+    with turn_scope(follow_up, 'live-test'):
+        assert browser_synthesis_failed_reply() == ''  # nothing read yet this turn
+        from core.vool_browser.live_requests import tool_allowed
+
+        tool_allowed('vool-browser.inspect', {})
+        reply = browser_synthesis_failed_reply()
+    assert reply.startswith('I read ' + origin + '/ in the browser, but the model ran out of time')
+    assert is_browser_step_reply(reply) and browser_synthesis_failed_reply() == ''
