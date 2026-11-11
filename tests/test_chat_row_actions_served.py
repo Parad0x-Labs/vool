@@ -143,10 +143,23 @@ def test_chat_row_has_one_pin_toggle_and_a_chevron_for_the_rest(tmp_path):
                 arch = page.locator(sel).first
                 assert arch.locator(".s-pin").count() == 0
                 assert arch.locator(".s-act[data-ico='move']").count() == 0
-                arch.hover()
                 arch.locator(".s-more-toggle").click()
-                shown = page.evaluate(VISIBLE_ACTIONS, sel)
-                assert shown == ["Set chat emoji or colour", "Fewer actions"], shown
+                page.wait_for_function("id => _sessionMoreOpen === id", arg=sid, timeout=5000)
+                # The sidebar may re-render under the pointer (archive refreshes it); hover the row as
+                # it stands now and wait for what it shows.
+                want = ["Set chat emoji or colour", "Fewer actions"]
+                page.locator(sel).first.hover()
+                page.wait_for_function("([s, w]) => JSON.stringify((" + VISIBLE_ACTIONS + ")(s)) === JSON.stringify(w)",
+                                       arg=[sel, want], timeout=5000)
+
+                # A mouse click on an action does not keep the row's actions showing after the
+                # pointer leaves; keyboard focus does show them.
+                page.locator(sel).first.locator(".s-more-toggle").click()
+                page.locator("#input").hover()
+                assert page.evaluate(VISIBLE_ACTIONS, sel) == []
+                page.keyboard.press("Shift")   # the last interaction is the keyboard, so focus is :focus-visible
+                page.locator(sel).first.locator(".s-title").focus()
+                assert "Rename" in page.evaluate(VISIBLE_ACTIONS, sel)
                 assert not errors, errors
             finally:
                 browser.close()
