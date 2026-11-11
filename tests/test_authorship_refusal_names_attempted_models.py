@@ -58,11 +58,12 @@ def test_a_refusal_with_attempts_names_them_and_claims_no_more_than_happened() -
 
 
 def test_a_refusal_without_attempts_keeps_its_exact_former_bytes() -> None:
-    """The no-attempts path is the historical shape; it must not drift."""
+    """The no-attempts path keeps its shape. Its wording changed once, on purpose (2026-11-11): "the call
+    was never made" contradicted the receipt when the routing step ran on the same model."""
     text = _blocked_decision().refusal_text()
     assert (
-        "`ollama-local:qwen2.5:7b` is not certified to author on this runtime, so the call was "
-        "never made, and no certified model was available and permitted to write it instead."
+        "`ollama-local:qwen2.5:7b` is not certified to author on this runtime, so it was not asked "
+        "to write this answer, and no certified model was available and permitted to write it instead."
     ) in text
 
 
@@ -116,6 +117,6 @@ def test_a_blocked_model_is_not_reported_as_called() -> None:
     assert "ollama-local:qwen2.5:7b" not in record.attempted_failed
     assert record.attempted_failed == (ATTEMPTED[0],)
     gated, _payload = gate_authored_content("Paris.", turn_id=turn_id)
-    assert "never made" in gated
+    assert "was not asked to write this answer" in gated
     assert ATTEMPTED[0] in gated
     assert "ollama-local:qwen2.5:7b`) each failed" not in gated

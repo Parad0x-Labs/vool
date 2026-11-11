@@ -407,7 +407,14 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # A named page with no URL: "open the Wikipedia page for the Daugava river and tell me
             # how long it is" seated nothing (battery v9, installed build) and the model, with no
             # tool, produced no usable answer. The search finds the page; the fetch reads it.
-            r"|\b(?:open|read|check|visit|go\s+to|pull\s+up)\b[^.?!]{0,30}?\b(?:wikipedia|website|web\s*page|web\s*site)\b",
+            r"|\b(?:open|read|check|visit|go\s+to|pull\s+up)\b[^.?!]{0,30}?\b(?:wikipedia|website|web\s*page|web\s*site)\b"
+            # An answer asked for FROM a named web source is that source's content, not stable
+            # knowledge: "according to wikipedia, when was the eiffel tower finished?" was answered
+            # DIRECT with no lookup (run-modes test, 2026-11-11). "what is wikipedia?" stays out.
+            r"|\b(?:according\s+to|per|as\s+per)\s+(?:the\s+)?wikipedia\b"
+            r"|\bwikipedia(?:'s)?\s+(?:says?|said|states?|lists?|claims?|article|page|entry)\b"
+            r"|\bwhat\s+(?:does|did)\s+(?:the\s+)?wikipedia\s+(?:say|list|state)\b"
+            r"|\b(?:on|from|in)\s+wikipedia\b",
             re.I,
         ),
     ),

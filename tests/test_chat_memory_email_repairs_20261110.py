@@ -608,3 +608,21 @@ def test_an_explicit_web_ask_is_admitted_to_the_tool_loop():
         "Do not search the web. Open the Wikipedia page for the Daugava river.",
         task_class="unknown", source_context={"surface": "api", "platform": "api"},
     )
+
+
+@pytest.mark.parametrize(
+    "text", ["according to wikipedia, when was the eiffel tower finished?",
+             "what does wikipedia say about the eiffel tower?"],
+)
+def test_an_answer_asked_from_wikipedia_is_a_web_lookup(text):
+    from core.execution.planner import should_attempt_tool_intent
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert "web.search" in resolve_demand_signals(text).explicit_intents
+    assert should_attempt_tool_intent(text, task_class="unknown", source_context={"surface": "api", "platform": "api"})
+
+
+def test_a_question_about_wikipedia_itself_is_not_a_lookup():
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert resolve_demand_signals("what is wikipedia?").explicit_intents == ()

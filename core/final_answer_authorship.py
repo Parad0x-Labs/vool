@@ -256,6 +256,10 @@ class AuthorshipDecision:
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
         author = self.selected_model or self.requested_model or "the model that wrote it"
+        # "so it was not asked to write this answer", not "the call was never made": the turn's
+        # routing step can run on that same model, and its completed call sits in the receipt
+        # (run-modes test 2026-11-11: 1331 in / 32 out on qwen2.5:7b under a reply that said the
+        # call was never made). The writing call is the one that was withheld.
         if self.reason == REASON_AUTHOR_UNRESOLVED:
             cause = (
                 "this runtime could not resolve which configured model wrote it, so there is no "
@@ -265,14 +269,15 @@ class AuthorshipDecision:
             if attempted:
                 tried = ", ".join(f"`{name}`" for name in attempted)
                 cause = (
-                    f"`{author}` is not certified to author on this runtime, so the call was "
-                    f"never made; the certified model{'s' if len(attempted) > 1 else ''} this "
+                    f"`{author}` is not certified to author on this runtime, so it was not asked "
+                    f"to write this answer; the certified model{'s' if len(attempted) > 1 else ''} this "
                     f"turn did call ({tried}) each failed before producing a usable answer."
                 )
             else:
                 cause = (
-                    f"`{author}` is not certified to author on this runtime, so the call was never "
-                    "made, and no certified model was available and permitted to write it instead."
+                    f"`{author}` is not certified to author on this runtime, so it was not asked to "
+                    "write this answer, and no certified model was available and permitted to write it "
+                    "instead."
                 )
         elif self.reason == REASON_UNCERTIFIED_AUTHOR:
             cause = (
