@@ -1624,6 +1624,20 @@ def handle_turn_frontdoor(
     if skill_turn is not None:
         return {"result": skill_turn}
 
+    # The words ask for an added plugin that is off, changed, or behind the chat-tools switch:
+    # the person is told so here. Left to a model with no such tool, the turn was answered with
+    # an invented result and no word that the plugin never ran.
+    from core.agent_runtime.fast_paths_plugin import maybe_explain_unavailable_plugin
+
+    plugin_notice = maybe_explain_unavailable_plugin(
+        agent,
+        effective_input,
+        session_id=session_id,
+        source_context=source_context,
+    )
+    if plugin_notice is not None:
+        return {"result": plugin_notice}
+
     # An agentic build request ("create an app ... build and verify it in the workspace") must not be
     # intercepted by the keyword fast paths below: a "delete" command in its spec would trip the Hive
     # delete route, and a filename it names would trip the workspace read. When a workspace is present,

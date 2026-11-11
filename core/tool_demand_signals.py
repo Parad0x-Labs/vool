@@ -789,6 +789,144 @@ def _plugin_intents(text: str) -> tuple[str, ...]:
     return tuple(matched[:MAX_EXPLICIT_INTENTS])
 
 
+# Words too ordinary to say which plugin a sentence is about, on top of every word the built-in
+# tools already use to describe themselves (read at run time, so the list follows the catalog).
+_PLUGIN_ORDINARY_WORDS = frozenset(
+    ["plugin", "plugins", "addon", "addons", "example", "examples", "sample", "tool", "tools", "vool", "text", "texts", "supplied", "provided", "given", "through", "using", "bundled", "local", "connection", "server", "servers", "compute", "computes", "computed", "return", "returns", "returned", "result", "results", "value", "values", "input", "inputs", "output", "outputs", "string", "strings", "number", "numbers", "format", "formatted", "length", "separated", "please", "thing", "things", "which", "their", "there", "about", "would", "could", "should", "these", "those", "where", "while", "what", "when", "with", "from", "this", "that", "your", "into", "over"]
+)
+_PLUGIN_WORD = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+_PLUGIN_NEAR = 0.88           # one slipped or swapped letter in a word of seven or more
+_PLUGIN_TELLING_LENGTH = 8    # a word this long (or carrying a digit) names its plugin on its own
+
+
+def _plugin_word_forms(word: str) -> set[str]:
+    """A word as people write it: with or without its hyphens, with or without a plural s."""
+    forms = {word, word.replace("-", "")}
+    forms |= {form[:-1] for form in tuple(forms) if len(form) > 5 and form.endswith("s")}
+    return forms
+
+
+_PluginWords = tuple[tuple[str, frozenset[str], frozenset[str], frozenset[str]], ...]
+_PLUGIN_SPOKEN_CACHE: tuple[tuple, _PluginWords] | None = None
+
+
+def _plugin_spoken_vocabulary() -> _PluginWords:
+    """Per added plugin: the names people call it by, and the words its own description uses.
+
+    Read from the packages the person installed and reviewed (the lifecycle records and each
+    package's own manifest), whether or not they can run right now -- a plugin that is turned off
+    is still what the person is asking for, and they are owed the reason. Packs that ship inside
+    VOOL keep their own hand-written rules above. A closed vocabulary, like the dotted intent
+    tokens: nothing here reads open prose.
+    """
+    global _PLUGIN_SPOKEN_CACHE
+    from pathlib import Path
+
+    from core import plugin_lifecycle
+    from core.plugin_tools import load_manifest
+    from core.tool_registry import registered_tools, registry_epoch
+
+    installed = [r for r in plugin_lifecycle.records() if r.stage != plugin_lifecycle.STAGE_UNINSTALLED and r.root]
+    key = (registry_epoch(), tuple((r.plugin_id, r.root, r.verified_digest) for r in installed))
+    if _PLUGIN_SPOKEN_CACHE is not None and _PLUGIN_SPOKEN_CACHE[0] == key:
+        return _PLUGIN_SPOKEN_CACHE[1]
+    built_in_words: set[str] = set()
+    for contract in registered_tools():
+        if str(contract.source or "").startswith("plugin:"):
+            continue
+        for word in _PLUGIN_WORD.findall(f"{contract.intent} {contract.description}".lower().replace("_", " ").replace(".", " ")):
+            built_in_words |= _plugin_word_forms(word)
+    rows: list[tuple[str, frozenset[str], frozenset[str], frozenset[str]]] = []
+    for record in installed:
+        try:
+            block = load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json").vool
+        except Exception:
+            block = None
+        tools = [tool for tool in (block or {}).get("tools") or () if isinstance(tool, dict)]
+        if not block or not tools:
+            continue
+        display = str(block.get("name") or "")
+        descriptions = [str(block.get("description") or ""), *(str(tool.get("description") or "") for tool in tools)]
+        # A tool's own short name counts only when it is unmistakable ("sha256"); "create" or
+        # "backup" are ordinary words that many requests use.
+        leaves = [str(tool.get("intent") or "").rsplit(".", 1)[-1] for tool in tools]
+        telling_leaves = [leaf for leaf in leaves if any(ch.isdigit() for ch in leaf)]
+        names: set[str] = set()
+        for label in (record.plugin_id, display, *telling_leaves):
+            kept = [w for w in _PLUGIN_WORD.findall(label.lower().replace("_", " ")) for w in w.split("-")]
+            fused = "".join(w for w in kept if w not in _PLUGIN_ORDINARY_WORDS)
+            if len(fused) >= 6:
+                names.add(fused)
+        terms: set[str] = set()
+        shared: set[str] = set()
+        for word in _PLUGIN_WORD.findall(" ".join([display, *descriptions]).lower()):
+            forms = _plugin_word_forms(word)
+            if forms & _PLUGIN_ORDINARY_WORDS:
+                continue
+            # Words the built-in tools also use ("count", "words") say less: kept apart, and
+            # two of them are needed where one of the plugin's own words is enough.
+            digits = any(ch.isdigit() for form in forms for ch in form)   # "sha-256" is telling anywhere
+            (shared if forms & built_in_words and not digits else terms).update(f for f in forms if len(f) >= 5)
+        rows.append((record.plugin_id, frozenset(names), frozenset(terms), frozenset(shared - terms)))
+    _PLUGIN_SPOKEN_CACHE = (key, tuple(rows))
+    return _PLUGIN_SPOKEN_CACHE[1]
+
+
+def _plugin_spoken(text: str) -> bool:
+    return bool(plugins_named_in_words(text))
+
+
+def plugins_named_in_words(text: str) -> tuple[str, ...]:
+    """The added plugins the words name, or whose own thing the words ask for.
+
+    People say "the word count plugin" or "fingerprint of this text"; nobody types a dotted
+    tool name. This answers only WHETHER the plugin family is wanted -- which tool, if any, is
+    still the model's choice among the tools the owner switched on, and running one is still the
+    permission controller's decision. A name counts on its own. A describing word counts on its
+    own when it is long or carries a digit ("fingerprint", "sha-256"); shorter ones, and words the
+    built-in tools use too, need company ("count" + "words"), so "count the files here" stays
+    where it was. A slipped letter in a long
+    word ("fingerpint") still counts.
+    """
+    try:
+        vocabulary = _plugin_spoken_vocabulary()
+    except Exception:
+        return ()
+    if not vocabulary:
+        return ()
+    from difflib import SequenceMatcher
+
+    words = _PLUGIN_WORD.findall(text.lower().replace("_", " "))[:160]
+    pieces = [piece for word in words for piece in word.split("-")]
+    said: set[str] = set()
+    for word in words:
+        said |= _plugin_word_forms(word)
+    runs = set(said)
+    for size in (2, 3):
+        runs |= {"".join(pieces[i : i + size]) for i in range(len(pieces) - size + 1)}
+
+    def near(target: str, candidates: set[str]) -> bool:
+        if len(target) < 7:
+            return False
+        return any(
+            abs(len(candidate) - len(target)) <= 2
+            and candidate[0] == target[0]
+            and SequenceMatcher(None, candidate, target).ratio() >= _PLUGIN_NEAR
+            for candidate in candidates
+        )
+
+    named: list[str] = []
+    for plugin_id, names, terms, shared in vocabulary:
+        hits = {term for term in terms if term in said or near(term, said)}
+        if (
+            any(name in runs or near(name, runs) for name in names)
+            or any(len(term) >= _PLUGIN_TELLING_LENGTH or any(ch.isdigit() for ch in term) for term in hits)
+            or len({term.rstrip("s") for term in hits | {term for term in shared if term in said}}) >= 2
+        ):
+            named.append(plugin_id)
+    return tuple(named)
+
+
 def _browser_lane_intents(text: str) -> tuple[str, ...]:
     """Explicitly named vool-browser intents (the C06 native product browser).
 
@@ -1216,6 +1354,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
 
     for intent in _plugin_intents(cleaned):
         _note(intent, "plugin")
+    # Named in plain words rather than by a dotted token: the family is wanted, no tool is
+    # singled out. Only when nothing else already claimed the turn, so a plugin's vocabulary can
+    # never pull a request away from the built-in tool its words asked for.
+    if not intents and not families and _plugin_spoken(cleaned):
+        families.append("plugin")
 
     for intent in _browser_lane_intents(cleaned):
         _note(intent, "web")

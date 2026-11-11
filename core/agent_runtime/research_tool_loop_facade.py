@@ -497,6 +497,27 @@ def _within_turn_navigation(loop: Any) -> Any:
     return run_in_turn_scope
 
 
+def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
+    """Everything the model was shown from this turn's tools, for judging whether its answer used it.
+
+    A step's `summary` is a one-line label for the activity list. For a tool whose label says
+    nothing of its result (a plugin's is "returned output; its claims need independent
+    verification"), judging by the label alone refused the correct answer -- "4 words and 19
+    characters" shares no word with it -- and the person was shown the label instead. The step's
+    full `response_text` is what the model actually read, so it is part of the evidence.
+    """
+    observations: list[str] = []
+    for step in executed_steps:
+        for key in ("summary", "response_text"):
+            text = str(step.get(key) or "").strip()
+            if text and text not in observations:
+                observations.append(text)
+        step_observation = step.get("observation")
+        if isinstance(step_observation, dict) and step_observation:
+            observations.append(json.dumps(step_observation, default=str))
+    return observations
+
+
 class ResearchToolLoopFacadeMixin:
     def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
         """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
@@ -2721,14 +2742,7 @@ class ResearchToolLoopFacadeMixin:
         # the deterministic grounded summary built from the executed steps (the same fallback the
         # echo guard already used). The fallback is itself grounded, so a conservative false reject
         # costs only fluency, never correctness.
-        synthesis_observations: list[str] = []
-        for step in executed_steps:
-            step_summary_text = str(step.get("summary") or "").strip()
-            if step_summary_text:
-                synthesis_observations.append(step_summary_text)
-            step_observation = step.get("observation")
-            if isinstance(step_observation, dict) and step_observation:
-                synthesis_observations.append(json.dumps(step_observation, default=str))
+        synthesis_observations = synthesis_grounding_observations(executed_steps)
         reject_reason = ""
         if renders_final:
             reject_reason = ""
