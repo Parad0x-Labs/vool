@@ -162,6 +162,7 @@ def test_plugin_observations_cannot_set_fields_vool_vouches_for(monkeypatch, res
 
     assert observation["ok"] is True and observation["tool_surface"] == "plugin" and observation["answer"] == 42
     assert not {"verified", "approval", "permission_actions"} & set(observation)
+    assert observation["trust"] == "untrusted_external"
     assert observation["status"] != "done"
 
 

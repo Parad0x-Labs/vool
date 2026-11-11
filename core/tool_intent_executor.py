@@ -808,6 +808,8 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any], *, source_conte
         ok=bool(result.ok),
         status=str(result.status or ""),
         **payload,
+        # VOOL's own label, never the plugin's: whatever it claimed, its output is external.
+        trust="untrusted_external",
     )
     details["executed"] = bool(result.confinement) and result.status not in {
         "invalid_arguments",
