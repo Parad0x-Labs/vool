@@ -3262,9 +3262,13 @@
     "live.save_file": "حفظ الملف",
     "live.seconds_left": "متبقٍ {seconds} ث",
     "live.send": "املأ وأرسل",
-    "live.view": "فتح المتصفح"
+    "live.view": "فتح المتصفح",
+    "activity.category.browser": "المتصفح",
+    "activity.tool.active.browser": "يستخدم المتصفح",
+    "activity.tool.failed.browser": "لم تُنفَّذ خطوة المتصفح",
+    "activity.tool.finished.browser": "اكتملت خطوة المتصفح"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

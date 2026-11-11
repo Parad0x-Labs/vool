@@ -3262,9 +3262,13 @@
     "live.save_file": "Сохранить файл",
     "live.seconds_left": "Осталось {seconds} с",
     "live.send": "Заполнить и отправить",
-    "live.view": "Открыть браузер"
+    "live.view": "Открыть браузер",
+    "activity.category.browser": "Браузер",
+    "activity.tool.active.browser": "Использует браузер",
+    "activity.tool.failed.browser": "Шаг в браузере не выполнен",
+    "activity.tool.finished.browser": "Шаг в браузере выполнен"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

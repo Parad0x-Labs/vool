@@ -677,8 +677,11 @@ class LiveSession:
         # Only the type, never cookies, and an asset is never sniffed into something else. An SVG is
         # served to Chromium as an image under a policy that also forbids script and every fetch, so it
         # stays a picture even if a page tries to open it as a document.
+        # Header names arrive in whatever case the site sent (HTTP/2 sends them lower case); an
+        # empty type under nosniff makes Chromium drop the stylesheet or picture without a word.
+        media_type = next((str(v) for k, v in headers.items() if k.lower() == "content-type"), "")
         await route.fulfill(status=status, body=raw, headers={
-            "Content-Type": headers.get("Content-Type", ""), "X-Content-Type-Options": "nosniff",
+            "Content-Type": media_type, "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox"})
 
     async def _accept_cookies(self, url: str, headers: list[str]) -> None:

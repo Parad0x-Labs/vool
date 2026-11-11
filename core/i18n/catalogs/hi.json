@@ -3262,9 +3262,13 @@
     "live.save_file": "फ़ाइल सहेजें",
     "live.seconds_left": "{seconds} से. बाकी",
     "live.send": "भरें और भेजें",
-    "live.view": "ब्राउज़र खोलें"
+    "live.view": "ब्राउज़र खोलें",
+    "activity.category.browser": "ब्राउज़र",
+    "activity.tool.active.browser": "ब्राउज़र इस्तेमाल हो रहा है",
+    "activity.tool.failed.browser": "ब्राउज़र चरण नहीं चला",
+    "activity.tool.finished.browser": "ब्राउज़र चरण पूरा हुआ"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

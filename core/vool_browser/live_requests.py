@@ -137,7 +137,7 @@ class _TurnBoundary:
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
         self.open = bool(self.urls and (self.active or _asks(executable, r'open|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
-        # How this turn's browser request ended when it never ran: the honest reply names it.
+        # How this turn's browser request ended when it never ran: the reply names it truthfully.
         self.unanswered: dict[str, str] | None = None
         # A follow-up acts on the page already open in this chat. Its authority is
         # what its own words grant (fill, submit, follow); it opens nothing new

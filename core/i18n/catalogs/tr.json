@@ -3262,9 +3262,13 @@
     "live.save_file": "Dosyayı kaydet",
     "live.seconds_left": "{seconds} sn kaldı",
     "live.send": "Doldur ve gönder",
-    "live.view": "Tarayıcıyı aç"
+    "live.view": "Tarayıcıyı aç",
+    "activity.category.browser": "Tarayıcı",
+    "activity.tool.active.browser": "Tarayıcı kullanılıyor",
+    "activity.tool.failed.browser": "Tarayıcı adımı çalışmadı",
+    "activity.tool.finished.browser": "Tarayıcı adımı tamamlandı"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

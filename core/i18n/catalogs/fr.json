@@ -3262,9 +3262,13 @@
     "live.save_file": "Enregistrer le fichier",
     "live.seconds_left": "Encore {seconds} s",
     "live.send": "Remplir et envoyer",
-    "live.view": "Ouvrir le navigateur"
+    "live.view": "Ouvrir le navigateur",
+    "activity.category.browser": "Navigateur",
+    "activity.tool.active.browser": "Utilise le navigateur",
+    "activity.tool.failed.browser": "L'étape du navigateur n'a pas eu lieu",
+    "activity.tool.finished.browser": "Étape du navigateur terminée"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

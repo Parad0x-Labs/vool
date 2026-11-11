@@ -199,6 +199,8 @@ def test_page_look_loads_only_inside_the_approved_load(world, opened):
     loaded = list(requests)
     refused = item.page_request_refusals
     jump = next(n for n in snap['nodes'] if n['label'] == 'Jump to end')
+    # The stylesheet really reached the page and was applied (it sizes every link to 333 px).
+    assert jump['box'][2] == 333, jump
     status, data, snap = owner_now(rig, item, 'click', {'selector': jump['selector']})
     assert snap['state'] == 'ready' and 'End of board' in snap['result']['page']['text']
     for _ in range(2):

@@ -3262,9 +3262,13 @@
     "live.save_file": "Lưu tệp",
     "live.seconds_left": "Còn {seconds} giây",
     "live.send": "Điền và gửi",
-    "live.view": "Mở trình duyệt"
+    "live.view": "Mở trình duyệt",
+    "activity.category.browser": "Trình duyệt",
+    "activity.tool.active.browser": "Đang dùng trình duyệt",
+    "activity.tool.failed.browser": "Bước trình duyệt không chạy",
+    "activity.tool.finished.browser": "Bước trình duyệt đã xong"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

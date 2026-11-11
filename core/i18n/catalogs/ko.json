@@ -3262,9 +3262,13 @@
     "live.save_file": "파일 저장",
     "live.seconds_left": "{seconds}초 남음",
     "live.send": "입력 후 보내기",
-    "live.view": "브라우저 열기"
+    "live.view": "브라우저 열기",
+    "activity.category.browser": "브라우저",
+    "activity.tool.active.browser": "브라우저 사용 중",
+    "activity.tool.failed.browser": "브라우저 단계가 실행되지 않음",
+    "activity.tool.finished.browser": "브라우저 단계 완료"
   },
-  "source_catalog_sha256": "352096921092532560504225800981225ca696eb23e487bf5045f37e1396e7d8",
+  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
