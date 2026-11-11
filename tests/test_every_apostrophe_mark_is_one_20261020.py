@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from core.memory.copies import FORGET_LIST_NOTE
 from core.secret_redaction import contains_secret, redact_secrets
 from tests.test_forget_counts_only_what_was_forgotten_20261020 import (
     BYSTANDER,
@@ -57,5 +58,5 @@ def test_a_phone_apostrophe_in_the_forgets_wording_still_names_the_memory(isolat
 
     handled, reply = command(isolated_pages, chat, command_text)
 
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry." + " " + FORGET_LIST_NOTE, reply
     assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]

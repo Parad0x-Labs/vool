@@ -81,8 +81,9 @@ def test_json_embedded_in_prose_is_recovered() -> None:
 def test_near_miss_offers_the_full_readonly_menu() -> None:
     options = ia._candidate_options([])
     # 8 -> 10: list_processes and host_state joined the menu when the specs family stopped
-    # absorbing "what is eating my CPU" and "what is the uptime".
-    assert ia.CHOICE_CHAT in options and FAMILY_FIND_FOLDER in options and len(options) == 10
+    # absorbing "what is eating my CPU" and "what is the uptime". 10 -> 11: find_file joined so
+    # "a picture named day 4" stops being searched for as a folder.
+    assert ia.CHOICE_CHAT in options and FAMILY_FIND_FOLDER in options and len(options) == 11
 
 
 def test_ambiguous_offers_only_the_claiming_families_plus_chat() -> None:

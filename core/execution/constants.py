@@ -956,6 +956,410 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     return ("machine.find_folder", clean_name)
 
 
+# A FILE asked for by its name: "a picture named daily 4", "the pdf called invoice-7". Measured on a
+# phone 2026-10-27: "In my Downloads folder there should be a picture named daily 4 or day 4, find it"
+# had no file family to land on, so the arbiter picked find_folder and walked the disk for FOLDERS
+# named "daily 4 or day 4 something". The noun says what is sought; the name follows named/called.
+_FILE_KIND_WORDS = {
+    "picture": "image", "pictures": "image", "pic": "image", "pics": "image", "photo": "image",
+    "photos": "image", "image": "image", "images": "image", "screenshot": "image", "screenshots": "image",
+    "file": "", "files": "", "document": "", "documents": "", "doc": "", "pdf": "pdf", "video": "video",
+    "videos": "video", "movie": "video", "song": "audio", "recording": "audio", "spreadsheet": "",
+    "presentation": "",
+    # A file type said as a word: "any jpg named day4", "the mp4 called wedding".
+    "jpg": "jpg", "jpgs": "jpg", "jpeg": "jpg", "png": "png", "pngs": "png", "heic": "heic",
+    "gif": "gif", "pdfs": "pdf", "mp4": "mp4", "mov": "mov", "mp3": "mp3",
+    "spreadsheets": "", "presentations": "", "docs": "", "powerpoint": "", "powerpoints": "", "keynote": "",
+    "slideshow": "", "excel": "", "resume": "", "cv": "",
+}
+_FILE_NAMED_RE = re.compile(
+    r"\b(?P<kind>" + "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True)) + r")\b"
+    r"(?P<between>(?:\s+\w+){0,4}?)\s+(?:named|called|titled|with\s+the\s+name)\s+"
+    r"(?P<name>[^,;:!?\n]{1,80}?)"
+    r"(?=\s*(?:[,;:!?\n]|\s-\s|\s(?:or\s+something|or\s+so|something|in|on|from|inside|somewhere|anywhere|"
+    r"please|pls|can|could|then|and\s+(?:then\s+)?\w+\s+(?:it|them)|about|for\s+me|find|fetch|not|that|it)\b|$))",
+    re.IGNORECASE,
+)
+_FILE_KIND_ALT = "|".join(sorted(_FILE_KIND_WORDS, key=len, reverse=True))
+# The same lookup without named/called, measured on the Mac 2026-10-28 with sls's own models:
+# "the pdf with invoice in the name", 'an image "daily 4"', "the photo daily 4" all reached the model,
+# which refused, or the chat search. Each form still goes through every check below.
+_FILE_IN_NAME_RE = re.compile(
+    r"\b(?P<kind>" + _FILE_KIND_ALT + r")\b(?:\s+\w+){0,3}?\s+with\s+(?:the\s+(?:word|text)\s+)?"
+    r"[\"“'‘]?(?P<name>[^,;:!?\n\"“”'‘’]{1,60}?)[\"”'’]?\s+in\s+(?:the|its)\s+(?:file\s*)?(?:name|title)\b",
+    re.IGNORECASE,
+)
+_FILE_QUOTED_RE = re.compile(
+    r"\b(?P<kind>" + _FILE_KIND_ALT + r")\b(?:\s+\w+){0,2}?\s*[\"“'‘](?P<name>[^\"“”'‘’\n]{2,80})[\"”'’]",
+    re.IGNORECASE,
+)
+# "the photo daily 4", "that screenshot day4": a bare name right after the noun only when it holds a
+# digit and a letter, so "the photo of my dog" or "the video 10 minutes" never reads as a name.
+_FILE_BARE_NAME_RE = re.compile(
+    r"\b(?:the|a|an|my|that|this|any)\s+(?P<kind>" + _FILE_KIND_ALT + r")\s+"
+    r"(?P<name>[A-Za-z][\w-]{0,30}\s+\d[\w-]*|(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]{2,40})"
+    r"(?=\s*(?:[,;:!?.\n]|\s(?:in|on|from|inside|somewhere|anywhere|please|pls|can|could|think|i|it|that|for)\b|$))",
+    re.IGNORECASE,
+)
+# "Could you locate my resume? I think it's called resume_final": the name is given, the noun was earlier.
+_FILE_ITS_CALLED_RE = re.compile(
+    r"\b(?:it'?s|its|it\s+is|it\s+was)\s+(?:called|named|titled)\s+(?P<name>[^,;:!?\n]{1,80}?)(?=\s*(?:[,;:!?\n]|\.(?:\s|$)|$))",
+    re.IGNORECASE,
+)
+_FILE_NAME_FILLERS = {"it", "that", "this", "like", "something", "something like", "the", "a"}
+# A file DESCRIBED rather than named: "grab the tax return pdf from downloads", "where'd my picture of
+# grandmas birthday cake go", "find my scanned passport pdf". Measured on the Mac 2026-10-28 with a
+# set of sentences written blind: 11 of 13 file asks said what the file is about, not its name, and
+# all 11 reached the model (which refused). The describing words are searched as one name; only "my",
+# "the", "that"... make it one of the user's own files ("find me a picture of a cat" is not).
+_FILE_DESCRIBED_RE = re.compile(
+    r"\b(?:my|the|that|this|those|these)\s+(?P<pre>(?:[\w'-]+\s+){0,4}?)(?P<kind>" + _FILE_KIND_ALT + r")\b"
+    r"(?P<post>[^,;:!?\n]*)",
+    re.IGNORECASE,
+)
+_FILE_DESCRIBED_ON_DISK_RE = re.compile(
+    r"\b(?:my|the|that|this|those|these|a|an|any|some)\s+(?P<pre>(?:[\w'-]+\s+){0,4}?)(?P<kind>" + _FILE_KIND_ALT + r")\b"
+    r"(?P<post>[^,;:!?\n]*)",
+    re.IGNORECASE,
+)
+_ON_THIS_COMPUTER_RE = re.compile(r"\bon\s+(?:my|this)\s+(?:mac|computer|laptop|pc|machine|imac|macbook)\b", re.IGNORECASE)
+_FILE_DESCRIBED_STOPWORDS = frozenset(
+    ["a", "an", "the", "my", "that", "this", "those", "these", "of", "from", "in", "on", "at", "with", "for", "to", "by", "about", "i", "me", "you", "u", "we", "it", "its", "it's", "is", "was", "are", "were", "be", "been", "called", "named", "titled", "made", "saved", "took", "taken", "got", "get", "have", "had", "go", "went", "gone", "can", "could", "would", "please", "pls", "find", "locate", "where", "where'd", "where's", "which", "what", "whats", "what's", "grab", "need", "show", "pull", "up", "dig", "hunt", "track", "down", "look", "looking", "for", "search", "there", "here", "some", "any", "one", "ones", "somewhere", "anywhere", "computer", "mac", "laptop", "machine", "pc", "imac", "macbook", "disk", "drive", "desktop", "downloads", "documents", "download", "photos", "pictures", "folder", "yesterday", "today", "last", "week", "month", "year", "ago", "recent", "recently", "old", "new", "latest", "earlier", "again", "think", "just", "or", "and", "file", "files", "doc", "docs", "stored", "kept", "put", "located", "placed", "moved", "written", "created", "downloaded", "sent"]
+)
+_FILE_DESCRIBED_REJECT_RE = re.compile(
+    r"\b(?:folders?|director(?:y|ies))\b|\bwe\s+(?:talked|discussed|mentioned|spoke)\b|\byou\s+(?:sent|made|wrote|gave|created)\b",
+    re.IGNORECASE,
+)
+# "find day4.png" / "where is invoice.pdf": a search verb and a name with a known extension.
+_FILE_EXT_KINDS = {
+    "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "heic": "image", "webp": "image",
+    "pdf": "pdf", "mp4": "video", "mov": "video", "mp3": "audio", "m4a": "audio", "wav": "audio",
+    "doc": "", "docx": "", "xls": "", "xlsx": "", "ppt": "", "pptx": "", "txt": "", "csv": "", "md": "",
+    "zip": "", "pages": "", "numbers": "", "key": "",
+}
+_FILE_EXT_SEARCH_RE = re.compile(
+    r"\b(?:find|locate|where\s+is|where's|where\s+did\s+i\s+(?:save|put)|search(?:\s+\w+)?\s+for|look\s+for|fetch)\b"
+    r".*?(?<![\w./~-])(?P<name>[\w-]+(?:\.[\w-]+)*\.(?P<ext>" + "|".join(_FILE_EXT_KINDS) + r"))\b(?![./\w])",
+    re.IGNORECASE,
+)
+# Only a LOOKUP is answered with a path list. Anything else the user wants done with the file (read,
+# send, copy, rename, write...) goes to the lanes and the model that can do it; a question ABOUT a
+# file name ("how do I rename a file called x", "who wrote the song called y") or a search somewhere
+# other than this disk (web, email, a cloud drive) is not a disk search at all.
+_FILE_LOOKUP_CUE_RE = re.compile(
+    r"\b(?:find|finding|locate|where|look(?:ing)?\s+for|search(?:ing)?|fetch|get\s+me|grab|"
+    r"is\s+there|are\s+there|do\s+i\s+(?:still\s+)?have|there\s+should\s+be|should\s+(?:be|have)|"
+    r"lost|can'?t\s+find|cannot\s+find|missing|dig(?:ging)?\s+up|hunt(?:ing)?\s+down|track(?:ing)?\s+down|"
+    r"pull\s+up|i\s+need\s+(?:the|my|that)|show\s+me\s+(?:the|my|that)|"
+    r"which\s+(?:" + _FILE_KIND_ALT + r"))\b",
+    re.IGNORECASE,
+)
+_FILE_OTHER_ACTION_RE = re.compile(
+    r"\b(?:copy|move|rename|write|create|make|send|e-?mail|upload|convert|compress|zip|share|attach|edit|"
+    r"save|delete|remove|read|open|summari[sz]e|translate|print|play|watch|listen|describe|analy[sz]e|"
+    r"show\s+me\s+what)\b",
+    re.IGNORECASE,
+)
+_FILE_NOT_THIS_DISK_RE = re.compile(
+    r"\b(?:how\s+(?:do|can|to|would|should)|in\s+(?:python|bash|linux|terminal|excel|javascript|java|node|"
+    r"windows)|who\s+(?:wrote|made|sang|sings|is|was)|what\s+(?:genre|is\s+a|'?s\s+a|is\s+the|does)|what's\s+a|"
+    r"web|google|internet|online|website|url|e-?mail|mail|inbox|gmail|outlook|drive|dropbox|icloud|onedrive|"
+    r"spotify|youtube|netflix|apple\s+music|soundcloud|photos\s+app|google\s+photos|instagram|lyrics|chords|meaning|"
+    r"best|better|worst|recommend(?:ed)?|favou?rite|app\s+store|play\s+store)\b",
+    re.IGNORECASE,
+)
+
+
+def _named_place(raw: str) -> str:
+    lowered = raw.lower()
+    return next((label for word, label in (("downloads", "Downloads"), ("desktop", "Desktop"), ("documents", "Documents"))
+                 if re.search(r"\b" + word + r"\b", lowered)), "")
+
+
+def machine_file_search_intent(text: str) -> tuple[str, tuple[str, ...], str] | None:
+    """``(kind, names, place)`` for a request to find a FILE by name, else ``None``.
+
+    ``kind`` is ``"image"``, ``"pdf"``, ``"video"``, ``"audio"``, a named type such as ``"jpg"``, or
+    ``""``; ``names`` are the alternatives the user gave ("daily 4 or day 4"); ``place`` is
+    Desktop/Downloads/Documents when the message names one, else ``""``. A mutating verb suppresses the match.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw or _MACHINE_DIAG_WRITE_RE.search(raw.lower()):
+        return None
+    return _named_file_search(raw) or _described_file_search(raw)
+
+
+def _passes_lookup_checks(asked: str) -> bool:
+    asked = re.sub(r"\bwhere\s+did\s+i\s+(?:save|put)\b", "where", asked, flags=re.IGNORECASE)
+    asked = re.sub(r"\b(?:external|usb|hard|thumb|flash)\s+drive\b", "disk", asked, flags=re.IGNORECASE)
+    return bool(_FILE_LOOKUP_CUE_RE.search(asked)) and not _FILE_OTHER_ACTION_RE.search(asked) and not (
+        _FILE_NOT_THIS_DISK_RE.search(asked))
+
+
+def _described_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
+    """The describing words of a file the user owns, searched as one name; every check still applies."""
+    if not _passes_lookup_checks(raw) or _FILE_DESCRIBED_REJECT_RE.search(raw):
+        return None
+    # "a picture of the eiffel tower on my mac": "a" is the user's own file when they say where it is.
+    pattern = _FILE_DESCRIBED_ON_DISK_RE if _named_place(raw) or _ON_THIS_COMPUTER_RE.search(raw) else _FILE_DESCRIBED_RE
+    for match in pattern.finditer(raw):
+        words = [
+            word for word in re.findall(r"[\w'-]+", f"{match.group('pre')} {match.group('post')}")
+            if word.lower() not in _FILE_DESCRIBED_STOPWORDS and word.lower() not in _FILE_KIND_WORDS
+        ]
+        if not words or len(words) > 5 or not any(len(re.sub(r"[^a-z]", "", word.lower())) >= 3 for word in words):
+            continue
+        return (_FILE_KIND_WORDS[match.group("kind").lower()], (" ".join(words),), _named_place(raw))
+    return None
+
+
+def _named_file_search(raw: str) -> tuple[str, tuple[str, ...], str] | None:
+    match = _FILE_NAMED_RE.search(raw)
+    by_ext = None if match is not None else _FILE_EXT_SEARCH_RE.search(raw)
+    if match is None and by_ext is None:
+        match = (_FILE_IN_NAME_RE.search(raw) or _FILE_QUOTED_RE.search(raw) or _FILE_BARE_NAME_RE.search(raw)
+                 or _FILE_ITS_CALLED_RE.search(raw))
+    if match is None and by_ext is None:
+        return None
+    # The checks below read what the user ASKED, not the file's name: "the pdf called web design
+    # brief" or "the file named read me" is still a lookup.
+    found = match or by_ext
+    asked = raw[: found.start("name")] + " " + raw[found.end("name"):]
+    if not _passes_lookup_checks(asked):
+        return None
+    if by_ext is not None:
+        if re.search(r"\b(?:in|inside)\s+$", raw[: by_ext.start("name")], re.IGNORECASE):
+            return None  # 'search for "foo" in notes.txt' searches INSIDE a file
+        return (_FILE_EXT_KINDS[by_ext.group("ext").lower()], (by_ext.group("name"),), _named_place(raw))
+    kind = _FILE_KIND_WORDS[(match.groupdict().get("kind") or "file").lower()]
+    between = match.groupdict().get("between") or ""
+    # "my pictures folder called vacation" / "my documents folder named taxes" are folders;
+    # "a picture in the Downloads folder named x" is a picture.
+    if re.match(r"\s+(?:folders?|director(?:y|ies))\b", between, re.IGNORECASE) or (
+        not kind and re.search(r"\b(?:folders?|director(?:y|ies))\b", between, re.IGNORECASE)
+    ):
+        return None
+    spoken = match.group("name").strip(" .'\"-")
+    # "named day4 to send to john" / "named invoice and email john" / "named day4 at google photos":
+    # what follows a connector inside the name is another ask, so the turn is not a plain lookup.
+    for tail in re.split(r"\s(?:to|at|then|and|is)\s", spoken, flags=re.IGNORECASE)[1:]:
+        if _FILE_OTHER_ACTION_RE.search(tail) or _FILE_NOT_THIS_DISK_RE.search(tail):
+            return None
+    names = []
+    for part in re.split(r"\s+or\s+", spoken, flags=re.IGNORECASE):
+        part = part.strip(" .'\"-")
+        part = re.sub(r"^(?:like|something\s+like)\s+", "", part, flags=re.IGNORECASE)
+        if re.match(r"(?:in|on|at|from|inside|for|by|to|with)\b", part, flags=re.IGNORECASE):
+            continue  # "a file called in French" is a question about a word, not a name
+        if len(re.sub(r"[^0-9a-z]", "", part.lower())) >= 2 and part.lower() not in _FILE_NAME_FILLERS:
+            names.append(part)
+    if not names:
+        return None
+    return (kind, tuple(dict.fromkeys(names)), _named_place(raw))
+
+
+# A size ask about ONE NAMED thing ("how big is the holiday photos zip"). The disk family above
+# answers this host's STORAGE; this family answers the size of the thing the person named -- a
+# file, an archive, a folder -- and nothing else. The two must never bleed into each other:
+# measured 2026-10-30, that zip ask (a file in Downloads) was answered with the file's size AND
+# the machine's disk fill, because no lane owned it, the model fished for a number and a mid-turn
+# drive read rode the turn to the provider. A size-of-a-thing ask gets the size of that thing
+# only; drive totals stay with machine_diagnostics_intent.
+_SIZE_QUERY_CUE_RE = re.compile(
+    # "how big/large/heavy is the taxes folder", "how big's the download": the adjective alone, on
+    # a word boundary, is the ask; the subject extraction below decides whether a NAMED thing
+    # carries it, so "how big is the population of france" matches the cue and still returns None.
+    r"\bhow\s+(?:big|large|heavy|huge|massive)\b"
+    # "how many MB is the intro video": the unit spells out what is being measured.
+    r"|\bhow\s+many\s+(?:k|kb|kib|mb|mib|g|gb|gib|tb|tib|megs?|gigs?|kilobytes?|kibibytes?|"
+    r"megabytes?|mebibytes?|gigabytes?|gibibytes?|terabytes?|tebibytes?)\b"
+    # "what size is the backup folder", "whats the file size of notes.txt", "size of the taxes
+    # folder please" (the apostrophe-less "whats" is allowed for the same reason every question
+    # detector here allows it: people drop it constantly).
+    r"|\bwhat\s+size\b|\bwhat'?s\s+(?:the\s+)?(?:file\s+)?size\b|\bwhats\s+(?:the\s+)?(?:file\s+)?size\b"
+    r"|\b(?:file\s+)?size\s+of\b"
+    # "how much space does the taxes folder take (up)": space ABOUT a named thing, not space left
+    # on a drive -- the diagnostics guard below has already claimed the drive readings of these
+    # same words before this alternative ever sees them.
+    r"|\bhow\s+much\s+(?:space|room)\s+does\b[^.!?\n]{0,60}?\btake\b",
+    re.IGNORECASE,
+)
+# Extensions people SAY without a dot ("the holiday photos zip"). A superset of the find-file
+# table because "tar", "iso", "dmg" and friends get asked about by size more than any other way.
+_SIZE_EXT_ALT = "|".join(sorted(set(_FILE_EXT_KINDS) | {"7z", "dmg", "gz", "iso", "rar", "tar"}, key=len, reverse=True))
+# "the holiday photos zip" / "that report pdf" / "the intro video": a determiner or possessive, a
+# name, then the kind word that ends it. The name is GREEDY on purpose: with a lazy name "the
+# holiday photos zip" parses as name "holiday" + kind "photos" ("photos" is itself a kind word),
+# and the image-suffix filter downstream then discards holiday photos.zip -- the one file being
+# asked about. Greedy takes the longest name a kind word can end, which is the one the person said.
+_SIZE_KIND_SUBJECT_RE = re.compile(
+    r"\b(?:the|a|an|my|our|your|that|this|those)\s+(?P<name>[\w][\w .'&()\-]{0,50})\s+"
+    r"(?P<kind>" + _SIZE_EXT_ALT + r"|" + _FILE_KIND_ALT + r")\b(?![\w.])",
+    re.IGNORECASE,
+)
+# A name said WITH its extension: "notes.txt", "holiday photos.zip", "backup.tar.gz". The lookbehind
+# keeps "and/or" and "8.5x11" out; the lazy body takes the shortest name that ends in a known
+# extension, so "backup.tar.gz" is read whole (".tar" is not the end), not cut at ".tar".
+_SIZE_NAMED_FILENAME_RE = re.compile(
+    r"(?<![\w./~\-])(?P<name>[\w\-][\w .'\-()]{0,60}?\.(?:" + _SIZE_EXT_ALT + r"))\b(?![\w.])",
+    re.IGNORECASE,
+)
+# "how big's the download": a handful of nouns that NAME a thing without describing it. Only with
+# a determiner, so prose ("how big is download speed") never reads as one of these.
+_SIZE_BARE_THING_NOUN_RE = re.compile(
+    r"\b(?:the|that|this|my|our|your)\s+(?P<name>download|attachment|backup|archive|invoice|export)\b",
+    re.IGNORECASE,
+)
+# A folder subject that is really the storage hardware ("how big is my drive") or a hardware-shaped
+# name ("the storage folder") is declined even when the wording parses: better the model lane than
+# a size answer about the wrong thing.
+_SIZE_DISK_SUBJECT_WORDS = frozenset({"drive", "disk", "ssd", "hdd", "volume", "partition", "storage"})
+# Question filler a filename-shaped match can swallow when it starts left of the real name:
+# "whats the file size of notes.txt" parses dotted from "whats", "what is the size of the invoice
+# pdf" parses greedy from "size". Stripping these from the FRONT of an extracted name leaves the
+# name; a real file called "the answer.txt" is still found by the substring search for "answer.txt".
+# The unit words and handing-over verbs belong here for the same reason: the dotted/lazy match
+# starts LEFT of the unit, so "how many megabytes is holiday-pictures.zip" parses from "how" and
+# nothing stops it before ".zip" -- without "megabytes" (and kb/mb/gb/...) here the unit survives
+# the strip and rides the needle into the search, which then finds nothing. A one-letter unit
+# ("k", "g") heading a real name ("k-drama list.zip") only costs that letter: the search is
+# substring and still finds the file.
+_SIZE_NAME_HEAD_FILLERS = frozenset(
+    {"whats", "what", "what's", "how", "big", "large", "heavy", "huge", "massive", "many", "much",
+     "size", "file", "of", "the", "a", "an", "my", "our", "your", "that", "this", "those", "is",
+     "are", "was", "were", "please", "pls", "tell", "me", "for", "on", "in", "at",
+     "give", "gimme", "show", "get",
+     "byte", "bytes", "k", "kb", "kib", "m", "mb", "mib", "g", "gb", "gib", "t", "tb", "tib",
+     "megs", "gigs", "kilobytes", "kibibytes", "megabytes", "mebibytes", "gigabytes",
+     "gibibytes", "terabytes", "tebibytes"}
+)
+# The same family's words INSIDE a folder-name extraction: "whats the total size of the Taxes
+# 2025 folder" hands the folder regexes "total size of the Taxes 2025", and the shared folder
+# stopword table rightly knows nothing about SIZE vocabulary (it serves find_folder too, whose
+# users may legitimately be looking for a folder called "total"). Dropping these HERE, in the
+# size lane only, leaves "Taxes 2025"; the shared table stays put.
+_SIZE_FOLDER_NAME_DROP_WORDS = _SIZE_NAME_HEAD_FILLERS | {"total", "combined", "overall"}
+
+
+def _size_name_without_leading_fillers(name: str) -> str:
+    words = str(name or "").split()
+    while words and words[0].lower().strip(".,;:!?-'\"") in _SIZE_NAME_HEAD_FILLERS:
+        words = words[1:]
+    return " ".join(words)
+
+
+# A typed path with spaces in its name ("how big is ~/Downloads/holiday photos.zip") comes back
+# from explicit_path_in truncated at the first space whenever the file does not exist to grow over
+# (its growth probes the disk; recognition must not). Textual continuation here: a following token
+# extends the path while it looks like part of a name and is not a CONNECTOR word, so "supposed to
+# be" and "and whats its name" stop it. Over-extending costs only a cleaner miss message (the stat
+# of a non-existent path fails closed); truncating costs the size of a real multi-word file.
+_SIZE_PATH_CONNECTORS = frozenset(
+    {"and", "or", "please", "pls", "then", "also", "is", "are", "was", "were", "whats", "what",
+     "how", "tell", "me", "its", "it", "to", "be", "in", "on", "at", "for", "of", "the", "a",
+     "an", "my", "supposed", "should", "can", "do", "does", "dont", "know", "think", "maybe",
+     "just", "thanks", "now", "again", "today", "there"}
+)
+_SIZE_PATH_TOKEN_RE = re.compile(r"[\w.'&()\-]+", re.UNICODE)
+
+
+def _extend_typed_path_name(raw: str, path: str) -> str:
+    start = raw.find(path)
+    if start < 0:
+        return path
+    tail = raw[start + len(path):]
+    grown = path
+    for piece in tail.split()[:6]:
+        piece = piece.strip()
+        if not piece or not _SIZE_PATH_TOKEN_RE.fullmatch(piece):
+            break
+        if piece.lower() in _SIZE_PATH_CONNECTORS:
+            break
+        grown = f"{grown} {piece}"
+    return grown
+
+
+def machine_size_query_intent(text: str) -> tuple[str, str, str, str | None] | None:
+    """``(kind, name, place, explicit_path)`` for a size ask about ONE named file/folder, else ``None``.
+
+    ``kind`` is ``"file"``, ``"folder"`` or ``""`` (unknown; a typed path whose kind the stat
+    settles); ``name`` is the RAW name-hint exactly as the person said it -- phrase reduction
+    belongs to the resolver, which may import helpers this module cannot (it would cycle);
+    ``place`` is Desktop/Downloads/Documents when the message names one, or when the subject IS
+    that folder ("how big is my documents folder" -> ``("folder", "", "Documents", None)``);
+    ``explicit_path`` is a path the person typed, else ``None``. Storage asks ("how much space is
+    left", "is my disk full") return ``None`` -- they stay with ``machine_diagnostics_intent`` --
+    and so do mutating asks (``_MACHINE_DIAG_WRITE_RE``) and largest-files asks. When no name,
+    path or place-folder can be extracted, ``None``: the model lane keeps the turn rather than
+    getting a size question answered with a guess.
+    """
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return None
+    lowered = raw.lower()
+    if _MACHINE_DIAG_WRITE_RE.search(lowered):
+        return None
+    if machine_diagnostics_intent(raw) is not None:
+        return None  # the disk family owns storage asks whatever size wording dresses them in
+    if machine_largest_intent(raw) is not None:
+        return None  # "how big is the biggest file on my machine" ranks files; it does not size one
+    if not _SIZE_QUERY_CUE_RE.search(lowered):
+        return None
+    explicit = explicit_path_in(raw)
+    if explicit:
+        return ("", "", _named_place(raw), _extend_typed_path_name(raw, explicit))
+    # A name WITH its extension beats the folder noun: "how big is notes.txt in my documents
+    # folder" is about the file; the folder is only where it lives.
+    named_file = _SIZE_NAMED_FILENAME_RE.search(raw)
+    if named_file is not None:
+        dotted = _size_name_without_leading_fillers(" ".join(named_file.group("name").split()).strip(" .'\"-"))
+        if dotted:
+            return ("file", dotted, _named_place(raw), None)
+    # A folder subject reuses the folder family's own shapes ("the taxes folder", "folder named
+    # taxes", "which folder holds my invoices") rather than restating them.
+    if not refers_to_current_scope(lowered):  # "this/current folder" is the bound scope's business
+        folder_match = (
+            _FOLDER_NAMED_RE.search(raw)
+            or _FOLDER_NAME_BEFORE_NOUN_RE.search(raw)
+            or _FOLDER_NAME_AFTER_NOUN_RE.search(raw)
+        )
+        if folder_match is not None:
+            name = " ".join(str(folder_match.group("name") or "").split()).strip(" .'\"-")
+            name = _FOLDER_NAME_TRAILING_LOCATIVE_RE.sub("", name).strip(" .'\"-")
+            words = [
+                word
+                for word in name.split()
+                if word not in _FOLDER_NAME_STOPWORDS and word.lower() not in _SIZE_FOLDER_NAME_DROP_WORDS
+            ]
+            clean = " ".join(words)
+            if len(clean) >= 2:
+                # "how big is my documents folder": the subject is the Documents folder ITSELF,
+                # not a second folder called "documents" inside it -- a place with an empty name.
+                place_word = {"documents": "Documents", "downloads": "Downloads", "desktop": "Desktop"}.get(clean)
+                if place_word:
+                    return ("folder", "", place_word, None)
+                if clean not in _SIZE_DISK_SUBJECT_WORDS:
+                    return ("folder", clean, _named_place(raw), None)
+    named = _FILE_NAMED_RE.search(raw)
+    if named is not None:
+        # "how big is the file named budget": the name follows named/called exactly as in
+        # _named_file_search; only the first "or"-alternative is kept (a size is one number).
+        spoken = named.group("name").strip(" .'\"-")
+        part = re.split(r"\s+or\s+", spoken, flags=re.IGNORECASE)[0].strip(" .'\"-")
+        part = re.sub(r"^(?:like|something\s+like)\s+", "", part, flags=re.IGNORECASE)
+        if len(re.sub(r"[^0-9a-z]", "", part.lower())) >= 2 and part.lower() not in _FILE_NAME_FILLERS:
+            return ("file", part, _named_place(raw), None)
+    subject = _SIZE_KIND_SUBJECT_RE.search(raw)
+    if subject is not None:
+        name = _size_name_without_leading_fillers(" ".join(subject.group("name").split()).strip(" .'\"-"))
+        if len(re.sub(r"[^0-9a-z]", "", name.lower())) >= 2 and name.lower() not in _FILE_NAME_FILLERS:
+            return ("file", name, _named_place(raw), None)
+    bare = _SIZE_BARE_THING_NOUN_RE.search(raw)
+    if bare is not None:
+        return ("", " ".join(bare.group("name").split()), _named_place(raw), None)
+    return None
+
+
 # An ANALYSIS verb wants the folder's CONTENTS ("audit/analyze/review/what's in my X folder"),
 # not just its location. find_folder only LISTS paths, so those asks used to stop at a path list
 # and never read anything -- the model then talked about an audit it never ran. This routes them to

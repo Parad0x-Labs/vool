@@ -249,6 +249,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/plugins": "plugin catalog feed (lane OFF by default)",
     "http:POST:/api/plugins/enable": "plugin lane (flag OFF by default)",
     "http:GET:/api/setup/state": "first-run setup progress feed (derived; core/setup_progress.py)",
+    "http:GET:/api/screen-privacy": "Hide my name on screen feed (display-only mask rules; core/screen_privacy.py)",
     "http:GET:/api/onboarding/pact": "first-run pact state feed (server authority kept; its chat UI was retired 2026-09-07)",
     "http:GET:/api/onboarding/state": "first-run provider-choice feed (the setup page reads /api/setup/state; kept for the pact authority)",
     "http:GET:/setup": "guided setup page (served like /settings; writes go through existing doors)",

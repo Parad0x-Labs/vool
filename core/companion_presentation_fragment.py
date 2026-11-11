@@ -112,19 +112,10 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 /* No status dot on the sprite (product/desktop-usability-20260917): it sat at the CORNER of the
    112px drag box, ~1cm from the character's drawn feet, and read as a stray floating mark. It
    duplicated the tone, and the pack's colour law already requires the word to carry every
-   state -- colour is never the sole carrier -- so removing it loses no information. The restore
-   chip keeps its own small dot below: that one is part of a real control. */
+   state -- colour is never the sole carrier -- so removing it loses no information. */
 #companionLayer .vn-sr {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
-#companionLayer .vn-restore {
-  position: fixed; left: 10px; top: 10px; pointer-events: auto; display: none;
-  background: var(--panel, #14181f); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
-  border-radius: 8px; font-size: 11px; padding: 4px 8px; cursor: pointer;
-}
-#companionLayer .vn-restore:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); }
-#companionLayer .vn-restore .vn-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--vn-tone, #94a3b8); margin-right: 5px; vertical-align: 1px; }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
 .vool-ninja-pop {
   /* The layer is click-through; its own panels must take the clicks they draw (otherwise a
@@ -785,7 +776,7 @@ let vnLayer = null, vnSprite = null, vnCanvas = null, vnCtx = null, vnSr = null;
 let vnBubble = null, vnBubbleTitle = null, vnBubbleActivity = null;
 /* Bounded display lengths. Chat names are operator-facing labels, not documents. */
 const VN_TITLE_MAX = 42, VN_ACTIVITY_MAX = 34;
-let vnPop = null, vnMenu = null, vnLab = null, vnRestore = null;
+let vnPop = null, vnMenu = null, vnLab = null;
 //: Minimum time one activity phrase stays readable before a newer phrase replaces it.
 //: Presentation cadence ONLY (the pack allows wall-clock to animate cadence); it never creates,
 //: delays or reorders execution truth, and terminal states ignore it.
@@ -1164,7 +1155,6 @@ function vnApplyPos() {
   if (!vnDrag) vnSprite.classList.toggle("over-critical", covering);
   const onDesktop = (vnPos.mode === "desktop" && vnDesktopActive) || vnDetachPending;
   vnSprite.style.display = (vnPos.hidden || onDesktop) ? "none" : "flex";
-  if (vnRestore) vnRestore.style.display = vnPos.hidden ? "block" : "none";
   // A moved or re-shown pet covers different controls: re-clip its hit area.
   const place = vnSprite.style.left + "," + vnSprite.style.top + "," + vnSprite.style.display;
   if (place !== vnHitPlace) { vnHitPlace = place; vnScheduleHitMask(true); }
@@ -1527,10 +1517,13 @@ function vnDock() {
   vnPos.mode = "docked";
   vnPersistPos(); vnApplyPos();
 }
+const VN_HIDDEN_NOTE = "Pet hidden. To bring it back: Settings, Companion, Show pet.";
 function vnHide(hidden) {
   vnCloseMenu(false);
+  const wasHidden = vnPos.hidden === true;
   vnPos.hidden = hidden === true;
   vnPersistPos(); vnApplyPos();
+  if (vnPos.hidden && !wasHidden) vnNotify(VN_HIDDEN_NOTE);
 }
 function vnCyclePersonality() {
   const keys = Object.keys(window.VoolCompanionWorld.characters);
@@ -1704,6 +1697,10 @@ function vnDesktopPayload(pres, state) {
   const activity = vnActivity(pres);
   if (activity) payload.activity = activity;
   if (vnPos.desktop && Number.isFinite(vnPos.desktop.x) && Number.isFinite(vnPos.desktop.y)) payload.desktop_position = vnPos.desktop;
+  /* The desktop pet is its own native window: "Hide my name on screen" (core/screen_privacy.py)
+     masks its lines here, before they leave the page. */
+  const privacy = window.VoolScreenPrivacy;
+  if (privacy && privacy.enabled()) ["caption","chatTitle","activity"].forEach(k => { if (typeof payload[k] === "string") payload[k] = privacy.mask(payload[k]); });
   return payload;
 }
 /* The native side reports where the pet actually ended up; the page owns persistence. */
@@ -1714,8 +1711,10 @@ function vnDesktopMoved(position) {
 }
 function vnDesktopHidden() {
   vnDesktopActive = false; vnDesktopSignature = "";
+  const wasHidden = vnPos.hidden === true;
   vnPos.hidden = true;
   vnPersistPos(); vnApplyPos();
+  if (!wasHidden) vnNotify(VN_HIDDEN_NOTE);
 }
 async function vnResetDesktopPosition() {
   const api = vnNativeCompanionApi();
@@ -1724,6 +1723,25 @@ async function vnResetDesktopPosition() {
     const result = await api.reset_companion_position();
     vnNotify(result && result.ok ? "Pet position reset." : "The pet is not on the desktop.");
   } catch (e) { vnNotify("Could not reset the pet position."); }
+}
+/* Bring a hidden pet back where it was: a pet hidden from the desktop goes back out to the desktop
+   (falling back to the chat if the native window refuses), an in-app pet reappears in the chat.
+   Plain vnHide(false) would re-show a desktop-mode pet inside the chat window while its mode still
+   said "desktop". Returns true when a show was started. */
+function vnShowPet() {
+  vnCloseMenu(false);
+  vnPos.hidden = false;
+  if (vnPos.mode === "desktop") {
+    if (vnNativeCompanionApi()) {
+      vnDetachPending = true;  // keep the in-chat sprite out of sight while the desktop window comes back
+      vnPersistPos(); vnApplyPos();
+      vnDetachDesktop(true);
+      return true;
+    }
+    vnPos.mode = vnPos.previousMode === "free" ? "free" : "docked";  // no desktop here: show it in the chat
+  }
+  vnPersistPos(); vnApplyPos();
+  return true;
 }
 async function vnHideDesktopPet() {
   const api = vnNativeCompanionApi();
@@ -1891,12 +1909,8 @@ function vnBoot() {
   vnHit.className = "vn-hit";
   vnHit.setAttribute("aria-hidden", "true");
   vnSprite.appendChild(vnHit);
-  vnRestore = document.createElement("button");
-  vnRestore.type = "button";
-  vnRestore.className = "vn-restore";
-  vnRestore.innerHTML = '<span class="vn-dot"></span>';
-  vnRestore.appendChild(document.createTextNode(vnLabel("companion.label", "Companion")));
-  vnRestore.addEventListener("click", function () { vnHide(false); });
+  // No pill is left behind when the pet is hidden: a hidden pet is simply gone, and Settings
+  // (Companion > Show pet) brings it back. The old "Companion" pill sat over the sidebar's buttons.
   vnPop = document.createElement("div");
   vnPop.className = "vool-ninja-pop";
   vnPop.style.display = "none";
@@ -1909,7 +1923,6 @@ function vnBoot() {
   vnLab.addEventListener("click", function (e) { if (e.target === vnLab) vnCloseCharacterLab(); });
   vnLayer.appendChild(vnSr);
   vnLayer.appendChild(vnSprite);
-  vnLayer.appendChild(vnRestore);
   vnLayer.appendChild(vnPop);
   vnLayer.appendChild(vnMenu);
   vnLayer.appendChild(vnLab);
@@ -1986,6 +1999,8 @@ window.VoolCompanion = {
   desktopHidden: vnDesktopHidden,
   resetDesktopPosition: vnResetDesktopPosition,
   hideDesktopPet: vnHideDesktopPet,
+  showPet: vnShowPet,
+  isHidden: function () { return vnPos.hidden === true; },
   pos: function () { return vnPos; },
   spriteCount: function () { return vnSprite && !vnPos.hidden ? 1 : (vnSprite ? 0 : 0); },
   popoverHtml: function (chatId) { vnRenderPopover(chatId); return vnPop ? vnPop.innerHTML : ""; },

@@ -38,6 +38,8 @@ class UserPreferences:
     # and, where its provider really offers one, its provider's own web search. OFF by default.
     model_own_tools: bool = False
     speech_notice_dismissed: bool = False  # durable even in private native web sessions
+    # "Hide my name on screen" (core/screen_privacy.py): a display-only mask for streaming. OFF by default.
+    hide_name_on_screen: bool = False
     # First-run setup (core/setup_progress.py). The flow persists ONLY these two: which steps the
     # user skipped and whether the "Complete setup" reminder was dismissed. Done-ness is never
     # stored -- it is derived from the authorities that own each value.
@@ -217,6 +219,7 @@ def load_preferences() -> UserPreferences:
             setup_skipped_steps=str(raw.get("setup_skipped_steps", "") or "").strip()[:200],
             setup_dismissed=bool(raw.get("setup_dismissed", False)),
             speech_notice_dismissed=bool(raw.get("speech_notice_dismissed", False)),
+            hide_name_on_screen=raw.get("hide_name_on_screen") is True,
             autonomy_chosen_at=str(raw.get("autonomy_chosen_at", "") or "").strip()[:40],
         )
         return _apply_edition_clamps(prefs)
@@ -248,6 +251,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["timezone"] = _validate_timezone(str(payload.get("timezone", "") or ""))
     payload["setup_skipped_steps"] = str(payload.get("setup_skipped_steps", "") or "").strip()[:200]
     payload["speech_notice_dismissed"] = bool(payload.get("speech_notice_dismissed", False))
+    payload["hide_name_on_screen"] = payload.get("hide_name_on_screen") is True
     payload["setup_dismissed"] = bool(payload.get("setup_dismissed", False))
     payload["autonomy_chosen_at"] = str(payload.get("autonomy_chosen_at", "") or "").strip()[:40]
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

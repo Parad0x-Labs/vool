@@ -14,6 +14,21 @@ and Intel) and Linux x86_64; Windows is experimental and installs from source.
 These docs cover installing VOOL, connecting a model, and the concepts behind how it
 handles your files, your memory, and your keys.
 
+## How it measures up
+
+On 150 never-used LoCoMo memory questions, with the same model answering for every agent and the
+same GPT-4o grader, VOOL's memory beat two other open-source agents:
+
+| | VOOL | OpenClaw | Hermes |
+| --- | --- | --- | --- |
+| Right answers | **82.7%** (124 / 150) | 71.3% (107) | 62.7% (94) |
+| Tokens per question | **9.6k** | 51.8k | 33.5k |
+| Cost per question | **$0.0033** | $0.0100 | $0.0046 |
+
+That is 5.4 times fewer tokens than OpenClaw and 3.5 times fewer than Hermes, at a third of
+OpenClaw's cost per answer. The memory shipped in VOOL 0.7 scored 123 of 150 on the same questions.
+Every run, the setup and the weak spots are published: [memory benchmarks](https://github.com/Parad0x-Labs/vool/tree/main/docs/benchmarks).
+
 ## Start here
 
 | If you want to | Read |

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.5"
+version = "0.7.7"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -30,7 +30,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.21.2",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==6.21.4",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.1.0",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -135,10 +135,10 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     # The authoritative gate checks this exact version before collection so local and CI cannot
     # silently disagree about collection semantics.
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
-    "ruff==0.17.2",
+    "ruff==0.17.3",
     "mypy>=1.8",
     # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
     # are in flight. It was never declared, so it passed only on machines that happened to have it
@@ -329,5 +329,5 @@ markers = [
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
 ]

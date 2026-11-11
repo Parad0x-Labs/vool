@@ -41,7 +41,7 @@ so the same crash reported twice with drifted titles dedups.
 - **HTTP API** (`core/web/api/service.py`): `POST /api/bug-report/{draft,preview,approve,submit}`,
   `GET /api/bug-report/{status,receipts}` — owner-local, JSON content-type, origin and loopback
   guards, unknown-body-field rejection, the same accept-once invocation ledger as every other POST.
-- **CLI** (`apps/vool_cli.py`, run as `python -m apps.vool_cli`): `vool bug-report draft|preview|approve|submit|status|receipts`
+- **CLI** (`apps/vool_cli.py`, run as `python -m apps.vool_cli`): `python -m apps.vool_cli bug-report draft|preview|approve|submit|status|receipts`
   (`--log name:path` reads bounded log sources; `--json` everywhere).
 - Drafts live under `<VOOL_HOME>/data/bug_reports/drafts/<id>.json`; receipts at
   `<VOOL_HOME>/data/bug_reports/receipts.jsonl`.
@@ -258,9 +258,9 @@ Model ids such as `qwen3:8b` are now accepted as identifiers instead of being dr
 how each one left: opened on GitHub, copied, saved, or sent with a token. Drafts can be deleted.
 
 **CLI:**
-- `vool bug-report answer --session … --request-id … --reason …` creates an answer draft;
-- `vool bug-report open` prints the GitHub link and needs approval, like `submit`;
-- `vool bug-report list` shows the local drafts.
+- `python -m apps.vool_cli bug-report answer --session … --request-id … --reason …` creates an answer draft;
+- `python -m apps.vool_cli bug-report open` prints the GitHub link and needs approval, like `submit`;
+- `python -m apps.vool_cli bug-report list` shows the local drafts.
 
 **Report schema v2.** Drafts gain `kind`, `machine`, `health` and `answer`. Version-1 drafts still
 load, and unknown keys are still refused.

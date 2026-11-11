@@ -59,7 +59,7 @@ def test_the_machine_families_come_from_one_registry() -> None:
     registered = {family for family, _ in _PROBE_FAMILIES}
     visible = {family for family, _ in ac._machine_family_probes()}
     assert visible == registered
-    assert len(registered) == 9
+    assert len(registered) == 10  # 9 -> 10: find_file (a file named by the user, 2026-10-27)
 
 
 def test_positive_controls_keep_their_lanes() -> None:
