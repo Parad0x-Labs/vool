@@ -785,12 +785,10 @@ def _memory_recall_response(
     access_policy: ContextAccessPolicy,
 ) -> str:
     lowered = " ".join(str(query or "").casefold().split())
-    if any(marker in lowered for marker in _OTHER_CHAT_MEMORY_MARKERS):
-        if access_policy.allow_user_profile_context:
-            # The owner's own chat: their other chats are the cross-chat recall lane's to search
-            # (core.agent_runtime.cross_chat_recall). "I don't have access to memory from another
-            # chat" is false there; it stays the answer only where cross-chat reading is not allowed.
-            return _NO_ACTIVE_REMEMBERED_VALUE
+    if any(marker in lowered for marker in _OTHER_CHAT_MEMORY_MARKERS) and not access_policy.allow_user_profile_context:
+        # Only where cross-chat reading is not allowed. In the owner's own chat their saved memory
+        # is readable from every chat and is searched below like any recall; mentions that were
+        # never saved are the cross-chat recall lane's (core.agent_runtime.cross_chat_recall).
         return (
             "I can only access active memory from this chat; I don't have access to memory from another chat."
         )
@@ -879,6 +877,14 @@ def _memory_recall_response(
                 overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
                 best_overlap = max(overlaps)
                 rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == best_overlap]
+    if not list_request and len(rows) > 1:
+        # The best-matching rows only, whichever branch selected them: "do you remember my test
+        # hotel booking code?" listed the bike lock code beside it (both share "test", "code").
+        from core.chat_housekeeping import query_terms as _terms
+
+        wanted = set(_terms(query))
+        overlaps = [len(wanted & set(_terms(str(row.get("text") or "")))) for row in rows]
+        rows = [row for row, overlap in zip(rows, overlaps, strict=True) if overlap == max(overlaps)]
     values: list[str] = []
     for row in rows:
         value = _memory_recall_value(str(row.get("text") or ""))
@@ -2449,8 +2455,9 @@ def maybe_handle_memory_command(
         # dressed up as "Active remembered value" answers a DIFFERENT question than the one asked.
         if _asks_about_transcript_order(text):
             return False, ""
-        asked_for_an_inventory = _memory_recall_empty_result_is_explicit(text) or any(
-            marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS
+        asked_for_an_inventory = _memory_recall_empty_result_is_explicit(text) or (
+            any(marker in text.casefold() for marker in _OTHER_CHAT_MEMORY_MARKERS)
+            and not resolved_policy.allow_user_profile_context
         )
         response = _memory_recall_response(
             text,

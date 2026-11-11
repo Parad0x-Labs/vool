@@ -48,7 +48,10 @@ _OTHER_CHAT_RE = re.compile(
     r"(?:chats?|conversations?|threads?)\b|\b(?:other|another|previous|past|different)\s+(?:chats?|conversations?)\b",
     re.IGNORECASE,
 )
-_REMEMBER_LEAD_RE = re.compile(r"^\s*(?:please\s+)?(?:remember|note|keep\s+in\s+mind)(?:\s+that)?\s*[:,]?\s*", re.IGNORECASE)
+_REMEMBER_LEAD_RE = re.compile(
+    r"^\s*(?:(?:by\s+the\s+way|btw|fyi|oh|also|and)\s*[,:]?\s*)?(?:please\s+)?(?:(?:remember|note|keep\s+in\s+mind)(?:\s+that)?\s*[:,]?\s*)?",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -114,7 +117,20 @@ def _private(session_id: str, source_context: dict[str, Any] | None) -> bool:
         return bool((source_context or {}).get("private_chat"))
 
 
+#: Words that make an own-situation question a LIVE assistant question (calendar, reminders, mail,
+#: files, weather, money), owned by those lanes even when no recognizer claims the exact phrasing.
+#: Measured 2026-11-11: "do I have any meetings this week?" was answered "I don't have that saved".
+_LIVE_DOMAIN_RE = re.compile(
+    r"\b(?:meetings?|appointments?|calendar|agenda|events?|schedule|reminders?|e-?mails?|mail|inbox|"
+    r"messages?|files?|folders?|downloads?|desktop|disk|battery|weather|forecast|balance|wallet|price|"
+    r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now)\b",
+    re.IGNORECASE,
+)
+
+
 def _owned_by_another_lane(text: str) -> bool:
+    if _LIVE_DOMAIN_RE.search(text):
+        return True
     try:
         from core.runtime_lane_truth import runtime_lane_question
 
@@ -325,11 +341,14 @@ def cross_chat_recall(
         return None  # saved memory answers; the ordinary path reads it
     if best is not None:
         hit, said, said_ts = best
-        where = f"“{hit.title or 'New chat'}”"
+        title = " ".join(str(hit.title or "").split())
+        # A chat titled by the very sentence being quoted is named by its day, not by the quote twice.
+        repeats = not title or title.rstrip(" .").casefold() in said.casefold() or said.casefold() in title.casefold()
+        where = ("a chat" if repeats else f"your chat “{title}”")
         if hit.project_name:
             where += f" in the {hit.project_name} project"
         when = _when(said_ts or hit.updated_at)
-        mention = f"your chat {where}" + (f" on {when}" if when else "") + f":\n> {said}"
+        mention = where + (f" on {when}" if when else "") + f":\n> {said}"
         if saved:
             response = (
                 "Here is what I have saved:\n" + "\n".join(f"- {row}" for row in saved[:4])

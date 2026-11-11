@@ -323,3 +323,48 @@ def test_the_entity_check_ask_back_has_no_bookkeeping_words():
 
     text = render_unresolved_clarification("What is the population of Springfield?", attempts=2)
     assert "well-known answer" not in text and "tried 2x" not in text and "Springfield" in text
+
+
+@pytest.mark.parametrize("text", ["did paysera send me anything?", "did I get anything from paysera?", "did my bank write to me?"])
+def test_a_sender_asked_about_by_name_seats_the_mailbox_read(text):
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents(text) == ("email.read",)
+
+
+def test_money_or_a_question_to_vool_is_not_a_mailbox_read():
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents("did mom send me money?") == ()
+    assert mailbox_retrieval_intents("did you send me the file?") == ()
+
+
+@pytest.mark.parametrize("text", ["pdf please", "make it a pdf", "as excel"])
+def test_a_bare_format_follow_up_orders_the_file(text):
+    from core.tool_demand_signals import asks_for_a_file
+
+    assert asks_for_a_file(text)
+
+
+def test_a_question_about_a_format_orders_nothing():
+    from core.tool_demand_signals import asks_for_a_file
+
+    assert not asks_for_a_file("what is a pdf")
+
+
+def test_a_bare_name_recipient_resolves_to_the_sender_read_here(one_account):
+    from core.email_argument_guard import guard_email_arguments
+
+    ctx = {"runtime_tool_observations": [{"intent": "email.read", "ok": True, "messages": [
+        {"from": "KuCoin <no-reply@kucoin.example>", "subject": "Deposit"}]}]}
+    verdict = guard_email_arguments("email.send", {"to": "kucoin", "subject": "Thanks"}, source_context=ctx,
+                                    user_text="reply to the latest kucoin email saying thanks")
+    assert not verdict.refused and verdict.arguments["to"] == "no-reply@kucoin.example"
+    unknown = guard_email_arguments("email.send", {"to": "bob"}, source_context={}, user_text="email bob")
+    assert unknown.refused
+
+
+def test_an_own_situation_question_about_the_calendar_is_not_a_memory_recall():
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane
+
+    assert _owned_by_another_lane("do I have any meetings this week?")

@@ -895,6 +895,13 @@ _MAILBOX_ANCHOR_RE = re.compile(
     # live tests): this exact phrasing failed to seat email.read and the model answered a
     # capability denial instead of reading the inbox.
     rf"|\b{_MAIL_ITEM}\b[^.?!]{{0,60}}?\breceived\b"
+    # "did paysera send me anything?", "has my bank written to me?", "did I get anything from X?":
+    # a sender asked about by name with no mail noun at all. Measured 2026-11-11 on the installed
+    # build: "did paysera send me anything?" reached a model with no tool and failed. Bounded
+    # objects only (anything / something / a message / mail): "did mom send me money" stays out.
+    r"|\b(?:did|has|have)\s+(?!i\b|you\b|we\b)[\w@&'.-]+(?:\s+[\w@&'.-]+){0,3}?\s+(?:send|sent|write|written|wrote)\s+(?:to\s+)?(?:me|us)\b"
+    r"(?:\s+(?:anything|something|an?\s+(?:message|note|letter|update|reply)|mail|e-?mails?|back))?\s*(?:\?|$|\b(?:this|today|yesterday|recently|lately|since))"
+    r"|\bdid\s+(?:i|we)\s+(?:get|receive)\s+(?:anything|something|any(?:thing)?\s+(?:mail|e-?mails?|messages?)|mail|an?\s+(?:message|e-?mail|reply))\s+from\b"
     rf"|^\s*(?:please\s+)?[a-z]+(?:\s+(?:up|out|through|over))?\s+(?:the\s+)?(?:inbox|mailbox|e-?mails?|mail)\b"
     rf"(?!\s+{_NOT_MAIL_CONTENT}\b)",
     re.IGNORECASE,
@@ -1099,6 +1106,19 @@ _DELIVERY_ORDER_RE = re.compile(
 )
 
 
+#: A short follow-up that is nothing but a format order: "pdf please", "make it a pdf", "word
+#: version?", "as excel". Measured 2026-11-11 on the installed build: after a packing list,
+#: "pdf please" was answered "Would you like me to generate it now?" while "give me that in pdf"
+#: delivered the file -- the reply asked instead of doing what was asked.
+_ELLIPTICAL_FORMAT_ORDER_RE = re.compile(
+    r"^\s*(?:(?:ok(?:ay)?|now|and|also|then)\s*[,]?\s*)?(?:(?:please|pls|plz)\s+)?"
+    r"(?:(?:make|turn|put|convert|save|export|send|give\s+me)\s+(?:it|that|this|them|those)\s+(?:in(?:to)?|as|to)?\s*)?"
+    r"(?:(?:a|an|as|in)\s+)?(?:\.)?(pdf|docx?|word(?:\s+doc(?:ument)?)?|excel|xlsx|csv|markdown|md|pptx|powerpoint|zip)"
+    r"(?:\s+(?:version|file|copy|format|doc(?:ument)?))?\s*(?:,?\s*(?:please|pls|plz|too|instead|thanks))?\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+
 def asks_for_a_file(text: str) -> bool:
     """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
 
@@ -1214,7 +1234,7 @@ def resolve_demand_signals(text: str) -> DemandSignals:
 
     # Share the reader with front-door ownership: an anaphoric artifact order
     # must seat file.deliver too, not only classify as a file after seating.
-    if _separate_file_execution_clause(cleaned):
+    if _separate_file_execution_clause(cleaned) or _ELLIPTICAL_FORMAT_ORDER_RE.match(cleaned):
         _note("file.deliver", "file")
 
     # A save/store request whose object is a saved contact ("save Alex Chen as a contact",

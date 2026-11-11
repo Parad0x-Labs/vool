@@ -115,6 +115,54 @@ def _contact_addresses() -> set[str]:
     return found
 
 
+
+def _read_senders(source_context: dict[str, Any] | None) -> list[str]:
+    """'Name <address>' strings of the From/Reply-To headers of mail read in this chat."""
+    found: list[str] = []
+    for item in list((source_context or {}).get("runtime_tool_observations") or []):
+        if not isinstance(item, dict) or str(item.get("intent") or "").strip().lower() not in _READ_INTENTS:
+            continue
+        for message in list(item.get("messages") or []) + ([item.get("message")] if isinstance(item.get("message"), dict) else []):
+            if not isinstance(message, dict):
+                continue
+            for key in ("reply_to", "from"):
+                value = str(message.get(key) or "").strip()
+                if value and _ADDRESS_RE.search(value):
+                    found.append(value)
+                    break
+    return found
+
+
+def _resolve_named_recipients(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    senders = _read_senders(source_context)
+    if not senders:
+        return None
+    changed = False
+    out = dict(args)
+    for key in ("to", "cc", "bcc"):
+        value = out.get(key)
+        entries = [value] if isinstance(value, str) else list(value or [])
+        resolved: list[str] = []
+        for entry in entries:
+            text = str(entry or "").strip()
+            if not text or "@" in text:
+                resolved.append(text)
+                continue
+            needle = re.escape(text.casefold())
+            matches = sorted({
+                _ADDRESS_RE.search(sender).group(0).casefold()
+                for sender in senders
+                if re.search(rf"(?<![\w]){needle}(?![\w])", sender.casefold())
+            })
+            if len(matches) == 1:
+                resolved.append(matches[0])
+                changed = True
+            else:
+                resolved.append(text)
+        if entries:
+            out[key] = resolved if not isinstance(value, str) else ", ".join(resolved)
+    return out if changed else None
+
 def guard_email_arguments(
     intent: str,
     arguments: dict[str, Any],
@@ -143,12 +191,28 @@ def guard_email_arguments(
             args["account"] = account
     if intent not in RECIPIENT_INTENTS:
         return EmailArgumentVerdict(arguments=args, dropped_account=dropped)
+    # A recipient given as a bare NAME ("kucoin") is resolved against the senders of mail read in
+    # this chat before anything is drafted or shown: measured 2026-11-11 on the installed build,
+    # "reply to the latest kucoin email saying thanks" reached the send card with to='kucoin'.
+    # Exactly one matching address resolves it; several or none leave it to the contacts
+    # resolver, and a send/reply whose recipient has no address is refused below.
+    named = _resolve_named_recipients(args, source_context)
+    if named is not None:
+        args = named
     addresses = [
         match
         for entry in _recipient_entries(args)
         for match in _ADDRESS_RE.findall(entry)
     ]
     if not addresses:
+        if intent in {"email.send", "email.reply"} and _recipient_entries(args):
+            message = (
+                "The recipient has no email address, so nothing was sent. Read the person's mail first "
+                "(email.read with sender set to their name) and reply to that message, or ask the person "
+                "for the address."
+            )
+            return EmailArgumentVerdict(arguments=args, refused=True, status=REFUSAL_STATUS,
+                                        message=message, dropped_account=dropped)
         return EmailArgumentVerdict(arguments=args, dropped_account=dropped)
     grounding = _grounding_text(source_context, user_text)
     contacts = _contact_addresses()
