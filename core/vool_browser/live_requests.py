@@ -161,6 +161,8 @@ class _TurnBoundary:
         self.text = str(text or "")
         self.followup = False
         self.active = requested(text)
+        # The person's own words asked to browse (never set later by a tool call or child text).
+        self.asked = self.active
         executable = '' if asks_for_instructions_not_execution(text) else _instruction_text(text)
         self.urls = frozenset(_url(u) for u in addresses(executable))
         self.follow = _asks(executable, r'follow|click|press|tap|visit|navigate|open\s+(?:the|that|this)\s+link')
@@ -172,6 +174,10 @@ class _TurnBoundary:
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
         self.open = bool(self.urls and (self.active or _asks(executable, r'open|opne|oepn|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
+        # The one address VOOL chose itself this turn, if any, and whether any page text was
+        # read before it: once a page was read, its text could have suggested the address.
+        self.chosen: str | None = None
+        self.page_read = False
         # How this turn's browser request ended when it never ran: the reply names it truthfully.
         self.unanswered: dict[str, str] | None = None
         # The browser steps of this turn that ran after Allow, so a reply that fails later
@@ -223,10 +229,15 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     if boundary is None or not boundary.active:
         return True
     if intent in READS | CLOSE | {'respond.direct'}:
+        if intent in READS and arguments is not None:
+            boundary.page_read = True
         return True
     if intent in {'vool-browser.session.open', 'vool-browser.navigate'}:
         if not boundary.open:
-            return False
+            # "Use the browser to find Riga's timetable": no address written, so VOOL may
+            # choose one, once, before anything of a page was read this turn. The card still
+            # shows that exact address and needs Allow; local and private ones are refused.
+            return _may_choose(boundary)
         # Only an address the person wrote can be opened. Following a link on the
         # page is a click on an observed element, never an address the page supplied.
         if arguments is None:
@@ -242,11 +253,19 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     return False
 
 
+def _may_choose(boundary: "_TurnBoundary") -> bool:
+    return bool(boundary.asked and not boundary.followup and not boundary.urls and boundary.chosen is None
+                and not boundary.proposed_urls and not boundary.completed and not boundary.page_read)
+
+
 def note_navigation_proposal(url: str) -> None:
     """One original request cannot repeat an approval under another tool alias."""
     boundary = _CONFINED.get()
     if boundary is not None and boundary.active:
-        boundary.proposed_urls.add(_url(url))
+        address = _url(url)
+        if address not in boundary.urls:
+            boundary.chosen = address
+        boundary.proposed_urls.add(address)
 
 
 def note_unanswered(op: str, url: str, status: str) -> None:
