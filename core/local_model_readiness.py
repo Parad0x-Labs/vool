@@ -97,7 +97,7 @@ def recommended_local_model(
     ``ram_gb`` alone sizes a computer without a usable GPU (kept for callers that only know RAM);
     otherwise the live hardware probe decides Apple / NVIDIA / CPU sizing.
     """
-    from core.local_model_suggestions import download_gb, suggest_local_models
+    from core.local_model_suggestions import download_gb_for, suggest_local_models
 
     if probe is None:
         if ram_gb is not None:
@@ -116,12 +116,15 @@ def recommended_local_model(
     suggestion = suggest_local_models(probe, free_disk_gb=free_disk_gb, ollama_version=ollama_version)
     result: dict[str, Any] = {
         "model_name": suggestion.daily,
-        "download_gb": download_gb(suggestion.daily),
+        "download_gb": download_gb_for(suggestion.daily, suggestion.machine_kind),
         "machine_kind": suggestion.machine_kind,
         "sized_by_gb": round(suggestion.sized_by_gb, 1),
     }
     if suggestion.deep:
-        result["bigger"] = {"model_name": suggestion.deep, "download_gb": download_gb(suggestion.deep)}
+        result["bigger"] = {
+            "model_name": suggestion.deep,
+            "download_gb": download_gb_for(suggestion.deep, suggestion.machine_kind),
+        }
     if suggestion.ollama_update_unlocks:
         result["ollama_update_unlocks"] = suggestion.ollama_update_unlocks
     return result
