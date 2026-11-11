@@ -2838,6 +2838,7 @@
     "live.browser": "Browser",
     "live.buttons": "Buttons",
     "live.card_expired": "No answer in time",
+    "live.card_paused": "You took over",
     "live.card_refused": "You said no",
     "live.card_title": "VOOL wants to use the browser",
     "live.chat": "Chat",

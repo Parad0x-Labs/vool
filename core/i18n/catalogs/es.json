@@ -2838,6 +2838,7 @@
     "live.browser": "Navegador",
     "live.buttons": "Botones",
     "live.card_expired": "Sin respuesta a tiempo",
+    "live.card_paused": "Tomaste el control",
     "live.card_refused": "Dijiste que no",
     "live.card_title": "VOOL quiere usar el navegador",
     "live.chat": "Conversación",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

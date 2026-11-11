@@ -2838,6 +2838,7 @@
     "live.browser": "ब्राउज़र",
     "live.buttons": "बटन",
     "live.card_expired": "समय पर जवाब नहीं",
+    "live.card_paused": "आपने नियंत्रण ले लिया",
     "live.card_refused": "आपने मना किया",
     "live.card_title": "VOOL ब्राउज़र इस्तेमाल करना चाहता है",
     "live.chat": "चैट",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "स्ट्रीम करने या अपनी स्क्रीन शेयर करने से पहले इसे चालू करें। तब VOOL आपके होम फ़ोल्डर को ~ और आपका नाम व आपके कंप्यूटर का नाम ••• के रूप में दिखाएगा, यहाँ और आपके फ़ोन पर। सिर्फ़ जो आप देखते हैं वह बदलता है: आपकी फ़ाइलें, चैट और VOOL जो कुछ भी करता है, वैसे ही रहते हैं। आप जो टेक्स्ट टाइप कर रहे हैं वह नहीं छिपता।",
     "settings.row.hide_name_on_screen.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

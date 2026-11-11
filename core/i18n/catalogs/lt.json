@@ -2838,6 +2838,7 @@
     "live.browser": "Naršyklė",
     "live.buttons": "Mygtukai",
     "live.card_expired": "Laiku neatsakyta",
+    "live.card_paused": "Perėmėte valdymą",
     "live.card_refused": "Atsisakėte",
     "live.card_title": "VOOL nori naudoti naršyklę",
     "live.chat": "Pokalbis",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

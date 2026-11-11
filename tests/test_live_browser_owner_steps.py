@@ -256,3 +256,13 @@ def test_owner_click_follows_a_redirect_and_an_agent_click_stops_at_it(world):
     snap = settle(item)
     assert snap['state'] == 'redirect_refused' and snap['result']['redirect']['text'] == origin + '/secret', snap
     assert paths(requests)[before:] == ['/redirect'] and item.url == origin + '/other'
+
+
+def test_controls_are_named_as_a_person_would_name_them(world):
+    """Mac run 3: the pane's list showed "a" for picture-only links on a real site."""
+    rig, item, origin, requests = world
+    snap = finish(world, 'navigate', {'url': origin + '/unnamed'})
+    assert snap['state'] == 'ready', snap
+    labels = [n['label'] for n in item.nodes]
+    assert labels == ['Later trains', 'Timetable archive', 'maps.example/riga/station', '#top', 'Search trains', 'Next page'], labels
+    assert 'a' not in labels and all(label == label.strip() for label in labels)

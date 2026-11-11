@@ -2838,6 +2838,7 @@
     "live.browser": "Tarayıcı",
     "live.buttons": "Düğmeler",
     "live.card_expired": "Zamanında yanıt yok",
+    "live.card_paused": "Kontrolü siz aldınız",
     "live.card_refused": "Hayır dediniz",
     "live.card_title": "VOOL tarayıcıyı kullanmak istiyor",
     "live.chat": "Sohbet",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Yayın yapmadan veya ekranınızı paylaşmadan önce bunu açın. VOOL ana klasörünüzü ~ olarak, adınızı ve bilgisayarınızın adını ••• olarak gösterir; burada ve telefonunuzda. Yalnızca gördükleriniz değişir: dosyalarınız, sohbetleriniz ve VOOL'un yaptığı her şey aynı kalır. Yazmakta olduğunuz metin gizlenmez.",
     "settings.row.hide_name_on_screen.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -138,7 +138,22 @@ def test_card_in_chat_answers_the_waiting_model_call(world, tmp_path):
             assert done.locator('img.vbc-shot').get_attribute('src').startswith('data:image/jpeg;base64,')
             if shots:
                 page.screenshot(path=str(Path(shots) / 'chat-card-done.png'))
-            # 3. "Open browser" on the card opens the pane over the chat on the same page.
+            # 3. The model asks again and the owner takes over the browser instead of answering:
+            # the card says so (Mac run 3 showed "Done" here, as the earlier page was still open).
+            future = pool.submit(contextvars.copy_context().run, _model_asks, chat_id, origin + '/other')
+            expect(page.locator('#log .vbc[data-state=waiting]')).to_have_count(1, timeout=10000)
+            card = page.locator('#log .vbc').last
+            expect(card).to_have_attribute('data-state', 'waiting')
+            before = list(requests)
+            status, _ = rig.post('/api/browser/takeover', {'chat': chat_id, 'value': True})
+            assert status == 200
+            outcome = future.result(timeout=20)
+            assert not outcome.ok and requests == before
+            expect(card).to_have_attribute('data-state', 'paused', timeout=5000)
+            expect(card.locator('.vbc-head')).to_have_text('You took over')
+            expect(page.locator('#log .vbc[data-state=done]')).to_have_count(1)
+            rig.post('/api/browser/takeover', {'chat': chat_id, 'value': False})
+            # 4. "Open browser" on the card opens the pane over the chat on the same page.
             done.locator('.vbc-link').click()
             pane = page.frame_locator('#settingsFrame')
             expect(pane.locator('#hot button[aria-label="Later trains"]')).to_be_visible(timeout=10000)

@@ -2838,6 +2838,7 @@
     "live.browser": "Webbrowser",
     "live.buttons": "Schaltflächen",
     "live.card_expired": "Keine Antwort rechtzeitig",
+    "live.card_paused": "Du hast übernommen",
     "live.card_refused": "Sie haben abgelehnt",
     "live.card_title": "VOOL möchte den Browser nutzen",
     "live.chat": "Unterhaltung",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Schalte das ein, bevor du streamst oder deinen Bildschirm teilst. VOOL zeigt dann deinen Benutzerordner als ~ und deinen Namen sowie den Namen deines Computers als •••, hier und auf deinem Telefon. Nur die Anzeige ändert sich: Deine Dateien, Chats und alles, was VOOL tut, bleiben gleich. Text, den du gerade tippst, wird nicht verborgen.",
     "settings.row.hide_name_on_screen.effect": "Wirkt sofort."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

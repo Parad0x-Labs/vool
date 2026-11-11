@@ -294,7 +294,7 @@ function kindOf(n){
   if(['input','textarea','select'].includes(n.tag)&&!['submit','button','image','reset','checkbox','radio'].includes(n.type)) return n.type==='file'?'file':'field';
   if(n.tag==='a') return 'link'; return 'button';
 }
-function nameOf(n){return (n.label||n.name||n.type||n.tag||'').trim()||n.tag;}
+function nameOf(n){return String(n.label||n.name||'').trim();}
 function paintHot(j,locked){
   const hot=$('hot'); const sig=JSON.stringify([j.revision,locked,(j.nodes||[]).length]);
   if(hot.dataset.sig===sig) return; hot.dataset.sig=sig; hot.replaceChildren();
@@ -304,13 +304,16 @@ function paintHot(j,locked){
     if(!n.box||n.payment) return;
     const [x,y,w,h]=n.box, b=document.createElement('button'); b.type='button';
     b.className=kindOf(n); b.style.left=(x/vw*100)+'%'; b.style.top=(y/vh*100)+'%'; b.style.width=(w/vw*100)+'%'; b.style.height=(h/vh*100)+'%';
-    b.title=nameOf(n); b.setAttribute('aria-label',nameOf(n)); b.onclick=()=>act(n,b); hot.appendChild(b);
+    const name=nameOf(n)||L[kindOf(n)==='link'?'links':kindOf(n)==='field'?'fields':'buttons'];
+    b.title=name; b.setAttribute('aria-label',name); b.onclick=()=>act(n,b); hot.appendChild(b);
   });
 }
 function paintList(j){
   const items=$('items'); const sig=JSON.stringify([j.revision,(j.nodes||[]).length]);
   if(items.dataset.sig===sig) return; items.dataset.sig=sig; items.replaceChildren();
-  const nodes=(j.nodes||[]).filter(n=>!n.payment);
+  // A control with no name at all is still clickable in the picture, but a list of "a, a, a"
+  // tells nobody anything, so the list shows only controls that can be named.
+  const nodes=(j.nodes||[]).filter(n=>!n.payment&&nameOf(n));
   if(!nodes.length){const p=document.createElement('div');p.className='none';p.textContent=L.no_elements;items.appendChild(p);return;}
   const groups=[['link',L.links],['field',L.fields],['button',L.buttons],['file',L.upload]];
   groups.forEach(([kind,title])=>{

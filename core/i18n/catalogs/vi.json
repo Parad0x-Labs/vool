@@ -2838,6 +2838,7 @@
     "live.browser": "Trình duyệt",
     "live.buttons": "Nút",
     "live.card_expired": "Không có phản hồi kịp",
+    "live.card_paused": "Bạn đã tiếp quản",
     "live.card_refused": "Bạn đã từ chối",
     "live.card_title": "VOOL muốn dùng trình duyệt",
     "live.chat": "Trò chuyện",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Bật mục này trước khi phát trực tiếp hoặc chia sẻ màn hình. Khi đó VOOL hiển thị thư mục chính của bạn là ~, còn tên bạn và tên máy tính là •••, ở đây và trên điện thoại. Chỉ những gì bạn thấy thay đổi: tệp, cuộc trò chuyện và mọi việc VOOL làm vẫn giữ nguyên. Văn bản bạn đang gõ không bị ẩn.",
     "settings.row.hide_name_on_screen.effect": "Áp dụng ngay."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

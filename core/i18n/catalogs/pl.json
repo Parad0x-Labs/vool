@@ -2838,6 +2838,7 @@
     "live.browser": "Przeglądarka",
     "live.buttons": "Przyciski",
     "live.card_expired": "Brak odpowiedzi na czas",
+    "live.card_paused": "Przejęto sterowanie",
     "live.card_refused": "Odmówiono",
     "live.card_title": "VOOL chce użyć przeglądarki",
     "live.chat": "Rozmowa",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Włącz to przed transmisją lub udostępnieniem ekranu. VOOL pokaże wtedy folder domowy jako ~, a Twoje imię i nazwę komputera jako •••, tutaj i na telefonie. Zmienia się tylko to, co widać: pliki, czaty i wszystko, co robi VOOL, pozostają takie same. Tekst, który wpisujesz, nie jest ukrywany.",
     "settings.row.hide_name_on_screen.effect": "Działa natychmiast."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

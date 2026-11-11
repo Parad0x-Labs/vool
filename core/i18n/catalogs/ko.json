@@ -2838,6 +2838,7 @@
     "live.browser": "브라우저",
     "live.buttons": "버튼",
     "live.card_expired": "제때 응답 없음",
+    "live.card_paused": "직접 조작으로 전환했습니다",
     "live.card_refused": "거절함",
     "live.card_title": "VOOL이 브라우저를 사용하려고 합니다",
     "live.chat": "대화",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "방송하거나 화면을 공유하기 전에 켜세요. 그러면 VOOL이 홈 폴더를 ~로, 내 이름과 컴퓨터 이름을 •••로 보여 줍니다. 여기와 휴대폰 모두에서요. 보이는 것만 바뀌고 파일, 채팅, VOOL이 하는 모든 일은 그대로입니다. 입력 중인 텍스트는 숨겨지지 않습니다.",
     "settings.row.hide_name_on_screen.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

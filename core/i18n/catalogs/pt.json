@@ -2838,6 +2838,7 @@
     "live.browser": "Navegador",
     "live.buttons": "Botões",
     "live.card_expired": "Sem resposta a tempo",
+    "live.card_paused": "Você assumiu",
     "live.card_refused": "Recusou",
     "live.card_title": "O VOOL quer usar o navegador",
     "live.chat": "Conversa",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
     "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

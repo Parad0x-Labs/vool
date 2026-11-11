@@ -2838,6 +2838,7 @@
     "live.browser": "ブラウザー",
     "live.buttons": "ボタン",
     "live.card_expired": "時間内に応答なし",
+    "live.card_paused": "あなたが操作を引き継ぎました",
     "live.card_refused": "拒否しました",
     "live.card_title": "VOOLがブラウザを使おうとしています",
     "live.chat": "チャット",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "配信や画面共有の前にオンにしてください。VOOL はホームフォルダーを ~、あなたの名前とこのコンピューターの名前を ••• として表示します。ここでもスマートフォンでも同じです。変わるのは表示だけで、ファイル、チャット、VOOL の動作はそのままです。入力中のテキストは隠されません。",
     "settings.row.hide_name_on_screen.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

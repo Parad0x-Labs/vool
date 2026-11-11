@@ -2838,6 +2838,7 @@
     "live.browser": "Navigateur",
     "live.buttons": "Boutons",
     "live.card_expired": "Pas de réponse à temps",
+    "live.card_paused": "Vous avez pris la main",
     "live.card_refused": "Vous avez refusé",
     "live.card_title": "VOOL veut utiliser le navigateur",
     "live.chat": "Discussion",
@@ -2887,7 +2888,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "8b5bf0c0f2d819cc2ea3225aa3e44b53fa77833cc60fc65881f1f31fa8192607",
+  "source_catalog_sha256": "9ddd0239a415156c3769c298780de3084e649b8f03caa32d4f5f455552611df1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
