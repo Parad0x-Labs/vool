@@ -185,3 +185,98 @@ def test_a_model_failure_after_an_approved_browser_step_does_not_deny_the_page_w
     assert 'qwen3:8b' in gated and 'still open in the Browser pane' in gated and '14:36' not in gated
     # Without a browser step the refusal keeps its former words.
     assert 'nothing this turn retrieved, computed or observed' in decision.refusal_text()
+
+
+@pytest.mark.parametrize('status,needle', [
+    ('destination_refused', 'only opens public web addresses'),
+    ('page_failed', 'the page did not load'),
+    ('redirect_refused', 'sends visitors on to a different address'),
+    ('page_too_large', 'too large for the browser to show'),
+    ('download_refused', 'is a file rather than a page'),
+])
+def test_a_browser_step_that_ran_but_failed_gets_its_own_reply(status, needle):
+    from core.vool_browser.live_requests import note_unanswered, turn_scope
+
+    with turn_scope(ASK, 'reply-test'):
+        note_unanswered('navigate', URL, status)
+        out = grounded_twice(ASK)
+    assert needle in out['response'] and URL in out['response'] and '14:36' not in out['response']
+
+
+def test_any_answer_about_a_page_that_never_opened_is_replaced():
+    """Mac run 3: after an expired card qwen3:8b answered "that is not mentioned in the records I
+    have", which the old wording check let through because it does not describe the address."""
+    from core.vool_browser.live_requests import note_completed, note_unanswered, turn_scope
+
+    ask = 'pls use teh browser to check timetable.example/today and tell me the next train'
+    for guess in ('That is not mentioned in the records I have.', INVENTED, '…'):
+        with turn_scope(ask, 'reply-test'):
+            note_unanswered('navigate', URL, 'stale_approval')
+            out = grounded_twice(ask) if guess == INVENTED else enforce_url_grounding(
+                {'response': guess}, user_input=ask, fetch_attempts=0)
+            again = enforce_url_grounding(dict(out), user_input=ask, fetch_attempts=0)
+        assert 'not approved within two minutes' in out['response'] and again == out
+    # A later step of the same turn that did open a page keeps the model's own answer.
+    with turn_scope(ask, 'reply-test'):
+        note_unanswered('navigate', URL, 'stale_approval')
+        note_completed('navigate', URL)
+        out = enforce_url_grounding({'response': 'The page lists the 14:36 to Riga.'}, user_input=ask, fetch_attempts=1)
+    assert out['response'] == 'The page lists the 14:36 to Riga.'
+
+
+@pytest.mark.parametrize('address', ['http://192.168.1.1/', 'http://localhost:8080/admin', 'http://router.lan/',
+                                     'http://[::1]/', 'http://10.0.0.7/status'])
+def test_a_private_address_is_refused_before_any_card(world, address):
+    """Mac run 3: 192.168.1.1 and localhost got an Allow card that could never run."""
+    from core.runtime_flags import override
+    from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live_requests import turn_scope, unanswered
+    from tests._toolchain_fixtures import executor_kwargs
+
+    rig, item, origin, requests = world
+    ask = f'open {address} in the browser and tell me what it says'
+    with override('plugin_runtime_tools', True), turn_scope(ask, 'live-test'):
+        started = time.monotonic()
+        outcome = execute_tool_intent(
+            {'intent': 'vool-browser.navigate', 'arguments': {'url': address}},
+            **executor_kwargs('live-test', runtime_session_id='live-test', surface='api',
+                              platform='web_companion', mode='manual', live_browser_wait_for_owner=True),
+        )
+        assert time.monotonic() - started < 5, 'no card may wait for an answer'
+        assert not outcome.ok and item.pending is None and requests == []
+        assert unanswered()['status'] == 'destination_refused'
+        out = grounded_twice(ask)
+    assert out['response'].startswith("I can't open ") and 'only opens public web addresses' in out['response']
+
+
+@pytest.mark.parametrize('path,needle', [('/huge', 'too large for the browser to show'),
+                                         ('/file', 'is a file rather than a page')])
+def test_an_allowed_page_that_fails_to_load_reaches_the_reply(world, path, needle):
+    from core.runtime_flags import override
+    from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live_requests import turn_scope, unanswered
+    from tests._toolchain_fixtures import executor_kwargs
+
+    rig, item, origin, requests = world
+    ask = f'Use the browser to open {origin}{path} and tell me the next train'
+
+    def run():
+        with override('plugin_runtime_tools', True), turn_scope(ask, 'live-test'):
+            outcome = execute_tool_intent(
+                {'intent': 'vool-browser.navigate', 'arguments': {'url': origin + path}},
+                **executor_kwargs('live-test', runtime_session_id='live-test', surface='api',
+                                  platform='web_companion', mode='manual', live_browser_wait_for_owner=True),
+            )
+            return outcome, unanswered(), grounded_twice(ask)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(contextvars.copy_context().run, run)
+        deadline = time.monotonic() + 10
+        while item.pending is None and time.monotonic() < deadline:
+            time.sleep(.05)
+        assert item.pending and requests == []
+        status, _ = rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': True})
+        assert status == 200
+        outcome, step, out = future.result(timeout=30)
+    assert not outcome.ok and step and step['url'] == origin + path
+    assert needle in out['response'] and '14:36' not in out['response']

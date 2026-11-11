@@ -27,10 +27,10 @@ _CSS = """
 .vbc{border:1px solid rgba(207,174,110,.5);border-radius:12px;padding:12px 14px;background:var(--field,#232326);
   font-size:13px;line-height:1.5;max-width:560px}
 .vbc[data-state=done]{border-color:var(--border,#39393f)}
-.vbc[data-state=refused],.vbc[data-state=expired]{border-color:var(--border,#39393f);opacity:.85}
+.vbc[data-state=refused],.vbc[data-state=expired],.vbc[data-state=paused]{border-color:var(--border,#39393f);opacity:.85}
 .vbc-head{display:flex;align-items:center;gap:8px;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;
   color:var(--warn,#cfae6e);font-weight:600}
-.vbc[data-state=done] .vbc-head,.vbc[data-state=refused] .vbc-head,.vbc[data-state=expired] .vbc-head{color:var(--muted,#aaa5a0)}
+.vbc[data-state=done] .vbc-head,.vbc[data-state=refused] .vbc-head,.vbc[data-state=expired] .vbc-head,.vbc[data-state=paused] .vbc-head{color:var(--muted,#aaa5a0)}
 .vbc-head svg{width:15px;height:15px;flex:0 0 auto}
 .vbc-verb{margin-top:6px;color:var(--ink,#e6e2dc);font-size:14px}
 .vbc-target{font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted,#aaa5a0);overflow-wrap:anywhere}
@@ -123,11 +123,14 @@ function paint(rec){
   rec.timerEl.textContent = waiting && typeof rec.left === 'number'
     ? T('live.seconds_left', '{seconds} s left', {seconds: rec.left}) : '';
   var heads = {waiting: T('live.card_title', 'VOOL wants to use the browser'), running: T('live.running', 'Working'),
-               done: T('live.done', 'Done'), refused: T('live.card_refused', 'You said no'), expired: T('live.card_expired', 'No answer in time'),
+               done: T('live.done', 'Done'), paused: T('live.card_paused', 'You took over'), refused: T('live.card_refused', 'You said no'), expired: T('live.card_expired', 'No answer in time'),
                failed: T('live.failed', 'The page could not finish. Check the address or try again.')};
   rec.headText.textContent = heads[rec.state] || heads.waiting;
   if (rec.frame) { rec.shotEl.src = 'data:image/jpeg;base64,' + rec.frame; rec.shotEl.hidden = false; }
 }
+
+// How the browser says a proposal ended, as the card shows it.
+var ENDINGS = {executed: 'done', paused: 'paused', refused: 'refused', stale_approval: 'expired', operation_timeout: 'expired'};
 
 function place(rec){
   if (rec.chatId !== displayedChat()) return;
@@ -188,6 +191,9 @@ async function poll(chatId, force){
     var rec = records[id];
     if (rec.chatId !== chatId || (p && p.id === id)) return;
     // The proposal this card asked about is no longer waiting: show how it ended.
+    var ended = snap.ended && snap.ended[id];
+    if (ended && (rec.state === 'waiting' || rec.state === 'running'))
+      rec.state = ENDINGS[ended] || 'failed';
     if (rec.state === 'waiting') rec.state = (typeof rec.left === 'number' && rec.left <= 2) ? 'expired' : (snap.state === 'refused' ? 'refused' : 'running');
     if (rec.state === 'running' && snap.state !== 'running') rec.state = snap.state === 'ready' ? 'done' : (snap.state === 'refused' ? 'refused' : (snap.closed ? 'expired' : 'failed'));
     if (rec.state === 'done' && snap.frame && !rec.frame) rec.frame = snap.frame;

@@ -247,6 +247,21 @@ def _canonical_url(value: Any) -> str:
         raise BrowserFault("destination_refused") from None
 
 
+def _private_by_name(url: str, fixture_origin: str = "") -> bool:
+    """A local name or a non-public IP literal. Names that RESOLVE privately are refused at fetch."""
+    parts = urlsplit(url)
+    if fixture_origin and f"{parts.scheme}://{parts.netloc}" == fixture_origin:
+        return False
+    host = (parts.hostname or "").strip("[]").lower().rstrip(".")
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal", ".lan", ".home.arpa")):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return not address.is_global or address.is_multicast
+
+
 def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     parts = urlsplit(url)
     if parts.scheme not in {"https", "http"} or not parts.hostname or parts.username or parts.password:
@@ -392,6 +407,9 @@ class LiveSession:
         self._lease_seconds = max(1, float(lease_seconds))
         self._owner_deadline = self.last_activity + self._lease_seconds
         self._completed: dict[str, dict] = {}
+        # How each of the last few proposals ended, by id, for the chat card: a step the owner
+        # took over from must never read "Done" because the page behind it is still there.
+        self._ended: dict[str, str] = {}
         self._telemetry: dict[str, Any] = {}
         self._lease_cleanup = None
         self._mutex = threading.RLock()
@@ -459,8 +477,15 @@ class LiveSession:
     def _complete(self, proposal_id: str, result: dict) -> None:
         with self._mutex:
             self._completed[proposal_id] = result
+            self._end(proposal_id, str(result.get("status") or ("executed" if result.get("ok") else "failed")))
             while len(self._completed) > 8:
                 self._completed.pop(next(iter(self._completed)))
+
+    def _end(self, proposal_id: str, status: str) -> None:
+        # Caller holds _mutex. The first ending recorded is the true one.
+        self._ended.setdefault(proposal_id, status)
+        while len(self._ended) > 8:
+            self._ended.pop(next(iter(self._ended)))
 
     def wait_for_owner(self, proposal: dict, source_context: dict) -> dict:
         """Continue the original served tool call after its exact owner decision."""
@@ -503,6 +528,7 @@ class LiveSession:
                     self._submission_previews.pop(proposal_id, None)
                     self._telemetry.pop(proposal_id, None)
                     self.state = "refused"
+                    self._end(proposal_id, "stale_approval")
                     return {"ok": False, "status": "stale_approval", "view_url": view_url}
             self._stopped.wait(.05)
         self.stop()
@@ -759,7 +785,8 @@ class LiveSession:
                     "can_back": self.history_index > 0, "can_forward": 0 <= self.history_index < len(self.history) - 1,
                     "view": list(self.view),
                     "nodes": self.nodes, "frame": self.frame, "result": self.result,
-                    "private": self.private, "closed": self.closed, "download_ready": self._download is not None}
+                    "private": self.private, "closed": self.closed, "download_ready": self._download is not None,
+                    "ended": dict(self._ended)}
 
     def propose(self, op: str, args: dict[str, Any], *, actor: str = "agent") -> dict[str, Any]:
         _check()
@@ -784,6 +811,10 @@ class LiveSession:
             review = None
             if op in {"navigate", "download"}:
                 url = _canonical_url(args.get("url"))
+                if _private_by_name(url, self.fixture_origin):
+                    # Plainly private or local by its own name: refused before any card, so the
+                    # person is never asked to allow something that can never run.
+                    raise BrowserFault("destination_refused")
                 safe["url"] = url
                 if op == "navigate" and actor == "owner" and type(args.get("history")) is int:
                     safe["history"] = args["history"]
@@ -1154,6 +1185,8 @@ class LiveSession:
         with self._mutex:
             self.takeover = value
             if self.pending:
+                if value:
+                    self._end(self.pending["id"], "paused")
                 self._telemetry.pop(self.pending["id"], None)
                 self._submission_previews.pop(self.pending["id"], None)
             self.pending = None
@@ -1496,6 +1529,10 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
     try:
         proposed = item.propose(op, arguments)
     except BrowserFault as fault:
+        if str(fault) == "destination_refused" and op == "navigate":
+            from core.vool_browser.live_requests import note_unanswered
+
+            note_unanswered(op, str(arguments.get("url") or ""), "destination_refused")
         if str(fault) != "element_missing" or op not in {"click", "type", "upload"}:
             raise
         # A handle the observation does not list is the model's argument mistake, not a
@@ -1515,7 +1552,7 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
             from core.vool_browser.live_requests import note_completed
 
             note_completed(op, str(item.url or proposed["proposal"]["args"].get("url") or ""))
-        if not outcome.get("ok") and outcome.get("status") in {"refused", "stale_approval", "operation_timeout", "paused", "cancelled", "web_off", "stopped"}:
+        if not outcome.get("ok") and outcome.get("status") not in {None, "", "approval_required", "invalid_arguments"}:
             from core.vool_browser.live_requests import note_unanswered
 
             note_unanswered(op, str(proposed["proposal"]["args"].get("url") or proposed["proposal"]["args"].get("target") or ""), outcome["status"])

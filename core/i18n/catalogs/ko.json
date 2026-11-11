@@ -3266,9 +3266,10 @@
     "activity.category.browser": "브라우저",
     "activity.tool.active.browser": "브라우저 사용 중",
     "activity.tool.failed.browser": "브라우저 단계가 실행되지 않음",
-    "activity.tool.finished.browser": "브라우저 단계 완료"
+    "activity.tool.finished.browser": "브라우저 단계 완료",
+    "live.card_paused": "직접 조작으로 전환했습니다"
   },
-  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
+  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

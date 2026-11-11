@@ -113,6 +113,14 @@ def world(pact_rig, request):
                 # A page that tries to move on by itself: a meta refresh and a script.
                 content=b'<meta http-equiv="refresh" content="0;url=/other"><h1>Departures board</h1><script>location.href="/other"</script>'
             if path == '/styled': content=STYLED
+            if path == '/unnamed':
+                # Links a person can see but that carry no words of their own.
+                content=b'''<h1>Index</h1><a href="/other"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Later trains" width="20" height="20"></a>
+                <a href="/other" title="Timetable archive"><span style="display:inline-block;width:20px;height:20px"></span></a>
+                <a href="https://maps.example/riga/station" style="display:inline-block;width:20px;height:20px"></a>
+                <a href="#top" style="display:inline-block;width:20px;height:20px"></a>
+                <input name="q" placeholder="Search trains"><a href="/other">  Next 
+  page </a>'''
             if path == '/many': content=('<h1>Gallery</h1>'+''.join(f'<img src="/many-{i}.png" width="8" height="8">' for i in range(100))).encode()
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()
             if path == '/find':
@@ -286,11 +294,11 @@ def test_hanging_huge_redirect_private_destinations_and_stop(world):
     before=len(requests)
     snap=finish(world,'navigate',{'url':origin+'/redirect-loop'})
     assert snap['state']=='redirect_refused' and len(requests)-before==6,(snap,requests[before:])
-    snap=finish(world,'navigate',{'url':'http://127.0.0.1:1/admin'})
-    assert snap['state']=='destination_refused',snap
     before=list(requests)
-    for url in ['file:///etc/passwd','data:text/html,test','javascript:alert(1)']:
+    # A local or private address by its own name is refused before any card, like a file: URL.
+    for url in ['http://127.0.0.1:1/admin','http://localhost/','http://192.168.1.1/','file:///etc/passwd','data:text/html,test','javascript:alert(1)']:
         status,data=rig.post('/api/browser/propose',{'chat':'live-test','op':'navigate','args':{'url':url}});assert status==409
+        assert item.pending is None,url
     assert requests==before
     token=propose(world,'navigate',{'url':origin+'/hang'})
     rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})

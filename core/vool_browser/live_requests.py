@@ -7,15 +7,47 @@ from contextvars import ContextVar
 from urllib.parse import urlsplit, urlunsplit
 
 _CONFINED = ContextVar("supervised_browser_turn", default=None)
-_BROWSER = r"(?:(?:the|a|an|my|our|built[\s-]?in|live|integrated|vool)\s+){0,4}browser\b"
-_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+_BROWSER = r"(?:(?:the|teh|hte|a|an|my|our|built[\s-]?in|live|integrated|vool)\s+){0,4}(?:browser|broswer|brower|browswer)\b"
+_OPEN = r"(?:open|opne|oepn|opn|visit|browse|navigate|load|go\s+to)"
+_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:(?:please|pls|plz)\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:(?:please|pls|plz)\s+)?"
 _ASK = re.compile(
     _CLAUSE + r"(?:use|open|launch|start|show)\s+" + _BROWSER
-    + r"|" + _CLAUSE + r"(?:open|visit|browse|navigate|load)\b[^\n]{0,500}\b(?:in|with|using)\s+" + _BROWSER
-    + r"|^\s*(?:please\s+)?(?:browse|navigate\s+to)\s+https?://",
+    + r"|" + _CLAUSE + _OPEN + r"\b[^\n]{0,500}\b(?:in|with|using)\s+" + _BROWSER
+    + r"|^\s*(?:please\s+)?(?:browse|navigate\s+to)\s+https?://"
+    # "browse to the wikipedia page for Riga", "can you browse over to example.com"
+    + r"|" + _CLAUSE + r"browse\s+(?:over\s+)?to\b",
     re.IGNORECASE,
 )
 _URL = re.compile(r'https?://[^\s<>"\x27`]+', re.IGNORECASE)
+# A site named without "https://" ("open news.ycombinator.com"), on a common public suffix. File
+# names (notes.md, run.py, setup.sh) are not sites: those suffixes are left out on purpose.
+_TLDS = (r"com|org|net|io|dev|app|ai|co|uk|de|fr|lv|lt|ee|eu|info|edu|gov|me|tv|news|xyz|page|site|online|"
+         r"blog|us|ca|au|jp|ru|nl|se|no|fi|pl|es|it|ch|at|be|cz|dk|pt|br|in|ua|tr|kr|cn|tw|hk|sg|nz|ie|il|gr")
+_BARE = re.compile(r"(?<![@\w./:-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:" + _TLDS + r")(?:/[^\s<>\"\x27`]*)?)(?![\w@-])",
+                   re.IGNORECASE)
+
+
+def _trim(raw: str) -> str:
+    """An address as written in a sentence: no closing punctuation or unmatched bracket after it."""
+    value = str(raw or "")
+    while value:
+        last = value[-1]
+        if last in ".,;:!?\"\x27":
+            value = value[:-1]
+        elif last in ")]}" and value.count({")": "(", "]": "[", "}": "{"}[last]) < value.count(last):
+            value = value[:-1]
+        else:
+            break
+    return value
+
+
+def addresses(text: str) -> list[str]:
+    """Every address the words name, as written (scheme ones first, then bare site names)."""
+    raw = str(text or "")
+    found = [_trim(u) for u in _URL.findall(raw)]
+    rest = _URL.sub(" ", raw)
+    found += ["https://" + _trim(m) for m in _BARE.findall(rest)]
+    return [u for u in found if u]
 _QUOTED = re.compile(r'```.*?```|`[^`]*`|"[^"\n]*"|\x27[^\x27\n]*\x27', re.DOTALL)
 
 
@@ -97,7 +129,7 @@ def _asks(text: str, verbs: str) -> bool:
             # "nobody wants you to submit it", "no need to submit it") grants nothing.
             if question or _NEGATION.search(clause):
                 continue
-            if re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool)\s+to\s+)(?:' + verbs + r')\b', clause.strip(), re.IGNORECASE):
+            if re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool|browser)\s+to\s+)(?:' + verbs + r')\b', clause.strip(), re.IGNORECASE):
                 return True
     return False
 
@@ -130,12 +162,15 @@ class _TurnBoundary:
         self.followup = False
         self.active = requested(text)
         executable = '' if asks_for_instructions_not_execution(text) else _instruction_text(text)
-        self.urls = frozenset(_url(u.rstrip('.,;!?')) for u in _URL.findall(executable))
-        self.follow = _asks(executable, r'follow|click|press|tap|visit|navigate')
-        self.submit = _asks(executable, r'submit|send|sign\s+in|log\s+in')
-        self.fill = _asks(executable, r'fill|enter|type|select|choose')
+        self.urls = frozenset(_url(u) for u in addresses(executable))
+        self.follow = _asks(executable, r'follow|click|press|tap|visit|navigate|open\s+(?:the|that|this)\s+link')
+        # "search <site> for <words>" is filling the site's search box and sending it; the
+        # form send still shows its fields on the card before anything is sent.
+        searches = _asks(executable, r'search')
+        self.submit = _asks(executable, r'submit|send|sign\s+in|log\s+in') or searches
+        self.fill = _asks(executable, r'fill|enter|type|select|choose') or searches
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
-        self.open = bool(self.urls and (self.active or _asks(executable, r'open|browse|visit|navigate|load')))
+        self.open = bool(self.urls and (self.active or _asks(executable, r'open|opne|oepn|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
         # How this turn's browser request ended when it never ran: the reply names it truthfully.
         self.unanswered: dict[str, str] | None = None
@@ -250,8 +285,9 @@ def written_addresses(text: str, target: str) -> tuple[str, ...]:
     """The spellings in the person's words of the address a proposal opened, without a
     trailing slash, so they bind to the words around them at word boundaries."""
     wanted = _url(str(target or ''))
-    found = (raw.rstrip('.,;!?') for raw in _URL.findall(str(text or '')))
-    return tuple(dict.fromkeys(raw.rstrip('/') for raw in found if wanted and _url(raw) == wanted))
+    raw_text = str(text or '')
+    found = [_trim(u) for u in _URL.findall(raw_text)] + [_trim(m) for m in _BARE.findall(_URL.sub(' ', raw_text))]
+    return tuple(dict.fromkeys(raw.rstrip('/') for raw in found if wanted and _url(raw if '://' in raw else 'https://' + raw) == wanted))
 
 
 def within_turn() -> bool:

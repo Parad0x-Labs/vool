@@ -3266,9 +3266,10 @@
     "activity.category.browser": "浏览器",
     "activity.tool.active.browser": "正在使用浏览器",
     "activity.tool.failed.browser": "浏览器步骤未执行",
-    "activity.tool.finished.browser": "浏览器步骤已完成"
+    "activity.tool.finished.browser": "浏览器步骤已完成",
+    "live.card_paused": "你已接管"
   },
-  "source_catalog_sha256": "491d3d1a92e635b955e84d2e7106d8cccf9dbfc5f79e56584449e2d25154f7f9",
+  "source_catalog_sha256": "0f9c8df46267e68c89b7482093eb8ebb4dbe7b88e6a3d9c253c0726915d2f778",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2017,6 +2017,22 @@ _UNANSWERED_BROWSER_RESPONSES = {
         "Turn on Web lookups and Browser in Settings, then ask again."
     ),
 }
+_UNANSWERED_BROWSER_RESPONSES.update({
+    "destination_refused": (
+        "I can't open {url}: the browser only opens public web addresses, never ones on this computer "
+        "or your local network, so I did not open it on this turn."
+    ),
+    "page_failed": (
+        "I tried to open {url} after you allowed it, but the page did not load (the address may be "
+        "wrong, or the site may be down), so I did not open it on this turn."
+    ),
+    "redirect_refused": (
+        "{url} sends visitors on to a different address that you had not allowed, so I did not open it "
+        "on this turn. The Browser pane shows that address if you want to open it yourself."
+    ),
+    "page_too_large": "{url} is too large for the browser to show, so I did not open it on this turn.",
+    "download_refused": "{url} is a file rather than a page, so I did not open it on this turn. Ask me to download it instead.",
+})
 _UNANSWERED_BROWSER_RESPONSES["operation_timeout"] = _UNANSWERED_BROWSER_RESPONSES["stale_approval"]
 _UNANSWERED_BROWSER_FALLBACK = (
     "The browser stopped before {url} opened, so I did not open it on this turn. Ask again to retry."
@@ -2032,6 +2048,14 @@ def _unanswered_browser_step() -> dict[str, str] | None:
         return None
     step = unanswered()
     return step if step and step.get("url") else None
+
+
+def _browser_step_completed() -> bool:
+    try:
+        from core.vool_browser.live_requests import completed
+    except ImportError:
+        return False
+    return bool(completed())
 
 
 def _unanswered_browser_response(step: dict[str, str]) -> str:
@@ -2067,12 +2091,19 @@ def enforce_url_grounding(result: dict[str, Any], *, user_input: str, fetch_atte
     output = dict(result or {})
     if output.get("deterministic") or output.get("response_control"):
         return output
-    if not response_describes_unfetched_url(
-        user_input=user_input, response=str(output.get("response") or ""), fetch_attempts=int(fetch_attempts or 0)
+    browser_step = _unanswered_browser_step()
+    current = str(output.get("response") or "")
+    if browser_step and not _browser_step_completed() and _UNFETCHED_URL_SENTINEL not in current.lower():
+        # The page this turn asked for never opened (refused, expired, failed, not allowed). Any
+        # answer about it now is the model's guess -- "the top headline is ...", "not mentioned in
+        # the records I have" -- whatever the wording of the ask, so the step's own outcome is
+        # the reply. The sentinel keeps the K-08 re-check from changing it again.
+        pass
+    elif not response_describes_unfetched_url(
+        user_input=user_input, response=current, fetch_attempts=int(fetch_attempts or 0)
     ):
         return output
-    original = str(output.get("response") or "")
-    browser_step = _unanswered_browser_step()
+    original = current
     output["response"] = _unanswered_browser_response(browser_step) if browser_step else _UNFETCHED_URL_RESPONSE
     output["url_grounding_validator"] = {
         "applied": True,
