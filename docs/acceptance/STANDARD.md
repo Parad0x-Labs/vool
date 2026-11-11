@@ -81,6 +81,12 @@ of grading a broken run for an hour.
   `profile: any` run. Each uses fresh made-up values. Nothing is sent outside the machine: email
   sends, posts and payments are always denied on the real profile.
 
+A throwaway profile starts with no model. `--certify ollama-local:qwen3:8b` registers that local
+model and runs VOOL's own tool certification before the first case. For the email lane, start the
+local test mailbox (`tests/local_mail_service.py`, TLS, seeded messages), point the throwaway VOOL
+at its certificate with `SSL_CERT_FILE`, add the account in Settings, and pass
+`--have email_account`.
+
 Scenarios that need something the profile does not have (a connected test mailbox, a chosen
 calendar, being online) are reported **BLOCKED**, never PASS. The person running the suite declares
 what the profile has with `--have`.
