@@ -1,0 +1,219 @@
+lane: names
+scenarios:
+  - id: NAME-INTRO-01
+    title: Saying your name once is enough; a new chat knows it and nothing asks to confirm
+    from_bug: "sls 2026-11-11: 'How should vool call u ... why it is in settings? ... it should learn from chat when user introduces himself'"
+    vars: { name: "pick:Marta|Kofi|Linh|Oskar|Ines|Teo|Noor|Bex" }
+    steps:
+      - chat: A
+        say:
+          - "hey I'm ${name}"
+          - "my name is ${name}"
+          - "call me ${name} pls"
+          - "${name} here"
+          - "hi, this is ${name}"
+          - "names ${name}"
+        expect:
+          all: ['${name}']
+          none: ['(?i)\bsave\b.*\bedit\b', '(?i)settings']
+          max_seconds: 30
+          ui:
+            - selector: "#log .pchip"
+              count_max: 0
+      - chat: B
+        say: "whats my name?"
+        expect:
+          all: ['${name}']
+          none: ['(?i)settings']
+          max_seconds: 30
+
+  - id: NAME-INTRO-02
+    title: An introduction in front of a question saves the name and still answers the question
+    from_bug: "sls 2026-11-11: name should be natural learning from chat"
+    vars: { name: "pick:Marta|Kofi|Linh|Oskar|Ines|Teo|Noor|Bex" }
+    steps:
+      - chat: A
+        say:
+          - "Hi, I'm ${name}, what is the capital of Portugal?"
+          - "${name} here, quick one: what is the capital of Portugal?"
+          - "this is ${name} from the bakery, whats the capital of Portugal"
+        expect:
+          all: ['(?i)lisbon']
+          ui:
+            - selector: "#log .pconfirm"
+              text_any: ["I'll call you ${name}"]
+            - selector: "#log .pchip"
+              count_max: 0
+      - chat: B
+        say: "do you know my name?"
+        expect:
+          all: ['${name}']
+          max_seconds: 30
+
+  - id: NAME-FIX-01
+    title: A correction replaces the name at once, with no question, in every chat
+    from_bug: "sls 2026-11-11: a correction must always win"
+    vars: { old: "pick:Agnes|Rick|Tomas|Greta", new: "pick:Ines|Sam|Teo|Bex" }
+    steps:
+      - chat: A
+        say: "my name is ${old}"
+        grade: false
+      - chat: A
+        say:
+          - "no, it's ${new}"
+          - "call me ${new} not ${old}"
+          - "actually my name is ${new}"
+          - "my name isnt ${old}, its ${new}"
+          - "dont call me ${old}, call me ${new}"
+        expect:
+          all: ['${new}']
+          none: ['(?i)replace', '(?i)keep (both|old)', '(?i)settings']
+          max_seconds: 30
+          ui:
+            - selector: "#log .pchip"
+              count_max: 0
+      - chat: B
+        say: "what's my name"
+        expect:
+          all: ['${new}']
+          none: ['${old}']
+          max_seconds: 30
+
+  - id: NAME-WRONG-01
+    title: Told the name is wrong, VOOL drops it everywhere and does not pick it up again
+    from_bug: "sls 2026-11-11 (failure path: wrong guesses)"
+    vars: { name: "pick:Marta|Kofi|Linh|Oskar|Noor" }
+    steps:
+      - chat: A
+        say: "hey I'm ${name}"
+        grade: false
+      - chat: A
+        say:
+          - "I'm not ${name}"
+          - "thats not my name"
+          - "dont call me ${name}"
+          - "wrong name"
+        expect:
+          any: ["(?i)won'?t call you ${name}"]
+          max_seconds: 30
+      - chat: B
+        say: "hey I'm ${name}"
+        grade: false
+      - chat: C
+        say: "what is my name?"
+        expect:
+          any: ["(?i)don'?t know your name|not sure what your name|haven'?t (told|given)|don'?t have (a|your) name"]
+          none: ['${name}', '(?i)settings']
+          max_seconds: 30
+
+  - id: NAME-KEEP-01
+    title: An introduction in one chat never replaces the name you gave; it stays in that chat
+    from_bug: "sls 2026-11-11 (failure path: conflicting names)"
+    vars: { mine: "pick:Marta|Ines|Oskar", guest: "pick:Kofi|Linh|Teo" }
+    steps:
+      - chat: A
+        say: "my name is ${mine}"
+        grade: false
+      - chat: B
+        say:
+          - "hi, I'm ${guest}"
+          - "${guest} here"
+          - "hey this is ${guest}"
+        grade: false
+      - chat: C
+        say: "what's my name?"
+        expect:
+          all: ['${mine}']
+          none: ['${guest}']
+          max_seconds: 30
+
+  - id: NAME-NOTNAME-01
+    title: Sentences that only look like an introduction teach no name
+    from_bug: "sls 2026-11-11 (failure path: wrong guesses)"
+    steps:
+      - chat: A
+        say:
+          - "I'm not sure about this one"
+          - "call me crazy but I think it works"
+          - "I'm Lithuanian"
+          - "It's Friday"
+          - "call me when you're done"
+          - "I'm Working on a report"
+        grade: false
+      - chat: B
+        say: "whats my name"
+        expect:
+          any: ["(?i)don'?t know your name|not sure what your name|haven'?t (told|given)|don'?t have (a|your) name"]
+          none: ['(?i)\b(sure|crazy|lithuanian|friday|working)\b', '(?i)settings']
+          max_seconds: 30
+
+  - id: NAME-PASTE-01
+    title: Names inside a pasted letter are not taken as yours when nothing on this computer agrees
+    from_bug: "sls 2026-11-11 (failure path: wrong guesses, pasted messages)"
+    min_phrasings: 2
+    vars: { to: "pick:Greta|Tomas|Agnes", sender: "pick:Piotr|Lena|Hugo" }
+    steps:
+      - chat: A
+        say:
+          - "Can you help me answer this?\n\nHi ${to},\n\nMy name is ${sender} and I am writing about the invoice from last week.\nCould you confirm the amount?\n\nBest regards,\n${sender} Nowak"
+          - "what should I reply\n\nDear ${to},\ncall me ${sender} from now on, everyone does.\nSee you Monday.\n\nCheers,\n${sender}"
+        grade: false
+      - chat: B
+        say: "what is my name?"
+        expect:
+          any: ["(?i)don'?t know your name|not sure what your name|haven'?t (told|given)|don'?t have (a|your) name"]
+          none: ['${to}', '${sender}']
+          max_seconds: 30
+
+  - id: NAME-PASTE-02
+    title: A pasted letter that greets the person this computer belongs to teaches the name, with an Undo
+    from_bug: "sls 2026-11-11: 'vool picks name from email or pasted docs or messages'"
+    needs: [computer_account_dana]   # the computer account's full name is "Dana Whitfield"
+    min_phrasings: 2
+    vars: { sender: "pick:Piotr|Lena|Hugo" }
+    steps:
+      - chat: A
+        say:
+          - "Can you help me answer this?\n\nHi Dana,\n\nMy name is ${sender} and I am writing about the invoice from last week.\nCould you confirm the amount?\n\nBest regards,\n${sender} Nowak"
+          - "draft a short reply to this\n\nDear Dana,\nthe room is booked for Monday at ten.\nLet me know if that works.\n\nKind regards,\n${sender}"
+        expect:
+          none: ['(?i)\b(hi|dear|hello) ${sender}\b.*\bDana Nowak']
+          ui:
+            - selector: "#log .pconfirm"
+              text_any: ["I'll call you Dana. I noticed the name in what you pasted."]
+      - chat: B
+        say: "do you know my name?"
+        expect:
+          all: ['Dana']
+          none: ['${sender}']
+          max_seconds: 30
+      - chat: B
+        say: "I'm not Dana"
+        expect:
+          any: ["(?i)won'?t call you Dana"]
+          max_seconds: 30
+      - chat: C
+        say: "reply to this please\n\nHi Dana,\nsee you at five\nthanks\n\nBest,\n${sender}"
+        grade: false
+      - chat: D
+        say: "what is my name?"
+        expect:
+          none: ['Dana', '${sender}']
+          max_seconds: 30
+
+  - id: NAME-NONE-01
+    title: With no name known, VOOL says so and asks in chat, without sending you to Settings
+    from_bug: "sls 2026-11-11: 'why it is in settings? its really bot feature'"
+    steps:
+      - chat: A
+        say:
+          - "what's my name?"
+          - "do u know my name"
+          - "whats my nmae"
+          - "say my name"
+        expect:
+          any: ["(?i)don'?t know your name|not sure what your name|haven'?t (told|given)|don'?t have (a|your) name"]
+          none: ['(?i)settings', '(?i)\bVOOL\b is your name|your name is VOOL']
+          helpful_any: ["(?i)tell me|what (should|shall|do) I call you|what to call you"]
+          clarify_ok: true
+          max_seconds: 30

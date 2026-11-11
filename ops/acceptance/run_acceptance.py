@@ -91,7 +91,10 @@ EXPECT_KEYS = {"all", "any", "none", "helpful_any", "clarify_ok", "max_seconds",
 UI_KEYS = {"selector", "text_any", "text_none", "count_min", "count_max", "note"}
 SCENARIO_KEYS = {"id", "title", "from_bug", "profile", "needs", "vars", "steps", "note", "min_phrasings"}
 ACTIONS = {"reload", "open_chat", "archive_chat", "restart_daemon"}
-CAPABILITIES = {"email_account", "calendar_selected", "online", "update_feed", "skills_installed", "browser"}
+#: "computer_account_dana": the computer account VOOL runs under has the full name "Dana Whitfield"
+#: (a test machine set up that way), for the cases where a pasted letter has to agree with it.
+CAPABILITIES = {"email_account", "calendar_selected", "online", "update_feed", "skills_installed", "browser",
+                "computer_account_dana"}
 
 
 class LibraryError(ValueError):
