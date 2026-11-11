@@ -3,7 +3,8 @@ import {canonicalBytes} from '../protocol/canonical.ts';
 import {sha256} from '../protocol/sha256.ts';
 
 type NativeKey = {create(alias: string, challenge: string): Promise<Record<string, unknown>>; delete(alias: string): Promise<void>;
-  setPrivateSession?(enabled: boolean): Promise<void>};
+  setPrivateSession?(enabled: boolean): Promise<void>;
+  setPrivateTyping?(): Promise<void>};
 const key = requireOptionalNativeModule<NativeKey>('VoolApprovalKey');
 export async function prepareApprovalKey(alias: string, pairingId: string, challenge: string): Promise<Record<string, unknown> | null> {
   if (!key) return null;
@@ -12,4 +13,6 @@ export async function prepareApprovalKey(alias: string, pairingId: string, chall
   try {return await key.create(alias, nonce);} catch {return null;}
 }
 export async function deleteApprovalKey(alias: string) {if (key) await key.delete(alias);}
+/** Ask the phone keyboard not to learn from or keep what is typed in VOOL. Best effort. */
+export async function requestPrivateTyping() {try {await key?.setPrivateTyping?.();} catch { /* typing still works */ }}
 export async function setNativePrivateSession(enabled: boolean) {await key?.setPrivateSession?.(enabled);}

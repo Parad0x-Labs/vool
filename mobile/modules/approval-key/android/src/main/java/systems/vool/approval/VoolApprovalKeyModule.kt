@@ -22,6 +22,7 @@ import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 
 class VoolApprovalKeyModule : Module() {
+  private var privateTypingWindow: android.view.View? = null
   private fun alias(value: String): String {
     require(Regex("^[a-f0-9]{64}$").matches(value))
     return "systems.vool.approval.$value"
@@ -32,6 +33,24 @@ class VoolApprovalKeyModule : Module() {
     AsyncFunction("setPrivateSession") { enabled: Boolean ->
       // expo-screen-capture owns FLAG_SECURE for this Activity.
       Unit
+    }
+    AsyncFunction("setPrivateTyping") { ->
+      // Ask the phone's keyboard, every time a text box takes focus, not to learn from or keep
+      // what is typed in VOOL (the keyboard's "incognito" request). A keyboard may ignore it.
+      appContext.mainQueue.launch {
+        val activity = appContext.currentActivity ?: return@launch
+        val root = activity.window.decorView
+        if (privateTypingWindow === root) return@launch
+        privateTypingWindow = root
+        val flag = android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        root.viewTreeObserver.addOnGlobalFocusChangeListener { _, focused ->
+          if (focused is android.widget.EditText && (focused.imeOptions and flag) == 0) {
+            focused.imeOptions = focused.imeOptions or flag
+            val keyboard = activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            keyboard.restartInput(focused)
+          }
+        }
+      }
     }
     AsyncFunction("create") { value: String, challenge: String ->
       val name = alias(value)

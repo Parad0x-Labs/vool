@@ -19,13 +19,15 @@ import WalletScreen from "./src/screens/WalletScreen.tsx";
 import NotificationsScreen from "./src/screens/NotificationsScreen.tsx";
 import {useSessionLock} from "./src/security/useSessionLock.ts";
 import * as ScreenCapture from "expo-screen-capture";
-import {deleteApprovalKey, setNativePrivateSession} from "./src/security/approvalKey.ts";
+import {deleteApprovalKey, requestPrivateTyping, setNativePrivateSession} from "./src/security/approvalKey.ts";
 import {OsPreferenceStore} from "./src/notifications/preference.ts";
 import {clearIdleMinutes} from "./src/security/idlePreference.ts";
 import {credentialIdentity} from './src/protocol/connection.ts';
 import {resetLink} from "./src/protocol/linkState.ts";
 import type {ChatSummary} from "./src/protocol/models.ts";
 import Header from "./src/ui/Header.tsx";
+import Frame from "./src/ui/Frame.tsx";
+import {SafeAreaProvider} from "react-native-safe-area-context";
 import Drawer, {type DrawerItem} from "./src/ui/Drawer.tsx";
 import Icon from "./src/ui/Icon.tsx";
 import {C, R} from "./src/ui/theme.ts";
@@ -35,7 +37,6 @@ const TAB_LABELS = {chats: "Chats", approvals: "Approvals", notifications: "Aler
 const TAB_ICONS = {chats: "message-outline", approvals: "shield-check-outline", notifications: "bell-outline", wallet: "wallet-outline", status: "tune-variant"} as const;
 const TABS: Tab[] = ["chats", "approvals", "notifications", "wallet", "status"];
 // The status bar is drawn over the app on Android; keep the first row below it.
-const TOP_INSET = Platform.OS === "android" ? NativeStatusBar.currentHeight ?? 24 : 44;
 
 /** Coarse, non-sensitive wording for the in-app ticker (the OS layer's law:
  * never task content; the detail lives in the screens). */
@@ -44,6 +45,11 @@ function tickerText(event: NotificationEvent): string {
 }
 
 export default function App() {
+  return <SafeAreaProvider><Root /></SafeAreaProvider>;
+}
+
+function Root() {
+  useEffect(() => {void requestPrivateTyping();}, []);
   const [, setLocaleTick] = useState(0);
   useEffect(() => subscribeLanguage(() => setLocaleTick(tick => tick + 1)), []);
   const [creds, setCreds] = useState<DeviceCredentials | null>(null);
@@ -103,12 +109,12 @@ export default function App() {
 
   if (!booted) {
     return (
-      <View style={[styles.root, styles.centered, {direction: rightToLeft() ? "rtl" : "ltr"}]}>
+      <Frame style={[styles.centered, {direction: rightToLeft() ? "rtl" : "ltr"}]}>
         <StatusBar style="light" />
         <Text style={styles.brand}>VOOL</Text>
         {bootError && <><Text style={styles.lockText}>{tr("Could not open saved access. Unlock your phone and try again.")}</Text>
           <Pressable style={styles.button} onPress={() => {setBootError(false); setBootAttempt(n => n + 1);}}><Text style={styles.buttonText}>{tr("Try again")}</Text></Pressable></>}
-      </View>
+      </Frame>
     );
   }
 
@@ -122,7 +128,7 @@ export default function App() {
     );
   }
 
-  if (lock.locked) return <View style={[styles.root, styles.centered]}>
+  if (lock.locked) return <Frame style={styles.centered}>
     <StatusBar style="light" />
     <Icon name="lock-outline" size={40} color={C.soft} />
     <Text style={styles.brand}>VOOL</Text>
@@ -130,7 +136,7 @@ export default function App() {
     {lock.noScreenLock && <Text style={styles.lockText}>{tr("Set a screen lock on your phone before unlocking VOOL.")}</Text>}
     {lock.failed && <Text style={styles.lockText}>{tr("Unlock failed. Try your fingerprint, face or phone passcode again.")}</Text>}
     <Pressable style={styles.button} onPress={() => void lock.unlock()}><Text style={styles.buttonText}>{tr("Unlock")}</Text></Pressable>
-  </View>;
+  </Frame>;
 
   return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
     onTouch={lock.touch} startTab={startTab} onConnection={async address => {
@@ -219,7 +225,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
   };
 
   return (
-    <View onTouchStart={onTouch} style={[styles.root, {paddingTop: TOP_INSET, direction: rightToLeft() ? "rtl" : "ltr"}]}>
+    <Frame onTouchStart={onTouch} style={{direction: rightToLeft() ? "rtl" : "ltr"}}>
       <StatusBar style="light" />
       {tab === "chats"
         ? <ChatsScreen client={client} onRevoked={onRevoked} pick={pick} onMenu={() => setMenu(true)}
@@ -240,11 +246,11 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
               enableOs={notifications.enableOsNotifications} disableOs={notifications.disableOsNotifications} />}
           </ScrollView>
         </>}
-      <Drawer open={menu} onClose={() => setMenu(false)} items={items} active={tab} topInset={TOP_INSET}
+      <Drawer open={menu} onClose={() => setMenu(false)} items={items} active={tab}
         onSelect={key => {selectTab(key as Tab); setMenu(false);}}
         chats={recent.slice(0, 12).map(chat => ({id: chat.chat_id, title: chat.title || chat.chat_id}))}
         onChat={openChat} onNewChat={() => openChat(null)} />
-    </View>
+    </Frame>
   );
 }
 

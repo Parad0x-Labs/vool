@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Linking } from "react-native";
 import Icon from "../ui/Icon.tsx";
+import Frame from "../ui/Frame.tsx";
 
 import {
   fetchPairingChallenge,
@@ -153,7 +154,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   }
 
   return (
-    <ScrollView style={[styles.root,{direction:rightToLeft()?"rtl":"ltr"}]} contentContainerStyle={styles.content}>
+    <Frame><ScrollView style={[styles.root,{direction:rightToLeft()?"rtl":"ltr"}]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>{tr("Pair a phone")}</Text>
       <Text style={styles.hint}>
         {tr("On your computer, open Settings, choose Phone and chat apps, then Pair a phone. Scan its code or enter the details below.")}</Text>
@@ -208,13 +209,13 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       </Pressable>
       <Text style={styles.footnote}>
         {tr("The connection is encrypted. Your wallet and model credentials stay on your computer.")}</Text>
-    </ScrollView>
+    </ScrollView></Frame>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#111314" },
-  content: { padding: 20, paddingTop: 72, paddingBottom: 40 },
+  content: { padding: 20, paddingTop: 36, paddingBottom: 40 },
   title: { color: "#edece7", fontSize: 30, fontWeight: "600", marginBottom: 10 },
   hint: { color: "#bfc2c4", fontSize: 15, lineHeight: 22, marginBottom: 22 },
   scanButton: { backgroundColor: "#edece7", borderRadius: 28, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 24 },

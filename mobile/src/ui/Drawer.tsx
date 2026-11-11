@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
+import {useEdges} from "./Frame.tsx";
 import {Animated, Dimensions, Easing, Pressable, ScrollView, StyleSheet, Text, View} from "react-native";
 import Icon, {type IconName} from "./Icon.tsx";
 import {LinkLine} from "./LinkBadge.tsx";
@@ -17,11 +18,11 @@ interface Props {
   chats: DrawerChat[];
   onChat: (id: string) => void;
   onNewChat: () => void;
-  topInset: number;
 }
 
 /** Side menu: where to go, the recent chats, and a New chat button. */
-export default function Drawer({open, onClose, items, active, onSelect, chats, onChat, onNewChat, topInset}: Props) {
+export default function Drawer({open, onClose, items, active, onSelect, chats, onChat, onNewChat }: Props) {
+  const edges = useEdges();
   const width = Math.min(Dimensions.get("window").width * 0.86, 360);
   const slide = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(open);
@@ -36,7 +37,7 @@ export default function Drawer({open, onClose, items, active, onSelect, chats, o
       <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, {opacity: slide}]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={tr("Close")} />
       </Animated.View>
-      <Animated.View style={[styles.panel, {width, paddingTop: topInset + 18,
+      <Animated.View style={[styles.panel, {width, paddingTop: edges.top + 18, paddingBottom: edges.bottom + 18,
         transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [-width, 0]})}]}]}>
         <Text style={styles.brand}>VOOL</Text>
         <View style={styles.link}><LinkLine /></View>

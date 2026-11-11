@@ -2,16 +2,18 @@ import React from "react";
 import {Modal, Pressable, StyleSheet, Text, View} from "react-native";
 import Icon, {type IconName} from "./Icon.tsx";
 import {C} from "./theme.ts";
+import {useEdges} from "./Frame.tsx";
 import {tr} from "../i18n/index.ts";
 
 export interface SheetAction {key: string; label: string; icon: IconName; disabled?: boolean; onPress: () => void}
 
 /** A short list of choices that slides up from the bottom (the "+" in the message box). */
 export default function Sheet({open, onClose, actions}: {open: boolean; onClose: () => void; actions: SheetAction[]}) {
+  const edges = useEdges();
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={tr("Close")} />
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, {paddingBottom: 28 + edges.bottom}]}>
         <View style={styles.grip} />
         {actions.map(action => (
           <Pressable key={action.key} disabled={action.disabled} style={[styles.row, action.disabled && styles.off]}
