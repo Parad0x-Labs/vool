@@ -129,6 +129,13 @@ def _route_from_policy() -> RouteState:
             port = tor_runtime.shared().socks_port
         except Exception:
             port = 0
+    elif kind == ROUTE_WIREGUARD:
+        try:
+            from core import wireguard_runtime
+
+            port = wireguard_runtime.shared().socks_port
+        except Exception:
+            port = 0
     return RouteState(kind=kind, socks_port=port)
 
 
@@ -283,6 +290,13 @@ def route_problem(state: RouteState | None = None) -> str | None:
         return "Private web could not confirm your VPN is on, so nothing was sent."
     if not state.socks_port:
         return f"Private web through {state.label} is not running, so nothing was sent."
+    if state.kind == ROUTE_WIREGUARD and _wireguard_owns(state):
+        # A running helper is not enough: the tunnel itself must carry a connection.
+        from core import wireguard_runtime
+
+        if wireguard_runtime.shared().tunnel_alive():
+            return None
+        return "Private web through your VPN is down, so nothing was sent."
     now = time.monotonic()
     if _probe_endpoint == state.endpoint and now < _probe_ok_until:
         return None
@@ -322,6 +336,15 @@ def url_stays_local(url: str) -> bool:
     if _is_ip_literal(host):
         return _ip_stays_local(host)
     return _name_stays_local(host)
+
+
+def _wireguard_owns(state: RouteState) -> bool:
+    try:
+        from core import wireguard_runtime
+
+        return wireguard_runtime.shared().socks_port == state.socks_port > 0
+    except Exception:
+        return False
 
 
 def isolation_key(session_id: str) -> str:
