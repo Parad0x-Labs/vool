@@ -292,7 +292,9 @@ _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 
 _REMIND_ME_OWN_FACT_RE = re.compile(
-    r"^\s*(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?(?:of\s+|about\s+|what\s+)?(?:is\s+)?my\s+(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
+    r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?"
+    r"(?:(?:of\s+|about\s+|what\s+)?(?:is\s+)?my\s+|(?:which|what|who|where|when|how)\s+|the\s+)"
+    r"(?![^.!?]*\bto\s+\w)[^.!?]+?[.!?]?\s*$",
     re.IGNORECASE,
 )
 

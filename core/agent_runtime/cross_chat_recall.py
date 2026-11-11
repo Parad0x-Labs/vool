@@ -38,8 +38,15 @@ _QUESTION_HEAD_RE = re.compile(
     re.IGNORECASE,
 )
 _MEMORY_COMMAND_RE = re.compile(
-    r"\b(?:memor(?:y|ies)|forg[eo]t|this\s+(?:chat|conversation|thread)|earlier|"
-    r"you\s+know\s+about\s+me|about\s+me|mention(?:ed)?|said|say|told|tell\s+you|asked|wrote|"
+    r"\b(?:memor(?:y|ies)|forg[eo]t|this\s+(?:chat|conversation|thread)|you\s+know\s+about\s+me|about\s+me)\b",
+    re.IGNORECASE,
+)
+#: Words that point back at the conversation ("which hobby did I mention second?", "how old will
+#: she be?"). In a chat that already holds the owner's statements they refer to THIS chat and stay
+#: with it; in a new chat ("the hotel I mentioned", "my locker code from earlier") they can only
+#: mean another chat, which is this lane's to search.
+_CONVERSATION_POINTER_RE = re.compile(
+    r"\b(?:earlier|before|mention(?:ed)?|said|say|told|tell\s+you|asked|wrote|gave\s+you|"
     r"she|he|her|him|they|them|it|that|those|these)\b",
     re.IGNORECASE,
 )
@@ -70,10 +77,21 @@ def as_question(text: str) -> str:
     is read as one, so a missing "?" never turns an own-fact question into a world question."""
     clean = " ".join(str(text or "").split())
     clean = re.sub(r"^(?:whats|wats|whta's|whats')\b", "what's", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\bu\b", "you", clean, flags=re.IGNORECASE)
     clean = re.sub(
-        r"^(?:do|did)\s+you\s+(?:remember|know|recall)\s+(?:what\s+)?(?:is\s+)?(my\s+.+?)\s*\??$",
+        r"^(?:do|did)\s+you\s+(?:remember|know|recall|have)\s+(?:what\s+)?(?:is\s+)?((?:my|the)\s+.+?)\s*\??$",
         r"what's \1?", clean, flags=re.IGNORECASE,
     )
+    clean = re.sub(
+        r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:find|get|look\s+up|check|tell\s+me|show\s+me)\s+((?:my|the)\s+[^.!?]+?)\s*[.!?]?$",
+        r"what's \1?", clean, flags=re.IGNORECASE,
+    ) if not _LIVE_DOMAIN_RE.search(clean) else clean
+    clean = re.sub(
+        r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?((?:which|what|who|where|when|how)\b[^.!?]+?|the\s+[^.!?]+?)\s*[.!?]?$",
+        lambda m: (m.group(1) if re.match(r"(?:which|what|who|where|when|how)\b", m.group(1), re.IGNORECASE)
+                   else "what's " + m.group(1)) + "?",
+        clean, flags=re.IGNORECASE,
+    ) if not re.search(r"\bto\s+\w", clean) else clean
     clean = re.sub(
         r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?remind\s+me\s+(?:again\s+)?(?:of\s+|about\s+|what\s+)?(?:is\s+)?(my\s+[^.!?]+?)(?:\s+is)?\s*[.!?]?$",
         r"what's \1?", clean, flags=re.IGNORECASE,
@@ -86,7 +104,7 @@ def as_question(text: str) -> str:
 #: "what bike do I have?", "where did I park?", "which hotel am I in?": a question about the
 #: speaker's own situation that the possessive-based recall grammar does not see.
 _PERSONAL_Q_RE = re.compile(
-    r"^\s*(?:what|which|where|when|who)\b[^?]{0,80}\b(?:do|did|have|had|am|was|will)\s+i\b[^?]{0,60}\?$",
+    r"^\s*(?:what'?s?|which|where|when|who)\b[^?]{0,80}\b(?:(?:do|did|have|had|am|was|will)\s+i|i\s+(?:mentioned|told\s+you|said|gave\s+you|like|love|prefer|use|have|had|booked|bought|picked|chose))\b[^?]{0,60}\?$",
     re.IGNORECASE,
 )
 
@@ -162,6 +180,13 @@ def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
     return len(set(found) & set(terms)) >= need
 
 
+
+def _chat_has_owner_statements(source_context: dict[str, Any] | None) -> bool:
+    for item in list((source_context or {}).get("conversation_history") or [])[:-1]:
+        if isinstance(item, dict) and str(item.get("role") or "") == "user" and _is_statement(str(item.get("content") or "")):
+            return True
+    return False
+
 def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any] | None) -> bool:
     from core.chat_housekeeping import query_terms
 
@@ -196,7 +221,7 @@ def _memory_rows(
         return [
             " ".join(str(row.get("text") or "").split())
             for row in search_relevant_memory(question, access_policy=policy, limit=6)
-            if _covers(terms, query_terms(str(row.get("text") or "")))
+            if (set(terms) & set(query_terms(str(row.get("text") or ""))))
         ]
     except Exception:
         return None
@@ -362,6 +387,36 @@ def accept_pending_offer(text: str, *, session_id: str) -> str:
         return f"Remember that {said.rstrip(' .')}."
     return ""
 
+
+#: The person asks VOOL to bring back something THEY gave it: "remind me ...", "do you remember /
+#: know / recall ...", "can you find my ...", "did I tell you ...".
+_EXPLICIT_RECALL_RE = re.compile(
+    r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?(?:remind\s+me(?!\s+(?:to|in|at|on|tomorrow|tonight|later|every)\b)|"
+    r"(?:do|did)\s+(?:you|u)\s+(?:remember|recall|know|have)\b|(?:find|get|look\s+up)\s+my\b|did\s+i\s+(?:tell|mention|give)\b)",
+    re.IGNORECASE,
+)
+
+
+def _short_question_the_owner_answered(text: str, session_id: str, source_context: dict[str, Any] | None) -> bool:
+    words = re.findall(r"[\w'-]+", text)
+    if not text.endswith("?") or not _QUESTION_HEAD_RE.match(text) or len(words) > 8:
+        return False
+    if _LIVE_DOMAIN_RE.search(text) or _owned_by_another_lane(text):
+        return False
+    try:
+        from core.chat_housekeeping import query_terms, search_chats
+
+        terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
+        if not terms:
+            return False
+        saved = _memory_rows(text, terms, session_id, source_context)
+        if saved:
+            return True
+        result = search_chats(text, current_session_id=session_id, limit=8)
+        return bool(result.ok and _best_owner_statement(result, terms, []) is not None)
+    except Exception:
+        return False
+
 def cross_chat_recall(
     question: str,
     *,
@@ -371,20 +426,28 @@ def cross_chat_recall(
     text = " ".join(str(question or "").split())
     if not text or len(text) > 300:
         return None
+    explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
     # Questions ABOUT memory or this chat ("what do you remember about me?", "what did I say in
     # this chat?") belong to the memory-command and transcript lanes, which answer inventories
     # and same-chat recall exactly.
-    names_other_chat = bool(_OTHER_CHAT_RE.search(text))
-    if _MEMORY_COMMAND_RE.search(_OTHER_CHAT_RE.sub(" ", text)) and not (
-        names_other_chat and not re.search(r"\b(?:memor(?:y|ies)|forg[eo]t)\b", text, re.IGNORECASE)
+    if _MEMORY_COMMAND_RE.search(_OTHER_CHAT_RE.sub(" ", text)):
+        return None
+    if (
+        _CONVERSATION_POINTER_RE.search(_OTHER_CHAT_RE.sub(" ", text))
+        and not _OTHER_CHAT_RE.search(text)
+        and _chat_has_owner_statements(source_context)
     ):
         return None
     try:
         from core.agent_runtime.turn_planner import recall_question_needs_no_planner
 
-        if not (recall_question_needs_no_planner(text) or _personal_question(text)):
-            return None
+        if not (recall_question_needs_no_planner(text) or _personal_question(text) or explicit_recall):
+            # A short question about something only the owner's own chats know ("what day is
+            # piano?" after "my piano lesson is on Tuesdays") is theirs too -- the world question
+            # it resembles got a clarifier about a 2013 film (acceptance runner, 2026-11-11).
+            if not _short_question_the_owner_answered(text, session_id, source_context):
+                return None
         _LOG.info("cross-chat recall considered: %s", text[:80])
     except Exception:
         return None

@@ -382,3 +382,19 @@ def test_a_question_worked_out_from_this_chat_stays_with_the_conversation():
 
     history = {"conversation_history": [{"role": "user", "content": "I fly out on 14 October and I'm staying 6 nights"}]}
     assert _current_chat_holds_it(("date", "fly", "back"), history)
+
+
+@pytest.mark.parametrize("text", ["remind me the code for the hotel booking", "remind me which bakery i like most"])
+def test_remind_me_about_a_known_thing_is_a_recall_not_a_reminder(text):
+    from core.operator.parser import parse_operator_action_intent
+
+    assert parse_operator_action_intent(text) is None
+
+
+def test_a_chat_pointer_word_is_this_chats_only_when_this_chat_has_statements():
+    from core.agent_runtime.cross_chat_recall import _chat_has_owner_statements
+
+    assert not _chat_has_owner_statements({"conversation_history": [{"role": "user", "content": "do u know the code i mentioned"}]})
+    assert _chat_has_owner_statements({"conversation_history": [
+        {"role": "user", "content": "She loves ceramics and jazz."},
+        {"role": "user", "content": "which hobby did I mention second?"}]})
