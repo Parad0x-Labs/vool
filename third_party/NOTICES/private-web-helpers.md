@@ -7,7 +7,7 @@ SHA-256 values) and placed under `third_party/tor/<platform>/` and
 
 | Program | Version | Licence | Source |
 | --- | --- | --- | --- |
-| tor (Tor Expert Bundle) | from Tor Browser 15.0.9 (tor 0.4.9.x) | BSD-3-Clause; bundled libraries keep their own licences, listed in the bundle's `docs/` | https://archive.torproject.org/tor-package-archive/torbrowser/15.0.9/ |
+| tor (Tor Expert Bundle) | from Tor Browser 16.0.1 (tor 0.4.9.16) | BSD-3-Clause; bundled libraries keep their own licences, listed in the bundle's `docs/` | https://archive.torproject.org/tor-package-archive/torbrowser/16.0.1/ |
 | wireproxy | v1.1.3 (module github.com/windtf/wireproxy) | ISC | https://github.com/windtf/wireproxy |
 
 The Tor bundle's SHA-256 values come from the Tor Project's `sha256sums-signed-build.txt` for that

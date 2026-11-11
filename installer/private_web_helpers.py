@@ -31,12 +31,12 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-TOR_RELEASE = "15.0.9"  # Tor Browser release whose expert bundle carries tor 0.4.9.x
+TOR_RELEASE = "16.0.1"  # Tor Browser release whose expert bundle carries tor 0.4.9.16
 TOR_BASE = f"https://archive.torproject.org/tor-package-archive/torbrowser/{TOR_RELEASE}"
 TOR_BUNDLES = {
-    "macos-arm64": ("tor-expert-bundle-macos-aarch64-15.0.9.tar.gz", "8ab84587b09b0053e85a137969b501744fa14640aa126af6e36997189950d254"),
-    "macos-x64": ("tor-expert-bundle-macos-x86_64-15.0.9.tar.gz", "979d288b901995f67378d1301262a593b78a38de4d1fad40d566a939004fa29f"),
-    "linux-x64": ("tor-expert-bundle-linux-x86_64-15.0.9.tar.gz", "7ea13e14cddafb36c6347a9c4f4e639f6010364c16acfd519157c29e226277f2"),
+    "macos-arm64": ("tor-expert-bundle-macos-aarch64-16.0.1.tar.gz", "0b7d022017c31e3f972d06465bcd7ac50feb66ac825547419a934914fe4bb156"),
+    "macos-x64": ("tor-expert-bundle-macos-x86_64-16.0.1.tar.gz", "15464d99adc3bb4de1308260d79878336b04a1ac1aeff83e10f192de7d235946"),
+    "linux-x64": ("tor-expert-bundle-linux-x86_64-16.0.1.tar.gz", "7039cb16060ab22e669852e55774d894b55f25ea8bd0ab7194d3478429a58725"),
 }
 
 WIREPROXY_MODULE = "github.com/windtf/wireproxy"
