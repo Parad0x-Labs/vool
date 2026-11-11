@@ -139,6 +139,9 @@ class _TurnBoundary:
         self.proposed_urls: set[str] = set()
         # How this turn's browser request ended when it never ran: the reply names it truthfully.
         self.unanswered: dict[str, str] | None = None
+        # The browser steps of this turn that ran after Allow, so a reply that fails later
+        # never claims nothing was looked at.
+        self.completed: list[dict[str, str]] = []
         # A follow-up acts on the page already open in this chat. Its authority is
         # what its own words grant (fill, submit, follow); it opens nothing new
         # unless it names an address itself.
@@ -216,6 +219,19 @@ def note_unanswered(op: str, url: str, status: str) -> None:
     boundary = _CONFINED.get()
     if boundary is not None:
         boundary.unanswered = {"op": str(op or ""), "url": str(url or ""), "status": str(status or "")}
+
+
+def note_completed(op: str, url: str) -> None:
+    """Record that one of this turn's browser steps ran and observed the page."""
+    boundary = _CONFINED.get()
+    if boundary is not None and len(boundary.completed) < 20:
+        boundary.completed.append({"op": str(op or ""), "url": str(url or "")})
+
+
+def completed() -> list[dict[str, str]]:
+    """This turn's browser steps that ran, oldest first."""
+    boundary = _CONFINED.get()
+    return [dict(step) for step in boundary.completed] if boundary is not None else []
 
 
 def unanswered() -> dict[str, str] | None:
