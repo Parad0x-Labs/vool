@@ -650,7 +650,7 @@ stage_self_contained() {
       zstandard \
       "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \
       "x402[evm]==2.25.0" "web3==8.0.0" \
-      "pyobjc-framework-EventKit==12.2.2" "pyobjc-framework-Contacts==12.2.2" \
+      "pyobjc-framework-EventKit==13.0" "pyobjc-framework-Contacts==13.0" \
     || die "lean dependency install failed"
 
   # Deterministic bytecode for the embedded runtime: wipe any install-time caches, then compile

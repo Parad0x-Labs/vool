@@ -261,6 +261,6 @@ def test_the_bundle_ships_both_bindings_pinned_by_the_lock():
     lock = prov.lock_artifacts()
     for package in ("pyobjc-framework-eventkit", "pyobjc-framework-contacts"):
         assert package in lean, f"the bundle's lean install dropped {package}"
-        assert lock[package]["__version__"] == "12.2.2", f"{package} is not pinned in uv.lock"
+        assert lock[package]["__version__"] == "13.0", f"{package} is not pinned in uv.lock"
         # The bundle embeds CPython 3.11 for arm64 and x86_64: a universal2 or pure wheel serves both.
         assert any(("cp311" in name and "universal2" in name) or name.endswith("-none-any.whl") for name in lock[package]), package
