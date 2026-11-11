@@ -152,7 +152,7 @@ _NAME_WEAK_RE = re.compile(r"^(?i:i'?m|i\s{1,32}am|this\s{1,32}is|it'?s)\s{1,32}
 # end of the clause, or a continuation word. "It's X" is an introduction only after a greeting or a
 # correction word ("hey, it's Ana"); bare "It's Friday" is not.
 _NAME_TOKEN = r"[A-Z][^\W\d_]{1,30}(?:[-'][^\W\d_]{1,30})?"
-_NAME_INTRO_TAIL = r"(?:\s{1,8}here)?(?=$|\s{0,4}[,;:(–—-]|\s{1,8}(?i:btw|by\s{1,8}the\s{1,8}way|and|from|here|speaking)\b)"
+_NAME_INTRO_TAIL = r"(?:\s{1,8}here)?(?=$|\s{0,4}[,;:(–—-]|\s{1,8}(?i:btw|by\s{1,8}the\s{1,8}way|and|from|here|speaking|can|could|would|what|how|please)\b)"
 _NAME_INTRO_RE = re.compile(
     r"^(?:(?i:i'?m|i\s{1,8}am|this\s{1,8}is|(?:my\s{1,8}|the\s{1,8})?name'?s)\s{1,8})(?P<v>" + _NAME_TOKEN + r"(?:\s{1,4}" + _NAME_TOKEN + r")?)" + _NAME_INTRO_TAIL
 )
@@ -370,12 +370,21 @@ def _stated_name(raw_value: str) -> tuple[str, bool, bool]:
     text = str(raw_value or "").strip()
     correction = False
     not_tail = _NAME_NOT_TAIL_RE.search(text)
+    said_more = False
     if not_tail:
+        # "Sam not Rick, what's 2+2?": the old name ends at the comma; the rest is still asked.
+        said_more = bool(re.search(r"[,;:?]\s{0,8}\S", not_tail.group("old")) or not_tail.group("old").rstrip().endswith("?"))
         text = text[: not_tail.start()].strip()
         correction = True
     value = _name_value(text)
+    if value and said_more:
+        return value, correction, False
     if not value:
-        return "", False, True
+        # "my name is Ines and what is the capital of Portugal?": the name ends where the next
+        # thing they say begins.
+        joined = re.match(r"(?P<head>[^\s,;:]{1,30}(?:\s[^\s,;:]{1,30})?)\s{1,8}(?:and|but|so)\s{1,8}\S", text, re.IGNORECASE)
+        value = _name_value(joined.group("head")) if joined else ""
+        return (value, correction, False) if value else ("", False, True)
     rest = _clean_value(text)[len(value):] if _clean_value(text).lower().startswith(value.lower()) else ""
     rest = _trim_trailing_fillers(rest.strip(" ,.!;:"))
     return value, correction, not rest.strip(" ,.!;:")
@@ -596,3 +605,50 @@ def proposals_from_tool_arguments(intent: str, arguments: dict | None) -> list[P
         scope = "global"
     strength = "explicit" if bool(args.get("explicit", True)) else "strong"
     return [ProfileProposal(category, value, strength, scope=scope, clause="tool")]
+
+
+def name_beside_request(text: str) -> tuple[ProfileProposal, str, tuple[int, int]] | None:
+    """A name said in the same breath as something else: ``(proposal, the something else, the
+    span of the message the name part occupies)``.
+
+    "Hi, I'm Kofi, what is the capital of Portugal?" is an introduction AND a question. The
+    introduction is the profile's to take; what is left ("what is the capital of Portugal?") is
+    the request the rest of the turn answers. None when the message carries no such name, or
+    when nothing is left beside it."""
+    raw = str(text or "")
+    try:
+        proposals = interpret_profile_turn(raw)
+    except Exception:
+        return None
+    for proposal in proposals:
+        if proposal.category != "preferred_name" or not proposal.value or proposal.action != "remember":
+            continue
+        start, end = int(proposal.source_start), int(proposal.source_end)
+        if not 0 <= start < end <= len(raw):
+            return None
+        if proposal.whole:
+            # "I'm Kofi. What is the capital of Portugal?": the name has its own sentence.
+            remainder = (raw[:start] + raw[end:]).strip()
+            if len(remainder.strip(" ,.!?;:")) < 3 or len(proposals) > 1:
+                return None
+            return proposal, remainder, (start, end)
+        segment = raw[start:end]
+        named = re.search(r"(?<!\w)" + re.escape(proposal.value) + r"(?!\w)", segment, re.IGNORECASE)
+        if named is None:
+            return None
+        cut = named.end()
+        here = re.match(r"\s{0,8}here\b", segment[cut:], re.IGNORECASE)
+        if here:
+            cut += here.end()
+        tail = segment[cut:]
+        # "... from the bakery, whats the capital": a short aside about who they are goes with the name.
+        aside = re.search(r"[,;:\u2014]|\s-\s", tail)
+        if aside and aside.start() <= 40 and "?" not in tail[: aside.start()]:
+            cut += aside.end()
+        rest = re.sub(r"^[\s,.!;:\-\u2014]+", "", segment[cut:])
+        rest = re.sub(r"^(?:and|but|so|btw|by\s+the\s+way|anyway)\b[\s,]*", "", rest, flags=re.IGNORECASE)
+        if len(rest.strip(" ,.!?;:")) < 3:
+            return None
+        return proposal, (raw[:start] + rest + raw[end:]).strip(), (start, end - len(rest))
+    return None
+

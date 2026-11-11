@@ -2723,6 +2723,22 @@ class VoolAgent(
             )
         semantic_reach.declined("currency_value_contract")
 
+        # A name said beside a request ("Hi, I'm Kofi, what is the capital of Portugal?") is the
+        # profile's to take before any several-part lane below reads the introduction as a
+        # request it cannot serve (core.operator_profile_turn.observe_name_beside_request).
+        parts_raw_text, parts_effective_input, parts_single_request = raw_turn_text, effective_input, False
+        if not browser_turn:
+            from core.operator_profile_turn import observe_name_beside_request
+
+            name_beside = observe_name_beside_request(
+                raw_turn_text, effective_input, session_id=session_id,
+                source_context=runtime_source_context, access_policy=access_policy,
+            )
+            if name_beside is not None:
+                parts_raw_text = name_beside["raw"] or raw_turn_text
+                parts_effective_input = name_beside["effective"] or effective_input
+                parts_single_request = bool(name_beside["single"])
+
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor
         # first bought a real local-model planner call for exact haikus and user-supplied FX math,
         # then returned a fast-path envelope claiming model_calls=0.  Admit only reviewed contracts
@@ -2775,9 +2791,9 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = None if browser_turn else self._maybe_answer_conductor_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        conductor_result = None if browser_turn or parts_single_request else self._maybe_answer_conductor_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -2796,9 +2812,9 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = None if browser_turn else self._maybe_answer_demand_owned_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        demand_owned_result = None if browser_turn or parts_single_request else self._maybe_answer_demand_owned_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -2824,8 +2840,8 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = None if browser_turn else self._maybe_answer_planned_turn(
-            effective_input=effective_input,
+        planned_result = None if browser_turn or parts_single_request else self._maybe_answer_planned_turn(
+            effective_input=parts_effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
         )

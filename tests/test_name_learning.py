@@ -459,3 +459,63 @@ def test_mail_never_replaces_a_name_and_never_teaches_a_guest(profile_env):
     chat(agent, "call me Dee", "m-a")
     assert learn_name_from_mail(messages, source_context={OWNER_LOCAL_KEY: True, "runtime_session_id": "m-a"}) is None
     assert [i["value"] for i in _items(agent)] == ["Dee"]
+
+
+# ---------------------------------------------------------------------------------------------
+# A name said beside a request. Measured on a real build with a local model 2026-11-11: "Hi, I'm
+# Kofi, what is the capital of Portugal?" was answered "... Lisbon. Could not be answered: Hi, I'm
+# Kofi" and the name was not learned: the lanes that split a message into parts ran ahead of the
+# profile seat and were handed the introduction as a request.
+# ---------------------------------------------------------------------------------------------
+
+BESIDE_A_REQUEST = (
+    ("Hi, I'm Kofi, what is the capital of Portugal?", "Kofi", "what is the capital of Portugal?"),
+    ("Linh here, quick one: what is the capital of Portugal?", "Linh", "quick one: what is the capital of Portugal?"),
+    ("this is Kofi from the bakery, whats the capital of Portugal", "Kofi", "whats the capital of Portugal"),
+    ("my name is Ines and what is the capital of Portugal?", "Ines", "what is the capital of Portugal?"),
+    ("call me Sam not Rick, what's 2+2?", "Sam", "what's 2+2?"),
+    ("I'm Kofi. What is the capital of Portugal?", "Kofi", "What is the capital of Portugal?"),
+    ("Hi I'm Kofi can you help me with my CV?", "Kofi", "can you help me with my CV?"),
+    ("what's the capital of Portugal? I'm Kofi btw", "Kofi", "what's the capital of Portugal?"),
+)
+
+
+@pytest.mark.parametrize("text,name,request_left", BESIDE_A_REQUEST)
+def test_a_name_beside_a_request_is_read_apart_from_the_request(text, name, request_left):
+    from core.operator_profile_interpretation import name_beside_request
+
+    proposal, remainder, (start, end) = name_beside_request(text)
+    assert (proposal.value, remainder) == (name, request_left)
+    assert name in text[start:end] and request_left.strip("?") not in text[start:end]
+
+
+@pytest.mark.parametrize("text", ("I'm Kofi", "my name is Ines", "Hi, I'm Kofi, thanks", "I'm tired, what is the capital of Portugal?",
+                                  "what is the capital of Portugal?", "I'm not Dana. What's 2+2?"))
+def test_nothing_is_set_apart_when_there_is_no_name_or_no_request_beside_it(text):
+    from core.operator_profile_interpretation import name_beside_request
+
+    assert name_beside_request(text) is None
+
+
+@pytest.mark.parametrize("text,name,request_left", BESIDE_A_REQUEST[:4])
+def test_served_a_name_beside_a_question_is_learned_and_the_part_lanes_never_see_the_introduction(profile_env, monkeypatch, text, name, request_left):
+    agent = make_agent()
+    handed: list[str] = []
+    for lane in ("_maybe_answer_conductor_turn", "_maybe_answer_demand_owned_turn", "_maybe_answer_planned_turn"):
+        original = getattr(type(agent), lane)
+
+        def spy(self, *args, _original=original, **kwargs):
+            handed.extend(str(kwargs.get(key) or "") for key in ("raw_input", "effective_input"))
+            return _original(self, *args, **kwargs)
+
+        monkeypatch.setattr(type(agent), lane, spy)
+    turn = chat(agent, text, "beside-a")
+    assert not any(name in given for given in handed), handed
+    reports = [entry.get("report") for entry in _frame(turn).get("saved") or []]
+    assert len(reports) == 1 and name in reports[0], _frame(turn)  # said once, with its Undo
+    assert not _frame(turn).get("candidates") and not _frame(turn).get("conflicts")
+    assert [i["value"] for i in _items(agent)] == [name]
+    assert name in _name(agent, "beside-b")
+    # ... and it is not announced a second time on the next ordinary turn.
+    later = chat(agent, "thanks, what should I cook tonight?", "beside-c")
+    assert not _frame(later).get("saved"), _frame(later)

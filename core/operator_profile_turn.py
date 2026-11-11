@@ -25,12 +25,13 @@ from contextvars import ContextVar
 from typing import Any
 
 from core import operator_profile as profile
-from core.operator_profile_interpretation import ProfileProposal, interpret_profile_turn
+from core.operator_profile_interpretation import ProfileProposal, interpret_profile_turn, name_beside_request
 
 __all__ = [
     "bind_turn_scope",
     "learn_name_from_mail",
     "clear_turn_scope",
+    "observe_name_beside_request",
     "current_turn_scope",
     "observe_profile_turn",
     "profile_frame_for_result",
@@ -253,6 +254,93 @@ def _show(principal: str, session_id: str) -> profile.ProfileChange:
     return profile.ProfileChange("unchanged", "What I remember about you:\n" + "\n".join(lines))
 
 
+def observe_name_beside_request(
+    raw_user_input: str,
+    effective_input: str = "",
+    *,
+    session_id: str,
+    source_context: dict[str, Any] | None,
+    access_policy: Any | None = None,
+) -> dict[str, Any] | None:
+    """Take a name said beside a request, before any lane splits the message into parts.
+
+    Measured on a real build 2026-11-11 (qwen3:8b): "Hi, I'm Kofi, what is the capital of
+    Portugal?" was answered "... Lisbon. Could not be answered: Hi, I'm Kofi" and the name was
+    never learned -- the lanes that serve a several-part message run ahead of the profile seat and
+    read the introduction as a request nobody could serve. The name is applied HERE, by the same
+    law as the seat (which then leaves it alone for this turn).
+
+    Returns None when the turn carries no such name. Otherwise ``{"raw", "effective", "single"}``:
+    the message with the name part blanked out (same length, so every position a lane computes
+    still points into what the person wrote) for the several-part lanes, and whether one request
+    at most is left beside the name (nothing for those lanes to split)."""
+    if not isinstance(source_context, dict):
+        return None
+    try:
+        principal = profile.principal_for_request(source_context)
+        if not principal:
+            return None
+        from core.private_chat import turn_is_private
+
+        if turn_is_private(source_context, session_id):
+            return None
+        raw = str(raw_user_input or "")
+        found = name_beside_request(raw)
+        if found is None:
+            return None
+        proposal, _remainder, (start, end) = found
+        project_id = str(getattr(access_policy, "project_id", "") or source_context.get("_trusted_project_id") or "")
+        bind_turn_scope(principal, session_id, project_id)
+        turn_id = str(source_context.get("cancel_turn_id") or source_context.get("_canonical_user_turn_id") or "")
+        change = _apply(proposal, principal=principal, session_id=session_id, turn_id=turn_id)
+        obs = _observation(source_context)
+        obs["name_taken_beside_request"] = True
+        if change.kind in {"saved", "updated", "forgotten"}:
+            obs["saved"].append({**change.as_dict(), "category": "preferred_name", "item_id": change.item.item_id if change.item else ""})
+            _record_receipt(change, proposal, session_id=session_id, source_context=source_context)
+            # Counts as its first use: it is said under this answer, not announced again on the next turn.
+            used_lines, used = profile.hydration_for_turn(principal, session_id=session_id, project_id=project_id)
+            if used:
+                source_context["profile_context_lines"] = used_lines
+                source_context["profile_used"] = used
+                obs["used"] = used
+    except Exception:
+        return None
+    try:
+        from core.agent_runtime.answer_coverage import demand_units
+
+        blanked = raw[:start] + " " * (end - start) + raw[end:]
+        asked = list(demand_units(raw))
+        name_units = [u for u in asked if int(u.start) >= start and int(u.end) <= end]
+        left = [(str(u.unit_id), int(u.start), int(u.end)) for u in asked if u not in name_units]
+        after = [(str(u.unit_id), int(u.start), int(u.end)) for u in demand_units(blanked)]
+        if name_units:
+            # The introduction was taken (the profile holds it): it is not a request left unanswered.
+            from core.conductor import obligation_ledger
+
+            active = obligation_ledger.active_set()
+            if active is not None:
+                for unit in name_units:
+                    obligation_ledger.record_slice_consumption(
+                        active[0], active[1], unit_id=str(unit.unit_id), family="operator_profile",
+                        evidence="slice_answer_record", excerpt="preferred_name",
+                    )
+        single = len(after) <= 1
+        if left != after:
+            # The requests beside the name would be numbered differently without it: the lanes keep
+            # the message as written, so what they account for stays what was asked.
+            return {"raw": raw, "effective": str(effective_input or ""), "single": single}
+        effective = str(effective_input or "")
+        if effective and effective != raw:
+            again = name_beside_request(effective)
+            effective = (effective[: again[2][0]] + " " * (again[2][1] - again[2][0]) + effective[again[2][1]:]) if again else blanked
+        else:
+            effective = blanked if effective else ""
+        return {"raw": blanked, "effective": effective, "single": single}
+    except Exception:
+        return {"raw": str(raw_user_input or ""), "effective": str(effective_input or ""), "single": False}
+
+
 def observe_profile_turn(
     agent: Any,
     raw_user_input: str,
@@ -291,10 +379,11 @@ def observe_profile_turn(
             proposals = [p for p in proposals if getattr(p, "action", "") in {"forget", "undo", "show"}]
     except Exception:
         proposals = []
+    name_taken = bool(((source_context or {}).get("profile_observation") or {}).get("name_taken_beside_request")) if isinstance(source_context, dict) else False
     turn_id = str((source_context or {}).get("cancel_turn_id") or (source_context or {}).get("_canonical_user_turn_id") or "")
     # A name VOOL picked up outside this chat (off the operator's own mail) is said out loud the
     # first time it is used, with an Undo -- never used silently, never asked about.
-    unannounced = _unannounced_name(principal, session_id, project_id) if principal else None
+    unannounced = _unannounced_name(principal, session_id, project_id) if principal and not name_taken else None
     used_lines: list[str] = []
     used: list[dict[str, str]] = []
 
@@ -329,6 +418,9 @@ def observe_profile_turn(
                 "category": "preferred_name", "item_id": learned.item_id,
             })
             _hydrate()
+    if name_taken:
+        # Already applied for this turn by observe_name_beside_request.
+        proposals = [p for p in proposals if p.category != "preferred_name"]
     if not proposals:
         return None
     if not principal:
