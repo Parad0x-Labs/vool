@@ -169,6 +169,36 @@ def _resolve_named_recipients(args: dict[str, Any], source_context: dict[str, An
             out[key] = resolved if not isinstance(value, str) else ", ".join(resolved)
     return out if changed else None
 
+#: Where a reply's own words start: "... saying thanks", "... and tell them yes".
+_REPLY_BODY_RE = re.compile(
+    r"\b(?:saying|say|says|that\s+says|telling|tell\s+(?:them|him|her)|to\s+say|with\s+the\s+(?:message|text|words))\b.*$",
+    re.IGNORECASE,
+)
+_UNREAD_WORDS_RE = re.compile(r"\b(?:unread|unseen|new|haven'?t\s+(?:read|opened)|not\s+(?:yet\s+)?read)\b", re.IGNORECASE)
+
+
+def _grounded_read_filters(args: dict[str, Any], user_text: str) -> dict[str, Any]:
+    """Drop read filters the person never asked for.
+
+    Measured 2026-11-11 (battery v10, installed build): "reply to the latest kucoin email saying
+    thanks" read with subject='Thank You' and unread-only -- the reply's own words became a
+    filter -- and matched nothing, so the reply never happened. A subject filter stands only when
+    its words are in what the person asked OUTSIDE the reply's words; unread-only only when they
+    said unread/new."""
+    asked = _REPLY_BODY_RE.sub(" ", " ".join(user_text.split())).casefold()
+    out = dict(args)
+    subject = str(out.get("subject") or "").strip()
+    if subject:
+        words = [w for w in re.findall(r"[\w'-]+", subject.casefold()) if len(w) > 2]
+        if not words or not all(w in asked for w in words):
+            out.pop("subject", None)
+            _LOG.info("email.read: dropped a subject filter the person did not ask for")
+    if out.get("unseen_only") and not _UNREAD_WORDS_RE.search(asked):
+        out["unseen_only"] = False
+        _LOG.info("email.read: dropped an unread-only filter the person did not ask for")
+    return out
+
+
 def guard_email_arguments(
     intent: str,
     arguments: dict[str, Any],
@@ -195,6 +225,8 @@ def guard_email_arguments(
                     args["sender"] = dropped.strip()
         elif account:
             args["account"] = account
+    if intent == "email.read" and str(user_text or "").strip():
+        args = _grounded_read_filters(args, str(user_text))
     if intent not in RECIPIENT_INTENTS:
         return EmailArgumentVerdict(arguments=args, dropped_account=dropped)
     # A recipient given as a bare NAME ("kucoin") is resolved against the senders of mail read in

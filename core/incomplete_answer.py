@@ -335,13 +335,25 @@ _PLAN_STEP_RE = re.compile(
 )
 
 
+#: Sentences that carry nothing either way: an acknowledgement or a "hold on" ("I'm on it,
+#: baby!", "Just give me a sec...", "Hang tight."). Battery v10 (2026-11-11, installed build):
+#: "I'm on it, baby! Let me fetch the Wikipedia page ... Just give me a sec..." -- no lookup ran
+#: -- passed as an answer because the acknowledgement stood in front of the announced step.
+_FILLER_SENTENCE_RE = re.compile(
+    r"(?:(?:hey|hi|hello)(?:\s+there)?|sure(?:\s+thing)?|okay|ok|alright|great|got\s+it|you\s+got\s+it|"
+    r"(?:i'?m\s+)?on\s+it|no\s+problem|absolutely|of\s+course|(?:just\s+)?(?:give|gimme)\s+me\s+a\s+(?:sec|second|moment|minute)|"
+    r"(?:one|just\s+a)\s+(?:sec|second|moment|minute)|hang\s+tight|hold\s+on|stay\s+tuned|be\s+right\s+back)"
+    r"(?:[,\s]+[a-z]+)?\s*[!.…]*",
+    re.IGNORECASE,
+)
+
+
 def _only_a_plan(text: str) -> bool:
-    sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?])\s+)", str(text or "")) if part.strip()]
-    lead = sentences[0] if sentences and not re.fullmatch(r"(?:sure|okay|ok|alright|great|got it)[!.]?", sentences[0], re.I) else (sentences[1] if len(sentences) > 1 else "")
-    if not lead or not _ANNOUNCED_ACTION_RE.match(lead):
+    sentences = [part.strip() for part in re.split(r"(?:\n+|(?<=[.!?…])\s+)", str(text or "")) if part.strip()]
+    substantive = [part for part in sentences if not _FILLER_SENTENCE_RE.fullmatch(part)]
+    if not substantive or not _ANNOUNCED_ACTION_RE.match(substantive[0]):
         return False
-    planned = sum(1 for part in sentences if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part))
-    substantive = [part for part in sentences if not re.fullmatch(r"(?:sure|okay|ok|alright|great|got it)[!.]?", part, re.I)]
+    planned = sum(1 for part in substantive if _ANNOUNCED_ACTION_RE.match(part) or _PLAN_STEP_RE.match(part))
     return planned * 3 >= len(substantive) * 2
 
 def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:

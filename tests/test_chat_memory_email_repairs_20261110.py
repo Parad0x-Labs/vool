@@ -528,3 +528,47 @@ def test_opening_a_named_page_without_a_url_seats_a_web_search():
 
     signals = resolve_demand_signals("open the Wikipedia page for the Daugava river and tell me how long it is")
     assert "web.search" in signals.explicit_intents
+
+
+# --- battery v10 (2026-11-11) ------------------------------------------------------------------
+
+
+def test_a_read_drops_a_subject_taken_from_the_replys_own_words():
+    from core.email_argument_guard import guard_email_arguments
+
+    verdict = guard_email_arguments(
+        "email.read", {"sender": "kucoin", "subject": "Thank You", "unseen_only": True},
+        source_context={}, user_text="reply to the latest kucoin email saying thanks",
+    )
+    assert verdict.arguments.get("sender") == "kucoin"
+    assert "subject" not in verdict.arguments and not verdict.arguments.get("unseen_only")
+
+
+def test_a_read_keeps_the_filters_the_person_asked_for():
+    from core.email_argument_guard import guard_email_arguments
+
+    verdict = guard_email_arguments(
+        "email.read", {"sender": "paysera", "subject": "fee changes", "unseen_only": True},
+        source_context={}, user_text="show my unread paysera mail about the fee changes",
+    )
+    assert verdict.arguments.get("subject") == "fee changes" and verdict.arguments.get("unseen_only") is True
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["I'm on it, baby! Let me fetch the Wikipedia page for the Daugava River and check its length. Just give me a sec...",
+     "Hey there! Let me open the page."],
+)
+def test_an_acknowledged_plan_with_nothing_done_is_incomplete(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert _only_a_plan(reply)
+
+
+@pytest.mark.parametrize(
+    "reply", ["Sure! Let me check. The Daugava is 1,020 km long.", "On it! The Daugava is 1,020 km long."]
+)
+def test_an_acknowledged_answer_is_not_a_plan(reply):
+    from core.incomplete_answer import _only_a_plan
+
+    assert not _only_a_plan(reply)

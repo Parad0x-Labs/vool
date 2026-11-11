@@ -361,6 +361,14 @@ def should_keep_ai_first_chat_lane(
 
     if asks_for_a_file(user_input):
         return False
+    # An explicit web demand ("open the Wikipedia page for the Daugava river and tell me how long
+    # it is") needs the web tools this lane cannot offer. Measured 2026-11-11 (battery v10,
+    # installed build): the demand signal seated web.search, the turn was kept here anyway, and
+    # the model answered "Let me fetch the Wikipedia page ... give me a sec" while nothing ran.
+    from core.tool_demand_signals import resolve_demand_signals
+
+    if "web" in resolve_demand_signals(user_input).required_families:
+        return False
     from core.stipulated_frame import stipulated_frame_active
 
     if stipulated_frame_active(user_input, source_context=source_context):
