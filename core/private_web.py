@@ -120,6 +120,15 @@ def _route_from_policy() -> RouteState:
         port = 0
     if not 0 <= port <= 65535:
         port = 0
+    if kind == ROUTE_TOR:
+        # VOOL's own Tor (core/tor_runtime.py) picks its port at start. While it is not running
+        # the port is 0 and the route reports "not running" -- never a stale configured port.
+        try:
+            from core import tor_runtime
+
+            port = tor_runtime.shared().socks_port
+        except Exception:
+            port = 0
     return RouteState(kind=kind, socks_port=port)
 
 
