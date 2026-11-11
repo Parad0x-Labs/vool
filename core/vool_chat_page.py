@@ -12954,12 +12954,19 @@ async function rescanPlugins() {
 function renderPlugins(d, query) {
   const body = document.getElementById('pluginsBody'); if (!body) return;
   body.innerHTML = '';
+  // Nothing added yet is not "nothing here": the plugins that come with VOOL are still listed
+  // below the note, so they can be seen and switched off before anything else is installed.
+  const builtInOnly = !!(d && !d.installed && (d.plugins || []).length);
   if (!d || !d.installed) {
     const notice = _storageNotice(d);
-    if (notice) { body.appendChild(notice); return; }
-    const p = document.createElement('div'); p.className = 'plugins-empty';
-    p.textContent = (d && d.reason) ? d.reason : 'No plugins installed yet.';
-    body.appendChild(p); return;
+    const nothingAddedYet = !!(d && d.storage && d.storage.state === 'missing');
+    if (notice) { body.appendChild(notice); if (!(builtInOnly && nothingAddedYet)) return; }
+    else {
+      const p = document.createElement('div'); p.className = 'plugins-empty';
+      p.textContent = (d && d.reason) ? d.reason : 'No plugins installed yet.';
+      body.appendChild(p);
+      if (!builtInOnly) return;
+    }
   }
   const q = String(query || '').trim().toLowerCase();
   let plugins = d.plugins || [];
@@ -12968,7 +12975,7 @@ function renderPlugins(d, query) {
   head.textContent = q
     ? (plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
     : (d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's') + ' installed · ' + d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' (see the Skills panel)');
-  body.appendChild(head);
+  if (!builtInOnly || q) body.appendChild(head);
   if (!plugins.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No plugins match that search.'; body.appendChild(p); return; }
   plugins.forEach((pl) => {
     const card = document.createElement('div'); card.className = 'plugin-card' + (pl.first_party ? ' firstparty' : '');
