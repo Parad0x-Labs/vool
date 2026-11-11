@@ -65,13 +65,24 @@ def record(value, *, pairing_id, challenge, device_public_key):
             chain = value.get("chain")
             if not isinstance(chain, list) or not 2 <= len(chain) <= 8:
                 raise ValueError("Attestation chain missing.")
-            certificates = [
-                x509.load_der_x509_certificate(base64.b64decode(item, validate=True))
+            encoded = [
+                base64.b64decode(item, validate=True)
                 for item in chain
                 if isinstance(item, str) and len(item) <= 16384
             ]
-            if len(certificates) != len(chain):
+            if len(encoded) != len(chain):
                 raise ValueError("Invalid attestation chain.")
+            try:
+                certificates = [x509.load_der_x509_certificate(item) for item in encoded]
+            except ValueError:
+                # Real Android keystores (seen on a StrongBox phone, Nov 2026) emit
+                # attestation certificates that are BER, not strict DER, e.g. a
+                # critical flag stored as 0x01. They cannot be checked here, so the
+                # key stays unproven and phone approvals stay off. Pairing itself is
+                # authenticated by the QR code and the device's own Ed25519 key, so
+                # unreadable optional evidence must not refuse the pairing.
+                result["attestation"] = "unreadable_chain"
+                return result
             now = datetime.now(timezone.utc)
             for certificate in certificates:
                 issuer_key = certificate.public_key()

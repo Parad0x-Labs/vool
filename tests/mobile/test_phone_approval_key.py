@@ -120,3 +120,41 @@ def test_android_signed_chain_without_trusted_hardware_auth_proof_is_unproven():
     assert result['chain_signatures']=='valid'
     assert result['root_trust']=='not_checked' and result['hardware_and_auth_policy']=='not_checked'
     assert not can_approve(result) and result['state']=='unproven_use_computer'
+
+
+def test_ber_attestation_chain_pairs_with_phone_approvals_off():
+    # A StrongBox phone (Nov 2026) sent a leaf whose critical flag is BER 0x01, not DER 0xFF.
+    # The strict parser cannot read it: the key stays unproven and pairing is not refused.
+    import base64
+    from datetime import datetime, timedelta, timezone
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    from core.mobile_companion.approval_key import can_approve, record
+
+    issuer = ec.generate_private_key(ec.SECP256R1())
+    leaf = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'BER fixture')])
+    now = datetime.now(timezone.utc)
+    usage = x509.KeyUsage(True, False, False, False, False, False, False, False, False)
+    def build(key, serial):
+        return (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+                .serial_number(serial).not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=1))
+                .add_extension(usage, critical=True).sign(issuer, hashes.SHA256()))
+    leaf_der = build(leaf, 2).public_bytes(serialization.Encoding.DER)
+    root_der = build(issuer, 1).public_bytes(serialization.Encoding.DER)
+    der_flag = b'\x06\x03\x55\x1d\x0f\x01\x01\xff'  # keyUsage OID, BOOLEAN TRUE
+    assert leaf_der.count(der_flag) == 1
+    ber_leaf = leaf_der.replace(der_flag, b'\x06\x03\x55\x1d\x0f\x01\x01\x01')
+    value = {'platform': 'android', 'encoding': 'spki',
+             'public_key': base64.b64encode(leaf.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)).decode(),
+             'chain': [base64.b64encode(item).decode() for item in (ber_leaf, root_der)]}
+    result = record(value, pairing_id='pair_ber', challenge='c', device_public_key='a' * 64)
+    assert result['state'] == 'unproven_use_computer' and result['attestation'] == 'unreadable_chain'
+    assert 'chain_signatures' not in result and not can_approve(result)
+    # A chain that is not even base64 is still refused.
+    value['chain'] = ['not base64!', base64.b64encode(root_der).decode()]
+    assert record(value, pairing_id='pair_ber', challenge='c', device_public_key='a' * 64)['state'] == 'invalid_use_computer'
