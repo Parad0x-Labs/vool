@@ -154,3 +154,34 @@ def test_the_failed_action_message_names_the_unanswered_browser_step():
     # Without a browser step nothing changes: the generic text and the Hive offer stay as they were.
     text = Agent()._tool_failure_user_message(execution=execution, effective_input=ASK, session_id='s1')
     assert text.startswith("I wasn't able to turn that into a completed action") and 'Hive' in text
+
+
+def test_a_model_failure_after_an_approved_browser_step_does_not_deny_the_page_was_opened():
+    """Mac run 2026-11-11: the page opened after Approve, qwen3:8b then timed out, the fallback was
+    uncertified, and the refusal said "nothing this turn retrieved, computed or observed backs it"."""
+    from core.final_answer_authorship import (
+        REASON_BLOCKED_BEFORE_GENERATION,
+        AuthorshipDecision,
+        gate_authored_content,
+        record_authorship_attempts,
+        record_authorship_decision,
+    )
+    from core.vool_browser.live_requests import note_completed, turn_scope
+
+    decision = AuthorshipDecision(eligible=False, author_role='answer_generation', task_class='direct',
+                                  requested_model='ollama-local:qwen2.5:7b', selected_model='',
+                                  reason=REASON_BLOCKED_BEFORE_GENERATION)
+    turn = 'turn-browser-then-model-timeout'
+    context = {'cancel_turn_id': turn, 'request_id': 'req-' + turn}
+    with turn_scope(ASK, 'reply-test'):
+        record_authorship_decision(context, decision, blocked_model='ollama-local:qwen2.5:7b', request_text=ASK)
+        record_authorship_attempts(context, ('ollama-local:qwen3:8b',))
+        note_completed('navigate', URL)
+        gated, payload = gate_authored_content(INVENTED, turn_id=turn)
+        again, _ = gate_authored_content(gated, turn_id=turn)
+    assert payload['publication'] == 'refused' and again == gated
+    assert gated.startswith("I can't publish this answer: I opened " + URL + ' in the browser')
+    assert 'nothing this turn retrieved, computed or observed' not in gated
+    assert 'qwen3:8b' in gated and 'still open in the Browser pane' in gated and '14:36' not in gated
+    # Without a browser step the refusal keeps its former words.
+    assert 'nothing this turn retrieved, computed or observed' in decision.refusal_text()

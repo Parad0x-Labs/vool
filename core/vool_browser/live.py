@@ -1454,6 +1454,10 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
         note_navigation_proposal(arguments["url"])
     if source_context.get("live_browser_wait_for_owner") is True:
         outcome = item.wait_for_owner(proposed["proposal"], source_context)
+        if outcome.get("ok"):
+            from core.vool_browser.live_requests import note_completed
+
+            note_completed(op, str(item.url or proposed["proposal"]["args"].get("url") or ""))
         if not outcome.get("ok") and outcome.get("status") in {"refused", "stale_approval", "operation_timeout", "paused", "cancelled", "web_off", "stopped"}:
             from core.vool_browser.live_requests import note_unanswered
 

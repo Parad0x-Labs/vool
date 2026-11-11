@@ -228,7 +228,8 @@ class AuthorshipDecision:
             "detail": str(self.detail),
         }
 
-    def refusal_text(self, *, attempted_failed: tuple[str, ...] | list[str] | None = None) -> str:
+    def refusal_text(self, *, attempted_failed: tuple[str, ...] | list[str] | None = None,
+                     observed_pages: tuple[str, ...] | list[str] | None = None) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
         ``attempted_failed`` carries the certified authors this turn DID call and that failed
@@ -304,6 +305,16 @@ class AuthorshipDecision:
                 f"What would make this answerable: no local model is running on this computer, so "
                 f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
                 "Setup under \u201cWhere should it think?\u201d, or start a local model."
+            )
+        pages = [str(page).strip() for page in (observed_pages or ()) if str(page).strip()]
+        if pages:
+            # The browser DID open the page this turn; only the writing failed. Saying "nothing
+            # this turn observed" here was false and sent the person to debug the browser.
+            opened = ", ".join(pages[:3])
+            return (
+                f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} I opened {opened} in the browser, but no "
+                f"certified model finished writing the answer from it. {cause}\n\n"
+                f"The page is still open in the Browser pane. Ask again to have it read. {remedy}"
             )
         return (
             f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} nothing this turn retrieved, computed or observed "
@@ -1271,7 +1282,23 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
         return text, payload
     payload["publication"] = "refused"
     payload["withheld_characters"] = len(text)
-    return record.decision.refusal_text(attempted_failed=record.attempted_failed), payload
+    return record.decision.refusal_text(attempted_failed=record.attempted_failed,
+                                        observed_pages=_browser_pages_opened()), payload
+
+
+def _browser_pages_opened() -> tuple[str, ...]:
+    """Pages this turn's approved browser steps opened, if any. Never raises."""
+    try:
+        from core.vool_browser.live_requests import completed
+
+        seen: list[str] = []
+        for step in completed():
+            url = str(step.get("url") or "").strip()
+            if url and url not in seen:
+                seen.append(url)
+        return tuple(seen)
+    except Exception:
+        return ()
 
 
 # ---- execution claims ------------------------------------------------------------------------
