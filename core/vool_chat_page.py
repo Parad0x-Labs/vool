@@ -8282,11 +8282,24 @@ function paintRecoveryNote(st) {
   const note = document.createElement('div');
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
-  text.textContent = 'This chat was interrupted when VOOL stopped.' + (asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '') + ' You can resume it or cancel it.';
+  text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.' + (asked ? ' You asked: \u201c' + asked.slice(0, 180) + '\u201d' : '') + ' Ask again, or resume or cancel the saved work.';
   const btn = document.createElement('button');
   btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
   btn.addEventListener('click', () => openPanel());
   note.appendChild(text); note.appendChild(btn);
+  // The plain way back: send the same question again in this chat (the reply was cut off, so
+  // nothing of it was kept). Offered only when the question itself is known.
+  if (asked && !asked.endsWith('...')) {
+    const again = document.createElement('button');
+    again.type = 'button'; again.className = 'tc-view'; again.textContent = 'Ask again';
+    again.addEventListener('click', async () => {
+      const sid = displayedChat;
+      if (isChatBusy(sid)) return;
+      st.recoveredTask = null; note.remove();
+      await runTurn(asked, null, { chatId: sid });
+    });
+    note.appendChild(again);
+  }
   const empty = logEl.querySelector('.empty');
   if (empty) empty.remove();
   logEl.insertBefore(note, logEl.firstChild);

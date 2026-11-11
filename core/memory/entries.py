@@ -1312,8 +1312,58 @@ def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
             entry["updated_at"] = overlay["updated_at"]
         entry["turn_count"] = own_turns + int(overlay["user_message_count"] or overlay["message_count"])
         entry["imported"] = True
+    _overlay_interrupted_turns(by_session, namespaces=namespaces, meta=meta)
     sessions = sorted(by_session.values(), key=lambda item: str(item.get("updated_at") or ""), reverse=True)
     return sessions[: max(1, int(limit))]
+
+
+def _overlay_interrupted_turns(
+    by_session: dict[str, dict[str, Any]], *, namespaces: dict[str, Any], meta: dict[str, Any]
+) -> None:
+    """A chat whose reply was cut off by VOOL stopping keeps its question and says so.
+
+    The conversation log records a turn only when its reply is finalized, so a chat whose FIRST
+    reply was cut off came back as an empty "New chat" with nothing saying what was asked. The
+    runtime's own interrupted-turn record supplies the question (the title, when the chat has no
+    other) and the `interrupted` flag the chat page renders; a user-set title always wins, and
+    forgotten words never reach the list."""
+    try:
+        from core.memory.revocation import authorize_payload
+        from core.runtime_continuity import interrupted_chat_requests
+
+        interrupted = interrupted_chat_requests()
+    except Exception:
+        return
+    for sid, info in interrupted.items():
+        namespace = namespaces.get(sid)
+        if namespace is not None and namespace.lifecycle_state == "deleted":
+            continue
+        preview = " ".join(str(info.get("request_preview") or "").split())
+        if preview and not authorize_payload(preview, chat_id=sid):
+            preview = ""
+        entry = by_session.get(sid)
+        if entry is None:
+            if not preview:
+                continue
+            override = meta.get(sid) or {}
+            entry = by_session[sid] = {
+                "session_id": sid,
+                "title": str(override.get("title") or "").strip() or preview[:80],
+                "created_at": str(info.get("updated_at") or ""),
+                "updated_at": str(info.get("updated_at") or ""),
+                "turn_count": 0,
+                "archived": bool(override.get("archived")),
+                "project_id": str(override.get("project_id") or (namespace.project_id if namespace is not None else "") or ""),
+                "emoji": str(override.get("emoji") or ""),
+                "color": str(override.get("color") or ""),
+            }
+        elif str(info.get("updated_at") or "") < str(entry.get("updated_at") or ""):
+            continue  # a later turn finished after the cut-off one
+        custom = str((meta.get(sid) or {}).get("title") or "").strip()
+        if preview and not custom and str(entry.get("title") or "").strip() in {"", "New chat"}:
+            entry["title"] = preview[:80]
+        entry["interrupted"] = True
+        entry["interrupted_request"] = preview
 
 
 @_memory_reader
