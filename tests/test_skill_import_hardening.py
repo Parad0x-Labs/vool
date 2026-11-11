@@ -603,7 +603,9 @@ def test_an_import_with_the_name_of_your_skill_says_so_before_turn_on(tmp_path) 
     _own_meeting_notes()
     theirs = _skill_md("Meeting Notes", "Summarise, then list who owns each action.",
                        desc="Use when the user pastes meeting notes")
-    offer = _import(tmp_path, "c-collide", "meeting-notes", theirs)["response"]
+    imported = _import(tmp_path, "c-collide", "meeting-notes", theirs)
+    offer = imported["response"]
+    assert imported["details"]["replaces_existing"] is True
     assert 'You already have a skill called "Meeting notes"' in offer
     assert "replaces yours" in offer and "kept in its history" in offer
     on = _turn_on("c-collide")

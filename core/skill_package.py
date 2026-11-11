@@ -675,9 +675,18 @@ def import_package(
             # bytes whose digest the turn-on is bound to, or the showing proves nothing.
             return {"status": "refused", "code": "staging_changed",
                     "reason": "The skill changed while it was being saved, so I did not keep it. Import it again."}
+        if scope == "global":
+            existing = skill_tools.plugins_root() / "plugins" / "local-skills" / "skills" / slug / "SKILL.md"
+        else:
+            existing = skill_tools._scoped_dirs(scope, keys)[1] / slug / "SKILL.md"
+        replaces = existing.is_file()
         return {
             "status": "ok" if verdict.get("status") == "ok" else "invalid",
             "kind": "skill",
+            # Said up front, never discovered afterwards: turning this on would replace the
+            # person's own skill of the same name (the chat offer says so in words).
+            "replaces_existing": replaces,
+            **({"replaces_note": "Turning this on would replace your own skill of the same name."} if replaces else {}),
             "name": verdict.get("name") or slug,
             "slug": slug,
             "scope": scope,
