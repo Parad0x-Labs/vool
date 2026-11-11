@@ -36,6 +36,12 @@ pytestmark = pytest.mark.usefixtures("_hash_backend")
 
 LABEL = "MINT-84"
 CODE = "5906"
+
+
+def _holds_code(text: str) -> bool:
+    """The code as a word of its own. A bare substring check also matched random hex ids in
+    the session rows (attempt-...a8590696...), which failed CI by chance."""
+    return re.search(rf"(?<![0-9A-Za-z]){CODE}(?![0-9A-Za-z])", text) is not None
 BYSTANDER = "signal green"
 
 
@@ -114,7 +120,7 @@ def test_two_targets_with_nothing_stored_say_nothing_was_removed_for_each(isolat
         f'Nothing was removed. Forget found no memory in this chat that matched "{CODE}".' + " " + FORGET_LIST_NOTE,
     ], reply
     words = _session_words(chat)
-    assert LABEL.casefold() not in words.casefold() and CODE not in words, words
+    assert LABEL.casefold() not in words.casefold() and not _holds_code(words), words
 
 
 def test_a_described_label_forgets_the_value_stored_in_a_sentence(isolated_pages):
@@ -277,7 +283,7 @@ def test_one_target_failing_while_another_is_forgotten_is_never_reported_as_appl
     # The retry finishes the run history the first attempt could not erase, and says it removed rows.
     handled, retry = command(isolated_pages, chat, f"Forget {CODE}.")
     assert handled and retry.startswith("Forget applied. Removed "), retry
-    assert CODE not in _session_words(chat)
+    assert not _holds_code(_session_words(chat))
     assert _live_entries() == []
 
 
