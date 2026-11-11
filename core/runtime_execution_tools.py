@@ -8074,8 +8074,9 @@ def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | No
 
 
 _SKILL_PATH_REFUSED = (
-    "I can only check or turn on skills kept in VOOL's skill folders. Name the skill instead "
-    "of giving a file path (for example: validate the trip-notes skill)."
+    "I did not open that file: I only check or turn on skills kept in VOOL's own skill folders, so a "
+    "file elsewhere on this computer stays private. To add a skill from a file, attach its zip and say "
+    "import this skill, or name a skill you already have (for example: validate the trip-notes skill)."
 )
 
 

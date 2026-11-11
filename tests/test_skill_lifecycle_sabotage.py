@@ -128,8 +128,17 @@ def test_sabotage_activation_without_the_approval_gate_executes_plain_writes(
         "cancel_turn_id": "turn-sab-1",
         "operating_mode": "auto",
     }
+    from core.skill_tools import staging_root
+
+    def drafted(text: str, folder: str) -> str:
+        # Where VOOL keeps drafts: the only place skill.install reads from besides installed skills.
+        target = staging_root() / folder / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return str(target)
+
     healthy = execute_authorized_runtime_tool(
-        "skill.install", {"path": str(_stage(tmp_path, _SKILL_V1, "a"))}, source_context=dict(context)
+        "skill.install", {"path": drafted(_SKILL_V1, "a")}, source_context=dict(context)
     )
     assert healthy.status == "pending_approval", (
         "sabotage precondition broken: install already runs without approval in auto"
@@ -147,11 +156,18 @@ def test_sabotage_activation_without_the_approval_gate_executes_plain_writes(
 
     monkeypatch.setattr(mpp, "actions_for_tool", weaker_actions)
     executed = execute_authorized_runtime_tool(
-        "skill.install", {"path": str(_stage(tmp_path, _SKILL_V2, "b"))}, source_context=dict(context)
+        "skill.install", {"path": drafted(_SKILL_V2, "b")}, source_context=dict(context)
     )
     assert executed.status == "ok", (
         "sabotage no-op: reading a weaker action set still prompted for the activation"
     )
+    # Even with the gate weakened, a loose file outside VOOL's skill folders never installs, and
+    # the person reads why (red team t17): the folder check does not depend on the prompt.
+    loose = execute_authorized_runtime_tool(
+        "skill.install", {"path": str(_stage(tmp_path, _SKILL_V2, "c"))}, source_context=dict(context)
+    )
+    assert loose.status == "not_allowed", loose.response_text
+    assert "I did not open that file" in loose.response_text and "attach its zip" in loose.response_text
 
 
 def test_sabotage_lens_family_gate_removed_injects_the_lens_into_an_unrelated_turn(

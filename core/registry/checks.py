@@ -603,14 +603,40 @@ def skill_text_findings(text: str, header: dict | None = None) -> list[dict]:
         return [_finding("instructions-primary", SKILL_FILE, UNREADABLE)]
 
 
+#: For a skill coming into VOOL (not one published to the Skill Codex): why each rule refuses, in
+#: words about VOOL skills, and what to write instead. A rule without an entry keeps its own reason.
+SKILL_FIXES = {
+    "install": "VOOL skills can't carry install commands or ask anyone to run software. Describe the step in "
+               "words instead, for example: \"Open the notes folder and add a page for today.\"",
+    "download": "VOOL skills can't link to programs or archives to download. Take the link out, or name the "
+                "website in words.",
+    "address": "VOOL skills can't use short links, raw addresses or paste sites. Link to the real page, or take "
+               "the link out.",
+    "secret-ask": "VOOL skills can't ask for passwords, keys, recovery phrases or codes. Take that sentence out; "
+                  "a skill never needs them.",
+    "injection": "This reads like an attempt to change VOOL's own instructions or to hide what the skill does. "
+                 "Say plainly what the skill should do instead.",
+    "hidden": "VOOL skills can't carry hidden comments, escape codes or encoded text. Write everything as plain "
+              "visible text.",
+}
+
+
 def plain_findings(findings: list[dict], *, limit: int = 3) -> str:
-    """The findings as calm sentences a person can act on: what is wrong and on which line."""
+    """The findings as calm sentences a person can act on: which line, what it says, why it is not
+    allowed, and what to write instead."""
     sentences: list[str] = []
     for item in findings:
-        reason = str(item.get("reason") or "").replace("Skills on the Skill Codex can't", "Skills can't")
-        where = f" (line {item['line']})" if item.get("line") else (
-            " (in the skill's name or description)" if item.get("path") == HEADER_VALUES else "")
-        sentence = reason.rstrip(".") + where + "."
+        reason = SKILL_FIXES.get(str(item.get("rule") or "")) or str(item.get("reason") or "").replace(
+            "Skills on the Skill Codex can't", "VOOL skills can't")
+        if item.get("line"):
+            quote = str(item.get("quote") or "")
+            quote = (quote[:77] + "...") if len(quote) > 80 else quote
+            where = f"Line {item['line']}" + (f' ("{quote}")' if quote else "") + ": "
+        elif item.get("path") == HEADER_VALUES:
+            where = "In the skill's name or description: "
+        else:
+            where = ""
+        sentence = where + reason
         if sentence not in sentences:
             sentences.append(sentence)
     shown = sentences[:limit]

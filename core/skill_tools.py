@@ -455,11 +455,13 @@ def reserved_skill_names() -> frozenset[str]:
     return frozenset(names)
 
 
-#: A skill's name: letters (any alphabet), digits, spaces, hyphens and underscores, at most 64.
-#: No line breaks, quotes or brackets: the name is shown on screen and in the turn's skill header,
-#: and a 240-character name with line breaks forged text outside its block (red team t4).
+#: A skill's name, as a person writes it: letters of any alphabet (accents included), digits,
+#: spaces, hyphens, underscores and apostrophes ("Mum's recipes", "Café notes"), at most 64.
+#: No line breaks, double quotes or brackets: the name is shown on screen and in the turn's skill
+#: header, and a 240-character name with line breaks forged text outside its block (red team t4).
+#: The slug (folder and id) is derived from it and stays strict: lowercase a-z, 0-9 and hyphens.
 MAX_NAME_CHARS = 64
-_NAME_RE = re.compile(r"[^\W_][\w \-]{0,%d}" % (MAX_NAME_CHARS - 1))
+_NAME_RE = re.compile(r"[^\W_][\w '\u2019\-]{0,%d}" % (MAX_NAME_CHARS - 1))
 
 
 def name_problem(name: Any) -> str:
@@ -468,8 +470,8 @@ def name_problem(name: Any) -> str:
     if not text.strip():
         return "The skill needs a name at the top of the file (name: ...)."
     if len(text.strip()) > MAX_NAME_CHARS or not _NAME_RE.fullmatch(text.strip()) or len(_slug(text)) > MAX_NAME_CHARS:
-        return (f"The skill's name must be one short line of at most {MAX_NAME_CHARS} letters, digits, spaces "
-                "or hyphens. Shorten it and try again.")
+        return (f"The skill's name must be one short line of at most {MAX_NAME_CHARS} letters, digits, spaces, "
+                "hyphens or apostrophes. Shorten it and try again.")
     return ""
 
 
@@ -492,14 +494,33 @@ def reserved_name_reason(name: str) -> str:
     slug = _slug(name)
     if not slug:
         return ""
-    if slug in reserved_skill_names() or slug.startswith("vool-"):
-        plain = slug[len("vool-"):] if slug.startswith("vool-") else slug
-        shown = plain.replace("-", " ").strip().capitalize() or "VOOL"
+    reserved = reserved_skill_names()
+    if slug in reserved:
+        shown = builtin_display(slug)
         return (
-            f'VOOL already has a built-in skill called "{shown}", so this skill needs a different name. '
-            f'Change the name at the top of the skill (for example to "My {shown.lower()}") and try again.'
+            f'The name "{str(name).strip()}" is taken by one of VOOL\'s own skills ("{shown}"), so this skill needs '
+            f'another name. Pick a different one, for example "My {shown.lower()}", and try again.'
+        )
+    if slug.startswith("vool-"):
+        rest = slug[len("vool-"):].replace("-", " ").strip() or "skill"
+        return (
+            'Names that start with "vool-" are kept for VOOL\'s own skills, so this skill needs another name. '
+            f'Pick a different one, for example "My {rest}", and try again.'
         )
     return ""
+
+
+def builtin_display(slug: str) -> str:
+    """A built-in's plain name ("Answer presentation") from any of its slugs."""
+    plain = slug[len("vool-"):] if slug.startswith("vool-") else slug
+    return plain.replace("-", " ").strip().capitalize() or "VOOL"
+
+
+def builtin_not_here(slug: str) -> str:
+    """The plain answer when a bare name means a built-in, which has no draft or installable copy."""
+    shown = builtin_display(slug)
+    return (f'"{shown}" is one of VOOL\'s own skills. It is part of VOOL already, so there is nothing here to '
+            "check or install: turn it on or off in Skills, under My add-ons.")
 
 
 def skill_path_allowed(path: Path, keys: dict[str, str] | None = None) -> bool:
@@ -548,6 +569,9 @@ def _is_native_path(path: Path) -> bool:
         return False
 
 
+SAFETY_LEAD = "This skill did not pass VOOL's safety check, so it was not kept. "
+
+
 def content_problem(markdown: str) -> str:
     """The plain safety-check refusal for one SKILL.md text, or "" when it passes.
 
@@ -565,7 +589,7 @@ def content_problem(markdown: str) -> str:
     findings = skill_text_findings(markdown, parsed[0] if parsed else None)
     if not findings:
         return ""
-    return "This skill did not pass VOOL's safety check. " + plain_findings(findings)
+    return SAFETY_LEAD + plain_findings(findings)
 
 
 def _yaml_scalar(value: str) -> str:
@@ -775,6 +799,9 @@ def validate_skill(
 
     candidate = resolve_skill_markdown(path, keys)
     if not candidate.is_file():
+        bare = _slug(str(path or "").strip().strip("`\"'"))
+        if bare and bare in reserved_skill_names() and not any(ch in str(path) for ch in "/~\\"):
+            return {"status": "not_found", "reason": builtin_not_here(bare), "path": ""}
         return {"status": "not_found", "reason": f"no SKILL.md at {candidate}", "path": str(candidate)}
 
     try:
@@ -1077,8 +1104,7 @@ def install_skill(
     if source.is_file() and _is_native_path(source):
         return {
             "status": "refused",
-            "reason": f"`{source.parent.name}` is one of VOOL's built-in skills. It is part of VOOL already and "
-                      "is turned on or off in Skills; it is not installed as a copy.",
+            "reason": builtin_not_here(_slug(source.parent.name)),
             "path": "",
             "problems": ["built-in skills have no installable copy"],
         }
@@ -1086,6 +1112,10 @@ def install_skill(
     # A skill that is not THERE has not failed validation. Saying "the skill does not validate" about
     # a missing file names the wrong problem and sends the reader to fix the skill's contents.
     if verdict.get("status") == "not_found":
+        bare = _slug(str(path or "").strip().strip("`\"'"))
+        if bare and bare in reserved_skill_names() and not any(ch in str(path) for ch in "/~\\"):
+            plain = builtin_not_here(bare)  # a built-in by name: it has no copy to install
+            return {"status": "not_found", "reason": plain, "path": "", "problems": [plain]}
         return {
             "status": "not_found",
             "reason": f"no SKILL.md at {source} - create or stage it first",
@@ -1097,10 +1127,15 @@ def install_skill(
         problems = problems or [str(verdict.get("reason") or "").strip() or "the file could not be read"]
         # The refusal carries the validator's own findings, so the author reads WHAT to fix
         # (an unknown tool name, an empty description) in the same line that says it was refused.
+        if len(problems) == 1 and problems[0].startswith(SAFETY_LEAD):
+            # The safety check already says what was refused, on which line, why and what to write.
+            reason = ("This skill did not pass VOOL's safety check, so it was not installed. "
+                      + problems[0][len(SAFETY_LEAD):])
+        else:
+            reason = "This skill was not installed because it needs fixing first: " + "; ".join(problems)
         return {
             "status": "refused",
-            "reason": "the skill was not installed because it does not pass the skill check: "
-                      + "; ".join(problems),
+            "reason": reason,
             "path": str(source),
             "problems": problems,
         }

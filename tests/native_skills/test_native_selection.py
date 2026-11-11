@@ -125,12 +125,22 @@ def test_words_no_package_declares_select_nothing(library_world) -> None:
 
 
 def test_explicit_invocation_through_the_real_skill_validate_tool(library_world) -> None:
+    """Naming a built-in to skill.validate is narrowed: VOOL's own skills are part of VOOL, so
+    there is no file to check or install. The person is told so plainly, and the built-in is
+    still reachable through the real skill.list door."""
     from core.runtime_execution_tools import execute_runtime_tool
 
     result = execute_runtime_tool("skill.validate", {"path": "vool-repo-onboarding"})
-    assert result is not None and result.ok is True
-    assert "vool-repo-onboarding" in result.response_text
-    assert "invalid" not in result.response_text
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+
+    listed = execute_runtime_tool("skill.list", {})
+    assert listed is not None and listed.ok is True
+    names = {entry.get("name") for entry in listed.details.get("native_skills") or []}
+    assert "repo-onboarding" in names
 
 
 def test_explicit_invocation_through_the_real_skill_list_tool(library_world) -> None:
@@ -338,8 +348,9 @@ def test_duplicate_ids_across_sources_are_reported_not_shadowed(library_world, p
 
 
 def test_a_native_package_survives_the_full_install_lifecycle(library_world, plugin_tree) -> None:
-    """create→validate→install is the plugin lifecycle; a native package walks it unchanged and
-    stays selectable (the twin is reported, the original keeps serving)."""
+    """Copying a built-in into a plugin is refused (it would make a second, unreviewed twin of a
+    VOOL skill). The person is told plainly why and what to do instead; nothing is written, and
+    the original keeps serving."""
     from core.native_skill_library import select_native_skills
     from core.runtime_execution_tools import execute_runtime_tool
 
@@ -347,7 +358,12 @@ def test_a_native_package_survives_the_full_install_lifecycle(library_world, plu
         "skill.install", {"path": "vool-cumulative-testing", "plugin_id": "parity-plugin",
                           "overwrite": True}
     )
-    assert result is not None and result.ok is True, result.response_text
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+    assert not [p for p in plugin_tree.rglob("SKILL.md") if "parity-plugin" in p.parts]
 
     selection = select_native_skills(
         task_class="debugging",

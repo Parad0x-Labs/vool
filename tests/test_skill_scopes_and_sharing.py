@@ -576,13 +576,47 @@ def test_turn_it_on_after_a_restart_uses_the_offer_in_the_conversation() -> None
     nothing = fast_paths_skill.maybe_handle_skill_request(_agent(), "turn it on", session_id=chat, source_context=context)
     assert nothing["reason"] == "skill_activate_nothing_saved" and "never saved" in nothing["response"]
 
+    # A file appears under the offered name with no record of what was shown: nothing says these
+    # are the bytes the person read, so it is not turned on, and the reply says what to do.
     staged = skill_tools._scoped_dirs("chat", keys)[0] / "meeting-actions"
     staged.mkdir(parents=True, exist_ok=True)
     (staged / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")
     fast_paths_skill._clear_pending(chat)
+    unbound = fast_paths_skill.maybe_handle_skill_request(_agent(), "turn it on", session_id=chat, source_context=context)
+    assert unbound["reason"] == "skill_activate_unbound", unbound
+    assert unbound["response"] == (
+        "I can't be sure the saved skill is still the one I showed you here, so I did not turn it on. "
+        "Ask me to show it again (or import it again), then say turn it on.")
+    assert not (skill_tools._scoped_dirs("chat", keys)[1] / "meeting-actions").exists()
+    assert "numbered list of action items" not in skill_guidance_for(ASK, source_context={"session_id": chat}).text
+
+
+def test_a_draft_made_here_is_still_turned_on_after_a_restart() -> None:
+    """The trusted path survives a restart: the draft VOOL wrote in this chat is remembered on disk
+    with the digest of what was shown, so "turn it on" after the in-process record is gone still
+    turns on exactly that draft."""
+    from core.agent_runtime import fast_paths_skill
+    from core.mode_permission_policy import PermissionAction, grant_internal_authority
+
+    chat = "chat-restart-made-here"
+    keys = _bind(chat)
+    token = grant_internal_authority(
+        label="test-restart-made-here", actions=[PermissionAction.CREATE_FILES, PermissionAction.CHANGE_SETTINGS],
+        intents=["skill.create", "skill.install"], session_id=chat, duration_seconds=300,
+    )
+    context = {"session_id": chat, "operating_mode": "manual", "internal_authority_token": token}
+    ask = fast_paths_skill.maybe_handle_skill_request(
+        _agent(), "we need a skill for this chat that turns pasted meeting notes into action items",
+        session_id=chat, source_context=context,
+    )
+    assert ask["reason"] == "skill_needs_a_name", ask
+    made = fast_paths_skill.maybe_handle_skill_request(_agent(), "Meeting actions", session_id=chat, source_context=context)
+    assert made["reason"] == "skill_create", made
+
+    fast_paths_skill._PENDING.clear()  # the restart: only what is on disk is left
     on = fast_paths_skill.maybe_handle_skill_request(_agent(), "turn it on", session_id=chat, source_context=context)
     assert on["reason"] == "skill_activate" and "for this chat" in on["response"], on
-    assert "numbered list of action items" in skill_guidance_for(ASK, source_context={"session_id": chat}).text
+    assert (skill_tools._scoped_dirs("chat", keys)[1] / "meeting-actions" / "SKILL.md").is_file()
 
 
 def test_a_skill_request_is_not_a_current_information_turn() -> None:
