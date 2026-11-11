@@ -511,13 +511,16 @@ def key_leaked(secret: str, text: str, *, window: int = 20) -> str | None:
 _LEAK_TOKEN_RE = re.compile(r"[a-z]+")
 
 
-def phrase_leaked(phrase: str, text: str, *, run: int = 3, distinct: int = 6) -> str | None:
+def phrase_leaked(phrase: str, text: str, *, run: int = 3, distinct: int = 6, window: int = 40) -> str | None:
     """Say why `text` carries the recovery phrase, or None.
 
     A leak is the phrase itself (whitespace / punctuation / quoting normalized away), a run of `run` consecutive
-    phrase words in phrase order, or `distinct` or more distinct phrase words present as whole tokens. One BIP-39
-    word on its own is not a leak: most of the 2048 are ordinary English ("page", "ask", "state", "once"), so the
-    earlier per-word membership checks turned red at a rate set by the random phrase draw, never by the runtime.
+    phrase words in phrase order, or `distinct` or more distinct phrase words as whole tokens within any `window`
+    consecutive tokens. One BIP-39 word on its own is not a leak: most of the 2048 are ordinary English ("page",
+    "ask", "state", "once"), so the earlier per-word membership checks turned red at a rate set by the random phrase
+    draw, never by the runtime. The window matters for the same reason: a model prompt runs to thousands of words,
+    so six common phrase words ("include limit own people right treat") turned up scattered across a whole system
+    prompt by chance (main CI #673). A leaked phrase, even reordered or reformatted, sits together.
     Used for model prompts, rendered pages, JSON surfaces and database dumps alike.
     """
     words = [w for w in str(phrase or "").lower().split() if w]
@@ -529,8 +532,15 @@ def phrase_leaked(phrase: str, text: str, *, run: int = 3, distinct: int = 6) ->
     for i in range(0, max(0, len(words) - run + 1)):
         if " " + " ".join(words[i:i + run]) + " " in norm:
             return f"consecutive phrase words {i + 1}-{i + run}"
-    tokens = set(norm.split())
-    present = sorted(w for w in set(words) if w in tokens)
-    if len(present) >= distinct:
-        return f"{len(present)} distinct phrase words present: {present}"
+    tokens = norm.split()
+    phrase_words = set(words)
+    hits = [(i, t) for i, t in enumerate(tokens) if t in phrase_words]
+    for start, (first, _word) in enumerate(hits):
+        near = set()
+        for position, word in hits[start:]:
+            if position - first >= window:
+                break
+            near.add(word)
+        if len(near) >= distinct:
+            return f"{len(near)} distinct phrase words present within {window} words: {sorted(near)}"
     return None
