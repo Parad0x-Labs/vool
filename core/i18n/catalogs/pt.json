@@ -3067,7 +3067,7 @@
     "settings.row.hide_name_on_screen.help": "Ative isto antes de transmitir ou partilhar o ecrã. O VOOL passa a mostrar a sua pasta pessoal como ~, e o seu nome e o nome do computador como •••, aqui e no telemóvel. Só muda o que vê: os seus ficheiros, conversas e tudo o que o VOOL faz ficam iguais. O texto que está a escrever não é ocultado.",
     "settings.row.hide_name_on_screen.effect": "Vale imediatamente."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "8e076f4e4d65d26a3cd1e6f7d88f9509a10945b5e9fdb332286bd75a7fadfb46",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

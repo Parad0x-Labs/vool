@@ -3067,7 +3067,7 @@
     "settings.row.hide_name_on_screen.help": "Activez cette option avant de diffuser ou de partager votre écran. VOOL affiche alors votre dossier personnel sous la forme ~, et votre nom ainsi que celui de votre ordinateur sous la forme •••, ici et sur votre téléphone. Seul l’affichage change : vos fichiers, vos conversations et tout ce que fait VOOL restent identiques. Le texte que vous tapez n’est pas masqué.",
     "settings.row.hide_name_on_screen.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "8e076f4e4d65d26a3cd1e6f7d88f9509a10945b5e9fdb332286bd75a7fadfb46",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

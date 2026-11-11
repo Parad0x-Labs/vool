@@ -3067,7 +3067,7 @@
     "settings.row.hide_name_on_screen.help": "Actívalo antes de emitir en directo o compartir tu pantalla. VOOL mostrará tu carpeta personal como ~, y tu nombre y el de tu ordenador como •••, aquí y en tu teléfono. Solo cambia lo que ves: tus archivos, chats y todo lo que hace VOOL siguen igual. El texto que estás escribiendo no se oculta.",
     "settings.row.hide_name_on_screen.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "8e076f4e4d65d26a3cd1e6f7d88f9509a10945b5e9fdb332286bd75a7fadfb46",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

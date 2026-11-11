@@ -3067,7 +3067,7 @@
     "settings.row.hide_name_on_screen.help": "Įjunkite tai prieš transliuodami ar bendrindami ekraną. Tada VOOL rodys jūsų namų aplanką kaip ~, o jūsų vardą ir kompiuterio pavadinimą kaip •••, čia ir jūsų telefone. Keičiasi tik tai, ką matote: jūsų failai, pokalbiai ir viskas, ką daro VOOL, lieka tokie patys. Tekstas, kurį rašote, neslepiamas.",
     "settings.row.hide_name_on_screen.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "642bed6f11f4273cebaf5c3f52d119b82e27a7d344b0dd4169eff535130dbbb3",
+  "source_catalog_sha256": "8e076f4e4d65d26a3cd1e6f7d88f9509a10945b5e9fdb332286bd75a7fadfb46",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
