@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import contextvars
 import dataclasses
 import functools
 import inspect
@@ -576,8 +577,47 @@ def generation(chat_id=None, runtime_home=None) -> str:
         return json.dumps({str(home): data for home, data in _authority_set(runtime_home, chat_id).items()}, sort_keys=True)
 
 
+#: One reader check's view of the revocations, per (chat, home). Set only by `one_check_snapshot`.
+_SNAPSHOT: "contextvars.ContextVar[dict | None]" = contextvars.ContextVar("vool_revocation_snapshot", default=None)
+
+
+@contextlib.contextmanager
+def one_check_snapshot():
+    """Read the revocation authority once per (chat, home) for the duration of ONE output check.
+
+    A serving reader re-checks every row it returns, and each check took the authority's lock and
+    opened both memory stores. Measured 2026-11-11 on the installed build with ~130 chats: the
+    sidebar's GET /api/chat/sessions did that 2x per chat, the page polls it, and the requests
+    piled up behind the lock -- no answer for over 180 s while /healthz answered in 1 ms and the
+    process sat at 100% CPU. The snapshot is taken at the same point the per-row reads happened
+    (after the reader produced its result), so it sees every forget those reads would have seen."""
+    cache: dict = {}
+    token = _SNAPSHOT.set(cache)
+    try:
+        yield
+    finally:
+        _SNAPSHOT.reset(token)
+        for key, value in cache.items():
+            if isinstance(key, tuple) and key and key[0] == "__stores__":
+                for memory in value:
+                    try:
+                        memory.close()
+                    except Exception:
+                        pass
+
+
 def revoked_tokens(chat_id=None, runtime_home=None, *, owner_memory=None) -> tuple[str, ...]:
     """One authority for independent barriers and every selected owner ledger."""
+    cache = _SNAPSHOT.get()
+    if cache is not None and owner_memory is None:
+        key = (str(chat_id or ""), str(runtime_home or ""))
+        if key not in cache:
+            cache[key] = _revoked_tokens_uncached(chat_id, runtime_home, owner_memory=None)
+        return cache[key]
+    return _revoked_tokens_uncached(chat_id, runtime_home, owner_memory=owner_memory)
+
+
+def _revoked_tokens_uncached(chat_id=None, runtime_home=None, *, owner_memory=None) -> tuple[str, ...]:
     homes = {_home(runtime_home)}
     if owner_memory is None:
         homes.add(_home())
@@ -594,12 +634,19 @@ def _revoked_tokens_locked(chat_id=None, runtime_home=None, *, owner_memory=None
     try:
         memories = [owner_memory] if owner_memory is not None else []
         if owner_memory is None:
-            for opener in (lambda: cr._open_memory_for_runtime(runtime_home), cr._open_memory):
-                memory = opener()
-                if memory is None:
-                    raise RuntimeError('owner revocation authority is unavailable')
-                opened.append(memory)
-                memories.append(memory)
+            cache = _SNAPSHOT.get()
+            shared = cache.setdefault(("__stores__", str(runtime_home or "")), []) if cache is not None else None
+            if shared:
+                # Inside one output check the two stores stay open: reopening them per chat ran the
+                # schema migration 312 times for a 156-chat list (8.4 of its 9 s).
+                memories.extend(shared)
+            else:
+                for opener in (lambda: cr._open_memory_for_runtime(runtime_home), cr._open_memory):
+                    memory = opener()
+                    if memory is None:
+                        raise RuntimeError('owner revocation authority is unavailable')
+                    (shared if shared is not None else opened).append(memory)
+                    memories.append(memory)
         for memory in memories:
             tokens.update(snapshot(chat_id, memory._authority_home))
             tokens.update(memory.revoked_tokens(chat_id, strict=True, include_pending=True))

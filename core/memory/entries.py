@@ -78,18 +78,27 @@ def _memory_reader(function: Any = None, *, owner_keys: bool = False) -> Any:
         bound = parameters.bind_partial(*args, **kwargs).arguments
         policy = bound.get("access_policy")
         chat_id = str(bound.get("chat_id") or bound.get("session_id") or getattr(policy, "chat_id", "") or "") or None
-        result = function(*args, **kwargs)
-        if owner_keys:
-            selected = {sid: row for sid, row in result.items() if _authorized_reader_payload(row, chat_id=sid)}
-            return selected if all(_authorized_reader_payload(row, chat_id=sid) for sid, row in selected.items()) else {}
-        if isinstance(result, list):
-            result = [item for item in result if _authorized_reader_payload(item, chat_id=chat_id)]
-        if _authorized_reader_payload(result, chat_id=chat_id):
-            return result
-        return "" if isinstance(result, str) else {} if isinstance(result, dict) else []
+        from core.memory.revocation import one_check_snapshot
+
+        # The reader and its output check share ONE read of the revocation authority (taken on
+        # first use): reading it per row made a long chat list answer in minutes, not ms.
+        with one_check_snapshot():
+            result = function(*args, **kwargs)
+            return _checked_reader_result(result, owner_keys=owner_keys, chat_id=chat_id)
 
     _MEMORY_READERS[function.__name__] = guarded
     return guarded
+
+
+def _checked_reader_result(result: Any, *, owner_keys: bool, chat_id: str | None) -> Any:
+    if owner_keys:
+        selected = {sid: row for sid, row in result.items() if _authorized_reader_payload(row, chat_id=sid)}
+        return selected if all(_authorized_reader_payload(row, chat_id=sid) for sid, row in selected.items()) else {}
+    if isinstance(result, list):
+        result = [item for item in result if _authorized_reader_payload(item, chat_id=chat_id)]
+    if _authorized_reader_payload(result, chat_id=chat_id):
+        return result
+    return "" if isinstance(result, str) else {} if isinstance(result, dict) else []
 
 
 def _current_request_lineage() -> str:

@@ -208,7 +208,8 @@
     "revoked_tokens": "authority",
     "authorize_payload": "authority",
     "writing": "authority",
-    "fenced_writer": "authority"
+    "fenced_writer": "authority",
+    "one_check_snapshot": "authority"
   },
   "core/memory/run_history.py": {
     "forget_run_history": "writer",
