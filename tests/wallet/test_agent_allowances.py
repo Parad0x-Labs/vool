@@ -16,10 +16,25 @@ NOW = 1_800_000_000.0
 
 
 @pytest.fixture
-def wallet(wallet_env):
+def owner(wallet_env):
     from core.wallet import custody
 
     return custody.create_pocket_wallet(acknowledged_warning=True, confirmation_phrase=custody.POCKET_CONFIRMATION_PHRASE, pin=PIN).profile
+
+
+def _agent_wallet(agent: str):
+    from core.wallet import agent_wallets, custody
+
+    created = agent_wallets.create_agent_wallet(agent, network=DEVNET, credential=PIN)
+    revealed = agent_wallets.reveal_backup(created["wallet_id"], credential=PIN)
+    assert agent_wallets.acknowledge_backup(created["wallet_id"], ack_token=revealed["ack_token"])["ready"] is True
+    return custody.require_wallet(created["wallet_id"])
+
+
+@pytest.fixture
+def wallet(owner):
+    """The researcher agent's own wallet: the wallet every allowance in this file is carried by."""
+    return _agent_wallet("researcher")
 
 
 def _spec(wallet, **over):

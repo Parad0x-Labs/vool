@@ -487,6 +487,14 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     profile = require_wallet(wallet_id, source_context=source_context)
     if profile.mode != MODE_POCKET_SEALED:
         return
+    if agent_of(profile.wallet_id):
+        # an agent's wallet opens with a credential this machine holds, so opening it proves nobody: the owner is
+        # proven against their own wallet, and with none there is nobody to prove
+        owner = owner_proof_wallet()
+        if owner is None:
+            raise wallet_fault("wallet_confirmation_required", authority=AUTHORITY, context={"wallet_id": wallet_id, "reason": "no_owner_wallet_to_prove", "purpose": purpose}, source_context=source_context)
+        prove_owner(owner.wallet_id, credential=credential, purpose=purpose, source_context=source_context)
+        return
     if profile.approval_method != APPROVAL_DEVICE and not str(credential or ""):
         code = "wallet_password_invalid" if profile.approval_method == APPROVAL_PASSWORD else "wallet_pin_invalid"
         raise wallet_fault(code, authority=AUTHORITY, context={"wallet_id": wallet_id, "reason": "credential_required", "purpose": purpose}, source_context=source_context)
@@ -503,6 +511,13 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     del material
 
 
+def agent_of(wallet_id: str) -> str:
+    """The agent this wallet belongs to, "" for the owner's own wallets (``core.wallet.agent_wallets``)."""
+    with connection() as conn:
+        row = conn.execute("SELECT agent_id FROM wallet_profiles WHERE wallet_id = ?", (str(wallet_id),)).fetchone()
+    return str(row[0] or "") if row else ""
+
+
 def owner_proof_wallet() -> WalletProfile | None:
     """The wallet whose credential proves the owner for a wallet-wide setting (the environment, payment channels,
     pay-per-answer endpoints, the fee threshold): the OLDEST ready wallet whose key VOOL seals. Never one the caller
@@ -510,7 +525,8 @@ def owner_proof_wallet() -> WalletProfile | None:
     also becomes the default), and it is always newer than the owner's. None when no wallet holds a key VOOL could
     sign with: nothing here can pay."""
     with connection() as conn:
-        rows = conn.execute(_SELECT + " WHERE mode = ? ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
+        # never an agent's wallet: this machine holds its credential, so any local process could "prove" with it
+        rows = conn.execute(_SELECT + " WHERE mode = ? AND COALESCE(agent_id, '') = '' ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
         device_bound = {str(row[0]) for row in conn.execute(
             "SELECT wallet_id FROM wallet_profiles WHERE mode = ? AND COALESCE(device_sealed_blob, '') != ''", (MODE_POCKET_SEALED,))}
     device_here = device_auth.current_authority().available()

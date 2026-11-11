@@ -506,8 +506,17 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                         stale = exc
                     if stale is not None:
                         return _json(409, {"ok": False, "error": stale.code, "message": stale.message})
-                    result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
-                                                           approver=pilot_approver)
+                    parked = proposals.get_proposal(proposal_id)
+                    if parked is not None and custody.agent_of(parked.wallet_id):
+                        # a payment waiting on an agent's own wallet: the owner approves it with their OWN wallet's
+                        # credential (the agent wallet's is the machine's and proves nobody)
+                        from core.wallet import agent_pay
+
+                        result = agent_pay.approve_as_owner(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
+                                                            credential=str(body.get("password") or body.get("pin") or ""), source_context=source_context)
+                    else:
+                        result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
+                                                               approver=pilot_approver)
                 # a pay-per-answer AI payment: its one delivered answer is checked and posted into the chat that asked
                 try:
                     paid_ai = x402_ai.after_approval(proposal_id, result)

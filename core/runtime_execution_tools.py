@@ -2875,6 +2875,13 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 raise WalletFault("wallet_not_found", context={"reason": "no_wallet_registered"}, message="No wallet is set up yet, so nothing was proposed.")
             resource_url = str(args.get("resource_url") or "").strip()
             if resource_url:
+                # the assistant's own wallet first, when the owner gave it one: it pays only what its allowance
+                # permits (core.wallet.agent_pay). Everything else is parked for the owner exactly as before.
+                from core.wallet import agent_pay
+
+                ridden = agent_pay.fetch_for_turn(resource_url, source_context=context)
+                if ridden is not None:
+                    return _agent_fetch_result(intent, ridden)
                 outcome = wallet_x402.fetch_paid_resource(resource_url, wallet_id=wallet_id, source_context=context)
                 if outcome.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and outcome.proposal_id:
                     text = f"x402 offer parked as proposal {outcome.proposal_id} (state pending_approval). Nothing has been signed; approve it in your wallet."
@@ -2934,6 +2941,43 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text, details={"proposal": proposal.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", proposal_id=proposal.proposal_id, state=proposal.state)})
     except WalletFault as exc:
         return refusal(exc)
+
+
+def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecutionResult:
+    """What the model is told after a paid fetch went through the assistant's own wallet: what was paid or why not,
+    in the owner's words, and the delivered content when there is some. Amounts come from the wallet's records."""
+    from core.wallet import agent_pay, proposals
+    from core.wallet import allowances as agent_allowances
+
+    payment = ridden.get("payment")
+    proposal_id = str(ridden.get("proposal_id") or "")
+    body = bytes(ridden.get("body") or b"").decode("utf-8", "replace")[: agent_pay.MAX_BODY_CHARS]
+    if payment is None:
+        status = str(ridden.get("status") or "")
+        text = f"The resource answered {ridden.get('http_status')} and asked for no payment." + (f" It returned:\n{body}" if body else "")
+        return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={"resource_body": body, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status)})
+    proposal = proposals.get_proposal(proposal_id)
+    amount = f"{proposal.amount_minor} {proposal.asset} (minor units)" if proposal is not None else "the amount"
+    reason = agent_pay.explain(str(payment.get("reason") or ""))
+    decision = str(payment.get("decision") or "")
+    if decision == agent_allowances.DECISION_PAY and payment.get("paid"):
+        status = "paid"
+        text = f"Paid {amount} from the assistant's own wallet for this request. {reason}"
+        text += f" It returned:\n{body}" if body else " The payment went through, but the service returned nothing; it will not be paid again for this without your approval."
+    elif decision == agent_allowances.DECISION_PAY:
+        status = "payment_outcome_unknown"
+        text = f"A payment of {amount} was sent from the assistant's own wallet, but it is not confirmed yet. Nothing more will be paid for this request until it is known."
+    elif decision == agent_allowances.DECISION_ASK_OWNER:
+        status = "pending_approval"
+        text = f"Nothing was paid. {reason} The payment of {amount} is waiting as proposal {proposal_id}; approve it in your wallet if you want it paid."
+    else:
+        status = "not_paid"
+        text = f"Nothing was paid. {reason}"
+    if payment.get("paused"):
+        text += " The assistant's spending allowance has been paused after repeated problems; you can turn it back on in Settings."
+    return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={
+        "proposal_id": proposal_id, "agent_payment": {key: payment.get(key) for key in ("decision", "reason", "paid", "delivered", "notices", "paused")}, "resource_body": body,
+        "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status, proposal_id=proposal_id)})
 
 
 def _wallet_spend(arguments: dict[str, Any]) -> RuntimeExecutionResult:

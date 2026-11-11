@@ -215,6 +215,17 @@ def _canonical_network(network: str) -> str:
     return chains.resolve_network(str(network or "")).network
 
 
+def canonical_address(network: str, address: str) -> str:
+    """One spelling per recipient: an EVM address compares without its checksum case, any other address exactly."""
+    from core.wallet import chains
+
+    clean = str(address or "").strip()
+    try:
+        return clean.lower() if chains.resolve_network(str(network or "")).is_evm else clean
+    except Exception:
+        return clean
+
+
 def _validated(spec: AllowanceSpec, *, now: float) -> AllowanceSpec:
     agent = _clean_agent(spec.agent_id)
     per_payment = _positive(spec.per_payment_minor, "per_payment_minor")
@@ -259,7 +270,7 @@ def _validated(spec: AllowanceSpec, *, now: float) -> AllowanceSpec:
         pay_to = str(rule.pay_to or "").strip()
         if pay_to and not chains.destination_matches_family(network, pay_to):
             raise AllowanceRefused("a service recipient is not an address on this network")
-        services[origin] = ServiceRule(origin, service_total, pay_to)
+        services[origin] = ServiceRule(origin, service_total, canonical_address(network, pay_to))
     return AllowanceSpec(agent_id=agent, wallet_id=str(spec.wallet_id), network=network, asset=asset, per_payment_minor=per_payment,
                          window_seconds=int(spec.window_seconds), window_minor=window_minor, total_minor=total, max_payments=max_payments,
                          min_interval_seconds=int(spec.min_interval_seconds), expires_at=expires, services=tuple(services.values()),
@@ -382,6 +393,10 @@ def create_allowance(spec: AllowanceSpec, *, credential: str = "", now: float | 
     except AllowanceRefused as exc:
         raise _refused("invalid_allowance", source_context=source_context, detail=str(exc)) from None
     _require_paying_wallet(clean.wallet_id, source_context=source_context)
+    if custody.agent_of(clean.wallet_id) != clean.agent_id:
+        # the owner's own wallets sign nothing unattended: an allowance is carried by the agent's own wallet
+        # (core.wallet.agent_wallets), so what it can lose is what the owner put there
+        raise _refused("allowance_needs_the_agents_own_wallet", source_context=source_context, agent_id=clean.agent_id)
     custody.prove_owner(clean.wallet_id, credential=credential, purpose="create a spending allowance", source_context=source_context)
     try:
         with connection() as conn:
@@ -481,8 +496,9 @@ def pin_service(allowance_id: str, origin: str, pay_to: str, *, conn: Any = None
     if conn is None:
         with connection() as own:
             return pin_service(allowance_id, origin, pay_to, conn=own)
-    clean_origin, clean_pay_to = normalize_origin(origin), str(pay_to or "").strip()
-    if not clean_origin or not clean_pay_to:
+    found = conn.execute("SELECT network FROM wallet_agent_allowances WHERE allowance_id = ?", (str(allowance_id),)).fetchone()
+    clean_origin, clean_pay_to = normalize_origin(origin), canonical_address(str(found[0]) if found else "", pay_to)
+    if not found or not clean_origin or not clean_pay_to:
         return False
     cursor = conn.execute(
         "UPDATE wallet_agent_allowance_services SET pay_to = ?, pinned_at = ? WHERE allowance_id = ? AND origin = ? AND pay_to = '' "
@@ -580,7 +596,7 @@ def authorize(conn: Any, *, agent_id: str, proposal_id: str, wallet_id: str, net
     moment = float(now if now is not None else time.time())
     agent = str(agent_id or "").strip().lower()
     clean_origin = normalize_origin(origin)
-    clean_pay_to = str(pay_to or "").strip()
+    clean_pay_to = canonical_address(network, pay_to)
     digest = str(request_digest or "").strip()
     amount = amount_minor if isinstance(amount_minor, int) and not isinstance(amount_minor, bool) else 0
     log_amount = amount if 0 <= amount <= _INT64_MAX else 0
@@ -773,6 +789,23 @@ def decisions(*, agent_id: str = "", limit: int = 100) -> list[dict[str, Any]]:
 
 
 __all__ = [
-    "AllowanceSpec", "Decision", "ServiceRule", "allowance_view", "authorize", "change_allowance", "create_allowance", "decisions", "delegate_slice",
-    "list_allowances", "normalize_origin", "pause_allowance", "pin_service", "record_delivery", "release", "resume_allowance", "revoke_allowance", "settle",
+    "AllowanceSpec",
+    "Decision",
+    "ServiceRule",
+    "allowance_view",
+    "authorize",
+    "canonical_address",
+    "change_allowance",
+    "create_allowance",
+    "decisions",
+    "delegate_slice",
+    "list_allowances",
+    "normalize_origin",
+    "pause_allowance",
+    "pin_service",
+    "record_delivery",
+    "release",
+    "resume_allowance",
+    "revoke_allowance",
+    "settle",
 ]
