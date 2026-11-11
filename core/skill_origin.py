@@ -1,7 +1,7 @@
 """Where an installed skill came from, recorded when it is installed and read when a turn is built.
 
 A skill's ``allowed-tools`` may ADD tools to a turn's offer only when the person wrote that skill
-themselves in VOOL. Every other skill (a zip or chat import, a GitHub/Browse add-on, a Skill
+themselves in VOOL, or approved its tools on the turn-on card for its exact bytes. Every other skill (a zip or chat import, a GitHub/Browse add-on, a Skill
 Codex install, a pack VOOL ships, VOOL's own library) narrows the offer at most. Before this module
 the decision read the folder a skill sat in: imports land in ``local-skills`` beside the person's
 own skills, so an imported skill's ``allowed-tools`` seated ``workspace.write_file`` on a "save
@@ -10,15 +10,22 @@ asking to send them to a web address (t14).
 
 The record has two halves, both durable in ``<VOOL home>/config/skill_origins.json``:
 
-- ``created``: the sha256 of every SKILL.md VOOL's own ``skill.create`` wrote for the person.
-  Only the ``skill.create`` tool handler adds to it, from the bytes it just wrote.
+- ``created``: the sha256 of every SKILL.md the person made in their own chat ("make me a skill
+  that ..."): that chat lane adds to it (core.agent_runtime.fast_paths_skill), from the bytes
+  ``skill.create`` just wrote for that message; so does a direct in-process ``create_skill`` call
+  from VOOL's own code (``made_by_person=True``), never the ``skill.create`` tool.
+- ``drafted``: the sha256 of every other SKILL.md ``skill.create`` wrote, whoever called it. A model
+  can call ``skill.create`` in a turn that is reading a web page, an email or someone else's skill,
+  so these bytes are not the person's words (audit H1, 2026-11-11): their ``allowed-tools`` add tools
+  only once the person approved turning on this exact version on a card that listed those tools.
 - ``installed``: per installed SKILL.md path, the origin decided at install time
-  (``created_here`` only when the installed bytes are bytes ``skill.create`` wrote and the
-  history does not mark them imported; otherwise ``imported``, ``pack`` or ``installed``, the
-  last being any other file on disk).
+  (``created_here`` only for ``created`` bytes the history does not mark imported, ``drafted`` for
+  ``drafted`` bytes, with ``tools_confirmed`` true only when the person approved that exact install
+  on its card; otherwise ``imported``, ``pack`` or ``installed``, the last being any other file on
+  disk).
 
-``may_add_tools`` widens only when the install record says ``created_here`` AND the bytes on disk
-NOW are still bytes ``skill.create`` wrote: an import that later replaces the person's skill under
+``may_add_tools`` widens only when the install record says ``created_here`` (or ``drafted`` with
+``tools_confirmed``) AND the bytes on disk NOW are still those bytes: an import that later replaces the person's skill under
 the same name (t9), or any edit outside VOOL, fails closed to narrow-only. A missing or unreadable
 record fails closed too.
 """
@@ -33,6 +40,8 @@ from pathlib import Path
 from typing import Any
 
 ORIGIN_CREATED_HERE = "created_here"
+#: Written by ``skill.create`` outside the person's own chat lane (a model's tool call).
+ORIGIN_DRAFTED = "drafted"
 ORIGIN_IMPORTED = "imported"
 ORIGIN_REGISTRY = "registry"
 ORIGIN_BUNDLED = "bundled"
@@ -43,7 +52,7 @@ ORIGIN_MCP = "mcp"
 #: Installed from some other file on disk: not something the person wrote in VOOL.
 ORIGIN_INSTALLED = "installed"
 ORIGINS = (
-    ORIGIN_CREATED_HERE, ORIGIN_IMPORTED, ORIGIN_REGISTRY, ORIGIN_BUNDLED, ORIGIN_NATIVE,
+    ORIGIN_CREATED_HERE, ORIGIN_DRAFTED, ORIGIN_IMPORTED, ORIGIN_REGISTRY, ORIGIN_BUNDLED, ORIGIN_NATIVE,
     ORIGIN_PACK, ORIGIN_MCP, ORIGIN_INSTALLED,
 )
 
@@ -61,12 +70,11 @@ def _read() -> dict[str, Any]:
     try:
         data = json.loads(_store_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {"created": {}, "installed": {}}
+        return {"created": {}, "drafted": {}, "installed": {}}
     if not isinstance(data, dict):
-        return {"created": {}, "installed": {}}
-    created = data.get("created") if isinstance(data.get("created"), dict) else {}
-    installed = data.get("installed") if isinstance(data.get("installed"), dict) else {}
-    return {"created": dict(created), "installed": dict(installed)}
+        return {"created": {}, "drafted": {}, "installed": {}}
+    return {key: dict(data.get(key)) if isinstance(data.get(key), dict) else {}
+            for key in ("created", "drafted", "installed")}
 
 
 def _write(data: dict[str, Any]) -> None:
@@ -91,43 +99,68 @@ def _digest_of(path: str | Path) -> str:
         return ""
 
 
-def note_created_here(sha256: str, *, slug: str = "") -> None:
-    """``skill.create`` wrote these exact bytes for the person. Called only by that handler."""
+def _note(half: str, sha256: str, slug: str) -> None:
     digest = str(sha256 or "").strip().lower()
     if len(digest) != 64:
         return
     with _LOCK:
         data = _read()
-        created = data["created"]
-        created[digest] = {"slug": str(slug or "")[:120], "at": int(time.time())}
-        if len(created) > _MAX_CREATED:
-            for old in sorted(created, key=lambda d: int((created[d] or {}).get("at") or 0))[
-                : len(created) - _MAX_CREATED
-            ]:
-                created.pop(old, None)
+        rows = data[half]
+        rows[digest] = {"slug": str(slug or "")[:120], "at": int(time.time())}
+        if len(rows) > _MAX_CREATED:
+            for old in sorted(rows, key=lambda d: int((rows[d] or {}).get("at") or 0))[: len(rows) - _MAX_CREATED]:
+                rows.pop(old, None)
         _write(data)
+
+
+def note_created_here(sha256: str, *, slug: str = "") -> None:
+    """The person made these exact bytes in their own chat ("make me a skill that ...").
+
+    Called only by the chat lane that answers the person's own message, after ``skill.create``
+    wrote the draft. A model's ``skill.create`` call is noted with ``note_drafted`` instead.
+    """
+    _note("created", sha256, slug)
+
+
+def note_drafted(sha256: str, *, slug: str = "") -> None:
+    """``skill.create`` wrote these exact bytes; who asked for them is not known (core.skill_tools)."""
+    _note("drafted", sha256, slug)
 
 
 def created_here_digest(sha256: str) -> bool:
     return str(sha256 or "").strip().lower() in _read()["created"]
 
 
+def drafted_digest(sha256: str) -> bool:
+    return str(sha256 or "").strip().lower() in _read()["drafted"]
+
+
 def decide_install_origin(sha256: str, *, history_source: str = "", default: str = ORIGIN_INSTALLED) -> str:
-    """The origin of bytes just installed: ``created_here`` only for bytes ``skill.create`` wrote."""
+    """The origin of bytes just installed: ``created_here`` only for bytes the person made in their
+    own chat, ``drafted`` for other bytes ``skill.create`` wrote."""
     if str(history_source or "").strip().lower() == "import":
         return ORIGIN_IMPORTED
     if created_here_digest(sha256):
         return ORIGIN_CREATED_HERE
+    if drafted_digest(sha256):
+        return ORIGIN_DRAFTED
     return default if default in ORIGINS else ORIGIN_INSTALLED
 
 
-def record_install(path: str | Path, *, origin: str, sha256: str = "") -> None:
-    """Durably record the origin of the SKILL.md now installed at ``path``."""
+def record_install(path: str | Path, *, origin: str, sha256: str = "", tools_confirmed: bool = False) -> None:
+    """Durably record the origin of the SKILL.md now installed at ``path``.
+
+    ``tools_confirmed`` is True only when the person approved turning on these exact bytes on a card
+    that listed the tools they ask for (core.runtime_execution_tools._skill_install).
+    """
     clean = origin if origin in ORIGINS else ORIGIN_INSTALLED
     digest = str(sha256 or "").strip().lower() or _digest_of(path)
+    row: dict[str, Any] = {"origin": clean, "sha256": digest, "at": int(time.time())}
+    if tools_confirmed:
+        row["tools_confirmed"] = True
     with _LOCK:
         data = _read()
-        data["installed"][_key(path)] = {"origin": clean, "sha256": digest, "at": int(time.time())}
+        data["installed"][_key(path)] = row
         _write(data)
 
 
@@ -176,7 +209,9 @@ def origin_of(skill: Any) -> str:
             return ORIGIN_BUNDLED
     except Exception:
         pass
-    if plugin_id.startswith("registry-"):
+    if plugin_id.startswith("registry-") and _registry_record(plugin_id):
+        # Decided by the signed install's lifecycle record, never by the folder name alone: a pack
+        # someone names "registry-..." is not a Skill Codex package (audit L3).
         return ORIGIN_REGISTRY
     if plugin_id.startswith("discover-"):
         return ORIGIN_IMPORTED
@@ -188,6 +223,16 @@ def origin_of(skill: Any) -> str:
         current = _digest_of(resolved)
         if current and created_here_digest(current) and _history_source(resolved) != "import":
             return ORIGIN_CREATED_HERE
+        return ORIGIN_IMPORTED if _history_source(resolved) == "import" else ORIGIN_INSTALLED
+    if recorded == ORIGIN_DRAFTED:
+        # Still the bytes VOOL recorded at install; an edit outside VOOL since is some other file,
+        # unless the bytes now are ones the person made in their own chat (as for created_here).
+        current = _digest_of(resolved)
+        if _history_source(resolved) != "import":
+            if current and created_here_digest(current):
+                return ORIGIN_CREATED_HERE
+            if current == str(row.get("sha256") or ""):
+                return ORIGIN_DRAFTED
         return ORIGIN_IMPORTED if _history_source(resolved) == "import" else ORIGIN_INSTALLED
     if recorded in ORIGINS:
         return recorded
@@ -206,15 +251,45 @@ TYPED_KEYS_IGNORED = (
 )
 
 
+#: What a person is told when a skill drafted by ``skill.create`` (not in their own chat) is turned
+#: on without approving its exact version on a card that listed its tools.
+TOOLS_NOT_CONFIRMED = (
+    "It was not made from your own words in this chat, and turning it on was not tied to this exact "
+    "version, so the tools it lists are not added: it works only with the tools VOOL already offers "
+    "for your request."
+)
+
+
+def _registry_record(plugin_id: str) -> bool:
+    try:
+        from core.plugin_lifecycle import record_for
+
+        return record_for(plugin_id) is not None
+    except Exception:
+        return False
+
+
 def may_add_tools(skill: Any) -> bool:
-    """Whether a matched skill's ``allowed-tools`` may seat tools the turn would not otherwise get."""
-    return origin_of(skill) == ORIGIN_CREATED_HERE
+    """Whether a matched skill's ``allowed-tools`` may seat tools the turn would not otherwise get.
+
+    The person's own skill (made in their chat), or a drafted one whose exact bytes the person
+    approved on a card listing its tools. Everything else only narrows.
+    """
+    origin = origin_of(skill)
+    if origin == ORIGIN_CREATED_HERE:
+        return True
+    if origin != ORIGIN_DRAFTED:
+        return False
+    path = str(getattr(skill, "path", "") or "")
+    row = install_record(path)
+    return bool(row.get("tools_confirmed")) and _digest_of(path) == str(row.get("sha256") or "")
 
 
 __all__ = [
     "ORIGINS",
     "ORIGIN_BUNDLED",
     "ORIGIN_CREATED_HERE",
+    "ORIGIN_DRAFTED",
     "ORIGIN_IMPORTED",
     "ORIGIN_INSTALLED",
     "ORIGIN_MCP",
@@ -222,12 +297,15 @@ __all__ = [
     "ORIGIN_PACK",
     "ORIGIN_REGISTRY",
     "TOOLS_NOT_ADDED",
+    "TOOLS_NOT_CONFIRMED",
     "TYPED_KEYS_IGNORED",
     "created_here_digest",
     "decide_install_origin",
+    "drafted_digest",
     "install_record",
     "may_add_tools",
     "note_created_here",
+    "note_drafted",
     "origin_of",
     "record_install",
 ]

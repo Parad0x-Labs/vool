@@ -2865,6 +2865,9 @@ def _resolved_action_identity(
         identity["content_hash"] = _write_content_signature(intent, arguments)
     else:
         identity["arguments"] = arguments
+    skill_file = _unbound_skill_file_digest(str(intent or ""), arguments, source_context)
+    if skill_file:
+        identity["skill_file_sha256"] = skill_file
     return identity
 
 
@@ -3305,6 +3308,57 @@ def _edit_preview(intent: str, arguments: dict[str, Any], source_context: dict[s
     return preview if len(preview) <= 6000 else preview[:5999] + "…"
 
 
+def _skill_card_tools_line(source: Any, digest: str, *, bound: bool) -> str:
+    """What turning this skill on does with the tools it lists, said on the card (audit H1).
+
+    Approving this card is what lets a drafted skill's tools be offered, so the card says so in
+    words, and says plainly when they will not be added.
+    """
+    try:
+        from core import skill_tools
+        from core.skill_origin import created_here_digest, drafted_digest
+
+        imported = skill_tools.imported_mark(Path(source).parent) is not None
+        if not imported and created_here_digest(digest):
+            return "You made this skill in your chat, so VOOL may offer these tools when it is used."
+        if not imported and drafted_digest(digest):
+            if bound:
+                return ("If you allow this, VOOL may offer these tools whenever this skill is used. Allow it only "
+                        "if you asked for this skill and want it to use these tools.")
+            return ("These tools will not be added: this request is not tied to the exact version you saw, so "
+                    "the skill only works with the tools VOOL already offers.")
+    except Exception:  # fall through to the narrow-only line, which is always true
+        pass
+    return ("These tools will not be added: the skill was not made here from your own words, so it only "
+            "works with the tools VOOL already offers.")
+
+
+def _unbound_skill_file_digest(intent: str, arguments: dict[str, Any], source_context: dict[str, Any]) -> str:
+    """The digest of the skill file a ``skill.install`` without ``sha256`` would turn on, or "".
+
+    Put into the call's permission identity, so approving the card approves the version the card
+    showed: when the file changes before the approved call runs, the fingerprint no longer matches
+    and the person is asked again with the new check code (audit M7).
+    """
+    if intent != "skill.install" or str(arguments.get("sha256") or "").strip():
+        return ""
+    if str(arguments.get("kind") or "").strip().lower() == "plugin":
+        return ""
+    try:
+        import hashlib
+
+        from core import skill_tools
+        from core.skill_scopes import scope_keys
+
+        keys = scope_keys(source_context) if isinstance(source_context, dict) else None
+        source = skill_tools.resolve_skill_markdown(str(arguments.get("path") or ""), keys)
+        if not source.is_file() or not skill_tools.skill_path_allowed(source, keys):
+            return ""
+        return hashlib.sha256(source.read_bytes()).hexdigest()
+    except Exception:  # no file read: nothing to bind, the install refuses on its own
+        return ""
+
+
 def _skill_install_card(arguments: dict[str, Any], source_context: dict[str, Any]) -> dict[str, Any]:
     """What turning a skill on will do, for the approval card: its name, check code and tools.
 
@@ -3357,11 +3411,14 @@ def _skill_install_card(arguments: dict[str, Any], source_context: dict[str, Any
         where = {"chat": "this chat", "project": "this project"}.get(scope, "all of VOOL")
         lines = [f'Turn on the skill "{shown}" for {where}.',
                  f"Check code: {words}" if bound else
-                 f"Check code: {words} (not bound to a version you saw; it turns on whatever the file holds now)"]
+                 f"Check code: {words} (the file as it is now; if it changes before it is turned on, "
+                 "you are asked again)"]
         if bound and bound != actual:
             lines.append("The file changed since you saw it, so this will be refused.")
         lines.append("This skill asks to use these tools: " + ", ".join(tools) + "." if tools
                      else "This skill does not ask to use any tools.")
+        if tools:
+            lines.append(_skill_card_tools_line(source, actual, bound=bool(bound) and bound == actual))
         slug = skill_tools._slug(name)
         if bool(arguments.get("overwrite")) and slug:
             if scope in ("chat", "project"):

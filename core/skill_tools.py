@@ -370,8 +370,42 @@ def rollback_skill(name: str, *, version: int, keys: dict[str, str] | None = Non
     }
 
 
+# Russian, Ukrainian and Belarusian letters as Latin ones, the way a passport writes them, so a skill
+# named "Список покупок" gets the short name "spisok-pokupok" rather than none at all.
+_CYRILLIC = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "ґ": "g", "д": "d", "е": "e", "ё": "e", "є": "ie", "ж": "zh",
+    "з": "z", "и": "i", "і": "i", "ї": "i", "й": "i", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+    "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ў": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch",
+    "ш": "sh", "щ": "shch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "iu", "я": "ia",
+})
+
+
 def _slug(name: str) -> str:
-    return _SLUG_RE.sub("-", str(name or "").strip().lower()).strip("-")
+    """The short name (folder and id) of a skill: lowercase a-z, 0-9 and hyphens.
+
+    A name in Latin letters keeps the slug it always had. A name with no Latin letters at all used to
+    get an empty slug, and the skill was refused as having "no name" (audit M6, 2026-11-11): Cyrillic
+    letters are now spelled in Latin letters, and any other script (Japanese, Arabic, ...) gets
+    ``skill-`` and a short code made from the name, so the same name always gives the same short name.
+    The person's own name is kept as the skill's name; only the folder uses the short one.
+    """
+    text = str(name or "").strip()
+    slug = _SLUG_RE.sub("-", text.lower()).strip("-")
+    if slug:
+        return slug
+    import unicodedata
+
+    folded = unicodedata.normalize("NFKC", text).casefold()
+    if not any(ch.isalnum() for ch in folded):
+        return ""
+    spelled = "".join(ch for ch in unicodedata.normalize("NFKD", folded.translate(_CYRILLIC))
+                      if not unicodedata.combining(ch))
+    latin = _SLUG_RE.sub("-", spelled).strip("-")
+    letters = [ch for ch in spelled if ch.isalnum()]
+    if latin and all(ch.isascii() for ch in letters):
+        return latin[:MAX_NAME_CHARS].strip("-")
+    code = hashlib.sha256(" ".join(folded.split()).encode("utf-8")).hexdigest()[:10]
+    return f"skill-{code}"
 
 
 def plugins_root() -> Path:
@@ -413,6 +447,24 @@ def import_staging_dir(keys: dict[str, str] | None) -> Path | None:
     if not chat:
         return None
     return staging_root() / IMPORTS_DIRNAME / _safe_dir(chat)
+
+
+#: Left beside every draft ``skill.create`` writes (audit M7, 2026-11-11): the digest of the bytes it
+#: wrote (and showed), so turning the draft on later, after a restart included, installs those bytes
+#: or nothing, whatever sat in the shared drafts folder by then.
+DRAFTED_MARK = "drafted.json"
+
+
+def drafted_mark(skill_dir: Path) -> dict[str, Any] | None:
+    """What ``skill.create`` recorded beside its draft (the digest it wrote), or None."""
+    mark = Path(skill_dir) / DRAFTED_MARK
+    if not mark.is_file():
+        return None
+    try:
+        data = json.loads(mark.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def imported_mark(skill_dir: Path) -> dict[str, Any] | None:
@@ -495,6 +547,14 @@ def reserved_name_reason(name: str) -> str:
     if not slug:
         return ""
     reserved = reserved_skill_names()
+    # A name written in look-alike letters of another alphabet ("Меdіа studio" all in Cyrillic) is
+    # read as the Latin name it imitates too, so a short name made from other scripts cannot squat a
+    # built-in's (audit M6).
+    from core.registry.checks import _LOOKALIKE
+
+    imitated = _slug(str(name or "").translate(_LOOKALIKE))
+    if (imitated in reserved or imitated.startswith("vool-")) and not (slug in reserved or slug.startswith("vool-")):
+        slug = imitated
     if slug in reserved:
         shown = builtin_display(slug)
         return (
@@ -592,6 +652,44 @@ def content_problem(markdown: str) -> str:
     return SAFETY_LEAD + plain_findings(findings)
 
 
+_UNKNOWN_TOOLS = "allowed-tools names tools this runtime does not have: "
+
+
+def plain_problem(problem: str) -> str:
+    """One validator finding as a person reads it: what is wrong, why it matters, how to fix it.
+
+    The validator's own words ("allowed-tools names tools this runtime does not have: ...") stay in
+    a result's ``problems`` for tools and the publishing checks; a reply to the person uses these.
+    """
+    text = str(problem or "").strip()
+    if text.startswith(SAFETY_LEAD) or not text:
+        return text
+    if text.startswith(_UNKNOWN_TOOLS):
+        names = text[len(_UNKNOWN_TOOLS):].strip()
+        return (f"It asks for tools VOOL does not have: {names}. Check each name in its allowed-tools line "
+                "against the tool list in VOOL's guide \"Skill tools and limits\" (for example "
+                "workspace.write_file), or take it out, and try again.")
+    if text.startswith("description is empty"):
+        return ("It has no description, so VOOL could never tell when to use it. Add a line "
+                "\"description: ...\" at the top saying when the skill applies, and try again.")
+    if text.startswith("body is empty"):
+        return "It has no instructions. Write its steps below the header, and try again."
+    if text == "name is empty":
+        return "It has no name. Add a line \"name: ...\" at the top, and try again."
+    if text.startswith("body exceeds"):
+        return (f"Its instructions are longer than {_MAX_BODY_CHARS:,} characters, so part of them would be "
+                "lost. Shorten them, and try again.")
+    if text.startswith("no YAML frontmatter"):
+        return ("It does not start with the header VOOL needs: a block between two --- lines with its name "
+                "and description. Add one, and try again.")
+    if text.startswith("tool contracts are unavailable"):
+        return "VOOL could not check the tools it asks for just now. Try again in a moment."
+    if text.startswith("declared permissions"):
+        return ("Its permissions line does not cover what the tools it asks for need (" + text + "). "
+                "Add the missing ones or take the permissions line out, and try again.")
+    return text
+
+
 def _yaml_scalar(value: str) -> str:
     """Quote a frontmatter value so a colon or a hash in a description cannot break the header."""
 
@@ -637,8 +735,14 @@ def create_skill(
     overwrite: bool = False,
     scope: str = "global",
     keys: dict[str, str] | None = None,
+    made_by_person: bool = True,
 ) -> dict[str, Any]:
     """Write a staged `SKILL.md`. Loads nothing and changes no behaviour.
+
+    ``made_by_person`` says whether the person themselves asked for these bytes (a direct caller in
+    VOOL's own code). The ``skill.create`` tool passes False: a model can call it in a turn that is
+    reading a web page or someone else's skill, so its drafts are noted as drafted, not as the
+    person's own (audit H1).
 
     ``scope`` picks the staging area: ``global`` drafts where it always has, ``chat`` and
     ``project`` draft inside that chat's or project's own skills folder (``keys`` names which),
@@ -696,16 +800,21 @@ def create_skill(
             "reason": f"{target} already exists; pass overwrite to replace it",
             "path": str(target),
         }
+    digest = hashlib.sha256(rendered).hexdigest()
     try:
         directory.mkdir(parents=True, exist_ok=True)
         target.write_bytes(rendered)
+        # The digest of what was written (and shown) stays beside the draft, so turning it on later,
+        # after a restart included, installs these bytes or nothing (audit M7).
+        (directory / DRAFTED_MARK).write_text(json.dumps({"sha256": digest, "scope": scope}) + "\n", encoding="utf-8")
     except OSError as exc:
         return {"status": "error", "reason": f"{type(exc).__name__}: could not write the skill"}
-    # The person wrote these exact bytes in VOOL, whoever called this (core.skill_origin).
+    # Whether the PERSON made these bytes is decided by the caller: the skill.create tool notes them
+    # as drafted, and the chat lane answering their own "make me a skill that ..." notes them as theirs.
     with contextlib.suppress(Exception):
-        from core.skill_origin import note_created_here
+        from core.skill_origin import note_created_here, note_drafted
 
-        note_created_here(hashlib.sha256(rendered).hexdigest(), slug=slug)
+        (note_created_here if made_by_person else note_drafted)(digest, slug=slug)
     return {
         "status": "ok",
         "path": str(target),
@@ -1088,6 +1197,24 @@ def install_skill(
                 "path": str(source),
                 "problems": ["draft digest differs from the one that was reviewed"],
             }
+    drafted = drafted_mark(source.parent) if source.is_file() and recorded_import is None else None
+    if drafted and not expected:
+        # A draft skill.create wrote turns on as the bytes it wrote (and showed), or not at all: the
+        # recorded digest stands in for the one the caller did not send (audit M7).
+        expected = str(drafted.get("sha256") or "").strip().lower()
+        if expected:
+            try:
+                now = hashlib.sha256(source.read_bytes()).hexdigest()
+            except OSError:
+                now = ""
+            if now != expected:
+                return {
+                    "status": "refused",
+                    "reason": "This draft changed after it was made, so I did not turn it on: it is no longer "
+                              "the version that was shown. Ask me to make or show it again.",
+                    "path": str(source),
+                    "problems": ["draft digest differs from the one skill.create recorded"],
+                }
     if expected and source.is_file():
         try:
             actual = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -1132,7 +1259,8 @@ def install_skill(
             reason = ("This skill did not pass VOOL's safety check, so it was not installed. "
                       + problems[0][len(SAFETY_LEAD):])
         else:
-            reason = "This skill was not installed because it needs fixing first: " + "; ".join(problems)
+            reason = "This skill was not installed because it needs fixing first. " + " ".join(
+                plain_problem(item) for item in problems)
         return {
             "status": "refused",
             "reason": reason,
@@ -1148,6 +1276,10 @@ def install_skill(
     if reserved:
         return {"status": "refused", "reason": reserved, "path": str(source), "problems": [reserved]}
     clean_plugin = _slug(plugin_id) or "local-skills"
+    if scoped_dirs is None:
+        refused_pack = pack_name_problem(clean_plugin, installing_into=True)
+        if refused_pack:
+            return {"status": "refused", "reason": refused_pack, "path": str(source), "problems": [refused_pack]}
     if scoped_dirs is not None:
         destination_dir = scoped_dirs[1] / slug
     else:
@@ -1181,16 +1313,19 @@ def install_skill(
             collisions = {}
         if collisions:
             other = sorted(collisions)[0]
+            shown = other.split(":", 1)[-1].replace("-", " ").strip()
+            shown = shown[:1].upper() + shown[1:]
             return {
                 "status": "refused",
                 "reason": (
-                    f"identity collision: the instructions being installed are already active as "
-                    f"{other!r} (same effective digest); a skill set cannot live behind two names"
+                    f'This skill has the same instructions as your skill "{shown}", which is already on, so I '
+                    "did not add it a second time under another name. Keep using that one, or change the "
+                    "instructions and try again."
                 ),
                 "path": str(source),
                 "collision_with": other,
                 "effective_sha256": incoming_effective,
-                "problems": [f"effective digest equals installed skill {other!r}"],
+                "problems": [f"identity collision: effective digest equals installed skill {other!r}"],
             }
         try:
             destination_dir.mkdir(parents=True, exist_ok=True)
@@ -1356,6 +1491,57 @@ def list_skills(workspace: str = "", keys: dict[str, str] | None = None) -> dict
     }
 
 
+_LOAD_CHECKS: dict[str, str] = {}
+_LOAD_LOCK = threading.Lock()
+#: Origins whose text VOOL ships or verifies by digest: their check ran before they shipped or were
+#: installed, and their bytes cannot change without the digest failing (core.skill_origin).
+_CHECKED_ELSEWHERE = frozenset({"native", "bundled", "registry"})
+
+
+def load_problem(skill: Any) -> str:
+    """The safety-check refusal for a skill about to reach a turn, or "" when it may (audit M1).
+
+    Every way IN runs the check (``content_problem``); a skill an MCP server serves never comes in
+    that way, so it is checked here, on the text the turn would carry, cached by that text's digest.
+    VOOL's own library, the packs it ships, signed packages and Browse add-ons are checked before
+    they are installed and bound to their digest, so they are never re-read here.
+    """
+    try:
+        from core.skill_origin import origin_of
+
+        origin = origin_of(skill)
+        plugin_id = str(getattr(skill, "plugin_id", "") or "").removeprefix("plugin:")
+        if origin in _CHECKED_ELSEWHERE or plugin_id.startswith("discover-"):
+            return ""
+        path = str(getattr(skill, "path", "") or "")
+        text = ""
+        if path and not path.startswith("skill://"):
+            with contextlib.suppress(OSError, UnicodeDecodeError):
+                text = Path(path).read_text(encoding="utf-8")
+        if not text:
+            text = render_skill_markdown(
+                name=str(getattr(skill, "name", "") or ""), description=str(getattr(skill, "description", "") or ""),
+                body=str(getattr(skill, "body", "") or ""), triggers=tuple(getattr(skill, "triggers", ()) or ()),
+            )
+        key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        with _LOAD_LOCK:
+            if key in _LOAD_CHECKS:
+                return _LOAD_CHECKS[key]
+        problem = content_problem(text)
+        with _LOAD_LOCK:
+            if len(_LOAD_CHECKS) > 2048:
+                _LOAD_CHECKS.clear()
+            _LOAD_CHECKS[key] = problem
+        return problem
+    except Exception:  # a check that cannot run keeps the skill out (fails closed)
+        return "VOOL could not check this skill's file."
+
+
+def passing_load_check(skills: tuple[Any, ...] | list[Any]) -> tuple[Any, ...]:
+    """The skills that pass ``load_problem``, in order."""
+    return tuple(skill for skill in skills if not load_problem(skill))
+
+
 def scoped_skills(keys: dict[str, str] | None) -> tuple[Any, ...]:
     """Every ACTIVE skill of this chat and of its project, parsed by the real loader.
 
@@ -1399,6 +1585,39 @@ def _parse_cached(path: Path, plugin_id: str) -> Any:
                 _PARSE_CACHE.clear()
             _PARSE_CACHE[key] = skill
     return skill
+
+
+#: Pack names VOOL gives its own kinds of packs. A pack someone imports or makes cannot take one: a
+#: "registry-..." pack was labelled a signed Skill Codex package, and an install into a signed or
+#: Browse pack's folder changed its files so it stopped loading (audit L3, 2026-11-11).
+_RESERVED_PACK_PREFIXES = ("registry-", "discover-", "vool-")
+_RESERVED_PACK_NAMES = frozenset({"local-skills", "chat-skills", "project-skills"})
+
+
+def pack_name_problem(name: str, *, installing_into: bool = False) -> str:
+    """The plain refusal when ``name`` is a pack name VOOL keeps for itself, or "".
+
+    ``installing_into`` is the ``plugin_id`` of a skill install: the person's own ``local-skills`` and
+    packs they made are fine there; a pack VOOL or Browse manages, or a reserved name, is not.
+    """
+    slug = _slug(name)
+    if not slug:
+        return ""
+    if installing_into and slug == "local-skills":
+        return ""
+    reserved = slug in _RESERVED_PACK_NAMES or slug.startswith(_RESERVED_PACK_PREFIXES)
+    if not reserved:
+        with contextlib.suppress(Exception):
+            from core.plugin_catalog import bundled_plugin_dirs
+
+            reserved = slug in {_slug(Path(folder).name) for folder in bundled_plugin_dirs()}
+    if not reserved and installing_into:
+        existing = plugins_root() / "plugins" / slug
+        reserved = (existing / ".codex-plugin" / "plugin.json").is_file() and not _removable_global_pack(existing)
+    if not reserved:
+        return ""
+    return (f'The name "{slug}" is kept for packs that VOOL or Browse manage, so I did not use it. '
+            'Pick another name, for example "my-' + slug.split("-", 1)[-1] + '", and try again.')
 
 
 def _removable_global_pack(pack_dir: Path) -> bool:

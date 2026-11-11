@@ -37,7 +37,9 @@ def test_install_refusal_names_the_unknown_tool(profile):
     result = install_skill(str(_skill(profile / "src" / "note-saver", "[workspace.writefile]")))
     assert result["status"] == "refused"
     assert "workspace.writefile" in result["reason"]
-    assert "allowed-tools names tools this runtime does not have" in result["reason"]
+    # The reason is for a person (audit L1): what is wrong, and what to do; the exact check stays in problems.
+    assert "asks for tools VOOL does not have: workspace.writefile" in result["reason"]
+    assert any("allowed-tools names tools this runtime does not have" in item for item in result["problems"])
     assert any("workspace.writefile" in item for item in result["problems"])
 
 

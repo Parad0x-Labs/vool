@@ -14,8 +14,10 @@ handler, or ``skill.create`` then ``skill.install`` for a skill the person write
 2. Every header field is a one-line label and every body sits between a header and a closing
    line it cannot forge (t4). Imports refuse a forged name or a forged block line outright; a
    file copied by hand past that check is still fenced.
-3. A skill's ``allowed-tools`` only narrow, unless the person wrote that skill in VOOL; the
-   origin is recorded at install and re-checked against the bytes on disk (t6, t14).
+3. A skill's ``allowed-tools`` only narrow, unless the person wrote that skill in VOOL or allowed
+   its tools on the turn-on card for its exact bytes (audit H1: a ``skill.create`` tool call alone
+   is not the person's word); the origin is recorded at install and re-checked against the bytes
+   on disk (t6, t14).
 4. The developer audience holds in every lane: everyday words like "test" or "feature" do not
    seat developer skills, and a built-in has no installable copy (t12, t5).
 """
@@ -137,20 +139,39 @@ def _copied_by_hand_into_the_installed_tree(folder: str, markdown: str) -> Path:
     return skill_md
 
 
+def _turned_on_with_the_persons_ok(arguments: dict):
+    """skill.install through the real permission check: it waits for the person, the person clicks
+    Allow on the card (which lists the skill's tools and check code), and the same call runs."""
+    import uuid
+
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.mode_permission_policy import reset_mode_permission_state, resolve_approval
+
+    reset_mode_permission_state()
+    context = dict(OWNER, operating_mode="manual", session_id=OWNER["runtime_session_id"],
+                   cancel_turn_id=f"t-trust-{uuid.uuid4().hex[:8]}")
+    asked = execute_authorized_runtime_tool("skill.install", dict(arguments), source_context=dict(context))
+    assert asked.status == "pending_approval", asked.response_text
+    approval = dict(asked.details["approval_request"])
+    assert resolve_approval(str(approval["approval_id"]), decision="allow") is not None
+    return execute_authorized_runtime_tool(
+        "skill.install", dict(arguments), source_context=dict(context, mode_approval_token=str(approval["approval_id"])))
+
+
 def _create_and_turn_on(**draft) -> dict:
-    """The person's own route: skill.create in their chat, then skill.install."""
-    from core.runtime_execution_tools import _skill_create, _skill_install
+    """The person's own route for a skill with tools: skill.create, then turning it on by approving
+    the card that names its check code and lists its tools (audit H1: only that approval, bound to
+    the exact bytes, lets a drafted skill's tools be offered)."""
+    from core.runtime_execution_tools import _skill_create
     from core.tool_offer_assembly import reset_skill_cache
 
     created = _skill_create(dict(draft), dict(OWNER))
     assert created.ok, created.details
-    result = _skill_install(
-        {"path": created.details["slug"], "sha256": created.details["sha256"]}, dict(OWNER)
-    )
+    result = _turned_on_with_the_persons_ok({"path": created.details["slug"], "sha256": created.details["sha256"]})
     assert result.ok, result.details
     reset_skill_cache()
     cg.reset()
-    return dict(result.details)
+    return {**dict(result.details), "reply": result.response_text}
 
 
 def _instructions(text: str, task_class: str) -> str:
@@ -393,7 +414,7 @@ def test_skill_inspect_says_the_typed_keys_of_an_import_are_ignored() -> None:
 
 
 def test_the_install_reply_for_the_persons_own_skill_has_no_such_note() -> None:
-    from core.runtime_execution_tools import _skill_create, _skill_install
+    from core.runtime_execution_tools import _skill_create
     from core.skill_origin import TOOLS_NOT_ADDED
 
     created = _skill_create(
@@ -401,8 +422,8 @@ def test_the_install_reply_for_the_persons_own_skill_has_no_such_note() -> None:
          "body": "Save it.", "allowed_tools": ["workspace.write_file"], "triggers": ["recipe"]},
         dict(OWNER),
     )
-    reply = _skill_install({"path": created.details["slug"], "sha256": created.details["sha256"]},
-                           dict(OWNER)).response_text
+    reply = _turned_on_with_the_persons_ok(
+        {"path": created.details["slug"], "sha256": created.details["sha256"]}).response_text
     assert reply.startswith('Added the skill "Recipe saver"') and TOOLS_NOT_ADDED not in reply, reply
 
 
@@ -616,7 +637,7 @@ def test_a_skill_installed_from_any_other_file_only_narrows(tmp_path) -> None:
 
 
 def test_a_skill_the_person_wrote_in_vool_still_seats_its_tools() -> None:
-    from core.skill_origin import ORIGIN_CREATED_HERE, install_record
+    from core.skill_origin import install_record
 
     before = _offer(RECIPE, "food_nutrition")
     installed = _create_and_turn_on(
@@ -629,11 +650,11 @@ def test_a_skill_the_person_wrote_in_vool_still_seats_its_tools() -> None:
     after = _offer(RECIPE, "food_nutrition")
 
     assert {"workspace.write_file", "workspace.ensure_directory"} <= after - before, sorted(after)
-    assert install_record(installed["path"])["origin"] == ORIGIN_CREATED_HERE
+    assert install_record(installed["path"])["tools_confirmed"] is True
 
 
 def test_an_import_that_replaces_the_persons_skill_loses_the_right_to_add_tools() -> None:
-    from core.skill_origin import ORIGIN_CREATED_HERE, origin_of
+    from core.skill_origin import ORIGIN_DRAFTED, origin_of
 
     own = _create_and_turn_on(
         name="Recipe saver",
@@ -642,7 +663,7 @@ def test_an_import_that_replaces_the_persons_skill_loses_the_right_to_add_tools(
         allowed_tools=["workspace.write_file"],
         triggers=["save recipe", "recipe"],
     )
-    assert origin_of(SimpleNamespace(path=own["path"], plugin_id="local-skills")) == ORIGIN_CREATED_HERE
+    assert origin_of(SimpleNamespace(path=own["path"], plugin_id="local-skills")) == ORIGIN_DRAFTED
     before_import = _offer(RECIPE, "food_nutrition")
     assert "workspace.write_file" in before_import
 

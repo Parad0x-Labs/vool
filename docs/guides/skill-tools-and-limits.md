@@ -31,11 +31,12 @@ from that record, not from the folder the skill sits in:
 
 | Where it came from | Its `allowed-tools` | Its `id` / `task-families` |
 | --- | --- | --- |
-| Made by the person in VOOL ("make me a skill that ...", `skill.create` then `skill.install`) | Offered on the turns it is picked, as long as the file is still the one VOOL wrote. If it is edited outside VOOL, or another skill replaces it under the same name, the list only narrows. | Not written by `skill.create`. |
-| Imported (a zip, `import this skill`), installed from a file, or added from GitHub (Browse) | Only narrows. Turning on an imported or file skill says so: *It was not written here in VOOL, so the tools it lists are not added.* | Refused at import and from GitHub: *This skill sets id, ..., which only VOOL's own skills may set. Take those lines out of the top of the file and try again.* In a file copied by hand into VOOL's skill folders they are ignored: turning it on says so, and `skill.inspect` with its `id` answers "typed keys ignored: ...". |
+| Made by the person in a VOOL chat from their own words ("make me a skill that ..." then `turn it on`) | Offered on the turns it is picked, as long as the file is still the one VOOL wrote. If it is edited outside VOOL, or another skill replaces it under the same name, the list only narrows. | Not written by `skill.create`. |
+| Written by a `skill.create` tool call (a model can make that call while reading a web page, an email or someone else's skill) | Only narrows, unless the person clicks **Allow once** on the `skill.install` card for those exact bytes: the card shows the check code and lists the tools (*If you allow this, VOOL may offer these tools whenever this skill is used.*). Auto mode asks for that card too. A changed file loses it again. | Not written by `skill.create`. |
+| Imported (a zip, `import this skill`), staged with `vool-community stage`, copied by hand, or added from GitHub (Browse) | Only narrows. Turning on an imported or file skill says so: *It was not written here in VOOL, so the tools it lists are not added.* | Refused at import and from GitHub: *This skill sets id, ..., which only VOOL's own skills may set. Take those lines out of the top of the file and try again.* In a file copied by hand into VOOL's skill folders they are ignored: turning it on says so, and `skill.inspect` with its `id` answers "typed keys ignored: ...". |
 | A signed Skill Codex package | Only narrows. | Used: it can start on its own on the turns its `task-families` name. If its files change after install, it stops loading. |
 | A pack VOOL ships, or one of VOOL's built-in skills | Only narrows. | Used. |
-| A skill an MCP server ships (`skill://`) | Only narrows. | Ignored: it is checked by the same rules, used only when the person's message picks it, and refused if it fails the rules. |
+| A skill an MCP server ships (`skill://`) | Only narrows. | Ignored: it is checked by the same rules and the same safety check as an import each time it loads, used only when the person's message picks it, and left out if it fails them. |
 
 A built-in skill cannot be installed as a copy: `skill.install vool-feature-build` says it is
 already part of VOOL and is turned on or off in Skills.
@@ -70,7 +71,10 @@ of this: write the instructions so the answer still makes sense when the person 
 
 | What the skill (or you) sees | Why | What to do |
 | --- | --- | --- |
-| `allowed-tools names tools this runtime does not have: workspace.writefile` | A name in `allowed-tools` is not a VOOL tool. `skill.validate`, `try` and `skill.install` all say this. | Use a name from the table below (here `workspace.write_file`). |
+| `allowed-tools names tools this runtime does not have: workspace.writefile` (from `skill.install` and `skill.validate`: `It asks for tools VOOL does not have: workspace.writefile.`) | A name in `allowed-tools` is not a VOOL tool. `skill.validate`, `try` and `skill.install` all say this. | Use a name from the table below (here `workspace.write_file`). |
+| `This skill has the same instructions as your skill "Weather brief", which is already on, ...` | The instructions match a skill that is already installed under another name. | Keep using that skill, or change the instructions. |
+| `This draft changed after it was made, so it was not turned on. ...` | The draft's `SKILL.md` is not the file that was shown (or staged) any more. | Make or stage it again, then turn it on. |
+| `I did not open that file: I only check or turn on skills kept in VOOL's own skill folders, ...` (status `not_allowed`) | `skill.install` and `skill.validate` read only VOOL's own skill folders. | Stage the folder first: `python -m tools.community_skills stage <folder>`, then `skill.install path=<short name>`. |
 | `declared permissions ['read_files'] do not cover what operator.schedule_calendar_event requires: external_messages` | The frontmatter `permissions` list leaves out an action a named tool needs. | Add the missing id, or leave `permissions` out. See [the permissions key](build-and-test-a-skill.md#the-permissions-key). |
 | `Manual mode requires approval for this exact action. ...` (or `Auto mode ...`) | The mode asks before this call. | Nothing to fix. The person approves or declines. |
 | `Auto mode does not permit unknown side effect. The controller blocked the tool before dispatch.` | Auto mode refuses tools whose effect is not classified (marked *refused* under Auto below). | Expect it. In Manual mode the same call asks instead. |

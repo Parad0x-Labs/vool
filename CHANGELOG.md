@@ -7,6 +7,14 @@ history is not republished here.
 
 ### Fixes
 - **Skills from other people stay in their place.** An imported, downloaded, add-on or MCP skill is used only when your message asks for it, and only narrows the tools VOOL offers. Only a skill you made in VOOL can have its tools offered. Turning one on says what is ignored.
+- **A skill VOOL wrote on its own does not get more tools by itself.** A skill written by a tool call (which can happen while VOOL reads a web page or someone else's skill) gets the tools it lists only after you click Allow on the card that shows its check code and lists those tools. Auto mode asks for that card too.
+- **Skill authors can install from a folder again.** `python -m tools.community_skills stage <folder>` checks the skill and puts it in VOOL's drafts; `skill.install` then turns on exactly that file. The build-and-test guide's commands work as written.
+- **The safety check is more precise.** VOOL's own Browse skills (such as the command explainer and the database helper) pass it, and every one is now tested. It now also refuses skills that claim you already agreed, fake a "(source: ...)" line, hide data in a link, ask for card numbers, PINs or passwords, say "disregard everything before", or carry a sign-in link or a web address dressed as VOOL's.
+- MCP skills are checked each time they load, and hidden comments in a skill never reach the model.
+- **"Which skills do I have?" says where each one came from:** made by you, built in, added from Browse, added from a file, or in your project folder.
+- A skill named in another alphabet (for example Cyrillic or Chinese) can be made and turned on; a lookalike of a built-in name is still refused.
+- A draft is tied to the exact text you were shown: if it changes before you turn it on, it is not turned on.
+- Plainer refusals for a skill that copies another one, names tools VOOL does not have, or comes in a zip with extra files. The import preview shows the skill's text as plain text, and pack names VOOL uses itself (such as `registry-...`) are refused.
 - A skill's name can no longer write text outside its own block in VOOL's instructions, and each skill's text is marked with where it came from.
 - VOOL's developer skills no longer join everyday requests because of words like "test" or "feature", and a built-in skill cannot be installed as a copy.
 

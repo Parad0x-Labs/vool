@@ -37,7 +37,7 @@ def test_a_skill_written_in_vool_turns_on_and_is_the_persons_own(tmp_path, monke
     from core import skill_tools
     from core.mode_permission_policy import PermissionAction, grant_internal_authority
     from core.runtime_execution_tools import execute_runtime_tool
-    from core.skill_origin import ORIGIN_CREATED_HERE, install_record
+    from core.skill_origin import ORIGIN_DRAFTED, install_record
 
     runtime(tmp_path, monkeypatch)
     token = grant_internal_authority(
@@ -59,7 +59,10 @@ def test_a_skill_written_in_vool_turns_on_and_is_the_persons_own(tmp_path, monke
     installed = skill_tools.plugins_root() / "plugins" / "local-skills" / "skills" / slug / "SKILL.md"
     assert installed.is_file()
     assert "numbered steps" in installed.read_text(encoding="utf-8")
-    assert install_record(installed)["origin"] == ORIGIN_CREATED_HERE
+    # A skill.create tool call is not proof the person wrote it (audit H1): it is recorded as a draft
+    # VOOL wrote, and with no approval card bound to these bytes its tools are not confirmed.
+    assert install_record(installed)["origin"] == ORIGIN_DRAFTED
+    assert not install_record(installed).get("tools_confirmed")
 
 
 def test_a_bundled_pack_still_loads_with_its_typed_header(monkeypatch):

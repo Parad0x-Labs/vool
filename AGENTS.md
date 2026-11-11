@@ -102,16 +102,19 @@ Many implementers may run at the same time. To keep them from colliding:
 ## Skills
 
 To write, lint, install and test a VOOL skill (SKILL.md format, `triggers`, the `vool-community`
-SDK, zip import, `skill.install path=<folder>`, and how picking works), follow
+SDK, zip import, the folder route, and how picking works), follow
 [docs/guides/build-and-test-a-skill.md](docs/guides/build-and-test-a-skill.md). Test a skill
 locally, with phrasings that must pick it and one that must not, before any publishing step.
 Start with `python -m tools.community_skills new <folder> --name <skill-name>` and check picking with
 `python -m tools.community_skills try <folder> --pick "..." --not-pick "..."`; `zip <folder>` writes
-the importable zip. The tool names a skill may put in `allowed-tools`, what Manual and Auto mode
+the importable zip. `skill.install` reads only VOOL's own skill folders: put a folder in first with
+`python -m tools.community_skills stage <folder>`, then call `skill.install` with `path=<short name>`
+(the guide's Route B shows both against a throwaway profile). The tool names a skill may put in `allowed-tools`, what Manual and Auto mode
 ask for, and every refusal a skill can hit are in
 [docs/guides/skill-tools-and-limits.md](docs/guides/skill-tools-and-limits.md). Try one tool call
 through the permission check with `python -m tools.community_skills call <tool> --args '{...}'`
-(never `execute_runtime_tool`, which returns None for most tools).
+(not `execute_runtime_tool`, which returns None for most tools; it is only for the skill tools,
+as in the guide's Route B).
 
 ## Fast local checks
 

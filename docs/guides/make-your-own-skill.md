@@ -97,7 +97,8 @@ Ask:
 
 > which skills do I have?
 
-VOOL lists them in groups: **Made by you**, **Built in**, **Added from Browse** and **Drafts
+VOOL lists them in groups: **Made by you**, **Built in**, **Added from Browse**, **Added from a
+file** (a zip you imported, or a file put in by hand), **In your project folder** and **Drafts
 not turned on yet** (the groups are planned for VOOL 0.7.8, not released yet). Each line says whether a skill is **on**, **off** or **not available
 here**, and what it is for. A skill made for one chat or project says so, for example
 "Shopping list by aisle, for this chat".

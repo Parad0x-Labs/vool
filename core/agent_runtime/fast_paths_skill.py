@@ -883,9 +883,8 @@ def _draft_with_model(
     if draft is None:
         return None, "the drafting model returned no usable skill" if str(raw or "").strip() else "no drafting model answered"
     if name:
-        from core.skill_tools import _slug
 
-        draft["name"] = _slug(name) or draft["name"]
+        draft["name"] = _draft_name(name) or draft["name"]
     author = ""
     log = list((source_context or {}).get("conductor_generation_authorship") or []) if isinstance(source_context, dict) else []
     for row in reversed(log):
@@ -893,6 +892,18 @@ def _draft_with_model(
             author = str(row.get("provider_id"))
             break
     return draft, author or "the turn's model"
+
+
+def _draft_name(name: str) -> str:
+    """The name a draft carries: the short name (``aisle-sorter``) for a name in Latin letters, the
+    person's own words for a name in another alphabet ("会議メモ"), whose short name is only the folder's
+    (core.skill_tools._slug, audit M6)."""
+    from core.skill_tools import _SLUG_RE, _slug, name_problem
+
+    text = " ".join(str(name or "").split())
+    if text and not _SLUG_RE.sub("-", text.lower()).strip("-") and not name_problem(text):
+        return text
+    return _slug(text)
 
 
 def _draft_from_words(request_text: str, name: str) -> dict[str, Any] | None:
@@ -903,10 +914,9 @@ def _draft_from_words(request_text: str, name: str) -> dict[str, Any] | None:
     the operator ever chose. None only when there is nothing at all to draft from.
     """
     from core.skill_scopes import strip_scope_words
-    from core.skill_tools import _slug
 
     purpose = _purpose_of(request_text)
-    final_name = _slug(name)
+    final_name = _draft_name(name)
     detail = purpose or strip_scope_words(request_text)
     if not final_name and not detail.strip():
         return None
@@ -1017,6 +1027,35 @@ def _check_code(sha256: str) -> str:
     return " ".join(digest[index:index + 4] for index in range(0, len(digest), 4))
 
 
+# Markdown that would make a header value or an instruction line look like part of the preview
+# itself: a bold "**Tools:**" or "**Check code:**" written into a description (audit L2).
+# Underscores stay as they are: inside a word ("read_only") Markdown never treats them as emphasis.
+_MARKDOWN_CHARS_RE = re.compile(r"([\\`*\[\]<>#|~])")
+_PREVIEW_LABEL_RE = re.compile(
+    r"^(\s*)(?:[*_]{1,3})\s*(When it applies|Trigger words|Tools|Other settings in the file|What it tells me to do|"
+    r"Check code)\s*:\s*(?:[*_]{1,3})", re.IGNORECASE)
+
+
+def _shown_plainly(value: str) -> str:
+    """A header value as text, never as formatting: every Markdown character is shown as itself."""
+    return _MARKDOWN_CHARS_RE.sub(r"\\\1", value)
+
+
+def _body_shown(body: str) -> str:
+    """The instructions word for word, except that a line dressed as one of this preview's own labels
+    ("**Check code:** ...") loses its bold, so the real check code is the only one in bold."""
+    return "\n".join(_PREVIEW_LABEL_RE.sub(lambda m: m.group(1) + m.group(2) + ":", line)
+                     for line in str(body or "").splitlines())
+
+
+#: Said under the check code of every import preview and on nothing else (audit L6).
+CHECK_CODE_NOTE = ("The approval card shows the same code, so you can see it is this exact version that "
+                   "is turned on.")
+#: VOOL's checks look for known tricks; they cannot prove a stranger's instructions are safe (audit M2).
+CHECK_LIMIT_NOTE = ("VOOL's safety check found nothing it refuses, but it looks for known tricks and cannot "
+                    "catch everything. Read the instructions above before you turn it on.")
+
+
 def _import_preview(markdown: str, sha256: str) -> str:
     """The whole imported skill in plain words: every header setting and every line of instructions.
 
@@ -1032,20 +1071,22 @@ def _import_preview(markdown: str, sha256: str) -> str:
     header, body = (parsed if parsed else ({}, markdown))
     triggers = header.get("triggers")
     tools = header.get("allowed-tools", header.get("allowed_tools"))
-    lines = [f"**When it applies:** {_setting_words(header.get('description') or '')}"]
+    lines = [f"**When it applies:** {_shown_plainly(_setting_words(header.get('description') or ''))}"]
     if triggers:
-        lines.append(f"**Trigger words:** {_setting_words(triggers)}")
-    tool_words = _setting_words(tools) if tools else ""
+        lines.append(f"**Trigger words:** {_shown_plainly(_setting_words(triggers))}")
+    tool_words = _shown_plainly(_setting_words(tools)) if tools else ""
     lines.append(
         f"**Tools:** This skill asks to use these tools: {tool_words}." if tool_words
         else "**Tools:** This skill does not ask to use any tools."
     )
     others = [f"{key}: {_setting_words(value)}" for key, value in header.items() if str(key) not in _SHOWN_KEYS]
     if others:
-        lines.append("**Other settings in the file:** " + "; ".join(others))
+        lines.append("**Other settings in the file:** " + _shown_plainly("; ".join(others)))
+    # The check code comes before the instructions, so the first one on screen is the real one.
+    lines.append(f"**Check code:** {_check_code(sha256)}. {CHECK_CODE_NOTE}")
     lines.append("**What it tells me to do:**")
-    lines.append(str(body or "").strip())
-    lines.append(f"**Check code:** {_check_code(sha256)}")
+    lines.append(_body_shown(str(body or "").strip()))
+    lines.append(CHECK_LIMIT_NOTE)
     return "\n".join(lines)
 
 
@@ -1231,10 +1272,10 @@ def _answer_pending_skill_name(
             "restriction is lifted.",
             reason="skill_create_action_forbidden",
         )
-    draft = _draft_from_words(str(pending.get("request") or ""), slug)
+    draft = _draft_from_words(str(pending.get("request") or ""), answer)
     if draft is None or not draft.get("name"):
         draft = dict(pending.get("draft") or {})
-        draft["name"] = slug
+        draft["name"] = _draft_name(answer) or slug
     scope = str(pending.get("scope") or "global")
     author = str(pending.get("author") or "from your own words")
     problem = _draft_refusal(draft)
@@ -1407,6 +1448,29 @@ def _create_arguments(draft: dict[str, Any], scope: str) -> dict[str, Any]:
     return arguments
 
 
+def _note_persons_own(result: Any, *, edited_from: str = "", editing: bool = False) -> None:
+    """The draft ``skill.create`` just wrote answers the person's own message in this chat: record it
+    as theirs (core.skill_origin.note_created_here).
+
+    This lane is the only place that does: it runs on the person's message ("make me a skill that
+    ..."), never on a model's tool call, so a skill a model drafts from a web page, an email or
+    someone else's skill is not recorded as the person's (audit H1). A revision of a skill that was
+    not theirs to begin with (an import, a model's draft) stays not theirs.
+    """
+    details = dict(getattr(result, "details", {}) or {})
+    digest = str(details.get("sha256") or "")
+    if not digest:
+        return
+    try:
+        from core.skill_origin import created_here_digest, note_created_here
+
+        if editing and edited_from and not created_here_digest(edited_from):
+            return
+        note_created_here(digest, slug=str(details.get("slug") or ""))
+    except Exception:  # no record reads as not the person's own (fails closed)
+        return
+
+
 def _drafted_reply(
     draft: dict[str, Any],
     scope: str,
@@ -1418,6 +1482,7 @@ def _drafted_reply(
     plain: Any,
 ) -> dict[str, Any]:
     """The success reply of a draft the operator just saw created, with its turn-on tail."""
+    _note_persons_own(result)
     details = dict(getattr(result, "details", {}) or {})
     existing = _active_digest(str(details.get("slug") or draft["name"]), scope, _turn_keys(source_context, session_id))
     _remember_pending(
@@ -1846,7 +1911,10 @@ def maybe_handle_skill_request(
                         "It is not on yet: say turn it on."
                     )
             else:
-                problems = "; ".join(str(p) for p in details.get("problems") or []) or str(getattr(result, "response_text", "") or "")
+                from core.skill_tools import plain_problem
+
+                problems = " ".join(plain_problem(str(p)) for p in details.get("problems") or []) or str(
+                    getattr(result, "response_text", "") or "")
                 replies.append(f"I did not import `{label}`: {problems}")
         return plain("\n\n".join(replies), reason="skill_import", execution=last)
 
@@ -2138,6 +2206,7 @@ def _create_or_edit(
     name = str(request.get("name") or "")
     scope = str(request.get("scope") or "")
     current = ""
+    current_digest = ""
     keys = _turn_keys(source_context, session_id)
     if action == "edit":
         from core.skill_tools import resolve_skill_markdown
@@ -2147,6 +2216,7 @@ def _create_or_edit(
             scope = scope or _scope_of_path(resolved, keys)
             try:
                 current = resolved.read_text(encoding="utf-8")
+                current_digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
             except (OSError, UnicodeDecodeError):
                 current = ""
     scope = scope or "global"
@@ -2219,6 +2289,7 @@ def _create_or_edit(
         )
     if refused(result) or status != "ok":
         return plain(str(getattr(result, "response_text", "") or ""), reason=f"skill_{action}", execution=result)
+    _note_persons_own(result, edited_from=current_digest, editing=action == "edit")
     details = dict(getattr(result, "details", {}) or {})
     existing = _active_digest(str(details.get("slug") or draft["name"]), scope, keys)
     _remember_pending(

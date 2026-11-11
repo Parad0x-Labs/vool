@@ -92,7 +92,9 @@ def test_install_refuses_identity_collision(tmp_path, monkeypatch):
     second = _install(tmp_path, monkeypatch, "weather-relay", renamed)
     assert second.get("status") == "refused", second
     assert second.get("collision_with") == "weather-brief"
-    assert "identity collision" in second.get("reason", "")
+    # The reason is for a person (audit L1); the exact check stays in problems.
+    assert 'same instructions as your skill "Weather brief"' in second.get("reason", "")
+    assert any("identity collision" in item for item in second.get("problems", ()))
 
 
 def test_a_copy_repackaged_with_a_hidden_comment_is_refused_before_it_can_collide(tmp_path, monkeypatch):
