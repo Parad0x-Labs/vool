@@ -2003,7 +2003,7 @@ _UNANSWERED_BROWSER_RESPONSES = {
     "refused": "You said no to opening {url} in the browser, so I did not open it on this turn.",
     "stale_approval": (
         "I asked to open {url} in the browser, but the request was not approved within two minutes, "
-        "so I did not open it on this turn. Ask again and press Allow on the card that appears in this chat."
+        "so I did not open it on this turn. Ask again and press Approve once on the card that appears in this chat."
     ),
     "paused": (
         "You took over the browser before {url} opened, so I did not open it on this turn. "
@@ -2034,6 +2034,12 @@ def _unanswered_browser_step() -> dict[str, str] | None:
 def _unanswered_browser_response(step: dict[str, str]) -> str:
     template = _UNANSWERED_BROWSER_RESPONSES.get(step.get("status", ""), _UNANSWERED_BROWSER_FALLBACK)
     return template.format(url=step["url"])
+
+
+def unanswered_browser_reply() -> str:
+    """This turn's true reply when the browser step the model asked for never ran, else ""."""
+    step = _unanswered_browser_step()
+    return _unanswered_browser_response(step) if step else ""
 
 
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:

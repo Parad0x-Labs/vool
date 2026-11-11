@@ -6797,9 +6797,9 @@ function ledgerSameText(a, b) {
 function humanToolTitle(e, eventType, map) {
   const tool = String(e.tool_name || '').trim();
   const category = activityCategoryFor(tool)[0];
-  const active = { tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
-  const finished = { tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
-  const failed = { tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
+  const active = { browser: pageT('activity.tool.active.browser', 'Using the browser'), tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
+  const finished = { browser: pageT('activity.tool.finished.browser', 'Browser step done'), tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
+  const failed = { browser: pageT('activity.tool.failed.browser', 'Browser step did not run'), tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
   if (eventType === 'tool_selected') return active[category] || pageT('activity.tool.active.running', 'Running');
   if (eventType === 'tool_failed') return failed[category] || pageT('activity.tool.failed.tools', 'Tool failed');
   if (eventType === 'tool_executed') return finished[category] || pageT('activity.tool.finished.tools', 'Tool finished');
@@ -6939,6 +6939,8 @@ function runExecutionTruth(run) {
 // calls"), not "Files changed". "Files changed" is built separately, from canonical mutation
 // receipts, in the `changes` category below.
 const ACTIVITY_CATEGORY_RULES = [
+  // Before "searches": vool-browser.* names contain "browse" but are browser steps, not searches.
+  [['vool-browser'], 'browser', 'Browser'],
   [['search', 'research', 'web', 'lookup', 'browse', 'find', 'grep', 'index'], 'searches', 'Searches'],
   [['read', 'fetch', 'open', 'inspect', 'view', 'cat', 'load'], 'reads', 'Files read'],
   [['edit', 'write', 'patch', 'apply', 'create_file', 'modify', 'format'], 'edits', 'Edit tool calls'],

@@ -35,7 +35,7 @@ def grounded_twice(user_input: str) -> dict:
 
 
 @pytest.mark.parametrize('status,needles', [
-    ('stale_approval', ['not approved within two minutes', 'press Allow on the card that appears in this chat']),
+    ('stale_approval', ['not approved within two minutes', 'press Approve once on the card that appears in this chat']),
     ('operation_timeout', ['not approved within two minutes']),
     ('refused', ['You said no']),
     ('paused', ['You took over the browser']),
@@ -130,3 +130,27 @@ def test_a_refusal_in_the_pane_reaches_the_reply(world):
         outcome, step, out = future.result(timeout=20)
     assert not outcome.ok and step['status'] == 'refused'
     assert out['response'].startswith('You said no to opening ' + origin + '/') and requests == []
+
+
+def test_the_failed_action_message_names_the_unanswered_browser_step():
+    """The runtime's own failed-action text (what the activity row shows) says what happened too."""
+    from types import SimpleNamespace
+
+    from core.agent_runtime.hive_topic_facade import HiveTopicFacadeMixin
+    from core.vool_browser.live_requests import note_unanswered, turn_scope
+
+    class Agent(HiveTopicFacadeMixin):
+        def _session_hive_state(self, session_id):
+            return {"pending_topic_ids": ["topic-9"]}
+
+        def _interaction_pending_topic_ids(self, state):
+            return []
+
+    execution = SimpleNamespace(user_safe_response_text='', status='failed')
+    with turn_scope(ASK, 'reply-test'):
+        note_unanswered('navigate', URL, 'refused')
+        text = Agent()._tool_failure_user_message(execution=execution, effective_input=ASK, session_id='s1')
+    assert text == f'You said no to opening {URL} in the browser, so I did not open it on this turn.'
+    # Without a browser step nothing changes: the generic text and the Hive offer stay as they were.
+    text = Agent()._tool_failure_user_message(execution=execution, effective_input=ASK, session_id='s1')
+    assert text.startswith("I wasn't able to turn that into a completed action") and 'Hive' in text

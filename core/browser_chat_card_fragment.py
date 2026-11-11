@@ -43,6 +43,7 @@ _CSS = """
 .vbc-link{background:none;border:0;padding:0;color:var(--accent,#c3b8a8);font:inherit;font-size:12.5px;cursor:pointer;margin-inline-start:auto}
 .vbc-link:hover{text-decoration:underline}
 .vbc-shot{display:block;margin-top:10px;width:100%;max-width:360px;border-radius:8px;border:1px solid var(--border,#39393f);cursor:pointer}
+.vbc-shot[hidden]{display:none}
 """
 
 _JS = r"""
@@ -138,7 +139,17 @@ function place(rec){
   var body = el('span', 'msg-text');
   body.appendChild(rec.card || build(rec));
   bubble.appendChild(body);
-  host.appendChild(bubble);
+  // The card belongs right under the message that asked for it, above the reply it leads to,
+  // and stays there when the log is rebuilt after the turn ends.
+  var asks = host.querySelectorAll('.msg.user');
+  if (rec.userIndex == null) rec.userIndex = asks.length - 1;
+  var anchor = rec.userIndex >= 0 ? asks[rec.userIndex] : null;
+  if (anchor) {
+    while (anchor.nextElementSibling && anchor.nextElementSibling.classList.contains('vbc-msg')) anchor = anchor.nextElementSibling;
+    anchor.insertAdjacentElement('afterend', bubble);
+  } else {
+    host.appendChild(bubble);
+  }
   rec.bubble = bubble;
   try { bubble.scrollIntoView({block: 'nearest'}); } catch (e) {}
 }
@@ -202,11 +213,11 @@ window.VoolBrowserCard = Object.freeze({
     if (!settling(chatId) && !(await checkAvailable())) return;
     poll(chatId, false);
   },
-  /** Called after the chat log is rebuilt: put back any card still waiting for an answer. */
+  /** Called after the chat log is rebuilt: put this chat's cards back where they belong. */
   repaint: function(chatId){
     Object.keys(records).forEach(function(id){
       var rec = records[id];
-      if (rec.chatId === String(chatId || '') && rec.state === 'waiting') { rec.bubble = null; place(rec); }
+      if (rec.chatId === String(chatId || '')) place(rec);
     });
     if (settling(String(chatId || ''))) poll(String(chatId || ''), true);
   }

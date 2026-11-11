@@ -27,7 +27,7 @@ PNG = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000000'
                     '1f15c4890000000d49444154789c6360f8cf00000301010018dd8db00000000049454e44ae426082')
 ASSETS = {
     '/s.css': ('text/css', b'body{background:#fff url(/bg.png)}@font-face{font-family:board;src:url(/f.woff2)}h1{font-family:board,serif;color:#123456}'
-                         b'a:hover{background:url(/hover.png)}#end:target{background:url(/target.png)}'),
+                         b'a{display:inline-block;width:333px}a:hover{background:url(/hover.png)}#end:target{background:url(/target.png)}'),
     '/p.png': ('image/png', PNG), '/bg.png': ('image/png', PNG), '/hover.png': ('image/png', PNG), '/target.png': ('image/png', PNG), '/svg-inner.png': ('image/png', PNG),
     '/o.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg"/>'), '/f.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg"/>'),
     '/v.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><image href="/svg-inner.png" width="8" height="8"/>'
@@ -72,7 +72,8 @@ def world(pact_rig, request):
                 self.send_response(302); self.send_header('Location', 'http://169.254.169.254/latest.png'); self.send_header('Content-Length', '0'); self.end_headers(); return
             if asset is not None:
                 kind, body = asset
-                self.send_response(200); self.send_header('Content-Type', kind); self.send_header('Content-Length', str(len(body))); self.end_headers()
+                # Lower-case header names, as HTTP/2 sites send them.
+                self.send_response(200); self.send_header('content-type', kind); self.send_header('content-length', str(len(body))); self.end_headers()
                 try: self.wfile.write(body)
                 except (BrokenPipeError, ConnectionResetError): pass
                 return
