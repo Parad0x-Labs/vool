@@ -45,6 +45,8 @@ ASSET_TYPES = {
     "font": ("font/woff2", "font/woff", "font/ttf", "font/otf", "application/font-woff", "application/font-woff2", "application/x-font-woff"),
 }
 ASSET_REQUESTS = 80
+#: Redirect hops an owner's own step follows; a step VOOL asked for still stops at the first one.
+OWNER_REDIRECTS = 5
 ASSET_BYTES = 12_000_000
 TIMEOUT = 8
 ENGINE_START_TIMEOUT = 60
@@ -260,6 +262,14 @@ def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     if not answers or (any(not ipaddress.ip_address(a).is_global or ipaddress.ip_address(a).is_multicast for a in answers) and not fixture):
         raise BrowserFault("destination_refused")
     return answers
+
+
+def _same_url(a: str, b: str) -> bool:
+    """One address, as Chromium and the gate each spell it (fragment and bare-host slash aside)."""
+    def norm(value: str) -> tuple:
+        parts = urlsplit(str(value or "").split("#", 1)[0])
+        return (parts.scheme.lower(), parts.netloc.lower(), parts.path or "/", parts.query)
+    return norm(a) == norm(b)
 
 
 def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_origin: str, stopped: tuple[threading.Event, threading.Event], source_context: dict, download: bool, telemetry=None, asset: tuple[str, ...] = ()) -> tuple[int, dict, bytes]:
@@ -601,7 +611,7 @@ class LiveSession:
                     and urlsplit(request.url).scheme in {"http", "https"}):
                 await self._route_asset(route, request, assets)
                 return
-            if self.closed or not permit or request.url != permit["url"] or request.method != permit["method"] or permit["used"]:
+            if self.closed or not permit or not _same_url(request.url, permit["url"]) or request.method != permit["method"] or permit["used"]:
                 if (not self.closed and request.method == "GET" and request.is_navigation_request()
                         and self._page is not None and request.frame == self._page.main_frame
                         and urlsplit(request.url).scheme in {"http", "https"}):
@@ -626,9 +636,25 @@ class LiveSession:
             await self._accept_cookies(request.url, headers.get("_cookies", []))
             low = {k.lower(): v for k, v in headers.items()}
             if 300 <= status < 400:
+                target = urljoin(request.url, low.get("location", ""))
+                if (permit.get("follow", 0) > 0 and status in {301, 302, 303, 307, 308}
+                        and urlsplit(target).scheme in {"http", "https"}
+                        and (request.method == "GET" or status in {301, 302, 303})):
+                    # The owner's own step (an address they typed, a link they clicked, a form they
+                    # approved) goes where the site sends it, one hop at a time, each hop through
+                    # the same gate: GET, pinned public address, no private or local target.
+                    permit["next"] = target
+                    # "No content" ends this navigation without an error page; the step then
+                    # opens the next hop itself (see _navigating).
+                    await route.fulfill(status=204, body=b"")
+                    return
                 self._blocked = "redirect_refused"
-                self.result = {"redirect": Untrusted.wrap(urljoin(request.url, low.get("location", "")), url=request.url, origin="")}
-                await route.abort()
+                self.result = {"redirect": Untrusted.wrap(target, url=request.url, origin="")}
+                if request.is_navigation_request() and self._page is not None and request.frame == self._page.main_frame:
+                    # Keep the page that was on screen instead of an error page; the pane offers the address.
+                    await route.fulfill(status=204, body=b"")
+                else:
+                    await route.abort()
                 return
             # No remote scripts, frames, forms that target another browsing context,
             # refresh navigation or subresources can escape the request gate.
@@ -906,6 +932,36 @@ class LiveSession:
                 self.state = "page_failed"
                 self._complete(proposal["id"], {"ok": False, "status": "page_failed", **self.result})
 
+    async def _submit_and_wait(self, action) -> None:
+        async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
+            await action
+
+    async def _navigating(self, step) -> None:
+        """Run one navigating step; an owner's step then follows the site's redirects.
+
+        The gate refuses each redirect response and names its target ("next" on the permit) when
+        the permit allows following. Each hop is then a fresh, gated navigation: GET, pinned public
+        address, the same private and local address refusal. A step VOOL asked for has no hops.
+        """
+        try:
+            await step
+        except Exception:
+            if not (self._permit and self._permit.get("next")):
+                raise
+        while self._permit and self._permit.get("next") and not self.closed:
+            permit = self._permit
+            target = permit.pop("next")
+            if permit.get("follow", 0) <= 0:
+                self._blocked = "redirect_refused"
+                self.result["redirect"] = Untrusted.wrap(target, url=self.url or target, origin="")
+                return
+            permit.update(url=target.split("#")[0], method="GET", used=False, follow=permit["follow"] - 1, fields=None)
+            try:
+                await self._page.goto(target, wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
+            except Exception:
+                if not permit.get("next"):
+                    raise
+
     async def _execute(self, proposal: dict) -> None:
         self._execution_task = asyncio.current_task()
         observe = True
@@ -944,8 +1000,9 @@ class LiveSession:
                     self._download = ("download.bin", raw)
             elif op == "navigate":
                 self._url_from_form = False
-                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
-                await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
+                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"),
+                                "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                await self._navigating(self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000))
             elif op in {"click", "type", "upload"}:
                 # Only an action that leaves the page decides whether the next address was built by a form;
                 # a fill on the result page keeps the address it was given.
@@ -968,13 +1025,13 @@ class LiveSession:
                     if proposal.get("actor") == "owner":
                         self._owner_filled.add(self._field_key(args))
                     if args.get("submit"):
-                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
-                        async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
-                            await node.press("Enter")
+                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review"),
+                                        "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                        await self._navigating(self._submit_and_wait(node.press("Enter")))
                 elif args.get("navigates"):
-                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
-                    async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
-                        await node.click()
+                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review"),
+                                    "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                    await self._navigating(self._submit_and_wait(node.click()))
                 else:
                     # A control that does not navigate (a checkbox, a plain button) is
                     # allowed no request at all.

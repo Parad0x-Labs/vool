@@ -79,6 +79,10 @@ def world(pact_rig, request):
                 return
             if path == '/hang':
                 time.sleep(10)
+            if path == '/redirect-private':
+                self.send_response(302); self.send_header('Location', 'http://169.254.169.254/latest/meta-data/'); self.send_header('Content-Length', '0'); self.end_headers(); return
+            if path == '/redirect-loop':
+                self.send_response(302); self.send_header('Location', '/redirect-loop?n=' + str(len(requests))); self.send_header('Content-Length', '0'); self.end_headers(); return
             if path in {'/redirect', '/redirect-cookie'}:
                 self.send_response(302); self.send_header('Location', '/secret' if path=='/redirect' else '/cookie-result'); self.send_header('Set-Cookie','login=verified; Path=/; HttpOnly'); self.end_headers(); return
             if path == '/huge':
@@ -104,7 +108,7 @@ def world(pact_rig, request):
                 kind=parse_qs(urlsplit(self.path).query).get('kind',['card'])[0]
                 field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>','iban':'<input name="recipient_iban"><input name="note">','amount_only':'<input name="amount"><input name="note">','ccnum':'<input name="ccnum">','camel':'<input name="recipientIban"><input name="paymentAmount">'}[kind]
                 content=('<form method="post" action="/review-submit">'+field+'<button type="submit">Send</button></form>').encode()
-            if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a>'
+            if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a> <a href="/redirect">Moved timetable</a>'
             if path == '/refresh':
                 # A page that tries to move on by itself: a meta refresh and a script.
                 content=b'<meta http-equiv="refresh" content="0;url=/other"><h1>Departures board</h1><script>location.href="/other"</script>'
@@ -253,12 +257,35 @@ def test_links_takeover_scroll_stop_and_policy_veto(world):
     assert requests==before
 
 
+def finish_agent(world,op,args):
+    """A step VOOL proposed, answered with Allow through the owner door."""
+    rig,item,origin,requests=world
+    token=item.propose(op,args,actor='agent')['proposal']['id']
+    status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True});assert status==200,data
+    deadline=time.monotonic()+20
+    while item.state=='running' and time.monotonic()<deadline: time.sleep(.05)
+    assert item.state!='running'
+    return item.snapshot()
+
+
 def test_hanging_huge_redirect_private_destinations_and_stop(world):
     rig,item,origin,requests=world
-    for suffix,state in [('/huge','page_too_large'),('/redirect','redirect_refused')]:
-        snap=finish(world,'navigate',{'url':origin+suffix})
-        assert snap['state']==state,snap
+    snap=finish(world,'navigate',{'url':origin+'/huge'})
+    assert snap['state']=='page_too_large',snap
+    # A page VOOL asked to open stops at its first redirect: Allow covered that address only.
+    snap=finish_agent(world,'navigate',{'url':origin+'/redirect'})
+    assert snap['state']=='redirect_refused' and snap['result']['redirect']['text']==origin+'/secret',snap
     assert ('GET','/secret') not in requests
+    # The owner's own typed address follows the site's redirect, through the same gate...
+    snap=finish(world,'navigate',{'url':origin+'/redirect'})
+    # (/secret serves the timetable page, so its own picture request follows it.)
+    assert snap['state']=='ready' and snap['url']==origin+'/secret' and requests[-3:]==[('GET','/redirect'),('GET','/secret'),('GET','/secret')],(snap,requests)
+    # ...but never to a private or local address, and never in an endless loop.
+    snap=finish(world,'navigate',{'url':origin+'/redirect-private'})
+    assert snap['state']=='destination_refused' and requests[-1]==('GET','/redirect-private'),snap
+    before=len(requests)
+    snap=finish(world,'navigate',{'url':origin+'/redirect-loop'})
+    assert snap['state']=='redirect_refused' and len(requests)-before==6,(snap,requests[before:])
     snap=finish(world,'navigate',{'url':'http://127.0.0.1:1/admin'})
     assert snap['state']=='destination_refused',snap
     before=list(requests)
@@ -473,11 +500,14 @@ def test_get_form_select_compression_redirect_cookie_and_expiry(world):
     assert '06:05' in snap['result']['page']['text'],snap
     snap=finish(world,'navigate',{'url':origin+'/bomb'})
     assert snap['state']=='page_too_large',snap
-    snap=finish(world,'navigate',{'url':origin+'/redirect-cookie'})
+    snap=finish_agent(world,'navigate',{'url':origin+'/redirect-cookie'})
     assert snap['state']=='redirect_refused' and not any(r[1]=='/cookie-result' for r in requests)
     assert snap['result']['redirect']['authority']=='none'
     snap=finish(world,'navigate',{'url':snap['result']['redirect']['text']})
     assert 'login=verified' in snap['result']['page']['text'],snap
+    # The owner's own step follows the same redirect and carries the cookie it set.
+    snap=finish(world,'navigate',{'url':origin+'/redirect-cookie'})
+    assert snap['state']=='ready' and 'login=verified' in snap['result']['page']['text'],snap
     token=propose(world,'navigate',{'url':origin+'/'})
     item.pending['expires']=0
     before=list(requests)
