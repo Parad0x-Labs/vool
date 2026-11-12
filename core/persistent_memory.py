@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -159,6 +160,7 @@ __all__ = [
     "summarize_memory",
     "transcript_commit_boundary_open",
     "user_heuristics_path",
+    "whole_memory_erase_request",
 ]
 
 _REMEMBER_RE = re.compile(r"^(?:remember(?: that)?|note(?: that)?|store(?: this)?)\s+(.+)$", re.IGNORECASE)
@@ -316,6 +318,40 @@ _FORGET_TOLD_YOU_ABOUT_RE = re.compile(
     r"(?:told\s+you|said(?:\s+to\s+you)?|shared(?:\s+with\s+you)?|gave\s+you)\s+about\s+(?=\S)",
     re.IGNORECASE,
 )
+#: A request to erase everything VOOL keeps about the person, as the whole message: "forget everything (you know about
+#: me)", "erase everything", "forget everything I told you", "erase my memory", "delete all my data", "wipe your
+#: memory". Never a one-item forget: taken as one (measured 2026-11-12, to-do thread), "forget everything you know about
+#: me" erased whichever saved entry carried those words, or none, and recorded the words in the forget list. "delete"
+#: and "clear" name memory only with a memory word ("everything you know", "my memory", "my data"): a bare "delete
+#: everything" can be about files. "Forget my profile" stays the profile's own forget; "everything I told you about
+#: <topic>" stays a topic forget.
+_WHOLE_ERASE_KNOWN = (
+    r"(?:\s+(?:that\s+)?(?:you\s+(?:know|remember|keep|saved|stored|remembered|learned|learnt)|you(?:"
+    + _FORGET_APOSTROPHE + r"ve|\s+have)(?:\s+(?:saved|stored|remembered|learned|learnt|on\s+me))?|i(?:" + _FORGET_APOSTROPHE + r"ve|\s+have)?\s+(?:told\s+you|said(?:\s+to\s+you)?|"
+    r"shared(?:\s+with\s+you)?|gave\s+you)))"
+)
+_WHOLE_ERASE_RE = re.compile(
+    r"^(?:(?:please|ok(?:ay)?|so|now|just)[\s,]+)*"
+    r"(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?|i\s+(?:want|need)\s+you\s+to\s+|you\s+can\s+)?"
+    r"(?:"
+    r"(?:forget|erase|wipe)\s+(?:absolutely\s+)?(?:everything|all|it\s+all|all\s+of\s+it)" + _WHOLE_ERASE_KNOWN + r"?"
+    r"(?:\s+about\s+me)?"
+    r"|(?:delete|clear|remove|reset)\s+(?:absolutely\s+)?(?:everything|all)"
+    r"(?:" + _WHOLE_ERASE_KNOWN + r"(?:\s+about\s+me)?|\s+about\s+me)"
+    r"|(?:forget|erase|wipe|delete|clear|remove|reset)\s+(?:all\s+(?:of\s+)?)?(?:my|your|the)\s+(?:whole\s+|entire\s+)?"
+    r"(?:memory|memories|saved\s+memories|data|personal\s+data)(?:\s+(?:about|of|on)\s+me)?"
+    r")"
+    r"(?:[\s,]+(?:please|now|completely|for\s+good))*[\s.!?]*$",
+    re.IGNORECASE,
+)
+
+
+def whole_memory_erase_request(user_text: str) -> bool:
+    """Whether the whole message asks VOOL to erase everything it keeps about the person (pure)."""
+    text = " ".join(str(user_text or "").replace("\u2019", "'").split())
+    return bool(text) and _WHOLE_ERASE_RE.match(text) is not None
+
+
 _REFERENTIAL_FORGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:(?:[a-z0-9][a-z0-9_-]*\s+){0,4})?"
@@ -809,6 +845,8 @@ def memory_command_owns_turn(user_text: str) -> bool:
     text = str(user_text or "").strip()
     if not text:
         return False
+    if whole_memory_erase_request(text):
+        return True
     for sentence in _SENTENCE_SPLIT_RE.split(text):
         clause = _FORGET_ORDER_LEAD_IN_RE.sub("", sentence.strip(), count=1)
         if clause and _FORGET_RE.match(clause):
@@ -2501,6 +2539,7 @@ def maybe_handle_memory_command(
         or _memory_capture_match(text)
         or _CORRECTION_RE.match(text)
         or _FORGET_RE.match(text)
+        or whole_memory_erase_request(text)
         or _is_memory_recall_question(text)
     ):
         return False, ""
@@ -2546,6 +2585,28 @@ def maybe_handle_memory_command(
     independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
     forget_arguments = _forget_command_arguments(text)
+    whole_erase = whole_memory_erase_request(text)
+    profile_report = ""
+    if whole_erase:
+        from core.request_trust import turn_speaks_for_owner
+
+        if turn_speaks_for_owner(source_context, str(session_id or "")):
+            # Everything this chat can see in saved memory, each erased exactly as "Forget <it>" would be: the same
+            # stores, the same verification and the same forget list. The profile goes too, as its own forget-all.
+            try:
+                whole_policy = memory_entries.resolve_memory_access_policy(access_policy=access_policy,
+                                                                           chat_id=session_id)
+            except (TypeError, ValueError):
+                return True, "I need an active chat before I can access memory."
+            forget_arguments = list(dict.fromkeys(
+                _whole_erase_saved_texts(whole_policy) + _whole_erase_learned_lines(source_context)))
+            profile_report = _whole_erase_profile_report(text, session_id=session_id, source_context=source_context)
+            if not forget_arguments:
+                return True, _record_whole_erase(
+                    _whole_erase_reply("", "no_match", profile_report), user_text=user_text,
+                    session=whole_policy.chat_id, source_context=source_context, argument=text, status="no_match",
+                    stores={})
+        parsed_forget = re.match(r"(?s)(.+)", text)
     if parsed_forget:
         from core.request_trust import turn_speaks_for_owner
 
@@ -3101,6 +3162,10 @@ def maybe_handle_memory_command(
                     argument=argument, status=status, stores=erasures.get("stores", {}),
                 )
             reply, status, erasures = _combined_forget_result(results)
+        if whole_erase:
+            return True, _record_whole_erase(
+                _whole_erase_reply(reply, status, profile_report), user_text=user_text, session=resolved_session,
+                source_context=source_context, argument=text, status=status, stores=erasures.get("stores", {}))
         return True, _forget_outcomes.record(
             reply, request=user_text, session=resolved_session,
             source_context=source_context, argument=parsed_forget.group(1), status=status,
@@ -3108,6 +3173,110 @@ def maybe_handle_memory_command(
         )
 
     return False, ""
+
+
+def _whole_erase_saved_texts(policy: Any) -> list[str]:
+    """Every saved entry this chat may name, read the way a forget reads its candidates.
+
+    Not through the serving gate: "erase everything" is also a forget of "everything", whose admission the runtime
+    opens before the lanes run, and while it is open the serving gate withholds every row (measured: the erase then
+    found nothing to erase). These texts are only forget targets; nothing here is served."""
+    from core.memory.files import _load_jsonl, memory_entries_path
+
+    texts = []
+    for row in _load_jsonl(memory_entries_path()):
+        text = " ".join(str(row.get("text") or "").split())
+        if text and memory_entries._memory_command_row_allowed(row, access_policy=policy):
+            texts.append(text)
+    return texts
+
+
+def _whole_erase_learned_lines(source_context: dict[str, Any] | None) -> list[str]:
+    """What VOOL learned about the person from chats (the fact extractor's memory blocks), one line per fact.
+
+    Read as the forget engine reads blocks (not through the serving gate, which withholds every block while the
+    turn's forget admission is open); these lines are only forget targets."""
+    from core.fact_extractor import ALLOWED_BLOCKS
+
+    lines: list[str] = []
+    try:
+        from core.context_retrieval import _open_memory_for_runtime
+
+        store = _open_memory_for_runtime(str((source_context or {}).get("runtime_home") or "").strip() or None)
+    except Exception as exc:
+        LOGGER.warning("learned memory could not be read for a whole erase: %s", type(exc).__name__)
+        return lines
+    if store is None:
+        return lines
+    try:
+        with store._lock:
+            rows = store._conn.execute(
+                "SELECT block_name, content FROM memory_blocks WHERE agent_id = ? ORDER BY block_name",
+                (store.agent_id,)).fetchall()
+        for block, content in rows:
+            if str(block) in ALLOWED_BLOCKS:
+                lines.extend(" ".join(line.split()).lstrip("-* ").strip() for line in str(content or "").splitlines())
+    except Exception as exc:
+        LOGGER.warning("learned memory blocks could not be read for a whole erase: %s", type(exc).__name__)
+    finally:
+        with contextlib.suppress(Exception):
+            store.close()
+    return [line for line in lines if line]
+
+
+_WHOLE_ERASE_PROFILE_EMPTY = "Nothing saved for anything, so there is nothing to forget."
+_WHOLE_ERASE_KEPT = ("Your chats and files are kept, and each chat still has its own record of what was said there; "
+                     "delete a chat to erase it.")
+
+
+def _whole_erase_profile_report(text: str, *, session_id: Any, source_context: dict[str, Any] | None) -> str:
+    """The profile's own forget-all for a whole erase (name, language, preferences), as its report; "" when empty."""
+    try:
+        from core import operator_profile as profile
+        from core.operator_profile_interpretation import ProfileProposal
+        from core.operator_profile_turn import _forget as forget_profile
+
+        principal = profile.principal_for_request(source_context)
+        if not principal:
+            return ""
+        change = forget_profile(ProfileProposal("*", "", "explicit", action="forget", clause=text[:120]),
+                                principal=principal, session_id=str(session_id or ""))
+        report = str(change.report or "").strip()
+        # An empty profile says so in its own words; a whole erase reply says it once, below.
+        return report.removeprefix(_WHOLE_ERASE_PROFILE_EMPTY).strip()
+    except Exception as exc:
+        LOGGER.warning("profile forget for a whole erase failed: %s", type(exc).__name__)
+        return "Your profile could not be cleared; say \"forget everything you know about me\" again to retry."
+
+
+def _record_whole_erase(reply: str, *, user_text: str, session: str, source_context: dict[str, Any] | None,
+                        argument: str, status: str, stores: dict[str, Any]) -> Any:
+    """Record a whole erase as the turn's forget outcome, once per forget operand the request names.
+
+    "erase everything" also reads as a forget of "everything", and the turn's forget admission (opened before the
+    lanes run) waits for an outcome under that operand: recorded only under the whole sentence, the admission stayed
+    open and every later memory read in the home was withheld (measured in the real app, 2026-11-12)."""
+    from core.memory.command_result import forget_demand_targets
+
+    operands = sorted(forget_demand_targets(user_text)) or [argument]
+    for operand in operands[:-1]:
+        _forget_outcomes.record(reply, request=user_text, session=session, source_context=source_context,
+                                argument=operand, status=status, stores=stores)
+    return _forget_outcomes.record(reply, request=user_text, session=session, source_context=source_context,
+                                   argument=operands[-1], status=status, stores=stores)
+
+
+def _whole_erase_reply(memory_reply: str, status: str, profile_report: str) -> str:
+    """One reply for a whole erase: what saved memory lost, what the profile lost, and what is kept."""
+    if status == "no_match" and not memory_reply:
+        lead = "There was nothing saved in memory to erase."
+    else:
+        lead = memory_reply.strip()
+    parts = [lead]
+    if profile_report:
+        parts.append(profile_report)
+    parts.append(_WHOLE_ERASE_KEPT)
+    return " ".join(part for part in parts if part)
 
 
 def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
