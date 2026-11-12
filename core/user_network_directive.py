@@ -48,7 +48,9 @@ _MARKER = (
 #
 # Bare `data` and bare `net` are deliberately absent. "I have no data on that" means "no
 # information" far more often than "no connection", and "no net profit" is not a network
-# statement at all. The unambiguous senses are kept as `live data`, `real-time data`.
+# statement at all. The unambiguous senses are kept as `live data`, `real-time data`. A live price
+# or quote is one family of live data, not the network: "skip live prices and market news" leaves
+# the web open the way "don't look up market prices" does.
 # `cite` alone is absent too: "don't cite me on this" asks not to be quoted. It counts only when it
 # governs an actual source, which is how the retrieval sense is always written.
 _NET_TERM = (
@@ -59,7 +61,7 @@ _NET_TERM = (
     r"fetch(?:es|ing)?|download(?:s|ing)?|retriev(?:e|es|ing|al)|scrape|scraping|crawl(?:ing)?|"
     r"external\s+(?:source|sources|data|lookup|call|calls|service|services)|"
     r"outside\s+(?:source|sources|data|help)|"
-    r"live\s+(?:data|lookup|price|quote|feed)|real-?time\s+data|"
+    r"live\s+(?:data|lookup|feed)|real-?time\s+data|"
     r"citations?|cit(?:e|ing)\s+(?:any\s+|a\s+|your\s+|the\s+)?sources?|sources?)"
 )
 
@@ -139,8 +141,8 @@ _GENERIC_OBJECT = frozenset(
 # The predicate that follows the subject instead of a marker preceding it: "the web is off
 # limits", "the broadband died", "searching is not an option".
 _POST_BARRED = re.compile(
-    rf"\b{_NET_TERM}\b(?:\W+\w+){{0,3}}?\W+"
-    r"(?:"
+    rf"\b(?P<term>{_NET_TERM})\b(?:\W+\w+){{0,3}}?\W+"
+    r"(?P<predicate>"
     r"does\s*n[o']?t|do\s*n[o']?t|is\s*n[o']?t|are\s*n[o']?t|ai\s*n[o']?t|was\s*n[o']?t|"
     r"wo\s*n[o']?t|ca\s*n[o']?t|cannot|has\s*n[o']?t|have\s*n[o']?t|no\s+longer|never"
     r"|died|dead|down|out|off|gone|broken|dropped|cut\s+out|failed|crashed|unavailable"
@@ -148,6 +150,49 @@ _POST_BARRED = re.compile(
     r"|off[\s-]limits|banned|forbidden|prohibited|not\s+allowed|not\s+an\s+option"
     r"|out\s+of\s+the\s+question|not\s+available|not\s+working|not\s+possible"
     r")\b",
+    re.IGNORECASE,
+)
+
+# A negation that opens a conjunct of its own is an imperative with a verb of its own: "use
+# authoritative sources and do not guess", "give me the figures with sources, do not guess",
+# "search the web and don't guess". Read as a predicate of the network term before it, it turned
+# 18 of 22 such requests for research into a ban on the web. It says something about the network
+# only when the network term is what that conjunct is about: the term opens the conjunct with
+# nothing but determiners before it, and it names the medium rather than an act ("the internet,
+# don't use it", "web search -- never").
+_IMPERATIVE_NEGATION = re.compile(r"do\s*n[o']?t|never", re.IGNORECASE)
+_CONJUNCT_BREAK = r"(?:[,;()\[\]\"&-]|\b(?:and|or|nor|then|so|plus)\b)"
+_OPENS_CONJUNCT = re.compile(_CONJUNCT_BREAK + r"\W*\Z", re.IGNORECASE)
+_DETERMINER = (
+    r"(?:the|a|an|my|our|your|their|his|her|its|this|that|these|those|any|all|some|no)"
+)
+_TOPIC_LEAD = re.compile(
+    r"(?:\A|" + _CONJUNCT_BREAK + r")\W*(?:" + _DETERMINER + r"\W+){0,3}\Z",
+    re.IGNORECASE,
+)
+# A citing act ("cite your sources") is an act like a search, whatever the word order.
+_CITING = re.compile(r"cit(?:e|ing)\b", re.IGNORECASE)
+# How far before a word the bounded look-behinds below read. A run of determiners or three
+# ordinary words and their separators fits well inside it.
+_LEAD_WINDOW = 80
+
+# "and" after the word a marker negates opens a new instruction too: "do not guess and cite your
+# sources", "don't speculate and search online" ask for the network. The negation keeps its reach
+# over a second object ("don't use apps and the web", "no apps and web search"), over the verbs
+# that take "and" in place of "to" ("don't go and look it up", "don't try and google it"), and
+# over "or" ("never guess or search").
+_JOINT = re.compile(r"(?P<before>\w+)\s+(?:and|then|plus|&)\s+", re.IGNORECASE)
+_SERIAL_VERBS = frozenset({"go", "try", "come"})
+_DETERMINER_WORD = re.compile(_DETERMINER + r"\b", re.IGNORECASE)
+
+# A statement of being offline that is itself negated says the opposite: "don't answer from
+# memory, search the web", "I'm not offline". A closed class of verb negations reaching it across
+# at most three words, with no phrase break between. "no" and the quantifier markers are left out:
+# "no I'm offline" answers a question rather than negating the statement.
+_NEGATED_LEAD = re.compile(
+    r"\b(?:don'?t|dont|do\s+not|doesn'?t|does\s+not|didn'?t|did\s+not|won'?t|will\s+not|"
+    r"can'?t|cannot|can\s+not|never|not)"
+    r"(?:[^\w,;:()\[\]\"-]+\w+){0,3}?[^\w,;:()\[\]\"-]+\Z",
     re.IGNORECASE,
 )
 
@@ -238,13 +283,72 @@ def _scoped_act(clause: str, governed: re.Match[str]) -> bool:
 _PHRASE_BREAK = re.compile(r"[,;:()\[\]\"-]")
 
 
+def _is_act(term: str) -> bool:
+    return _ACT_TERM.fullmatch(term) is not None or _CITING.match(term) is not None
+
+
+def _joins_new_instruction(clause: str, governed: re.Match[str]) -> bool:
+    """Whether an "and" between a marker and the network term opens an instruction of its own."""
+    term_start = governed.start("term")
+    for joint in _JOINT.finditer(clause, governed.end("marker"), term_start):
+        if joint.group("before").lower() in _SERIAL_VERBS:
+            continue
+        if joint.end() == term_start:
+            if _is_act(governed.group("term")):
+                return True
+            continue
+        if _DETERMINER_WORD.match(clause, joint.end(), term_start) is None:
+            return True
+    return False
+
+
+def _standalone(clause: str) -> re.Match[str] | None:
+    """The first statement of being offline that the clause does not negate."""
+    position = 0
+    while True:
+        match = _STANDALONE.search(clause, position)
+        if match is None:
+            return None
+        if _NEGATED_LEAD.search(clause, max(0, match.start() - _LEAD_WINDOW), match.start()) is None:
+            return match
+        position = match.start() + 1
+
+
+def _post_barred(clause: str) -> re.Match[str] | None:
+    """The first network term followed by a predicate that bars it.
+
+    A negation opening a conjunct of its own bars the term only when the term is that conjunct's
+    topic: it opens the conjunct, with nothing but determiners before it, and names the medium.
+    """
+    position = 0
+    while True:
+        match = _POST_BARRED.search(clause, position)
+        if match is None:
+            return None
+        imperative = (
+            _IMPERATIVE_NEGATION.fullmatch(match.group("predicate")) is not None
+            and _OPENS_CONJUNCT.search(clause, match.end("term"), match.start("predicate")) is not None
+        )
+        if not imperative:
+            return match
+        term_start = match.start("term")
+        topic = (
+            not _is_act(match.group("term"))
+            and _TOPIC_LEAD.search(clause, max(0, term_start - _LEAD_WINDOW), term_start) is not None
+        )
+        if topic:
+            return match
+        position = term_start + 1
+
+
 def _governed_prohibition(clause: str) -> re.Match[str] | None:
     """The first marker that governs a network term as a prohibition.
 
     Skipped: a marker opening a statement of doubt ("not sure whether to search"), a marker cut
-    off from the term by a phrase break ("no rush, search the web" -- the "no" belongs to "rush"),
-    and an act given an object of its own ("do not fetch server status metrics"). Each search
-    starts after the previous marker, so the clause is read once.
+    off from the term by a phrase break ("no rush, search the web" -- the "no" belongs to "rush")
+    or by an "and" that opens a new instruction ("do not guess and cite your sources"), and an act
+    given an object of its own ("do not fetch server status metrics"). Each search starts after
+    the previous marker, so the clause is read once.
     """
     position = 0
     while True:
@@ -255,6 +359,7 @@ def _governed_prohibition(clause: str) -> re.Match[str] | None:
         if (
             _HEDGE.match(clause, position) is not None
             or _PHRASE_BREAK.search(clause, position, governed.start("term")) is not None
+            or _joins_new_instruction(clause, governed)
             or _scoped_act(clause, governed)
         ):
             continue
@@ -282,8 +387,8 @@ def _clause_prohibition(clause: str) -> tuple[int, int] | None:
         return None
     hit: tuple[int, int] | None = None
     if _INTERROGATIVE_LEAD.match(candidate) is None:
-        for pattern in (_STANDALONE, _POST_BARRED):
-            match = pattern.search(candidate)
+        for find in (_standalone, _post_barred):
+            match = find(candidate)
             if match is not None:
                 hit = match.span()
                 break

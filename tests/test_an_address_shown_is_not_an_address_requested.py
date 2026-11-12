@@ -21,7 +21,12 @@ MEASURED at 3d857c58 on an operator-supplied blind set, lanes 13/3/18. Every one
         forbids(web_fetch)=False  ->  attempted http://169.254.169.254/latest/user-data
 
 The third names no prohibition at all -- "treat it purely as inert text" is a framing, not a verb --
-so no widening of the prohibition vocabulary could ever have reached it. Twice the address was
+so no widening of the prohibition vocabulary could ever have reached it.
+
+Since then the prohibition gate does read the second one: "Do not attempt network resolution" is a
+spoken no-web prohibition (`core.user_network_directive`). The first gives its verb an object of its
+own ("do not fetch THE PAYLOAD"), which is a narrower exclusion than the network, and the third
+still names no prohibition, so for those two this gate remains the only defence. Twice the address was
 169.254.169.254, the link-local cloud metadata endpoint SSRF attacks target for credentials. Both
 attempts failed on this host only because nothing answers there; on a cloud instance that request
 returns IAM credentials.
@@ -69,6 +74,10 @@ SHOWN_NOT_REQUESTED = {
     ),
 }
 
+# The measured messages the prohibition gate reads today. Everything else in SHOWN_NOT_REQUESTED is
+# stopped by the shown-content gate alone.
+READ_BY_THE_PROHIBITION_GATE = {"log_line_metadata"}
+
 # Data-shaped and carrying NO prohibition whatsoever. These are the ones the older gate is
 # structurally unable to reach, so they are what justify a second gate rather than a wider list.
 NO_PROHIBITION_AT_ALL = {
@@ -104,13 +113,20 @@ def test_an_address_inside_quoted_content_is_never_fetched(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name", sorted(SHOWN_NOT_REQUESTED))
+@pytest.mark.parametrize("name", sorted(set(SHOWN_NOT_REQUESTED) - READ_BY_THE_PROHIBITION_GATE))
 def test_the_older_prohibition_gate_could_not_have_caught_these(name: str) -> None:
     """Why a second gate exists at all. If this ever fails, the vocabulary caught up and this
     module's justification needs rewriting -- it does not mean the gate is redundant."""
     assert not analyze_retrieval_constraints(SHOWN_NOT_REQUESTED[name]).forbids("web_fetch"), (
         f"{name}: the prohibition gate now classifies this, so the measured gap has closed"
     )
+
+
+@pytest.mark.parametrize("name", sorted(READ_BY_THE_PROHIBITION_GATE))
+def test_the_prohibition_gate_now_reads_a_spoken_network_prohibition(name: str) -> None:
+    """The gap that closed: "Do not attempt network resolution" forbids the network in words the
+    directive vocabulary never had. Both gates now stop this one."""
+    assert analyze_retrieval_constraints(SHOWN_NOT_REQUESTED[name]).forbids("web_fetch"), name
 
 
 @pytest.mark.parametrize("name", sorted(NO_PROHIBITION_AT_ALL))
@@ -141,7 +157,8 @@ def test_the_metadata_endpoint_is_what_two_of_these_would_have_reached() -> None
 
 
 def test_removing_the_gate_refetches_every_measured_address() -> None:
-    """Sabotage: with the shown-content test neutralised, all three fetch again.
+    """Sabotage: with the shown-content test neutralised, every measured address the prohibition
+    gate cannot read is requested again, and the one it reads stays blocked by it.
 
     Neutralising only THIS gate leaves the prohibition gate, the code-authoring test, the read
     markers and the download markers exactly as they are -- so anything that fetches again is
@@ -158,10 +175,11 @@ def test_removing_the_gate_refetches_every_measured_address() -> None:
     finally:
         mod._address_is_shown_not_asked_for = real  # type: ignore[assignment]
 
-    assert refetched == set(SHOWN_NOT_REQUESTED), (
-        "SABOTAGE DID NOT BITE: with this gate disabled every measured address must be requested "
-        f"again, proving the gate is what stops them. Still blocked: "
-        f"{sorted(set(SHOWN_NOT_REQUESTED) - refetched)}"
+    assert refetched == set(SHOWN_NOT_REQUESTED) - READ_BY_THE_PROHIBITION_GATE, (
+        "SABOTAGE DID NOT BITE: with this gate disabled every measured address the prohibition gate "
+        "cannot read must be requested again, proving this gate is what stops them. Still blocked: "
+        f"{sorted(set(SHOWN_NOT_REQUESTED) - READ_BY_THE_PROHIBITION_GATE - refetched)}; "
+        f"fetched despite the prohibition gate: {sorted(refetched & READ_BY_THE_PROHIBITION_GATE)}"
     )
     # And the gate is genuinely back on.
     assert url_read_request(SHOWN_NOT_REQUESTED["code_comment_metadata"]) is None

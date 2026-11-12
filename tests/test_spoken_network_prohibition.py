@@ -64,6 +64,11 @@ _SPOKEN_PROHIBITIONS = [
     # Typography that real keyboards produce: a curly apostrophe and a wrapped line.
     "I’m on a plane right now. What is a Merkle tree?",
     "please answer without\nlooking it up: what is a monad",
+    # The network as the topic of a negative imperative, and the verbs that take "and" for "to".
+    "The internet, don't use it.",
+    "web search -- never",
+    "Don't go and look it up, just tell me",
+    "don't use apps and the web for this",
 ]
 
 _ORDINARY_TURNS = [
@@ -98,6 +103,20 @@ _ORDINARY_TURNS = [
     "don't search google, use the web",
     # A question about the network is not a statement that it is off.
     "is the internet down for everyone or just me?",
+    # A live price is one family of live data, not the network.
+    "Explain the phrase dead cat bounce; skip live prices and market news.",
+    # A negation opening a conjunct of its own is an instruction with its own verb, and these
+    # ask for research. Before the repair the recognizer read 18 of 22 such requests as a ban.
+    "What is the current state of volcanic activity on the Reykjanes peninsula? "
+    "Use authoritative sources and do not guess.",
+    "give me the exact figures with sources, do not guess",
+    "search the web and don't guess",
+    "Use the internet and do not hallucinate.",
+    "Pull the numbers from the web, don't estimate.",
+    "do not guess and cite your sources",
+    # A statement of being offline that is itself negated says the opposite.
+    "Don't answer from memory, search the web",
+    "I am not offline, so feel free to search",
 ]
 
 
@@ -158,6 +177,12 @@ def test_the_retrievable_text_keeps_the_question_and_drops_the_prohibition():
     "prohibitions_from_text('offline. for example, you said hi. ' * 25000)",
     "from core.user_network_directive import prohibition_spans; "
     "prohibition_spans('not sure web ' * 60000 + 'no ' * 60000 + 'I\\'m on a plane ' * 30000)",
+    # One clause in which every candidate is rejected and the next one is read: a negation
+    # opening a conjunct of its own, and a negated statement of being offline.
+    "from core.user_network_directive import prohibition_spans; "
+    "prohibition_spans('use sources and do not guess ' * 40000)",
+    "from core.user_network_directive import prohibition_spans; "
+    "prohibition_spans('don\\'t answer from memory ' * 40000)",
 ])
 def test_a_long_message_is_read_in_linear_time(script):
     subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
