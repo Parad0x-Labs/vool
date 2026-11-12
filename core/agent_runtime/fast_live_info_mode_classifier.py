@@ -176,6 +176,15 @@ def _names_a_marker(text: str, markers: tuple[str, ...] | frozenset[str]) -> boo
     return any(_marker_re(marker).search(text) for marker in markers)
 
 
+def _only_authored_release_notes(text: str) -> bool:
+    """The only fresh-lookup words are release notes the person writes or keeps ("write release notes
+    for this project", "draft the changelog for my app"): authoring, not a lookup (`core.online_asks`)."""
+    from core.online_asks import release_notes_are_authored
+
+    other = tuple(marker for marker in _FRESH_LOOKUP_MARKERS if marker not in ("release notes", "changelog"))
+    return not _names_a_marker(text, other) and release_notes_are_authored(text)
+
+
 def live_info_mode(agent: Any, text: str, *, interpretation: Any) -> str:
     """Which live-information mode this text asks for, or "" for none.
 
@@ -267,7 +276,7 @@ def live_info_mode(agent: Any, text: str, *, interpretation: Any) -> str:
         return "fresh_lookup"
     if _names_a_marker(asked, _LIVE_LOOKUP_HINT_MARKERS):
         return "fresh_lookup"
-    if _names_a_marker(asked, _FRESH_LOOKUP_MARKERS):
+    if _names_a_marker(asked, _FRESH_LOOKUP_MARKERS) and not _only_authored_release_notes(asked):
         return "fresh_lookup"
     if _names_a_marker(asked, ("latest", "newest", "recent", "just released")) and any(
         marker in asked for marker in _LATEST_DOMAIN_MARKERS

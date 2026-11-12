@@ -270,3 +270,47 @@ def test_a_question_about_the_world_is_not_about_this_computer(text):
     from core.online_asks import asks_about_this_computer_or_project
 
     assert asks_about_this_computer_or_project(text) is False
+
+
+# Release notes the person writes are authoring, in every reader: served on the newest candidate with
+# Web lookups off, "write release notes for this project, grouped under Added, Changed and Fixed" was
+# refused "Web lookups are off, so I can't look this up online" (the live-information lane and the
+# requirement authority counted "release notes" as a fresh-lookup word), while this reading never
+# called it an online ask.
+AUTHORED_RELEASE_NOTES = (
+    "write release notes for this project, grouped under Added, Changed and Fixed",
+    "write release notes",
+    "draft the changelog for my app",
+    "write the release notes for version 2.1 of our app",
+)
+
+
+@pytest.mark.parametrize("text", AUTHORED_RELEASE_NOTES)
+def test_release_notes_the_person_writes_are_not_a_lookup_in_any_reader(text):
+    from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+    from core.execution_requirements import requirements_for
+    from core.online_asks import release_notes_are_authored
+
+    assert release_notes_are_authored(text) is True
+    assert asks_for_online_facts(text) is False
+    assert live_info_mode(None, text, interpretation=None) == ""
+    assert requirements_for(text).current_information_required is False
+    assert "web.search" not in resolve_demand_signals(text).explicit_intents
+
+
+@pytest.mark.parametrize("text", ["latest OpenClaw release notes", "release notes for firefox 140",
+                                  "what's in the changelog for django 6?"])
+def test_a_products_published_release_notes_are_still_looked_up(text):
+    from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+    from core.online_asks import release_notes_are_authored
+
+    assert release_notes_are_authored(text) is False
+    assert asks_for_online_facts(text) is True
+    assert live_info_mode(None, text, interpretation=None) == "fresh_lookup"
+
+
+@pytest.mark.parametrize("text", AUTHORED_RELEASE_NOTES[:2])
+def test_with_web_lookups_off_writing_release_notes_is_not_refused_as_a_lookup(text):
+    result = _turn(text, "openclaw:8234567890abcdef0006")
+    assert "web lookups are off" not in str(result.get("response") or "").lower(), result
+

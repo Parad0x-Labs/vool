@@ -249,6 +249,22 @@ def asks_for_online_facts(text: str) -> bool:
     return True
 
 
+def release_notes_are_authored(text: str) -> bool:
+    """Whether the release notes or changelog in the ask are the person's own to write or keep
+    ("write release notes for this project", "draft the changelog for my app"), not a product's
+    published notes to look up ("latest OpenClaw release notes", "release notes for firefox 140").
+
+    The live-information lane and the requirement authority both count "release notes" and
+    "changelog" as fresh-lookup words, so with Web lookups off "write release notes for this
+    project, grouped under Added, Changed and Fixed" was refused as a web lookup (served, v0.8
+    candidate 28fc78dd, 2026-11-12), while this module never read it as an online ask.
+    """
+    value = " ".join(str(text or "").split())[:600]
+    if not _RELEASE_NOTES_RE.search(value):
+        return False
+    return not asks_for_online_facts(value)
+
+
 # This computer's own state, and this chat or project: words no public page uses for the world.
 # The person's records ("put it in my notes", "save it to a file") are left out on purpose: they are
 # where an answer goes as often as what a question is about.
@@ -268,4 +284,4 @@ def asks_about_this_computer_or_project(text: str) -> bool:
     return bool(_THIS_COMPUTER_RE.search(value))
 
 
-__all__ = ["asks_about_this_computer_or_project", "asks_for_online_facts"]
+__all__ = ["asks_about_this_computer_or_project", "asks_for_online_facts", "release_notes_are_authored"]
