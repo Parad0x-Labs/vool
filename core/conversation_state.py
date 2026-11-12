@@ -493,8 +493,49 @@ _AFFIRM_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "ok", "okay
                            "proceed", "confirm", "approve", "approved", "sounds", "good", "fine", "that", "works", "then", "alright"})
 
 
+#: A pointer relative to the item picked last: "no not that one, the one before it", "the next one".
+_RELATIVE_PICK_RE = re.compile(
+    r"\b(?:the\s+)?(?:one|file|item|invoice|pic|picture)\s+(?P<before>before|above)\s*(?:it|that|this)?\b"
+    r"|\b(?:the\s+)?(?:one|file|item|invoice|pic|picture)\s+(?P<after>after|below)\s*(?:it|that|this)?\b"
+    r"|\bthe\s+(?P<prev>previous|prior)\s+(?:one|file|item)\b|\bthe\s+(?P<next>next)\s+(?:one|file|item)\b",
+    re.IGNORECASE,
+)
+
+
+def _relative_pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
+    """"the one before it" after "the second one": the neighbour, in the printed list, of the item picked last.
+
+    Red team R1-09 (2026-11-12): "no not that one, the one before it" after a pick from a listed folder
+    answered "Let me check that for you. One moment!" and ran nothing.
+    """
+    m = _RELATIVE_PICK_RE.search(compact)
+    if not m or pending is None:
+        return None
+    listed = pending.slots.get("listed") or []
+    picked = pending.slots.get("picked") or []
+    if not listed or not picked or pending.turns_since > _PICK_MAX_AGE:
+        return Resolution("referent_unresolved", note="The message points at a neighbour of an item this chat has not picked from a printed list; ask which item.")
+    paths = [str(item.get("path") or "") for item in listed]
+    last = str(picked[-1])
+    if last not in paths:
+        return Resolution("referent_unresolved", note="The item picked last is not in the printed list; ask which item.")
+    step = -1 if (m.group("before") or m.group("prev")) else 1
+    index = paths.index(last) + step
+    if not 0 <= index < len(paths):
+        return Resolution("referent_unresolved", note=f"There is no item {'before' if step < 0 else 'after'} {last} in the printed list; ask which one.")
+    chosen = listed[index]
+    name = f"“{chosen['path']}”"
+    a, b = m.span()
+    rewritten = (compact[:a] + name + compact[b:]).strip()
+    return Resolution("pick", rewritten, {"picked": [chosen["path"]], "listed": listed},
+                      f"“{compact}” points at: {name} (next to the item picked last, in the list printed earlier in this chat).")
+
+
 def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     """An ordinal pointer ("the second one", "the last two", "number 3") against the list the chat printed last."""
+    relative = _relative_pick(compact, pending)
+    if relative is not None:
+        return relative
     m = _PICK_RE.search(compact)
     if not m:
         return None
@@ -521,7 +562,10 @@ def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     names = ", ".join(f"“{i['path']}”" for i in picked)
     a, b = m.span("nm") if m.group("nm") else m.span()
     rewritten = (compact[:a] + names + compact[b:]).strip()
-    return Resolution("pick", rewritten, {"picked": [i["path"] for i in picked]}, f"“{compact}” points at: {names} (from the list printed earlier in this chat).")
+    # The printed list rides along, so the next pointer ("the one before it") still has it after this
+    # pick's own turn replaces the record.
+    return Resolution("pick", rewritten, {"picked": [i["path"] for i in picked], "listed": listed},
+                      f"“{compact}” points at: {names} (from the list printed earlier in this chat).")
 
 
 def resolve(

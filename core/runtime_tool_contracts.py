@@ -310,6 +310,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 # "the latest 10 pics in Downloads": only one kind of file, newest first.
                 "kind": "string optional (image|screenshot|video|audio|pdf|document|spreadsheet)",
                 "newest_first": "boolean optional",
+                "size_order": "string optional (largest|smallest: files only, by size)",
             },
             output_schema={"entries": "list[directory_entry]", "truncated": "boolean"},
             side_effect_class="read_only",

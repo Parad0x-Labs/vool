@@ -3083,6 +3083,14 @@ def maybe_handle_direct_machine_read_request(
             # "the biggest file in my downloads" measured the whole home folder (VOOL's own
             # databases included) and never looked at Downloads first.
             largest_args["drive"] = f"~/{named_place}"  # the tool resolves a home folder here too
+        else:
+            from core.execution.constants import points_back_at_the_folder
+
+            # "whats the largest file in that folder" right after a listing measured the whole home
+            # folder (red team R1-12, 2026-11-12). The folder is the chat's own record of what it listed.
+            recorded_folder = str(((source_context or {}).get("_conversation_slots") or {}).get("path") or "")
+            if recorded_folder and points_back_at_the_folder(user_input):
+                largest_args["drive"] = recorded_folder
         kind = largest_kind(user_input)
         if kind != "both":
             largest_args["kind"] = kind
@@ -3330,14 +3338,25 @@ def maybe_handle_direct_machine_read_request(
         if resolved_path:
             from core.folder_overview import build_folder_overview
 
-            return agent._fast_path_result(
-                session_id=session_id,
-                user_input=user_input,
-                response=build_folder_overview(resolved_path),
-                confidence=0.96,
-                source_context=source_context,
-                reason="folder_audit_fast_path",
+            # The folder is read through the authorized listing tool, so the turn carries its receipt
+            # and the chat records the folder it showed. As a bare reply with no receipt nothing was
+            # recorded, and one turn later "how many files are in that folder" had no folder to point
+            # at (red team R1-12, 2026-11-12). A refused or failed read is that refusal, not an overview.
+            listing = execute_authorized_runtime_tool(
+                "machine.list_directory", {"path": resolved_path, "limit": 200}, source_context=dict(source_context or {})
             )
+            if listing is not None:
+                listed_ok = bool(getattr(listing, "ok", False))
+                return _machine_tool_fast_path_result(
+                    agent,
+                    user_input=user_input,
+                    session_id=session_id,
+                    source_context=source_context,
+                    intent="machine.list_directory",
+                    execution=listing,
+                    reason="folder_audit_fast_path",
+                    response_text=build_folder_overview(resolved_path) if listed_ok else None,
+                )
     # "whats inside the lisbon folder?" names the folder by one word of its name: find it, then list it.
     contents_name = None if email_owns_folder_reference else machine_named_folder_contents_intent(user_input)
     if contents_name is not None and not _names_the_bound_workspace(contents_name, source_context):

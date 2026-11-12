@@ -186,6 +186,31 @@ def _assemble(result: dict[str, Any], *, path: Path, source: str) -> dict[str, A
     }
 
 
+def _pypdf_text_layer(path: Path, *, first: int, bounded: int) -> dict[str, Any] | None:
+    """The text layer through the confined pypdf reader, in the helper's own result shape, or None."""
+    try:
+        from core.artifact_readers import pdf as pdf_reader
+        from core.artifact_readers._types import ReaderRefused, ReaderUnavailable
+
+        last = first - 1 + bounded if bounded else _MAX_PAGES
+        read = pdf_reader.read(path.read_bytes(), name=path.name, ocr=False, max_pages=min(last, _MAX_PAGES))
+    except ReaderUnavailable as exc:
+        return {"status": "missing_dependency", "reason": f"PDF reading needs the macOS system Python or pypdf: {exc}"}
+    except ReaderRefused as exc:
+        return {"status": "unreadable", "reason": str(exc)}
+    except Exception:
+        return None
+    pages = [unit for unit in read.units if str(unit.locator).startswith("page ")]
+    wanted = pages[first - 1:]
+    return {
+        "status": "ok",
+        "pages_total": int((read.meta or {}).get("page_count") or len(pages)),
+        "pages_read": first - 1 + len(wanted),
+        "page_start": first,
+        "page_text": [str(unit.text or "") for unit in wanted],
+    }
+
+
 def extract_text(
     path: str, *, max_pages: int = 0, start_page: int = 1, timeout: float = _DEFAULT_TIMEOUT
 ) -> dict[str, Any]:
@@ -197,7 +222,16 @@ def extract_text(
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     first = max(1, int(start_page or 1))
     result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
-    assembled = _assemble(result, path=resolved, source="pdfkit")
+    source = "pdfkit"
+    if str(result.get("status")) == "missing_dependency":
+        # PDFKit's Python bindings are not part of macOS: they were found only where the owner had
+        # installed them in their own user folder, so on another Mac (or a home without them) every
+        # PDF read failed with "No module named 'Foundation'" (red team R1-07, 2026-11-12). The
+        # shipped pypdf decoder, run confined by the artifact reader, reads the same text layer.
+        fallback = _pypdf_text_layer(resolved, first=first, bounded=bounded)
+        if fallback is not None:
+            result, source = fallback, "pypdf"
+    assembled = _assemble(result, path=resolved, source=source)
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.
     page_bodies = [str(part or "") for part in list(result.get("page_text") or [])]

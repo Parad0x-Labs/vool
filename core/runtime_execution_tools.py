@@ -5581,6 +5581,20 @@ _LISTING_KIND_LABELS = {
 }
 
 
+def _kind_label(kind: str) -> str:
+    """"Pictures", or "PNG files" / "JPG and JPEG files" for a kind named by its extension."""
+    if kind.startswith("ext:"):
+        names = [part.strip().upper() for part in kind[4:].split(",") if part.strip()]
+        return (" and ".join(names) or "Matching") + " files"
+    return _LISTING_KIND_LABELS.get(kind, "Files")
+
+
+def _human_size(num_bytes: int) -> str:
+    from core.file_size_answer import _human_size as _shared_human_size
+
+    return _shared_human_size(num_bytes)
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5668,7 +5682,22 @@ def _list_machine_directory(
     # every entry by name, so a person asking for their recent photos got folders and installers.
     kind = str(arguments.get("kind") or "").strip().lower()
     kind_suffixes = _LISTING_KIND_SUFFIXES.get(kind, ())
+    if kind.startswith("ext:"):
+        # "ext:jpg,jpeg": the extensions the person named, and only those.
+        kind_suffixes = tuple(
+            "." + part.strip().lstrip(".") for part in kind[4:].split(",") if re.fullmatch(r"\.?[a-z0-9]{1,6}", part.strip())
+        )
     newest_first = bool(arguments.get("newest_first", False))
+    size_order = str(arguments.get("size_order") or "").strip().lower()
+    if size_order not in {"largest", "smallest"}:
+        size_order = ""
+
+    def _size_of(item: Path) -> int:
+        try:
+            return int(item.stat().st_size)
+        except OSError:
+            return 0
+
     children = [
         child for child in target.iterdir()
         if not child.name.startswith(".") and child.name not in hidden_names
@@ -5684,6 +5713,11 @@ def _list_machine_directory(
                 return 0.0
 
         children.sort(key=_mtime, reverse=True)
+    elif size_order:
+        # "which is the biggest one there": files by size, folders left out (a folder's own entry
+        # size says nothing about what it holds).
+        children = [child for child in children if child.is_file()]
+        children.sort(key=_size_of, reverse=size_order == "largest")
     else:
         children.sort(key=lambda item: item.name.lower())
     for child in children:
@@ -5692,6 +5726,7 @@ def _list_machine_directory(
                 "name": child.name,
                 "path": _home_relative_label(child),
                 "type": "directory" if child.is_dir() else "file",
+                **({"size_bytes": _size_of(child)} if size_order else {}),
             }
         )
     entries = matched[:limit]
@@ -5699,7 +5734,7 @@ def _list_machine_directory(
     if not entries:
         noun = "folders" if directories_only else "entries"
         if kind_suffixes:
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
         return RuntimeExecutionResult(
             handled=True,
             ok=True,
@@ -5726,7 +5761,7 @@ def _list_machine_directory(
         )
     label = "Visible folders" if directories_only else "Visible entries"
     if kind_suffixes:
-        label = f"{_LISTING_KIND_LABELS.get(kind, 'Files')}{', newest first,' if newest_first else ''}"
+        label = f"{_kind_label(kind)}{', newest first,' if newest_first else ''}"
     if bool(arguments.get("count_only", False)):
         # "how many files are in ~/Downloads" was answered with the first thirty filenames and a
         # bare "-...", so the number it asked for was nowhere in the reply and could not be
@@ -5749,7 +5784,7 @@ def _list_machine_directory(
             # "how many pdf files are in my Documents folder?": that kind only, and said whether
             # subfolders are included (they are not: this counts the folder itself).
             counted = len(matched)
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
             detail = " (not counting subfolders)"
         return RuntimeExecutionResult(
             handled=True,
@@ -5775,10 +5810,13 @@ def _list_machine_directory(
                 ),
             },
         )
+    if size_order:
+        label = f"{'Largest' if size_order == 'largest' else 'Smallest'} files"
     lines = [f"{label} under `{_home_relative_label(target)}`:"]
     for entry in entries:
         suffix = "/" if entry["type"] == "directory" else ""
-        lines.append(f"- {entry['name']}{suffix}")
+        size_note = f" ({_human_size(entry['size_bytes'])})" if "size_bytes" in entry else ""
+        lines.append(f"- {entry['name']}{suffix}{size_note}")
     if dropped:
         noun = "folders" if directories_only else "entries"
         lines.append(f"…and {dropped} more {noun} ({len(matched)} in total).")

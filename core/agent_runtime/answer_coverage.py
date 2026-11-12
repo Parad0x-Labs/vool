@@ -2565,6 +2565,12 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
             kind = KIND_ENUMERATION
         elif is_prohibition_unit(text) or _CONSTRAINT_OPENER_RE.match(lowered) or _is_output_shape_unit(text):
             kind = KIND_CONSTRAINT
+        elif last_request is not None and _says_how_to_answer(text):
+            # "how many pdf files are in my Documents folder? just the count": how to answer the
+            # request before it, or a courtesy beside it -- never a request of its own. As one it was
+            # sent to the model alone, which answered "just the count" with a statement that was then
+            # withheld under the right answer (red team R1-03, 2026-11-12).
+            kind = KIND_CONSTRAINT
         elif asks or imperative_step(text) or _registered_lane_admits(text):
             kind = KIND_REQUEST
         elif body and _reads_as_a_statement(body) and not (index and after_colon_list and len(body) <= 3):
@@ -2641,6 +2647,15 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
             pending.append(len(units))
         units.append(unit)
     return units
+
+
+def _says_how_to_answer(text: str) -> bool:
+    try:
+        from core.finalization import _is_a_demand
+
+        return not _is_a_demand(text)
+    except Exception:
+        return False
 
 
 def _apply_bindings(value: str, units: list[DemandUnit]) -> list[DemandUnit]:

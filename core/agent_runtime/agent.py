@@ -894,11 +894,16 @@ def _seal_semantic_result(
         from core import conversation_state
 
         _ctx = source_context if isinstance(source_context, dict) else {}
+        _extra = dict(_ctx.get("_conversation_kind_listing") or {}) if isinstance(_ctx.get("_conversation_kind_listing"), dict) else {}
+        _slots = _ctx.get("_conversation_slots") if isinstance(_ctx.get("_conversation_slots"), dict) else {}
+        if _slots.get("picked") and _slots.get("listed"):
+            # A pick keeps the list it picked from and what it picked, for "the one before it" next.
+            _extra.update({"listed": _slots["listed"], "picked": _slots["picked"]})
         conversation_state.record_sealed_turn(
             session_id,
             str(_ctx.get("_conversation_request") or user_input or ""),
             result,
-            extra_slots=_ctx.get("_conversation_kind_listing") if isinstance(_ctx.get("_conversation_kind_listing"), dict) else None,
+            extra_slots=_extra or None,
         )
     except Exception:
         pass
@@ -6601,6 +6606,19 @@ class VoolAgent(
                 from core.chat_housekeeping import query_terms as _terms
 
                 if _re.match(r"\s*(?:and|or|plus|also|but|so|then|what\s+about|how\s+about)\b", question, _re.IGNORECASE):
+                    return None
+                # A question that points back at what the chat just showed ("which is the biggest one
+                # there", "how many are there in it?", "the second one") names its referent by
+                # pointing; it is not a world-entity ambiguity. Red team R1-12 (2026-11-12): both got
+                # "Which place, person or thing do you mean?" one turn after VOOL listed the folder.
+                if _re.search(
+                    r"\b(?:in|from|inside)\s+(?:there|it|that|them)\b"
+                    r"|\bthat\s+(?:folder|directory|file|list|one)\b"
+                    r"|\b(?:first|second|third|fourth|fifth|last|other|previous|next)\s+one\b"
+                    r"|\bthe\s+one\s+(?:before|after)\b|\b(?:one|ones|file|files)\s+there\b",
+                    question,
+                    _re.IGNORECASE,
+                ):
                     return None
                 asked = set(_terms(question))
                 # A chat about the person's own data (a database, table, sheet, file) answers its
