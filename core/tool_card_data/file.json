@@ -1,0 +1,19 @@
+{
+  "_about": "Cards for handing the person a downloadable file.",
+  "file.deliver": {
+    "use_when": "The person wants something given to them as a file to download: a text document, spreadsheet, slides, PDF or CSV.",
+    "examples": [
+      "make this into a text document",
+      "export that table as a spreadsheet",
+      "give me a pdf of the itinerary",
+      "turn this into slides",
+      "can I have that as a csv",
+      "hazme un documento de texto con esto",
+      "fais-moi un fichier tableur"
+    ],
+    "not_for": [
+      "what's the difference between spreadsheet apps",
+      "how do I open a docx"
+    ]
+  }
+}

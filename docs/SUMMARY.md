@@ -29,6 +29,7 @@
 * [Build and test a skill](guides/build-and-test-a-skill.md)
 * [Skill tools and limits](guides/skill-tools-and-limits.md)
 * [Writing a plugin](guides/plugin-authoring.md)
+* [Add a tool](guides/add-a-tool.md)
 * [Add-on security](guides/addon-security.md)
 * [Notifications and model offers](guides/notifications.md)
 * [Use VOOL from your phone](guides/phone.md)

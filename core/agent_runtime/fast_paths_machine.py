@@ -5,6 +5,7 @@ import os
 import re
 from collections import OrderedDict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib import request as urllib_request
 
@@ -495,10 +496,11 @@ def looks_like_supported_machine_read_request(user_input: str) -> bool:
         # A path the user typed out is the most specific thing in the sentence, so this lane stands
         # down and the general machine/workspace tools handle the real target.
         return False
-    asks_for_directory = any(
-        _contains_phrase(normalized, marker)
-        for marker in ("desktop", "downloads", "documents", "docs")
-    )
+    from core.safe_folder_names import names_a_root
+
+    # One table for the three folders in every app language (core.safe_folder_names); words that
+    # are English words too ("bureau", "pulpit") stay out of this English-verb gate.
+    asks_for_directory = names_a_root(normalized, english_homographs=False)
     asks_for_listing = any(
         _contains_phrase(normalized, marker)
         for marker in (
@@ -813,6 +815,79 @@ def _machine_tool_fast_path_result(
             "observation": observation,
         }
     ]
+    return result
+
+
+def folder_read_fast_path_result(
+    agent: Any,
+    *,
+    user_input: str,
+    session_id: str,
+    source_context: dict[str, object] | None,
+    intent: str,
+    path: str,
+    response: str,
+    reason: str,
+    confidence: float,
+) -> dict[str, Any]:
+    """A reply composed from a real read of one of the owner's folders, with that read's receipt.
+
+    The folder-overview lanes list a directory and read its README in-process
+    (`core.folder_overview.build_folder_overview`) and used to answer through the bare
+    `_fast_path_result`: the reply listed real folder contents while the turn recorded no tool at
+    all, so Activity, the claim gates and the audit saw a turn that read nothing (tool-use kit,
+    2026-10-29, class (c)). The answer is still made by the same `_fast_path_result` call; the
+    read is recorded beside it the way every machine read is (typed tool events, the turn's
+    observation, a tool receipt on the result).
+    """
+    from core.execution.models import _tool_observation
+
+    observation = _tool_observation(
+        intent=intent,
+        tool_surface="local_folder_read",
+        ok=True,
+        status="executed",
+        path=path,
+        read_only=True,
+        response_preview=str(response or "")[:4000],
+    )
+    emit = getattr(agent, "_emit_runtime_event", None)
+    if emit is None:
+        # A caller with no event surface of its own: the one emitter every runtime event passes
+        # through, where an execution becomes a fact.
+        from core.runtime_task_events import emit_runtime_event
+
+        def emit(context: Any, *, event_type: str, message: str, **details: Any) -> None:
+            emit_runtime_event(context, event_type=event_type, message=message, details=details)
+
+    summary = _machine_step_summary(SimpleNamespace(response_text=response), intent)
+    emit(source_context, event_type="tool_selected", message=f"Running {intent}", tool_name=intent,
+         summary=f"Running {intent}")
+    emit(source_context, event_type="tool_executed", message=summary, tool_name=intent, summary=summary,
+         observation=observation)
+    if isinstance(source_context, dict):
+        recorded = [dict(item) for item in list(source_context.get("runtime_tool_observations") or []) if isinstance(item, dict)]
+        recorded.append(dict(observation))
+        source_context["runtime_tool_observations"] = recorded[-12:]
+    result = agent._fast_path_result(
+        session_id=session_id,
+        user_input=user_input,
+        response=response,
+        confidence=confidence,
+        source_context=source_context,
+        reason=reason,
+    )
+    if isinstance(result, dict):
+        result["mode"] = "tool_executed"
+        result["tool_receipts"] = [
+            {
+                "tool_name": intent,
+                "mode": "tool_executed",
+                "status": "executed",
+                "execution": {"executed": True, "ok": True, "status": "executed"},
+                "observation": observation,
+            }
+        ]
     return result
 
 
@@ -1332,10 +1407,14 @@ def _explicit_safe_machine_root_label(lowered: str) -> str:
 
 
 def _resolve_safe_machine_root_directory(*, folder: str, root_label: str) -> Path | None:
+    from core.safe_folder_names import ROOT_KEYS, safe_root_dir, safe_root_paths
+
     home = Path.home()
-    root_options = [home / "Desktop", home / "Downloads", home / "Documents"]
+    # The roots where this disk keeps them (core.safe_folder_names): ~/Schreibtisch on a German
+    # Linux desktop, ~/Desktop on a Mac.
+    root_options = list(safe_root_paths(home))
     if root_label:
-        root = home / root_label
+        root = safe_root_dir(root_label.lower(), home) if root_label.lower() in ROOT_KEYS else home / root_label
         if not folder:
             return root
         if root.exists():
@@ -1358,7 +1437,7 @@ def _resolve_safe_machine_root_directory(*, folder: str, root_label: str) -> Pat
     if len(matches) == 1:
         return matches[0]
     for match in matches:
-        if match.parent.name == "Desktop":
+        if match.parent == root_options[0]:
             return match
     return None
 

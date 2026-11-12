@@ -1,0 +1,57 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "set.save": {
+    "use_when": "The person wants to save or update a named character or story profile (look, wardrobe, voice, setting, style, palette) so later videos and images stay consistent.",
+    "examples": [
+      "save my character Mira: red curly hair, green parka, calm low voice, snowy village, watercolor style",
+      "lock in the look for Captain Odo so every video keeps him the same",
+      "can you remember this character and style for my next clips? name it Neon Fox",
+      "update the Neon Fox profile, change her jacket to yellow and keep everything else",
+      "make a saved look called Grandpa Tales, warm sepia palette, 16:9, cozy kitchen setting",
+      "keep my cartoon dog consistent across all the images pls, save him as Biscuit",
+      "save this as a series: two sisters, 1920s Paris, art deco style, gold and teal colors, no modern stuff",
+      "new character sheet for Dr. Vale. tall, silver hair, lab coat, raspy voice. save it",
+      "store the style for my space story so future videos match, name it Orbit",
+      "save char profile 'Luna' w/ pastel palette n dreamy mood, vertical aspect",
+      "Guarda a mi personaje Pablo con su ropa y su voz para que no cambie en los próximos videos",
+      "Enregistre le style de mon héroïne Camille pour que les images restent cohérentes",
+      "Speichere meine Figur Jonas mit Aussehen, Kleidung und Stimme für die nächsten Videos",
+      "Išsaugok mano personažą Rūtą su jos išvaizda ir balsu, kad vaizdo įrašuose nesikeistų"
+    ],
+    "not_for": [
+      "how do I keep a character looking the same in AI videos?",
+      "who designed the costumes for the original Star Wars?",
+      "write me a short story about a fox in a snowy village",
+      "generate a new video of Mira walking in the snow",
+      "what colors go well together for a cozy palette?",
+      "I love drawing characters, it's my favorite hobby"
+    ]
+  },
+  "set.use": {
+    "use_when": "The person wants a prompt for the next video or image shot of a series they already saved, with a short script for the shot, so the character and world look the same each time.",
+    "examples": [
+      "make a video shot of Captain Mira walking into the market at dawn, keep her look the same",
+      "new image for my Neon Fox series: Fox on a rooftop at night, wide angle",
+      "write the generation prompt for the next scene of Moonlight Diner, the cook finds a letter",
+      "same character and world as my Tiny Robot series, shot of him watering plants, close-up",
+      "Can you please prepare a video prompt for episode 3 of Dust Riders where they cross the canyon?",
+      "pic of the Glass City heroine looking at the sky, low angle",
+      "next shot for Kiki and the Cloud Whale, she waves goodbye, keep everything consistent",
+      "need a vid prompt, Old Sailor series, he lights his pipe on deck, handheld cam",
+      "gen prompt for my Mira series - she opens the door and sees snow, dolly in",
+      "same style as before, Bean the cat series, image of him asleep on a keyboard",
+      "Hazme el prompt de un video de mi serie Capitán Mira: ella entra al mercado al amanecer",
+      "Prépare une image pour ma série Renard Néon : le renard sur un toit la nuit, en plongée",
+      "Mach mir einen Videoprompt für die nächste Szene von Staubreiter, die Gruppe erreicht den Canyon",
+      "Paruošk kitos scenos vaizdo įrašo užklausą mano Mira serijai: ji atidaro duris ir mato sniegą"
+    ],
+    "not_for": [
+      "how do I keep characters consistent across AI videos?",
+      "write me a short story about a pirate cat",
+      "what's the difference between video and image generation models?",
+      "what camera angles are used in film noir?",
+      "I love making little cartoons lol",
+      "give me tips for writing better scripts"
+    ]
+  }
+}
