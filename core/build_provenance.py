@@ -9,10 +9,13 @@ SHA of the source tree AT BUILD TIME and writes ``config/build-source.json`` so 
 ``/api/runtime/version`` and the ``/chat`` footer show the exact commit it was built from.
 
 Field names match what ``build_source_metadata`` extracts: ref / branch / commit / source_url /
-source_kind / dirty_state (plus an informational ``built_at``).
+source_kind / dirty_state / diff_sha256 (plus an informational ``built_at``). The same file makes a
+plain source copy (no ``.git``) identifiable: ``ops/build_identity.py stamp-copy`` writes it into
+the copy so the running copy reports the commit, and the edits, it was copied from.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -33,6 +36,57 @@ def _git(root: Path, *args: str) -> str:
     except Exception:
         return ""
     return str(completed.stdout or "").strip()
+
+
+# An untracked file bigger than this is fingerprinted by name and size only, so one stray model or
+# video in a test tree cannot stall the boot stamp.
+_UNTRACKED_CONTENT_LIMIT = 32 * 1024 * 1024
+_UNTRACKED_FILE_LIMIT = 5000
+
+
+def worktree_diff_sha256(project_root: Path) -> str:
+    """Fingerprint of everything in ``project_root`` that differs from its HEAD commit.
+
+    ``dirty`` alone is one bit: two test trees on the same commit with different uncommitted edits
+    both read ``<sha>.dirty`` and cannot be told apart, so a test cannot prove it is talking to the
+    edited tree it means. This hashes the binary diff of tracked files against HEAD plus the name and
+    content of every untracked, non-ignored file. Returns "" for a clean tree or a non-git folder."""
+    root = Path(project_root)
+    try:
+        diff = subprocess.run(
+            ["git", "-C", str(root), "diff", "HEAD", "--binary", "--no-ext-diff", "--no-color", "--no-renames"],
+            capture_output=True,
+            timeout=20,
+            check=True,
+        ).stdout
+        untracked = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--others", "--exclude-standard"],
+            capture_output=True,
+            timeout=20,
+            check=True,
+        ).stdout
+    except Exception:
+        return ""
+    names = sorted(name for name in untracked.decode("utf-8", "surrogateescape").split("\0") if name)
+    if not diff and not names:
+        return ""
+    digest = hashlib.sha256()
+    digest.update(b"tracked-diff\0")
+    digest.update(diff)
+    for name in names[:_UNTRACKED_FILE_LIMIT]:
+        path = root / name
+        digest.update(b"\0untracked\0" + name.encode("utf-8", "surrogateescape") + b"\0")
+        try:
+            size = path.stat().st_size
+            if size > _UNTRACKED_CONTENT_LIMIT:
+                digest.update(f"size:{size}".encode())
+            else:
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+        except OSError:
+            digest.update(b"unreadable")
+    if len(names) > _UNTRACKED_FILE_LIMIT:
+        digest.update(f"\0more-untracked:{len(names) - _UNTRACKED_FILE_LIMIT}".encode())
+    return digest.hexdigest()
 
 
 def _utc_now() -> str:
@@ -58,6 +112,10 @@ def capture_build_source(project_root: Path, *, now: str | None = None) -> dict[
         "dirty_state": dirty,
         "built_at": built_at,
     }
+    if dirty:
+        diff_sha256 = worktree_diff_sha256(root)
+        if diff_sha256:
+            source["diff_sha256"] = diff_sha256
     if branch:
         source["branch"] = branch
         source["ref"] = branch
