@@ -129,6 +129,8 @@ export class MobileCompanionClient {
     this.creds = next; this.away = false;
   }
   private away = false;
+  /** Why the last try over the away address failed ("" when it worked or was not tried). */
+  awayProblem = "";
   private finding: Promise<"home" | "away" | null> | null = null;
   private address(away = this.away): string { return (away && this.creds.awayUrl ? this.creds.awayUrl : this.creds.baseUrl).replace(/\/$/, ""); }
 
@@ -141,8 +143,9 @@ export class MobileCompanionClient {
       try {
         for (const away of [false, true]) {
           try {
+            if (away) this.awayProblem = "";
             if (away && HIDDEN_URL.test(this.address(true))) {
-              if (!privateRoute) continue;
+              if (!privateRoute) {this.awayProblem = "private route unavailable"; continue;}
               await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
             }
             await this.send<DeviceInfo>(this.address(away), "devices.me", {}, away ? AWAY_PROBE_TIMEOUT_MS : ROUTE_PROBE_TIMEOUT_MS);
@@ -150,6 +153,7 @@ export class MobileCompanionClient {
             if (!away) privateRoute?.stop();
             return away ? "away" as const : "home" as const;
           } catch (error) {
+            if (away) this.awayProblem = error instanceof Error ? error.message : String(error);
             // A refusal is still an answer from this computer: the way works.
             if (answered(error)) {this.away = away; if (!away) privateRoute?.stop(); return away ? "away" as const : "home" as const;}
           }

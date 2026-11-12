@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -40,6 +41,7 @@ class VoolPrivateRouteModule : Module() {
   private var client: OkHttpClient? = null
   private var clientPort = 0
 
+  private val tag = "VoolPrivateRoute"
   private val hidden = Regex("^http://[a-z2-7]{56}\\.onion(/[A-Za-z0-9/_.-]*)?$")
 
   /** A lookup on the phone's own network would give the address away: refuse every one. */
@@ -55,6 +57,7 @@ class VoolPrivateRouteModule : Module() {
     val made = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
         service = (binder as? TorService.LocalBinder)?.service
+        Log.i(tag, "private route service connected: ${service != null}")
         ready.countDown()
       }
       override fun onServiceDisconnected(name: ComponentName?) { service = null }
@@ -62,6 +65,7 @@ class VoolPrivateRouteModule : Module() {
     synchronized(lock) {
       if (connection == null) {
         val context = context()
+        Log.i(tag, "starting the private route")
         if (!context.bindService(Intent(context, TorService::class.java), made, Context.BIND_AUTO_CREATE)) {
           runCatching { context.unbindService(made) }
           throw IOException("private route could not start")
@@ -84,7 +88,10 @@ class VoolPrivateRouteModule : Module() {
     val tor = bind(deadline)
     while (true) {
       val port = tor.socksPort
-      if (port > 0 && tor.getInfo("status/circuit-established")?.trim() == "1") return port
+      if (port > 0 && tor.getInfo("status/circuit-established")?.trim() == "1") {
+        Log.i(tag, "private route ready")
+        return port
+      }
       if (service == null) throw IOException("private route stopped")
       if (SystemClock.elapsedRealtime() > deadline) throw IOException("private route did not connect in time")
       Thread.sleep(400)
@@ -134,7 +141,9 @@ class VoolPrivateRouteModule : Module() {
             .connectTimeout(left, TimeUnit.MILLISECONDS)
             .readTimeout(left, TimeUnit.MILLISECONDS)
             .build().newCall(request)
+          Log.i(tag, "asking the computer over the private route")
           call.execute().use { response ->
+            Log.i(tag, "answer over the private route: ${response.code}")
             val text = response.body?.source()?.let { source ->
               // A reply larger than the app ever expects is refused, not buffered.
               if (!source.request(16L * 1024 * 1024 + 1)) source.buffer.readUtf8() else throw IOException("reply too large")
@@ -142,6 +151,7 @@ class VoolPrivateRouteModule : Module() {
             promise.resolve(mapOf("status" to response.code, "body" to text))
           }
         } catch (error: Throwable) {
+          Log.w(tag, "private route failed: ${error.javaClass.simpleName}: ${error.message}")
           promise.reject("private_route_failed", error.message ?: "private route failed", error)
         }
       }
@@ -154,6 +164,7 @@ class VoolPrivateRouteModule : Module() {
           readyPort(SystemClock.elapsedRealtime() + timeoutMs.toLong().coerceIn(5_000L, 600_000L))
           promise.resolve(true)
         } catch (error: Throwable) {
+          Log.w(tag, "private route failed: ${error.javaClass.simpleName}: ${error.message}")
           promise.reject("private_route_failed", error.message ?: "private route failed", error)
         }
       }

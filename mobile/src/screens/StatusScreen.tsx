@@ -130,7 +130,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       catch {setError(tr("Could not complete this. Check your computer."));}
     })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
     {looking === "looking" ? <Text style={styles.detail}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text>
-      : looking === "none" ? <Text style={styles.detail}>{tr("Your computer did not answer at home or away. Check that it is on and VOOL is open.")}</Text>
+      : looking === "none" ? <Text style={styles.detail}>{tr("Your computer did not answer at home or away. Check that it is on and VOOL is open.")}{client.awayProblem ? "\n(" + client.awayProblem.slice(0, 120) + ")" : ""}</Text>
       : client.awayUrl && link === "connected" ? <Text style={styles.detail}>{route === "away" ? tr("Connected from away") : tr("Connected over your home network")}</Text> : null}
   </View>;
   if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
