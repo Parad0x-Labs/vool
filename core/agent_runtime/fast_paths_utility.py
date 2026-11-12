@@ -1833,7 +1833,15 @@ def maybe_handle_folder_overview_request(
     text = " ".join(str(user_input or "").split()).strip()
     if not text:
         return None
-    if looks_like_agentic_build_request(text):
+    from core.agent_runtime import build_request_intent
+
+    # The folder is the destination of a file-creation instruction, not its requested answer.
+    # Whole-project scaffolding is only one kind of write: the shared artifact intent also covers
+    # "in this project, create a task board page", which names no file for the read guard below to
+    # see and was answered with the empty-folder listing.
+    if looks_like_agentic_build_request(text) or build_request_intent.is_build_instruction(
+        user_input, scope="artifact"
+    ):
         return None
     # A request for a poem or a story names its subject, and a scope such as "in this project" is part
     # of that subject, not a question about the folder (`grounded_mode.creative_writing_remainder`).

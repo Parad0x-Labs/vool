@@ -154,3 +154,21 @@ def test_dropped_apostrophe_still_reads_the_real_folder(tmp_path) -> None:
     assert _overview(_StubAgent(), "what's in the folder", ctx) is not None
     for text in ("whats the project deadline", "whats the project status", "whatsapp in the folder"):
         assert _overview(_StubAgent(), text, ctx) is None, text
+
+
+def test_creation_location_is_not_a_folder_overview(tmp_path):
+    from tests.test_workspace_location_is_not_search import DEMO_REQUEST
+    ctx = {"workspace": str(tmp_path), "project_id": "demo", "surface": "api"}
+    for prompt in (
+        DEMO_REQUEST,
+        "In this project, create counter.py with a function that counts words.",
+        "In this folder, create a file called welcome.txt containing hello.",
+        # No file named: the overview's own named-file guard cannot see these. Measured on the
+        # v0.8 candidate bb35ff83: both were answered with the empty-folder listing.
+        "In this project, create a small task board page with three columns.",
+        "Build a one-page recipe card in this folder.",
+    ):
+        assert _overview(_StubAgent(), prompt, ctx) is None, prompt
+    # Empty folders remain valid subjects of actual overview requests.
+    result = _overview(_StubAgent(), "What's in this project?", ctx)
+    assert result and "empty" in result["response"]
