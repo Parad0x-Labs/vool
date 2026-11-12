@@ -41,6 +41,10 @@ from .fast_live_info_mode_markers import (
 # castrated ram) is likewise excluded; the words that ARE here are not words in English.
 _WEATHER_WORD = r"(?:weather|wheather|weater|weathr|wetaher|weahter|wheter|wather)"
 
+from core.weather_phrasing import PLACE as _PLACE
+from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
+from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB
+
 _WEATHER_LIVE_REQUEST_RE = re.compile(
     r"\b(?:"
     # "only"/"just"/"specifically" between the subject and the preposition -- "weather only for
@@ -66,9 +70,12 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     r"(?:in|for|at|like|around|over)\s"
     r"|(?:current|today(?:'s)?|tomorrow(?:'s)?|tonight(?:'s)?)\s+"
     rf"(?:{_WEATHER_WORD}|forecast|temperature|humidity)"
-    r"|(?:will\s+it|is\s+it|is\s+there|do\s+we)\s+"
-    r"(?:rain|snow|freeze|storm|be\s+windy)"
-    r"|(?:rain|snow|wind)\s+(?:in|for|at)\s+"
+    # The progressive and "going to" forms ask the same thing: "is it snowing in Oslo?" missed
+    # because "snow" was matched but the word boundary after it was not (0.7.8 sweep 2026-11-12,
+    # "is it raining in paris today" reached the model, which had nothing to answer with).
+    r"|(?:will\s+it|is\s+it|is\s+there|do\s+we|are\s+we)\s+(?:going\s+to\s+)?(?:be\s+)?"
+    rf"{_WEATHER_VERB}(?!\s+cats\b)"
+    r"|(?:rain(?:ing)?|snow(?:ing)?|wind)\s+(?:in|for|at)\s+"
     r")\b"
     # A labeled section header ("Weather:" followed by a list of places) carries no in/for/at
     # trigger word at all -- the request is a live-weather lookup by section structure, not by
@@ -91,7 +98,19 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     rf"|(?<!the )(?<!a )(?<!an )(?<!for )(?<!of )(?<!in )(?<!on )(?<!at )(?<!with )(?<!about )"
     rf"(?<!from )(?<!by )(?<!to )"
     rf"\b{_WEATHER_WORD}\s+(?!(?:in|for|at|like|around|over|today|tomorrow|tonight|now|currently|only|just|specifically|is|are|was|were|be|been|being|has|have|had|does|did|will|would|can|could|should|must|shall|may|might)\b)"
-    rf"[A-Za-z][A-Za-z,]*\s+(?:and|,|&)\s+[A-Za-z]",
+    rf"[A-Za-z][A-Za-z,]*\s+(?:and|,|&)\s+[A-Za-z]"
+    # The same subject-first form with ONE place and a time anchor instead of a list ("weather
+    # lisbon right now", "forecast oslo tomorrow") -- 0.7.8 sweep 2026-11-12: "weather paris now"
+    # reached the model and failed. Same function-word gates as the branch above, the place is at
+    # most three words, and the anchor must END the clause, so prose ("weather today was
+    # lovely") still matches nothing.
+    rf"|(?<!the )(?<!a )(?<!an )(?<!for )(?<!of )(?<!in )(?<!on )(?<!at )(?<!with )(?<!about )"
+    rf"(?<!from )(?<!by )(?<!to )"
+    rf"\b(?:{_WEATHER_WORD}|forecast)\s+{_PLACE}\s+{_TIME_ANCHOR_AT_END}"
+    # The place-first form ("lisbon weather right now", "oslo forecast tomorrow"): the word
+    # before the weather word must not be a function word, an adjective of the weather itself or
+    # a time word, so "nice weather today" and "the weather today" are not lookups here.
+    rf"|(?<![\w'])\b{_PLACE}\s+(?:{_WEATHER_WORD}|forecast)\s+{_TIME_ANCHOR_AT_END}",
     re.IGNORECASE,
 )
 

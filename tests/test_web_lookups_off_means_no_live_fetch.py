@@ -118,3 +118,99 @@ def test_web_tool_reason_is_chat_words_without_an_environment_variable() -> None
         reason = _web_unsupported_reason()
     assert "VOOL_ENABLE_WEB" not in reason
     assert "Settings, Privacy & Permissions" in reason
+
+
+# --- the weather phrasings the recognizer used to miss ----------------------------------------
+# 0.7.8 sweep 2026-11-12: a place with no preposition ("weather <place> now") and the progressive
+# verb ("is it raining in <place>") were not read as weather at all, so the turn reached the model
+# with web on or off. Fresh phrasings here, not the sweep's own wording.
+
+_NEW_WEATHER_ASKS = {
+    "weather lisbon right now": "lisbon",
+    "forecast bergen tomorrow": "bergen",
+    "tallinn weather now": "tallinn",
+    "what's the san diego weather today?": "san diego",
+    "is it snowing in oslo?": "oslo",
+    "will it be raining tomorrow in kyiv": "kyiv",
+    "is it hailing in graz": "graz",
+}
+_NOT_WEATHER_ASKS = (
+    "weather patterns are complex",
+    "weather is nice today",
+    "weather has been nice today",
+    "is it raining cats and dogs an idiom?",
+    "weather apps today",
+)
+
+
+@pytest.mark.parametrize("text, place", sorted(_NEW_WEATHER_ASKS.items()))
+def test_prepositionless_and_progressive_weather_asks_are_read_with_their_place(
+    text: str, place: str
+) -> None:
+    from core.agent_runtime.fast_live_info_mode_classifier import (
+        _looks_like_live_weather_request,
+    )
+    from core.live_data_plan import build_live_data_plan
+
+    assert _looks_like_live_weather_request(text.lower())
+    plan = build_live_data_plan(text, plan_id="p", attempt_id="a")
+    assert plan is not None
+    assert [task.arguments.get("location") for task in plan.subtasks] == [place]
+
+
+@pytest.mark.parametrize("text", _NOT_WEATHER_ASKS)
+def test_weather_prose_is_still_not_a_lookup(text: str) -> None:
+    from core.agent_runtime.fast_live_info_mode_classifier import (
+        _looks_like_live_weather_request,
+    )
+
+    assert not _looks_like_live_weather_request(text.lower())
+
+
+def test_new_weather_phrasings_are_served_when_on_and_refused_plainly_when_off() -> None:
+    from tests.test_mixed_demand_terminal_closure_p0 import _model_stand_in
+    from tests.test_turn_attempt_chain import _Harness
+    from tools.web.web_research import WeatherResult
+
+    asks = ["weather lisbon right now", "is it snowing in oslo?"]
+    looked: list[str] = []
+
+    def _stand_in_lookup(location: str, timeout_s: float = 8.0) -> WeatherResult:
+        looked.append(location)
+        return WeatherResult(
+            location=location, place_label=location.title(), condition="Light snow",
+            temperature_c=-2.0, feels_like_c=None, humidity_pct=None, wind_kmph=None,
+            observed_at="09:00 AM", source_label="stand-in", source_url="https://example.invalid/",
+            high_c=0.0, low_c=-4.0,
+        )
+
+    def _no_network(self, request, *args, **kwargs):
+        raise OSError("network is not reachable in this test")
+
+    results: dict[tuple[bool, str], str] = {}
+    for web_on in (True, False):
+        harness = _Harness(f"weather-phrasings-{web_on}")
+        try:
+            with mock.patch.object(policy_engine, "local_only_mode", return_value=False), \
+                    mock.patch.object(policy_engine, "allow_web_fallback", return_value=web_on), \
+                    mock.patch("tools.web.web_research.structured_weather_lookup", _stand_in_lookup), \
+                    mock.patch.object(urllib.request.OpenerDirector, "open", _no_network), \
+                    _model_stand_in(harness.agent, "A stand-in answer."):
+                for ask in asks:
+                    results[(web_on, ask)] = str(
+                        harness.agent.run_once(
+                            ask,
+                            source_context={"surface": "openclaw", "platform": "openclaw"},
+                            session_id_override=harness.session_id,
+                        ).get("response") or ""
+                    )
+        finally:
+            harness.close()
+        if web_on:
+            assert looked == ["lisbon", "oslo"]
+            looked.clear()
+    assert results[(True, "weather lisbon right now")].startswith("Lisbon: Light snow")
+    assert results[(True, "is it snowing in oslo?")].startswith("Oslo: Light snow")
+    assert looked == [], "a lookup ran with Web lookups off"
+    for ask in asks:
+        assert results[(False, ask)] == WEB_OFF_TEXT

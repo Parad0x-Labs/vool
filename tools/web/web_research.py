@@ -1209,12 +1209,16 @@ def _split_weather_candidates(clause: str) -> list[tuple[str, bool]]:
 
 #: The clause shapes that tie a weather trigger word to what it is the weather OF. Named once and
 #: shared by the singular and plural scanners below, so the two can never drift apart.
+from core.weather_phrasing import PLACE as _PLACE  # noqa: E402
+from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END  # noqa: E402
+from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB  # noqa: E402
+
 _WEATHER_CLAUSE_PATTERNS = (
     # "only"/"just"/"specifically" between the subject and the preposition -- mirrors
     # `_WEATHER_LIVE_REQUEST_RE` in `fast_live_info_mode_classifier.py`, which documents
     # the same production incident ("weather only for Berlin and Copenhagen" was measured to miss
     # the classifier entirely without this filler support).
-    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|rain|snow|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+(.+)$",
+    rf"\b(?:{_WEATHER_WORD_RE}|forecast|temperature|{_WEATHER_VERB}|wind|humidity)\s+(?:only\s+|just\s+|specifically\s+|like\s+|looking\s+|going\s+to\s+be\s+)?(?:in|for|at)\s+(.+)$",
     r"\b(?:what is|what's|tell me|show me)\s+the\s+(?:weather|forecast)\s+(?:in|for|at)\s+(.+)$",
     # An INLINE colon label sharing its line with its list ("Weather: Kaunas/Tallinn/Warsaw."),
     # as distinct from `_WEATHER_HEADER_RE`'s bare-header-then-list-below shape. The trigger
@@ -1236,6 +1240,15 @@ _WEATHER_CLAUSE_PATTERNS = (
     rf"(?<!the )(?<!a )(?<!an )(?<!for )(?<!of )(?<!in )(?<!on )(?<!at )(?<!with )(?<!about )"
     rf"(?<!from )(?<!by )(?<!to )"
     rf"\b(?:{_WEATHER_WORD_RE})\s+(?!(?:in|for|at|like|around|over|today|tomorrow|tonight|now|currently|only|just|specifically|is|are|was|were|be|been|being|has|have|had|does|did|will|would|can|could|should|must|shall|may|might)\b)(?=[^:]*$)(?=(?:[^:\n]*\b(?:and|,|&)\b[^:\n]*)$)(.+)$",
+    # One place with no preposition, closed by a time anchor: subject-first ("weather lisbon right
+    # now", "forecast oslo tomorrow") and place-first ("lisbon weather now"). The classifier's
+    # `_WEATHER_LIVE_REQUEST_RE` reads the same two shapes from the same word classes
+    # (`core.weather_phrasing`), so a recognized ask always has its place. 0.7.8 sweep
+    # 2026-11-12: "weather paris now" reached the model with nothing to answer from.
+    rf"(?<!the )(?<!a )(?<!an )(?<!for )(?<!of )(?<!in )(?<!on )(?<!at )(?<!with )(?<!about )"
+    rf"(?<!from )(?<!by )(?<!to )"
+    rf"\b(?:{_WEATHER_WORD_RE}|forecast)\s+({_PLACE})\s+{_TIME_ANCHOR_AT_END}",
+    rf"(?<![\w'])\b({_PLACE})\s+(?:{_WEATHER_WORD_RE}|forecast)\s+{_TIME_ANCHOR_AT_END}",
 )
 
 
