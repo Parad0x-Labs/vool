@@ -27,6 +27,7 @@ exactly as they do today.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import re
 import uuid
@@ -363,31 +364,50 @@ def _spans_that_ask_nothing(original: str) -> tuple[list[tuple[int, int]], list[
 
 
 def without_sentences_that_ask_nothing(original: str) -> str:
-    """The message minus the spans its one reading holds as context or a remark.
+    """The message minus what its one reading holds as context, a remark or a courtesy.
 
     Only decides whether a planner call is worth spending; the turn itself is never rewritten. A
     turn that is one request plus "i sell handmade candles at markets" can only plan as that one
     request once `_without_clauses_that_ask_nothing` drops the context clause, so the planner call
-    buys nothing. Fails toward the turn: a reading that cannot be had, that holds no request, or
-    whose spans are not the message's own characters keeps the whole message.
+    buys nothing. The same holds for words the reading leaves outside every unit when they are a
+    courtesy ("ok and", "sorry,", "thanks,": `core.finalization`'s reading of what is not a demand).
+    Fails toward the turn: a reading that cannot be had, that holds no request, or whose spans are
+    not the message's own characters keeps the whole message.
     """
     read = _spans_that_ask_nothing(original)
     if read is None:
         return original
     asks_nothing, asks = read
-    if not asks_nothing or not asks:
+    if not asks:
+        return original
+    spans = sorted([*asks_nothing, *asks])
+    if any(lo2 < hi for (_lo, hi), (lo2, _hi2) in itertools.pairwise(spans)):
+        return original
+    if any(not 0 <= lo < hi <= len(original) for lo, hi in spans):
+        return original
+    try:
+        from core.finalization import _is_a_demand
+    except Exception:  # pragma: no cover - the reading is part of the same build
+        return original
+    cut = list(asks_nothing)
+    edges = [0, *[x for span in spans for x in span], len(original)]
+    for lo, hi in zip(edges[0::2], edges[1::2], strict=False):
+        gap = original[lo:hi]
+        if gap.strip(" ,;:.!?–—-\n\t") and not _is_a_demand(gap.strip(" ,;:–—-")):
+            cut.append((lo, hi))
+    if not cut:
         return original
     kept: list[str] = []
     cursor = 0
-    for start, end in sorted(asks_nothing):
-        if not 0 <= start < end <= len(original) or start < cursor:
-            return original
+    for start, end in sorted(cut):
         kept.append(original[cursor:start])
         cursor = end
     kept.append(original[cursor:])
-    # The comma or dash that joined a cut span to the rest goes with it: "i make leather wallets by
-    # hand, what should i post this week?" is one question, not ", what should i post ...".
-    pieces = (" ".join(piece.split()).strip(" ,;:–—-") for piece in kept)
+    # The comma, dash or joining word left at the edge of a cut goes with it: "i make leather
+    # wallets by hand, what should i post this week?" is one question, not ", what should i ...",
+    # and "ok and how many are still out on loan" is not "and how many ...".
+    pieces = (re.sub(r"^(?:and|also|plus|then|so|but)\b\s*", "", " ".join(piece.split()).strip(" ,;:–—-"),
+                     flags=re.IGNORECASE) for piece in kept)
     remainder = " ".join(piece for piece in pieces if piece)
     return remainder or original
 

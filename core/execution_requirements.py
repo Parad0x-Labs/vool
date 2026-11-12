@@ -37,6 +37,7 @@ retrieved from the web whatever words surround it.
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -870,6 +871,14 @@ def _compute_requirements(
         _conservation_reasons = (*tuple(_conserved_parent.reason_codes), REASON_CONSERVED)
     candidate_text = constraints.eligible_text
     mode = answer_mode_for(candidate_text)
+    # In a chat mid database work, "does Yara have anything checked out right now" asks for the
+    # person's own data as it stands: the database tools observe it, the web cannot. Measured on the
+    # Mac (Database run 16b, 2026-11-12): the query ran, and the answer was then withheld because
+    # "the pages I found don't state it". Only the freshness words stand down; a live-data ask, an
+    # evidence promise or any other signal keeps its reading.
+    own_data_now = _freshness_reads_own_database(candidate_text, source_context)
+    if own_data_now and mode is AnswerMode.GROUNDED:
+        mode = AnswerMode.DIRECT
     # The software-authoring register (see `answer_mode_for`): the request asks the runtime to
     # BUILD something, and no explicit evidence contract was stated. The live-data recognizers and
     # the freshness signals below would otherwise read the artifact's specification as a lookup.
@@ -1281,7 +1290,7 @@ def _compute_requirements(
         _asks_to_read_the_own_machines_files(candidate_text)
         and not _machine_files_remainder_asks_for_current(candidate_text)
     )
-    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request and not own_machine_read:
+    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request and not own_machine_read and not own_data_now:
         signal_codes = tuple(f"{SIGNAL_REASON_PREFIX}{signal.reason_code}" for signal in signals)
         if constraints.forbids_external_retrieval:
             # The user vetoed the only evidence lane: the requirement still stands
@@ -1334,7 +1343,7 @@ def _compute_requirements(
 
     amount_ask = question_asks_for_measured_amount(text)
     present_anchored = amount_ask and _scope_for_amount(text).asks_current and not past_only
-    if present_anchored and not _is_about_the_assistant_ask(text):
+    if present_anchored and not _is_about_the_assistant_ask(text) and not own_data_now:
         return ExecutionRequirements(
             answer_mode="DIRECT",
             external_evidence_required=False,
@@ -1358,6 +1367,45 @@ def _compute_requirements(
         reason_codes=tuple(reasons),
         world_facts_requested=world_facts,
     )
+
+
+_FRESHNESS_WORDS_RE = re.compile(
+    r"\b(?:current(?:ly)?|latest|today['’]?s|right\s+now|now|as\s+of\s+(?:today|now)|at\s+the\s+moment|"
+    r"this\s+(?:week|month|quarter|year)|still)\b",
+    re.IGNORECASE,
+)
+_ASKS_THE_WEB_RE = re.compile(
+    r"\b(?:web|online|internet|google|search|news|headlines?|website|site)\b", re.IGNORECASE
+)
+
+
+def _freshness_reads_own_database(text: str, source_context: dict[str, Any] | None) -> bool:
+    """Whether the only reason to look anything up now is a freshness word, in a chat mid database work.
+
+    Then "right now" describes the person's own data, which the read-only database tools the session keeps
+    (`core.database_work_state`) observe. Never raises; False keeps the reading as it was."""
+    try:
+        from core.database_work_state import active_database_work_intents
+
+        if not active_database_work_intents(source_context):
+            return False
+        clean = " ".join(str(text or "").split())
+        if not clean or _ASKS_THE_WEB_RE.search(clean):
+            return False
+        from core.agent_runtime.grounded_mode import AnswerMode, answer_mode_for, explicitly_promises_evidence
+        from core.currency_value_contract import asks_for_dynamic_currency_value
+        from core.current_information_signals import firing_signals
+
+        if explicitly_promises_evidence(clean) or asks_for_dynamic_currency_value(clean):
+            return False
+        if _live_data_classification(clean) is not None:
+            return False
+        if any(signal.reason_code != "temporal_markers" for signal in firing_signals(clean)):
+            return False
+        masked = " ".join(_FRESHNESS_WORDS_RE.sub(" ", clean).split())
+        return answer_mode_for(masked) is AnswerMode.DIRECT
+    except Exception:
+        return False
 
 
 def _strip_reported_examples(text: str) -> str:
