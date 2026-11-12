@@ -279,6 +279,15 @@ def contract_from_tool(spec: Any, *, plugin_id: str, version: str) -> RuntimeToo
         # declaration fails registration with the registry's own typed reason.
         _require(isinstance(mutation, dict), f"{intent}: `mutation` must be an object")
 
+    card = None
+    if spec.get("card") is not None:
+        from core.tool_cards import ToolCardError, parse_card
+
+        try:
+            card = parse_card(spec.get("card"), owner=intent)
+        except ToolCardError as exc:
+            raise PluginManifestError(str(exc)) from exc
+
     return RuntimeToolContract(
         intent=intent,
         description=description,
@@ -301,6 +310,7 @@ def contract_from_tool(spec: Any, *, plugin_id: str, version: str) -> RuntimeToo
         permission_actions=permission_actions,
         source=f"plugin:{plugin_id}",
         mutation=mutation if isinstance(mutation, dict) else None,
+        card=card,
     )
 
 

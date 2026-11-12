@@ -317,6 +317,8 @@ def _batch_member_is_read_only(intent: str, arguments: dict[str, Any] | None = N
 
 
 # Intents that mean "no tool ran" — the set `tool_intent_direct_message` treats as a closing reply.
+from core.tool_use_retry import TOOL_USE_RETRY_KEY, needed_tool_intents, tool_use_retry_directive
+
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 
 
@@ -1249,6 +1251,23 @@ class ResearchToolLoopFacadeMixin:
 
         if _model_own_tools_turn(source_context):
             return None
+        # The owner asks about their mailbox and no email account is connected: that fact is the
+        # whole answer, given before any model can answer the question from its weights.
+        from core.execution_requirements import email_not_connected_reply
+
+        mail_reply = email_not_connected_reply(effective_input, source_context)
+        if mail_reply:
+            return {
+                "response": mail_reply,
+                "confidence": 1.0,
+                "success": False,
+                "status": "source_not_connected",
+                "mode": "tool_failed",
+                "task_outcome": "blocked",
+                "details": {"source": "mail", "connected": False, "executed": False},
+                "learned_plan": None,
+                "workflow_summary": "- mailbox ask with no email account connected; answered from that fact, no model call",
+            }
         # A bound workspace audit has already executed the authoritative read-only tool sequence
         # and attached its results as model evidence.  Running the generic tool-intent planner here
         # would ask the model to choose tools a second time, prepend the entire tool catalog, and
@@ -1469,6 +1488,8 @@ class ResearchToolLoopFacadeMixin:
         approval_resume_exemptions: set[str] = set()
         confidence_hint = 0.55
         code_completion_corrections = 0
+        # One retry per turn for a needs-a-tool ask the model answered in prose (see below).
+        tool_use_retry_spent = False
         # Per-turn tool candidate fingerprint.  Reset each turn so a fresh
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
@@ -1606,6 +1627,7 @@ class ResearchToolLoopFacadeMixin:
                         source_context=loop_source_context,
                     )
                     loop_source_context.pop("code_task_completion_feedback", None)
+                    loop_source_context.pop(TOOL_USE_RETRY_KEY, None)
                     last_tool_decision = tool_decision
                     # NOTE: a provider that never answered (structured_output is None and
                     # not used_model) is NOT handled here. KAS's PR #80 added an early
@@ -1712,6 +1734,34 @@ class ResearchToolLoopFacadeMixin:
                                 direct_message = None
                         except Exception:
                             raise
+                    if (
+                        direct_message is not None
+                        and not executed_steps
+                        and not tool_use_retry_spent
+                        and model_rounds < max_rounds
+                    ):
+                        # The ask needs a live source on this machine and the model answered in
+                        # prose without calling anything: that prose is the fake action ("I'll
+                        # nudge you in 20 minutes", "Next Tuesday afternoon is completely free").
+                        # Ask once more, with a short directive and only the needed tools seated.
+                        retry_intents = needed_tool_intents(effective_input, source_context)
+                        if retry_intents:
+                            tool_use_retry_spent = True
+                            loop_source_context[TOOL_USE_RETRY_KEY] = {
+                                "intents": list(retry_intents),
+                                "directive": tool_use_retry_directive(retry_intents),
+                            }
+                            self._emit_runtime_event(
+                                loop_source_context,
+                                event_type="tool_use_retry",
+                                message=(
+                                    "The model answered a request that needs a tool without calling one; "
+                                    "asking once more with only the needed tools."
+                                ),
+                                status="prose_without_tool",
+                                step_count=0,
+                            )
+                            continue
                     if direct_message is not None:
                         if (
                             len(executed_steps) == 1

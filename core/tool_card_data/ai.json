@@ -1,0 +1,30 @@
+{
+  "_about": "Cards drafted from each tool's own contract (tools/tool_card_author.py, reviewed).",
+  "ai.paid_ask": {
+    "use_when": "The person wants a single question answered by the paid pay-per-answer AI they set up, and is fine with a small USDC payment they approve in their wallet.",
+    "examples": [
+      "ask my pay-per-answer AI what the difference is between a Roth and a traditional IRA",
+      "use the paid AI to explain why my sourdough keeps coming out so dense",
+      "ask the paid one who won the 1998 world cup",
+      "can you run this by the pay per answer ai: is it ok to take ibuprofen with coffee",
+      "send this to the paid model please: summarize the main causes of the 2008 financial crisis",
+      "ask my paid ai whats the capital of australia",
+      "use the paid bot to ask how many calories are in a banana",
+      "Could you kindly put this to the pay-per-answer AI: what's a good name for a bakery?",
+      "ask Sage (the paid one) how photosynthesis works",
+      "paid ai: best way to split rent 3 ways when the rooms are different sizes",
+      "Pregunta a la IA de pago por respuesta cuál es la mejor época para viajar a Japón",
+      "Demande à l'IA payante combien de temps il faut pour cuire un œuf mollet",
+      "Frag die kostenpflichtige KI, wie ich einen Lebenslauf am besten aufbaue",
+      "Paklausk mokamo dirbtinio intelekto, kodėl dangus yra mėlynas"
+    ],
+    "not_for": [
+      "how do I add a pay-per-answer AI in Settings",
+      "what is x402 and how does it work",
+      "write a blog post about paying for AI answers with crypto",
+      "approve the pending USDC payment for me",
+      "what's the price of USDC today",
+      "explain what USDC on Base is"
+    ]
+  }
+}

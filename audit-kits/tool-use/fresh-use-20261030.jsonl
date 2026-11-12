@@ -1,0 +1,40 @@
+{"id": "fu01", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["which PDFs are sitting in my Downloads right now?"], "expect": {"tool_any": ["files", "pdf"]}}
+{"id": "fu02", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["is there anything on my Desktop that looks like a to-do list? read it to me"], "expect": {"tool_any": ["files"]}}
+{"id": "fu03", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["how many photos are in my Lisbon holiday folder?"], "expect": {"tool_any": ["files", "images"]}}
+{"id": "fu04", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["find my grandma's pancake recipe and tell me how much flour it needs"], "expect": {"tool_any": ["files"]}}
+{"id": "fu05", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["what's in the garden-planner project folder?"], "expect": {"tool_any": ["files"]}}
+{"id": "fu06", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "es", "turns": ["¿Qué archivos tengo en la carpeta Descargas?"], "expect": {"tool_any": ["files"]}}
+{"id": "fu07", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "de", "turns": ["Welche Dateien liegen auf meinem Schreibtisch (Desktop)?"], "expect": {"tool_any": ["files"]}}
+{"id": "fu08", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["open invoice_4471.pdf in my Downloads and tell me the total"], "expect": {"tool_any": ["pdf", "files"]}}
+{"id": "fu09", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["what does my boarding pass PDF say about the flight?"], "expect": {"tool_any": ["pdf", "files"]}}
+{"id": "fu10", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "fr", "turns": ["Peux-tu lire mon CV en PDF dans Documents et me dire le dernier poste ?"], "expect": {"tool_any": ["pdf", "files"]}}
+{"id": "fu11", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["save a note: the plumber is coming thursday at 10"], "expect": {"tool_any": ["notes"]}}
+{"id": "fu12", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["jot down that my bike lock code is the same as the gym locker", "what notes have I got saved?"], "expect": {"tool_any": ["notes"]}}
+{"id": "fu13", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["do I have any notes saved at all?"], "expect": {"tool_any": ["notes"]}}
+{"id": "fu14", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "lt", "turns": ["Užsirašyk pastabą: nupirkti pieno ir duonos"], "expect": {"tool_any": ["notes"]}}
+{"id": "fu15", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["remind me tomorrow at 9am to call the dentist"], "expect": {"tool_any": ["reminders"]}}
+{"id": "fu16", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["what reminders do I have coming up?"], "expect": {"tool_any": ["reminders"]}}
+{"id": "fu17", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "es", "turns": ["Recuérdame el viernes a las 18:00 que tengo que regar las plantas"], "expect": {"tool_any": ["reminders"]}}
+{"id": "fu18", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["my computer feels slow, what's eating the most memory right now?"], "expect": {"tool_any": ["processes"]}}
+{"id": "fu19", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["how busy is the CPU at the moment?"], "expect": {"tool_any": ["processes"]}}
+{"id": "fu20", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "fr", "turns": ["Quels programmes tournent en ce moment sur mon ordinateur ?"], "expect": {"tool_any": ["processes"]}}
+{"id": "fu21", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["do I have a contact saved called Marta?"], "expect": {"tool_any": ["contacts"]}}
+{"id": "fu22", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["add a contact: Tomas Petraitis, phone +370 600 12345", "now look him up and show me what you saved"], "expect": {"tool_any": ["contacts"]}}
+{"id": "fu23", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "en", "turns": ["which skills do you have installed right now?"], "expect": {"tool_any": ["skills"]}}
+{"id": "fu24", "job": "fresh-use-20261030", "kind": "needs_tool", "lang": "de", "turns": ["Welche Skills sind bei dir gerade installiert?"], "expect": {"tool_any": ["skills"]}}
+{"id": "fu25", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["any new emails from my landlord today?"], "expect": {"tool_any": ["mail"], "says_not_connected": true}}
+{"id": "fu26", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["send an email to my boss saying I'll be late tomorrow"], "expect": {"tool_any": ["mail"], "says_not_connected": true}}
+{"id": "fu27", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["what's on my calendar for friday?"], "expect": {"tool_any": ["calendar"], "says_not_connected": true}}
+{"id": "fu28", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["book a 30 minute slot next tuesday afternoon for a haircut in my calendar"], "expect": {"tool_any": ["calendar"], "says_not_connected": true}}
+{"id": "fu29", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["summarise my unread inbox for me"], "expect": {"tool_any": ["mail"], "says_not_connected": true}}
+{"id": "fu30", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["am I free tomorrow morning?"], "expect": {"tool_any": ["calendar"], "says_not_connected": true}}
+{"id": "fu31", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "lt", "turns": ["Ar turiu naujų laiškų pašte?"], "expect": {"tool_any": ["mail"], "says_not_connected": true}}
+{"id": "fu32", "job": "fresh-use-20261030", "kind": "missing_connection", "lang": "en", "turns": ["did anyone invite me to a meeting this week?", "ok then check my email for invites instead"], "expect": {"tool_any": ["calendar", "mail"], "says_not_connected": true}}
+{"id": "fu33", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["how long should I boil an egg for a runny yolk?"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu34", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["what's the difference between a virus and a bacterium, in two sentences?"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu35", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["give me three name ideas for a grey kitten"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu36", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["convert 180 degrees celsius to fahrenheit"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu37", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["what does 'save the date' mean on an invitation?"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu38", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["write a short haiku about autumn rain"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu39", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "de", "turns": ["Wie sagt man 'thank you very much' auf Litauisch?"], "expect": {"tool_any": [], "no_tool": true}}
+{"id": "fu40", "job": "fresh-use-20261030", "kind": "no_tool", "lang": "en", "turns": ["I keep forgetting things lately, any tips?", "thanks, which of those is easiest to start with?"], "expect": {"tool_any": [], "no_tool": true}}
