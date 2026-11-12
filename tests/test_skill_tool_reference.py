@@ -49,5 +49,9 @@ def test_platform_marks_and_left_out_descriptions():
     assert set(PLATFORM_ONLY) <= set(contracts)
     text = PAGE.read_text(encoding="utf-8")
     assert "| `pdf.extract_text` | **macOS only.** " in text
+    table = text.split("### Left out of the table", 1)[0]
+    for intent, system in PLATFORM_ONLY.items():
+        if intent in table or intent in text.split("### Left out of the table", 1)[1]:
+            assert f"| `{intent}` | **{system} only.** " in table, intent
     left_out = text.split("### Left out of the table", 1)[1]
     assert re.search(r"^\| `x\.post` \| Read X posts.*x\.action\.propose", left_out, re.MULTILINE)

@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-146 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+150 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -214,7 +214,7 @@ The full contract of a tool, with every field, is in Python:
 | `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |
 | `machine.host_state` | Report this machine's live state: uptime, battery level and power source, and whether it is a laptop or a desktop. | none | reads | `read_files` | runs | runs |
 | `machine.inspect_specs` | Inspect grounded machine hardware and runtime specs for this local host. | none | reads | none | runs | runs |
-| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?`, `kind?`, `newest_first?` | reads | none | runs | runs |
+| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?`, `kind?`, `newest_first?`, `size_order?` | reads | none | runs | runs |
 | `machine.list_processes` | List the heaviest running processes on this machine, ranked by memory or by CPU. | `limit?`, `sort?` | reads | none | runs | runs |
 | `machine.move_path` | Move or rename a file or folder on this machine. *Refuses protected system locations and asks for a live confirmation from the operating system before moving.* | `source`, `destination` | writes files | none | asks | asks |
 | `machine.read_file` | Read a text file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `start_line?`, `max_lines?`, `verbatim?` | reads | none | runs | runs |
@@ -391,6 +391,15 @@ The full contract of a tool, with every field, is in Python:
 | `workspace.symbol_search` | Search likely symbol definitions and references in workspace files. | `symbol`, `path?`, `glob?`, `limit?`, `scan_limit?` | reads | none | runs | runs |
 | `workspace.write_file` | Write full text content to a workspace file. | `path`, `content`, `expected_hash?` | writes files | none | asks | runs |
 
+### x
+
+| Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
+| --- | --- | --- | --- | --- | --- | --- |
+| `x.api.catalog` | Discover documented X features by query, inspect one operation_id's path/query/body schemas, or resolve a referenced schema name. | `query?`, `operation_id?`, `schema?`, `offset?` | reads | `read_files` | runs | runs |
+| `x.api.receipts` | Read this chat's local X request, quota and cost-reservation receipts. | `limit?` | reads | `read_files` | runs | runs |
+| `x.feedback.list` | Bounded best and worst ratings with comments for this project and global guidance. | none | reads | `read_files` | runs | runs |
+| `x.feedback.save` | Record an explicit 1-10 rating and verbatim user comment. | `rating`, `comment?`, `action_id?`, `text?`, `kind?` | writes files | `create_files`, `modify_files` | asks | runs |
+
 ### Left out of the table
 
 These tools exist, and a skill may name them in `allowed-tools` (the validator accepts every name below), but on a fresh install they are off until the person sets something up.
@@ -451,6 +460,12 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `image.generate` | Generate an image from a text prompt via a configured image service. | `prompt`, `account?` | makes media |
+
+**Sign in for bookmarks in Settings > API Keys > X.**
+
+| Tool | What it does | Inputs | Reads or changes |
+| --- | --- | --- | --- |
+| `x.bookmarks` | Propose reading, adding or removing the signed-in user's X bookmarks. | `operation`, `post`, `max_results?`, `next_token?` | saves VOOL data |
 
 **The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy.**
 
@@ -515,10 +530,13 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | `x.account` | About the connected X account: kind=muted or blocked (who it muted or blocked), kind=trends (trends X picks for this account), kind=x_usage (X's own count of this app'... | `kind`, `max_results?`, `next_token?` | reads |
 | `x.action.propose` | Propose an action on X as the user: post, reply, quote, delete (one of the user's own posts), like, unlike, repost, unrepost, follow, unfollow, hide_reply/unhide_reply... | `kind`, `text`, `post`, `username`, `list_id`, `name`, `description?`, `private?` | saves VOOL data |
 | `x.action.status` | Check a proposed X action: waiting for the user's approval, declined, sent (with the post link) or failed. | `action_id?` | reads |
+| `x.api.request` | Call a documented X operation discovered with x.api.catalog. | `operation_id`, `path?`, `query?`, `body?` | saves VOOL data |
 | `x.dms` | The connected user's own recent direct messages on X, or the conversation with one account (with_user=username). | `with_user?`, `max_results?`, `next_token?` | reads |
 | `x.follows` | List an account's followers (kind=followers) or the accounts it follows (kind=following). | `username`, `kind?`, `max_results?`, `next_token?` | reads |
 | `x.lists` | X lists: an account's lists (kind=owned\|memberships\|followed, with username), or one list's details, posts, members or followers (kind=details\|posts\|members\|followers,... | `username?`, `list_id?`, `kind?`, `max_results?`, `next_token?` | reads |
 | `x.post` | Read X posts by link or id (kind=post), or who liked (liking_users), reposted (reposted_by), quoted (quotes) or replied to (replies) a post. *Reads only. Posting, replying and every other action on X goes through x.action.propose, which the person approves.* | `post`, `kind?`, `max_results?`, `next_token?` | reads |
+| `x.replies.unanswered` | Read comments on one own post with no answer observed in a complete recent own-reply search. | `post`, `max_results?`, `next_token?` | reads |
+| `x.results` | Refresh observed views and interactions of up to ten own posts, storing IDs and numbers only. | `posts?` | reads |
 | `x.search` | Search X posts. | `token?`, `query?`, `mode?`, `sort?`, `granularity?`, `archive?`, `include_reposts?`, `start_time?`, `end_time?`, `max_results?`, `next_token?` | reads |
 | `x.spaces` | X Spaces (live audio rooms): search by words (query, state=live\|scheduled\|all), look up by id or link (ids), or the Spaces some accounts host (hosts=usernames). | `query?`, `ids?`, `hosts?`, `state?`, `max_results?` | reads |
 | `x.token_callers` | Find who called a token on X: every account that posted its address, $CASHTAG or name, ordered by who posted first, with followers, account age, number of posts and en... | `token`, `max_results?`, `history_for?`, `history_posts?`, `min_followers?`, `evaluate_calls?`, `archive?`, `include_reposts?`, `start_time?`, `end_time?` | reads |
@@ -530,7 +548,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
-| `x.trending` | Fetch trending topics from X for a location (read-only). | `account?`, `woeid?`, `limit?` | reads |
+| `x.trending` | Read X trends for a location through the owner's selected feature and cost limits in Settings. | `account?`, `woeid?`, `limit?` | reads |
 
 Not for skills:
 

@@ -169,7 +169,9 @@ def render() -> str:
             hidden.append(name)
         elif contract.tool_surface in INTERNAL_SURFACES:
             internal[contract.tool_surface].append(name)
-        elif not contract.supported:
+        elif not contract.supported and contract.intent not in PLATFORM_ONLY:
+            # A tool for one operating system keeps its row and its mark on every machine, so the
+            # page is the same wherever it is made (pdf.ocr is unsupported on Linux by design).
             off[" ".join(str(contract.unsupported_reason or "switched off on this runtime").split())].append(contract)
         else:
             listed[contract.tool_surface].append(contract)
