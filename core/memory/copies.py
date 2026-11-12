@@ -493,8 +493,34 @@ def _scrub_sqlite(path: Path, token: str, chat_id: str) -> int:
 
 
 def _journal_words(entry: dict[str, Any]) -> dict[str, Any]:
-    """An undo journal entry's own words: the paths it names. Its ids, digests and times are the runtime's."""
-    return {key: entry.get(key) for key in ("path", "paths", "root") if entry.get(key)}
+    """An undo journal entry's own words: the paths it names. Its ids, digests and times are the runtime's.
+
+    A command run (shell, tests, lint, formatter) names its files inside the entry: the scan's preimage table
+    (``files``, keyed by path), its drift rows (``drift``, each with a ``path``), its coverage block's declared and
+    high-risk paths, and a downgrade's ``incomplete_paths``. Reading only path/paths/root missed a file name that
+    carries the words, and the forget still said the undo copies were verified (unwired-modules review,
+    2026-11-12)."""
+    words: dict[str, Any] = {key: entry.get(key) for key in ("path", "paths", "root", "incomplete_paths") if entry.get(key)}
+    files = entry.get("files")
+    if isinstance(files, dict):
+        named = [str(name) for name in files]
+    elif isinstance(files, list):
+        named = [str(item.get("path") or "") if isinstance(item, dict) else str(item or "") for item in files]
+    else:
+        named = []
+    drift = entry.get("drift")
+    if isinstance(drift, list):
+        named += [str(row.get("path") or "") for row in drift if isinstance(row, dict)]
+    coverage = entry.get("coverage")
+    if isinstance(coverage, dict):
+        named += [str(path or "") for path in coverage.get("declared_paths") or []]
+        high_risk = coverage.get("high_risk")
+        if isinstance(high_risk, dict):
+            named += [str(path or "") for path in high_risk]
+    named = [name for name in named if name]
+    if named:
+        words["named_paths"] = named
+    return words
 
 
 def _forget_undo_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
