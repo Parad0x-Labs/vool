@@ -45,6 +45,8 @@ _ADAPTERS: dict[str, str] = {
     # settings routes
     "http:GET:/api/settings/prefs": "settings.prefs.list",
     "http:POST:/api/settings/prefs": "settings.prefs.set",
+    "http:GET:/api/web0/settings": "settings.web0.show",
+    "http:POST:/api/web0/settings": "settings.web0.set",
     "http:GET:/api/settings/credentials": "settings.credentials.list",
     "http:POST:/api/settings/credentials": "settings.credentials.set",
     # PA Contacts operator surfaces (core.command_registry.groups.contacts_group)

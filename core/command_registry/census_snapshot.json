@@ -1667,6 +1667,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/web0/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/web0/settings",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.web0.show",
+      "surface": "http"
+    },
     "http:GET:/api/zcash/*": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/zcash/*",
@@ -3060,6 +3067,13 @@
       "registry_command_id": "wallet.x402.retry",
       "surface": "http"
     },
+    "http:POST:/api/web0/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/web0/settings",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.web0.set",
+      "surface": "http"
+    },
     "http:POST:/api/x/activity": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/x/activity",
@@ -3323,7 +3337,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 318,
-    "GENERATED_ADAPTER": 147,
+    "GENERATED_ADAPTER": 149,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

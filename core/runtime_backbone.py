@@ -57,37 +57,60 @@ def _legacy_availability_from_subsystem(subsystem):
     )
 
 
+def _web0_poll_wait(seconds: float) -> None:
+    import time
+
+    time.sleep(seconds)
+
+
 def _web0_task_poll_loop() -> None:
     """Daemon thread: poll the order book and auto-claim tasks when capacity allows.
 
     Update checks have their own single scheduler in core.updater.service.
+    Runs only while the Web0 switch is on (core.web0_settings): when the switch
+    turns off, the loop exits at its next tick and releases the started marker
+    so a later enable can start it again.
     """
-    import time
-    while True:
-        time.sleep(30)
-        try:
-            from core.helper_scheduler import HelperScheduler
-            from core.order_book import global_order_book
-            from network.signer import get_local_peer_id
-            from storage.task_offer_store import claim_task_offer
-            scheduler = HelperScheduler()
-            if not scheduler.can_accept_mesh_task():
-                continue
-            offer = global_order_book.pop_best_offer()
-            if offer is None:
-                continue
-            task_id = str(offer.offer_dict.get("task_id") or "").strip()
-            if task_id:
-                claim_task_offer(task_id, get_local_peer_id())
-        except Exception:
-            pass
+    from core.web0_settings import web0_enabled
+
+    global _TASK_POLL_STARTED
+    try:
+        while web0_enabled():
+            _web0_poll_wait(30)
+            if not web0_enabled():
+                # Switched off during the wait: claim nothing more.
+                break
+            try:
+                from core.helper_scheduler import HelperScheduler
+                from core.order_book import global_order_book
+                from network.signer import get_local_peer_id
+                from storage.task_offer_store import claim_task_offer
+                scheduler = HelperScheduler()
+                if not scheduler.can_accept_mesh_task():
+                    continue
+                offer = global_order_book.pop_best_offer()
+                if offer is None:
+                    continue
+                task_id = str(offer.offer_dict.get("task_id") or "").strip()
+                if task_id:
+                    claim_task_offer(task_id, get_local_peer_id())
+            except Exception:
+                pass
+    finally:
+        with _TASK_POLL_LOCK:
+            _TASK_POLL_STARTED = False
 
 
 def start_web0_background_workers() -> None:
-    """Start background daemons once (idempotent)."""
+    """Start background daemons once (idempotent). Starts nothing while the
+    Web0 switch is off (core.web0_settings) — off means no thread at all."""
+    from core.web0_settings import web0_enabled
+
     global _TASK_POLL_STARTED
     with _TASK_POLL_LOCK:
         if _TASK_POLL_STARTED:
+            return
+        if not web0_enabled():
             return
         _TASK_POLL_STARTED = True
     t = threading.Thread(target=_web0_task_poll_loop, daemon=True, name="web0-task-poll")
@@ -194,31 +217,37 @@ def build_provider_registry_snapshot(
             prewarm_results = tuple(active_registry.prewarm_enabled_providers(provider_ids=visible_provider_ids or None))
         except Exception:
             prewarm_results = tuple()
-    # Web0 background workers (task poll loop) — start once at boot
+    # Web0 background workers (task poll loop) — start once at boot. The starter
+    # itself no-ops while the Web0 switch is off (core.web0_settings): off means
+    # no thread, no network.
     with contextlib.suppress(Exception):
         start_web0_background_workers()
-    # Web0 capability announce — fire-and-forget, no-op when gate is off
+    # Web0 capability announce — fire-and-forget, no-op when gate is off. The
+    # switch off means not even a manifest build or announce attempt.
     try:
-        from core.web0_capability_broadcast import (
-            DEFAULT_PRICE_PER_TOKEN,
-            announce_from_env,
-            build_manifest,
-            resolve_announced_price_usdc,
-            resolve_privacy_mode,
-        )
-        top = max(capability_truth, key=lambda c: float(c.tokens_per_second or 0), default=None)
-        _manifest = build_manifest(
-            worker_id=str(env_map.get("VOOL_WORKER_ID") or "vool"),
-            provider_ids=tuple(c.provider_id for c in capability_truth),
-            top_tps=float(top.tokens_per_second or 0) if top else 0.0,
-            top_tier=str(top.role_fit or "drone") if top else "drone",
-            context_window=int(top.context_window or 32768) if top else 32768,
-            tools=tuple(str(t) for t in (top.tool_support or ())) if top else (),
-            # Advertise the node's REAL price + privacy posture, not the default.
-            price_per_token_usdc=resolve_announced_price_usdc(env_map, default=DEFAULT_PRICE_PER_TOKEN),
-            privacy_mode=resolve_privacy_mode(env_map),
-        )
-        announce_from_env(_manifest, env=env_map)
+        from core.web0_settings import web0_enabled
+
+        if web0_enabled():
+            from core.web0_capability_broadcast import (
+                DEFAULT_PRICE_PER_TOKEN,
+                announce_from_env,
+                build_manifest,
+                resolve_announced_price_usdc,
+                resolve_privacy_mode,
+            )
+            top = max(capability_truth, key=lambda c: float(c.tokens_per_second or 0), default=None)
+            _manifest = build_manifest(
+                worker_id=str(env_map.get("VOOL_WORKER_ID") or "vool"),
+                provider_ids=tuple(c.provider_id for c in capability_truth),
+                top_tps=float(top.tokens_per_second or 0) if top else 0.0,
+                top_tier=str(top.role_fit or "drone") if top else "drone",
+                context_window=int(top.context_window or 32768) if top else 32768,
+                tools=tuple(str(t) for t in (top.tool_support or ())) if top else (),
+                # Advertise the node's REAL price + privacy posture, not the default.
+                price_per_token_usdc=resolve_announced_price_usdc(env_map, default=DEFAULT_PRICE_PER_TOKEN),
+                privacy_mode=resolve_privacy_mode(env_map),
+            )
+            announce_from_env(_manifest, env=env_map)
     except Exception:
         pass
     return ProviderRegistrySnapshot(

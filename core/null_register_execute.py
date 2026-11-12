@@ -37,6 +37,7 @@ from core.null_registrar import (
     validate_registrable_name,
 )
 from core.null_resolver import NULL_REGISTRAR_MAINNET, derive_domain_pda
+from core.web0_settings import Web0OffError
 
 # Hard ceiling: a single registration may never cost more than this, regardless of the
 # caller-supplied cap. Pilot rent is ~0.003 SOL and go-live all-in is ~0.01 SOL, so 0.05 SOL
@@ -140,6 +141,10 @@ def _is_available(name: str, *, program_id: str) -> bool:
 
     try:
         return resolve_null_domain(name) is None
+    except Web0OffError:
+        # The lookup never left the machine: Web0 is off. The caller says so
+        # instead of reporting the name as taken. Still no spend.
+        raise
     except Exception:
         # Fail closed: if we cannot confirm availability, do not proceed to spend.
         return False
@@ -229,7 +234,11 @@ def preview_registration(
     """Phase 1: quote the registration without signing anything."""
     if not derive_domain_pda(name, program_id=program_id):
         return RegisterOutcome(status="error", message=f"'{name}' is not a valid .null name")
-    if not _is_available(name, program_id=program_id):
+    try:
+        available = _is_available(name, program_id=program_id)
+    except Web0OffError as exc:
+        return RegisterOutcome(status="refused", message=str(exc), extra={"code": "web0_off"})
+    if not available:
         return RegisterOutcome(status="refused", message=f"{name} is already registered")
     plan, err = _plan_with_costs(name, owner_pubkey, program_id, rpc)
     if err is not None:
@@ -278,7 +287,11 @@ def execute_registration(
         return RegisterOutcome(status="refused", message="no wallet available to sign")
 
     # Pre-submit availability recheck — never burn rent on a name taken in the meantime.
-    if not _is_available(name, program_id=program_id):
+    try:
+        available = _is_available(name, program_id=program_id)
+    except Web0OffError as exc:
+        return RegisterOutcome(status="refused", message=str(exc), extra={"code": "web0_off"})
+    if not available:
         return RegisterOutcome(status="refused", message=f"{name} is already registered")
 
     plan, err = _plan_with_costs(name, wallet.pubkey, program_id, rpc)

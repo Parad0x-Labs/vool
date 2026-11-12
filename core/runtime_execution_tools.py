@@ -4414,6 +4414,26 @@ def _web0_publish(
             },
         )
 
+    from core.web0_settings import WEB0_OFF_MESSAGE, web0_enabled
+
+    if not web0_enabled():
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="web0_off",
+            response_text=f"I won't publish to Arweave: {WEB0_OFF_MESSAGE}",
+            details={
+                "project_id": project_id,
+                "status": "publish_web0_off",
+                "observation": _tool_observation(
+                    intent="web0.publish",
+                    tool_surface="web0",
+                    ok=False,
+                    status="web0_off",
+                    project_id=project_id,
+                ),
+            },
+        )
     result = web0_publish(project_id, wallet, allow_network_publish=True)
     return _web0_result(
         "web0.publish",
