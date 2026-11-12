@@ -122,7 +122,10 @@ def test_served_turns_after_forget_never_carry_the_record_to_the_model(tmp_path:
 
         seen = []
         for session in (chat, canonical_session("things-recall-served-another-chat")):
-            for question in QUESTIONS:
+            # The forget law is per chat ("In a new chat I can remember it again"), so in another chat the
+            # person may type the code again, and their own turns then carry it to the model. The plain
+            # questions come first there: what they prove is that nothing brings the words back by itself.
+            for question in (QUESTIONS if session == chat else PLAIN + QUESTIONS[:2]):
                 provider.reset()
                 answer = _reply(daemon.chat(question, session_id=session))
                 seen.append((session == chat, question, bool(provider.payloads()), answer))
@@ -132,7 +135,8 @@ def test_served_turns_after_forget_never_carry_the_record_to_the_model(tmp_path:
                 assert not provider.any_payload_has(RECORD_ONLY), seen[-1]
                 if question in PLAIN:
                     assert not provider.any_payload_has("7731"), seen[-1]
-        # Measured: in the forgetting chat both plain questions reach the model; elsewhere the law refuses.
+        # Measured on 28fc78dd: in the forgetting chat both plain questions reach the model; in another chat
+        # the memory lane answers some of them ("I don't have that saved") and hands the rest on.
         assert any(called for _same, question, called, _answer in seen if question in PLAIN), \
             ("no plain question reached the model, so nothing was proven about what it sees", seen)
         assert [t["model"] for t in _owner(daemon, "/api/my-things")["things"]] == ["PL-7731"]
