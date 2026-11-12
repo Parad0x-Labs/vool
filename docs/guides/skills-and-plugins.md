@@ -54,14 +54,13 @@ You can also make your own skill in chat with no key at all: see
 [Make your own skill](make-your-own-skill.md).
 
 You can also ask in any chat: *which skills do I have?* lists them, and *how do I add a
-skill?* explains both ways. (The second answer is planned for VOOL 0.7.8, not released yet.)
+skill?* explains both ways.
 
 ## Turning a skill on or off
 
 Open **Skills & Plugins**, then **My add-ons**, then **Skills**. Each skill shows **On** or
 **Off** with an **Enable** or **Disable** button. A skill you turn off is not used in any chat
-until you turn it on again. Its files are kept. (The per-skill buttons are planned for VOOL
-0.7.8, not released yet.)
+until you turn it on again. Its files are kept.
 
 The **Built-in skills** card under **Plugins** has no button of its own: turn its skills on or
 off one by one under **Skills**.
@@ -71,13 +70,13 @@ off one by one under **Skills**.
 When a skill's instructions were part of how VOOL wrote an answer, a short line under the
 answer says so, for example **Skill used: Browser**. It appears right after the answer, while
 the chat is open; answers loaded later from your history do not show it yet. Answer-style rules
-that ride along on most answers are not named there. Planned for VOOL 0.7.8, not released yet.
+that ride along on most answers are not named there.
 
 ## Skills for building VOOL
 
 The library also holds the skills the VOOL team builds VOOL with: code review, test runs,
 release checks, pipeline repair and similar. They are not listed in chat or on the Skills page,
-and they do not steer everyday answers (planned for VOOL 0.7.8, not released yet). Developers can show and use them by starting VOOL with
+and they do not steer everyday answers. Developers can show and use them by starting VOOL with
 `VOOL_DEVELOPER_SKILLS=1`.
 
 ## Availability states
