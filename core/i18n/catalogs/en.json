@@ -3309,7 +3309,9 @@
     "toybox.skin_dawn-circuit_name": "Dawn Circuit",
     "toybox.skin_dawn-circuit_description": "A pixel dream of moon gates, ribbon clouds and expressive little companions.",
     "settings.switch.on": "On",
-    "settings.switch.off": "Off"
+    "settings.switch.off": "Off",
+    "liveinfo.web_off.not_checked": "Web lookups are off, so I did not search the web and can't verify a current answer. You can turn them on in Settings → Privacy & Permissions → Web lookups.",
+    "liveinfo.web_off.not_checked_started_off": "Web lookups are off, so I did not search the web and can't verify a current answer."
   },
   "html_keys": [
     "bypass.modal_limits",

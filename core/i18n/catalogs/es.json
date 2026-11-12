@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
     "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos.",
     "settings.switch.on": "Activado",
-    "settings.switch.off": "Desactivado"
+    "settings.switch.off": "Desactivado",
+    "liveinfo.web_off.not_checked": "Las búsquedas web están desactivadas, así que no busqué en la web y no puedo verificar una respuesta actual. Puedes activarlas en Ajustes → Privacidad y permisos → Búsquedas web.",
+    "liveinfo.web_off.not_checked_started_off": "Las búsquedas web están desactivadas, así que no busqué en la web y no puedo verificar una respuesta actual."
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

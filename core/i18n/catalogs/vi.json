@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm.",
     "settings.switch.on": "Bật",
-    "settings.switch.off": "Tắt"
+    "settings.switch.off": "Tắt",
+    "liveinfo.web_off.not_checked": "Tra cứu web đang tắt, nên tôi không tìm trên web và không thể xác minh câu trả lời mới. Bạn có thể bật trong Cài đặt → Riêng tư và Quyền → Tra cứu web.",
+    "liveinfo.web_off.not_checked_started_off": "Tra cứu web đang tắt, nên tôi không tìm trên web và không thể xác minh câu trả lời mới."
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

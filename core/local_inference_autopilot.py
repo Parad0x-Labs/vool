@@ -1519,6 +1519,117 @@ def _largest_parameter_size_b(*sources: str) -> float:
     return best
 
 
+#: In the USER'S OWN WORDS a size token is a model request unless it reads as part of an address,
+#: unit or reference. Measured 2026-10-19: a form fixture's random address "18620b Harbour Road" was
+#: read as an 18,620B demand and the turn never reached the model; "Flat 24b" or "floor 30b" would do
+#: the same. People also ask for sizes bare ("switch to 32b", "use llama 3.1 70b", "70b please"), so
+#: the rule drops only what reads as a place: a size within two words after an address/unit word
+#: ("flat is 24b"), a size followed by a street name, or a bare count no released model has. A size
+#: attached to a model name ("qwen3:32b", "llama-70b", "mixtral-8x22b") or followed by model
+#: vocabulary ("a 70b model", "the 35b heavy lane") always counts. The pinned `requested_model` keeps
+#: the plain size parse: it IS a model name. The name half also accepts a family name GLUED straight
+#: onto the size with no separator ("llama70b", "qwen_32b", "Qwen2.5_72B"), because vendors and
+#: users write both spellings; it must end in a letter, underscore or dot so the LAST digit run is
+#: the size ("llama70b" is 70B, never "0b").
+_USER_SIZE_TOKEN_RE = re.compile(
+    r"(?<![\w.])(?P<name>[a-z][\w.-]*?[a-z_.][-:/_]?)?(?P<size>(?:\d+\s*x\s*)?(?P<count>\d+(?:\.\d+)?)\s*b)\b", re.IGNORECASE
+)
+#: An explicit request verb directly attached to the size ("can my box run 70b?") says the number is
+#: a model even when an address/unit word also sits in the two-word lead window. "box" is an address
+#: lead word; "run" attached to the size is the request itself.
+_MODEL_REQUEST_VERBS = frozenset(
+    {
+        "use", "using", "run", "running", "runs", "switch", "switching", "load", "loading", "serve",
+        "serving", "try", "trying", "deploy", "deploying", "spin",
+    }
+)
+_MODEL_FOLLOW_WORDS = frozenset(
+    {
+        "model", "models", "llm", "llms", "lane", "lanes", "heavy", "param", "params", "parameter", "parameters",
+        "weights", "variant", "variants", "version", "versions", "checkpoint", "checkpoints", "quant",
+    }
+)
+_ADDRESS_LEAD_WORDS = frozenset(
+    {
+        "flat", "apt", "apartment", "unit", "suite", "room", "floor", "level", "route", "rte", "house", "no",
+        "number", "#", "building", "bldg", "block", "gate", "platform", "seat", "locker", "box", "door", "plot",
+        "lot", "bay", "pier", "berth", "dock", "row", "aisle", "section", "page", "exit", "bus", "highway", "hwy",
+        "ward", "cell", "bed", "cabin", "deck", "terminal", "track", "postcode", "zip", "ref", "reference", "order",
+        "invoice", "ticket",
+    }
+)
+_STREET_WORDS = frozenset(
+    {
+        "road", "rd", "street", "st", "avenue", "ave", "drive", "dr", "way", "close", "court", "ct", "boulevard",
+        "blvd", "place", "pl", "terrace", "crescent", "square", "sq", "highway", "hwy", "lane", "ln", "parade",
+        "row", "walk", "mews", "gardens", "hill",
+    }
+)
+#: Open-weight model families whose names carry a parameter count. A size glued to one of these
+#: names is a model request; a size glued to anything else is a code until the person says otherwise.
+_MODEL_FAMILY_RE = re.compile(
+    r"(?i)(?<![a-z])(?:code)?(?:llama|qwen|qwq|mistral|mixtral|codestral|ministral|deepseek|gemma|phi|"
+    r"falcon|yi|command|nemotron|granite|olmo|internlm|glm|chatglm|kimi|minimax|gpt-oss|dbrx|jamba|"
+    r"hermes|vicuna|wizardlm|starcoder|solar|exaone|aya|smollm|dolphin|orca|openchat|zephyr|baichuan|"
+    r"ernie|hunyuan|arctic|grok|nous|tulu|cohere|c4ai)"
+)
+#: No released model has a bare parameter count anywhere near this; a bare "18620b" is a reference.
+_MAX_BARE_MODEL_SIZE_B = 2000.0
+
+
+def _reads_as_street(after: list[str]) -> bool:
+    """A street name follows: up to two capitalised words, then a street word ("Harbour Road")."""
+
+    for index, word in enumerate(after[:3]):
+        bare = word.strip(",;:.!?()\"'")
+        if index and bare.lower() in _STREET_WORDS and all(w.strip(",;:.!?()\"'")[:1].isupper() for w in after[:index]):
+            return True
+        if not bare[:1].isupper():
+            return False
+    return False
+
+
+def _user_model_size_text(text: str) -> str:
+    """Only the size tokens in user text that read as a model reference, space-joined."""
+
+    cleaned = _without_runtime_identifiers(str(text or ""))
+    kept: list[str] = []
+    for match in _USER_SIZE_TOKEN_RE.finditer(cleaned):
+        size = match.group("size")
+        name = match.group("name")
+        if name:
+            # The size belongs to a name only when the name carries a model family ("qwen3:32b",
+            # "llama-3.1-405b", "llama70b", "Qwen2.5_72B"). Any other prefix, glued or with a
+            # separator ("AB-70B", "Apt-45b", "Lane45B", commit "fa9e32b"), is a code, unless the
+            # person says it is a model ("run foo-70b", "foo-70b model").
+            before = cleaned[: match.start()].split()
+            after = cleaned[match.end():].split()
+            attached = before[-1].strip(",;:()\"'").rstrip(".").lower() if before else ""
+            following = after[0].strip(",;:.!?()\"'").lower() if after else ""
+            if (_MODEL_FAMILY_RE.search(name) or attached in _MODEL_REQUEST_VERBS
+                    or following in _MODEL_FOLLOW_WORDS):
+                kept.append(size)
+            continue
+        before = cleaned[: match.start()].split()
+        after = cleaned[match.end():].split()
+        leading = {word.strip(",;:()\"'").rstrip(".").lower() for word in before[-2:]}
+        following = after[0].strip(",;:.!?()\"'").lower() if after else ""
+        if following in _MODEL_FOLLOW_WORDS:
+            kept.append(size)
+            continue
+        attached = before[-1].strip(",;:()\"'").rstrip(".").lower() if before else ""
+        try:
+            count = float(match.group("count"))
+        except (TypeError, ValueError):
+            continue
+        if count > _MAX_BARE_MODEL_SIZE_B or _reads_as_street(after):
+            continue
+        if leading & _ADDRESS_LEAD_WORDS and attached not in _MODEL_REQUEST_VERBS:
+            continue
+        kept.append(size)
+    return " ".join(kept)
+
+
 def _explicit_heavy_requested(*, user_text: str, source_context: dict[str, Any] | None) -> bool:
     """Whether THIS turn genuinely asked for a heavy model -- see `explicit_heavy`'s field comment.
 
@@ -1546,7 +1657,7 @@ def _explicit_heavy_requested(*, user_text: str, source_context: dict[str, Any] 
         return True
     # sized in the text's own case: the size regexes ignore case, and a base58 identifier (a Solana address or
     # signature) is recognisable only with its case intact -- lowercasing it first would turn it back into a size
-    return _largest_parameter_size_b(requested, text) >= _HEAVY_PARAMETER_FLOOR_B
+    return _largest_parameter_size_b(requested, _user_model_size_text(text)) >= _HEAVY_PARAMETER_FLOOR_B
 
 
 def _requested_heavy_marker(*, user_text: str, source_context: dict[str, Any] | None) -> str | None:
@@ -1554,7 +1665,7 @@ def _requested_heavy_marker(*, user_text: str, source_context: dict[str, Any] | 
 
     requested = str((source_context or {}).get("requested_model") or "")
     text = str(user_text or "")
-    size = _largest_parameter_size_b(requested, text)
+    size = _largest_parameter_size_b(requested, _user_model_size_text(text))
     if size < _HEAVY_PARAMETER_FLOOR_B:
         return None
     return f"{size:g}b"

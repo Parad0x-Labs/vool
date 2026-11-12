@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "새벽 회로",
     "toybox.skin_dawn-circuit_description": "달문과 리본 구름, 표정 풍부한 작은 친구들이 있는 픽셀 꿈.",
     "settings.switch.on": "켜짐",
-    "settings.switch.off": "꺼짐"
+    "settings.switch.off": "꺼짐",
+    "liveinfo.web_off.not_checked": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다. 설정 → 개인정보와 권한 → 웹 검색에서 켤 수 있습니다.",
+    "liveinfo.web_off.not_checked_started_off": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다."
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

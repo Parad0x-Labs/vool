@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "भोर का परिपथ",
     "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।",
     "settings.switch.on": "चालू",
-    "settings.switch.off": "बंद"
+    "settings.switch.off": "बंद",
+    "liveinfo.web_off.not_checked": "वेब खोज बंद है, इसलिए मैंने वेब पर नहीं खोजा और मैं कोई ताज़ा जवाब सत्यापित नहीं कर सकता। आप इसे सेटिंग्स → गोपनीयता और अनुमतियाँ → वेब खोज में चालू कर सकते हैं।",
+    "liveinfo.web_off.not_checked_started_off": "वेब खोज बंद है, इसलिए मैंने वेब पर नहीं खोजा और मैं कोई ताज़ा जवाब सत्यापित नहीं कर सकता।"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

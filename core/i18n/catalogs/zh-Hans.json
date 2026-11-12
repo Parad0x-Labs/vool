@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。",
     "settings.switch.on": "开启",
-    "settings.switch.off": "关闭"
+    "settings.switch.off": "关闭",
+    "liveinfo.web_off.not_checked": "网络查询已关闭，所以我没有在网上搜索，也无法核实最新的答案。你可以在 设置 → 隐私与权限 → 网络查询 中打开。",
+    "liveinfo.web_off.not_checked_started_off": "网络查询已关闭，所以我没有在网上搜索，也无法核实最新的答案。"
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

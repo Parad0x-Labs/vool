@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "دائرة الفجر",
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين.",
     "settings.switch.on": "مفعل",
-    "settings.switch.off": "معطل"
+    "settings.switch.off": "معطل",
+    "liveinfo.web_off.not_checked": "عمليات البحث في الويب متوقفة، لذلك لم أبحث في الويب ولا يمكنني التحقق من إجابة حديثة. يمكنك تشغيلها من الإعدادات ← الخصوصية والأذونات ← عمليات البحث في الويب.",
+    "liveinfo.web_off.not_checked_started_off": "عمليات البحث في الويب متوقفة، لذلك لم أبحث في الويب ولا يمكنني التحقق من إجابة حديثة."
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

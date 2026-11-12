@@ -378,7 +378,9 @@ def _fold_simple(text: str) -> str:
 
 def looks_like_search(clause: str) -> bool:
     """Whether a clause asks WHERE something was said or done across the operator's chats."""
-    f = _fold_simple(clause)
+    # Request markers inside fenced material are data; quoted search topics remain intact.
+    request_text = re.sub(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)", " ", clause, flags=re.DOTALL)
+    f = _fold_simple(request_text)
     # "got a picture somewhere called beach2, can you locate it" is a file on this disk, not a chat.
     # Measured on the Mac 2026-10-28: "somewhere" read as a past-chat cue and the chat search took it.
     from core.execution.constants import machine_file_search_intent
@@ -453,8 +455,11 @@ def split_clauses(text: str) -> list[str]:
 
 def parse_housekeeping(text: str) -> Plan | None:
     """The whole message as housekeeping actions, or None when any part is something else."""
-    raw = " ".join(str(text or "").split())
-    if not raw or len(raw) > 2000:
+    original = str(text or "")
+    if len(original) > 2000:
+        return None
+    raw = " ".join(original.split())
+    if not raw:
         return None
     # "In what order did I bring up ..." asks about remembered conversation content, never a chat
     # action, even when a broad "all" matcher sees "ONLY and ONLY" in it (BEAM 100K/14). "List the
@@ -975,6 +980,22 @@ def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True,
     return run
 
 
+def _normalization_gains_actions(plan: Plan | None, original: Plan | None) -> bool:
+    """Whether normalization added an action the original bytes do not carry.
+
+    Multiset over (kind, value): every action of the normalized plan must be covered by one
+    in the original-bytes plan. Original bytes that do not parse carry none, so anything that
+    appears only after normalization (a fenced example, a pasted command) is gained and refused.
+    """
+    carried = [(action.kind, action.value) for action in (original.actions if original else ())]
+    for action in (plan.actions if plan else ()):
+        try:
+            carried.remove((action.kind, action.value))
+        except ValueError:
+            return True
+    return False
+
+
 def maybe_handle_housekeeping_request(
     agent: Any,
     *,
@@ -987,7 +1008,15 @@ def maybe_handle_housekeeping_request(
     """The front door's housekeeping lane. Returns {"result": ...} when it owns the turn."""
     text = str(raw_user_input or effective_input or "")
     try:
+        from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
+
+        request = (source_context or {}).get(TURN_REQUEST_KEY)
         plan = parse_housekeeping(text)
+        # Normalization may strip fences or collapse a document's whitespace. It cannot GAIN
+        # authority the accepted request's original bytes did not carry: a search, rename, pin,
+        # archive or move that only appears after normalization is declined.
+        if isinstance(request, TurnRequest) and _normalization_gains_actions(plan, parse_housekeeping(request.user_text)):
+            return None
     except Exception:
         plan = None
     if plan is None or not may_finalize:

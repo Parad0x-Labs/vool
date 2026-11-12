@@ -3309,9 +3309,11 @@
     "toybox.skin_dawn-circuit_name": "Morgenkreis",
     "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern.",
     "settings.switch.on": "Ein",
-    "settings.switch.off": "Aus"
+    "settings.switch.off": "Aus",
+    "liveinfo.web_off.not_checked": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und kann keine aktuelle Antwort überprüfen. Du kannst sie unter Einstellungen → Privatsphäre & Berechtigungen → Websuchen einschalten.",
+    "liveinfo.web_off.not_checked_started_off": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und kann keine aktuelle Antwort überprüfen."
   },
-  "source_catalog_sha256": "16d8396862e726148ff0e5721cba3254b4ea783146b8b44e0b2c6825d8f3fc32",
+  "source_catalog_sha256": "c635abd7e9bd29dd63e5c06bbd4d6c501770a678558d264284b17ff29c61ccfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
