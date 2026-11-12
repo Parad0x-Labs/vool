@@ -163,7 +163,7 @@ def _dates(n: int, start_day: int = 1):
 
 @pytest.mark.parametrize("target, expected", [
     (0, 8), (420, 8), (2048, 8), (2303, 8), (2560, 10), (4096, 16),
-    (8192, 32), (16384, 32), (100000, 32),
+    (8192, 32), (16384, 64), (100000, 96),
 ])
 def test_item_limit_is_a_clamped_function_of_the_allowance(target, expected):
     assert cr._allowance_item_limit(target) == expected

@@ -218,10 +218,10 @@ _TIME_LEG_DATE_TERMS = frozenset({
 #: capsules of ~630-1800 tokens while retrieved, in-scope evidence past
 #: position 8 was never offered to selection. One item per 256 tokens of
 #: allowance, floored at the historical 8 (the default 420-token allowance
-#: is unchanged) and capped at 32. The character budget still owns capsule
+#: is unchanged) and capped at 96. The character budget still owns capsule
 #: size; these limits only decide how many candidates may compete for it.
 _ALLOWANCE_TOKENS_PER_ITEM = 256
-_V2_MAX_INJECT_ITEMS_CEILING = 32
+_V2_MAX_INJECT_ITEMS_CEILING = 96
 _CAPSULE_TARGET_TOKENS = 420
 # The capsule's one-line header. "Answer from these exact facts only" read as a ban on combining
 # two records or on stating what they directly imply (a date from a relative phrase and its
@@ -3594,8 +3594,8 @@ def _recall_supplement_candidates(
 #: only 23; both rivals deliver whole turns of both roles. This lane ranks layer-1 occurrences of both
 #: roles (BM25 and the occurrence embeddings, plus any model-written search phrases, fused by reciprocal
 #: rank) and delivers the top turns whole, beside the capsule, under their own token allowance.
-_TURN_LANE_MAX_UNITS = 12
-_TURN_LANE_MAX_TOKENS = 4500
+_TURN_LANE_MAX_UNITS = 36
+_TURN_LANE_MAX_TOKENS = 13500
 _TURN_LANE_UNIT_MAX_CHARS = 1500
 #: An assistant turn on an ask about the assistant's own output ("the list you gave me") is usually a
 #: long enumerated reply; it is delivered whole up to this bound.
@@ -8123,6 +8123,35 @@ def inject_retrieved(*args: Any, **kwargs: Any) -> Any:
         return _inject_retrieved(*args, **kwargs)
 
 
+#: The most retrieved evidence any one turn carries, on a model with room for it.
+_WINDOW_EVIDENCE_CEILING_TOKENS = 31000
+#: What the rest of the prompt (system, persona, tools) takes that the transcript does not show.
+_WINDOW_PROMPT_RESERVE_TOKENS = 4000
+
+
+def _window_evidence_budget(source_context: Mapping[str, Any] | None, transcript: list[dict[str, str]]):
+    """The evidence budget for the model expected to answer, or None to keep the declared default.
+
+    None covers an unknown window and one with less room than the default allowance, so a turn
+    is never left with less evidence than it had before the window was known.
+    """
+    from core.context_budgeter import available_prompt_tokens
+
+    window = available_prompt_tokens(dict(source_context or {}))
+    if window <= 0:
+        return None
+    transcript_tokens = sum(estimate_tokens(str(message.get("content") or "")) for message in transcript)
+    budget = resolve_budget(
+        bucket="B", role="general", output_reserve_tokens=2048,
+        transcript_tokens=transcript_tokens + _WINDOW_PROMPT_RESERVE_TOKENS,
+        pin_ceiling_frac=0.0, recent_floor_frac=0.0,
+        evidence_target_tokens=_WINDOW_EVIDENCE_CEILING_TOKENS,
+        retrieval_ceiling_tokens=_WINDOW_EVIDENCE_CEILING_TOKENS,
+        context_window_tokens=window,
+    )
+    return budget if budget.free_tokens >= _CAPSULE_TARGET_TOKENS else None
+
+
 def _inject_retrieved(
     session_id: str | None,
     query: str,
@@ -8200,6 +8229,8 @@ def _inject_retrieved(
         from core.grounding_lifecycle import turn_identity
 
         delivery_identity = turn_identity(source_context)
+        if budget is None:
+            budget = _window_evidence_budget(source_context, transcript)
         delivery = _capsule_v2_inject_retrieved(
             resolved_session_id,
             query,
@@ -9218,6 +9249,14 @@ def _capsule_v2_inject_retrieved(
         budget = resolve_budget(
             bucket="B", role="general", evidence_target_tokens=_CAPSULE_TARGET_TOKENS,
         )
+    if int(getattr(budget, "num_ctx", 0) or 0) <= 0 or int(getattr(budget, "free_tokens", 0) or 0) <= 0:
+        _set_retrieval_telemetry({
+            "capsule_mode": "skipped_no_context_budget",
+            "web_calls": 0,
+            "model_calls": 0,
+            "evidence_refs": [],
+        })
+        return transcript
     # One resolved allowance owns distillation and evidence merging. An
     # explicit larger target never overrides the caller's remaining capacity.
     requested_evidence_tokens = int(getattr(budget, "evidence_target_tokens", _CAPSULE_TARGET_TOKENS))
@@ -13117,9 +13156,15 @@ def _capsule_v2_inject_retrieved(
         # receipt, and never reads as a distilled fact (a superseded value would then read as current).
         # v14.6: the lane is bounded by the free window the budget was resolved from as well as by its own cap, so
         # a tight caller window is never overrun by verbatim turns (tests/test_v146_capsule_whole_block_bound_20261007.py)
-        _lane_cap = _TURN_LANE_MAX_TOKENS
+        _lane_cap = 0
         with contextlib.suppress(Exception):
-            _lane_cap = max(0, min(_TURN_LANE_MAX_TOKENS, int(budget.free_tokens)))
+            # The distilled capsule spends the same free-token pool. Give the
+            # lane only what remains after packing so both lanes together fit
+            # the manifest-derived context allowance.
+            _lane_cap = max(
+                0,
+                min(_TURN_LANE_MAX_TOKENS, int(budget.free_tokens) - int(packed.tokens_used)),
+            )
         turn_lines, turn_tokens = _whole_turn_lines(
             whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap, rendered=lane_rendered,
             rendered_spans=lane_spans,

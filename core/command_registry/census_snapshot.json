@@ -1240,6 +1240,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/mobile/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/mobile/settings",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.settings.read",
+      "surface": "http"
+    },
     "http:GET:/api/model-radar/feed": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/model-radar/feed",
@@ -1545,6 +1552,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/tags",
       "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/toybox": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/toybox",
+      "note": "toybox lane read feed (skin state and choices)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2409,6 +2423,13 @@
       "registry_command_id": "mobile.pairing.start",
       "surface": "http"
     },
+    "http:POST:/api/mobile/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/settings",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.settings.configure",
+      "surface": "http"
+    },
     "http:POST:/api/mode": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/mode",
@@ -2708,6 +2729,13 @@
       "name": "POST /api/task/recovery",
       "note": "legacy surface forwards through execute_command",
       "registry_command_id": "tasks.recovery",
+      "surface": "http"
+    },
+    "http:POST:/api/toybox/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/toybox/*",
+      "note": "toybox lane operator action (preview, apply, restore, remove)",
+      "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/update/check": {
@@ -3109,37 +3137,9 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
-    "launcher:OpenClaw_VOOL.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "OpenClaw_VOOL.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:OpenClaw_VOOL.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "OpenClaw_VOOL.sh",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
     "launcher:Open_Chat.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Open_Chat.bat",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Open_Chat.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Open_Chat.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Open_Chat.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Open_Chat.sh",
       "note": "OS launcher/installer transport",
       "registry_command_id": "",
       "surface": "launcher"
@@ -3151,30 +3151,9 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
-    "launcher:Open_Web0.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Open_Web0.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Open_Web0.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Open_Web0.sh",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
     "launcher:Probe_VOOL_Stack.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Probe_VOOL_Stack.bat",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Probe_VOOL_Stack.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Probe_VOOL_Stack.command",
       "note": "OS launcher/installer transport",
       "registry_command_id": "",
       "surface": "launcher"
@@ -3214,20 +3193,6 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
-    "launcher:Start_VOOL.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Start_VOOL.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Start_VOOL.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Start_VOOL.sh",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
     "launcher:Stop_VOOL.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Stop_VOOL.bat",
@@ -3235,37 +3200,9 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
-    "launcher:Stop_VOOL.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Stop_VOOL.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Stop_VOOL.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Stop_VOOL.sh",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
     "launcher:Talk_To_VOOL.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Talk_To_VOOL.bat",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Talk_To_VOOL.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Talk_To_VOOL.command",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Talk_To_VOOL.sh": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Talk_To_VOOL.sh",
       "note": "OS launcher/installer transport",
       "registry_command_id": "",
       "surface": "launcher"
@@ -3287,13 +3224,6 @@
     "launcher:Verify_VOOL.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Verify_VOOL.bat",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:Verify_VOOL.command": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "Verify_VOOL.command",
       "note": "OS launcher/installer transport",
       "registry_command_id": "",
       "surface": "launcher"
@@ -3336,8 +3266,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 329,
-    "GENERATED_ADAPTER": 138,
+    "EXTERNAL_TRANSPORT_ONLY": 317,
+    "GENERATED_ADAPTER": 140,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

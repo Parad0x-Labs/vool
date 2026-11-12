@@ -58,7 +58,7 @@ _DEFAULT_MONTHLY_USD = 25.00
 
 _POLICY_PREFIX = "model_orchestration.paid_call"
 _TERMINAL_PAID_GENERATION_ROLES = frozenset(
-    {"answer_generation", "conductor_generation", "audit_step", "tool_intent"}
+    {"answer_generation", "conductor_generation", "audit_step", "tool_intent", "clean_loop_step"}
 )
 # Roles whose reservations this module emits spend receipts for, with the words the receipt uses.
 # The conductor has its own owner. An audit step keeps the answer-generation wording it always had.
@@ -66,8 +66,15 @@ _RECEIPT_ROLES = {
     "answer_generation": "answer generation",
     "audit_step": "answer generation",
     "tool_intent": "tool selection",
+    # A clean-loop step on the owner's paid cloud model writes (part of) the answer, one call a step.
+    "clean_loop_step": "answer generation",
 }
-_GENERATION_KIND = {"conductor_generation": "conductor", "audit_step": "audit", "tool_intent": "tool_selection"}
+_GENERATION_KIND = {
+    "conductor_generation": "conductor",
+    "audit_step": "audit",
+    "tool_intent": "tool_selection",
+    "clean_loop_step": "clean_loop",
+}
 
 
 def _positive_policy_float(key: str, default: float) -> float:

@@ -153,6 +153,7 @@ def resolve_budget(
     pin_ceiling_frac: float = 0.25,
     evidence_target_tokens: int = 420,
     retrieval_ceiling_tokens: int = _HARD_RETRIEVAL_CEILING_TOKENS,
+    context_window_tokens: int | None = None,
 ) -> InjectionBudget:
     """The heart of the adaptive scheme — reserve-before-inject, table-driven, pure.
     injection can never crowd the decode window or overflow num_ctx."""
@@ -161,9 +162,17 @@ def resolve_budget(
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError(f"{name} must be a non-negative integer")
     b = bucket if bucket in _BASE_FP16 else "A"
-    num_ctx = resolve_num_ctx(bucket=b, role=role, kv_quant=kv_quant)
+    if context_window_tokens is None:
+        num_ctx = resolve_num_ctx(bucket=b, role=role, kv_quant=kv_quant)
+    elif isinstance(context_window_tokens, int) and not isinstance(context_window_tokens, bool):
+        # An explicit manifest window is the execution contract for this model. Zero remains
+        # unknown; never replace it with a guessed hardware bucket or model-name table.
+        num_ctx = max(0, context_window_tokens)
+    else:
+        # Invalid manifest data is unknown, not an invitation to use the larger default.
+        num_ctx = 0
     output_reserve = max(int(output_reserve_tokens), 256)
-    safety_margin = max(256, round(0.10 * num_ctx))
+    safety_margin = max(256, round(0.10 * num_ctx)) if num_ctx > 0 else 0
     usable = max(0, num_ctx - output_reserve - safety_margin - max(0, int(transcript_tokens)))
     derate = 0.90 if gpu_served else 0.80  # CPU/MPS spill is slower -> leave more headroom
     pack_target = int(usable * derate)

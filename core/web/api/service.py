@@ -1267,6 +1267,12 @@ def _dispatch_get(
             runtime,
         )
 
+    if normalized_path == "/api/toybox":
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.toybox import state
+        return apply_runtime_headers(json_response(200, state()), runtime)
+
     if normalized_path == "/settings":
         # VOOL Settings: one organised surface for values that used to be spread across a long
         # chat modal, the composer popover and a plugins dialog. Served from THIS runtime on THIS
@@ -6770,6 +6776,18 @@ def _dispatch_post_inner(
         except ValueError as exc:
             return apply_runtime_headers(json_response(400, {"ok": False, "error": str(exc)}), runtime)
         return apply_runtime_headers(json_response(404, {"ok": False, "error": "unknown profile action"}), runtime)
+
+    if normalized_path.startswith("/api/toybox/"):
+        from core.web.api.registry_authorities import operator_json_guard
+        guard = operator_json_guard(body, headers, runtime, client_host)
+        if guard is not None:
+            return guard
+        from core.toybox import SkinError, change
+        try:
+            result = change(normalized_path.removeprefix("/api/toybox/"), body)
+            return apply_runtime_headers(json_response(200, result), runtime)
+        except SkinError as exc:
+            return apply_runtime_headers(json_response(exc.status, {"ok": False, "error": exc.code, "detail": str(exc)}), runtime)
 
     if normalized_path == "/api/settings/prefs":
         # GENERATED_ADAPTER: the command registry owns this action (settings.prefs.set);

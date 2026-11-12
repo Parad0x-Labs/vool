@@ -471,11 +471,16 @@ def _with_semantic_memory_capsule(
                     "runtime_home", "question_as_of", "search_expansions",
                     "request_id", "turn_id", "cancel_turn_id", "task_id",
                     "session_id", "runtime_session_id", "_grounding_lifecycle_id",
+                    "available_prompt_tokens", "model_context_window", "context_window", "num_ctx",
                 }
             }
             injection_context["chat_id"] = clean_session
             injection_args = {"source_context": injection_context}
-            if _context_retrieval.query_requests_complete_collection(query):
+            # A known model window sizes retrieval inside inject_retrieved, for every turn.
+            from core.context_budgeter import available_prompt_tokens
+
+            if (_context_retrieval.query_requests_complete_collection(query)
+                    and not available_prompt_tokens(injection_context)):
                 from core.context_capsule_v2 import estimate_tokens, resolve_budget
 
                 # This producer injects semantic evidence only. The existing
