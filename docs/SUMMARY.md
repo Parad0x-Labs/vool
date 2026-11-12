@@ -31,6 +31,7 @@
 * [Writing a plugin](guides/plugin-authoring.md)
 * [Add-on security](guides/addon-security.md)
 * [Notifications and model offers](guides/notifications.md)
+* [Use VOOL from your phone](guides/phone.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Pay for web resources (x402)](guides/paid-resources.md)
