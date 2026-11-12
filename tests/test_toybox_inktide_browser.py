@@ -66,10 +66,13 @@ def test_inktide_controls_carry_drawn_art_and_silhouette(served):
         assert header.startswith("polygon") and footer.startswith("polygon")
         # Sliders and checkboxes carry their own art too.
         page.goto(served + "/settings#toybox")
-        page.wait_for_selector("#tb-voice-volume")
-        range_art = page.evaluate("""()=>{const el=document.getElementById('tb-voice-volume');
+        page.wait_for_selector(".tb-root")
+        # The Toybox page has no slider of its own on this line, so a probe slider joins the
+        # Toybox root, the same way the checkbox probe below does.
+        range_art = page.evaluate("""()=>{const el=document.createElement('input');el.type='range';
+         (document.querySelector('.tb-root')||document.getElementById('main')).append(el);
          const s=getComputedStyle(el),thumb=getComputedStyle(el,'::-webkit-slider-thumb');
-         return {track:s.backgroundImage,thumb:thumb.backgroundImage};}""")
+         const out={track:s.backgroundImage,thumb:thumb.backgroundImage};el.remove();return out;}""")
         assert range_art["track"] != "none" and (range_art["thumb"] != "none" or range_art["thumb"] == "none")
         checkbox_art = page.evaluate("""()=>{const probe=document.createElement('input');probe.type='checkbox';
          (document.querySelector('.tb-root')||document.getElementById('main')).append(probe);const off=getComputedStyle(probe).backgroundImage;
