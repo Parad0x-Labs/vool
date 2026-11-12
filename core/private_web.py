@@ -588,7 +588,7 @@ def _host_stays_local(host: str) -> bool:
 
 def _argv_of(event: str, args: tuple[Any, ...]) -> list[str]:
     if event == "subprocess.Popen":
-        executable, argv = (args + (None, None))[:2]
+        executable, argv = (*args, None, None)[:2]
         if isinstance(argv, (str, bytes, os.PathLike)):
             argv = shlex.split(os.fsdecode(argv)) if isinstance(argv, (str, bytes)) else [os.fspath(argv)]
         argv = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in (argv or [])]
@@ -638,7 +638,7 @@ def _audit(event: str, args: tuple[Any, ...]) -> None:
         raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
     if event == "socket.gethostbyaddr":
         host = args[0] if args else None
-        if isinstance(host, str) and (_ip_stays_local(host) or _name_stays_local(host) and not _is_ip_literal(host)):
+        if isinstance(host, str) and (_ip_stays_local(host) or (_name_stays_local(host) and not _is_ip_literal(host))):
             return
         raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
 
@@ -670,12 +670,12 @@ def egress_guard_installed() -> bool:
 
 
 __all__ = [
-    "BrowserRoute",
     "ROUTES",
     "ROUTE_OFF",
     "ROUTE_SYSTEM_VPN",
     "ROUTE_TOR",
     "ROUTE_WIREGUARD",
+    "BrowserRoute",
     "PrivateWebBlocked",
     "RouteState",
     "SocksError",

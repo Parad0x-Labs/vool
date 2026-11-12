@@ -19,7 +19,7 @@ import pytest
 
 from core import private_web, tor_runtime
 from core.tor_runtime import TorRuntime, TorUnavailable
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 - fixture
+from tests.first_run_pact_rig import pact_rig
 
 FAKE = Path(__file__).parent / "fixtures" / "fake_tor.py"
 

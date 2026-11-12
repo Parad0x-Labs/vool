@@ -85,9 +85,10 @@ needs_wireproxy = pytest.mark.skipif(not WIREPROXY, reason="wireproxy binary not
 
 
 def _keypair() -> tuple[str, str]:
+    import base64
+
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    import base64
 
     key = X25519PrivateKey.generate()
     raw = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
@@ -98,7 +99,7 @@ def _keypair() -> tuple[str, str]:
 class _Site(http.server.BaseHTTPRequestHandler):
     hits: list[str] = []
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         type(self).hits.append(self.path)
         body = json.dumps({"path": self.path}).encode()
         self.send_response(200)

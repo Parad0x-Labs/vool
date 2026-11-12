@@ -35,7 +35,7 @@ ALLOWED = {"allow_remote_fetch": True}
 class _Site(http.server.BaseHTTPRequestHandler):
     hits: list[str] = []
 
-    def do_GET(self) -> None:  # noqa: N802 - http.server API
+    def do_GET(self) -> None:
         type(self).hits.append(f"{self.headers.get('Host')}{self.path}")
         body = json.dumps({"host": self.headers.get("Host"), "path": self.path}).encode()
         self.send_response(200)
@@ -211,7 +211,7 @@ def test_a_redirect_is_followed_through_the_same_route(site, route, monkeypatch)
     class Redirect(_Site):
         hits: list[str] = []
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.path == "/old":
                 self.send_response(302)
                 self.send_header("Location", "http://other.example.test/new")
