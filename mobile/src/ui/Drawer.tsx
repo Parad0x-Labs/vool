@@ -41,9 +41,13 @@ export default function Drawer({open, onClose, items, active, onSelect, chats, o
         transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [-width, 0]})}]}]}>
         <Text style={styles.brand}>VOOL</Text>
         <View style={styles.link}><LinkLine /></View>
+        <Pressable style={styles.newChat} android_ripple={{color: "rgba(17,19,20,0.12)"}} onPress={onNewChat} accessibilityRole="button">
+          <Icon name="plus" size={20} color={C.sendInk} />
+          <Text style={styles.newChatText}>{tr("New chat")}</Text>
+        </Pressable>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           {items.map(item => (
-            <Pressable key={item.key} style={[styles.item, active === item.key && styles.itemActive]}
+            <Pressable key={item.key} style={[styles.item, active === item.key && styles.itemActive]} android_ripple={{color: C.ripple}}
               onPress={() => onSelect(item.key)} accessibilityRole="button">
               <Icon name={item.icon} size={24} color={active === item.key ? C.ink : C.soft} />
               <Text style={[styles.itemText, active === item.key && styles.itemTextActive]}>{item.label}</Text>
@@ -54,17 +58,12 @@ export default function Drawer({open, onClose, items, active, onSelect, chats, o
             <View style={styles.rule} />
             <Text style={styles.section}>{tr("Recent chats")}</Text>
             {chats.map(chat => (
-              <Pressable key={chat.id} style={styles.chat} onPress={() => onChat(chat.id)} accessibilityRole="button">
-                <Icon name="message-outline" size={18} color={C.mute} />
+              <Pressable key={chat.id} style={styles.chat} android_ripple={{color: C.ripple}} onPress={() => onChat(chat.id)} accessibilityRole="button">
                 <Text style={styles.chatText} numberOfLines={1}>{chat.title}</Text>
               </Pressable>
             ))}
           </> : null}
         </ScrollView>
-        <Pressable style={styles.newChat} onPress={onNewChat} accessibilityRole="button">
-          <Icon name="plus" size={20} color={C.sendInk} />
-          <Text style={styles.newChatText}>{tr("New chat")}</Text>
-        </Pressable>
       </Animated.View>
     </View>
   );
@@ -73,21 +72,21 @@ export default function Drawer({open, onClose, items, active, onSelect, chats, o
 const styles = StyleSheet.create({
   scrim: {backgroundColor: "rgba(0,0,0,0.55)"},
   panel: {position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: C.panel, paddingHorizontal: 12, paddingBottom: 18},
-  brand: {color: C.ink, fontSize: 28, fontWeight: "700", letterSpacing: 2, paddingHorizontal: 12},
+  brand: {color: C.ink, fontSize: 22, fontWeight: "800", letterSpacing: 4, paddingHorizontal: 14},
   link: {paddingHorizontal: 12, paddingTop: 6, paddingBottom: 14},
   scroll: {flex: 1},
   scrollContent: {paddingBottom: 16},
-  item: {flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 14, height: 54, borderRadius: R.pill},
+  item: {flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 16, height: 52, borderRadius: 26, overflow: "hidden"},
   itemActive: {backgroundColor: C.pill},
-  itemText: {flex: 1, color: C.soft, fontSize: 17},
+  itemText: {flex: 1, color: C.soft, fontSize: 16, fontWeight: "500"},
   itemTextActive: {color: C.ink, fontWeight: "600"},
   badge: {backgroundColor: C.bad, borderRadius: 11, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: "center", justifyContent: "center"},
   badgeText: {color: C.sendInk, fontSize: 12, fontWeight: "700"},
   rule: {height: 1, backgroundColor: C.line, marginVertical: 14, marginHorizontal: 8},
-  section: {color: C.mute, fontSize: 14, paddingHorizontal: 14, paddingBottom: 6},
-  chat: {flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 14, height: 48},
-  chatText: {flex: 1, color: C.ink, fontSize: 16},
-  newChat: {flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "flex-end",
-    backgroundColor: C.send, borderRadius: R.pill, paddingHorizontal: 22, height: 52},
+  section: {color: C.mute, fontSize: 12, fontWeight: "600", letterSpacing: 1.1, textTransform: "uppercase", paddingHorizontal: 16, paddingBottom: 6},
+  chat: {flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: 48, borderRadius: 16, overflow: "hidden"},
+  chatText: {flex: 1, color: C.soft, fontSize: 15},
+  newChat: {flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: C.send, borderRadius: 26, paddingHorizontal: 22, height: 52, marginHorizontal: 4, marginBottom: 14, overflow: "hidden"},
   newChatText: {color: C.sendInk, fontSize: 16, fontWeight: "600"},
 });

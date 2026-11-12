@@ -108,7 +108,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
     {saved ? <Text style={[styles.detail, {color: C.ok}]}>{tr("Saved. Your phone is ready.")}</Text> : null}
     {/* The computer moved to a new address: its pairing QR carries the new one. Only a QR from the
         SAME computer (its pinned fingerprint) may change where this phone connects. */}
-    <Pressable style={styles.proofButton} accessibilityRole="button" onPress={() => {void (async () => {
+    <Pressable style={styles.proofButton} android_ripple={{color: C.ripple}} accessibilityRole="button" onPress={() => {void (async () => {
       if (!cameraPermission?.granted && !(await requestCameraPermission()).granted) {
         setError(tr("Camera permission is needed to scan your computer’s pairing QR."));
         return;
@@ -149,7 +149,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
       <Text style={[styles.fieldLabel, {marginTop: 14}]}>{tr("Address away from home")}</Text>
       <Text style={styles.footnote}>{tr("Optional. VOOL uses it by itself when your home network is out of reach.")}</Text>
       <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left", marginTop: 6}]} accessibilityLabel={tr("Address away from home")} autoCapitalize="none" autoCorrect={false} value={away} onChangeText={setAway}/>
-      <Pressable style={styles.proofButton} accessibilityRole="button" onPress={() => {void (async () => {
+      <Pressable style={styles.proofButton} android_ripple={{color: C.ripple}} accessibilityRole="button" onPress={() => {void (async () => {
         try {
           const home = connectionAddress(connection); const next = away.trim() ? connectionAddress(away) : "";
           await onConnection?.(home); setConnection(home);
@@ -176,7 +176,7 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
               {proof.compact.actions} {tr("Actions")} · {proof.compact.sources} {tr("Sources")}</Text>
                       </View>
         ) : (
-          <Pressable style={styles.proofButton} onPress={() => void loadLatestProof()}>
+          <Pressable style={styles.proofButton} android_ripple={{color: C.ripple}} onPress={() => void loadLatestProof()}>
             <Text style={styles.proofButtonText}>{tr("Refresh")}</Text>
           </Pressable>
         )}
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   fingerprint: { color: "#868b90", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   detail: { color: "#bfc2c4", fontSize: 13, lineHeight: 19, marginTop: 4 },
   footnote: { color: "#868b90", fontSize: 12, marginTop: 10, lineHeight: 16 },
-  proofButton: { backgroundColor: "#26292c", borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  proofButton: { backgroundColor: "#26292c", borderRadius: 24, minHeight: 48, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12, overflow: "hidden" },
   segment: { flexDirection: "row", backgroundColor: "#1f2224", borderRadius: 24, padding: 4, gap: 4 },
   segmentItem: { flex: 1, borderRadius: 20, minHeight: 48, justifyContent: "center", alignItems: "center" },
   segmentOn: { backgroundColor: "#edece7" },
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   proofButtonText: { color: "#edece7", fontWeight: "600" },
   scanBox: { height: 320, marginTop: 12, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" },
   scanCancel: { position: "absolute", bottom: 12, alignSelf: "center", padding: 10 },
-  unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, padding: 13, alignItems: "center", marginTop: 12 },
+  unpairButton: { backgroundColor: "#2a1b18", borderRadius: 24, minHeight: 48, padding: 13, alignItems: "center", justifyContent: "center", marginTop: 12 },
   unpairButtonText: { color: "#d86a56", fontWeight: "600" },
   error: { color: "#d86a56", fontSize: 13, marginTop: 8 },
   stateRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },

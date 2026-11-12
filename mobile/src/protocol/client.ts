@@ -101,6 +101,9 @@ function answered(error: unknown): boolean {
   return error instanceof CompanionError && error.code !== "sealed_response_invalid" && error.code !== "sealed_authentication_failed";
 }
 
+/** True when the computer simply did not answer (as opposed to answering with a refusal). */
+export function isNoAnswer(error: unknown): boolean {return !answered(error);}
+
 export class MobileCompanionClient {
   private creds: DeviceCredentials;
   private readonly doFetch: FetchLike;

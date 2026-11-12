@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View, Platform } from "react-native";
 
 import Icon from "../ui/Icon.tsx";
 import {errorText, tr} from "../i18n/index.ts";
-import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
+import { CompanionError, isNoAnswer, type MobileCompanionClient } from "../protocol/client.ts";
 import type { PendingApproval } from "../protocol/models.ts";
 
 interface Props {
@@ -30,11 +30,14 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
     [onRevoked],
   );
 
+  const shown = useRef(false);
   const refresh = useCallback(async () => {
     try {
-      setApprovals(await client.pendingApprovals());
+      setApprovals(await client.pendingApprovals()); shown.current = true;
       setError("");
     } catch (exc) {
+      // A short drop keeps the list on screen; the link sign at the top already says it.
+      if (isNoAnswer(exc) && shown.current) return;
       if (!guard(exc)) setError(errorText(exc));
     }
   }, [client, guard]);

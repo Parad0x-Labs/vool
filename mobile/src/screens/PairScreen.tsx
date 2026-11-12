@@ -183,7 +183,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       <Text style={styles.title}>{tr("Pair a phone")}</Text>
       <Text style={styles.hint}>
         {tr("On your computer, open Settings, choose Phone and chat apps, then Pair a phone. Scan its code or enter the details below.")}</Text>
-      <Pressable style={styles.scanButton} onPress={() => void startScanning()}>
+      <Pressable style={styles.scanButton} android_ripple={{color: "rgba(17,19,20,0.12)"}} onPress={() => void startScanning()}>
         <Icon name="qrcode-scan" size={20} color="#111314" />
         <Text style={styles.scanButtonText}>{tr("Scan pairing QR")}</Text>
       </Pressable>
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingTop: 36, paddingBottom: 40 },
   title: { color: "#edece7", fontSize: 30, fontWeight: "600", marginBottom: 10 },
   hint: { color: "#bfc2c4", fontSize: 15, lineHeight: 22, marginBottom: 22 },
-  scanButton: { backgroundColor: "#edece7", borderRadius: 28, minHeight: 56, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 12 },
+  scanButton: { backgroundColor: "#edece7", borderRadius: 28, overflow: "hidden", minHeight: 56, padding: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10, marginBottom: 12 },
   scanButtonText: { color: "#111314", fontWeight: "700", fontSize: 16 },
   input: { backgroundColor: "#1f2224", color: "#edece7", borderRadius: 16, padding: 14, marginBottom: 12, fontSize: 15 },
   codeInput: { letterSpacing: 3, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
