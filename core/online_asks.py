@@ -249,4 +249,23 @@ def asks_for_online_facts(text: str) -> bool:
     return True
 
 
-__all__ = ["asks_for_online_facts"]
+# This computer's own state, and this chat or project: words no public page uses for the world.
+# The person's records ("put it in my notes", "save it to a file") are left out on purpose: they are
+# where an answer goes as often as what a question is about.
+_THIS_COMPUTER_RE = re.compile(
+    r"\b(?:ports?|processes|(?:open|running)\s+tabs|logs?|backups?|"
+    r"this\s+(?:computer|mac|laptop|machine|chat|conversation|project|folder|repo|repository|workspace))\b",
+    re.IGNORECASE,
+)
+
+
+def asks_about_this_computer_or_project(text: str) -> bool:
+    """Whether the ask is about this computer's own state, this chat or this project ("is port 8080
+    open right now", "write release notes for this project"), which no web page answers."""
+    value = " ".join(str(text or "").split())[:600]
+    if not value or asks_for_online_facts(value):
+        return False
+    return bool(_THIS_COMPUTER_RE.search(value))
+
+
+__all__ = ["asks_about_this_computer_or_project", "asks_for_online_facts"]

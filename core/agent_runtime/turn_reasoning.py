@@ -2217,11 +2217,6 @@ def _asks_about_something_that_changes(
             return False
     except Exception:
         pass
-    if requirements is not None and (
-        bool(getattr(requirements, "current_information_required", False))
-        or bool(getattr(requirements, "external_evidence_required", False))
-    ):
-        return True
     try:
         from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
 
@@ -2229,6 +2224,21 @@ def _asks_about_something_that_changes(
             return True
     except Exception:
         pass
+    if requirements is not None and (
+        bool(getattr(requirements, "current_information_required", False))
+        or bool(getattr(requirements, "external_evidence_required", False))
+    ):
+        # The authority reads "right now" or "release notes" in any sentence, but no web page knows
+        # whether port 8080 is open on this computer or what this project's release notes should
+        # say (measured 2026-11-12 on the v0.8 candidate: both came back "from what I already know
+        # and may be out of date", Web lookups off). A question about this computer, this chat or
+        # this project gets no web-off line; weather, news and fresh lookups were read above.
+        try:
+            from core.online_asks import asks_about_this_computer_or_project
+
+            return not asks_about_this_computer_or_project(str(text or ""))
+        except Exception:
+            return True
     # Opening hours, fares, ticket prices and "right now" counts: the same reading that keeps them
     # out of the clean loop and seats a web search for them (`core.online_asks`, red team R3-08).
     try:

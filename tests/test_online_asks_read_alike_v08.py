@@ -245,3 +245,28 @@ def test_with_web_lookups_off_open_said_of_a_place_names_the_switch_not_a_file(t
 def test_a_reminder_about_a_place_is_not_refused_as_an_online_ask(text):
     result = _turn(text, "openclaw:8234567890abcdef0004")
     assert "web lookups are off, so i can't look this up" not in str(result.get("response") or "").lower(), result
+
+
+# The other side of the same reading: the requirement authority reads "right now" or "release notes"
+# in any sentence, so "is port 8080 open right now" (which reached the model once the file lane let go
+# of it) and "write release notes for this project" came back "from what I already know and may be out
+# of date" with Web lookups off. No web page answers a question about this computer or this project.
+@pytest.mark.parametrize("text", ["is port 8080 open right now",
+                                  "how many processes are running right now",
+                                  "write release notes for this project, grouped under Added, Changed and Fixed"])
+def test_a_question_about_this_computer_or_project_gets_no_web_off_line(text):
+    from core.online_asks import asks_about_this_computer_or_project
+
+    assert asks_about_this_computer_or_project(text) is True
+    result = _turn(text, "openclaw:8234567890abcdef0005")
+    assert "web lookups are off" not in str(result.get("response") or "").lower(), result
+
+
+@pytest.mark.parametrize("text", ["how long is the drive from krakow to warsaw right now",
+                                  "who won the match last night? put it in my notes",
+                                  "what time does the louvre close today?",
+                                  "is the post office open tomorrow?"])
+def test_a_question_about_the_world_is_not_about_this_computer(text):
+    from core.online_asks import asks_about_this_computer_or_project
+
+    assert asks_about_this_computer_or_project(text) is False
