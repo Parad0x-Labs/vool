@@ -67,6 +67,13 @@ class SearXNGClient:
         text = (query or "").strip()
         if not text:
             return []
+        from core import private_web
+
+        if private_web.current_route().active and private_web.url_stays_local(self.base_url):
+            # A SearXNG on this machine asks the search engines itself, from this machine's
+            # address, outside Tor or the VPN. With Private web on it is not asked at all, and the
+            # search moves on to the engines VOOL can route.
+            raise SearXNGUnavailableError("private_web", "a local SearXNG would search outside Private web")
 
         params = urllib.parse.urlencode(
             {

@@ -1023,6 +1023,13 @@ def _dispatch_get(
     if owner_refusal is not None:
         return apply_runtime_headers(owner_refusal, runtime)
 
+    if normalized_path == "/api/private-web":
+        from core.web.api import private_web_api
+
+        if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return private_web_api.get(normalized_path, query)
+
     if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
         from core.vool_browser.live import BrowserFault
         from core.web.api import browser_api
@@ -3356,6 +3363,13 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith("/api/private-web/"):
+        from core.web.api import private_web_api
+
+        if _credential_page_refusal(headers, client_host):
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return private_web_api.post(normalized_path, body, headers=headers, client_host=client_host)
 
     if normalized_path.startswith("/api/browser/"):
         from core.web.api import browser_api

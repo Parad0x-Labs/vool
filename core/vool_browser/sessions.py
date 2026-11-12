@@ -153,12 +153,22 @@ class SessionHandle:
                     flag for flag in isolation_launch_flags(profile_dir=str(self.profile_dir))
                     if not flag.startswith("--user-data-dir=")
                 ]
+                from core import private_web
+
+                route = private_web.browser_route()
+                if route.problem:
+                    raise RuntimeError(route.problem)
+                launch_options: dict[str, Any] = {}
+                if route.playwright_proxy is not None:
+                    flags += list(route.flags)
+                    launch_options["proxy"] = route.playwright_proxy
                 context = driver.chromium.launch_persistent_context(
                     user_data_dir=str(self.profile_dir),
                     headless=self.headless,
                     executable_path=self.engine_binary,
                     args=flags,
                     accept_downloads=True,
+                    **launch_options,
                 )
                 page = context.new_page()
                 self._pid = self._engine_pid(str(self.profile_dir))

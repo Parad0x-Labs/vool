@@ -48,6 +48,12 @@ find "${BUNDLE}/python" -name EXTERNALLY-MANAGED -type f -delete
   --extra companion --extra evm --extra x402 --output-file "${BUNDLE}/requirements-linux.txt" >/dev/null)
 uv pip sync --python "${BUNDLE}/python/bin/python3" --no-build --require-hashes --strict \
   --no-compile-bytecode "${BUNDLE}/requirements-linux.txt"
+# Private web helpers: pinned, SHA-256-checked tor and wireproxy into app/third_party/<tool>/linux-x64/
+# (licence notice already in third_party/NOTICES). wireproxy is built with Go from the pinned module,
+# or VOOL_WIREPROXY_FILE names a prebuilt file that must match the pinned SHA-256.
+"${BUNDLE}/python/bin/python3" -I "${BUNDLE}/app/installer/private_web_helpers.py" --platform linux-x64 \
+  --dest "${BUNDLE}/app" --cache "${STAGE}/private-web-cache" \
+  ${VOOL_WIREPROXY_FILE:+--wireproxy-file "${VOOL_WIREPROXY_FILE}"}
 cp "${BUNDLE}/app/installer/bundle/linux/"* "${BUNDLE}/"
 cp "${BUNDLE}/app/installer/assets/vool.png" "${BUNDLE}/vool.png"
 printf '%s\n' "${SHA}" > "${BUNDLE}/SOURCE_COMMIT"

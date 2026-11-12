@@ -1387,6 +1387,13 @@
       "registry_command_id": "plugins.lifecycle.state",
       "surface": "http"
     },
+    "http:GET:/api/private-web": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/private-web",
+      "note": "owner-local Private web state for Settings (route, whether it is up, plain reason)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/profile": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/profile",
@@ -2598,6 +2605,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/private-web/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/private-web/*",
+      "note": "legacy surface forwards through execute_command; typed family: private_web.settings, private_web.vpn_file, private_web.forget_vpn_file",
+      "registry_command_id": "private_web.settings",
+      "surface": "http"
+    },
     "http:POST:/api/profile/*": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/profile/*",
@@ -3266,8 +3280,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 317,
-    "GENERATED_ADAPTER": 140,
+    "EXTERNAL_TRANSPORT_ONLY": 318,
+    "GENERATED_ADAPTER": 141,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
