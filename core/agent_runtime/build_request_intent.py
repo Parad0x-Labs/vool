@@ -834,7 +834,8 @@ _SITE_ADVERB_RUN = r"(?:(?:[a-z]+ly|just|really|very|quite|please|pls|kindly|wel
 # non-making "to ..." such as "to get TO the website") and vetoes the sentence.
 _WANT_SITE_MAKING_TO_RE = re.compile(
     r"\bto\s+" + _SITE_ADVERB_RUN + r"(?:"
-    + "|".join(_SITE_MAKING_PHRASES + (
+    + "|".join((
+        *_SITE_MAKING_PHRASES,
         r"gets?",
         r"getting",
         r"have|has|having|had",

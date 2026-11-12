@@ -99,7 +99,7 @@ _NAMED_PHRASE_STOP = frozenset(
         "Yesterday", "Please", "Pls", "Thanks", "Thank", "Cheers", "Free", "Sale",
         "Beginners", "Dummies", "Kids", "Children", "Home", "Work", "School", "Fun",
         "One", "Two", "My", "Our", "The", "A", "An", "This", "That", "Their", "His",
-        "Her", "Your", "Christmas", "Easter", "News", "Yes", "No",
+        "Your", "Christmas", "Easter", "News", "Yes", "No",
     }
 )
 

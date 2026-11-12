@@ -27,8 +27,10 @@ from email.parser import BytesParser
 import pytest
 
 from core import credential_store, email_tools, runtime_paths, usage_quota
-from core.email_tools import EmailResult, _generate_message_id, _header_safe
 from core.email_tools import (
+    EmailResult,
+    _generate_message_id,
+    _header_safe,
     _references_of,
     _summary_from_parsed,
     open_message,
@@ -227,7 +229,7 @@ def test_folded_server_copy_summarises_and_matches_in_one_form(monkeypatch, _ima
         assert wanted in _references_of(email_lib.message_from_bytes(
             _server_copy("Message-ID: <child@orchard-farm.example.test>",
                          f"References: {wanted}")))
-        monkeypatch.setattr(email_tools, "_fetch_all", lambda creds, folder: ([(b"3", raw)], 1))
+        monkeypatch.setattr(email_tools, "_fetch_all", lambda creds, folder, raw=raw: ([(b"3", raw)], 1))
         monkeypatch.setattr(email_tools, "_needs_credentials", lambda kind, account: None)
         opened = open_message(message_id=wanted)
         assert opened.ok and opened.status == "executed", opened.message
