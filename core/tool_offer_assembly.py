@@ -715,10 +715,17 @@ def skill_guidance_for(
         )
         if native_text:
             blocks.append(native_text)
+            # Only the TASK lane is spent here: guidance_for_selection already paid every
+            # doctrine row (the expert lenses) from doctrine_chars, its own pool. Charging a lens
+            # to this pool too paid it twice, so on every security turn (vool-lens-security,
+            # 1,253 characters) a skill added from Browse had 2,947 of the tool lane's 4,200 and
+            # never fit (measured 2026-11-12). A row without a lane is charged here, as before.
+            from core.native_skill_library import LANE_DOCTRINE
+
             remaining -= sum(
                 int(row.get("chars") or 0)
                 for row in native_provenance
-                if row.get("complete", True)
+                if row.get("complete", True) and row.get("lane") != LANE_DOCTRINE
             )
             provenance.extend(native_provenance)
             # A native skill's permitted-tools deliberately do NOT narrow the offer. Narrowing
