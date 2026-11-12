@@ -17,6 +17,8 @@ all reveals queue behind operator invocation; no notifications exist.
 from __future__ import annotations
 
 import hashlib
+import os
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -75,23 +77,34 @@ def _owner_id() -> str:
     return "op-" + hashlib.sha256(str(active_data_dir()).encode("utf-8")).hexdigest()[:16]
 
 
+_KEY_LOCK = threading.Lock()
+
+
 def _signing_key() -> bytes:
     """Local HMAC key, file-backed in the runtime home (0600). Stage-0
-    tamper-EVIDENCE only — see core.companion.lifeform.progression docstring."""
+    tamper-EVIDENCE only — see core.companion.lifeform.progression docstring.
+
+    Creation is locked and atomic (temp file + rename): two first callers
+    racing an unlocked create would each return a different key while the
+    file kept only the last one, and the other caller's signatures would
+    then never verify again. The key is returned exactly as every later
+    read returns it."""
     from pathlib import Path
 
     from core.runtime_paths import active_data_dir
 
     key_path = Path(active_data_dir()) / "lifeform_signing.key"
-    if key_path.exists():
-        material = key_path.read_bytes().strip()
-        if material:
-            return material
-    key_path.parent.mkdir(parents=True, exist_ok=True)
-    material = uuid.uuid4().bytes + uuid.uuid4().bytes
-    key_path.write_bytes(material)
-    key_path.chmod(0o600)
-    return material
+    with _KEY_LOCK:
+        if key_path.exists():
+            material = key_path.read_bytes().strip()
+            if material:
+                return material
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        staged = key_path.with_name(key_path.name + ".new")
+        staged.write_bytes(uuid.uuid4().bytes + uuid.uuid4().bytes)
+        staged.chmod(0o600)
+        os.replace(staged, key_path)
+        return key_path.read_bytes().strip()
 
 
 def _witness_evidence() -> tuple[int, int]:
