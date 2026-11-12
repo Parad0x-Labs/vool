@@ -1,6 +1,7 @@
 ---
 name: vool-social-content-manager
 description: VOOL Social Content Manager — governs the content pipeline (understand, research, ideate, plan, draft, verify, adapt, review, approve, handoff, observe, learn) across X, LinkedIn, Bluesky, Mastodon, Threads, Telegram and Discord. Local planning and drafting only; it never publishes and grants no publishing authority.
+summary: "Plans campaigns, content calendars and drafts for X, LinkedIn, Bluesky and more, kept on this computer. It never posts for you."
 version: 1.0.0
 license: MIT
 author: sls_0x
