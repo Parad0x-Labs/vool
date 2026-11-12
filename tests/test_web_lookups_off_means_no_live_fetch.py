@@ -219,3 +219,39 @@ def test_new_weather_phrasings_are_served_when_on_and_refused_plainly_when_off()
     assert looked == [], "a lookup ran with Web lookups off"
     for ask in asks:
         assert results[(False, ask)] == WEB_OFF_TEXT
+
+
+# --- the browser leaves the machine the way the process does ------------------------------------
+# Measured 2026-11-12 on the Mac: a served test fenced every lookup behind a dead proxy, and the
+# browser search engine still came back with a real weather.com snippet -- Chrome does not read
+# HTTPS_PROXY. The render argv now carries the process's own proxy.
+
+
+def test_the_browser_render_uses_the_process_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
+    import tools.browser.browser_render as br
+
+    for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY",
+                 "http_proxy", "NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+
+    def _argv() -> list[str]:
+        argv, profile = br._chrome_argv(
+            "/usr/bin/chromium", "https://example.com/", user_agent="ua", virtual_time_ms=1000,
+            screenshot_path="",
+        )
+        if profile:
+            import shutil
+
+            shutil.rmtree(profile, ignore_errors=True)
+        return argv
+
+    assert not [flag for flag in _argv() if flag.startswith("--proxy")], "no proxy set, none passed"
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    argv = _argv()
+    assert "--proxy-server=http://127.0.0.1:9" in argv
+    assert "--proxy-bypass-list=127.0.0.1;localhost" in argv
+    assert argv[-1] == "https://example.com/" and argv[-2] == "--dump-dom"
+    # NO_PROXY=* means "never the proxy" to Python, and so to the browser.
+    monkeypatch.setenv("NO_PROXY", "*")
+    assert not [flag for flag in _argv() if flag.startswith("--proxy")]

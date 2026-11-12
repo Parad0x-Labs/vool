@@ -115,7 +115,13 @@ def test_weather_with_a_failed_lookup_is_not_answered_from_the_records(lane) -> 
 
 
 def test_a_question_about_what_was_said_in_a_chat_with_no_records_keeps_the_records_notice(lane) -> None:
+    # Since the cross-chat recall lane answers questions about the person's own notes, it searches
+    # every chat and project and says plainly that nothing is saved, without a model call. Either
+    # honest answer is right; what must never happen is the invented figure.
     reply, arrived, _events = _turn(lane, RECORDS_QUESTION)
-    assert [_user_text(body) for body in arrived] == [RECORDS_QUESTION]
-    assert reply == RECORDS_WITHDRAWAL_NOTICE, reply
-    assert RECORDS_REPLY not in reply
+    assert RECORDS_REPLY not in reply and "12,400" not in reply, reply
+    if arrived:
+        assert [_user_text(body) for body in arrived] == [RECORDS_QUESTION]
+        assert reply == RECORDS_WITHDRAWAL_NOTICE, reply
+    else:
+        assert reply.startswith("I don't have that saved"), reply
