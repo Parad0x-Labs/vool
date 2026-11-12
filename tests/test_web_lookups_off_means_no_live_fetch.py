@@ -260,7 +260,8 @@ def test_the_browser_render_uses_the_process_proxy(monkeypatch: pytest.MonkeyPat
 def test_switch_off_leaves_asks_about_a_connected_x_account_to_the_x_tools() -> None:
     """X is its own opt-in: with the person's X keys connected, an ask about an X account is not
     refused as a web lookup (the X tools ask before anything goes out). Without X connected the
-    same ask still gets the plain web-off sentence."""
+    same ask is told that X is not connected and where to connect it (core.x_connect_hint), which
+    is what the ask needs; the web-off sentence would send the person to the wrong switch."""
     from core import x_api
 
     asks = ["look up the X account @vool_garden", "who is @vool_garden on X?"]
@@ -268,7 +269,7 @@ def test_switch_off_leaves_asks_about_a_connected_x_account_to_the_x_tools() -> 
         answers, public = _ask_all(asks, web_on=False)
     assert public == [], public
     for question in asks:
-        assert str(answers[question].get("response") or "") == WEB_OFF_LOOKUP_TEXT, question
+        assert str(answers[question].get("response") or "").startswith("X is not connected yet."), question
     with mock.patch.object(x_api, "connected", return_value=True):
         answers, public = _ask_all(asks, web_on=False)
     assert public == [], public
@@ -301,6 +302,8 @@ def test_with_x_connected_an_ask_about_an_x_account_is_never_searched_on_the_web
     assert door == [], door
     for question in asks:
         assert str(answers[question].get("response") or "") == "A stand-in answer.", question
-    # Control: without X connected the same ask is an ordinary web lookup.
-    _answers, door = _searched(["look up the X account @harbor_tides"], connected=False, chat="x-not-connected")
-    assert any("harbor_tides" in url for url in door), door
+    # Control: without X connected the same ask is told where to connect X, and nothing is searched.
+    answers, door = _searched(["look up the X account @harbor_tides"], connected=False, chat="x-not-connected")
+    assert door == [], door
+    reply = str(answers["look up the X account @harbor_tides"].get("response") or "")
+    assert reply.startswith("X is not connected yet."), reply
