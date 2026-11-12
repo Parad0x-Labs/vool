@@ -92,9 +92,17 @@ def _by_category(faults: list[dict]) -> tuple[list[str], dict[str, list[dict]]]:
 
 
 def _code_section(fault: dict) -> list[str]:
-    """The per-code reference block. The ``### <code>`` heading IS the stable anchor."""
+    """The per-code reference block. The ``### <code>`` heading IS the stable anchor.
+
+    The docs site gives the heading the id ``doc_anchor`` (the code with hyphens). A Markdown
+    viewer such as GitHub keeps the underscores instead, so a named anchor with the same
+    ``doc_anchor`` value sits just above the heading: one link form, ``#<doc_anchor>``, lands
+    on the section in both. It is a ``name``, not an ``id``, so the site's page never carries
+    the same id twice."""
     security = " · **Security-relevant:** yes" if fault.get("security_relevant") else ""
     return [
+        f'<a name="{fault["doc_anchor"]}"></a>',
+        "",
         f"### {fault['code']}",
         "",
         f"**{fault['title']}**",

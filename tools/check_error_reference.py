@@ -12,7 +12,8 @@ What it verifies (same input -> same output, every time):
    heading is the code (the stable documentation anchor).
 3. NAVIGATION IS COHERENT -- every page SUMMARY.md lists exists; every page in a public
    docs section is listed (an unlisted page never publishes); relative links inside
-   listed pages resolve.
+   listed pages resolve, and every link to a section of the Error Book (``#<anchor>``,
+   from another page or from the book itself) names a section the book has.
 4. EMITTED-CODE COVERAGE, WITH ITS DENOMINATOR STATED -- the codes the wallet modules
    emit (statically extracted) must all be declared in the catalog, and every declared
    wallet code must have an emission site; every boundary code listed in
@@ -44,6 +45,10 @@ SUMMARY = DOCS / "SUMMARY.md"
 
 _SUMMARY_LINK_RE = re.compile(r"^\s*\*\s*\[[^\]]+\]\(([^)#]+?)(?:#[^)]*)?\)\s*$", re.MULTILINE)
 _MD_LINK_RE = re.compile(r"\]\(([^)#\s]+?)(?:#[^)\s]*)?\)")
+#: A link to a section: an optional page, then ``#`` and the fragment.
+_FRAGMENT_LINK_RE = re.compile(r"\]\(([^)#\s]*)#([^)\s]+)\)")
+_HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
+_NAMED_ANCHOR_RE = re.compile(r'<a name="([^"]+)"></a>')
 _PUBLIC_SECTIONS = ("getting-started", "concepts", "guides", "reference", "trust", "help")
 
 #: The wallet family's emission spellings. Each takes the code as its first positional
@@ -127,6 +132,8 @@ def check_per_code_contract(problems: list[str]) -> dict[str, int]:
             problems.append(f"{spec.code}: {count} per-code sections in ERROR_BOOK (duplicate anchor)")
         else:
             stats["sections"] += 1
+        if book and book.count(f'<a name="{doc_anchor(spec.code)}"></a>') != 1:
+            problems.append(f"{spec.code}: its section lacks the one named anchor Markdown viewers land on")
     if any(entry.get("doc_anchor") != doc_anchor(str(entry.get("code") or ""))
            for entry in export_catalog()["faults"]):
         problems.append("catalog export: a doc_anchor diverged from its code")
@@ -158,7 +165,39 @@ def check_navigation(problems: list[str]) -> int:
                 broken.append(f"{page.relative_to(DOCS)} -> {target}")
     if broken:
         problems.append(f"dangling relative links: {broken}")
+    check_error_book_fragments(problems, pages)
     return len([p for p in pages if p.is_file()])
+
+
+def error_book_anchors(book: str) -> set[str]:
+    """Every fragment that lands somewhere in the book: the docs site's id for each heading,
+    and the named anchors that carry the same value for Markdown viewers."""
+    from tools.docs.build_docs import slugify
+
+    return {slugify(title) for title in _HEADING_RE.findall(book)} | set(_NAMED_ANCHOR_RE.findall(book))
+
+
+def check_error_book_fragments(problems: list[str], pages: list[pathlib.Path]) -> None:
+    """A link to a section the book does not have opens the book at its top: the reader is
+    told "see this code" and shown something else. Refused like a dangling page link."""
+    book_path = (DOCS / "ERROR_BOOK.md").resolve()
+    if not book_path.is_file():
+        return
+    anchors = error_book_anchors(book_path.read_text(encoding="utf-8"))
+    sources = {p.resolve(): p for p in [*pages, book_path] if p.is_file()}
+    bad: list[str] = []
+    for resolved, page in sorted(sources.items()):
+        for match in _FRAGMENT_LINK_RE.finditer(page.read_text(encoding="utf-8")):
+            target, fragment = match.group(1), match.group(2)
+            if target.startswith(("http://", "https://", "mailto:")):
+                continue
+            lands_on = (page.parent / target).resolve() if target else resolved
+            if lands_on != book_path:
+                continue
+            if fragment not in anchors:
+                bad.append(f"{page.relative_to(DOCS)} -> {target}#{fragment}")
+    if bad:
+        problems.append(f"links to Error Book sections that do not exist: {bad}")
 
 
 def check_emitted_coverage(problems: list[str]) -> dict[str, object]:

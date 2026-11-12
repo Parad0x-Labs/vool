@@ -110,6 +110,8 @@ VOOL: check which version showed it, or report it with the code as written.
 
 Every code, in alphabetical order. The section heading is the code's stable anchor.
 
+<a name="cancelled"></a>
+
 ### cancelled
 
 **Cancelled**
@@ -119,6 +121,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** No action needed; start again if you want it done.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** info · **Category:** cancellation
+
+<a name="confinement-refusal"></a>
 
 ### confinement_refusal
 
@@ -130,6 +134,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="credential-failure"></a>
+
 ### credential_failure
 
 **Stored credential could not be read**
@@ -139,6 +145,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** The vault entry failed to decrypt; re-store the credential or check the vault key.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="evidence-corruption"></a>
 
 ### evidence_corruption
 
@@ -150,6 +158,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** integrity · **Security-relevant:** yes
 
+<a name="evm-pocket-custody-unavailable"></a>
+
 ### evm_pocket_custody_unavailable
 
 **VOOL Wallet is Solana only**
@@ -159,6 +169,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** The older VOOL Wallet seals one Solana seed. On an EVM network, use a Crypto Pilot wallet sealed on this device, a watch-only account, or an external EVM wallet (EIP-1193) that keeps its own key.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** low · **Category:** policy
+
+<a name="integrity-verification-failure"></a>
 
 ### integrity_verification_failure
 
@@ -170,6 +182,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** critical · **Category:** integrity · **Security-relevant:** yes
 
+<a name="permission-denied"></a>
+
 ### permission_denied
 
 **Permission denied**
@@ -179,6 +193,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the permission policy or approval settings that govern this action.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+<a name="provider-exhausted"></a>
 
 ### provider_exhausted
 
@@ -190,6 +206,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
 
+<a name="provider-unavailable"></a>
+
 ### provider_unavailable
 
 **Provider unreachable**
@@ -199,6 +217,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the provider's status, network reachability, and configured endpoints.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
+
+<a name="timeout"></a>
 
 ### timeout
 
@@ -210,6 +230,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Trying again now may work.
 - **Severity:** medium · **Category:** availability
 
+<a name="tool-unavailable"></a>
+
 ### tool_unavailable
 
 **Tool unavailable**
@@ -219,6 +241,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Enable the tool for this mode in settings, or choose a different approach.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** availability
+
+<a name="unknown"></a>
 
 ### unknown
 
@@ -230,6 +254,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** internal
 
+<a name="unsupported-claim"></a>
+
 ### unsupported_claim
 
 **Unsupported statements withheld**
@@ -239,6 +265,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** No action needed -- this is the grounding gate working. Check retrieval quality if frequent.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** integrity
+
+<a name="wallet-acknowledgement-required"></a>
 
 ### wallet_acknowledgement_required
 
@@ -250,6 +278,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
+<a name="wallet-amount-invalid"></a>
+
 ### wallet_amount_invalid
 
 **Amount not exact for this coin**
@@ -259,6 +289,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Send a plain decimal amount no more precise than the coin allows and within the pilot's per-transfer ceiling.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-approval-rejected"></a>
 
 ### wallet_approval_rejected
 
@@ -270,6 +302,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** policy · **Security-relevant:** yes
 
+<a name="wallet-backup-unavailable"></a>
+
 ### wallet_backup_unavailable
 
 **Backup already shown once**
@@ -279,6 +313,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** A Crypto Pilot backup is released exactly once during setup; there is no second reveal and no export for pilot wallets.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-broadcast-failed"></a>
 
 ### wallet_broadcast_failed
 
@@ -290,6 +326,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
 
+<a name="wallet-caller-refused"></a>
+
 ### wallet_caller_refused
 
 **Not started from VOOL's own window**
@@ -299,6 +337,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Drive trusted wallet doors from the served page or the native window; a page on another origin, a framed page, a text/plain form and the command-dispatch projection are refused by design.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-card-data-refused"></a>
 
 ### wallet_card_data_refused
 
@@ -310,6 +350,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-chain-identity-mismatch"></a>
+
 ### wallet_chain_identity_mismatch
 
 **Chain endpoint identity unproven**
@@ -319,6 +361,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the RPC endpoint for the network; a lying chain id or genesis is refused before any payment.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-confirmation-required"></a>
 
 ### wallet_confirmation_required
 
@@ -330,6 +374,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
+<a name="wallet-credential-mismatch"></a>
+
 ### wallet_credential_mismatch
 
 **Entries did not match**
@@ -339,6 +385,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** A Crypto Pilot credential is confirmed before any key material exists.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-dependency-unavailable"></a>
 
 ### wallet_dependency_unavailable
 
@@ -350,6 +398,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
+<a name="wallet-device-auth-denied"></a>
+
 ### wallet_device_auth_denied
 
 **Device unlock declined**
@@ -359,6 +409,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Try again and confirm the Touch ID or Mac password prompt from VOOL. A wallet that approves with Touch ID has no PIN or password of its own to use instead. If the prompt keeps failing, restore the wallet from its recovery phrase (a Crypto Pilot from the backup shown at setup) and give it a PIN or a password; a private-key export still needs Touch ID or the Mac password.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-device-auth-unavailable"></a>
 
 ### wallet_device_auth_unavailable
 
@@ -370,6 +422,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** availability
 
+<a name="wallet-disabled"></a>
+
 ### wallet_disabled
 
 **Wallet is switched off**
@@ -379,6 +433,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Enable the wallet explicitly (VOOL_WALLET_ENABLED=1) only if payments are wanted on this install.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-duplicate-payment"></a>
 
 ### wallet_duplicate_payment
 
@@ -390,6 +446,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** integrity · **Security-relevant:** yes
 
+<a name="wallet-environment-inactive"></a>
+
 ### wallet_environment_inactive
 
 **Wrong network environment**
@@ -399,6 +457,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Choose the network environment deliberately in Crypto settings; accounts, balances and receipts never move between environments.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-export-pin-not-accepted"></a>
 
 ### wallet_export_pin_not_accepted
 
@@ -410,6 +470,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-export-refused"></a>
+
 ### wallet_export_refused
 
 **Private key export refused**
@@ -419,6 +481,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Recover a VOOL Wallet from the phrase written down at creation; there is no export door to enable.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-export-unavailable"></a>
 
 ### wallet_export_unavailable
 
@@ -430,6 +494,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-insufficient-funds"></a>
+
 ### wallet_insufficient_funds
 
 **Balance does not cover amount and fee**
@@ -439,6 +505,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Spendable excludes other in-flight holds; a Solana remainder must be zero-free and at least the rent minimum in the pilot.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-legacy-surface-retired"></a>
 
 ### wallet_legacy_surface_retired
 
@@ -450,6 +518,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-limit-exceeded"></a>
+
 ### wallet_limit_exceeded
 
 **Spending limit exceeded**
@@ -459,6 +529,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Review the per-transaction, daily and per-destination limits before retrying.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** policy · **Security-relevant:** yes
+
+<a name="wallet-network-disabled"></a>
 
 ### wallet_network_disabled
 
@@ -470,6 +542,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-not-found"></a>
+
 ### wallet_not_found
 
 **Wallet, proposal or destination not recognised**
@@ -479,6 +553,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the wallet id, proposal id or destination address and try again.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-outbound-refused"></a>
 
 ### wallet_outbound_refused
 
@@ -490,6 +566,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-password-invalid"></a>
+
 ### wallet_password_invalid
 
 **Wallet password invalid**
@@ -499,6 +577,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Wallet passwords are 10 to 128 characters and not only digits. A wrong password leaves the key sealed and counts toward the wallet's lock after too many wrong tries.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-paykit-unavailable"></a>
 
 ### wallet_paykit_unavailable
 
@@ -510,6 +590,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
+<a name="wallet-payment-channel-off"></a>
+
 ### wallet_payment_channel_off
 
 **Payment channel turned off**
@@ -519,6 +601,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Turn a payment channel on in Crypto settings only if you want payments made through it; the cap and your approval apply on every channel.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-pin-invalid"></a>
 
 ### wallet_pin_invalid
 
@@ -530,6 +614,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
+<a name="wallet-quote-expired"></a>
+
 ### wallet_quote_expired
 
 **Preview expired or was replaced**
@@ -539,6 +625,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** A quote lives for a short window and is superseded by a refresh or an environment switch; approval never carries over.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-quote-mismatch"></a>
 
 ### wallet_quote_mismatch
 
@@ -550,6 +638,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
 
+<a name="wallet-quote-unavailable"></a>
+
 ### wallet_quote_unavailable
 
 **Balance or fee unknown**
@@ -559,6 +649,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Unknown chain data is never treated as zero; check the row's endpoint and its identity proof.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
+
+<a name="wallet-recipient-refused"></a>
 
 ### wallet_recipient_refused
 
@@ -570,6 +662,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
+<a name="wallet-recovery-refused"></a>
+
 ### wallet_recovery_refused
 
 **Recovery proof does not fit this wallet**
@@ -579,6 +673,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Recovery re-seals an existing wallet only from a backup that decodes to the wallet's own key (both derivations agree), or from an enrolled device secret released by fresh user presence; a wrong or foreign key is refused before any write and counted on the recovery throttle only.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-request-ambiguous"></a>
 
 ### wallet_request_ambiguous
 
@@ -590,6 +686,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
+<a name="wallet-send-needs-vool-wallet"></a>
+
 ### wallet_send_needs_vool_wallet
 
 **Sending needs a VOOL Wallet**
@@ -599,6 +697,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
+
+<a name="wallet-setup-state-invalid"></a>
 
 ### wallet_setup_state_invalid
 
@@ -610,6 +710,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
+<a name="wallet-signature-invalid"></a>
+
 ### wallet_signature_invalid
 
 **Signature did not match the wallet's key**
@@ -619,6 +721,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the connected signer; a mismatched signature is refused before broadcast.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-signing-unavailable"></a>
 
 ### wallet_signing_unavailable
 
@@ -630,6 +734,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
+<a name="wallet-simulation-failed"></a>
+
 ### wallet_simulation_failed
 
 **Payment failed simulation**
@@ -639,6 +745,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Check the balance, the destination and the test-network RPC, then propose again.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** medium · **Category:** availability
+
+<a name="wallet-storage-class-refused"></a>
 
 ### wallet_storage_class_refused
 
@@ -650,6 +758,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
 
+<a name="wallet-unlock-throttled"></a>
+
 ### wallet_unlock_throttled
 
 **Wallet locked after failed unlocks**
@@ -659,6 +769,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Failed unlocks are counted durably per wallet and for the whole app, across restarts; the lock lifts on its own after the stated wait.
 - **Trying again:** Try again later: what stopped this clears with time.
 - **Severity:** high · **Category:** security · **Security-relevant:** yes
+
+<a name="wallet-x402-cap-exceeded"></a>
 
 ### wallet_x402_cap_exceeded
 
@@ -670,6 +782,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** policy · **Security-relevant:** yes
 
+<a name="wallet-x402-sdk-unavailable"></a>
+
 ### wallet_x402_sdk_unavailable
 
 **x402 extra not installed**
@@ -679,6 +793,8 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 - **What to do next:** Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** policy
+
+<a name="x402-scheme-unavailable"></a>
 
 ### x402_scheme_unavailable
 
