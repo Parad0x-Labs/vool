@@ -22,12 +22,12 @@ import pytest
 
 from core import capability_graph as cg
 from core.skill_tools import install_skill
-from tests._toolchain_fixtures import person_writes_skill
 from core.tool_offer_assembly import (
     assemble_tool_offer,
     matched_skill_tool_seats,
     reset_skill_cache,
 )
+from tests._toolchain_fixtures import person_writes_skill
 
 _SKILL_NAME = "stage-whisper-caller"
 

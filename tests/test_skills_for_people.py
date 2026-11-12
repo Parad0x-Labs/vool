@@ -264,9 +264,9 @@ def test_the_add_ons_catalogue_leaves_out_developer_skills() -> None:
 
 
 def test_an_installed_skill_carries_its_on_off_state(tmp_path) -> None:
+    from core import skill_tools
     from core.native_skill_library import set_skill_enabled
     from core.plugin_catalog import _plugin_entry
-    from core import skill_tools
 
     created = skill_tools.create_skill(
         name="decline-politely", description="Use when saying no to an invitation.", body="Decline kindly."

@@ -196,9 +196,9 @@ def test_why_is_my_laptop_slow_still_gets_the_measured_hog_report(agent: VoolAge
 )
 def test_calendar_as_the_name_of_code_is_not_a_calendar_request(text: str) -> None:
     intent = parse_operator_action_intent(text)
-    assert intent is None or "calendar" not in intent.kind and intent.kind not in {
+    assert intent is None or ("calendar" not in intent.kind and intent.kind not in {
         "check_availability", "show_agenda", "search_calendar_event"
-    }
+    })
 
 
 @pytest.mark.parametrize(

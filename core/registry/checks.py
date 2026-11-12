@@ -671,7 +671,7 @@ def skill_text_findings(text: str, header: dict | None = None) -> list[dict]:
                 if secret_lines.get(HEADER_VALUES):
                     item.pop("quote", None)
         return findings
-    except Exception:  # noqa: BLE001 - a check that cannot run must refuse, never pass
+    except Exception:
         return [_finding("instructions-primary", SKILL_FILE, UNREADABLE)]
 
 

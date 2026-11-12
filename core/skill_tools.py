@@ -1399,7 +1399,7 @@ def install_skill(
             installed_digest = hashlib.sha256(data).hexdigest()
             record_install(destination, sha256=installed_digest, origin=decide_install_origin(
                 installed_digest, history_source="import" if origin == "import" else ""))
-        except Exception:  # noqa: BLE001 - a missing record reads as "not the person's own" (fails closed)
+        except Exception:
             pass
         result: dict[str, Any] = {
             "status": "ok",

@@ -898,12 +898,17 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
                     skill_tools._record_version(skill_dir, source="plugin")
                     # A pack's skills are the person's own only where skill.create wrote the bytes.
                     try:
-                        from core.skill_origin import ORIGIN_IMPORTED, ORIGIN_PACK, decide_install_origin, record_install
+                        from core.skill_origin import (
+                            ORIGIN_IMPORTED,
+                            ORIGIN_PACK,
+                            decide_install_origin,
+                            record_install,
+                        )
 
                         installed = hashlib.sha256((skill_dir / "SKILL.md").read_bytes()).hexdigest()
                         record_install(skill_dir / "SKILL.md", sha256=installed, origin=decide_install_origin(
                             installed, default=ORIGIN_IMPORTED if staged_by == "import" else ORIGIN_PACK))
-                    except Exception:  # noqa: BLE001 - no record reads as not the person's own
+                    except Exception:
                         pass
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not activate the plugin"}

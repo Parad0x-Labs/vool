@@ -255,12 +255,12 @@ def test_an_illustrative_request_keeps_its_reply() -> None:
 
 # ---- one real turn, served ----------------------------------------------------------------------
 
-from tests.test_final_answer_author_eligibility_p0 import (  # noqa: E402
-    _ProviderScript,
+from tests.test_final_answer_author_eligibility_p0 import (
     _certify,
     _drive,
     _local_manifest,
-    _pinned_backend_identity,  # noqa: F401  (autouse fixture: pinned backend, clean registry)
+    _pinned_backend_identity,
+    _ProviderScript,
     _register,
     _serve,
 )

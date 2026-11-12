@@ -3503,7 +3503,7 @@ def _skill_install_card(arguments: dict[str, Any], source_context: dict[str, Any
         return {"action": f'Turn on the skill "{shown}"', "preview": "\n".join(lines),
                 "skill": {"name": name, "sha256": bound or actual, "bound": bool(bound), "tools": tools,
                           "scope": scope}}
-    except Exception:  # noqa: BLE001 - the card falls back to the ordinary one; the install still checks
+    except Exception:
         return {}
 
 

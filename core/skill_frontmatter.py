@@ -91,7 +91,7 @@ def _bounded_loader():
                 self._depth = 0
                 self._nodes = 0
 
-            def compose_node(self, parent, index):  # noqa: ANN001 - PyYAML signature
+            def compose_node(self, parent, index):
                 if self.check_event(AliasEvent):
                     raise FrontmatterRefused("alias")
                 event = self.peek_event()
@@ -157,10 +157,10 @@ def check(text: str) -> str:
 
 __all__ = [
     "FRONTMATTER_RE",
-    "FrontmatterRefused",
     "MAX_DEPTH",
     "MAX_FRONTMATTER_BYTES",
     "MAX_NODES",
+    "FrontmatterRefused",
     "check",
     "load_header",
     "parse",

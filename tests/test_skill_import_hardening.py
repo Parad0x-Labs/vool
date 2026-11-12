@@ -503,7 +503,7 @@ def test_the_approval_card_names_the_skill_its_check_code_and_its_tools(tmp_path
     code = _code(hashlib.sha256(raw).hexdigest())
     assert code in offer
     on = _lane("c-card", "turn it on", _context("c-card", operating_mode="manual"))
-    from core.authorized_tool_execution import execute_authorized_runtime_tool  # noqa: F401 - the real gate ran
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
     assert on.get("checkpoint_status") == "pending_approval", on
     from core import mode_permission_policy
 
@@ -640,7 +640,7 @@ def test_an_import_named_like_a_built_in_is_refused_with_another_name_suggested(
     from core import skill_tools
 
     reply = _import(tmp_path, "c-reserved", "pkg", _skill_md(name, GOOD_BODY))["response"]
-    assert "I did not import" in reply and "is taken by one of VOOL's own skills" in reply or \
+    assert ("I did not import" in reply and "is taken by one of VOOL's own skills" in reply) or \
         'Names that start with "vool-" are kept for VOOL' in reply, reply
     assert 'for example "My ' in reply
     assert "try again" in reply
