@@ -1576,6 +1576,20 @@
       "registry_command_id": "update.status",
       "surface": "http"
     },
+    "http:GET:/api/wallet/agents": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/agents",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/agents/balance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/agents/balance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.balance",
+      "surface": "http"
+    },
     "http:GET:/api/wallet/balance": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/wallet/balance",
@@ -2780,6 +2794,34 @@
       "registry_command_id": "update.rollback",
       "surface": "http"
     },
+    "http:POST:/api/wallet/agents/allowance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/allowance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.allowance.set",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/allowance/state": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/allowance/state",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.allowance.state",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/backup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/backup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.backup.reveal",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/agents/wallet": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/agents/wallet",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.agents.wallet.create",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/ai-endpoints": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/ai-endpoints",
@@ -3281,7 +3323,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 318,
-    "GENERATED_ADAPTER": 141,
+    "GENERATED_ADAPTER": 147,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

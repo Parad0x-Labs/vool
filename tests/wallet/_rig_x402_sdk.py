@@ -33,6 +33,7 @@ PAID_BODY = b'{"report": "base numbers", "paid": true}'
 TRANSFER_TOPIC0 = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 AUTHORIZATION_USED_TOPIC0 = "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5"
 _SELECTOR_BALANCE_OF = "0x70a08231"
+_SELECTOR_DECIMALS = "0x313ce567"
 _SELECTOR_AUTHORIZATION_STATE = "0xe94a0102"
 _BLOCK_SECONDS = 2
 _TYPES = [
@@ -186,12 +187,16 @@ class ScriptedUsdcChain(ScriptedEvmNativeChain):
             if isinstance(block, dict):
                 block["timestamp"] = hex(self.timestamp_of(int(block["number"], 16)))
             return kind, payload
+        if method == "eth_getCode" and str(params[0] if params else "").lower() == self.token:
+            return self._ok(body, "0x6080604052")  # the token is a contract: it has code
         if method == "eth_call" and str((params[0] if params else {}).get("to") or "").lower() == self.token:
             data = str(params[0].get("data") or "").lower()
             at = self._tagged(str(params[1]) if len(params) > 1 else "latest")
             if data.startswith(_SELECTOR_BALANCE_OF):
                 owner = "0x" + data[10 + 24:10 + 64]
                 return self._ok(body, "0x" + format(self.token_balances.get(owner, 0), "064x"))
+            if data.startswith(_SELECTOR_DECIMALS):
+                return self._ok(body, "0x" + format(6, "064x"))  # USDC's own decimals, as the token answers them
             if data.startswith(_SELECTOR_AUTHORIZATION_STATE):
                 owner, nonce = "0x" + data[10 + 24:10 + 64], "0x" + data[10 + 64:10 + 128]
                 used = self.used.get((owner, nonce))

@@ -487,6 +487,14 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     profile = require_wallet(wallet_id, source_context=source_context)
     if profile.mode != MODE_POCKET_SEALED:
         return
+    if agent_of(profile.wallet_id):
+        # an agent's wallet opens with a credential this machine holds, so opening it proves nobody: the owner is
+        # proven against their own wallet, and with none there is nobody to prove
+        owner = owner_proof_wallet()
+        if owner is None:
+            raise wallet_fault("wallet_confirmation_required", authority=AUTHORITY, context={"wallet_id": wallet_id, "reason": "no_owner_wallet_to_prove", "purpose": purpose}, source_context=source_context)
+        prove_owner(owner.wallet_id, credential=credential, purpose=purpose, source_context=source_context)
+        return
     if profile.approval_method != APPROVAL_DEVICE and not str(credential or ""):
         code = "wallet_password_invalid" if profile.approval_method == APPROVAL_PASSWORD else "wallet_pin_invalid"
         raise wallet_fault(code, authority=AUTHORITY, context={"wallet_id": wallet_id, "reason": "credential_required", "purpose": purpose}, source_context=source_context)
@@ -503,6 +511,23 @@ def prove_owner(wallet_id: str, *, credential: str = "", purpose: str, source_co
     del material
 
 
+def shown_approval_method(wallet_id: str) -> str:
+    """The approval method a surface asks the owner for on this wallet. An agent's wallet (or "") answers with the
+    owner's own proof wallet's method: its own credential is this machine's and is never typed by anyone."""
+    if wallet_id and not agent_of(wallet_id):
+        profile = get_wallet(wallet_id)
+        return str(getattr(profile, "approval_method", "") or APPROVAL_PIN)
+    owner = owner_proof_wallet()
+    return str(getattr(owner, "approval_method", "") or APPROVAL_PIN)
+
+
+def agent_of(wallet_id: str) -> str:
+    """The agent this wallet belongs to, "" for the owner's own wallets (``core.wallet.agent_wallets``)."""
+    with connection() as conn:
+        row = conn.execute("SELECT agent_id FROM wallet_profiles WHERE wallet_id = ?", (str(wallet_id),)).fetchone()
+    return str(row[0] or "") if row else ""
+
+
 def owner_proof_wallet() -> WalletProfile | None:
     """The wallet whose credential proves the owner for a wallet-wide setting (the environment, payment channels,
     pay-per-answer endpoints, the fee threshold): the OLDEST ready wallet whose key VOOL seals. Never one the caller
@@ -510,7 +535,8 @@ def owner_proof_wallet() -> WalletProfile | None:
     also becomes the default), and it is always newer than the owner's. None when no wallet holds a key VOOL could
     sign with: nothing here can pay."""
     with connection() as conn:
-        rows = conn.execute(_SELECT + " WHERE mode = ? ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
+        # never an agent's wallet: this machine holds its credential, so any local process could "prove" with it
+        rows = conn.execute(_SELECT + " WHERE mode = ? AND COALESCE(agent_id, '') = '' ORDER BY created_at ASC", (MODE_POCKET_SEALED,)).fetchall()
         device_bound = {str(row[0]) for row in conn.execute(
             "SELECT wallet_id FROM wallet_profiles WHERE mode = ? AND COALESCE(device_sealed_blob, '') != ''", (MODE_POCKET_SEALED,))}
     device_here = device_auth.current_authority().available()
@@ -683,9 +709,10 @@ def require_wallet(wallet_id: str, *, source_context: dict[str, Any] | None = No
 
 def default_wallet() -> WalletProfile | None:
     with connection() as conn:
-        row = conn.execute(_SELECT + " WHERE is_default = 1 ORDER BY created_at DESC LIMIT 1").fetchone()
+        # an agent's own wallet is never the owner's default: nothing the owner starts without naming a wallet lands on it
+        row = conn.execute(_SELECT + " WHERE is_default = 1 AND COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
         if row is None:
-            row = conn.execute(_SELECT + " ORDER BY created_at DESC LIMIT 1").fetchone()
+            row = conn.execute(_SELECT + " WHERE COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
     return _row_to_profile(row) if row else None
 
 
@@ -693,13 +720,18 @@ def list_wallets() -> list[dict[str, Any]]:
     """Every registered account with its setup state and seal policy: a Crypto Pilot wallet in setup is listed, never hidden."""
     with connection() as conn:
         rows = conn.execute(
-            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy FROM wallet_profiles ORDER BY created_at ASC"
+            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy, agent_id FROM wallet_profiles ORDER BY created_at ASC"
         ).fetchall()
+    owner_method = shown_approval_method("")
     listed = []
     for row in rows:
         entry = _row_to_profile(row[:7]).to_dict()
         entry["setup_state"] = str(row[7] or "")
         entry["seal_policy"] = str(row[8] or "")
+        entry["agent_id"] = str(row[9] or "")
+        if entry["agent_id"]:
+            # the credential the owner is asked for on an agent's wallet is their own wallet's, never the machine's
+            entry["approval_method"] = owner_method
         listed.append(entry)
     return listed
 
