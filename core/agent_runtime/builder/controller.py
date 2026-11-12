@@ -292,6 +292,15 @@ def select_auto_builder_manifest(agent: Any) -> Any | None:
     return None
 
 
+def _registered_local_ollama_lanes(agent: Any) -> bool:
+    """Whether this runtime registered any local Ollama lane, turned on or off."""
+    try:
+        manifests = agent.memory_router.registry.list_manifests(enabled_only=False)
+    except Exception:
+        return False
+    return any(str(getattr(manifest, "runtime_dependency", "") or "") == "ollama" for manifest in manifests)
+
+
 def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUILDER_NUM_PREDICT) -> dict[str, Any]:
     """The /api/chat body for one builder generation.
 
@@ -1279,9 +1288,22 @@ def _run_model_build(
                 reason="builder_local_lane_disabled",
             )
         selected = select_auto_builder_manifest(agent)
-        if selected is None:
-            # No enabled local model declares coding support. Say so and offer the two ways
-            # forward -- never fall back to some other model on the operator's behalf.
+        if selected is None and not _registered_local_ollama_lanes(agent):
+            # No local lane has been registered on this runtime at all (boot registers the
+            # bundle's models, so this is a runtime that never ran that step). There is nothing to
+            # rank and nothing the operator turned off: the runtime's own default local model
+            # builds, exactly as before the ranking existed.
+            from core.runtime_provider_defaults import default_runtime_model_tag
+
+            generate_fn = build_ollama_generate_fn(
+                base_url=builder_ollama_base_url(os.environ),
+                model_tag=str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b",
+                source_context=ctx,
+                budget=generation_budget,
+            )
+        elif selected is None:
+            # Local lanes exist, but none that is turned on declares coding support. Say so and
+            # offer the two ways forward -- never fall back to a model the operator turned off.
             return agent._action_fast_path_result(
                 task_id=task.task_id,
                 session_id=session_id,
@@ -1298,16 +1320,17 @@ def _run_model_build(
                 task_outcome="failed",
                 mode_override="advice_only",
             )
-        selected_base_url = str((selected.runtime_config or {}).get("base_url") or "").strip()
-        if selected_base_url and not selected_base_url.startswith(("http://", "https://")):
-            selected_base_url = f"http://{selected_base_url}"
-        generate_fn = build_ollama_generate_fn(
-            # The chosen lane's own endpoint, so the model is asked where it was registered.
-            base_url=(selected_base_url or builder_ollama_base_url(os.environ)).rstrip("/"),
-            model_tag=str(selected.model_name),
-            source_context=ctx,
-            budget=generation_budget,
-        )
+        else:
+            selected_base_url = str((selected.runtime_config or {}).get("base_url") or "").strip()
+            if selected_base_url and not selected_base_url.startswith(("http://", "https://")):
+                selected_base_url = f"http://{selected_base_url}"
+            generate_fn = build_ollama_generate_fn(
+                # The chosen lane's own endpoint, so the model is asked where it was registered.
+                base_url=(selected_base_url or builder_ollama_base_url(os.environ)).rstrip("/"),
+                model_tag=str(selected.model_name),
+                source_context=ctx,
+                budget=generation_budget,
+            )
 
     # The rest of this build's workspace plan, so the permission controller can offer ONE bounded
     # grant for it instead of a prompt per file. The build lane fills this in before its first
