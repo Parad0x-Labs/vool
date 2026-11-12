@@ -2911,6 +2911,25 @@ class ResearchToolLoopFacadeMixin:
                 from core.agent_runtime.action_honesty_validator import browser_synthesis_failed_reply
 
                 rendered = browser_synthesis_failed_reply() or rendered
+        if reject_reason and not renders_final:
+            # No model wrote these bytes: runtime code composed them from the executed steps'
+            # own results. They are minted as such, so the publication gate reads them as backed
+            # runtime output (measured 2026-11-12, served chat: a command ran under a model not
+            # certified to write answers, and the gate refused the runtime's own report of it).
+            try:
+                from core.final_answer_authorship import record_runtime_support
+
+                record_runtime_support(
+                    loop_source_context,
+                    support_rows=[{
+                        "summary": rendered,
+                        "intent": "tool_loop_composed_result",
+                        "source": "tool_loop_composed_result",
+                    }],
+                    request_text=str(effective_input or ""),
+                )
+            except Exception:
+                pass
         # A turn that ends by narrating a FAILED tool's typed refusal is a truthful answer, not a
         # completed effect: the evidence reaches the user, but the turn never claims the tool's
         # work succeeded (never convert a failed tool into success merely to get narration).

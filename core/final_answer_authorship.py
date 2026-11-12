@@ -1048,6 +1048,27 @@ _RECORDS: OrderedDict[str, AuthorshipRecord] = OrderedDict()
 _INDEX: dict[str, str] = {}
 
 
+@dataclass
+class _HeldSupport:
+    """Rows the runtime minted for a turn that had no authorship record yet.
+
+    A support row does not create an authorship question, so these rows mint no record. They are
+    kept, by the same turn identity, for the moment the turn raises the question itself: measured
+    2026-11-12 (served chat, v0.8 line), a command ran through the tool loop before any record
+    existed, its rows were dropped, and the synthesis fence's refusal then said "nothing this turn
+    retrieved, computed or observed backs it" over a turn whose command had run.
+    """
+
+    held_id: str
+    identity: Any
+    rows: tuple[dict[str, Any], ...] = ()
+    request_text: str = ""
+
+
+_HELD_SUPPORT: OrderedDict[str, _HeldSupport] = OrderedDict()
+_HELD_INDEX: dict[str, str] = {}
+
+
 def _identity(source_context: Any):
     from core.grounding_lifecycle import turn_identity
 
@@ -1099,6 +1120,91 @@ def _record_for_unlocked(identity) -> AuthorshipRecord | None:
 
 def _is_authoring(decision: AuthorshipDecision) -> bool:
     return str(decision.author_role) == FINAL_ANSWER_ROLE
+
+
+def _same_turn(held: Any, seen: Any) -> bool:
+    """Do two identities that share a token name the same turn?
+
+    The refusals `authorship_record_for_publication` makes, applied before held rows join a
+    record: ids are reused (fixed ids in tests, `fast:<session>:<hash>` in the fast lane), so a
+    shared token from a replaced generation, or one whose turn or task id contradicts the other's,
+    is a different turn.
+    """
+
+    if not held.same_generation_as(seen):
+        return False
+    for field_name in ("turn_id", "task_id"):
+        mine, theirs = getattr(held, field_name, ""), getattr(seen, field_name, "")
+        if mine and theirs and mine != theirs:
+            return False
+    return True
+
+
+def _merged_rows(existing: Any, rows: Any) -> tuple[dict[str, Any], ...]:
+    """Add-only, row by row: a row whose exact content is already kept is not kept twice."""
+
+    merged = [dict(row) for row in list(existing or ()) if isinstance(row, dict)]
+    seen = {json.dumps(row, sort_keys=True, default=str) for row in merged}
+    for row in list(rows or ()):
+        if not isinstance(row, dict):
+            continue
+        key = json.dumps(row, sort_keys=True, default=str)
+        if key not in seen:
+            merged.append(dict(row))
+            seen.add(key)
+    return tuple(merged)
+
+
+def _hold_support_unlocked(identity: Any, rows: tuple[dict[str, Any], ...], request_text: str) -> None:
+    # Only a FENCED identity (a served turn's execution attempt) may hold rows: an unfenced one
+    # carries ids that are reused across turns, and rows held under one could join a later turn.
+    if not identity.fenced:
+        return
+    held = None
+    for token in identity.tokens:
+        held_id = _HELD_INDEX.get(token)
+        candidate = _HELD_SUPPORT.get(held_id or "")
+        if candidate is not None and _same_turn(candidate.identity, identity):
+            held = candidate
+            break
+    if held is None:
+        import uuid
+
+        held = _HeldSupport(held_id=f"held-support-{uuid.uuid4().hex}", identity=identity)
+        _HELD_SUPPORT[held.held_id] = held
+    else:
+        held.identity = _merge_identity(held.identity, identity)
+        _HELD_SUPPORT.move_to_end(held.held_id)
+    held.rows = _merged_rows(held.rows, rows)
+    if request_text and not held.request_text:
+        held.request_text = request_text
+    for token in held.identity.tokens:
+        _HELD_INDEX[token] = held.held_id
+    while len(_HELD_SUPPORT) > _MAX_TRACKED_TURNS:
+        evicted_id, _evicted = _HELD_SUPPORT.popitem(last=False)
+        for token, mapped in list(_HELD_INDEX.items()):
+            if mapped == evicted_id:
+                _HELD_INDEX.pop(token, None)
+
+
+def _adopt_held_support_unlocked(record: AuthorshipRecord) -> None:
+    """The rows this turn's runtime minted before its record existed join the record now."""
+
+    if not record.identity.fenced:
+        return
+    for token in record.identity.tokens:
+        held_id = _HELD_INDEX.get(token)
+        held = _HELD_SUPPORT.get(held_id or "")
+        if held is None or not _same_turn(held.identity, record.identity):
+            continue
+        record.support_rows = _merged_rows(record.support_rows, held.rows)
+        record.supported_by_runtime = True
+        if held.request_text and not record.request_text:
+            record.request_text = held.request_text
+        _HELD_SUPPORT.pop(held.held_id, None)
+        for other, mapped in list(_HELD_INDEX.items()):
+            if mapped == held.held_id:
+                _HELD_INDEX.pop(other, None)
 
 
 def record_authorship_decision(
@@ -1182,6 +1288,7 @@ def record_authorship_decision(
             text = str(request_text or "").strip()
             if text and not record.request_text:
                 record.request_text = text
+            _adopt_held_support_unlocked(record)
             _index_unlocked(record)
             _evict_unlocked()
         return True
@@ -1244,6 +1351,7 @@ def record_authorship_attempts(
                 name for name in callable_names if name not in record.attempted_failed
             )
             record.attempted_failed = merged
+            _adopt_held_support_unlocked(record)
             _index_unlocked(record)
             _evict_unlocked()
         return True
@@ -1288,22 +1396,16 @@ def record_runtime_support(
             record = _record_for_unlocked(identity)
             if record is None:
                 # No record, no minting — the pinned raise-only contract (a support row alone
-                # does not create an authorship question). Real turns always have a record by
-                # the time the tool loop runs: the classification/planner calls before it are
-                # journalled by core.turn_model_call_ledger, which creates the record.
+                # does not create an authorship question). The rows are HELD by the turn's
+                # identity instead of dropped: a turn can reach its tool loop before anything
+                # raised the question (measured 2026-11-12, served chat: an uncertified model's
+                # command ran, its rows were dropped here, and the synthesis fence's refusal
+                # then said nothing backed a turn whose command had run). When this turn's
+                # record is created, it adopts them (`_adopt_held_support_unlocked`).
+                _hold_support_unlocked(identity, rows, str(request_text or "").strip())
                 return False
-            existing = tuple(
-                dict(row) for row in getattr(record, "support_rows", ()) or () if isinstance(row, dict)
-            )
-            seen = {json.dumps(row, sort_keys=True, default=str) for row in existing}
-            merged = list(existing)
-            for row in rows:
-                key = json.dumps(row, sort_keys=True, default=str)
-                if key not in seen:
-                    merged.append(row)
-                    seen.add(key)
             record.supported_by_runtime = True
-            record.support_rows = tuple(merged)
+            record.support_rows = _merged_rows(getattr(record, "support_rows", ()), rows)
             text = str(request_text or "").strip()
             if text and not record.request_text:
                 record.request_text = text
@@ -1765,6 +1867,8 @@ def reset_for_tests() -> None:
     with _LOCK:
         _RECORDS.clear()
         _INDEX.clear()
+        _HELD_SUPPORT.clear()
+        _HELD_INDEX.clear()
     with _CERT_LOCK:
         _CERT_CACHE.clear()
 
