@@ -16,6 +16,8 @@ token, company, or provider names here; adding another asset or place cannot cha
 
 from __future__ import annotations
 
+import bisect
+import itertools
 import json
 import re
 from dataclasses import dataclass
@@ -575,37 +577,91 @@ def negated_directive_positions(text: str) -> tuple[int, ...]:
     return tuple(match.start() for match in _NEGATED_RETRIEVAL_DIRECTIVE_RE.finditer(str(text or "")))
 
 
+class _SpanIndex:
+    """Answers "does this span overlap any of those?" in logarithmic time.
+
+    A message can hold tens of thousands of clauses. Testing each span against every other one
+    was quadratic in the message: 20000 "offline. no markdown." pairs took 13 s.
+    """
+
+    def __init__(self, spans: tuple[tuple[int, int], ...]) -> None:
+        ordered = sorted(spans)
+        self._starts = [start for start, _end in ordered]
+        # The furthest any of the first k spans reaches, for every k.
+        self._reach = list(itertools.accumulate((end for _start, end in ordered), max))
+
+    def overlaps(self, span: tuple[int, int]) -> bool:
+        start, end = span
+        opened = bisect.bisect_left(self._starts, end)  # the spans that start before this one ends
+        return opened > 0 and self._reach[opened - 1] > start
+
+
+def _spoken_network_prohibition_spans(raw: str, excluded: _SpanIndex) -> tuple[tuple[int, int], ...]:
+    """Prohibitions stated in words the directive recognizer does not read: "I'm on a plane",
+    "our wifi is down", "answer from your own knowledge", "external sources are off limits",
+    "skip the lookup".
+
+    Words inside quotes are somebody else's, so they are not an instruction to this turn, and a
+    span inside an output-format directive or a reported example is that, not a prohibition.
+    Measured on the v0.8 line before this, 7 of 28 such messages froze a web prohibition.
+    """
+    from core.turn_prohibitions import _strip_quoted_spans
+    from core.user_network_directive import prohibition_spans
+
+    # Quote stripping keeps every offset (a quoted span becomes spaces of the same length), so
+    # the spans found in the stripped text are spans of the caller's text.
+    return tuple(
+        span for span in prohibition_spans(_strip_quoted_spans(raw)) if not excluded.overlaps(span)
+    )
+
+
 def analyze_retrieval_constraints(text: str) -> RetrievalConstraints:
     """Parse explicit negative retrieval clauses without treating ordinary negation as a veto."""
 
     raw = str(text or "")
-    spans = _negative_clause_spans(raw)
+    directive_spans = _negative_clause_spans(raw)
+    format_spans = tuple((m.start(), m.end()) for m in _OUTPUT_FORMAT_DIRECTIVE_RE.finditer(raw))
+    example_spans = _reported_example_spans(raw)
+    spoken = _spoken_network_prohibition_spans(raw, _SpanIndex(format_spans + example_spans))
+    # A spoken prohibition the directive recognizer did not read at all becomes a clause of its
+    # own. One inside a clause it did read leaves that clause's reading alone -- unless that
+    # reading named no family at all ("skip the lookup", "dont go online for it" were read as
+    # prohibitions of nothing), where the spoken reading supplies the family: the network.
+    directive_index = _SpanIndex(directive_spans)
+    spoken_alone = tuple(span for span in spoken if not directive_index.overlaps(span))
+    spoken_index = _SpanIndex(spoken)
+    spans = tuple(sorted(directive_spans + spoken_alone))
     clauses = tuple(raw[start:end].strip(" ,;:-—") for start, end in spans)
     prohibited_toolsets: set[str] = set()
-    forbids_all_tools = any(
-        _ALL_TOOL_SCOPE_RE.search(clause) or _ALL_TOOL_LIST_ITEM_RE.search(clause)
-        for clause in clauses
-    )
-    forbids_external = any(_GLOBAL_EXTERNAL_SCOPE_RE.search(clause) for clause in clauses)
+    forbids_all_tools = False
+    # A spoken prohibition names the network itself, not one live-data family, so it closes
+    # external retrieval at large.
+    forbids_external = bool(spoken_alone)
 
-    for clause in clauses:
+    for span, clause in zip(spans, clauses, strict=True):
+        all_tools = bool(_ALL_TOOL_SCOPE_RE.search(clause) or _ALL_TOOL_LIST_ITEM_RE.search(clause))
+        global_scope = bool(_GLOBAL_EXTERNAL_SCOPE_RE.search(clause))
         domains = retrieval_domains_in(clause)
         prohibited_toolsets.update(domains)
-        if _ACTION_WITHOUT_TARGET_RE.search(" ".join(clause.split())):
-            # A prohibition that is ONLY the verb ("Do not browse.", "No lookups.") closes
-            # external retrieval at large, not just the one family the verb maps to -- the
-            # old `not domains` guard let "browse" narrow it to a web_fetch veto and a web
-            # search still ran. The recognizer is already end-of-clause narrow, so this
-            # cannot widen an ordinary negation into a veto.
-            forbids_external = True
+        # A prohibition that is ONLY the verb ("Do not browse.", "No lookups.") closes external
+        # retrieval at large, not just the one family the verb maps to -- the old `not domains`
+        # guard let "browse" narrow it to a web_fetch veto and a web search still ran. The
+        # recognizer is already end-of-clause narrow, so this cannot widen an ordinary negation
+        # into a veto.
+        action_only = bool(_ACTION_WITHOUT_TARGET_RE.search(" ".join(clause.split())))
+        names_no_family = not (all_tools or global_scope or domains or action_only)
+        forbids_all_tools = forbids_all_tools or all_tools
+        forbids_external = (
+            forbids_external
+            or global_scope
+            or action_only
+            or (names_no_family and spoken_index.overlaps(span))
+        )
 
     # Format directives and reported example utterances are removed from the ELIGIBLE TEXT only. They
     # are not retrieval prohibitions, so `has_prohibition` and the toolset scopes stay derived from
     # `spans` alone -- saying "no markdown" must not be mistaken for saying "no web".
-    eligible_spans = tuple(
-        sorted(spans + tuple((m.start(), m.end()) for m in _OUTPUT_FORMAT_DIRECTIVE_RE.finditer(raw))
-               + _reported_example_spans(raw))
-    )
+    eligible_spans = tuple(sorted(spans + format_spans + example_spans))
     return RetrievalConstraints(
         eligible_text=_remove_spans(raw, eligible_spans),
         has_prohibition=bool(spans),
