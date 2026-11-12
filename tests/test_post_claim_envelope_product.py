@@ -24,6 +24,7 @@ def _boom(*_a, **_k):
     raise RuntimeError("injected post-claim fault")
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers", "model_seams")
 def test_the_control_turn_is_claimed_and_fulfilled(agent):
     result = _dispatch(agent)

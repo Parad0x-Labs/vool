@@ -75,6 +75,7 @@ A1 = (
 )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a1_the_dropped_asset_is_executed_and_the_ratio_is_computed():
     """Gold is serviceable. The recognizer dropped it; the runtime must run it anyway."""
@@ -209,6 +210,7 @@ def test_a3_three_places_with_two_dropped_by_the_planner():
 # --- A5: an unsupported prerequisite -------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a5_an_unsupported_subject_cannot_produce_a_fabricated_dependent():
     """Platinum can be priced by nothing here. The ratio must not be answered anyway."""
@@ -309,6 +311,7 @@ def test_a6_a_real_prerequisite_failure_still_blocks_its_dependent(monkeypatch):
 # --- A11: the same shape with no reproduction vocabulary -----------------------------------------
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a11_the_same_repair_with_no_btc_or_gold_anywhere():
     """Ethereum and Silver. Nothing here shares a subject with the reported turn."""
@@ -336,6 +339,7 @@ def test_a11_the_same_repair_with_no_btc_or_gold_anywhere():
 # --- ordering and prerequisite count -------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_three_prerequisites_feed_one_derived_result():
     """A derived figure over three live observations, one of them planner-omitted."""
@@ -377,6 +381,7 @@ def test_three_prerequisites_feed_one_derived_result():
     ],
     ids=["dependent-first", "dependent-last", "sloppy", "typo"],
 )
+@pytest.mark.usefixtures("enable_web")
 def test_realization_survives_how_a_real_user_words_it(prompt):
     """The planner drops Silver in every one of these. The runtime must still execute it."""
     _plan, outcomes, _composed = _drive(
@@ -421,6 +426,7 @@ def test_a_fully_planned_turn_realizes_nothing_extra():
     assert composed.complete
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_an_obligation_the_planner_omitted_and_the_runtime_served_is_complete():
     """Origin and state are orthogonal, and production keeps both.

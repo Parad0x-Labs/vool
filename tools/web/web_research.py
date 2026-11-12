@@ -1209,9 +1209,9 @@ def _split_weather_candidates(clause: str) -> list[tuple[str, bool]]:
 
 #: The clause shapes that tie a weather trigger word to what it is the weather OF. Named once and
 #: shared by the singular and plural scanners below, so the two can never drift apart.
-from core.weather_phrasing import PLACE as _PLACE  # noqa: E402
-from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END  # noqa: E402
-from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB  # noqa: E402
+from core.weather_phrasing import PLACE as _PLACE
+from core.weather_phrasing import TIME_ANCHOR_AT_END as _TIME_ANCHOR_AT_END
+from core.weather_phrasing import WEATHER_VERB as _WEATHER_VERB
 
 _WEATHER_CLAUSE_PATTERNS = (
     # "only"/"just"/"specifically" between the subject and the preposition -- mirrors

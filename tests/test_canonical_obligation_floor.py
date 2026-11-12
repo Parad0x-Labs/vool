@@ -461,6 +461,7 @@ def test_a_requirement_the_runtime_cannot_account_for_still_refuses_to_ship():
     assert any(c.startswith("missing_node_outcome:") for c in decision.integrity_codes)
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_dependent_node_computes_from_its_dependencies_live_values():
     """The dependent step evaluates because the runtime bound its dependencies' outputs.
@@ -494,6 +495,7 @@ def test_a_dependent_node_computes_from_its_dependencies_live_values():
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_dependent_node_sees_a_live_observation_from_another_domain():
     """The same projection, over weather rather than markets, so the contract is not price-shaped."""
@@ -518,6 +520,7 @@ def test_a_dependent_node_sees_a_live_observation_from_another_domain():
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_the_briefing_carries_the_dependencies_values():
     """What the dependent node is SHOWN, asserted directly rather than through its output.

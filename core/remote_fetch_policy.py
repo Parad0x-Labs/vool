@@ -1063,17 +1063,16 @@ def remote_fetch_policy_scope(source_context: dict[str, Any] | None) -> Iterator
 
 __all__ = [
     "LOCAL_ONLY_EGRESS_DENIAL",
+    "MACHINE_OFFLINE_LOOKUP_TEXT",
     "NO_ACTIVE_LEDGER_DENIAL",
+    "OFFLINE_LOOKUP_TEXT",
+    "WEB_OFF_LOOKUP_TEXT",
     "CredentialRedirectRefusedError",
     "RemoteFetchRefusedError",
     "capture_remote_fetch_telemetry",
     "effective_web_available",
     "explicit_remote_fetch_disabled",
     "local_only_active",
-    "web_unavailable_reason",
-    "OFFLINE_LOOKUP_TEXT",
-    "WEB_OFF_LOOKUP_TEXT",
-    "MACHINE_OFFLINE_LOOKUP_TEXT",
     "lookup_unavailable_reason",
     "note_remote_fetch_attempt",
     "open_keyed_request",
@@ -1088,4 +1087,5 @@ __all__ = [
     "remote_fetch_scope_active",
     "remote_fetch_turn_scope",
     "remote_fetch_veto",
+    "web_unavailable_reason",
 ]

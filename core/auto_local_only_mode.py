@@ -394,6 +394,6 @@ __all__ = [
     "refusal_result",
     "turn_is_local_only",
     "turn_is_offline",
-    "turn_selected_offline",
     "turn_selected_local_only",
+    "turn_selected_offline",
 ]

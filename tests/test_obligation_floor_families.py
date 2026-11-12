@@ -131,6 +131,7 @@ def _omissions(plan):
 # --- obligation counts ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_three_obligations_two_independent_one_dependent():
     """Three: two live temperatures and a figure derived from both."""
@@ -217,6 +218,7 @@ def test_five_plus_obligations_are_not_terminated_after_the_first_specialised_pa
 # --- dependency propagation over unseen shapes ---------------------------------------------------
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_derived_node_runs_when_the_message_itself_states_no_number():
     """The plan-time admission gate, driven by a message with no figures at all.
@@ -249,6 +251,7 @@ def test_a_derived_node_runs_when_the_message_itself_states_no_number():
     )
 
 
+@pytest.mark.usefixtures("enable_web")
 @pytest.mark.usefixtures("fetchers")
 def test_a_live_value_and_a_stated_value_combine_in_one_computation():
     """Mixed provenance: one operand fetched, one written by the user."""
@@ -348,6 +351,7 @@ def test_a_dependency_that_did_not_succeed_contributes_nothing(warehouse):
     ],
     ids=["reordered", "sloppy", "typo"],
 )
+@pytest.mark.usefixtures("enable_web")
 def test_the_dependency_contract_survives_how_a_real_user_types_it(prompt, lookup):
     """Same two obligations, written three ways a real user writes them.
 

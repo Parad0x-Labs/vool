@@ -2,15 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+# One home for the wording: the texts live in `core.remote_fetch_policy`.
+from core.remote_fetch_policy import web_unavailable_reason as web_unavailable_text
 from core.turn_contract import LaneProposal
-
-
-from core.remote_fetch_policy import (  # noqa: E402  (one home for the wording)
-    MACHINE_OFFLINE_TEXT,
-    OFFLINE_TEXT,
-    WEB_OFF_TEXT,
-)
-from core.remote_fetch_policy import web_unavailable_reason as web_unavailable_text  # noqa: E402
 
 
 def _frontdoor_live_info_proposal(source_context: dict[str, object] | None) -> LaneProposal | None:

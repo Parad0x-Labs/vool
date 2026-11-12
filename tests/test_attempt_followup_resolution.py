@@ -15,6 +15,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from apps.vool_agent import VoolAgent
 from core.runtime_continuity import configure_runtime_continuity_db_path, reset_runtime_continuity_state
 from storage.migrations import run_migrations
@@ -84,6 +86,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
 
     # --- positive production-path tests -----------------------------------------------------
 
+    @pytest.mark.usefixtures("enable_web")
     def test_explain_failure_binds_to_the_persisted_attempt_no_bootstrap_leak(self) -> None:
         sid = self._submit_incident()
         with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire):
@@ -95,12 +98,14 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
             self.assertNotIn(banned, response.lower(), f"leaked unrelated bootstrap term: {banned}")
         self.assertEqual(result["model_calls"], 0)
 
+    @pytest.mark.usefixtures("enable_web")
     def test_explain_failure_mentions_successful_siblings_retained(self) -> None:
         sid = self._submit_incident()
         result = self.agent.run_once("why did that fail?", source_context=dict(_SOURCE_CONTEXT), session_id_override=sid)
         response = result["response"]
         self.assertTrue("Bitcoin" in response and "Gold" in response and "Kaunas" in response)
 
+    @pytest.mark.usefixtures("enable_web")
     def test_list_original_entities_reads_from_persisted_subtasks(self) -> None:
         sid = self._submit_incident()
         with mock.patch("core.agent_runtime.agent.VoolAgent._handle_turn_frontdoor", side_effect=_tripwire):
@@ -111,6 +116,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
             self.assertIn(name, result["response"])
         self.assertEqual(result["model_calls"], 0)
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_never_reaches_frontdoor_or_adaptive_research(self) -> None:
         sid = self._submit_incident()
 
@@ -130,6 +136,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
         self.assertIn("Atlantisxyzabc123", result["response"])
         self.assertNotIn("HTTP Error 500", result["response"])  # the rerun succeeded this time
 
+    @pytest.mark.usefixtures("enable_web")
     def test_repeat_original_request_reconstructs_without_refetching(self) -> None:
         """A fully-successful attempt's "check the original message" must reconstruct from
         storage, never re-fetch."""
@@ -167,6 +174,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
             self.agent.run_once("why did that fail?", source_context=dict(_SOURCE_CONTEXT))
         self.assertTrue(reached["frontdoor"], "a follow-up with no resolvable attempt must fall through")
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_idempotency_a_repeated_retry_does_not_duplicate_execution(self) -> None:
         """Repair 9 (Mnemosyne review, 2026-08-06): the original version of this test counted
         `runtime_attempts` rows to prove "no duplicate execution" -- with the process lock removed,
@@ -240,6 +248,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
         conn.close()
         self.assertEqual(rows[0], 1, f"expected exactly 1 retry child from 2 concurrent identical-turn retries, found {rows[0]}")
 
+    @pytest.mark.usefixtures("enable_web")
     def test_retry_idempotency_forced_interleaving_dedupes_to_one_child(self) -> None:
         """Deterministic (timing-independent) reproduction of the CI flake in
         `test_retry_idempotency_a_repeated_retry_does_not_duplicate_execution` (main run
@@ -367,6 +376,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
             f"forced-interleaving concurrent identical-turn retries must dedupe to 1 child, found {rows[0]}: {children}",
         )
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_genuinely_new_retry_turn_is_allowed_to_create_a_new_generation(self) -> None:
         """The corollary this test's old premise was missing (Step 10 correction F): two
         SEPARATELY typed "retry" messages -- each a real, distinct user turn -- are two different

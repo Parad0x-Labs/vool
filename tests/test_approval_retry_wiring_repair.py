@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.attempt_approval import compute_action_digest, compute_plan_digest
 from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
@@ -85,6 +87,7 @@ class ApprovalRetryWiringTests(unittest.TestCase):
         self.assertEqual(gold["lifecycle_state"], "WAITING_APPROVAL")
         self.assertFalse(gold["retryable"])  # matches the established WAITING_APPROVAL retry policy
 
+    @pytest.mark.usefixtures("enable_web")
     def test_a_valid_persisted_approval_lets_the_denied_subtask_proceed(self) -> None:
         from core.agent_runtime.attempt_retry import execute_attempt_retry
 
@@ -197,6 +200,7 @@ class ApprovalRetryWiringTests(unittest.TestCase):
         gold = next(s for s in new_subtasks if s.get("entity_key") == "gold")
         self.assertEqual(gold["lifecycle_state"], "WAITING_APPROVAL")
 
+    @pytest.mark.usefixtures("enable_web")
     def test_approve_survives_a_restart_and_still_authorizes_the_retry(self) -> None:
         """The durable counterpart: approve, "restart" (fresh reconnect to the same db file), then
         retry -- the SAME digest still authorizes, because it was actually persisted, not merely
@@ -248,6 +252,7 @@ class SabotageApprovalDigestValidationInRetryTests(unittest.TestCase):
         configure_runtime_continuity_db_path(None)
         self._tmp.cleanup()
 
+    @pytest.mark.usefixtures("enable_web")
     def test_sabotage_bypassing_is_approval_valid_authorizes_a_different_action(self) -> None:
         """Sabotage: patch `is_approval_valid` at its real source (`core.agent_runtime.
         attempt_approval` -- `_resolve_retry_approval_decisions` imports it lazily, so patching the

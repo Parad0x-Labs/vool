@@ -17,6 +17,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from core.runtime_continuity import (
     compute_retry_idempotency_key,
     configure_runtime_continuity_db_path,
@@ -315,6 +317,7 @@ class ExecuteAttemptRetryIdempotencyTests(unittest.TestCase):
         )
         return finalize_runtime_attempt(parent["attempt_id"])
 
+    @pytest.mark.usefixtures("enable_web")
     def test_two_concurrent_retry_calls_same_trigger_turn_fetch_exactly_once(self) -> None:
         from core.agent_runtime.attempt_retry import execute_attempt_retry
         from core.runtime_continuity import list_runtime_attempt_subtasks
@@ -364,6 +367,7 @@ class ExecuteAttemptRetryIdempotencyTests(unittest.TestCase):
         rendered_texts = {r["rendered"] for r in results}
         self.assertEqual(len(rendered_texts), 1, "both callers must receive the SAME rendered answer")
 
+    @pytest.mark.usefixtures("enable_web")
     def test_replay_after_original_response_is_lost_returns_the_same_result_without_refetching(self) -> None:
         """'Client replay after the original response was lost': the first call completes and its
         response is discarded by the test (simulating a dropped HTTP response); a second call with

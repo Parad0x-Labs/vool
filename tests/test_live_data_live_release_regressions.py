@@ -44,6 +44,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.fast_live_info_weather_rendering import render_weather_response
 from core.agent_runtime.live_data_plan import build_live_data_plan
 from core.agent_runtime.live_data_runner import _run_weather_subtask
@@ -89,6 +91,7 @@ def _planned_locations(prompt: str) -> list[str]:
 
 
 class TestExactLiveRegressions:
+    @pytest.mark.usefixtures("enable_web")
     def test_1_summarize_it_never_reaches_the_provider(self) -> None:
         prompt = "Check the current weather in Kaunas and summarize it."
         assert _provider_targets(prompt) == ["kaunas"]
@@ -120,10 +123,12 @@ class TestExactLiveRegressions:
             assert phantom_fragment not in rendered, f"instruction fragment rendered as a location: {phantom_fragment!r}"
         assert "couldn't determine a specific location" in rendered
 
+    @pytest.mark.usefixtures("enable_web")
     def test_3_then_summarize_the_results(self) -> None:
         prompt = "Get weather for Kaunas and Tallinn, then summarize the results."
         assert _provider_targets(prompt) == ["kaunas", "tallinn"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_4_then_explain_rsa_encryption(self) -> None:
         prompt = "Weather for Kaunas and then explain RSA encryption."
         assert _provider_targets(prompt) == ["kaunas"]
@@ -135,26 +140,33 @@ class TestExactLiveRegressions:
 
 
 class TestPriorLocationShapesStayGreen:
+    @pytest.mark.usefixtures("enable_web")
     def test_kaunas_and_tallinn(self) -> None:
         assert _provider_targets("Weather: Kaunas, Tallinn") == ["kaunas", "tallinn"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_rio_de_janeiro_not_truncated(self) -> None:
         assert _provider_targets("Weather: Rio de Janeiro") == ["rio de janeiro"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_ho_chi_minh_city_not_truncated_or_rejected(self) -> None:
         assert _provider_targets("Weather: Ho Chi Minh City") == ["ho chi minh city"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_toronto_ontario_and_tallinn_stays_two_entities(self) -> None:
         targets = _provider_targets("Weather for Toronto, Ontario and Tallinn.")
         assert targets == ["toronto, ontario", "tallinn"]
         assert "ontario" not in targets
 
+    @pytest.mark.usefixtures("enable_web")
     def test_vancouver_british_columbia(self) -> None:
         assert _provider_targets("Weather: Vancouver, British Columbia") == ["vancouver, british columbia"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_sydney_new_south_wales(self) -> None:
         assert _provider_targets("Weather: Sydney, New South Wales") == ["sydney, new south wales"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_dotted_abbreviations_survive_the_new_abbreviation_rule(self) -> None:
         """The abbreviation rule changed shape this round -- every dotted city must still work."""
         assert _provider_targets("Weather: St. Louis / Tallinn") == ["st. louis", "tallinn"]
@@ -162,6 +174,7 @@ class TestPriorLocationShapesStayGreen:
         assert _provider_targets("Weather: Ft. Worth / Tallinn") == ["ft. worth", "tallinn"]
         assert _provider_targets("Weather: Washington, D.C. / Tallinn") == ["washington, d.c.", "tallinn"]
 
+    @pytest.mark.usefixtures("enable_web")
     def test_internal_period_versus_terminal_period_still_distinguished(self) -> None:
         assert _provider_targets("weather in St. Louis. Return the result.") == ["st. louis"]
 
@@ -207,6 +220,7 @@ class TestPronounCoverage:
         for pronoun in ("it", "they", "them", "me", "its", "their"):
             assert pronoun in _CLAUSE_STRUCTURE_MARKERS, f"{pronoun!r} missing from the closed class"
 
+    @pytest.mark.usefixtures("enable_web")
     def test_us_is_still_excluded_so_boston_us_survives(self) -> None:
         """Regression guard from the previous round: "US" is the United States' qualifier short
         form, so it must never be treated as the pronoun "us"."""

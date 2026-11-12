@@ -243,6 +243,7 @@ def test_state_record_lists_start_empty_never_guessed(make_agent):
 # ==================================================================================================
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_live_data_turn_records_its_typed_claim(make_agent):
     """THE fail-on-old-defect pin for slice 3: no proposal recording, no claim."""
     from core.turn_contract import TURN_STATE_KEY, LaneProposal
@@ -263,6 +264,7 @@ def test_a_live_data_turn_records_its_typed_claim(make_agent):
     assert proposal.confidence == 0.9  # the lane's own long-standing constant
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_route_metadata_comes_from_the_proposal(make_agent):
     """The displacement pin: the served result's route identity is the PROPOSAL's,
     and the lane-id literal no longer appears at the agent's call sites (its one
@@ -886,6 +888,7 @@ def test_no_proposal_at_all_is_the_named_anomaly():
     assert ledger.for_unit("u1").decision == DECISION_UNCLAIMED
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_spine_carries_the_ledger_on_every_turn(make_agent):
     """THE wiring pin: the kernel decision is computed at the run_once spine
     from the lanes' own recorded proposals — the TurnState carries it."""
@@ -1026,6 +1029,7 @@ def test_the_live_data_lane_declines_when_the_kernel_refuses():
     assert allowed2
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_consult_before_serve_blocks_the_execute(make_agent):
     """End-to-end at the lane seam: a pre-seeded earlier claim on the plan's
     units makes the live-data turn return None (no plan executed) with the

@@ -220,7 +220,8 @@ def test_disabled_web_search_reports_unsupported_capability_honestly() -> None:
     assert result.handled is True
     assert result.ok is False
     assert result.status == "disabled"
-    assert "web lookup is opt-in; enable with vool_enable_web=1" in result.response_text.lower()
+    assert "web lookups are off. you can turn them on in settings, privacy & permissions" in result.response_text.lower()
+    assert "vool_enable_web" not in result.response_text.lower()
     assert result.user_safe_response_text == result.response_text
 
 

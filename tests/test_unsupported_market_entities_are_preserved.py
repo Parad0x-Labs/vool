@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from core.agent_runtime.live_data_plan import (
     SubtaskLifecycle,
     build_live_data_plan,
@@ -113,6 +115,7 @@ def test_unsupported_entities_never_reach_the_network_and_resolve_immediately() 
 # --- render-level: unsupported entities render as unavailable, never silently vanish ---
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_render_shows_unsupported_entities_as_unavailable_rows() -> None:
     plan = build_live_data_plan(
         "Current price and daily change for Ethereum, Solana, oil, and copper.", plan_id="p", attempt_id="a"

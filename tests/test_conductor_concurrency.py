@@ -226,6 +226,7 @@ def _three_city_plan():
     return plan
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_three_independent_fetches_finish_in_about_one_fetch_not_three() -> None:
     plan = _three_city_plan()
     with mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=_slow_weather):
@@ -241,6 +242,7 @@ def test_three_independent_fetches_finish_in_about_one_fetch_not_three() -> None
     assert elapsed < _DELAY_S * 2.5, f"took {elapsed:.2f}s"
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_sequential_twin_runs_the_same_plan_and_proves_no_overlap() -> None:
     """The sabotage control, kept in the tree so the proof above cannot be a tautology."""
     plan = _three_city_plan()
@@ -257,6 +259,7 @@ def test_the_sequential_twin_runs_the_same_plan_and_proves_no_overlap() -> None:
     assert compose_product(plan, outcomes).complete
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_the_plan_receipt_records_the_proof_and_one_receipt_per_node() -> None:
     plan = _three_city_plan()
     with mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=_slow_weather):
@@ -274,6 +277,7 @@ def test_the_plan_receipt_records_the_proof_and_one_receipt_per_node() -> None:
         assert entry["duration_s"] is not None
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_a_receipt_carries_no_field_a_model_could_have_written() -> None:
     """The whole point of the receipt: every value is observed by the runtime at the seam.
 

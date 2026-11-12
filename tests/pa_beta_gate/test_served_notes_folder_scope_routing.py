@@ -158,6 +158,7 @@ _EFFECT_FAMILY = [
 @pytest.mark.parametrize(
     ("case", "text", "note_id", "field", "expected"), _EFFECT_FAMILY, ids=[row[0] for row in _EFFECT_FAMILY]
 )
+@pytest.mark.usefixtures("enable_web")
 def test_folder_scoped_notes_family_reaches_notes_with_its_effect(scoped, case, text, note_id, field, expected):
     workspace, notes = scoped
     result = _served(text, workspace)

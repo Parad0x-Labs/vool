@@ -378,9 +378,11 @@ def _fx_web_off_text(source_context: dict[str, object] | None) -> str:
     reason = web_unavailable_reason(dict(source_context or {}))
     if reason == WEB_OFF_TEXT:
         reason = (
-            "A current exchange rate is a live figure, and Web lookups are off, so I can't check "
-            "it. You can turn them on in Settings, Privacy & Permissions."
+            "A current exchange rate is a live observation, and Web lookups are off, so I can't "
+            "check it. You can turn them on in Settings, Privacy & Permissions."
         )
+    else:
+        reason = "A current exchange rate is a live observation. " + reason
     return reason + " I won't guess a rate from memory."
 
 
@@ -2214,6 +2216,8 @@ def handle_turn_frontdoor(
         from core.auto_local_only_mode import turn_selected_offline as _chat_offline
         from core.remote_fetch_policy import (
             effective_web_available as _web_reachable,
+        )
+        from core.remote_fetch_policy import (
             local_only_active as _no_egress,
         )
 
