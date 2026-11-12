@@ -204,7 +204,7 @@ function provider(){
   return (p && p.isPhantom) ? p : ((p && typeof p.connect === 'function') ? p : null);
 }
 function noPhantomMessage(){
-  return 'Phantom is not available here: its provider is injected only by browsers with the Phantom extension (Chrome or Brave) and by Phantom\'s own mobile browser — this app window cannot load extensions. To connect a Phantom account, open this app in Chrome or Brave with the extension installed; on a phone, use the Phantom app\'s browser. Signing then stays in Phantom. A watch-only address or a VOOL Wallet on this device also works without Phantom.';
+  return WT('wallet.home.no_phantom', 'Phantom is not available here: its provider is injected only by browsers with the Phantom extension (Chrome or Brave) and by Phantom\'s own mobile browser — this app window cannot load extensions. To connect a Phantom account, open this app in Chrome or Brave with the extension installed; on a phone, use the Phantom app\'s browser. Signing then stays in Phantom. A watch-only address or a VOOL Wallet on this device also works without Phantom.');
 }
 var phantomBound = false;
 function bindPhantomEvents(){
@@ -739,22 +739,23 @@ function buildSection(){
 // page names no network, no capability and no rule of its own. The backup is placed in ONE detachable node, cleared
 // on every exit, never stored, never logged, never copied without a deliberate click.
 var cryptoHost = null, cryptoStatus = null, cryptoCreationKeys = {}, cryptoOpenForm = null;
+// the reasons and setup states read in the app language (WT is hoisted; the i18n bootstrap runs first)
 var CAP_REASONS = {
-  environment_inactive: 'not on the active network environment',
-  evm_dependencies_missing: 'EVM support is missing on this runtime',
-  pilot_lane_incomplete: 'not complete in this build',
-  no_account_on_this_network: 'no account on this network yet',
-  no_ready_signing_account: 'no wallet ready to sign here',
-  no_setup_awaiting_backup: 'no setup waiting for its backup',
-  storage_class_refused: 'key storage is not lasting on this install'
+  environment_inactive: WT('wallet.reason.environment_inactive', 'not on the active network environment'),
+  evm_dependencies_missing: WT('wallet.reason.evm_dependencies_missing', 'EVM support is missing on this runtime'),
+  pilot_lane_incomplete: WT('wallet.reason.pilot_lane_incomplete', 'not complete in this build'),
+  no_account_on_this_network: WT('wallet.reason.no_account_on_this_network', 'no account on this network yet'),
+  no_ready_signing_account: WT('wallet.reason.no_ready_signing_account', 'no wallet ready to sign here'),
+  no_setup_awaiting_backup: WT('wallet.reason.no_setup_awaiting_backup', 'no setup waiting for its backup'),
+  storage_class_refused: WT('wallet.reason.storage_class_refused', 'key storage is not lasting on this install')
 };
 var CAP_LABELS = { create: 'Create', balance: 'Balance', quote: 'Preview', sign: 'Sign', send: 'Send', backup: 'Backup', receipt: 'Receipts', list: 'List' };
 var SETUP_TEXT = {
-  ready: 'ready',
-  awaiting_backup: 'setup in progress: the backup has not been shown yet',
-  backup_revealed: 'setup in progress: the backup was shown once and is not yet confirmed as saved',
-  cancelled: 'setup cancelled: the wallet and its key are kept',
-  generating: 'setup in progress'
+  ready: WT('wallet.setup_state.ready', 'ready'),
+  awaiting_backup: WT('wallet.setup_state.awaiting_backup', 'setup in progress: the backup has not been shown yet'),
+  backup_revealed: WT('wallet.setup_state.backup_revealed', 'setup in progress: the backup was shown once and is not yet confirmed as saved'),
+  cancelled: WT('wallet.setup_state.cancelled', 'setup cancelled: the wallet and its key are kept'),
+  generating: WT('wallet.setup_state.generating', 'setup in progress')
 };
 function cxMsg(node, text, isErr){ node.textContent = text || ''; node.className = 'vw-msg' + (isErr ? ' err' : ''); }
 // A refusal's catalog sentence, then the producer's specific next step when it names one (the same
@@ -1569,17 +1570,22 @@ function walletRoleControls(a, cp, msg){
 function credentialPrompt(host, prefix, cp, opts){
   // the credential fields for one action; cleared by the caller after every request
   var policy = (cp && cp.credential_policy) || {};
-  var methods = [['pin', 'PIN (' + ((policy.pin && policy.pin.text) || 'digits') + ')'], ['password', 'Wallet password (' + ((policy.password && policy.password.text) || '') + ')']];
-  if (policy.device && policy.device.available) methods.push(['device', policy.device.text || 'Touch ID or your Mac password']);
-  var mLabel = el('label', null, 'How you approve payments'); mLabel.setAttribute('for', prefix + 'Method'); host.appendChild(mLabel);
+  // the PIN and password rules come as numbers, so the option reads in the page's language (the server's English
+  // rule text stays the fallback when a policy carries no numbers)
+  var pinPol = policy.pin_rule || policy.pin, pwPol = policy.password_rule || policy.password;
+  var pinRule = pinPol && pinPol.min != null ? WTF('wallet.cred.pin_option', 'PIN ({min}–{max} digits)', { min: pinPol.min, max: pinPol.max }) : 'PIN (' + ((pinPol && pinPol.text) || 'digits') + ')';
+  var pwRule = pwPol && pwPol.min != null ? WTF('wallet.cred.password_option', 'Wallet password ({min}–{max} characters, not only digits)', { min: pwPol.min, max: pwPol.max }) : 'Wallet password (' + ((pwPol && pwPol.text) || '') + ')';
+  var methods = [['pin', pinRule], ['password', pwRule]];
+  if (policy.device && policy.device.available) methods.push(['device', WT('wallet.cred.device_option', 'Touch ID or your Mac password')]);
+  var mLabel = el('label', null, WT('wallet.home.approve_method', 'How you approve payments')); mLabel.setAttribute('for', prefix + 'Method'); host.appendChild(mLabel);
   var method = el('select', 'vw-chain'); method.id = prefix + 'Method';
   methods.forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
-  if (!(policy.device && policy.device.available)) { var devNote = el('div', 'vw-cx-env', 'Touch ID / Mac password approval: ' + ((policy.device && policy.device.text) || 'not available on this machine') + '.'); devNote.id = prefix + 'DeviceNote'; host.appendChild(method); host.appendChild(devNote); } else host.appendChild(method);
-  var cLabel = el('label', null, 'PIN'); cLabel.setAttribute('for', prefix + 'Credential'); host.appendChild(cLabel);
+  if (!(policy.device && policy.device.available)) { var devNote = el('div', 'vw-cx-env', WT('wallet.cred.device_unavailable', 'Touch ID / Mac password approval: not available on this machine.')); devNote.id = prefix + 'DeviceNote'; host.appendChild(method); host.appendChild(devNote); } else host.appendChild(method);
+  var cLabel = el('label', null, WT('wallet.pin_short', 'PIN')); cLabel.setAttribute('for', prefix + 'Credential'); host.appendChild(cLabel);
   var cred = el('input'); cred.type = 'password'; cred.id = prefix + 'Credential'; cred.autocomplete = 'new-password'; cred.inputMode = 'numeric'; host.appendChild(cred);
-  var fLabel = el('label', null, 'Repeat the PIN'); fLabel.setAttribute('for', prefix + 'Confirm'); host.appendChild(fLabel);
+  var fLabel = el('label', null, WT('wallet.cred.repeat_pin', 'Repeat the PIN')); fLabel.setAttribute('for', prefix + 'Confirm'); host.appendChild(fLabel);
   var conf = el('input'); conf.type = 'password'; conf.id = prefix + 'Confirm'; conf.autocomplete = 'new-password'; conf.inputMode = 'numeric'; host.appendChild(conf);
-  function sync(){ var m = method.value; cLabel.hidden = cred.hidden = fLabel.hidden = conf.hidden = (m === 'device'); cLabel.textContent = m === 'pin' ? 'PIN' : 'Wallet password'; fLabel.textContent = m === 'pin' ? 'Repeat the PIN' : 'Repeat the password'; cred.inputMode = conf.inputMode = (m === 'pin' ? 'numeric' : 'text'); }
+  function sync(){ var m = method.value; cLabel.hidden = cred.hidden = fLabel.hidden = conf.hidden = (m === 'device'); cLabel.textContent = m === 'pin' ? WT('wallet.pin_short', 'PIN') : WT('wallet.cred.password', 'Wallet password'); fLabel.textContent = m === 'pin' ? WT('wallet.cred.repeat_pin', 'Repeat the PIN') : WT('wallet.cred.repeat_password', 'Repeat the password'); cred.inputMode = conf.inputMode = (m === 'pin' ? 'numeric' : 'text'); }
   method.addEventListener('change', sync); sync();
   if (opts && opts.single) { fLabel.hidden = true; conf.hidden = true; }
   return { method: method, cred: cred, conf: conf, clear: function(){ cred.value = ''; conf.value = ''; } };
@@ -1588,20 +1594,20 @@ function showBackup(wallet, backup, onDone){
   // ONE detachable node: the issued chain-specific backup, shown once. No storage, no history, no console, no request.
   var overlay = el('div', 'vw-sheet-overlay'); overlay.id = 'vwCxBackup';
   var box = el('div', 'vw-sheet'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'vwCxBackupTitle');
-  box.appendChild(el('h3', null, 'Your backup — shown once')).id = 'vwCxBackupTitle';
-  box.appendChild(el('div', 'vw-cx-warn', (backup.warning || 'Anyone who has this backup owns the wallet.') + ' Save it offline now. VOOL cannot show it again.'));
-  box.appendChild(el('div', 'vw-line', 'Wallet: ' + (wallet.display_name || wallet.network) + ' · address ' + (backup.address || wallet.address)));
-  box.appendChild(el('div', 'vw-line', 'Format: ' + (backup.backup_format || '') + ' · ' + (backup.backup_target || '')));
+  box.appendChild(el('h3', null, WT('wallet.backup.title', 'Your backup — shown once'))).id = 'vwCxBackupTitle';
+  box.appendChild(el('div', 'vw-cx-warn', (backup.warning || WT('wallet.backup.default_warning', 'Anyone who has this backup owns the wallet.')) + ' ' + WT('wallet.backup.save_offline', 'Save it offline now. VOOL cannot show it again.')));
+  box.appendChild(el('div', 'vw-line', WTF('wallet.backup.wallet_line', 'Wallet: {name} · address {address}', { name: wallet.display_name || wallet.network, address: backup.address || wallet.address })));
+  box.appendChild(el('div', 'vw-line', WTF('wallet.backup.format_line', 'Format: {format} · {target}', { format: backup.backup_format || '', target: backup.backup_target || '' })));
   var value = el('div'); value.id = 'vwCxBackupValue'; value.textContent = backup.backup_value || ''; box.appendChild(value);
   var actions = el('div', 'vw-sheet-actions');
-  var copy = el('button', 'vw-btn', 'Copy backup'); copy.id = 'vwCxBackupCopy'; copy.type = 'button';
+  var copy = el('button', 'vw-btn', WT('wallet.backup.copy', 'Copy backup')); copy.id = 'vwCxBackupCopy'; copy.type = 'button';
   copy.addEventListener('click', function(){
-    try { navigator.clipboard.writeText(value.textContent).then(function(){ copy.textContent = 'Copied — clear your clipboard after saving it'; }, function(){ copy.textContent = 'Clipboard unavailable — select the text and copy it by hand'; }); }
-    catch (e) { copy.textContent = 'Clipboard unavailable — select the text and copy it by hand'; }
+    try { navigator.clipboard.writeText(value.textContent).then(function(){ copy.textContent = WT('wallet.backup.copied', 'Copied — clear your clipboard after saving it'); }, function(){ copy.textContent = WT('wallet.backup.clipboard_unavailable', 'Clipboard unavailable — select the text and copy it by hand'); }); }
+    catch (e) { copy.textContent = WT('wallet.backup.clipboard_unavailable', 'Clipboard unavailable — select the text and copy it by hand'); }
   });
-  var saved = el('button', 'vw-btn primary', 'I have saved my backup'); saved.id = 'vwCxBackupSaved'; saved.type = 'button';
-  var later = el('button', 'vw-btn', 'Close without confirming'); later.id = 'vwCxBackupClose'; later.type = 'button';
-  later.title = 'The backup stays shown once: it will not be shown again. Confirm later with your PIN under the account.';
+  var saved = el('button', 'vw-btn primary', WT('wallet.backup.saved', 'I have saved my backup')); saved.id = 'vwCxBackupSaved'; saved.type = 'button';
+  var later = el('button', 'vw-btn', WT('wallet.backup.close', 'Close without confirming')); later.id = 'vwCxBackupClose'; later.type = 'button';
+  later.title = WT('wallet.backup.close_hint', 'The backup stays shown once: it will not be shown again. Confirm later with your PIN under the account.');
   var state = el('div', 'vw-msg'); state.id = 'vwCxBackupState';
   actions.appendChild(copy); actions.appendChild(saved); actions.appendChild(later); box.appendChild(actions); box.appendChild(state);
   overlay.appendChild(box); document.body.appendChild(overlay);
@@ -1610,11 +1616,11 @@ function showBackup(wallet, backup, onDone){
   document.addEventListener('keydown', onKey, true);
   later.addEventListener('click', function(){ close(); if (onDone) onDone(false); });
   saved.addEventListener('click', function(){
-    saved.disabled = true; cxMsg(state, 'Confirming…');
+    saved.disabled = true; cxMsg(state, WT('wallet.backup.confirming', 'Confirming…'));
     postJson('/api/wallet/setup/acknowledge', { wallet_id: wallet.wallet_id, ack_token: backup && backup.ack_token }).then(function(res){
-      if (!res.ok) { saved.disabled = false; cxMsg(state, faultMessage(res, 'Not confirmed.'), true); return; }
+      if (!res.ok) { saved.disabled = false; cxMsg(state, faultMessage(res, WT('wallet.backup.not_confirmed', 'Not confirmed.')), true); return; }
       close(); if (onDone) onDone(true);
-    }).catch(function(){ saved.disabled = false; cxMsg(state, 'The confirmation request did not complete.', true); });
+    }).catch(function(){ saved.disabled = false; cxMsg(state, WT('wallet.backup.request_failed', 'The confirmation request did not complete.'), true); });
   });
   saved.focus();
 }
@@ -1805,6 +1811,14 @@ function WT(key, fallback){
   try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
   return fallback;
 }
+// The {param} twin of WT: the bundle's formatter fills the locale's placeholders; without a bundle the
+// English fallback is filled the same way (every {name} the params carry, nothing else).
+function WTF(key, fallback, params){
+  var t = WT(key, fallback), p = params || {};
+  try { if (typeof VOOLFMT === 'function') return VOOLFMT(t, p); } catch (e) {}
+  Object.keys(p).forEach(function(k){ t = String(t).split('{' + k + '}').join(String(p[k])); });
+  return t;
+}
 function cardFor(p){
   var card = el('div', 'msg assistant vw-card'); card.setAttribute('data-proposal', p.proposal_id);
   card.appendChild(el('div', 'vw-title', WT('wallet.review_title', 'Payment approval needed')));
@@ -1949,10 +1963,11 @@ function purposeBlock(purpose, fallbackHeadline){
   return box;
 }
 function copyButton(value, what){
-  var btn = el('button', 'vw-copy', 'Copy'); btn.type = 'button'; btn.setAttribute('aria-label', 'copy the full ' + (what || 'value'));
+  var btn = el('button', 'vw-copy', WT('msg.copy', 'Copy')); btn.type = 'button';
+  btn.setAttribute('aria-label', WTF('wallet.copy_aria', 'copy the full {what}', { what: what || WT('wallet.copy_value', 'value') }));
   btn.addEventListener('click', function(){
-    try { navigator.clipboard.writeText(String(value || '')).then(function(){ btn.textContent = 'Copied'; }, function(){ btn.textContent = 'Select and copy'; }); }
-    catch (e) { btn.textContent = 'Select and copy'; }
+    try { navigator.clipboard.writeText(String(value || '')).then(function(){ btn.textContent = WT('msg.copied', 'Copied'); }, function(){ btn.textContent = WT('wallet.copy_select', 'Select and copy'); }); }
+    catch (e) { btn.textContent = WT('wallet.copy_select', 'Select and copy'); }
   });
   return btn;
 }
@@ -2667,9 +2682,9 @@ var walletHome = (function(){
       if (prev === undefined) { seenTransferState[t.proposal_id] = t.state; return; }
       if (prev === t.state) return;
       seenTransferState[t.proposal_id] = t.state;
-      var what = t.amount_human + ' ' + t.display_symbol + ' on ' + (t.display_name || chainLabel(t.network));
-      if (t.state === 'confirmed') toastWallet('VOOL Wallet: payment confirmed — ' + what);
-      else if (t.state === 'failed') toastWallet('VOOL Wallet: payment failed — ' + what + '; nothing was sent');
+      var what = { amount: t.amount_human, symbol: t.display_symbol, network: (t.display_name || chainLabel(t.network)) };
+      if (t.state === 'confirmed') toastWallet(WTF('wallet.home.toast_confirmed', 'VOOL Wallet: payment confirmed — {amount} {symbol} on {network}', what));
+      else if (t.state === 'failed') toastWallet(WTF('wallet.home.toast_failed', 'VOOL Wallet: payment failed — {amount} {symbol} on {network}; nothing was sent', what));
     });
   }
   function noticeBalanceRise(walletId, b){
@@ -2679,9 +2694,9 @@ var walletHome = (function(){
     if (!prev || !prev.minor) return;
     try {
       if (BigInt(String(b.balance_minor || '0')) > BigInt(prev.minor)) {
-        var line = 'Received — the balance rose from ' + prev.human + ' to ' + b.balance_human + ' ' + b.asset +
-          ' between looks. Noticed on this refresh; VOOL does not watch the chain in the background.';
-        toastWallet('VOOL Wallet: ' + line);
+        var line = WTF('wallet.home.balance_rose', 'Received — the balance rose from {before} to {after} {asset} between looks. Noticed on this refresh; VOOL does not watch the chain in the background.',
+          { before: prev.human, after: b.balance_human, asset: b.asset });
+        toastWallet(WTF('wallet.home.toast', 'VOOL Wallet: {text}', { text: line }));
         say(line);
       }
     } catch (e) { /* a non-numeric observation is not a payment claim */ }
@@ -2695,7 +2710,7 @@ var walletHome = (function(){
     clearSecrets();
     if (overlay) overlay.remove();
     overlay = panel = bodyEl = msgEl = null;
-    if (byDisable) toastWallet('VOOL Wallet is off. Wallets, balances and history are kept.');
+    if (byDisable) toastWallet(WT('wallet.home.off_toast', 'VOOL Wallet is off. Wallets, balances and history are kept.'));
     if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
     lastFocus = null;
   }
@@ -2703,13 +2718,13 @@ var walletHome = (function(){
     overlay = el('div'); overlay.id = 'vwHomeOverlay';
     panel = el('div', 'vw-wh'); panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-labelledby', 'vwHomeTitle');
     var head = el('div', 'vw-wh-head');
-    var title = el('span', 'vw-wh-title', 'VOOL Wallet'); title.id = 'vwHomeTitle'; head.appendChild(title);
+    var title = el('span', 'vw-wh-title', WT('wallet.home.title', 'VOOL Wallet')); title.id = 'vwHomeTitle'; head.appendChild(title);
     var envBadge = el('span', 'vw-badge mode'); envBadge.id = 'vwHomeEnv'; envBadge.hidden = true; head.appendChild(envBadge);
-    var manage = el('button', 'vw-btn', 'Manage'); manage.type = 'button'; manage.id = 'vwHomeManage';
-    manage.title = 'Settings → Crypto: enable/disable, setup, spending caps, environment';
+    var manage = el('button', 'vw-btn', WT('wallet.home.manage', 'Manage')); manage.type = 'button'; manage.id = 'vwHomeManage';
+    manage.title = WT('wallet.home.manage_title', 'Settings → Crypto: enable/disable, setup, spending caps, environment');
     manage.addEventListener('click', function(){ closePanel(false); var a = actions(); if (a && a.openSettings) a.openSettings(); else window.location.href = '/settings#wallet'; });
     head.appendChild(manage);
-    var x = el('button', 'vw-btn', 'Close'); x.type = 'button'; x.id = 'vwHomeClose'; x.setAttribute('aria-label', 'close the wallet panel');
+    var x = el('button', 'vw-btn', WT('wallet.home.close', 'Close')); x.type = 'button'; x.id = 'vwHomeClose'; x.setAttribute('aria-label', WT('wallet.home.close_aria', 'close the wallet panel'));
     x.addEventListener('click', function(){ closePanel(false); });
     head.appendChild(x);
     panel.appendChild(head);
@@ -2748,7 +2763,7 @@ var walletHome = (function(){
       normalizeSelection(st);
       draw(st);
       return st;
-    }).catch(function(){ if (isOpen) { bodyEl.textContent = ''; bodyEl.appendChild(el('div', 'vw-wh-empty', 'The wallet status could not be read. Try again from Home.')); } return null; });
+    }).catch(function(){ if (isOpen) { bodyEl.textContent = ''; bodyEl.appendChild(el('div', 'vw-wh-empty', WT('wallet.home.status_unreadable', 'The wallet status could not be read. Try again from Home.'))); } return null; });
   }
 
   // ---- the selection: one account on one network row ----------------------------------------------
@@ -2777,22 +2792,22 @@ var walletHome = (function(){
     view = 'home';
     var cp = st.crypto_pilot || {};
     var envBadge = document.getElementById('vwHomeEnv');
-    if (envBadge) { envBadge.hidden = !cp.environment_label; envBadge.textContent = (cp.environment_label || '') + (cp.frozen ? ' · payments frozen' : ''); }
+    if (envBadge) { envBadge.hidden = !cp.environment_label; envBadge.textContent = (cp.environment_label || '') + (cp.frozen ? ' · ' + WT('wallet.home.frozen', 'payments frozen') : ''); }
     bodyEl.textContent = '';
     var accounts = accountsOf(st);
     if (!accounts.length) { drawSetup(st); return; }
 
     // account + network selectors
     var selects = el('div', 'vw-wh-selects');
-    selects.appendChild(el('label', null, 'Account')).setAttribute('for', 'vwHomeAccount');
-    var accountSel = el('select'); accountSel.id = 'vwHomeAccount'; accountSel.setAttribute('aria-label', 'wallet account');
+    selects.appendChild(el('label', null, WT('wallet.home.account', 'Account'))).setAttribute('for', 'vwHomeAccount');
+    var accountSel = el('select'); accountSel.id = 'vwHomeAccount'; accountSel.setAttribute('aria-label', WT('wallet.home.account_aria', 'wallet account'));
     var order = cp.chain_order || [];
     function byOrder(a, b){ return order.indexOf(a.chain_key) - order.indexOf(b.chain_key); }
     activeRows(st).sort(byOrder).forEach(function(r){
       var group = el('optgroup'); group.label = rowName(r);
       rowAccounts(st, r.network).forEach(function(a){
         var opt = el('option'); opt.value = a.wallet_id;
-        opt.textContent = ((a.label ? a.label + ' · ' : '') + short(a.public_key) + ' · ' + (a.mode === 'watch_only' ? 'watch-only' : (a.mode === 'external_signer' ? 'external' : 'VOOL Wallet')));
+        opt.textContent = ((a.label ? a.label + ' · ' : '') + short(a.public_key) + ' · ' + (a.mode === 'watch_only' ? WT('wallet.home.mode_watch_only', 'watch-only') : (a.mode === 'external_signer' ? WT('wallet.home.mode_external', 'external') : WT('wallet.home.title', 'VOOL Wallet'))));
         if (a.wallet_id === selWalletId) opt.selected = true;
         group.appendChild(opt);
       });
@@ -2800,7 +2815,7 @@ var walletHome = (function(){
     });
     var otherRows = rowsOf(st).filter(function(r){ return !r.active && rowAccounts(st, r.network).length; });
     if (otherRows.length) {
-      var other = el('optgroup'); other.label = 'Other network environment (read-only here)';
+      var other = el('optgroup'); other.label = WT('wallet.home.other_env', 'Other network environment (read-only here)');
       otherRows.forEach(function(r){
         rowAccounts(st, r.network).forEach(function(a){
           var opt = el('option'); opt.value = a.wallet_id;
@@ -2818,10 +2833,10 @@ var walletHome = (function(){
       epoch += 1; drawHome(st);
     });
     selects.appendChild(accountSel);
-    selects.appendChild(el('label', null, 'Network')).setAttribute('for', 'vwHomeNetwork');
-    var networkSel = el('select'); networkSel.id = 'vwHomeNetwork'; networkSel.setAttribute('aria-label', 'network of the selected account');
+    selects.appendChild(el('label', null, WT('wallet.home.network', 'Network'))).setAttribute('for', 'vwHomeNetwork');
+    var networkSel = el('select'); networkSel.id = 'vwHomeNetwork'; networkSel.setAttribute('aria-label', WT('wallet.home.network_aria', 'network of the selected account'));
     activeRows(st).sort(byOrder).forEach(function(r){
-      var opt = el('option'); opt.value = r.network; opt.textContent = rowName(r) + (rowAccounts(st, r.network).length ? '' : ' — no account yet');
+      var opt = el('option'); opt.value = r.network; opt.textContent = rowName(r) + (rowAccounts(st, r.network).length ? '' : ' — ' + WT('wallet.home.no_account_yet', 'no account yet'));
       if (r.network === selNetwork) opt.selected = true;
       networkSel.appendChild(opt);
     });
@@ -2844,27 +2859,27 @@ var walletHome = (function(){
     if (!account) paintNoAccount(st);
     else paintBalanceLoading(account, row);
     var actionsRow = el('div', 'vw-wh-actions');
-    var receive = el('button', 'vw-btn', 'Receive'); receive.type = 'button'; receive.id = 'vwHomeReceive';
+    var receive = el('button', 'vw-btn', WT('wallet.home.receive', 'Receive')); receive.type = 'button'; receive.id = 'vwHomeReceive';
     receive.disabled = !account;
     actionsRow.appendChild(receive);
-    var send = el('button', 'vw-btn primary', 'Send'); send.type = 'button'; send.id = 'vwHomeSend';
+    var send = el('button', 'vw-btn primary', WT('wallet.home.send', 'Send')); send.type = 'button'; send.id = 'vwHomeSend';
     var caps = (row && row.capabilities) || {};
     var sendReason = '';
-    if (!account) sendReason = 'no account on this network yet';
-    else if (account.mode === 'watch_only') sendReason = 'watch-only accounts receive and show their balance; they never send from here';
-    else if (account.mode === 'external_signer' && row && row.environment === 'mainnet') sendReason = 'a connected wallet receives and shows its balance here; on this network only a VOOL Wallet created on this device sends';
-    else if (account.setup_state && account.setup_state !== 'ready') sendReason = 'finish this wallet\'s setup before sending';
-    else if (!(caps.send && caps.send.available)) sendReason = CAP_REASONS[(caps.send || {}).reason] || (caps.send || {}).reason || 'unavailable';
+    if (!account) sendReason = CAP_REASONS.no_account_on_this_network;
+    else if (account.mode === 'watch_only') sendReason = WT('wallet.home.send_reason_watch_only', 'watch-only accounts receive and show their balance; they never send from here');
+    else if (account.mode === 'external_signer' && row && row.environment === 'mainnet') sendReason = WT('wallet.home.send_reason_connected', 'a connected wallet receives and shows its balance here; on this network only a VOOL Wallet created on this device sends');
+    else if (account.setup_state && account.setup_state !== 'ready') sendReason = WT('wallet.home.send_reason_setup', 'finish this wallet\'s setup before sending');
+    else if (!(caps.send && caps.send.available)) sendReason = CAP_REASONS[(caps.send || {}).reason] || (caps.send || {}).reason || WT('wallet.home.unavailable', 'unavailable');
     send.disabled = !!sendReason;
-    if (sendReason) { send.title = 'Send: ' + sendReason; send.setAttribute('aria-label', 'Send — ' + sendReason); }
+    if (sendReason) { send.title = WTF('wallet.home.send_title', 'Send: {reason}', { reason: sendReason }); send.setAttribute('aria-label', WTF('wallet.home.send_aria', 'Send — {reason}', { reason: sendReason })); }
     actionsRow.appendChild(send);
-    var manageSmall = el('button', 'vw-btn', 'Settings / Manage'); manageSmall.type = 'button';
+    var manageSmall = el('button', 'vw-btn', WT('wallet.home.settings_manage', 'Settings / Manage')); manageSmall.type = 'button';
     manageSmall.addEventListener('click', function(){ closePanel(false); var a = actions(); if (a && a.openSettings) a.openSettings(); });
     actionsRow.appendChild(manageSmall);
     bodyEl.appendChild(actionsRow);
     var addRow = el('div');
-    var add = el('button', 'vw-toggle', 'Add, restore or connect a wallet'); add.type = 'button'; add.id = 'vwHomeAddWallet';
-    add.title = 'The supported choices only: create on a network that offers it, restore from a phrase, connect an external wallet, or add a watch-only address';
+    var add = el('button', 'vw-toggle', WT('wallet.home.add_wallet', 'Add, restore or connect a wallet')); add.type = 'button'; add.id = 'vwHomeAddWallet';
+    add.title = WT('wallet.home.add_wallet_title', 'The supported choices only: create on a network that offers it, restore from a phrase, connect an external wallet, or add a watch-only address');
     add.addEventListener('click', function(){ view = 'setup'; drawSetup(st); });
     addRow.appendChild(add);
     bodyEl.appendChild(addRow);
@@ -2872,13 +2887,13 @@ var walletHome = (function(){
     send.addEventListener('click', function(){ if (!send.disabled) { view = 'send'; sendKey = newSendKey(); drawSend(st); } });
 
     // recent activity
-    bodyEl.appendChild(el('div', 'vw-wh-sec', 'Activity'));
+    bodyEl.appendChild(el('div', 'vw-wh-sec', WT('wallet.home.activity', 'Activity')));
     var activity = el('div'); activity.id = 'vwHomeActivity';
     bodyEl.appendChild(activity);
     paintActivity(st, activity);
 
     var notes = el('div', 'vw-wh-note');
-    notes.textContent = (cp.pilot_notice || '') + ' Payments made through VOOL are noticed here and as toasts while VOOL is open. A rise in the network-coin balance is noticed when this view refreshes; VOOL keeps no full history of incoming transactions and does not watch the chain in the background.';
+    notes.textContent = (cp.pilot_notice || '') + ' ' + WT('wallet.home.activity_note', 'Payments made through VOOL are noticed here and as toasts while VOOL is open. A rise in the network-coin balance is noticed when this view refreshes; VOOL keeps no full history of incoming transactions and does not watch the chain in the background.');
     bodyEl.appendChild(notes);
     if (account) loadBalance(st);
   }
@@ -2888,9 +2903,9 @@ var walletHome = (function(){
     if (!box) return;
     box.textContent = '';
     var row = rowFor(st, selNetwork);
-    box.appendChild(el('div', 'vw-wh-amount', 'No account on ' + (row ? rowName(row) : chainLabel(selNetwork))));
-    var line = el('div', 'vw-wh-balstate', 'Selecting a network never creates an account. ');
-    var setup = el('button', 'vw-toggle', 'Set one up'); setup.type = 'button';
+    box.appendChild(el('div', 'vw-wh-amount', WTF('wallet.home.no_account_on', 'No account on {network}', { network: (row ? rowName(row) : chainLabel(selNetwork)) })));
+    var line = el('div', 'vw-wh-balstate', WT('wallet.home.select_never_creates', 'Selecting a network never creates an account.') + ' ');
+    var setup = el('button', 'vw-toggle', WT('wallet.home.set_one_up', 'Set one up')); setup.type = 'button';
     setup.addEventListener('click', function(){ view = 'setup'; drawSetup(st); });
     line.appendChild(setup); box.appendChild(line);
   }
@@ -2898,7 +2913,7 @@ var walletHome = (function(){
     var box = document.getElementById('vwHomeBalance');
     if (!box) return;
     box.textContent = '';
-    var amount = el('div', 'vw-wh-amount', 'Reading the balance…');
+    var amount = el('div', 'vw-wh-amount', WT('wallet.home.reading_balance', 'Reading the balance…'));
     amount.appendChild(el('span', 'vw-wh-unit', (row && row.native_display_symbol) || ''));
     box.appendChild(amount);
     box.appendChild(el('div', 'vw-wh-balstate', account ? ((account.label ? account.label + ' · ' : '') + (row ? rowName(row) : chainLabel(account.network))) : ''));
@@ -2915,25 +2930,25 @@ var walletHome = (function(){
       amount.appendChild(document.createTextNode(b.balance_human + ' '));
       amount.appendChild(el('span', 'vw-wh-unit', b.asset));
       var isZero = String(b.balance_minor || '0') === '0';
-      stateLine.textContent = (isZero ? 'Balance 0 — confirmed zero as observed' : 'Observed ' + (b.ref || '') + ' · ' + timeClock(b.observed_at)) +
-        ' · network coin only; token balances are not listed here';
-      var refresh = el('button', 'vw-toggle', 'refresh'); refresh.type = 'button'; refresh.style.marginLeft = '6px';
+      stateLine.textContent = (isZero ? WT('wallet.home.balance_zero', 'Balance 0 — confirmed zero as observed') : WTF('wallet.home.observed', 'Observed {ref} · {when}', { ref: b.ref || '', when: timeClock(b.observed_at) })) +
+        ' · ' + WT('wallet.home.native_only', 'network coin only; token balances are not listed here');
+      var refresh = el('button', 'vw-toggle', WT('wallet.home.refresh', 'refresh')); refresh.type = 'button'; refresh.style.marginLeft = '6px';
       refresh.addEventListener('click', function(){ loadBalance(lastStatus); });
       stateLine.appendChild(refresh);
     } else {
-      amount.textContent = 'Balance unavailable';
+      amount.textContent = WT('wallet.home.balance_unavailable', 'Balance unavailable');
       amount.appendChild(el('span', 'vw-wh-unit', (row && row.native_display_symbol) || ''));
       stateLine.className = 'vw-wh-balstate unavailable';
-      stateLine.textContent = 'The balance could not be read (' + (CAP_REASONS[b.reason] || b.reason || 'not read') + ') — it is not zero.';
-      var retry = el('button', 'vw-toggle', 'try again'); retry.type = 'button'; retry.style.marginLeft = '6px';
+      stateLine.textContent = WTF('wallet.home.balance_unreadable', 'The balance could not be read ({reason}) — it is not zero.', { reason: (CAP_REASONS[b.reason] || b.reason || WT('wallet.home.not_read', 'not read')) });
+      var retry = el('button', 'vw-toggle', WT('wallet.home.try_again', 'try again')); retry.type = 'button'; retry.style.marginLeft = '6px';
       retry.addEventListener('click', function(){ loadBalance(lastStatus); });
       stateLine.appendChild(retry);
     }
     box.appendChild(amount); box.appendChild(stateLine);
     var viewOnly = !!row && row.environment === 'mainnet';
-    var kind = account.mode === 'watch_only' ? (viewOnly ? 'watch-only: receive and view only' : 'watch-only: observe and propose; signing happens elsewhere') :
-      (account.mode === 'external_signer' ? (viewOnly ? 'connected wallet: receive and view only in VOOL' : 'external wallet: signing stays in your wallet') :
-      (account.setup_state && account.setup_state !== 'ready' ? 'setup not finished: ' + (SETUP_TEXT[account.setup_state] || account.setup_state) : 'VOOL Wallet: key sealed on this device'));
+    var kind = account.mode === 'watch_only' ? (viewOnly ? WT('wallet.home.kind_watch_view', 'watch-only: receive and view only') : WT('wallet.home.kind_watch', 'watch-only: observe and propose; signing happens elsewhere')) :
+      (account.mode === 'external_signer' ? (viewOnly ? WT('wallet.home.kind_connected_view', 'connected wallet: receive and view only in VOOL') : WT('wallet.home.kind_external', 'external wallet: signing stays in your wallet')) :
+      (account.setup_state && account.setup_state !== 'ready' ? WTF('wallet.home.kind_setup', 'setup not finished: {state}', { state: (SETUP_TEXT[account.setup_state] || account.setup_state) }) : WT('wallet.home.kind_vool', 'VOOL Wallet: key sealed on this device')));
     box.appendChild(el('div', 'vw-wh-balstate', kind));
   }
   // one in-flight balance read per selection: a slower older answer can never repaint a newer selection
@@ -2966,38 +2981,39 @@ var walletHome = (function(){
   }
   function transferDetailsBox(t){
     var d = el('details');
-    d.appendChild(el('summary', null, 'View details'));
+    d.appendChild(el('summary', null, WT('wallet.home.view_details', 'View details')));
     var line = function(label, value){
       var r = el('div', 'vw-sheet-row'); r.appendChild(el('span', 'vw-sheet-label', label));
       var cell = el('span', 'vw-sheet-value');
       if (value !== null && value !== undefined) { var idn = el('span', 'vw-ident', String(value)); cell.appendChild(idn); cell.appendChild(copyButton(String(value), label.toLowerCase())); }
       r.appendChild(cell); d.appendChild(r);
     };
-    line('To', t.to_address);
-    line('From', t.from_address);
-    line('Amount (exact)', t.amount_human + ' ' + t.display_symbol);
-    if (t.charged_fee_label) line('Fee', t.charged_fee_label);
-    else if (t.fee_max_display) line('Fee (at most)', t.fee_max_display);
-    if (t.balance_after_human && t.state === 'confirmed') line('Balance after', t.balance_after_human + ' ' + t.display_symbol);
-    if (t.tx_id) line('Transaction', t.tx_id);
+    line(WT('wallet.home.detail_to', 'To'), t.to_address);
+    line(WT('wallet.home.detail_from', 'From'), t.from_address);
+    line(WT('wallet.home.detail_amount', 'Amount (exact)'), t.amount_human + ' ' + t.display_symbol);
+    if (t.charged_fee_label) line(WT('wallet.home.detail_fee', 'Fee'), t.charged_fee_label);
+    else if (t.fee_max_display) line(WT('wallet.home.detail_fee_max', 'Fee (at most)'), t.fee_max_display);
+    if (t.balance_after_human && t.state === 'confirmed') line(WT('wallet.home.detail_balance_after', 'Balance after'), t.balance_after_human + ' ' + t.display_symbol);
+    if (t.tx_id) line(WT('wallet.home.detail_tx', 'Transaction'), t.tx_id);
     if (t.detail) d.appendChild(el('div', 'vw-transfer-detail', t.detail));
     if (t.purpose && t.purpose.kind && t.purpose.kind !== 'unknown') d.appendChild(purposeBlock(t.purpose, ''));
-    else if (t.origin === 'dna_fee') d.appendChild(el('div', 'vw-transfer-detail', 'DNA service fee collection'));
-    if (t.explorer_url) { var link = el('a', 'vw-explorer', t.explorer_link_text || 'View on the explorer'); link.href = t.explorer_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; d.appendChild(link); }
+    else if (t.origin === 'dna_fee') d.appendChild(el('div', 'vw-transfer-detail', WT('wallet.home.dna_fee_collection', 'DNA service fee collection')));
+    if (t.explorer_url) { var link = el('a', 'vw-explorer', t.explorer_link_text || WT('wallet.home.explorer', 'View on the explorer')); link.href = t.explorer_url; link.target = '_blank'; link.rel = 'noopener noreferrer'; d.appendChild(link); }
     return d;
   }
   function activityRowFor(t, isPending){
     var rowEl = el('div', 'vw-wh-row'); rowEl.setAttribute('data-pid', t.proposal_id || '');
     var head = el('div', 'vw-wh-rowhead');
     head.appendChild(stateChip(t));
-    head.appendChild(el('span', 'vw-wh-amt', (t.amount_human || ((t.amount_minor || 0) + ' smallest units of')) + ' ' + (t.display_symbol || t.asset || '')));
+    var sym = (t.display_symbol || t.asset || '');
+    head.appendChild(el('span', 'vw-wh-amt', t.amount_human ? (t.amount_human + ' ' + sym) : WTF('wallet.home.minor_units_of', '{minor} smallest units of {asset}', { minor: (t.amount_minor || 0), asset: sym })));
     head.appendChild(el('span', null, (t.display_name || chainLabel(t.network)) + (t.to_address ? ' → ' + short(t.to_address) : '')));
     head.appendChild(el('span', 'vw-wh-when', timeClock(t.created_at || t.updated_at)));
     rowEl.appendChild(head);
     if (isPending) {
       // a payment its account cannot send (a connected or watch-only account on a Mainnet row) is reviewed, never approved
       var viewOnlyRow = ((lastStatus && lastStatus.pending) || []).some(function(x){ return x && x.proposal_id === t.proposal_id && x.send_unavailable; });
-      var review = el('button', 'vw-btn vw-wh-review', t.pilot_transfer === false ? (viewOnlyRow ? 'Review in chat' : 'Approve in chat') : 'Review'); review.type = 'button';
+      var review = el('button', 'vw-btn vw-wh-review', t.pilot_transfer === false ? (viewOnlyRow ? WT('wallet.home.review_in_chat', 'Review in chat') : WT('wallet.home.approve_in_chat', 'Approve in chat')) : WT('wallet.home.review', 'Review')); review.type = 'button';
       review.addEventListener('click', function(){ openReviewFor(t.proposal_id); });
       rowEl.appendChild(review);
     } else {
@@ -3015,7 +3031,7 @@ var walletHome = (function(){
     var inFlight = (st.in_flight || []).filter(function(t){ return t.proposal_id && !seen[t.proposal_id] && (seen[t.proposal_id] = true); });
     var transfers = (st.transfers || []).filter(function(t){ return t.proposal_id && !seen[t.proposal_id] && (seen[t.proposal_id] = true); });
     if (!pending.length && !inFlight.length && !transfers.length) {
-      host.appendChild(el('div', 'vw-wh-empty', 'No payments yet. Pending approvals, in-flight transfers and receipts appear here.'));
+      host.appendChild(el('div', 'vw-wh-empty', WT('wallet.home.no_payments', 'No payments yet. Pending approvals, in-flight transfers and receipts appear here.')));
       return;
     }
     pending.forEach(function(t){ host.appendChild(activityRowFor(t, true)); });
@@ -3030,31 +3046,31 @@ var walletHome = (function(){
     if (!account) { drawHome(st); return; }
     var row = rowFor(st, account.network);
     bodyEl.textContent = '';
-    var back = el('button', 'vw-toggle', '← Back to the wallet'); back.type = 'button';
+    var back = el('button', 'vw-toggle', WT('wallet.home.back', '← Back to the wallet')); back.type = 'button';
     back.addEventListener('click', function(){ view = 'home'; drawHome(st); });
     bodyEl.appendChild(back);
-    bodyEl.appendChild(el('div', 'vw-wh-sec', 'Receive'));
+    bodyEl.appendChild(el('div', 'vw-wh-sec', WT('wallet.home.receive', 'Receive')));
     var line = el('div', 'vw-wh-note');
-    line.textContent = 'Receive ' + ((row && row.native_display_symbol) || '') + ' on ' + (row ? rowName(row) : chainLabel(account.network)) +
-      ' (' + (row && row.badge ? row.badge + ' · ' + (row.value_note || '') : '') + '). Send only this network\'s native coin to this address.';
+    line.textContent = WTF('wallet.home.receive_line', 'Receive {symbol} on {network} ({badge}). Send only this network\'s native coin to this address.',
+      { symbol: ((row && row.native_display_symbol) || ''), network: (row ? rowName(row) : chainLabel(account.network)), badge: (row && row.badge ? row.badge + ' · ' + (row.value_note || '') : '') });
     bodyEl.appendChild(line);
     var addrBox = el('div');
-    addrBox.appendChild(el('div', 'vw-wh-sec', 'Your address'));
+    addrBox.appendChild(el('div', 'vw-wh-sec', WT('wallet.home.your_address', 'Your address')));
     var addr = el('div', 'vw-wh-addr', account.public_key); addr.id = 'vwHomeAddress';
     addrBox.appendChild(addr);
     var copyRow = el('div');
-    var copy = copyButton(account.public_key, 'address'); copy.id = 'vwHomeCopyAddress'; copy.className = 'vw-btn';
+    var copy = copyButton(account.public_key, WT('wallet.home.copy_what_address', 'address')); copy.id = 'vwHomeCopyAddress'; copy.className = 'vw-btn';
     copyRow.appendChild(copy);
     addrBox.appendChild(copyRow);
     bodyEl.appendChild(addrBox);
     var qr = qrCanvas(account.public_key);
     if (qr) { var box = el('div', 'vw-qr'); box.id = 'vwHomeQr'; box.appendChild(qr); bodyEl.appendChild(box); }
-    else bodyEl.appendChild(el('div', 'vw-wh-note', 'No QR here: the offline QR generator is unavailable on this build. Copy the address instead.'));
+    else bodyEl.appendChild(el('div', 'vw-wh-note', WT('wallet.home.no_qr', 'No QR here: the offline QR generator is unavailable on this build. Copy the address instead.')));
     bodyEl.appendChild(el('div', 'vw-wh-note', account.mode === 'watch_only'
-      ? 'Watch-only address: funds sent here are controlled by the wallet that owns it, not by VOOL. VOOL can observe and propose, never sign.'
+      ? WT('wallet.home.receive_watch_note', 'Watch-only address: funds sent here are controlled by the wallet that owns it, not by VOOL. VOOL can observe and propose, never sign.')
       : (account.mode === 'external_signer'
-        ? 'External wallet: funds are controlled by your connected wallet. VOOL never holds this key.'
-        : 'VOOL Wallet: the key is sealed on this device and every payment asks for your approval.')));
+        ? WT('wallet.home.receive_external_note', 'External wallet: funds are controlled by your connected wallet. VOOL never holds this key.')
+        : WT('wallet.home.receive_vool_note', 'VOOL Wallet: the key is sealed on this device and every payment asks for your approval.'))));
   }
   // a locally generated QR of exactly the displayed destination (vendored generator, no external service)
   function qrCanvas(text){
@@ -3072,7 +3088,7 @@ var walletHome = (function(){
       ctx.fillStyle = '#111318';
       for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * px, (r + quiet) * px, px, px);
       canvas.setAttribute('role', 'img');
-      canvas.setAttribute('aria-label', 'QR code of the receiving address');
+      canvas.setAttribute('aria-label', WT('wallet.home.qr_aria', 'QR code of the receiving address'));
       return canvas;
     } catch (e) { return null; }
   }
@@ -3086,29 +3102,29 @@ var walletHome = (function(){
     var row = rowFor(st, account.network);
     var caps = (row && row.capabilities) || {};
     bodyEl.textContent = '';
-    var back = el('button', 'vw-toggle', '← Back to the wallet'); back.type = 'button';
+    var back = el('button', 'vw-toggle', WT('wallet.home.back', '← Back to the wallet')); back.type = 'button';
     back.addEventListener('click', function(){ view = 'home'; drawHome(st); });
     bodyEl.appendChild(back);
-    bodyEl.appendChild(el('div', 'vw-wh-sec', 'Send'));
+    bodyEl.appendChild(el('div', 'vw-wh-sec', WT('wallet.home.send', 'Send')));
     var form = el('div', 'vw-wh-form'); form.id = 'vwHomeSendForm';
     var netLine = el('div', 'vw-wh-note');
-    netLine.textContent = 'From ' + (account.label ? account.label + ' · ' : '') + short(account.public_key) + ' on ' + (row ? rowName(row) : chainLabel(account.network));
+    netLine.textContent = WTF('wallet.home.send_from', 'From {account} on {network}', { account: (account.label ? account.label + ' · ' : '') + short(account.public_key), network: (row ? rowName(row) : chainLabel(account.network)) });
     form.appendChild(netLine);
-    var toLabel = el('label', null, 'Recipient address'); toLabel.setAttribute('for', 'vwHomeSendTo'); form.appendChild(toLabel);
+    var toLabel = el('label', null, WT('wallet.home.recipient', 'Recipient address')); toLabel.setAttribute('for', 'vwHomeSendTo'); form.appendChild(toLabel);
     var to = el('input'); to.type = 'text'; to.id = 'vwHomeSendTo'; to.autocomplete = 'off'; to.spellcheck = false;
-    to.setAttribute('aria-label', 'recipient address on ' + (row ? rowName(row) : selNetwork));
+    to.setAttribute('aria-label', WTF('wallet.home.recipient_aria', 'recipient address on {network}', { network: (row ? rowName(row) : selNetwork) }));
     form.appendChild(to);
     var contactNote = el('div', 'vw-wh-sub'); form.appendChild(contactNote);
     // the note speaks only for the address it filled: any other text in the field (a typed name, a pasted address,
     // a cleared field) drops it, so an old wrong-network warning never sits beside a different recipient
     var filledFrom = null;
     to.addEventListener('input', function(){ if (filledFrom === null || to.value !== filledFrom) { filledFrom = null; contactNote.textContent = ''; } });
-    var pickBtn = el('button', 'vw-toggle', 'choose from contacts'); pickBtn.type = 'button'; pickBtn.id = 'vwHomePickContact';
+    var pickBtn = el('button', 'vw-toggle', WT('wallet.home.choose_contact', 'choose from contacts')); pickBtn.type = 'button'; pickBtn.id = 'vwHomePickContact';
     var list = el('div', 'vw-wh-contacts'); list.id = 'vwHomeContactList'; list.hidden = true;
     pickBtn.addEventListener('click', function(){
       list.hidden = !list.hidden;
       if (list.hidden || list.children.length) return;
-      list.appendChild(el('div', 'vw-wh-sub', 'Reading saved wallet addresses…'));
+      list.appendChild(el('div', 'vw-wh-sub', WT('wallet.home.reading_contacts', 'Reading saved wallet addresses…')));
       getJson('/api/contacts').then(function(j){
         list.textContent = '';
         var contacts = (j && j.contacts) || [];
@@ -3118,26 +3134,26 @@ var walletHome = (function(){
             if (ep.kind !== 'wallet') return;
             found += 1;
             var btn = el('button', 'vw-wh-contact'); btn.type = 'button';
-            btn.appendChild(el('span', null, (c.display_name || 'Saved contact') + (ep.network_display ? ' · ' + ep.network_display : '')));
+            btn.appendChild(el('span', null, (c.display_name || WT('wallet.home.saved_contact', 'Saved contact')) + (ep.network_display ? ' · ' + ep.network_display : '')));
             btn.appendChild(el('span', 'vw-wh-ident', ep.value || ''));
             btn.addEventListener('click', function(){
               if (ep.chain_network && row && ep.chain_network !== row.network) {
                 // a name saved for another network is not this payment's destination; nothing is filled silently
                 contactNote.className = 'vw-wh-sub';
-                contactNote.textContent = c.display_name + '\'s address is saved for ' + (ep.network_display || ep.chain_network) +
-                  ', not ' + rowName(row) + '. Sending on ' + rowName(row) + ' needs an address on this network.';
+                contactNote.textContent = WTF('wallet.home.contact_other_network', '{name}\'s address is saved for {saved}, not {network}. Sending on {network} needs an address on this network.',
+                  { name: c.display_name, saved: (ep.network_display || ep.chain_network), network: rowName(row) });
                 return;
               }
               to.value = ep.value || ''; filledFrom = to.value;
               contactNote.className = 'vw-wh-sub';
-              contactNote.textContent = 'Paying the saved contact ' + c.display_name + ' — the exact destination is the address shown in the field.';
+              contactNote.textContent = WTF('wallet.home.contact_paying', 'Paying the saved contact {name} — the exact destination is the address shown in the field.', { name: c.display_name });
               list.hidden = true;
             });
             list.appendChild(btn);
           });
         });
-        if (!found) list.appendChild(el('div', 'vw-wh-sub', 'No saved wallet addresses yet. Settings → Contacts saves them; typing an address directly always works.'));
-      }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', 'Contacts could not be read; type the address directly.')); });
+        if (!found) list.appendChild(el('div', 'vw-wh-sub', WT('wallet.home.no_contacts', 'No saved wallet addresses yet. Settings → Contacts saves them; typing an address directly always works.')));
+      }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', WT('wallet.home.contacts_unreadable', 'Contacts could not be read; type the address directly.'))); });
     });
     form.appendChild(pickBtn); form.appendChild(list);
     // what to send: the row's own coin, or a token a Crypto Pilot account may send on this row (USDT where it is carried)
@@ -3146,32 +3162,33 @@ var walletHome = (function(){
     var chosen = nativeChoice;
     var assetPick = null;
     if (account.can_send_tokens === true && choices.length > 1) {
-      var assetLabel = el('label', null, 'What to send'); assetLabel.setAttribute('for', 'vwHomeSendAsset'); form.appendChild(assetLabel);
+      var assetLabel = el('label', null, WT('wallet.home.what_to_send', 'What to send')); assetLabel.setAttribute('for', 'vwHomeSendAsset'); form.appendChild(assetLabel);
       assetPick = el('select'); assetPick.id = 'vwHomeSendAsset';
       choices.forEach(function(c){ var o = el('option', null, c.label); o.value = c.symbol; assetPick.appendChild(o); });
       form.appendChild(assetPick);
     }
-    var amountLabel = el('label', null, 'Amount (' + nativeChoice.label + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
+    var amountLabel = el('label', null, WTF('wallet.home.amount_label', 'Amount ({symbol})', { symbol: nativeChoice.label })); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
     var amount = el('input'); amount.type = 'text'; amount.id = 'vwHomeSendAmount'; amount.autocomplete = 'off'; amount.inputMode = 'decimal';
     amount.placeholder = '0.0';
     form.appendChild(amount);
     if (assetPick) assetPick.addEventListener('change', function(){
       chosen = choices.filter(function(c){ return c.symbol === assetPick.value; })[0] || nativeChoice;
-      amountLabel.textContent = 'Amount (' + chosen.label + ')';
+      amountLabel.textContent = WTF('wallet.home.amount_label', 'Amount ({symbol})', { symbol: chosen.label });
       available.textContent = chosen === nativeChoice ? availableNative
-        : 'Your ' + chosen.label + ' balance is shown on the review before anything is approved. The network fee is paid in ' + nativeChoice.label + ', so keep a little ' + nativeChoice.label + ' in this account too.';
+        : WTF('wallet.home.token_note', 'Your {token} balance is shown on the review before anything is approved. The network fee is paid in {coin}, so keep a little {coin} in this account too.', { token: chosen.label, coin: nativeChoice.label });
       sendKey = newSendKey();
     });
-    var availableNative = 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).';
+    var availableNative = WT('wallet.home.available', 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).');
     var available = el('div', 'vw-wh-sub', availableNative); available.setAttribute('aria-live', 'polite');
     form.appendChild(available);
-    var memoLabel = el('label', null, 'Note (optional, stays with your request)'); memoLabel.setAttribute('for', 'vwHomeSendMemo'); form.appendChild(memoLabel);
+    var memoLabel = el('label', null, WT('wallet.home.memo', 'Note (optional, stays with your request)')); memoLabel.setAttribute('for', 'vwHomeSendMemo'); form.appendChild(memoLabel);
     var memo = el('input'); memo.type = 'text'; memo.id = 'vwHomeSendMemo'; memo.autocomplete = 'off'; form.appendChild(memo);
-    var go = el('button', 'vw-btn primary', 'Preview send'); go.type = 'button'; go.id = 'vwHomeSendGo';
+    var go = el('button', 'vw-btn primary', WT('wallet.home.preview', 'Preview send')); go.type = 'button'; go.id = 'vwHomeSendGo';
     if (!(caps.quote && caps.quote.available)) {
       go.disabled = true;
-      go.title = 'Preview: ' + (CAP_REASONS[(caps.quote || {}).reason] || (caps.quote || {}).reason || 'unavailable');
-      form.appendChild(el('div', 'vw-wh-warn', 'Previewing a payment from this account is unavailable here: ' + (CAP_REASONS[(caps.quote || {}).reason] || (caps.quote || {}).reason || 'unavailable') + '.'));
+      var quoteWhy = CAP_REASONS[(caps.quote || {}).reason] || (caps.quote || {}).reason || WT('wallet.home.unavailable', 'unavailable');
+      go.title = WTF('wallet.home.preview_title', 'Preview: {reason}', { reason: quoteWhy });
+      form.appendChild(el('div', 'vw-wh-warn', WTF('wallet.home.preview_unavailable', 'Previewing a payment from this account is unavailable here: {reason}.', { reason: quoteWhy })));
     }
     form.appendChild(go);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
@@ -3182,31 +3199,31 @@ var walletHome = (function(){
     to.addEventListener('input', rotate); amount.addEventListener('input', rotate); memo.addEventListener('input', rotate);
     go.addEventListener('click', function(){
       var dest = String(to.value || '').trim();
-      if (!dest) { state.className = 'vw-wh-msg err'; state.textContent = 'Type the recipient address.'; return; }
+      if (!dest) { state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.type_recipient', 'Type the recipient address.'); return; }
       var decimals = chosen.decimals;
       var minor = parseAmountToMinor(amount.value, decimals);
       if (minor === null) {
         state.className = 'vw-wh-msg err';
-        state.textContent = 'The amount must be a positive number with at most ' + decimals + ' decimals — exact, not rounded.';
+        state.textContent = WTF('wallet.home.amount_invalid', 'The amount must be a positive number with at most {decimals} decimals — exact, not rounded.', { decimals: decimals });
         return;
       }
       var minorJson = minorForJson(minor);
       if (minorJson === null) {
         state.className = 'vw-wh-msg err';
-        state.textContent = 'This amount is too large to carry exactly through this form. Enter a smaller amount.';
+        state.textContent = WT('wallet.home.amount_too_large', 'This amount is too large to carry exactly through this form. Enter a smaller amount.');
         return;
       }
-      go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = 'Preparing the request… (nothing is sent yet)';
+      go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = WT('wallet.home.preparing', 'Preparing the request… (nothing is sent yet)');
       var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: chosen.symbol, origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
       postJson('/api/wallet/propose', body).then(function(res){
         if (!res.ok) {
           go.disabled = false; state.className = 'vw-wh-msg err';
-          state.textContent = faultMessage(res, 'The request was refused. Nothing was sent.');
+          state.textContent = faultMessage(res, WT('wallet.home.refused', 'The request was refused. Nothing was sent.'));
           return null;
         }
         sendKey = newSendKey();  // the intent exists as a proposal now; a new form is a new intent
         var pid = (res.data.proposal || {}).proposal_id || '';
-        state.textContent = 'Request prepared. Opening the review…';
+        state.textContent = WT('wallet.home.prepared_opening', 'Request prepared. Opening the review…');
         return refreshStatus().then(function(st2){
           st2 = st2 || lastStatus || {};
           var prow = (st2.pending || []).filter(function(x){ return x && x.proposal_id === pid; })[0] || null;
@@ -3218,11 +3235,11 @@ var walletHome = (function(){
             view = 'home'; drawHome(st2);  // beneath the sheet: home with the request in Activity, ready for Decide later
           } else {
             view = 'home'; drawHome(st2);
-            say(prow ? 'The request is prepared — its card in the chat below carries the approval.' : 'The request is prepared. Check Activity and the chat card below.');
+            say(prow ? WT('wallet.home.prepared_card', 'The request is prepared — its card in the chat below carries the approval.') : WT('wallet.home.prepared_check', 'The request is prepared. Check Activity and the chat card below.'));
           }
           return null;
         });
-      }).catch(function(){ go.disabled = false; state.className = 'vw-wh-msg err'; state.textContent = 'The request did not complete; nothing was sent.'; });
+      }).catch(function(){ go.disabled = false; state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.request_incomplete', 'The request did not complete; nothing was sent.'); });
     });
     to.focus();
   }
@@ -3234,94 +3251,94 @@ var walletHome = (function(){
     bodyEl.textContent = '';
     var back = null;
     if (accountsOf(st).length) {
-      back = el('button', 'vw-toggle', '← Back to the wallet'); back.type = 'button';
+      back = el('button', 'vw-toggle', WT('wallet.home.back', '← Back to the wallet')); back.type = 'button';
       back.addEventListener('click', function(){ view = 'home'; drawHome(st); });
       bodyEl.appendChild(back);
     }
-    bodyEl.appendChild(el('div', 'vw-wh-sec', 'Set up your wallet'));
+    bodyEl.appendChild(el('div', 'vw-wh-sec', WT('wallet.home.setup_title', 'Set up your wallet')));
     var points = el('div', 'vw-safety');
-    points.appendChild(el('div', 'vw-point', '1. Protect your recovery material: a backup is shown once and VOOL cannot recover it for you.'));
-    points.appendChild(el('div', 'vw-point', '2. Check the destination and network before sending: transfers are irreversible.'));
+    points.appendChild(el('div', 'vw-point', WT('wallet.home.setup_point1', '1. Protect your recovery material: a backup is shown once and VOOL cannot recover it for you.')));
+    points.appendChild(el('div', 'vw-point', WT('wallet.home.setup_point2', '2. Check the destination and network before sending: transfers are irreversible.')));
     bodyEl.appendChild(points);
     var learn = el('details', 'vw-learn');
-    learn.appendChild(el('summary', null, 'Learn more'));
-    learn.appendChild(el('div', 'vw-wh-note', (cp.pilot_notice || '') + ' Watch-only is the safest start: VOOL observes and proposes, and nothing can ever be signed for that address here. Full management (spending caps, backup confirmation, the network environment) lives in Settings → Crypto.'));
+    learn.appendChild(el('summary', null, WT('wallet.home.learn_more', 'Learn more')));
+    learn.appendChild(el('div', 'vw-wh-note', (cp.pilot_notice || '') + ' ' + WT('wallet.home.learn_more_text', 'Watch-only is the safest start: VOOL observes and proposes, and nothing can ever be signed for that address here. Full management (spending caps, backup confirmation, the network environment) lives in Settings → Crypto.')));
     bodyEl.appendChild(learn);
     var acts = el('div', 'vw-wh-setup-actions'); acts.id = 'vwHomeSetupActions';
     var targetRow = rowFor(st, selNetwork) || activeRows(st)[0] || null;
     var caps = (targetRow && targetRow.capabilities) || {};
-    var create = el('button', 'vw-btn primary', 'Create a VOOL Wallet' + (targetRow ? ' on ' + rowName(targetRow) : ''));
+    var create = el('button', 'vw-btn primary', targetRow ? WTF('wallet.home.create_on', 'Create a VOOL Wallet on {network}', { network: rowName(targetRow) }) : WT('wallet.home.create', 'Create a VOOL Wallet'));
     create.type = 'button'; create.id = 'vwHomeCreate';
     if (caps.create && caps.create.available) create.addEventListener('click', function(){ panelCreateFlow(st, targetRow, cp); });
     else {
       create.disabled = true;
-      var why = CAP_REASONS[(caps.create || {}).reason] || (caps.create || {}).reason || 'no network row available';
-      create.title = 'Create: ' + why;
+      var why = CAP_REASONS[(caps.create || {}).reason] || (caps.create || {}).reason || WT('wallet.home.no_row', 'no network row available');
+      create.title = WTF('wallet.home.create_title', 'Create: {reason}', { reason: why });
       create.setAttribute('aria-label', create.title);
-      acts.appendChild(el('div', 'vw-wh-note', 'Creating a wallet is unavailable here: ' + why + '.'));
+      acts.appendChild(el('div', 'vw-wh-note', WTF('wallet.home.create_unavailable', 'Creating a wallet is unavailable here: {reason}.', { reason: why })));
     }
     acts.appendChild(create);
-    var watch = el('button', 'vw-btn', 'Add a watch-only address'); watch.type = 'button'; watch.id = 'vwHomeWatch';
+    var watch = el('button', 'vw-btn', WT('wallet.home.add_watch', 'Add a watch-only address')); watch.type = 'button'; watch.id = 'vwHomeWatch';
     watch.addEventListener('click', function(){ panelWatchFlow(st); });
     acts.appendChild(watch);
-    var phantom = el('button', 'vw-btn', 'Connect Phantom'); phantom.type = 'button'; phantom.id = 'vwHomePhantom';
+    var phantom = el('button', 'vw-btn', WT('wallet.home.connect_phantom', 'Connect Phantom')); phantom.type = 'button'; phantom.id = 'vwHomePhantom';
     phantom.addEventListener('click', function(){
       var p = provider();
       if (!p || typeof p.connect !== 'function') { say(noPhantomMessage(), true); return; }
       p.connect().then(function(r){
         var key = (r && r.publicKey && r.publicKey.toString()) || (p.publicKey && p.publicKey.toString()) || '';
-        if (!key) throw new Error('the wallet returned no account');
+        if (!key) throw new Error(WT('wallet.home.phantom_no_account', 'the wallet returned no account'));
         bindPhantomEvents();
         return postJson('/api/wallet/external', { public_key: key, label: 'phantom' }).then(function(res){
-          if (!res.ok) { say(faultMessage(res, 'Not connected.'), true); return; }
-          say('Phantom connected: ' + short(key) + '.'); view = 'home'; renderFromStatus();
+          if (!res.ok) { say(faultMessage(res, WT('wallet.home.not_connected', 'Not connected.')), true); return; }
+          say(WTF('wallet.home.phantom_connected', 'Phantom connected: {address}.', { address: short(key) })); view = 'home'; renderFromStatus();
         });
-      }).catch(function(err){ say('Phantom did not connect: ' + (err && err.message ? err.message : 'no answer'), true); });
+      }).catch(function(err){ say(WTF('wallet.home.phantom_failed', 'Phantom did not connect: {reason}', { reason: (err && err.message ? err.message : WT('wallet.home.no_answer', 'no answer')) }), true); });
     });
     acts.appendChild(phantom);
     var evmNetworks = activeRows(st).filter(function(r){ return isEvmNetwork(r.network); });
     if (evmNetworks.length) {
-      var evm = el('button', 'vw-btn', 'Connect an EVM wallet'); evm.type = 'button'; evm.id = 'vwHomeEvm';
+      var evm = el('button', 'vw-btn', WT('wallet.home.connect_evm', 'Connect an EVM wallet')); evm.type = 'button'; evm.id = 'vwHomeEvm';
       evm.addEventListener('click', function(){
         var eth = evmProvider();
-        if (!eth) { say('No EIP-1193 wallet (window.ethereum) is injected in this browser. Open this app in a browser with the wallet extension to connect it.', true); return; }
+        if (!eth) { say(WT('wallet.home.no_evm', 'No EIP-1193 wallet (window.ethereum) is injected in this browser. Open this app in a browser with the wallet extension to connect it.'), true); return; }
         var chain = evmNetworks[0].network;
         evm.disabled = true;
         eth.request({ method: 'eth_requestAccounts' }).then(function(accounts){
           var accountAddr = (accounts && accounts[0] || '').toLowerCase();
-          if (!accountAddr) throw new Error('no account');
+          if (!accountAddr) throw new Error(WT('wallet.home.evm_no_account', 'no account'));
           return eth.request({ method: 'eth_chainId' }).then(function(chainIdHex){
             var wanted = parseInt(chain.split(':')[1], 10), got = parseInt(String(chainIdHex), 16);
-            if (wanted !== got) throw new Error('the wallet is on chain ' + got + ', not ' + wanted + '; switch it and retry');
+            if (wanted !== got) throw new Error(WTF('wallet.home.evm_wrong_chain', 'the wallet is on chain {got}, not {wanted}; switch it and retry', { got: got, wanted: wanted }));
             return postJson('/api/wallet/external', { public_key: accountAddr, network: chain, label: 'evm' });
           });
         }).then(function(res){
           evm.disabled = false;
-          if (!res || !res.ok) { say((res && faultMessage(res, 'Not connected.')) || 'Not connected.', true); return; }
-          say('EVM wallet registered on ' + evmChainLabel(chain) + '.' + (evmNetworks[0].environment === 'mainnet' ? ' Here it receives and shows its balance; sending on this network stays in a VOOL Wallet created on this device.' : '')); view = 'home'; renderFromStatus();
-        }).catch(function(err){ evm.disabled = false; say('The EVM wallet did not connect: ' + (err && err.message ? err.message : 'unknown error'), true); });
+          if (!res || !res.ok) { say((res && faultMessage(res, WT('wallet.home.not_connected', 'Not connected.'))) || WT('wallet.home.not_connected', 'Not connected.'), true); return; }
+          say(WTF('wallet.home.evm_registered', 'EVM wallet registered on {network}.', { network: evmChainLabel(chain) }) + (evmNetworks[0].environment === 'mainnet' ? ' ' + WT('wallet.home.evm_mainnet_note', 'Here it receives and shows its balance; sending on this network stays in a VOOL Wallet created on this device.') : '')); view = 'home'; renderFromStatus();
+        }).catch(function(err){ evm.disabled = false; say(WTF('wallet.home.evm_failed', 'The EVM wallet did not connect: {reason}', { reason: (err && err.message ? err.message : WT('wallet.home.unknown_error', 'unknown error')) }), true); });
       });
       acts.appendChild(evm);
     }
-    var restore = el('button', 'vw-btn', 'Restore from recovery phrase'); restore.type = 'button'; restore.id = 'vwHomeRestore';
+    var restore = el('button', 'vw-btn', WT('wallet.home.restore_phrase', 'Restore from recovery phrase')); restore.type = 'button'; restore.id = 'vwHomeRestore';
     restore.addEventListener('click', function(){ panelRestoreFlow(st); });
     acts.appendChild(restore);
     bodyEl.appendChild(acts);
-    bodyEl.appendChild(el('div', 'vw-wh-note', 'Everything above stays optional and nothing is created by opening this panel. Full setup, spending caps and the network environment live in Settings → Crypto.'));
+    bodyEl.appendChild(el('div', 'vw-wh-note', WT('wallet.home.setup_note', 'Everything above stays optional and nothing is created by opening this panel. Full setup, spending caps and the network environment live in Settings → Crypto.')));
   }
   function panelCreateFlow(st, row, cp){
     var acts = document.getElementById('vwHomeSetupActions');
     if (!acts) return;
     acts.hidden = true;
     var form = el('div', 'vw-wh-form'); form.id = 'vwHomeCreateForm';
-    form.appendChild(el('div', 'vw-wh-warn', 'Pilot feature. Keep small test amounts and do not use this as a main wallet. The backup is shown once, right after creation, and must be saved offline. The wallet lives on ' + rowName(row) + ' (' + (row.badge || '') + ') and sends its native coin only.'));
-    form.appendChild(el('div', 'vw-wh-note', 'Choose how you will approve payments. The key is created only after this credential is confirmed, and is sealed with it from the start.'));
+    form.appendChild(el('div', 'vw-wh-warn', WTF('wallet.home.create_warning', 'Pilot feature. Keep small test amounts and do not use this as a main wallet. The backup is shown once, right after creation, and must be saved offline. The wallet lives on {network} ({badge}) and sends its native coin only.', { network: rowName(row), badge: (row.badge || '') })));
+    form.appendChild(el('div', 'vw-wh-note', WT('wallet.home.create_choose', 'Choose how you will approve payments. The key is created only after this credential is confirmed, and is sealed with it from the start.')));
     var creds = credentialPrompt(form, 'vwHomeC', cp);
-    var lLabel = el('label', null, 'Label (optional)'); lLabel.setAttribute('for', 'vwHomeLabel'); form.appendChild(lLabel);
+    var lLabel = el('label', null, WT('wallet.home.label_optional', 'Label (optional)')); lLabel.setAttribute('for', 'vwHomeLabel'); form.appendChild(lLabel);
     var label = el('input'); label.type = 'text'; label.id = 'vwHomeLabel'; label.autocomplete = 'off'; form.appendChild(label);
     var btnRow = el('div', 'vw-wh-actions');
-    var go = el('button', 'vw-btn primary', 'Create wallet'); go.type = 'button'; go.id = 'vwHomeCreateGo';
-    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
+    var go = el('button', 'vw-btn primary', WT('wallet.home.create_go', 'Create wallet')); go.type = 'button'; go.id = 'vwHomeCreateGo';
+    var cancel = el('button', 'vw-btn', WT('dialog.cancel', 'Cancel')); cancel.type = 'button';
     btnRow.appendChild(go); btnRow.appendChild(cancel); form.appendChild(btnRow);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
@@ -3330,27 +3347,27 @@ var walletHome = (function(){
     var creationKey = 'home-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
     go.addEventListener('click', function(){
       var method = creds.method.value;
-      if (method !== 'device' && creds.cred.value !== creds.conf.value) { state.className = 'vw-wh-msg err'; state.textContent = 'The two entries differ. Type the same PIN or password twice.'; return; }
-      go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = 'Creating the wallet…';
+      if (method !== 'device' && creds.cred.value !== creds.conf.value) { state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.entries_differ', 'The two entries differ. Type the same PIN or password twice.'); return; }
+      go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = WT('wallet.home.creating', 'Creating the wallet…');
       var credential = creds.cred.value;
       var body = { network: row.network, method: method, credential: credential, credential_confirmation: creds.conf.value, creation_key: creationKey, label: label.value || '' };
       postJson('/api/wallet/setup/create', body).then(function(res){
         body = null;
-        if (!res.ok) { go.disabled = false; creds.clear(); state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, 'Not created. Nothing changed.'); return null; }
+        if (!res.ok) { go.disabled = false; creds.clear(); state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, WT('wallet.home.not_created', 'Not created. Nothing changed.')); return null; }
         var setup = res.data.setup || {};
-        state.textContent = 'Wallet created (' + short(setup.address) + '). Preparing the one-time backup…';
+        state.textContent = WTF('wallet.home.created', 'Wallet created ({address}). Preparing the one-time backup…', { address: short(setup.address) });
         return postJson('/api/wallet/setup/reveal', { wallet_id: setup.wallet_id, credential: credential }).then(function(rev){
           creds.clear(); credential = null;
           if (!rev.ok) {
             form.remove(); acts.hidden = false;
-            say('The wallet exists but its backup could not be shown now: ' + faultMessage(rev, 'reveal refused') + '. Use the actions in Settings → Crypto.', true);
+            say(WTF('wallet.home.backup_not_shown', 'The wallet exists but its backup could not be shown now: {reason}. Use the actions in Settings → Crypto.', { reason: faultMessage(rev, WT('wallet.home.reveal_refused', 'reveal refused')) }), true);
             renderFromStatus(); return null;
           }
           form.remove();
           showBackup(setup, rev.data.backup || {}, function(){ selWalletId = setup.wallet_id || ''; selNetwork = row.network; view = 'home'; renderFromStatus(); });
           return null;
         });
-      }).catch(function(){ go.disabled = false; creds.clear(); body = null; state.className = 'vw-wh-msg err'; state.textContent = 'The request did not complete. If a wallet was created, it is listed in Settings → Crypto; the same Create retries safely.'; });
+      }).catch(function(){ go.disabled = false; creds.clear(); body = null; state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.create_incomplete', 'The request did not complete. If a wallet was created, it is listed in Settings → Crypto; the same Create retries safely.'); });
     });
     creds.cred.focus();
   }
@@ -3359,10 +3376,10 @@ var walletHome = (function(){
     if (!acts) return;
     acts.hidden = true;
     var form = el('div', 'vw-wh-form'); form.id = 'vwHomeWatchForm';
-    form.appendChild(el('div', 'vw-wh-note', 'Watch-only is the recommended start: VOOL can observe, simulate and PROPOSE payments for this address, but nothing can ever be signed here — there is no key to steal.'));
-    var aLabel = el('label', null, 'Public address'); aLabel.setAttribute('for', 'vwHomeWatchAddr'); form.appendChild(aLabel);
+    form.appendChild(el('div', 'vw-wh-note', WT('wallet.home.watch_intro', 'Watch-only is the recommended start: VOOL can observe, simulate and PROPOSE payments for this address, but nothing can ever be signed here — there is no key to steal.')));
+    var aLabel = el('label', null, WT('wallet.home.public_address', 'Public address')); aLabel.setAttribute('for', 'vwHomeWatchAddr'); form.appendChild(aLabel);
     var addr = el('input'); addr.type = 'text'; addr.id = 'vwHomeWatchAddr'; addr.autocomplete = 'off'; form.appendChild(addr);
-    var nLabel = el('label', null, 'Network'); nLabel.setAttribute('for', 'vwHomeWatchNet'); form.appendChild(nLabel);
+    var nLabel = el('label', null, WT('wallet.home.network', 'Network')); nLabel.setAttribute('for', 'vwHomeWatchNet'); form.appendChild(nLabel);
     var net = el('select'); net.id = 'vwHomeWatchNet';
     var sol = activeRows(st).filter(function(r){ return !isEvmNetwork(r.network); })[0];
     if (sol) { var o = el('option'); o.value = sol.network; o.textContent = rowName(sol); net.appendChild(o); }
@@ -3370,11 +3387,11 @@ var walletHome = (function(){
       var opt = el('option'); opt.value = r.network; opt.textContent = rowName(r); net.appendChild(opt);
     });
     form.appendChild(net);
-    var lLabel = el('label', null, 'Label (optional)'); lLabel.setAttribute('for', 'vwHomeWatchLabel'); form.appendChild(lLabel);
+    var lLabel = el('label', null, WT('wallet.home.label_optional', 'Label (optional)')); lLabel.setAttribute('for', 'vwHomeWatchLabel'); form.appendChild(lLabel);
     var label = el('input'); label.type = 'text'; label.id = 'vwHomeWatchLabel'; label.autocomplete = 'off'; form.appendChild(label);
     var btnRow = el('div', 'vw-wh-actions');
-    var go = el('button', 'vw-btn primary', 'Add'); go.type = 'button'; go.id = 'vwHomeWatchGo';
-    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
+    var go = el('button', 'vw-btn primary', WT('wallet.home.add', 'Add')); go.type = 'button'; go.id = 'vwHomeWatchGo';
+    var cancel = el('button', 'vw-btn', WT('dialog.cancel', 'Cancel')); cancel.type = 'button';
     btnRow.appendChild(go); btnRow.appendChild(cancel); form.appendChild(btnRow);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
@@ -3382,14 +3399,14 @@ var walletHome = (function(){
     cancel.addEventListener('click', abandon);
     go.addEventListener('click', function(){
       var address = String(addr.value || '').trim();
-      if (!address) { state.className = 'vw-wh-msg err'; state.textContent = 'Type the public address.'; return; }
+      if (!address) { state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.type_public_address', 'Type the public address.'); return; }
       go.disabled = true;
       postJson('/api/wallet/watch-only', { public_key: address, network: net.value, label: String(label.value || '') }).then(function(res){
         go.disabled = false;
-        if (!res.ok) { state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, 'Not added.'); return; }
-        say('Watch-only address added. It can observe and propose; approvals will explain that signing is unavailable.');
+        if (!res.ok) { state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, WT('wallet.home.not_added', 'Not added.')); return; }
+        say(WT('wallet.home.watch_added', 'Watch-only address added. It can observe and propose; approvals will explain that signing is unavailable.'));
         view = 'home'; renderFromStatus();
-      }).catch(function(){ go.disabled = false; state.className = 'vw-wh-msg err'; state.textContent = 'Not added.'; });
+      }).catch(function(){ go.disabled = false; state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.not_added', 'Not added.'); });
     });
     addr.focus();
   }
@@ -3399,18 +3416,18 @@ var walletHome = (function(){
     acts.hidden = true;
     var form = el('div', 'vw-wh-form'); form.id = 'vwHomeRestoreForm';
     var sol = activeRows(st).filter(function(r){ return !isEvmNetwork(r.network); })[0];
-    form.appendChild(el('div', 'vw-wh-note', 'Restores a ' + (sol ? rowName(sol) : 'Solana Devnet') + ' wallet from its 12- or 24-word recovery phrase. The phrase goes to the wallet\'s own restore door and nowhere else.'));
-    var pLabel = el('label', null, 'Recovery phrase (12 or 24 words)'); pLabel.setAttribute('for', 'vwHomeRestorePhrase'); form.appendChild(pLabel);
+    form.appendChild(el('div', 'vw-wh-note', WTF('wallet.home.restore_intro', 'Restores a {network} wallet from its 12- or 24-word recovery phrase. The phrase goes to the wallet\'s own restore door and nowhere else.', { network: (sol ? rowName(sol) : 'Solana Devnet') })));
+    var pLabel = el('label', null, WT('wallet.home.phrase_label', 'Recovery phrase (12 or 24 words)')); pLabel.setAttribute('for', 'vwHomeRestorePhrase'); form.appendChild(pLabel);
     var phrase = el('input'); phrase.type = 'password'; phrase.id = 'vwHomeRestorePhrase'; phrase.autocomplete = 'off'; form.appendChild(phrase);
-    var mLabel = el('label', null, 'How you approve payments'); mLabel.setAttribute('for', 'vwHomeRestoreMethod'); form.appendChild(mLabel);
+    var mLabel = el('label', null, WT('wallet.home.approve_method', 'How you approve payments')); mLabel.setAttribute('for', 'vwHomeRestoreMethod'); form.appendChild(mLabel);
     var method = el('select'); method.id = 'vwHomeRestoreMethod';
-    [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
+    [['pin', WT('wallet.home.method_pin', 'PIN (4–8 digits)')], ['password', WT('wallet.home.method_password', 'Wallet password (10+ characters)')]].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
     form.appendChild(method);
-    var cLabel = el('label', null, 'New PIN or password'); cLabel.setAttribute('for', 'vwHomeRestorePin'); form.appendChild(cLabel);
+    var cLabel = el('label', null, WT('wallet.home.new_credential', 'New PIN or password')); cLabel.setAttribute('for', 'vwHomeRestorePin'); form.appendChild(cLabel);
     var pin = el('input'); pin.type = 'password'; pin.id = 'vwHomeRestorePin'; pin.autocomplete = 'new-password'; form.appendChild(pin);
     var btnRow = el('div', 'vw-wh-actions');
-    var go = el('button', 'vw-btn primary', 'Restore'); go.type = 'button'; go.id = 'vwHomeRestoreGo';
-    var cancel = el('button', 'vw-btn', 'Cancel'); cancel.type = 'button';
+    var go = el('button', 'vw-btn primary', WT('wallet.home.restore', 'Restore')); go.type = 'button'; go.id = 'vwHomeRestoreGo';
+    var cancel = el('button', 'vw-btn', WT('dialog.cancel', 'Cancel')); cancel.type = 'button';
     btnRow.appendChild(go); btnRow.appendChild(cancel); form.appendChild(btnRow);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
@@ -3420,10 +3437,10 @@ var walletHome = (function(){
       go.disabled = true;
       postJson('/api/wallet/pocket/restore', { recovery_phrase: phrase.value, approval_method: method.value, pin: method.value === 'pin' ? pin.value : '', password: method.value === 'password' ? pin.value : '' }).then(function(res){
         go.disabled = false; phrase.value = ''; pin.value = '';
-        if (!res.ok) { state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, 'Not restored.'); return; }
-        say('Wallet restored: ' + short(res.data.wallet && res.data.wallet.public_key) + '.');
+        if (!res.ok) { state.className = 'vw-wh-msg err'; state.textContent = faultMessage(res, WT('wallet.home.not_restored', 'Not restored.')); return; }
+        say(WTF('wallet.home.restored', 'Wallet restored: {address}.', { address: short(res.data.wallet && res.data.wallet.public_key) }));
         view = 'home'; renderFromStatus();
-      }).catch(function(){ go.disabled = false; phrase.value = ''; pin.value = ''; state.className = 'vw-wh-msg err'; state.textContent = 'Not restored.'; });
+      }).catch(function(){ go.disabled = false; phrase.value = ''; pin.value = ''; state.className = 'vw-wh-msg err'; state.textContent = WT('wallet.home.not_restored', 'Not restored.'); });
     });
     phrase.focus();
   }
@@ -3434,16 +3451,16 @@ var walletHome = (function(){
     var st = lastStatus;
     if (!st) return;
     var row = (st.pending || []).filter(function(x){ return x && x.proposal_id === pid; })[0] || null;
-    if (!row) { say('This request is no longer waiting for a decision. Its latest state is in Activity.'); return; }
+    if (!row) { say(WT('wallet.home.no_longer_waiting', 'This request is no longer waiting for a decision. Its latest state is in Activity.')); return; }
     var entry = pilotCards[pid];
     if (!entry || !document.body.contains(entry.result)) {
       var a = actions(); var host = a && a.chatLog ? a.chatLog() : null;
-      if (!host) { say('The chat log is not available here.'); return; }
+      if (!host) { say(WT('wallet.home.no_chat_log', 'The chat log is not available here.')); return; }
       if (!host.querySelector('[data-proposal="' + cssEscape(pid) + '"]')) host.appendChild(pilotCardFor(row));
       entry = pilotCards[pid];
     }
     if (row.pilot_transfer !== false && entry) openSheet(row, entry.controls, entry.result, entry.opener || null);
-    else say('This request carries its approval controls on its card in the chat below.');
+    else say(WT('wallet.home.card_below', 'This request carries its approval controls on its card in the chat below.'));
   }
 
   // every status snapshot the page already polls drives: the Home entry, the landed-payment notices,
@@ -3458,7 +3475,7 @@ var walletHome = (function(){
     if (activity && view === 'home') paintActivity(st, activity);
     var envBadge = document.getElementById('vwHomeEnv');
     var cp = st.crypto_pilot || {};
-    if (envBadge) envBadge.textContent = (cp.environment_label || '') + (cp.frozen ? ' · payments frozen' : '');
+    if (envBadge) envBadge.textContent = (cp.environment_label || '') + (cp.frozen ? ' · ' + WT('wallet.home.frozen', 'payments frozen') : '');
   }
   return { open: openPanel, close: closePanel, isOpen: function(){ return isOpen; }, onStatus: onStatus, refresh: renderFromStatus };
 })();
