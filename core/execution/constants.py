@@ -1498,6 +1498,10 @@ _PRESENT_ORGANIZER_WORDS = frozenset({
     "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
     "calendar", "calendars", "schedule", "agenda", "booking", "bookings", "contact", "birthday", "birthdays",
 })
+# "find my notes about pollen" and "show me my notes" ask VOOL's own notes: the notes noun alone,
+# with no word of a file's name beside it, is the notes store, which the notes lane reads. Named
+# beside other words ("pull up my meeting notes") it is a document on the disk and stays here.
+_PRESENT_NOTES_WORDS = frozenset({"note", "notes"})
 # ...unless the ask also names a document: "pull up my meeting notes", "the booking confirmation pdf".
 _PRESENT_DOCUMENT_WORDS = frozenset({
     "notes", "minutes", "slides", "deck", "invoice", "receipt", "ticket", "tickets", "confirmation", "invite",
@@ -1564,6 +1568,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         return None  # "show me what you found" names nothing to search for
     if all(word in _PRESENT_FAULT_WORDS for word in kept):
         return None  # "find the root cause" asks for a diagnosis, not a file
+    if all(word in _PRESENT_NOTES_WORDS for word in kept):
+        return None  # "find my notes about pollen" searches the notes store, not a file named notes
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None

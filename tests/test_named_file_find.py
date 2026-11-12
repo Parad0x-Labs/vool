@@ -402,6 +402,8 @@ def test_a_document_about_an_event_is_still_a_file(text):
     # "what's in plan.py" asks for a file's contents: the question word is not its name, written
     # with or without the apostrophe (the train port, 2026-11-12: it searched the disk for "what").
     "show me what's in plan.py in the garden planner project", "show me whats in plan.py",
+    # The notes noun alone is VOOL's notes store, which the notes lane searches and lists.
+    "find my notes about pollen", "show me my notes", "pull up my note about the plumber",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent
