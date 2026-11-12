@@ -377,10 +377,12 @@ def _latest_assistant_commitments(recent_turns: list[dict[str, object]]) -> list
 
 
 def _is_followup_continuation(text: str, *, reference_targets: list[str]) -> bool:
+    from core.context_history_authority import asks_about_this_conversation
+
     lower = str(text or "").strip().lower()
     if reference_targets:
         return True
-    if _FOLLOWUP_RE.search(lower):
+    if _FOLLOWUP_RE.search(lower) or asks_about_this_conversation(lower):
         return True
     if _SCOPED_TOOL_OR_HISTORY_FOLLOWUP_RE.search(lower):
         return True

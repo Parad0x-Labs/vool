@@ -209,6 +209,43 @@ class ContextHistorySelection:
         return self.transcript_allowed and self.max_messages > ADJACENCY_FLOOR_MESSAGES
 
 
+#: What "we" worked out in a conversation -- settled, decided, agreed, chose, planned -- is in that
+#: conversation's earlier turns, VOOL's own replies included ("We settled it: the tide table first").
+JOINT_DECISION_RE = re.compile(
+    r"\b(?:we|us)\b[^?.!]{0,40}?\b(?:settl\w*|decid\w*|agree\w*|conclu\w*|chose|choos\w*|pick\w*|"
+    r"went\s+with|go(?:ing)?\s+with|land(?:ed)?\s+on|plann?\w*|figur\w*\s+out|work\w*\s+out|sort\w*\s+out)\b",
+    re.IGNORECASE,
+)
+#: "where did we leave off?", "where were we?", "what were we working on?": the conversation's own course.
+RESUME_RE = re.compile(
+    r"\b(?:where\s+(?:did|had|have)\s+we\s+(?:leave|left|stop(?:ped)?|get|got)\b|where\s+were\s+we\b|"
+    r"what\s+were\s+we\s+(?:doing|working\s+on|talking\s+about|discussing|up\s+to)\b|"
+    r"what\s+(?:did|have)\s+we\s+(?:talk(?:ed)?|chat(?:ted)?)\s+about\b)",
+    re.IGNORECASE,
+)
+_CONVERSATION_QUESTION_HEAD_RE = re.compile(
+    r"^\s*(?:(?:and|so|ok|okay|also|then|remind\s+me|tell\s+me|can\s+you\s+remind\s+me)\s*,?\s+)*"
+    r"(?:what|which|how|where|when|did|have|had)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_about_this_conversation(text: str) -> bool:
+    """A question about what "we" worked out in this conversation, or where it left off.
+
+    Such a question continues the conversation it is asked in: its answer is in the earlier turns,
+    so the model reads them, not just the last exchange. Measured on the real chat (chat import
+    run 4, 2026-11-12): "What did we settle last time?", asked one exchange after a continued
+    chat's decision, reached the model with only that last exchange, and the decision was not in it.
+    A quoted example is content, as in ``is_same_chat_history_recall``.
+    """
+
+    raw = " ".join(str(text or "").split())
+    if not raw or raw.startswith(('"', "'", "`", "\u201c", "\u2018")):
+        return False
+    return bool(RESUME_RE.search(raw) or (JOINT_DECISION_RE.search(raw) and _CONVERSATION_QUESTION_HEAD_RE.match(raw)))
+
+
 def is_same_chat_history_recall(text: str) -> bool:
     """Recognize a direct request to inspect earlier turns in the current chat.
 
@@ -677,7 +714,10 @@ __all__ = [
     "CONTINUATION_CARRY_HISTORY_MAX_CHARS",
     "EXPANDED_HISTORY_MESSAGES",
     "HISTORY_MAX_CHARS",
+    "JOINT_DECISION_RE",
+    "RESUME_RE",
     "ContextHistorySelection",
+    "asks_about_this_conversation",
     "closed_exchange_marker",
     "enforce_history_budget",
     "history_authority_for_source",

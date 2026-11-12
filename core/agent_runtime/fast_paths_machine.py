@@ -2442,6 +2442,17 @@ _BARE_FILE_NAME_RE = re.compile(
 )
 
 
+def _the_bound_project_holds(name: str, source_context: dict | None) -> bool:
+    """Whether the folder this chat is bound to holds a file of this name (anywhere inside it)."""
+    from core.runtime_execution_tools import _nearby_workspace_matches
+
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if not root or not name:
+        return False
+    workspace_root = Path(root).expanduser()
+    return (workspace_root / name).exists() or bool(_nearby_workspace_matches(name, workspace_root=workspace_root, limit=1))
+
+
 def read_home_file_the_project_lacks(
     agent: Any, user_input: str, *, session_id: str, source_context: dict | None
 ) -> dict[str, Any] | None:
@@ -2450,11 +2461,8 @@ def read_home_file_the_project_lacks(
     The workspace lane answered "There is no file at notes.txt ... ask me to search your Desktop,
     Downloads and Documents" -- so do that search, and read the file when exactly one matches.
     """
-    from pathlib import Path
-
     from core.authorized_tool_execution import execute_authorized_runtime_tool
     from core.execution.constants import _TYPED_FILE_CONTENT_CUE_RE
-    from core.runtime_execution_tools import _nearby_workspace_matches
 
     text = " ".join(str(user_input or "").split())
     named = _BARE_FILE_NAME_RE.search(text)
@@ -2464,11 +2472,8 @@ def read_home_file_the_project_lacks(
                  text, re.IGNORECASE):
         return None
     name = named.group("name")
-    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
-    if root:
-        workspace_root = Path(root).expanduser()
-        if (workspace_root / name).exists() or _nearby_workspace_matches(name, workspace_root=workspace_root, limit=1):
-            return None  # the project's own file is the workspace lane's
+    if _the_bound_project_holds(name, source_context):
+        return None  # the project's own file is the workspace lane's
     found = execute_authorized_runtime_tool("machine.find_file", {"name": name}, source_context=dict(source_context or {}))
     if found is None or not getattr(found, "ok", False):
         return None
@@ -3431,6 +3436,14 @@ def maybe_handle_direct_machine_read_request(
     from core.execution.constants import machine_present_file_intent
 
     present_ask = machine_present_file_intent(user_input)
+    named_file = _BARE_FILE_NAME_RE.search(" ".join(str(user_input or "").split()))
+    if (present_ask is not None and not present_ask.place and named_file is not None
+            and _the_bound_project_holds(named_file.group("name"), source_context)):
+        # "Open notes.txt." in a chat bound to a project that has a notes.txt asks for that file, and
+        # the workspace lane reads it. Searched by its words across the home folders it was answered
+        # with every notes.txt on the computer, other projects' included (chat import run 3,
+        # 2026-11-12). A named place ("open notes.txt in my documents") still means that place.
+        present_ask = None
     if present_ask is not None:
         presented = present_named_file(present_ask, session_id=session_id, source_context=source_context)
         if presented is not None:

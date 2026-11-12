@@ -30,6 +30,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.context_history_authority import JOINT_DECISION_RE, RESUME_RE
+
 LANE_ID = "cross_chat_recall"
 _LOG = logging.getLogger("vool.cross_chat_recall")
 _QUESTION_WORDS = frozenset({"my", "me", "i", "what", "which", "who", "whom", "whose", "when", "where", "how", "do", "did", "does", "remember", "know", "tell"})
@@ -301,23 +303,37 @@ def _chat_has_owner_statements(source_context: dict[str, Any] | None) -> bool:
             return True
     return False
 
-def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any] | None) -> bool:
+
+def _chat_holds_an_exchange(source_context: dict[str, Any] | None) -> bool:
+    """This chat already holds a reply: it is a conversation in progress (a continued or imported one)."""
+    for item in list((source_context or {}).get("conversation_history") or [])[:-1]:
+        if isinstance(item, dict) and str(item.get("role") or "") == "assistant" and str(item.get("content") or "").strip():
+            return True
+    return False
+
+
+
+
+def _current_chat_holds_it(terms: tuple[str, ...], source_context: dict[str, Any] | None, *, joint: bool = False) -> bool:
     from core.chat_housekeeping import query_terms
 
     for item in list((source_context or {}).get("conversation_history") or []):
         if not isinstance(item, dict):
             continue
-        # Only what the OWNER stated in this chat holds a fact: the question itself (the history
-        # carries the current turn), earlier questions, and VOOL's own replies -- which may be the
-        # very "I don't have that" being repaired -- never do.
-        if str(item.get("role") or "") != "user":
+        # What the OWNER stated in this chat holds a fact: the question itself (the history carries
+        # the current turn) and earlier questions never do. VOOL's own replies -- which may be the
+        # very "I don't have that" being repaired -- count only for what "we" worked out together.
+        role = str(item.get("role") or "")
+        if role != "user" and not (joint and role == "assistant"):
             continue
         content = str(item.get("content") or "")
+        if role == "user" and not _is_statement(content):
+            continue
         # ANY shared word defers to the conversation: an answer that has to be worked out from what
         # was said here ("I fly out on 14 October and stay 6 nights" -> "What date do I fly back?")
         # shares only "fly" with its question, and the model reading this chat answers it; the
         # recall lane would say "not saved" (acceptance runner CTX-DATE-01, 2026-11-11).
-        if content and _is_statement(content) and set(terms) & set(query_terms(content)):
+        if content and set(terms) & set(query_terms(content)):
             return True
     return False
 
@@ -582,6 +598,10 @@ def cross_chat_recall(
         and _chat_has_owner_statements(source_context)
     ):
         return None
+    # "where did we leave off?": the conversation's own course, with no fact in it to look for. In a
+    # chat that holds an exchange (a continued or imported one) that exchange is the answer.
+    if RESUME_RE.search(text) and not _OTHER_CHAT_RE.search(text) and _chat_holds_an_exchange(source_context):
+        return None
     try:
         from core.agent_runtime.turn_planner import recall_question_needs_no_planner
 
@@ -610,6 +630,18 @@ def cross_chat_recall(
         return None
     if _current_chat_holds_it(terms, source_context):
         return None
+    # What "we" settled, decided or chose was worked out IN the conversation, often in VOOL's own reply
+    # ("We settled it: the tide table first"), which the owner-statement check above never reads. In a
+    # chat that holds an exchange the decision alone ("what did we settle last time?") is that
+    # exchange's to answer, and one about a subject ("what did we decide about the name?") is when the
+    # chat mentions the subject; a continued chat was answered "I don't have that saved" about its own
+    # last exchange (chat import run 3, 2026-11-12).
+    joint = JOINT_DECISION_RE.search(text)
+    if joint is not None and not _OTHER_CHAT_RE.search(text) and _chat_holds_an_exchange(source_context):
+        # The words from "we" to the deciding verb ("we finally settle") ask nothing beyond the decision.
+        subject = tuple(term for term in terms if term not in set(query_terms(joint.group(0))))
+        if not subject or _current_chat_holds_it(subject, source_context, joint=True):
+            return None
     rows = _memory_rows(text, terms, session_id, source_context)
     if rows is None:
         return None  # unknown is not "absent": the ordinary path answers
