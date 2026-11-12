@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-145 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+146 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -211,14 +211,15 @@ The full contract of a tool, with every field, is in Python:
 | `machine.event_log_errors` | **Windows only.** List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
 | `machine.find_file` | Search the safe local folders (Desktop, Downloads, Documents) for FILES whose name matches a query. | `name` | reads | none | runs | runs |
 | `machine.find_folder` | Search local drives for folders whose name matches a query. | `name` | reads | none | runs | runs |
-| `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?` | reads | none | runs | runs |
+| `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |
 | `machine.host_state` | Report this machine's live state: uptime, battery level and power source, and whether it is a laptop or a desktop. | none | reads | `read_files` | runs | runs |
 | `machine.inspect_specs` | Inspect grounded machine hardware and runtime specs for this local host. | none | reads | none | runs | runs |
-| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?` | reads | none | runs | runs |
+| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?`, `kind?`, `newest_first?` | reads | none | runs | runs |
 | `machine.list_processes` | List the heaviest running processes on this machine, ranked by memory or by CPU. | `limit?`, `sort?` | reads | none | runs | runs |
 | `machine.move_path` | Move or rename a file or folder on this machine. *Refuses protected system locations and asks for a live confirmation from the operating system before moving.* | `source`, `destination` | writes files | none | asks | asks |
 | `machine.read_file` | Read a text file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `start_line?`, `max_lines?`, `verbatim?` | reads | none | runs | runs |
-| `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content` | writes files | none | asks | runs |
+| `machine.send_to_phone` | Send one file from this computer (Desktop, Downloads, Documents and the other safe folders) to the owner's paired VOOL phone app, where it shows under "From your compu... | `path` | saves VOOL data | `read_files` | runs | runs |
+| `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content`, `create_only?` | writes files | none | asks | runs |
 
 ### market
 
@@ -280,7 +281,7 @@ The full contract of a tool, with every field, is in Python:
 
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
-| `pdf.extract_text` | **macOS only.** Read the text a PDF already carries, page by page. | `path`, `max_pages?` | reads | `read_files` | runs | runs |
+| `pdf.extract_text` | **macOS only.** Read the text a PDF already carries, page by page. | `path`, `start_page?`, `max_pages?` | reads | `read_files` | runs | runs |
 | `pdf.ocr` | **macOS only.** Recognise the text on a SCANNED PDF page, on-device. | `path`, `max_pages?`, `scale?` | reads | `read_files` | runs | runs |
 
 ### profile
@@ -406,7 +407,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | --- | --- | --- | --- |
 | `demo.plan` | Read a GitHub repo README or a docs/website page and return either a timed subtitled shot list plus image prompts (format=slideshow, default) or a continuous product-p... | `url`, `presenter?`, `seconds?`, `format?`, `set?`, `edits?` | reads |
 
-**Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).**
+**Email drafts need sending, which is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
@@ -414,31 +415,31 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | `email.draft.get` | Show the session's current draft (latest, or by id): content, version, and whether an approval is bound to exactly this content. | `draft_id?` | reads |
 | `email.draft.save` | Create or edit a reviewable email draft (recipient/account/subject/body + threading). | `to`, `subject`, `body`, `account?`, `in_reply_to?`, `references?`, `draft_id?`, `kind?` | reads |
 
-**Email open is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email open is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.open` | Open one message by its Message-ID with FULL content (whole body, decoded headers, threading headers), or its whole thread (thread=true): the transitive In-Reply-To/Re... | `message_id`, `thread?`, `account?`, `folder?` | reads |
 
-**Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email reading is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.read` | Read or search messages in a configured inbox: recent by default, or filtered by sender/subject substrings, a date window (since/before, YYYY-MM-DD) and unread state. | `account?`, `folder?`, `limit?`, `sender?`, `subject?`, `since?`, `before?`, `unseen_only?` | reads |
 
-**Email reconciliation is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email reconciliation is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.draft.reconcile` | Resolve a delivery_unknown draft: check the account's own Sent folder for OUR generated Message-ID. | `draft_id` | reads |
 
-**Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+**Email reply is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.reply` | Reply to an email (threaded, 'Re:' subject, your signature appended). | `to`, `subject`, `body`, `in_reply_to?`, `references?`, `account?`, `allow_send`, `approve` | sends out |
 
-**Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+**Email sending is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
@@ -501,7 +502,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | --- | --- | --- | --- |
 | `wallet.spend` | Spend from the agent wallet under the user's SpendPolicy caps, with per-spend confirmation. | `to`, `amount_lamports`, `asset?`, `allow_spend`, `approve` | spends money |
 
-**Web fetch is disabled by runtime web policy.**
+**Web lookups are off. You can turn them on in Settings, Privacy & Permissions.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
