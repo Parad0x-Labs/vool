@@ -2623,6 +2623,12 @@ def _evidence_statement_clocks(evidence_texts) -> dict:
     return clocks
 
 
+#: A record head written by the evidence compiler: "- [2024-03-15] user said:" (core.evidence_compiler._render_line).
+_COMPILER_RECORD_HEAD_RE = re.compile(
+    r'(?m)^(?P<lead>\s*-\s*)\[(?P<day>\d{4}-\d{2}-\d{2})\]\s+(?P<role>user|assistant)\s+said:\s*"(?P<body>[^"\n]*)"'
+)
+
+
 def _past_support_spans(evidence_texts, *, question: str = ""):
     """Separate actor-bearing source clauses before reading their values.
 
@@ -2632,7 +2638,16 @@ def _past_support_spans(evidence_texts, *, question: str = ""):
     """
     result = []
     for text in list(evidence_texts or []):
-        chunks = re.split(r"(?m)(?=^\s*-\s+(?:user|assistant)\s+(?:said|source)\b)", str(text or ""))
+        # The evidence compiler heads each record "- [YYYY-MM-DD] user said: ..." (core.evidence_compiler
+        # _render_line). Read that day as the record's own statement label, the same as "(stated: ...)";
+        # unread, the bracketed day became a clause of its own, the record's speaker envelope was never
+        # stripped, and a recalled "starts April 1" could not support "It started April 1, 2024".
+        # The compiler quotes the speaker's own words once ('said: "..."'); that quote is the record's
+        # statement itself, not a third party quoted inside it, so it is read as the record's body.
+        text = _COMPILER_RECORD_HEAD_RE.sub(
+            lambda m: f"{m.group('lead')}{m.group('role')} said (stated: {m.group('day')}): {m.group('body')}",
+            str(text or ""))
+        chunks = re.split(r"(?m)(?=^\s*-\s+(?:user|assistant)\s+(?:said|source)\b)", text)
         for chunk in chunks:
             if not chunk.strip() or chunk.strip().startswith(("<retrieved_context>", "Distilled local facts.")):
                 continue

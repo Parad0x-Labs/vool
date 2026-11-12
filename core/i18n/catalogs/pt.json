@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Estufa de vidro",
     "toybox.skin_glasshouse_description": "Uma estufa de ferro e vidro onde uma trepadeira cresce a cada resposta concluída.",
     "toybox.skin_dawn-circuit_name": "Circuito da aurora",
-    "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos."
+    "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos.",
+    "settings.switch.on": "Ativado",
+    "settings.switch.off": "Desativado"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

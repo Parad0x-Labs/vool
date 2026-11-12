@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Stiklo sodas",
     "toybox.skin_glasshouse_description": "Geležies ir stiklo šiltnamis, kuriame su kiekvienu baigtu atsakymu auga vijoklis.",
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
-    "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais."
+    "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais.",
+    "settings.switch.on": "Įjungta",
+    "settings.switch.off": "Išjungta"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

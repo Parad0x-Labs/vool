@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Invernadero",
     "toybox.skin_glasshouse_description": "Un invernadero de hierro y cristal donde crece una enredadera con cada respuesta terminada.",
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
-    "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos."
+    "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos.",
+    "settings.switch.on": "Activado",
+    "settings.switch.off": "Desactivado"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3232,7 +3232,9 @@
     "toybox.skin_glasshouse_name": "Glasshouse",
     "toybox.skin_glasshouse_description": "An iron and glass greenhouse where a vine grows with each finished answer.",
     "toybox.skin_dawn-circuit_name": "Dawn Circuit",
-    "toybox.skin_dawn-circuit_description": "A pixel dream of moon gates, ribbon clouds and expressive little companions."
+    "toybox.skin_dawn-circuit_description": "A pixel dream of moon gates, ribbon clouds and expressive little companions.",
+    "settings.switch.on": "On",
+    "settings.switch.off": "Off"
   },
   "html_keys": [
     "bypass.modal_limits",

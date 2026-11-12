@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Оранжерея",
     "toybox.skin_glasshouse_description": "Оранжерея із заліза та скла, де лоза росте з кожною завершеною відповіддю.",
     "toybox.skin_dawn-circuit_name": "Контур світанку",
-    "toybox.skin_dawn-circuit_description": "Піксельний сон про місячні брами, хмарні стрічки та виразних маленьких супутників."
+    "toybox.skin_dawn-circuit_description": "Піксельний сон про місячні брами, хмарні стрічки та виразних маленьких супутників.",
+    "settings.switch.on": "Увімкнено",
+    "settings.switch.off": "Вимкнено"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

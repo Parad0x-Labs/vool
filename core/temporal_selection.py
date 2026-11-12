@@ -618,7 +618,7 @@ _ORDINAL_EARLIEST_RE = re.compile(
     re.IGNORECASE,
 )
 _ORDINAL_LATEST_RE = re.compile(
-    r"\b(?:when|what|which)\b[^.?]{0,40}\b(?:last|latest|most\s+recent)\b"
+    r"\b(?:when|what|which)\b[^.?]{0,120}\b(?:last|latest|most\s+recent)\b"
     r"|\b(?:last|latest|most\s+recent)\s+(?:time|occasion|record|entry)\b",
     re.IGNORECASE,
 )
@@ -1685,6 +1685,10 @@ _ANAPHORIC_FROM_DATE_RE = re.compile(
     rf"(?is)^\s*(?:from|since)\s+(?:the\s+)?"
     rf"(?:{_MONTH_RE}|\d|this|that|last|next)",
 )
+_ANAPHORIC_SCALAR_UPDATE_RE = re.compile(
+    r"(?is)^\s*(?:considering\s+)?(?:it(?:['’]s)?|that(?:['’]s)?)\s+"
+    r"(?:already\s+)?(?:at|up\s+to|down\s+to)\s+\d",
+)
 
 
 def _speaker_key(candidate: TemporalCandidate) -> str:
@@ -1791,7 +1795,8 @@ def _build_slots_with_ties(
         # and the as-of ask starved).
         joins_like_marker = (
             carries_undo_marker(candidates[i].body)
-            or _ANAPHORIC_FROM_DATE_RE.search(candidates[i].body))
+            or _ANAPHORIC_FROM_DATE_RE.search(candidates[i].body)
+            or _ANAPHORIC_SCALAR_UPDATE_RE.search(candidates[i].body))
         if not joins_like_marker:
             continue
         # Join EVERY earlier chain the marker statement anchors to (a shared
@@ -1827,6 +1832,26 @@ def _build_slots_with_ties(
                         for a in sigs[i] for b in sigs[j]
                     )) and union(i, j):
                 ties.add(frozenset((i, j)))
+        # A same-turn scalar continuation such as "considering it's already
+        # at 55%" has no repeated subject words. With explicit source order,
+        # bind it only to the immediately preceding same-speaker, same-day
+        # value record. Without sequence metadata we keep the ambiguity; input
+        # or retrieval rank must never stand in for chronology.
+        if _ANAPHORIC_SCALAR_UPDATE_RE.search(candidates[i].body):
+            antecedents = [j for j in order if _spoken_before(candidates[j], candidates[i])]
+            if antecedents:
+                nearest = antecedents[-1]
+                prior, update = candidates[nearest], candidates[i]
+                same_day = (
+                    prior.statement_at is not None
+                    and update.statement_at is not None
+                    and datetime.fromtimestamp(prior.statement_at, tz=_UTC).date()
+                    == datetime.fromtimestamp(update.statement_at, tz=_UTC).date()
+                )
+                if (same_day and _speaker_key(prior) == _speaker_key(update)
+                        and value_tokens(prior.body) and value_tokens(update.body)
+                        and union(i, nearest)):
+                    ties.add(frozenset((i, nearest)))
         # A PRONOUN-subject from-dated continuation has no lexical subject
         # to share ("Since 14 August 2019 it has carried an LED cluster."):
         # its antecedent is the statement spoken immediately before it —

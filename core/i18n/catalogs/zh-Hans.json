@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "玻璃花房",
     "toybox.skin_glasshouse_description": "铁与玻璃构成的温室，每次回复完成后藤蔓都会生长。",
     "toybox.skin_dawn-circuit_name": "拂晓回路",
-    "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。"
+    "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。",
+    "settings.switch.on": "开启",
+    "settings.switch.off": "关闭"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

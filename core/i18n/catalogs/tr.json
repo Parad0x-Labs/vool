@@ -3232,9 +3232,11 @@
     "toybox.skin_glasshouse_name": "Cam Sera",
     "toybox.skin_glasshouse_description": "Her tamamlanan yanıtla sarmaşığın büyüdüğü demir ve camdan bir sera.",
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
-    "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası."
+    "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası.",
+    "settings.switch.on": "Açık",
+    "settings.switch.off": "Kapalı"
   },
-  "source_catalog_sha256": "343d74365edca642a684a9b1107259b17962325b05f6b1ad0a0a88443d5774d6",
+  "source_catalog_sha256": "c6d06a42307e8177884a90c461cc73a097e8a17aeb89091348c9dfd0a22c17c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
