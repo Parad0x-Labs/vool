@@ -23,20 +23,21 @@ from core.media_studio_service import (
 
 
 def _err(exc: MediaStudioServiceError, intent: str):
+    from core.media_capabilities import media_unavailable_text
     from core.runtime_execution_tools import RuntimeExecutionResult, _tool_observation
 
-    unavailable = exc.code == "worker_unavailable"
+    # A missing worker, or ffmpeg/ffprobe missing from PATH (the worker's own "not found on PATH"),
+    # is said in plain words; the worker's developer text ("set NEBULA_MEDIA_HOME") stays in details.
+    tools_missing = "not found on PATH" in str(exc.message or "")
+    unavailable = exc.code == "worker_unavailable" or tools_missing
     return RuntimeExecutionResult(
         handled=True,
         ok=False,
         status="worker_unavailable" if unavailable else "failed",
-        response_text=(
-            "Media editing is currently unavailable: the nebula-media worker could "
-            f"not be reached ({exc.message})."
-            if unavailable else f"`{intent}` failed: {exc.message}"
-        ),
+        response_text=(media_unavailable_text() if unavailable else f"`{intent}` failed: {exc.message}"),
         details={
             "error_code": exc.code,
+            "detail": str(exc.message or ""),
             "observation": _tool_observation(
                 intent=intent, tool_surface="media", ok=False,
                 status="worker_unavailable" if unavailable else "failed",

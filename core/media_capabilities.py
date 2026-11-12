@@ -112,6 +112,26 @@ def media_tools_present() -> tuple[bool, str]:
     return True, f"worker at {where}; {', '.join(_MEDIA_BINARIES)} on PATH"
 
 
+#: What a person reads when video or audio editing cannot run on this computer: the media
+#: tools are missing (a packaged app ships without the nebula-media worker, or ffmpeg/ffprobe is
+#: not on PATH). The internal reasons ("unknown capability id", "worker exited ... set
+#: NEBULA_MEDIA_HOME") stay in the records and details for developers; they never reach a person.
+MEDIA_TOOLS_MISSING_TEXT = "Video editing needs VOOL's media tools (ffmpeg), which aren't on this computer yet."
+#: The tools are on this computer but the worker did not run.
+MEDIA_TOOLS_FAILED_TEXT = (
+    "Video editing couldn't start: VOOL's media tools didn't run on this computer. Nothing was changed."
+)
+
+
+def media_unavailable_text() -> str:
+    """The plain sentence for "video editing cannot run here", chosen by what is on this disk."""
+    try:
+        present, _reason = media_tools_present()
+    except Exception:
+        present = False
+    return MEDIA_TOOLS_FAILED_TEXT if present else MEDIA_TOOLS_MISSING_TEXT
+
+
 def register_media_capabilities_if_present() -> dict[str, Any]:
     """Boot hook: register the media family only on a machine that has the media tools.
 
@@ -166,8 +186,11 @@ def media_capability_snapshot() -> dict[str, Any]:
 
 
 __all__ = [
+    "MEDIA_TOOLS_FAILED_TEXT",
+    "MEDIA_TOOLS_MISSING_TEXT",
     "media_capability_snapshot",
     "media_tools_present",
+    "media_unavailable_text",
     "register_media_capabilities",
     "register_media_capabilities_if_present",
 ]

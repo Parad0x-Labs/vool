@@ -8334,8 +8334,11 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
     disabled = set(disabled_skill_ids())
     # The row's own availability: a built-in whose prerequisites or capabilities this machine
     # cannot honour (media-studio on a fresh profile) is "not available here", never "on".
-    native_runs: dict[str, bool] = {
-        str(row.get("id") or ""): bool(row.get("available")) for row in skill_inventory()
+    inventory = skill_inventory()
+    native_runs: dict[str, bool] = {str(row.get("id") or ""): bool(row.get("available")) for row in inventory}
+    # Why a built-in cannot run here, in plain words ("Video editing needs VOOL's media tools ...").
+    native_why: dict[str, str] = {
+        str(row.get("id") or ""): str(row.get("plain_reason") or "") for row in inventory
     }
     # Browse rows run only while their add-on serves skills here: the same managed/available
     # and lifecycle checks the picker applies, plus the add-on's own off switch.
@@ -8430,6 +8433,10 @@ def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None
             label += f", for {SCOPE_LABELS.get(scope, scope)}"
         text = f"- {label} — {state}"
         use = _plain_use(row)
+        # A built-in that cannot run here says why instead of what it does: one short phrase per row.
+        why = native_why.get(str(row.get("name") or "").strip(), "") if state == "not available here" else ""
+        if why:
+            return f"{text} — {why}"
         return f"{text} — {use}" if use else text
 
     seen: set[str] = set()
@@ -9004,7 +9011,10 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
             response=str(result.get("reason") or "that skill could not be inspected"),
         )
     contract = result.get("contract") or {}
-    availability = "available" if result.get("available") else f"not available ({result.get('reason')})"
+    # The plain reason, never the typed one ("unknown capability id"): this reply reaches people.
+    availability = "available" if result.get("available") else (
+        f"not available: {str(result.get('plain_reason') or result.get('reason') or '').rstrip('.')}"
+    )
     body = (
         f"`{result.get('id')}` v{result.get('version')} — "
         f"risk class {contract.get('risk_class')}, "
