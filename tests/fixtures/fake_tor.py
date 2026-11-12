@@ -6,7 +6,8 @@ ControlPortWriteToFile, cookie authentication, TAKEOWNERSHIP, GETINFO net/listen
 status/bootstrap-phase, ADD_ONION / DEL_ONION, SIGNAL SHUTDOWN, and exiting when the owning
 process dies. Its SOCKS port only answers the greeting.
 
-FAKE_TOR_BOOTSTRAP: seconds until it reports PROGRESS=100, or "never".
+FAKE_TOR_BOOTSTRAP: seconds until it reports PROGRESS=100, or "never", or "stall-once" (the first
+launch in a data directory stops at 56%, the next one connects at once, as seen on a real Mac).
 """
 
 from __future__ import annotations
@@ -45,9 +46,17 @@ onions: set[str] = set()
 stop = threading.Event()
 
 
+_stalled_before = os.path.join(options["DataDirectory"], "fake-stalled-once")
+_stall_now = bootstrap == "stall-once" and not os.path.exists(_stalled_before)
+if bootstrap == "stall-once":
+    open(_stalled_before, "a").close()
+
+
 def progress() -> int:
     if bootstrap == "never":
         return 14
+    if bootstrap == "stall-once":
+        return 56 if _stall_now else 100
     return 100 if time.monotonic() - started >= float(bootstrap) else 50
 
 

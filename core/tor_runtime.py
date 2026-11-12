@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -34,6 +35,11 @@ from pathlib import Path
 from typing import Any
 
 BOOTSTRAP_TIMEOUT_SECONDS = 120.0
+#: No progress for this long while connecting means a stuck download (seen on a real Mac:
+#: "Loading relay descriptors" at 56%, then silence for two minutes). Tor is restarted with
+#: its cache kept, which connected within seconds every time.
+BOOTSTRAP_STALL_SECONDS = 30.0
+_MAX_STALL_RESTARTS = 2
 _CONTROL_FILE_TIMEOUT_SECONDS = 30.0
 _CONTROL_IO_TIMEOUT_SECONDS = 10.0
 
@@ -139,6 +145,7 @@ class TorRuntime:
         self._control: _Control | None = None
         self._socks_port = 0
         self._onions: set[str] = set()
+        self._ready = False
 
     # -- state ---------------------------------------------------------------------------
 
@@ -186,6 +193,8 @@ class TorRuntime:
                 # This user gives up; Tor keeps running for anyone else still using it.
                 self.release(reason)
                 raise
+            # A restart while connecting gives Tor a new port.
+            port = self._socks_port
         return port
 
     def release(self, reason: str) -> None:
@@ -250,27 +259,77 @@ class TorRuntime:
             raise TorUnavailable("Tor did not open its SOCKS port.")
 
     def bootstrapped(self) -> bool:
+        """True once Tor has reached the Tor network (remembered until it stops)."""
         with self._lock:
             if not self.running or self._control is None:
                 return False
-            return "PROGRESS=100" in self._control.getinfo("status/bootstrap-phase")
+            if self._ready:
+                return True
+            control = self._control
+        try:
+            ready = "PROGRESS=100" in control.getinfo("status/bootstrap-phase")
+        except (OSError, TorUnavailable):
+            return False
+        with self._lock:
+            self._ready = self._ready or ready
+            return self._ready
+
+    def bootstrap_percent(self) -> int:
+        """How far Tor is in connecting, 0-100 (0 when it is not running)."""
+        with self._lock:
+            if self._ready:
+                return 100
+            control = self._control if self.running else None
+        if control is None:
+            return 0
+        try:
+            match = re.search(r"PROGRESS=(\d+)", control.getinfo("status/bootstrap-phase"))
+        except (OSError, TorUnavailable):
+            return 0
+        return min(100, int(match.group(1))) if match else 0
 
     def _wait_for_bootstrap(self, timeout: float) -> None:
         bootstrap_deadline = time.monotonic() + timeout
+        last_phase, last_change, restarts = "", time.monotonic(), 0
         while True:
             control, process = self._control, self._process
             if control is None or process is None or process.poll() is not None:
                 raise TorUnavailable("Tor stopped while connecting.")
-            phase = control.getinfo("status/bootstrap-phase")
+            try:
+                phase = control.getinfo("status/bootstrap-phase")
+            except (OSError, TorUnavailable):
+                if self._control is control:
+                    raise
+                phase = ""  # restarted underneath us by another waiter
             if "PROGRESS=100" in phase:
+                with self._lock:
+                    self._ready = True
                 return
-            if time.monotonic() > bootstrap_deadline:
+            now = time.monotonic()
+            if now > bootstrap_deadline:
                 raise TorUnavailable("Tor could not connect to the Tor network in time.")
+            if phase != last_phase:
+                last_phase, last_change = phase, now
+            elif now - last_change >= BOOTSTRAP_STALL_SECONDS and restarts < _MAX_STALL_RESTARTS:
+                if self._restart_stalled(control):
+                    restarts += 1
+                last_phase, last_change = "", time.monotonic()
             time.sleep(0.5)
+
+    def _restart_stalled(self, seen: _Control) -> bool:
+        """Restart a Tor stuck while connecting. Not while it serves an onion address: that
+        would drop someone's phone link, and Tor publishes it once connected anyway."""
+        with self._lock:
+            if self._control is not seen or self._ready or self._onions:
+                return False
+            self._shutdown()
+            self._launch(timeout=BOOTSTRAP_TIMEOUT_SECONDS)
+            return True
 
     def _shutdown(self) -> None:
         control, process = self._control, self._process
         self._control, self._process, self._socks_port = None, None, 0
+        self._ready = False
         self._onions.clear()
         if control is not None:
             try:
