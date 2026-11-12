@@ -29,6 +29,8 @@
 * [Notifications and model offers](guides/notifications.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
+* [Pay for web resources (x402)](guides/paid-resources.md)
+* [Private invoices with Zcash](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
 
 ## Reference
