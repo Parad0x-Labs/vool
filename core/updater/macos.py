@@ -195,19 +195,31 @@ class MacOSBundleInstaller:
             return False
         return int(getattr(completed, "returncode", 1) or 0) == 0
 
+    def planned_prior(self, target_app: Path, *, txid: str) -> Path:
+        """Where atomic_swap will move the current app for this transaction."""
+        return self._prior_path(Path(target_app), str(txid))
+
     def restore_prior(self, target_app: Path, prior_path: Path, *, txid: str) -> SwapOutcome:
         target = Path(target_app)
         prior = Path(prior_path)
         if not prior.exists():
             return SwapOutcome(False, detail=f"prior bundle missing: {prior}")
         displaced = self._prior_path(target, f"{txid}-displaced")
+        if displaced.exists():
+            # Left by an earlier restore of this transaction that stopped between its renames: it
+            # is never a rollback target, and it must not make the rename below fail on every retry.
+            shutil.rmtree(displaced, ignore_errors=True)
         if target.exists():
-            os.rename(target, displaced)
+            try:
+                os.rename(target, displaced)
+            except OSError as exc:
+                return SwapOutcome(False, detail=f"could not move the failed app aside: {exc}")
         try:
             os.rename(prior, target)
         except OSError as exc:
             if displaced.exists():
-                os.rename(displaced, target)  # never leave the slot empty
+                with contextlib.suppress(OSError):
+                    os.rename(displaced, target)  # never leave the slot empty
             return SwapOutcome(False, detail=f"could not restore the previous app: {exc}")
         if displaced.exists():
             shutil.rmtree(displaced, ignore_errors=True)
@@ -216,13 +228,17 @@ class MacOSBundleInstaller:
 
     def prune_priors(self, target_app: Path, *, keep: int = 2) -> list[Path]:
         target = Path(target_app)
+        found = [p for p in target.parent.glob(f".{target.name}.prior-*") if p.is_dir()]
+        # A -displaced folder is the failed app a finished restore set aside: never a previous
+        # version to go back to, so it is removed and does not take a retention slot.
+        displaced = [p for p in found if p.name.endswith("-displaced")]
         priors = sorted(
-            (p for p in target.parent.glob(f".{target.name}.prior-*") if p.is_dir()),
+            (p for p in found if not p.name.endswith("-displaced")),
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
         removed: list[Path] = []
-        for stale in priors[max(0, int(keep)):]:
+        for stale in priors[max(0, int(keep)):] + displaced:
             shutil.rmtree(stale, ignore_errors=True)
             removed.append(stale)
         return removed

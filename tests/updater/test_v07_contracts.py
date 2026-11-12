@@ -183,7 +183,7 @@ def test_migration_snapshot_restore_failure_is_not_claimed_as_success(tmp_path, 
     def failing_step(context):
         (context.user_home / "profile").write_text("changed")
         raise OSError("migration failed")
-    def failing_restore(*args):
+    def failing_restore(*args, **kwargs):  # restore_tree takes the declared relative paths by keyword
         raise OSError("restore denied")
     catalog.register(migrations.MigrationStep("test", "0.7.0", "0.7.1", ("profile",), failing_step))
     monkeypatch.setattr(migrations, "restore_tree", failing_restore)

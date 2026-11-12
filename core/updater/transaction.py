@@ -48,6 +48,7 @@ from core.updater.migrations import (
     MigrationCatalog,
     MigrationReason,
     MigrationResult,
+    read_recorded_schema,
     restore_tree,
     run_migrations,
     snapshot_tree,
@@ -85,9 +86,57 @@ class Step(Enum):
     FINALIZED = "finalized"
     ROLLED_BACK = "rolled_back"
     ABORTED = "aborted"
+    #: Not terminal. Journaled just before a rollback puts the previous app back. On macOS that
+    #: restore renames the backup into the app's place, so once it has run the backup is gone:
+    #: this line, with the app present, is what tells a later attempt that the restore is done.
+    RESTORING_PRIOR = "restoring_prior"
 
 
 _TERMINAL = (Step.FINALIZED, Step.ROLLED_BACK, Step.ABORTED)
+
+
+def _process_start(pid: int) -> str:
+    """When this process started, as ps prints it: recorded beside a pid so a reused number is
+    never taken for the process that wrote it."""
+    import subprocess
+
+    try:
+        completed = subprocess.run(["ps", "-p", str(int(pid)), "-o", "lstart="], capture_output=True, text=True,
+                                   timeout=5, check=False, env=dict(os.environ, LC_ALL="C"))
+    except Exception:
+        return ""
+    return completed.stdout.strip() if completed.returncode == 0 else ""
+
+
+def _owner_alive(created: dict) -> bool:
+    """True only while another process that started this transaction still runs. This process
+    never counts: the process that runs recovery cannot also be the one still doing the update."""
+    pid = int(created.get("owner_pid") or 0)
+    if pid <= 1 or pid == os.getpid():
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass  # it exists; this process just may not signal it
+    except OSError:
+        return False
+    recorded, current = str(created.get("owner_start") or ""), _process_start(pid)
+    return not (recorded and current and recorded != current)  # a different start = a reused pid
+
+
+def _foreign_worker_alive(data_dir: Path) -> bool:
+    """The detached updater of this profile is running, and it is not this process."""
+    from core.updater.state import _read_json
+    from core.updater.worker import worker_alive
+
+    lease = _read_json(UpdaterPaths.for_data_dir(data_dir).root / "worker.json")
+    if isinstance(lease, dict) and int(lease.get("pid") or 0) == os.getpid():
+        return False
+    return worker_alive(data_dir)
+
+
 class ExternalHelper(Protocol):
     """The out-of-process shutdown/relaunch contract (the updater must not depend on
     the app being alive, and the app cannot restart itself after exiting)."""
@@ -329,20 +378,13 @@ class UpdateFlow:
                 self.helper.shutdown_app()
                 if not self.helper.wait_until_stopped(timeout=STOP_BOUND_SECONDS):
                     raise RuntimeError("the new app did not stop for rollback")
-            if self._journal.has(Step.SWAPPED) or (prior is not None and prior.exists()):
-                if prior is None or not prior.exists() or self.installer is None:
-                    raise RuntimeError("the previous app backup is unavailable")
-                outcome = self.installer.restore_prior(self.app_path, prior, txid=self._txid)
-                if not outcome.ok:
-                    raise RuntimeError(f"restore_prior failed: {outcome.detail}")
-                # Mac restoration consumes its prior rename. Keep a new copy until
-                # the previous app has actually relaunched, so retry is possible.
-                if not prior.exists():
-                    shutil.copytree(self.app_path, prior, symlinks=True)
+            if (self._journal.has(Step.SWAPPED) or self._journal.has(Step.RESTORING_PRIOR)
+                    or (prior is not None and prior.exists())):
+                _put_prior_back(self._journal, self.installer, self.app_path, prior, self._txid)
             if self._journal.has(Step.SNAPSHOT_COMPLETE):
                 snapshot_dir = self.paths.transaction_dir(self._txid) / "config-snapshot"
-                destinations = [self.data_dir / rel for rel in self.snapshot_relpaths]
-                restore_tree(snapshot_dir, destinations)
+                relpaths = _snapshot_relpaths(self._journal, self.snapshot_relpaths)
+                restore_tree(snapshot_dir, [self.data_dir / rel for rel in relpaths], relative_paths=relpaths)
                 runtime_snapshot = self.paths.transaction_dir(self._txid) / "runtime-snapshot"
                 if runtime_snapshot.exists():
                     restore_runtime(self.data_dir, runtime_snapshot)
@@ -496,7 +538,9 @@ class UpdateFlow:
     ) -> FlowResult:
         journal = self._journal
         assert journal is not None
-        self._step(Step.CREATED, {"target_version": manifest.version, "channel": manifest.channel})
+        # The owner lets recovery in another process leave an update that is still running alone.
+        self._step(Step.CREATED, {"target_version": manifest.version, "channel": manifest.channel,
+                                  "owner_pid": os.getpid(), "owner_start": _process_start(os.getpid())})
         if (paused := self._maybe_pause(Step.CREATED)) is not None:
             return paused
 
@@ -647,9 +691,10 @@ class UpdateFlow:
         snapshot_dir = self.paths.transaction_dir(self._txid) / "config-snapshot"
         sources = [self.data_dir / rel for rel in self.snapshot_relpaths]
         if not self._journal.has(Step.SNAPSHOT_COMPLETE):
-            snapshot_tree(sources, snapshot_dir)
+            snapshot_tree(sources, snapshot_dir, relative_paths=self.snapshot_relpaths)
             snapshot_runtime(self.data_dir, self.paths.transaction_dir(self._txid) / "runtime-snapshot")
-            self._step(Step.SNAPSHOT_COMPLETE)
+            # Recovery restores exactly this set, keyed the same way.
+            self._step(Step.SNAPSHOT_COMPLETE, {"relpaths": list(self.snapshot_relpaths)})
         if (paused := self._maybe_pause(Step.SNAPSHOT_COMPLETE)) is not None:
             return paused
 
@@ -706,7 +751,12 @@ class UpdateFlow:
                 return self._abort("the app did not stop in time; nothing was changed", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED)
 
-            # 9) Atomic swap (prior kept).
+            # 9) Atomic swap (prior kept). The backup's place is journaled first, as on the
+            # delegated path: a crash between the swap and its SWAPPED line is then still
+            # recognized at startup, instead of being cleaned up as "never touched".
+            planned_prior = _planned_prior(self.installer, self.app_path, self._txid)
+            if planned_prior is not None:
+                self._step(Step.SWAP_PLANNED, {"prior_path": str(planned_prior)})
             swap = self.installer.atomic_swap(bundle_dir, self.app_path, txid=self._txid)
             if not swap.ok:
                 if swap.prior_path is not None and swap.prior_path.exists():
@@ -794,6 +844,98 @@ class UpdateFlow:
 
 
 
+def _planned_prior(installer, app_path: Path, txid: str) -> Path | None:
+    """Where this installer will keep the previous version for this transaction, if it says."""
+    planned = getattr(installer, "planned_prior", None)
+    if not callable(planned):
+        return None
+    try:
+        return planned(app_path, txid=txid)
+    except Exception:
+        return None
+
+
+def _swap_evident(installer, app_path: Path, prior: Path | None) -> bool:
+    """Whether the files show that the swap ran. Where the swap itself makes the backup (a Mac app
+    moved aside, a source tree copied away), the backup existing is the evidence. The Linux package
+    keeps the version that is current as its backup, so that folder exists before the switch too:
+    that installer answers from its current link instead. When it cannot tell, the swap counts as
+    done and the health check of the new version decides, as after any swap."""
+    if prior is None:
+        return False
+    evident = getattr(installer, "swap_evident", None)
+    if not callable(evident):
+        return prior.exists()
+    try:
+        return bool(evident(app_path, prior))
+    except Exception:
+        return True
+
+
+def _snapshot_relpaths(journal: UpdateJournal, default: tuple[str, ...]) -> tuple[str, ...]:
+    """The config set this transaction snapshotted: journaled since the set became a flow
+    setting; older journals used the fixed set."""
+    recorded = journal.payload_of(Step.SNAPSHOT_COMPLETE).get("relpaths")
+    if isinstance(recorded, list) and recorded and all(isinstance(rel, str) and rel for rel in recorded):
+        return tuple(recorded)
+    return tuple(default)
+
+
+def _put_prior_back(journal: UpdateJournal, installer, app_path: Path, prior: Path | None, txid: str) -> None:
+    """Put the previous app back, or confirm an earlier attempt already did. Raises when neither
+    can be shown, so the rollback is reported incomplete instead of claimed."""
+    if prior is not None and prior.exists():
+        if installer is None:
+            raise RuntimeError("no installer can put the previous app back")
+        if not journal.has(Step.RESTORING_PRIOR):
+            journal.append(Step.RESTORING_PRIOR, {"prior_path": str(prior)})
+        outcome = installer.restore_prior(app_path, prior, txid=txid)
+        if not outcome.ok:
+            raise RuntimeError(f"restore_prior failed: {outcome.detail}")
+        return
+    if journal.has(Step.RESTORING_PRIOR) and Path(app_path).exists():
+        return  # the restore ran and used the backup up; the previous app is in place
+    raise RuntimeError("the previous app backup is unavailable")
+
+
+def _complete_missing_migration(*, journal: UpdateJournal, tx_dir: Path, data_dir: Path, decided: dict,
+                                installed_version: str, target_version: str,
+                                migration_catalog: MigrationCatalog | None) -> bool:
+    """Before recovery finalizes a swap whose MIGRATED line is missing, make sure the data the
+    new version runs on was really migrated. False means roll back instead.
+
+    * the recorded schema already is the target: the migration finished, only its line is missing;
+    * migration snapshots exist: the process died during a migration; steps are not safe to run
+      twice, so the update is rolled back to the snapshot;
+    * otherwise the migrations run now, exactly as the update itself runs them.
+    Without a catalog nothing is known about the steps, and the swap is finalized as before."""
+    if not target_version:
+        return True
+    if read_recorded_schema(data_dir) == target_version:
+        journal.append(Step.MIGRATED, {"recovered": True, "evidence": "recorded_schema"})
+        return True
+    if migration_catalog is None:
+        return True
+    snapshots = tx_dir / "migration-snapshots"
+    if snapshots.is_dir() and any(snapshots.iterdir()):
+        logger.error("recovery found %s stopped during a migration; rolling back", tx_dir.name)
+        return False
+    result = run_migrations(
+        migration_catalog,
+        from_version=str(decided.get("installed_version") or installed_version),
+        to_version=target_version,
+        user_home=data_dir,
+        snapshot_root=snapshots,
+    )
+    if result.reason is MigrationReason.NO_PATH:
+        result = MigrationResult(True, MigrationReason.OK, applied=[])
+    if not result.ok:
+        logger.error("recovery could not migrate %s: %s", tx_dir.name, result.detail)
+        return False
+    journal.append(Step.MIGRATED, {"recovered": True, "applied": result.applied})
+    return True
+
+
 def _download_fault(reason: DownloadReason) -> UpdateFault:
     """The download failure taxonomy mapped onto the user-visible fault catalog."""
     return {
@@ -837,13 +979,15 @@ def recover_interrupted_update(
     platform: str | None = None,
     status_store: StatusStore | None = None,
     clock: Callable[[], float] = time.time,
+    migration_catalog: MigrationCatalog | None = None,
 ) -> list[RecoveryResult]:
     """Startup recovery: find journals that never reached a terminal step.
 
     Pre-swap leftovers are aborted + cleaned (the previous version never changed).
     Post-swap leftovers get a health check against the NEW version: healthy ⇒ finalize
-    (the crash was cosmetic), unhealthy ⇒ automatic rollback + relaunch of the previous
-    version. A transaction whose owning process is still alive is left alone.
+    (the crash was cosmetic) once its migrations are known to be complete, unhealthy ⇒
+    automatic rollback + relaunch of the previous version. A transaction whose owning
+    process, or this profile's detached updater, is still alive is left alone.
     """
     data_dir = Path(data_dir)
     app_path = Path(app_path)
@@ -854,6 +998,7 @@ def recover_interrupted_update(
     installer = platform_registry.installer_for(platform_key)
 
     tx_root = paths.transactions
+    worker_running = None
     for tx_dir in sorted(tx_root.iterdir()) if tx_root.is_dir() else []:
         if not tx_dir.is_dir():
             continue
@@ -864,13 +1009,24 @@ def recover_interrupted_update(
         last = journal.last_step()
         if last is None:
             continue
+        # An update still running elsewhere is not abandoned work: touching it would fight it.
+        if worker_running is None:
+            try:
+                worker_running = _foreign_worker_alive(data_dir)
+            except Exception:
+                worker_running = False
+        if worker_running or _owner_alive(journal.payload_of(Step.CREATED)):
+            results.append(RecoveryResult(txid, "left_running", "the update is still running in another process"))
+            continue
         decided = journal.payload_of(Step.DECIDED)
         target_version = str(decided.get("target_version") or "")
 
-        swap_payload = journal.payload_of(Step.SWAPPED) or journal.payload_of(Step.SWAP_PLANNED)
+        swap_payload = (journal.payload_of(Step.SWAPPED) or journal.payload_of(Step.SWAP_PLANNED)
+                        or journal.payload_of(Step.RESTORING_PRIOR))
         prior_payload = swap_payload.get("prior_path") or ""
         prior = Path(prior_payload) if prior_payload else None
-        swapped = journal.has(Step.SWAPPED) or (prior is not None and prior.exists())
+        swapped = (journal.has(Step.SWAPPED) or journal.has(Step.RESTORING_PRIOR)
+                   or _swap_evident(installer, app_path, prior))
         if not swapped and not journal.has(Step.MIGRATED):
             staged_bundle = app_path.parent / f".vool-stage-{txid}"
             with contextlib.suppress(Exception):
@@ -889,6 +1045,11 @@ def recover_interrupted_update(
         # exact identity the transaction pinned when it was decided.
         expected_identity = str(decided.get("expected_identity") or target_version)
         health = health_probe(timeout=30.0, expected_version=expected_identity) if swapped else None
+        if health is not None and health.ok and not journal.has(Step.MIGRATED) and not _complete_missing_migration(
+                journal=journal, tx_dir=tx_dir, data_dir=data_dir, decided=decided,
+                installed_version=installed_version, target_version=target_version,
+                migration_catalog=migration_catalog):
+            health = None  # the new version runs, but on data it cannot trust: roll back
         if health is not None and health.ok:
             from core.updater.rollback import code_digest
 
@@ -914,17 +1075,11 @@ def recover_interrupted_update(
             if swapped:
                 if installer is None:
                     raise RuntimeError(f"no recovery installer for {platform_key}")
-                if prior is None or not prior.exists():
-                    raise RuntimeError("the prior app backup is unavailable")
-                restore = installer.restore_prior(app_path, prior, txid=txid)
-                if not restore.ok:
-                    raise RuntimeError(restore.detail or "the prior app could not be restored")
-                if not prior.exists():
-                    shutil.copytree(app_path, prior, symlinks=True)
+                _put_prior_back(journal, installer, app_path, prior, txid)
             snapshot_dir = tx_dir / "config-snapshot"
             if snapshot_dir.exists():
-                destinations = [data_dir / rel for rel in SNAPSHOT_RELPATHS]
-                restore_tree(snapshot_dir, destinations)
+                relpaths = _snapshot_relpaths(journal, SNAPSHOT_RELPATHS)
+                restore_tree(snapshot_dir, [data_dir / rel for rel in relpaths], relative_paths=relpaths)
             runtime_snapshot = tx_dir / "runtime-snapshot"
             if runtime_snapshot.exists():
                 restore_runtime(data_dir, runtime_snapshot)
@@ -951,6 +1106,8 @@ def recover_interrupted_update(
             # app or mark a rollback complete when restoration did not finish.
             results.append(RecoveryResult(txid, "rollback_failed", detail, prior_path=prior))
             continue
+        with contextlib.suppress(Exception):
+            shutil.rmtree(app_path.parent / f".vool-stage-{txid}", ignore_errors=True)
         journal.append(Step.ROLLED_BACK, {"detail": "automatic rollback during startup recovery"})
         status.publish(
             UpdatePhase.ROLLED_BACK,

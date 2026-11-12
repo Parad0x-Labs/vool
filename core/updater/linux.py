@@ -31,6 +31,10 @@ class LinuxSourceInstaller:
             return BundleVerification(False, detail="payload has no Linux installer")
         return BundleVerification(True, detail="publisher-verified source payload")
 
+    def planned_prior(self, target_app: Path, *, txid: str) -> Path:
+        """Where atomic_swap will keep the replaced code for this transaction."""
+        return Path(target_app) / "update_backups" / f"signed-{txid}"
+
     def atomic_swap(self, staged_bundle: Path, target_app: Path, *, txid: str) -> SwapOutcome:
         target = Path(target_app)
         prior = target / "update_backups" / f"signed-{txid}"
@@ -162,6 +166,15 @@ class LinuxBundleInstaller:
         except Exception as exc:
             return BundleVerification(False, detail=f"payload is not a complete VOOL Linux package: {exc}")
         return BundleVerification(True, detail=f"publisher-verified Linux package {commit[:12]}")
+
+    def planned_prior(self, target_app: Path, *, txid: str) -> Path:
+        """The version that is current now: the switch keeps it, untouched, as the backup."""
+        return _current_version_dir(Path(target_app))
+
+    def swap_evident(self, target_app: Path, prior_path: Path) -> bool:
+        """The backup is the version that was current, so it exists before the switch as well:
+        the switch has run exactly when the current link names another version."""
+        return _current_version_dir(Path(target_app)) != Path(prior_path).resolve()
 
     def atomic_swap(self, staged_bundle: Path, target_app: Path, *, txid: str) -> SwapOutcome:
         root = Path(target_app)

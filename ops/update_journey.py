@@ -10,6 +10,11 @@ HTTP surface (the same calls the header chip makes):
   4. the restarted app must report the new build commit on /healthz, the status must end in ``done``,
      and data written before the update must still be there.
 
+Before Update is pressed, the person's state is put in through the old version's own doors (chats brought
+in with Settings' chat import, a pinned chat, a project, preferences and facts; ``ops/update_preservation.py``).
+After the update, or after a broken update restored itself, the running version must still show all of it,
+and no profile file, key or database row may be gone.
+
 Feeds:
   ``--feed live``  the shipped feed and pinned publisher key, exactly as users get them;
   ``--feed DIR``   a test feed: DIR holds a manifest signed with a throwaway key plus the payload ZIPs. It is
@@ -20,6 +25,19 @@ Feeds:
 
 ``--broken-update`` expects the opposite ending: the new version never comes up healthy, the app restores
 the previous version by itself, and the old commit is serving again.
+
+On Linux the person then closes VOOL and opens it again: the version now serving must start cold and still
+show everything. ``--legacy-profile`` starts the person from the pre-rename profile (``~/.nulla_runtime``;
+``~/Library/Application Support/NULLA/runtime`` on a Mac), which every version reuses in place: the update
+(and on Linux the cold start) must keep using it, and no second, empty VOOL profile may appear beside it.
+
+``--platform linux-deb`` is a person who installed the .deb with apt: ``--old`` is the old .deb, the first open
+is the menu entry's own command (``/usr/bin/vool``, no ``--headless``), which sets up their own copy, and every
+later open goes the same way, so a cold open after the update must keep the in-app update and never put back the
+older copy apt installed. ``--apt-upgrade NEW.deb`` replaces the in-app update with ``apt-get install NEW.deb``:
+the next open from the menu must set up that newer copy for the person, with all their data. Both end with
+``apt-get remove vool``: only the .deb's own files go, and the person's own copy still opens with everything.
+apt runs through ``sudo -n`` unless this runs as root.
 
 Linux packages run here directly. Mac DMGs run on a Mac (``--platform macos``); the app relaunch after a
 swap uses macOS ``open``, so a Mac run uses the real login HOME of a disposable machine (a CI runner).
@@ -42,8 +60,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import update_preservation  # ops/, the script's own folder
+
 PORT = 11435
 ORIGIN = f"http://127.0.0.1:{PORT}"
+SYSTEM_PACKAGE = Path("/opt/vool/package")  # where the .deb keeps its copy
 
 
 class JourneyFailure(RuntimeError):
@@ -131,27 +152,48 @@ def write_test_feed(feed_dir: Path, base_url: str) -> None:
 
 
 class LinuxPackage:
-    def __init__(self, archive: Path, scratch: Path):
-        self.home = scratch / "home"
-        self.home.mkdir()
+    def __init__(self, archive: Path, scratch: Path, *, legacy_profile: bool = False):
+        self._person(scratch, legacy_profile)
         extracted = scratch / "extracted"
         extracted.mkdir()
         with tarfile.open(archive) as tar:
             tar.extractall(extracted, filter="data")
         (package,) = list(extracted.iterdir())
+        subprocess.run(["bash", str(package / "install.sh")], env=self.env, check=True)
+        shutil.rmtree(extracted)
+
+    def _person(self, scratch: Path, legacy_profile: bool) -> None:
+        self.home = scratch / "home"
+        self.home.mkdir()
+        # The pre-rename profile folder: a person who used VOOL before its rename has only this one.
+        self.profile = self.home / (".nulla_runtime" if legacy_profile else ".vool_runtime")
+        self.second_profile = self.home / ".vool_runtime"
+        if legacy_profile:
+            self.profile.mkdir()
         self.env = {"HOME": str(self.home), "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "CI": "true",
                     "VOOL_UNATTENDED": "1", "VOOL_LOCAL_MODELS_ENABLED": "0", "TMPDIR": str(scratch),
                     "XDG_CACHE_HOME": str(self.home / ".cache"), "BROWSER": "true"}
-        subprocess.run(["bash", str(package / "install.sh")], env=self.env, check=True)
-        shutil.rmtree(extracted)
         self.root = self.home / ".local/share/vool"
         self.log = (scratch / "app.log").open("ab")
 
     def feed_config(self) -> Path:
         return self.root / "current/app/config/release/update_feed.json"
 
+    def point_at_feed(self, manifest_url: str) -> None:
+        # The package's shipped feed setting is plain data: pointing it at the test feed keeps every other
+        # shipped choice (auto_check) in force, so the notice proves what users get.
+        config = json.loads(self.feed_config().read_text())
+        config["manifest_url"] = manifest_url
+        self.feed_config().write_text(json.dumps(config, indent=2) + "\n")
+
+    def open_command(self) -> list[str]:
+        return [str(self.home / ".local/bin/vool")]
+
     def data_dir(self) -> Path:
-        return self.home / ".vool_runtime/data"
+        return self.profile / "data"
+
+    def person_home(self) -> Path:
+        return self.home
 
     def start(self) -> None:
         subprocess.Popen([str(self.home / ".local/bin/vool"), "--headless"], cwd=self.home, env=self.env,
@@ -166,8 +208,70 @@ class LinuxPackage:
             os.kill(int(pid), 15)
 
 
+def apt(*arguments: str) -> str:
+    sudo = [] if os.geteuid() == 0 else ["sudo", "-n"]
+    result = subprocess.run([*sudo, "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-y", *arguments],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise JourneyFailure(f"apt-get {' '.join(arguments)} failed: {(result.stderr or result.stdout)[-1500:]}")
+    return result.stdout
+
+
+class DebPackage(LinuxPackage):
+    """A person who installed the .deb with apt. Every open is the menu entry's own command."""
+
+    def __init__(self, deb: Path, scratch: Path, *, legacy_profile: bool = False):
+        self._person(scratch, legacy_profile)
+        if Path("/usr/bin/vool").exists() or SYSTEM_PACKAGE.exists():
+            raise JourneyFailure("VOOL is already installed on this computer: the .deb journey needs one without it")
+        apt("install", "--no-install-recommends", str(deb.resolve()))
+
+    def point_at_feed(self, manifest_url: str) -> None:
+        # The person's own copy only appears on the first open; the feed override reaches it unchanged.
+        self.env["VOOL_UPDATE_MANIFEST_URL"] = manifest_url
+
+    def open_command(self) -> list[str]:
+        return ["/usr/bin/vool"]
+
+    def start(self) -> None:
+        subprocess.Popen(self.open_command(), cwd=self.home, env=self.env, stdout=self.log, stderr=self.log,
+                         start_new_session=True)
+
+    def current_commit(self) -> str:
+        if (self.root / "current").is_symlink():
+            return super().current_commit()
+        return (SYSTEM_PACKAGE / "SOURCE_COMMIT").read_text().strip()  # not opened yet: the copy apt installed
+
+
+def removing_the_deb_keeps_everything(target: DebPackage, log: Log, seen_before: dict, expect: str) -> None:
+    target.stop()
+    wait_for("VOOL to close", lambda: not health(), 120)
+    said = apt("remove", "vool")
+    log.step("apt-get remove vool took only the .deb's own files",
+             not Path("/usr/bin/vool").exists() and not SYSTEM_PACKAGE.exists() and (target.root / "current").is_symlink(),
+             [line for line in said.splitlines() if line.startswith("VOOL:")])
+    subprocess.Popen([str(target.home / ".local/bin/vool"), "--headless"], cwd=target.home, env=target.env,
+                     stdout=target.log, stderr=target.log, start_new_session=True)
+    wait_for("the person's own copy to open", lambda: (health().get("runtime") or {}).get("commit_full") == expect, 300)
+    try:
+        seen = update_preservation.person_view(ORIGIN)
+    except update_preservation.PreservationFailure as exc:
+        log.step("after apt-get remove, the person's own copy opens with everything they had", False, str(exc))
+    lost = update_preservation.view_losses(seen_before, seen)
+    log.step("after apt-get remove, the person's own copy opens with everything they had", not lost,
+             lost or {"chats": len(seen["chats"]), "commit": expect})
+
+
 class MacApp:
-    def __init__(self, dmg: Path, scratch: Path):
+    def __init__(self, dmg: Path, scratch: Path, *, legacy_profile: bool = False):
+        support = Path.home() / "Library/Application Support"
+        self.profile = support / ("NULLA/runtime" if legacy_profile else "VOOL/runtime")
+        self.second_profile = support / "VOOL/runtime"
+        if legacy_profile:
+            if self.second_profile.exists():
+                raise JourneyFailure(f"{self.second_profile} already exists: the pre-rename journey needs a Mac "
+                                     "that never ran VOOL (a fresh CI runner)")
+            self.profile.mkdir(parents=True)
         attached = subprocess.run(["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-plist", str(dmg)],
                                   check=True, capture_output=True)
         mount = next(Path(e["mount-point"]) for e in plistlib.loads(attached.stdout)["system-entities"]
@@ -187,7 +291,10 @@ class MacApp:
         return self.app / "Contents/Resources/app/config/release/update_feed.json"
 
     def data_dir(self) -> Path:
-        return Path.home() / "Library/Application Support/VOOL/runtime/data"
+        return self.profile / "data"
+
+    def person_home(self) -> Path:
+        return Path.home()
 
     def start(self) -> None:
         subprocess.Popen([str(self.app / "Contents/MacOS/VOOL")], env=self.env, stdout=self.log, stderr=self.log,
@@ -208,7 +315,8 @@ def journey(args: argparse.Namespace) -> None:
     scratch = args.scratch
     scratch.mkdir(parents=True, exist_ok=False)
     log = Log(scratch)
-    target = LinuxPackage(args.old, scratch) if args.platform == "linux" else MacApp(args.old, scratch)
+    kind = {"linux": LinuxPackage, "linux-deb": DebPackage, "macos": MacApp}[args.platform]
+    target = kind(args.old, scratch, legacy_profile=args.legacy_profile)
     old_commit = target.current_commit()
     log.step("old package installed", bool(old_commit), {"commit": old_commit})
 
@@ -218,15 +326,11 @@ def journey(args: argparse.Namespace) -> None:
         base_url, server = serve_feed(feed_dir, log)
         write_test_feed(feed_dir, base_url)
         manifest_url = f"{base_url}/manifest.json"
-        if args.platform == "linux":
-            # The package's shipped feed setting is plain data: pointing it at the test feed keeps every other
-            # shipped choice (auto_check) in force, so the notice proves what users get.
-            config = json.loads(target.feed_config().read_text())
-            config["manifest_url"] = manifest_url
-            target.feed_config().write_text(json.dumps(config, indent=2) + "\n")
-        else:
+        if args.platform == "macos":
             # Editing a Mac bundle would break its code signature; the launcher's feed override is used instead.
             target.env["VOOL_UPDATE_MANIFEST_URL"] = manifest_url
+        else:
+            target.point_at_feed(manifest_url)
         target.env["VOOL_UPDATE_TRUSTED_KEYS_JSON"] = str(feed_dir / "test-pin.json")
         log.step("test feed served", True, {"manifest_url": manifest_url})
 
@@ -237,6 +341,17 @@ def journey(args: argparse.Namespace) -> None:
              {k: runtime.get(k) for k in ("app_version", "commit_full")})
     marker = target.data_dir() / "update-journey-marker.txt"
     marker.write_text("written before the update\n")
+    try:
+        seen_before = update_preservation.seed(ORIGIN, target.person_home())
+    except update_preservation.PreservationFailure as exc:
+        log.step("the person's chats, pin, project, preferences and facts saved in the old version", False, str(exc))
+    log.step("the person's chats, pin, project, preferences and facts saved in the old version", True,
+             {"chats": {title: len(messages) for title, messages in seen_before["chats"].items()},
+              "pinned": seen_before["pinned"], "projects": seen_before["projects"],
+              "prefs": seen_before["prefs"], "facts": seen_before["facts"]})
+    if args.apt_upgrade:
+        apt_upgrade(args, target, log, seen_before)
+        return
 
     status = call("/api/update/status")
     log.step("updater configured", status.get("configured") is True,
@@ -264,6 +379,7 @@ def journey(args: argparse.Namespace) -> None:
              offered.get("target_version") == args.new_version,
              {k: offered.get(k) for k in ("phase", "target_version", "message")})
 
+    profile_before = update_preservation.inventory(target.data_dir().parent)
     started = call("/api/update/install", {}, timeout=60)
     log.step("Update pressed", started.get("ok") is not False and started.get("accepted", True) is not False, started)
 
@@ -297,14 +413,81 @@ def journey(args: argparse.Namespace) -> None:
     log.step("serving the expected build", target.current_commit() == expect,
              {"expected": expect, "current": target.current_commit()})
     log.step("data from before the update kept", marker.read_text() == "written before the update\n")
+    try:
+        seen_after = update_preservation.person_view(ORIGIN)
+    except update_preservation.PreservationFailure as exc:
+        log.step("the person still sees their chats, pin, project, preferences and facts", False, str(exc))
+    lost = update_preservation.view_losses(seen_before, seen_after)
+    log.step("the person still sees their chats, pin, project, preferences and facts", not lost,
+             lost or {"chats": len(seen_after["chats"]), "pinned": seen_after["pinned"]})
+    gone, changed = update_preservation.inventory_losses(profile_before, update_preservation.inventory(
+        target.data_dir().parent))
+    log.step("no profile file, key or database row lost", not gone,
+             {"lost": gone, "changed_in_place": changed, "files_before": len(profile_before)})
 
-    if args.platform == "linux":
-        relaunch = subprocess.run([str(target.home / ".local/bin/vool")], env=target.env, capture_output=True,
-                                  text=True, timeout=60)
+    if args.platform in ("linux", "linux-deb"):
+        relaunch = subprocess.run(target.open_command(), env=target.env, capture_output=True, text=True, timeout=60)
         log.step("opening VOOL again reaches the running app", relaunch.returncode == 0,
                  relaunch.stderr.strip()[-300:])
+        # Closed and opened again: the version now serving starts cold and must find the same profile.
+        target.stop()
+        wait_for("VOOL to close", lambda: not health(), 120)
+        target.start()
+        wait_for("VOOL to open again", lambda: (health().get("runtime") or {}).get("commit_full") == expect, 300)
+        try:
+            seen_again = update_preservation.person_view(ORIGIN)
+        except update_preservation.PreservationFailure as exc:
+            log.step("closed and opened again, the person still sees everything", False, str(exc))
+        lost_again = update_preservation.view_losses(seen_before, seen_again)
+        log.step("closed and opened again, the person still sees everything", not lost_again,
+                 lost_again or {"chats": len(seen_again["chats"]), "commit": expect})
+        if args.platform == "linux-deb":
+            system_commit = (SYSTEM_PACKAGE / "SOURCE_COMMIT").read_text().strip()
+            log.step("opened again from the menu, the in-app update stays: the older copy apt installed is not "
+                     "put back", target.current_commit() == expect, {"serving": expect, "apt_installed": system_commit})
+    if args.legacy_profile:
+        log.step("the pre-rename profile is still the one in use, with no second profile beside it",
+                 not target.second_profile.exists() and (target.data_dir() / "update_v2").is_dir(),
+                 {"profile": str(target.profile), "second_profile_made": target.second_profile.exists()})
     if server is not None:
         log.step("feed requests", True, log.requests)
+    if args.platform == "linux-deb":
+        removing_the_deb_keeps_everything(target, log, seen_before, expect)
+    target.stop()
+
+
+def apt_upgrade(args: argparse.Namespace, target: DebPackage, log: Log, seen_before: dict) -> None:
+    """apt-get installs a newer .deb; the person's next open from the menu must set that copy up for them."""
+    target.stop()
+    wait_for("VOOL to close", lambda: not health(), 120)
+    profile_before = update_preservation.inventory(target.data_dir().parent)
+    own_before = target.current_commit()
+    apt("install", "--no-install-recommends", str(args.apt_upgrade.resolve()))
+    system_commit = (SYSTEM_PACKAGE / "SOURCE_COMMIT").read_text().strip()
+    log.step("apt-get upgraded the copy apt keeps, and left the person's own copy alone",
+             system_commit == args.new_commit and target.current_commit() == own_before,
+             {"apt_installed": system_commit, "person": target.current_commit()})
+    target.start()
+    wait_for("VOOL to open from the menu", lambda: (health().get("runtime") or {}).get("commit_full") == args.new_commit,
+             300)
+    log.step("opened from the menu, the newer copy apt brought is set up for this person",
+             target.current_commit() == args.new_commit, {"person": target.current_commit()})
+    try:
+        seen_after = update_preservation.person_view(ORIGIN)
+    except update_preservation.PreservationFailure as exc:
+        log.step("the person still sees their chats, pin, project, preferences and facts", False, str(exc))
+    lost = update_preservation.view_losses(seen_before, seen_after)
+    log.step("the person still sees their chats, pin, project, preferences and facts", not lost,
+             lost or {"chats": len(seen_after["chats"]), "pinned": seen_after["pinned"]})
+    gone, changed = update_preservation.inventory_losses(profile_before, update_preservation.inventory(
+        target.data_dir().parent))
+    log.step("no profile file, key or database row lost", not gone,
+             {"lost": gone, "changed_in_place": changed, "files_before": len(profile_before)})
+    if args.legacy_profile:
+        log.step("the pre-rename profile is still the one in use, with no second profile beside it",
+                 not target.second_profile.exists() and target.data_dir().is_dir(),
+                 {"profile": str(target.profile), "second_profile_made": target.second_profile.exists()})
+    removing_the_deb_keeps_everything(target, log, seen_before, args.new_commit)
     target.stop()
 
 
@@ -351,17 +534,24 @@ def main() -> int:
         make_feed(feed.parse_args(sys.argv[2:]))
         return 0
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--platform", choices=("linux", "macos"), required=True)
-    parser.add_argument("--old", type=Path, required=True, help="the released package: Linux .tar.gz or Mac .dmg")
+    parser.add_argument("--platform", choices=("linux", "linux-deb", "macos"), required=True)
+    parser.add_argument("--old", type=Path, required=True,
+                        help="the released package: Linux .tar.gz, Linux .deb (linux-deb) or Mac .dmg")
+    parser.add_argument("--apt-upgrade", type=Path, default=None,
+                        help="linux-deb: instead of the in-app update, apt-get install this newer .deb")
     parser.add_argument("--feed", default="live", help="'live' or a test feed directory")
     parser.add_argument("--new-version", required=True, help="the version the notice must offer, e.g. 0.7.5")
     parser.add_argument("--new-commit", required=True, help="the build commit the updated app must report")
     parser.add_argument("--expect-notice", choices=("auto", "press"), default="auto")
     parser.add_argument("--broken-update", action="store_true")
+    parser.add_argument("--legacy-profile", action="store_true",
+                        help="the person's profile is the pre-rename one (~/.nulla_runtime, or NULLA/runtime on a Mac)")
     parser.add_argument("--notice-timeout", type=float, default=180)
     parser.add_argument("--install-timeout", type=float, default=900)
     parser.add_argument("--scratch", type=Path, required=True)
     args = parser.parse_args()
+    if args.apt_upgrade is not None and args.platform != "linux-deb":
+        parser.error("--apt-upgrade is for --platform linux-deb")
     try:
         journey(args)
     except JourneyFailure as exc:
