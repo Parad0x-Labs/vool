@@ -38,8 +38,8 @@ Cada execução, a configuração e os pontos fracos estão publicados: [benchma
 | Colocar o VOOL para funcionar | [Instalação](getting-started/install.md) |
 | Entender a primeira tela | [Primeira execução](getting-started/first-run.md) |
 | Apontá-lo para um modelo | [Conectar um modelo](getting-started/connect-a-model.md) |
-| Controlar quais gastos podem acontecer | [Limites de gastos](../../guides/spending-limits.md) |
-| Saber o que sai da sua máquina | [Local e nuvem](../../concepts/local-and-cloud.md) |
+| Controlar quais gastos podem acontecer | [Limites de gastos](guides/spending-limits.md) |
+| Saber o que sai da sua máquina | [Local e nuvem](concepts/local-and-cloud.md) |
 
 ## O que o VOOL é
 
@@ -57,7 +57,7 @@ Cada execução, a configuração e os pontos fracos estão publicados: [benchma
 O VOOL está em beta para Macs com Apple Silicon, Macs com Intel e Linux x86_64. Os apps para Mac
 ainda não são notarizados pela Apple, então o macOS pede que você confirme na primeira vez que abrir um deles;
 a página de [Instalação](getting-started/install.md#primeira-abertura-em-um-mac) mostra como. Veja o
-[Status das versões](../../trust/release-status.md) antes de instalar.
+[Status das versões](trust/release-status.md) antes de instalar.
 {% endhint %}
 
 ## Dois modos, sem rodeios
@@ -73,6 +73,6 @@ estão em [Tratamento de dados](trust/data-handling.md).
 
 ## Como obter ajuda
 
-* [Perguntas frequentes](../../help/faq.md) — as dúvidas mais comuns
+* [Perguntas frequentes](help/faq.md) — as dúvidas mais comuns
 * [Solução de problemas](help/troubleshooting.md) — quando algo não inicia
 * [Discord](https://discord.gg/V9NkjP3Fzz) — pergunte à equipe

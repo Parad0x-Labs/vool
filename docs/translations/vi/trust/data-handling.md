@@ -30,7 +30,7 @@ và danh tính riêng lẻ không được công bố.
 ## Đo từ xa
 
 VOOL không gửi dữ liệu đo từ xa (telemetry) của sản phẩm. Báo cáo lỗi chỉ rời khỏi máy của bạn khi bạn xem trước
-và chọn gửi nó; xem [Báo cáo lỗi và quyền riêng tư](../../../trust/bug-reporting.md).
+và chọn gửi nó; xem [Báo cáo lỗi và quyền riêng tư](bug-reporting.md).
 
 ## Áp dụng điều khoản của nhà cung cấp
 

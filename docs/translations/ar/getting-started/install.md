@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 يوفّر VOOL 0.7.7-beta تنزيلات للتطبيق لأجهزة Mac بمعالجات Apple Silicon وأجهزة Mac بمعالجات Intel وLinux x86_64 في
 [الإصدار v0.7.7-beta](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
 ويمكنك أيضًا التثبيت من الشيفرة المصدرية باستخدام سكربت التمهيد على macOS أو Linux أو Windows.
-راجع [حالة الإصدار](../../../trust/release-status.md) لتفاصيل التوقيع والتحديثات.
+راجع [حالة الإصدار](../trust/release-status.md) لتفاصيل التوقيع والتحديثات.
 
 ## المتطلبات
 
@@ -22,7 +22,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 | Linux | glibc 2.31 | Ubuntu 22.04 أو أحدث |
 
 تحتاج النماذج المحلية إلى ذاكرة أكبر بكثير مما يحتاجه التطبيق نفسه. إرشادات الأحجام في
-[تشغيل نموذج محلي](../../../guides/local-models.md).
+[تشغيل نموذج محلي](../guides/local-models.md).
 
 ## تنزيل التطبيق
 

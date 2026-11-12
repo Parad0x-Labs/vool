@@ -38,8 +38,8 @@ Her çalıştırma, kurulum ve zayıf noktalar yayımlanmıştır: [hafıza kar�
 | VOOL'u çalıştırmak | [Kurulum](getting-started/install.md) |
 | İlk ekranı anlamak | [İlk çalıştırma](getting-started/first-run.md) |
 | Ona bir model göstermek | [Model bağlama](getting-started/connect-a-model.md) |
-| Hangi harcamaların olabileceğini denetlemek | [Harcama sınırları](../../guides/spending-limits.md) |
-| Makinenizden neyin çıktığını bilmek | [Yerel ve bulut](../../concepts/local-and-cloud.md) |
+| Hangi harcamaların olabileceğini denetlemek | [Harcama sınırları](guides/spending-limits.md) |
+| Makinenizden neyin çıktığını bilmek | [Yerel ve bulut](concepts/local-and-cloud.md) |
 
 ## VOOL nedir
 
@@ -57,7 +57,7 @@ Her çalıştırma, kurulum ve zayıf noktalar yayımlanmıştır: [hafıza kar�
 VOOL; Apple Silicon Mac'ler, Intel Mac'ler ve Linux x86_64 için beta aşamasındadır. Mac uygulamaları
 henüz Apple tarafından onaylanmadığı (noter tasdikli olmadığı) için macOS, birini ilk kez açtığınızda onay ister;
 [Kurulum](getting-started/install.md#macte-ilk-açılış) sayfası nasıl yapılacağını gösterir. Kurmadan önce
-[Sürüm durumu](../../trust/release-status.md) sayfasına bakın.
+[Sürüm durumu](trust/release-status.md) sayfasına bakın.
 {% endhint %}
 
 ## Açıkça iki mod
@@ -73,6 +73,6 @@ VOOL tam olarak iki durumu birbirinden ayırır ve arayüz hangisinin etkin oldu
 
 ## Yardım almak
 
-* [SSS](../../help/faq.md) — en sık sorulan sorular
+* [SSS](help/faq.md) — en sık sorulan sorular
 * [Sorun giderme](help/troubleshooting.md) — bir şey başlamadığında
 * [Discord](https://discord.gg/V9NkjP3Fzz) — ekibe sorun

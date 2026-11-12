@@ -49,7 +49,9 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
 3. **Same numbers.** Every number the English page has, and no others, in Western digits
    (0-9). Write "a third", not a fraction the English does not have. A language that writes
    a decimal comma may use it for measured values such as 82,7 %, never in a version
-   number. Digits that are part of an app label do not count.
+   number. Group thousands the way the language does: 120 000 (with a no-break space),
+   120.000 and 120,000 are the same number to the checker. Digits that are part of an app
+   label do not count.
 4. **Links go where the English links go.** A page translated in this language is linked in
    this language. Any other page is linked to the English file by climbing out of the
    translation folder (from `getting-started/` that is `../../../guides/local-models.md`);
@@ -63,19 +65,22 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
 6. **The Mac's own words.** macOS buttons, menus and folders are written exactly as Apple
    writes them in that language (GLOSSARY.md, "macOS" rows).
 7. **No machine paths**, usernames or personal names on a page.
+8. **No line breaks inside a Chinese or Japanese sentence.** A browser shows a line break in a
+   paragraph as a space, so a wrapped line puts a gap between two characters. Keep each
+   paragraph on one line.
 
 ## Judgment rules (reviewed)
 
-8. **Say only what the English says.** No new features, limits, dates, links or support
+9. **Say only what the English says.** No new features, limits, dates, links or support
    claims. If something reads wrong in English, fix the English first.
-9. **Warnings keep their weight.** "Never", "only", "off by default" and every security
-   statement read as firmly as in English.
-10. **One thing, one word.** Use the GLOSSARY.md term everywhere in a language. Where the app
+10. **Warnings keep their weight.** "Never", "only", "off by default" and every security
+    statement read as firmly as in English.
+11. **One thing, one word.** Use the GLOSSARY.md term everywhere in a language. Where the app
     already has a word for something, use the app's word.
-11. **Speak the way the app speaks.** Plain and direct, with the form of address the app
+12. **Speak the way the app speaks.** Plain and direct, with the form of address the app
     uses in that language: for example `du` in German, the plural imperative in Hebrew,
     `vous` in French.
-12. **Names stay names.** VOOL, Parad0x Labs, product, platform and hardware names stay in
+13. **Names stay names.** VOOL, Parad0x Labs, product, platform and hardware names stay in
     Latin letters, as in the GLOSSARY.md table "Never translated".
 
 ## Special cases
@@ -92,6 +97,12 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
   name next to brackets or punctuation shows in the wrong order, put a right-to-left mark
   (U+200F) before the bracket, or a left-to-right mark (U+200E) after the Latin
   punctuation, and look at the page in a browser.
+* **The Error Book is made, not translated.** `tools/docs/translate_error_book.py` builds
+  `ERROR_BOOK.md` in each language: every code's message and next step are the app's own text
+  in that language (`fault.<code>.message` and `.action` in the app catalog), and the book's
+  other words (title, headings, field names, code titles) are in
+  `tools/docs/error_book_words.json`. Never edit the page by hand: fix a message in the app
+  catalog, a title or heading in the words file, then run the tool again.
 
 ## Reviewing
 

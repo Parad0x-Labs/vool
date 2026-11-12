@@ -13,18 +13,18 @@ zostaje na twoim komputerze, czy go opuszcza.
 
 Jeśli lokalne środowisko uruchomieniowe jest zainstalowane i działa, VOOL je wykrywa i wyświetla listę jego modeli.
 Wybranie jednego z nich sprawia, że wskaźnik pokazuje Lokalnie. Szczegóły konfiguracji są w sekcji
-[Uruchamianie modelu lokalnego](../../../guides/local-models.md).
+[Uruchamianie modelu lokalnego](../guides/local-models.md).
 
 ## Chmura
 
 Dodaj klucz dostawcy w **Ustawienia → Klucze API**. Klucz jest przechowywany w zaszyfrowanym pliku na tym
-komputerze (zobacz [Model bezpieczeństwa](../../../trust/security.md#keys)) i służy do wysyłania żądań
+komputerze (zobacz [Model bezpieczeństwa](../trust/security.md#klucze)) i służy do wysyłania żądań
 **z twojego komputera bezpośrednio do dostawcy**.
 
 Wybranie modelu w chmurze sprawia, że wskaźnik pokazuje nazwę dostawcy, i zmienia się on, zanim
 zostanie wysłane jakiekolwiek żądanie.
 
-Proces dotyczący konkretnie OpenRouter opisuje sekcja [Podłączanie OpenRouter](../../../guides/openrouter.md).
+Proces dotyczący konkretnie OpenRouter opisuje sekcja [Podłączanie OpenRouter](../guides/openrouter.md).
 
 ## Przełączanie
 

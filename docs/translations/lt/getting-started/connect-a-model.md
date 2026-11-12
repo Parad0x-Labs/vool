@@ -13,18 +13,18 @@ lieka jūsų kompiuteryje, ar jį palieka.
 
 Jei vietinė vykdymo aplinka įdiegta ir veikia, VOOL ją aptinka ir parodo jos modelių sąrašą.
 Pasirinkus vieną iš jų, indikatorius rodo Lokaliai. Išsamiau apie parengimą rašoma skyriuje
-[Vietinio modelio paleidimas](../../../guides/local-models.md).
+[Vietinio modelio paleidimas](../guides/local-models.md).
 
 ## Debesys
 
 Tiekėjo raktą pridėkite skiltyje **Nustatymai → API raktai**. Raktas saugomas šifruotame faile šiame
-kompiuteryje (žr. [Saugumo modelis](../../../trust/security.md#keys)) ir naudojamas užklausoms siųsti
+kompiuteryje (žr. [Saugumo modelis](../trust/security.md#raktai)) ir naudojamas užklausoms siųsti
 **iš jūsų kompiuterio tiesiai tiekėjui**.
 
 Pasirinkus debesijos modelį, indikatorius rodo tiekėjo pavadinimą, ir jis pasikeičia dar prieš
 išsiunčiant bet kokią užklausą.
 
-Konkrečiai OpenRouter eiga aprašyta skyriuje [OpenRouter prijungimas](../../../guides/openrouter.md).
+Konkrečiai OpenRouter eiga aprašyta skyriuje [OpenRouter prijungimas](../guides/openrouter.md).
 
 ## Perjungimas
 

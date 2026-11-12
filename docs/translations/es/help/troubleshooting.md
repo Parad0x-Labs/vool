@@ -1,7 +1,7 @@
 ---
 description: Soluciones a los problemas más habituales.
 translation: machine
-source_sha256: 792c90fd68caf7409212d3742109c46e49d1f7e640aa3e9f70db9fe61ca55d77
+source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 ---
 
 # Solución de problemas
@@ -32,9 +32,18 @@ Si eso no devuelve nada, el entorno de ejecución no está en marcha.
 ## Las respuestas son lentas
 
 Normalmente se debe al tamaño del modelo frente a la memoria RAM disponible. Consulta
-[Ejecutar un modelo local](../../../guides/local-models.md).
+[Ejecutar un modelo local](../guides/local-models.md).
+
+## Un error muestra un código
+
+Cada fallo tiene un código fijo. [Errores y códigos de error](../reference/errors.md) explica cómo
+leerlo, y el [Libro de errores](../ERROR_BOOK.md) indica para cada código qué pasó, qué puede haber
+pasado ya y qué hacer a continuación.
 
 ## Empezar de cero
 
-Cierra VOOL y elimina el directorio de configuración indicado en
-[Configuración](../../../reference/configuration.md). Los archivos del espacio de trabajo no se tocan.
+Cierra VOOL y elimina la carpeta «runtime home» indicada en
+[Configuración](../reference/configuration.md). Esto borra tus chats, tu memoria, tus ajustes, tus
+claves guardadas y cualquier monedero que VOOL guarde en este ordenador, así que guarda primero lo
+que necesites: consulta [Copia de seguridad y recuperación](backup-and-recovery.md). Los archivos
+del espacio de trabajo no se tocan.

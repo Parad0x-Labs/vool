@@ -15,9 +15,9 @@ eklerseniz o anahtarın sağlayıcısında doğrulanmasıdır.
 1. **Nerede düşünmeli?** Bu bilgisayarda yerel bir modelle ya da ücretini ödediğiniz bir sağlayıcının
    anahtarıyla çevrimiçi. Bkz. [Model bağlama](connect-a-model.md).
 2. **Bir klasör seçin.** VOOL'un içinde çalışacağı proje klasörü. Bkz.
-   [Çalışma alanları](../../../concepts/workspaces.md).
+   [Çalışma alanları](../concepts/workspaces.md).
 3. **Tek başına ne yapabilir?** VOOL'un herhangi bir şeyi değiştirmeden önce ne sıklıkla durup size soracağı. Bkz.
-   [Araçlar](../../../concepts/tools.md).
+   [Araçlar](../concepts/tools.md).
 4. **Size ne diye çağırsın?** İsteğe bağlı. Bir ad ya da takma ad yeterlidir ve bu bilgi bu bilgisayarda
    kalır.
 
@@ -33,7 +33,7 @@ makinenizde kısa bir denetim çalıştırır.
 * Hesap oluşturmaz.
 * Bulut anahtarı istemez. Uygulamayı kullanmak için yerel bir model yeterlidir.
 * Diskinizi dizinlemez. Dosyaları yalnızca bir istek gerektirdiğinde okur; erişebileceği klasörler için
-  bkz. [Çalışma alanları](../../../concepts/workspaces.md).
+  bkz. [Çalışma alanları](../concepts/workspaces.md).
 
 {% hint style="info" %}
 Sohbet kenar çubuğundaki **+ Proje** ile istediğiniz zaman başka bir proje klasörü seçebilirsiniz.

@@ -38,8 +38,8 @@ VOOL مساعد ذكاء اصطناعي لسطح المكتب. يُثبَّت ك
 | تشغيل VOOL | [التثبيت](getting-started/install.md) |
 | فهم الشاشة الأولى | [التشغيل الأول](getting-started/first-run.md) |
 | توجيهه إلى نموذج | [ربط نموذج](getting-started/connect-a-model.md) |
-| التحكم في الإنفاق الممكن حدوثه | [حدود الإنفاق](../../guides/spending-limits.md) |
-| معرفة ما يغادر جهازك | [محلي وسحابي](../../concepts/local-and-cloud.md) |
+| التحكم في الإنفاق الممكن حدوثه | [حدود الإنفاق](guides/spending-limits.md) |
+| معرفة ما يغادر جهازك | [محلي وسحابي](concepts/local-and-cloud.md) |
 
 ## ما هو VOOL
 
@@ -57,7 +57,7 @@ VOOL مساعد ذكاء اصطناعي لسطح المكتب. يُثبَّت ك
 VOOL في مرحلة تجريبية (beta) لأجهزة Mac بمعالجات Apple Silicon وأجهزة Mac بمعالجات Intel وLinux x86_64. تطبيقات
 Mac غير موثّقة من Apple بعد، لذلك يطلب منك macOS التأكيد في أول مرة تفتح فيها أحدها؛ وتشرح
 صفحة [التثبيت](getting-started/install.md#الفتح-لأول-مرة-على-mac) الطريقة. اطّلع على
-[حالة الإصدار](../../trust/release-status.md) قبل التثبيت.
+[حالة الإصدار](trust/release-status.md) قبل التثبيت.
 {% endhint %}
 
 ## وضعان، بكل وضوح
@@ -73,6 +73,6 @@ Mac غير موثّقة من Apple بعد، لذلك يطلب منك macOS ال�
 
 ## الحصول على المساعدة
 
-* [الأسئلة الشائعة](../../help/faq.md) — الأسئلة الأكثر تكرارًا
+* [الأسئلة الشائعة](help/faq.md) — الأسئلة الأكثر تكرارًا
 * [حل المشكلات](help/troubleshooting.md) — عندما لا يبدأ شيء ما
 * [Discord](https://discord.gg/V9NkjP3Fzz) — اسأل الفريق

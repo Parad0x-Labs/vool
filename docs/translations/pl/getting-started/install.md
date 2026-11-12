@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 VOOL 0.7.7-beta ma pliki aplikacji do pobrania dla Maców z Apple Silicon, Maców z procesorem Intel i Linuksa x86_64 w
 [wydaniu v0.7.7-beta](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
 Możesz też zainstalować VOOL ze źródeł skryptem startowym na macOS, Linuksie lub Windows.
-Szczegóły dotyczące podpisywania i aktualizacji znajdziesz w sekcji [Stan wydań](../../../trust/release-status.md).
+Szczegóły dotyczące podpisywania i aktualizacji znajdziesz w sekcji [Stan wydań](../trust/release-status.md).
 
 ## Wymagania
 
@@ -22,7 +22,7 @@ Szczegóły dotyczące podpisywania i aktualizacji znajdziesz w sekcji [Stan wyd
 | Linux | glibc 2.31 | Ubuntu 22.04 lub nowszy |
 
 Modele lokalne potrzebują znacznie więcej pamięci RAM niż sama aplikacja. Wskazówki dotyczące rozmiaru są w sekcji
-[Uruchamianie modelu lokalnego](../../../guides/local-models.md).
+[Uruchamianie modelu lokalnego](../guides/local-models.md).
 
 ## Pobieranie aplikacji
 

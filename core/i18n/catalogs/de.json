@@ -806,7 +806,7 @@
     "fault.wallet_quote_mismatch.message": "Die Freigabe passt nicht mehr zur gezeigten Übertragung, daher wurde nichts signiert oder gesendet. Beginne mit einer frischen Vorschau von vorn.",
     "fault.wallet_quote_unavailable.action": "Unbekannte Ketten-Daten werden nie als null behandelt; prüfe den Endpunkt der Zeile und seinen Identitätsnachweis.",
     "fault.wallet_quote_unavailable.message": "Das Netz gab keine vollständige Antwort zu Guthaben oder Gebühr dieser Übertragung, daher wurde keine Freigabe vorbereitet und nichts gesendet. Versuche es gleich noch einmal.",
-    "fault.wallet_recipient_refused.action": "Abgelehnt: ein neues Solana-Konto unter der Miete, ein ausführbares oder außerhalb-der-Kurve-Konto, eine schlechte EIP-681-Adresse oder ein bekannter Vertragsempfänger.",
+    "fault.wallet_recipient_refused.action": "Abgelehnt: ein neues Solana-Konto unter der Miete, ein ausführbares oder außerhalb-der-Kurve-Konto, eine fehlerhafte EIP-55-Prüfsumme, die Nulladresse, Precompiles und Systemverträge.",
     "fault.wallet_recipient_refused.message": "Dieser Empfänger kann diese Übertragung in diesem Netzwerk nicht sicher empfangen, daher wurde nichts vorbereitet. Prüfe die Adresse und versuche es erneut.",
     "fault.wallet_recovery_refused.action": "Wiederherstellung versiegelt nur eine bestehende Wallet und nur aus einer Sicherung, die auf deren eigenen Schlüssel dekodiert (beide Richtungen).",
     "fault.wallet_recovery_refused.message": "Dieser Wiederherstellungsnachweis passt nicht zu diesem Wallet, daher wurde nichts geändert: Der gespeicherte Schlüssel muss das Backup sein, das VOOL genau für diese Adresse gezeigt hat, in der Form, in der es gezeigt wurde. Prüfe und versuche es erneut oder nutze die anderen Optionen.",

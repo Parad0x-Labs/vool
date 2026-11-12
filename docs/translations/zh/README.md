@@ -6,8 +6,7 @@ source_sha256: c31e5a047068e09c01bbd2e2c90cbbed0b70e78926847a5b737f9e0e625ab1dd
 
 # VOOL
 
-VOOL 是一款桌面 AI 助手。它作为应用程序安装在你的电脑上，可以在这台电脑上本地运行 AI 模型，
-也可以用你自己的 API 密钥连接云端 AI 提供方。它会为自己执行的每一项操作保留一份可读的记录。
+VOOL 是一款桌面 AI 助手。它作为应用程序安装在你的电脑上，可以在这台电脑上本地运行 AI 模型，也可以用你自己的 API 密钥连接云端 AI 提供方。它会为自己执行的每一项操作保留一份可读的记录。
 
 它是免费的，使用本地模型时可以离线工作。提供 Mac（Apple Silicon 和 Intel）和 Linux x86_64
 版下载；Windows 为实验性支持，需从源码安装。
@@ -26,8 +25,7 @@ VOOL 的记忆胜过了另外两个开源智能体：
 | 每题成本 | **$0.0033** | $0.0100 | $0.0046 |
 
 token 用量比 OpenClaw 少 5.4 倍、比 Hermes 少 3.5 倍，每次回答的成本只有 OpenClaw 的三分之一。
-VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。
-每次运行、测试设置和薄弱环节都已公开：[记忆基准测试](https://github.com/Parad0x-Labs/vool/tree/main/docs/benchmarks)。
+VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。每次运行、测试设置和薄弱环节都已公开：[记忆基准测试](https://github.com/Parad0x-Labs/vool/tree/main/docs/benchmarks)。
 
 ## 从这里开始
 
@@ -36,8 +34,8 @@ VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。
 | 让 VOOL 运行起来 | [安装](getting-started/install.md) |
 | 看懂第一个界面 | [首次运行](getting-started/first-run.md) |
 | 给它指定模型 | [连接模型](getting-started/connect-a-model.md) |
-| 控制可能发生的花费 | [花费限额](../../guides/spending-limits.md) |
-| 了解什么会离开你的电脑 | [本地与云端](../../concepts/local-and-cloud.md) |
+| 控制可能发生的花费 | [花费限额](guides/spending-limits.md) |
+| 了解什么会离开你的电脑 | [本地与云端](concepts/local-and-cloud.md) |
 
 ## VOOL 是什么
 
@@ -49,8 +47,7 @@ VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。
 
 {% hint style="warning" %}
 VOOL 目前为测试版，支持 Apple Silicon Mac、Intel Mac 和 Linux x86_64。Mac 版应用尚未经过
-Apple 公证，因此首次打开时 macOS 会请你确认；[安装](getting-started/install.md#在-mac-上首次打开)
-页面介绍了操作方法。安装前请先查看[发布状态](../../trust/release-status.md)。
+Apple 公证，因此首次打开时 macOS 会请你确认；[安装](getting-started/install.md#在-mac-上首次打开)页面介绍了操作方法。安装前请先查看[发布状态](trust/release-status.md)。
 {% endhint %}
 
 ## 两种模式，说得明明白白
@@ -60,11 +57,10 @@ VOOL 只区分两种状态，界面上始终显示当前是哪一种：
 1. **本地** — 工作留在这台电脑上。
 2. **云端** — 所选上下文从你的电脑出发、使用你的密钥，直接发送给你选择的提供方。
 
-不存在第三种状态，中间也没有任何由 Parad0x 运营的中转服务器。详情见
-[数据处理](trust/data-handling.md)。
+不存在第三种状态，中间也没有任何由 Parad0x 运营的中转服务器。详情见[数据处理](trust/data-handling.md)。
 
 ## 获取帮助
 
-* [常见问题](../../help/faq.md) — 最常被问到的问题
+* [常见问题](help/faq.md) — 最常被问到的问题
 * [故障排除](help/troubleshooting.md) — 有东西启动不了时
 * [Discord](https://discord.gg/V9NkjP3Fzz) — 向团队提问

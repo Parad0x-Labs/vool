@@ -6,6 +6,8 @@ docs/translations/<lang>/ holds the docs in the app's languages. What these chec
   byte, URLs, headings, tables, hints, lists, numbers, links and the app's own labels); a page
   whose English source changed since it was translated is out of date, which warns here and
   is published with a notice, so editing an English page never blocks on 16 retranslations;
+* each translated Error Book is what tools/docs/translate_error_book.py makes from the app's
+  own error texts, laid out like the English book;
 * the checker catches each kind of drift it promises to catch;
 * the site build marks machine-translated and out-of-date pages, links untranslated pages to
   the English ones, shows Arabic and Hebrew right to left, and the publish gate catches a link
@@ -18,6 +20,7 @@ from __future__ import annotations
 import html
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -114,6 +117,53 @@ def test_glossary_app_labels_come_from_the_app_catalogs() -> None:
 
 
 # ---------------------------------------------------------------------------
+# The Error Book in each language
+# ---------------------------------------------------------------------------
+
+BOOK_TRANSLATOR = TOOLS / "translate_error_book.py"
+
+
+def test_error_book_layout_follows_the_english_book() -> None:
+    """The translated books are laid out by the same code as the English one: with the English
+    words it gives docs/ERROR_BOOK.md exactly, so a layout change cannot leave them behind."""
+    teb = _load(BOOK_TRANSLATOR, "error_book_translator_under_test")
+    assert teb.check_english(teb.load_words()), (
+        "tools/docs/translate_error_book.py no longer reproduces docs/ERROR_BOOK.md: make the "
+        "same change there and in tools/docs/error_book_words.json")
+
+
+def test_each_translated_error_book_is_what_the_app_texts_make() -> None:
+    """A translated book made from today's English book is exactly what the tool makes from the
+    app's texts and the book's words, so no one edits it by hand and a changed app text shows.
+    One made from an older English book is out of date, like any other page."""
+    teb = _load(BOOK_TRANSLATOR, "error_book_translator_under_test")
+    words = teb.load_words()
+    ct = _checker()
+    english = ct.sha256_file(str(DOCS / "ERROR_BOOK.md"))
+    behind = []
+    for lang in sorted(words["languages"]):
+        path = DOCS / "translations" / lang / "ERROR_BOOK.md"
+        if ct.Page(str(path)).meta.get("source_sha256") != english:
+            continue
+        if path.read_text(encoding="utf-8") != teb.translated_page(lang, words):
+            behind.append(lang)
+    assert not behind, "run: python3 tools/docs/translate_error_book.py " + " ".join(behind)
+
+
+def test_checker_holds_the_error_book_to_the_app_texts(tmp_path: Path) -> None:
+    """Each code's message on a translated Error Book is the app's own text in that language;
+    a hand edit to one fails the check."""
+    ct = _checker(_copy_docs(tmp_path) / "docs")
+    assert ct.main(["stamp", "de", "ERROR_BOOK.md"]) == 0
+    _data, catalogs = ct.load_glossary()
+    message = catalogs["de"]["fault.permission_denied.message"]
+    _edit(Path(ct.TRANSLATIONS) / "de" / "ERROR_BOOK.md", message, message[:-1] + "!")
+    problems = ct.check_all().blocking("de")
+    assert any("ERROR_BOOK.md" in p and "must read" in p and message[:24] in p
+               for p in problems), problems
+
+
+# ---------------------------------------------------------------------------
 # The checker catches drift
 # ---------------------------------------------------------------------------
 
@@ -124,68 +174,204 @@ def _edit(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+# A small English docs tree and its German translation, made here so the checks below do not
+# depend on how the real English pages read today (an English edit must not break them).
+MINI_DOCS = {
+    "SUMMARY.md": """# Table of contents
+
+* [VOOL](README.md)
+
+## Guides
+
+* [Run a local model](guides/local-models.md)
+
+## Help
+
+* [Troubleshooting](help/troubleshooting.md)
+""",
+    "README.md": """---
+description: VOOL is a desktop AI assistant.
+---
+
+# VOOL
+
+Read [Troubleshooting](help/troubleshooting.md).
+""",
+    "guides/local-models.md": """# Run a local model
+
+Pick a model that fits your memory.
+""",
+    "help/troubleshooting.md": """---
+description: Fixes for the problems that come up most.
+---
+
+# Troubleshooting
+
+## No local models are listed
+
+Open **Settings → Models & Providers → Local models**. A small model needs 8 GB of memory.
+See [Run a local model](../guides/local-models.md) and the [FAQ](https://example.org/faq).
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+## Next
+
+Go back to [VOOL](../README.md).
+""",
+    "translations/de/SUMMARY.md": """# Inhalt
+
+* [VOOL](README.md)
+
+## Hilfe
+
+* [Fehlerbehebung](help/troubleshooting.md)
+""",
+    "translations/de/README.md": """---
+description: VOOL ist ein KI-Assistent für den Desktop.
+translation: machine
+---
+
+# VOOL
+
+Lies [Fehlerbehebung](help/troubleshooting.md).
+""",
+    "translations/de/help/troubleshooting.md": """---
+description: Lösungen für die häufigsten Probleme.
+translation: machine
+---
+
+# Fehlerbehebung
+
+## Keine lokalen Modelle aufgeführt
+
+Öffne **Einstellungen → Modelle & Anbieter → Lokale Modelle**. Ein kleines Modell braucht 8 GB
+Arbeitsspeicher. Siehe [Ein lokales Modell ausführen](../../../guides/local-models.md) und die
+[FAQ](https://example.org/faq).
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+## Weiter
+
+Zurück zu [VOOL](../README.md).
+""",
+}
+
+
+def _mini_docs(tmp_path: Path):
+    """The small tree, stamped and passing the strict check: the baseline every case breaks."""
+    docs = tmp_path / "docs"
+    for rel, text in MINI_DOCS.items():
+        path = docs / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    ct = _checker(docs)
+    assert ct.main(["stamp", "de", "README.md", "help/troubleshooting.md"]) == 0
+    assert ct.check_all().blocking("de") == []
+    return ct, docs
+
+
 DRIFT_CASES = {
-    "code block": ("help/troubleshooting.md", "localhost:11434", "localhost:11435",
-                   "code blocks differ"),
-    "url": ("README.md", "https://discord.gg/V9NkjP3Fzz", "https://discord.gg/other",
-            "URLs differ"),
-    "app label": ("getting-started/first-run.md", "Lokale Modelle**", "Lokalen Modelle**",
+    "code block": ("localhost:11434", "localhost:11435", "code blocks differ"),
+    "url": ("https://example.org/faq", "https://example.org/other", "URLs differ"),
+    "app label": ("Lokale Modelle**", "Lokalen Modelle**",
                   "label 'Local models' must read 'Lokale Modelle'"),
-    "number": ("getting-started/connect-a-model.md", "# Ein Modell verbinden\n",
-               "# Ein Modell verbinden\n\nVersion 42.\n", "numbers differ"),
-    "heading": ("trust/data-handling.md", "## Die zwei Zustände\n", "Die zwei Zustände\n",
-                "headings differ"),
-    "link target": ("getting-started/install.md", "(../../../guides/local-models.md)",
-                    "(../../../guides/openrouter.md)", "links differ from the English"),
-    "link to english twin": ("getting-started/install.md", "(first-run.md)",
-                             "(../../../getting-started/first-run.md)",
+    "number": ("braucht 8 GB", "braucht 16 GB", "numbers differ"),
+    "heading": ("## Weiter\n", "Weiter\n", "headings differ"),
+    "link target": ("(../../../guides/local-models.md)", "(../../../guides/openrouter.md)",
+                    "links differ from the English"),
+    "link to english twin": ("(../README.md)", "(../../../README.md)",
                              "goes to the English page, but this language has"),
-    "machine path": ("getting-started/connect-a-model.md", "# Ein Modell verbinden\n",
-                     "# Ein Modell verbinden\n\nSiehe /Users/someone/vool.\n", "machine path"),
-    "status": ("help/troubleshooting.md", "translation: machine\n", "",
-               "needs translation: machine"),
+    "machine path": ("## Weiter\n", "## Weiter\n\nSiehe /Users/someone/vool.\n", "machine path"),
+    "status": ("translation: machine\n", "", "needs translation: machine"),
 }
 
 
 @pytest.mark.parametrize("case", sorted(DRIFT_CASES))
 def test_checker_catches_drift(tmp_path: Path, case: str) -> None:
-    page, old, new, expected = DRIFT_CASES[case]
-    root = _copy_docs(tmp_path)
-    _edit(root / "docs" / "translations" / "de" / page, old, new)
-    ct = _checker(root / "docs")
-    report = ct.check_all()
-    problems = report.blocking("de", allow_stale=True)
+    old, new, expected = DRIFT_CASES[case]
+    ct, docs = _mini_docs(tmp_path)
+    _edit(docs / "translations" / "de" / "help" / "troubleshooting.md", old, new)
+    problems = ct.check_all().blocking("de")
     assert any(expected in p for p in problems), problems
-    assert all(p.startswith("de/" + page) for p in problems), problems
+    assert all(p.startswith("de/help/troubleshooting.md") for p in problems), problems
+
+
+JA_README = """---
+description: VOOL はデスクトップの AI アシスタントです。
+translation: machine
+---
+
+# VOOL
+
+[トラブルシューティング](../../help/troubleshooting.md)を読んでください。
+"""
+
+
+@pytest.mark.parametrize("old, new", [
+    ("を読んでください", "を読ん\nでください"),
+    ("troubleshooting.md)を", "troubleshooting.md)\nを"),
+], ids=["mid-sentence", "after a link"])
+def test_checker_catches_a_line_break_that_shows_as_a_space_in_japanese(
+        tmp_path: Path, old: str, new: str) -> None:
+    """Japanese and Chinese put no spaces between words, but a browser shows a line break
+    inside a paragraph as a space, so a wrapped line leaves a gap mid-sentence."""
+    ct, docs = _mini_docs(tmp_path)
+    ja = docs / "translations" / "ja"
+    ja.mkdir()
+    (ja / "SUMMARY.md").write_text("# 目次\n\n* [VOOL](README.md)\n", encoding="utf-8")
+    (ja / "README.md").write_text(JA_README, encoding="utf-8")
+    assert ct.main(["stamp", "ja", "README.md"]) == 0
+    assert ct.check_all().blocking("ja") == []
+    _edit(ja / "README.md", old, new)
+    problems = ct.check_all().blocking("ja")
+    assert any("show as a space" in p for p in problems), problems
 
 
 def test_checker_rejects_a_summary_that_lists_an_untranslated_page(tmp_path: Path) -> None:
     root = _copy_docs(tmp_path)
-    summary = root / "docs" / "translations" / "de" / "SUMMARY.md"
-    summary.write_text(summary.read_text(encoding="utf-8") + "* [Wallet](guides/wallet.md)\n",
+    de = root / "docs" / "translations" / "de"
+    english = re.findall(r"\]\(([^)#]+\.md)\)",
+                         (root / "docs" / "SUMMARY.md").read_text(encoding="utf-8"))
+    page = next(rel for rel in english if not (de / rel).exists())
+    summary = de / "SUMMARY.md"
+    summary.write_text(summary.read_text(encoding="utf-8") + "* [Page](%s)\n" % page,
                        encoding="utf-8")
     report = _checker(root / "docs").check_all()
-    assert any("guides/wallet.md does not exist" in p for p in report.blocking("de")), \
+    assert any("%s does not exist" % page in p for p in report.blocking("de")), \
         report.blocking("de")
 
 
 def test_an_out_of_date_page_fails_the_check_and_only_warns_with_allow_stale(
         tmp_path: Path) -> None:
-    root = _copy_docs(tmp_path)
-    english = root / "docs" / "help" / "troubleshooting.md"
+    ct, docs = _mini_docs(tmp_path)
+    english = docs / "help" / "troubleshooting.md"
     english.write_text(english.read_text(encoding="utf-8") + "\nOne more English line.\n",
                        encoding="utf-8")
-    ct = _checker(root / "docs")
     report = ct.check_all()
-    for lang in ct._languages():
-        assert report.stale[lang] == ["help/troubleshooting.md"], lang
-        assert any("STALE" in p for p in report.blocking(lang)), lang
-        assert report.blocking(lang, allow_stale=True) == [], lang
+    assert report.stale["de"] == ["help/troubleshooting.md"]
+    assert any("STALE" in p for p in report.blocking("de")), report.blocking("de")
+    assert report.blocking("de", allow_stale=True) == []
     assert ct.main(["check"]) == 1
     assert ct.main(["check", "--allow-stale"]) == 0
     # Stamping after retranslating clears it.
     assert ct.main(["stamp", "de", "help/troubleshooting.md"]) == 0
-    assert "help/troubleshooting.md" not in ct.check_all().stale["de"]
+    assert ct.check_all().stale["de"] == []
+    assert ct.main(["check"]) == 0
+
+
+def test_an_out_of_date_page_still_reports_a_broken_front_matter(tmp_path: Path) -> None:
+    ct, docs = _mini_docs(tmp_path)
+    english = docs / "help" / "troubleshooting.md"
+    english.write_text(english.read_text(encoding="utf-8") + "\nOne more English line.\n",
+                       encoding="utf-8")
+    _edit(docs / "translations" / "de" / "help" / "troubleshooting.md",
+          "translation: machine\n", "")
+    problems = ct.check_all().blocking("de", allow_stale=True)
+    assert any("needs translation: machine" in p for p in problems), problems
 
 
 # ---------------------------------------------------------------------------
@@ -196,9 +382,26 @@ def test_an_out_of_date_page_fails_the_check_and_only_warns_with_allow_stale(
 @pytest.fixture(scope="module")
 def built(tmp_path_factory: pytest.TempPathFactory) -> dict:
     """The site built from a copy of the docs whose English README changed after it was
-    translated, so every translated README is out of date."""
+    translated, so every translated README, and nothing else, is out of date."""
     tmp_path = tmp_path_factory.mktemp("docs-translations")
     root = _copy_docs(tmp_path)
+    # Stamp every translated page against today's English first, so the pages the real
+    # repository already has out of date do not blur what this build shows.
+    ct = _checker(root / "docs")
+    for lang in ct._languages():
+        assert ct.main(["stamp", lang, *ct._translated_pages(lang)]) == 0
+    # German loses one page, so a translated page links to an untranslated one in English.
+    de = root / "docs" / "translations" / "de"
+    (de / "guides" / "local-models.md").unlink()
+    summary = de / "SUMMARY.md"
+    summary.write_text("".join(line for line in summary.read_text(encoding="utf-8")
+                               .splitlines(keepends=True) if "guides/local-models.md" not in line),
+                       encoding="utf-8")
+    for page in de.rglob("*.md"):
+        text = page.read_text(encoding="utf-8")
+        if "](../guides/local-models.md" in text:
+            page.write_text(text.replace("](../guides/local-models.md",
+                                         "](../../../guides/local-models.md"), encoding="utf-8")
     readme = root / "docs" / "README.md"
     readme.write_text(readme.read_text(encoding="utf-8") + "\nOne more English line.\n",
                       encoding="utf-8")

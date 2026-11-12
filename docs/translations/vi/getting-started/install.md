@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 VOOL 0.7.7-beta có bản tải xuống ứng dụng cho Mac dùng Apple Silicon, Mac dùng Intel và Linux x86_64 tại
 [bản phát hành v0.7.7-beta](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
 Bạn cũng có thể cài từ mã nguồn bằng tập lệnh khởi tạo trên macOS, Linux hoặc Windows.
-Xem [Trạng thái phát hành](../../../trust/release-status.md) để biết chi tiết về ký số và cập nhật.
+Xem [Trạng thái phát hành](../trust/release-status.md) để biết chi tiết về ký số và cập nhật.
 
 ## Yêu cầu
 
@@ -22,7 +22,7 @@ Xem [Trạng thái phát hành](../../../trust/release-status.md) để biết c
 | Linux | glibc 2.31 | Ubuntu 22.04 trở lên |
 
 Mô hình cục bộ cần nhiều bộ nhớ RAM hơn hẳn bản thân ứng dụng. Hướng dẫn chọn kích thước có trong
-[Chạy mô hình cục bộ](../../../guides/local-models.md).
+[Chạy mô hình cục bộ](../guides/local-models.md).
 
 ## Tải ứng dụng
 

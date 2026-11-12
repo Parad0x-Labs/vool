@@ -806,7 +806,7 @@
     "fault.wallet_quote_mismatch.message": "Zatwierdzenie nie pasuje już do podglądanego przelewu, więc nic nie podpisano ani nie wysłano. Zacznij od nowa od świeżego podglądu.",
     "fault.wallet_quote_unavailable.action": "Nieznane dane łańcucha nigdy nie są traktowane jako zero; sprawdź punkt końcowy wiersza i jego dowód tożsamości.",
     "fault.wallet_quote_unavailable.message": "Sieć nie dała pełnej odpowiedzi o saldzie lub opłacie tego przelewu, więc nie przygotowano zatwierdzenia i nic nie wysłano. Spróbuj za chwilę.",
-    "fault.wallet_recipient_refused.action": "Odrzucono: nowe konto Solany pod minimum czynszu, konto wykonywalne albo poza krzywą, zły adres EIP-681 albo znany odbiorca-kontrakt.",
+    "fault.wallet_recipient_refused.action": "Odrzucono: nowe konto Solany pod minimum czynszu, konto wykonywalne albo poza krzywą, zła suma kontrolna EIP-55, adres zerowy, prekompilaty i kontrakty systemowe.",
     "fault.wallet_recipient_refused.message": "Ten odbiorca nie może bezpiecznie przyjąć tego przelewu w tej sieci, więc nic nie przygotowano. Sprawdź adres i spróbuj ponownie.",
     "fault.wallet_recovery_refused.action": "Odtworzenie przepieczętowuje tylko istniejący portfel i tylko z kopii, która deszyfruje do własnego klucza portfela (obie strony).",
     "fault.wallet_recovery_refused.message": "Ten dowód odzyskiwania nie pasuje do tego portfela, więc nic się nie zmieniło: zapisany klucz musi być kopią zapasową, którą VOOL pokazał dokładnie dla tego adresu, w formie, w jakiej była pokazana. Sprawdź i spróbuj ponownie albo użyj innych opcji.",
