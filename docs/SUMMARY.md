@@ -29,6 +29,8 @@
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Contacts](guides/contacts.md)
+* [My things](guides/my-things.md)
+* [My routines](guides/routines.md)
 * [See what leaves your computer](guides/what-leaves-your-computer.md)
 
 ## Reference

@@ -1,6 +1,6 @@
 # My things
 
-Planned for v0.7.5, not released yet. Privacy and deletion review is still required before release.
+Privacy and deletion review is still required before release.
 
 Open **My things** from Home or Settings. You can keep details about purchases and household equipment, along with receipts, manuals, photos and notes. My things starts on with an empty list. It does not scan your files or add purchases automatically.
 
