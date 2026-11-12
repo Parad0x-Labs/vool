@@ -92,6 +92,7 @@ try:
 except Exception as exc:
     print(json.dumps({"error": "pypdf_unavailable", "detail": str(exc)[:200]})); raise SystemExit(0)
 path, max_pages = sys.argv[1], int(sys.argv[2])
+first_page = max(1, int(sys.argv[4])) if len(sys.argv) > 4 else 1
 try:
     reader = pypdf.PdfReader(path)
     if getattr(reader, "is_encrypted", False):
@@ -102,8 +103,9 @@ try:
         if not opened:
             print(json.dumps({"error": "password_protected"})); raise SystemExit(0)
     total = len(reader.pages)
+    first = min(total, first_page) if total else 1
     pages = []
-    for index in range(min(total, max_pages)):
+    for index in range(first - 1, min(total, first - 1 + max_pages)):
         try:
             text = reader.pages[index].extract_text() or ""
         except Exception:
@@ -113,12 +115,13 @@ except SystemExit:
     raise
 except Exception as exc:
     print(json.dumps({"error": "pdf_unreadable", "detail": type(exc).__name__})); raise SystemExit(0)
-print(json.dumps({"engine": "pypdf " + getattr(pypdf, "__version__", "?"), "page_count": total, "pages": pages}))
+print(json.dumps({"engine": "pypdf " + getattr(pypdf, "__version__", "?"), "page_count": total, "page_start": first, "pages": pages}))
 """
 
 
 def _fallback_read_scope() -> list[str]:
-    """The narrowest scope that lets the fallback interpreter import pypdf and nothing else."""
+    """The narrowest scope that lets the fallback interpreter import pypdf: its own installation,
+    and the site-packages directory that holds pypdf, both read-only."""
     import sysconfig
 
     scope: list[str] = []
@@ -135,8 +138,10 @@ def _fallback_read_scope() -> list[str]:
         spec = importlib.util.find_spec("pypdf")
         origin = getattr(spec, "origin", None) if spec else None
         if origin:
-            # The directory CONTAINING the package, so `import pypdf` resolves -- not site-packages
-            # at large where every other installed distribution lives.
+            # The package, and the directory that holds it. `import pypdf` has to list that parent
+            # (the environment's site-packages) to find the package, so every distribution
+            # installed there is readable too, read-only. That is installed code only: not the
+            # repository, not the home folder and not VOOL's data.
             package_root = Path(origin).resolve().parent
             scope.append(str(package_root))
             scope.append(str(package_root.parent))
@@ -157,8 +162,12 @@ def _package_paths() -> list[str]:
         return []
 
 
-def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str, Any]:
-    """Run the fallback parser confined, and translate its typed outcome back into ours."""
+def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path, start_page: int = 1) -> dict[str, Any]:
+    """Run the fallback parser confined, and translate its typed outcome back into ours.
+
+    ``start_page`` (1-based) is where reading begins, so "read page 5" reads page 5; past the last
+    page it reads the last one, as the macOS PDFKit helper does.
+    """
     if not _pypdf_importable():
         raise ReaderUnavailable(
             "No PDF decoder is available on this machine, so the PDF was not read.",
@@ -184,7 +193,10 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
     # the import path is passed as an argument and inserted explicitly instead. Isolation is the
     # point -- the child must not inherit whatever the server happened to be started with.
     result = run_confined(
-        [interpreter, "-I", "-S", str(script), str(path), str(int(max_pages)), json.dumps(_package_paths())],
+        [
+            interpreter, "-I", "-S", str(script), str(path), str(int(max_pages)), json.dumps(_package_paths()),
+            str(max(1, int(start_page or 1))),
+        ],
         scratch=scratch,
         fmt="pdf",
         extra_read=extra_read,
@@ -200,6 +212,15 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
     except (ValueError, IndexError) as exc:
         raise ReaderRefused("The PDF could not be read by the fallback decoder.", code="pdf_unreadable", fmt="pdf") from exc
     error = str(payload.get("error") or "")
+    if error == "pypdf_unavailable":
+        # The confined interpreter could not import the decoder: a gap in this install, not a
+        # damaged file, so it must not be reported as one.
+        raise ReaderUnavailable(
+            "No PDF decoder is available on this machine, so the PDF was not read.",
+            code="pdf_decoder_unavailable",
+            remediation="Paste the text from the PDF into your message instead.",
+            fmt="pdf",
+        )
     if error == "password_protected":
         raise ReaderRefused(
             "The PDF is password-protected; its contents were not read.",

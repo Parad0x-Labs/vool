@@ -41,6 +41,7 @@ OBSERVE = r'''() => {
     }
     return result;
   });
+  const short=u=>{try{const x=new URL(u);return x.origin===location.origin&&x.hash?'#'+x.hash.slice(1):(x.hostname+x.pathname).replace(/\/$/,'');}catch(_){return '';}};
   const nodes=elements.map((e,i)=>{
     e.setAttribute('data-vool-live',String(i));const f=e.form, form=f?references.indexOf(f):-1;
     const method=f?(e.getAttribute('formmethod')||own(f,'method')||'GET').toUpperCase():'GET';
@@ -52,7 +53,11 @@ OBSERVE = r'''() => {
       address.search=fields.toString();target=address.href;
     }
     return {selector:'[data-vool-live="'+i+'"]',tag:e.tagName.toLowerCase(),name:e.name||'',form,
-      label:(e.innerText||e.getAttribute('aria-label')||e.getAttribute('name')||e.type||'').slice(0,120),
+      // What a person would call it: its words, then what it says about itself, then where a
+      // picture-only link goes. Never the bare tag ("a") as a name.
+      label:(String(e.innerText||'').replace(/\s+/g,' ').trim()||e.getAttribute('aria-label')||e.getAttribute('title')
+        ||[...Element.prototype.querySelectorAll.call(e,'img[alt]')].map(i=>i.alt.trim()).find(Boolean)||e.getAttribute('placeholder')||e.getAttribute('name')
+        ||(e.tagName==='A'&&e.href?short(e.href):'')||(e.tagName==='A'?'':e.type)||'').trim().slice(0,120),
       type:e.type||'',navigates:!!e.href||!!f&&submits(e),submit_value:submits(e)&&e.type!=='image'?e.value:'',
       target:target.slice(0,4096),target_too_long:target.length>4096,method,
       password_form:!!f&&forms[form].password,
@@ -62,9 +67,14 @@ OBSERVE = r'''() => {
       ...(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)&&!['password','file','submit','button','reset','image'].includes(e.type)&&!private_(e)
         ?(['checkbox','radio'].includes(e.type)?{checked:e.checked}:{value:String(e.value||'').slice(0,2000),value_truncated:String(e.value||'').length>2000})
         :{}),
-      payment:!!within(e,'[data-payment]')};
+      payment:!!within(e,'[data-payment]'),
+      // Where the control sits in the owner's picture of the page (viewport pixels), so the
+      // pane can make the picture itself clickable. Only controls inside the view get a box.
+      ...(()=>{const r=e.getBoundingClientRect();
+        return r.width>0&&r.height>0&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth
+          ?{box:[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)]}:{};})()};
   });
-  return {nodes,forms};
+  return {nodes,forms,view:[innerWidth,innerHeight]};
 }'''
 
 

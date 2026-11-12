@@ -171,15 +171,18 @@ def test_a_missing_framework_says_so_rather_than_returning_nothing(tmp_path) -> 
 
     pdf = tmp_path / "x.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    # Neither PDFKit nor the shipped pypdf fallback: the reason names what is missing.
+    # The macOS route with neither PDFKit nor the shipped pypdf fallback: the reason names what is missing.
+    no_decoder = {"status": "missing_dependency", "reason": "no decoder"}
     with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
-            mock.patch.object(pdf_tools, "_pypdf_text_layer", lambda *_a, **_k: None):
+            mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True), \
+            mock.patch.object(pdf_tools, "_extract_portable", return_value=no_decoder):
         result = pdf_tools.extract_text(str(pdf))
 
     assert result["status"] == "missing_dependency"
     assert "system Python" in result["reason"]
     # With the fallback present, a broken file is reported broken, never "ok" with no text.
-    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"):
+    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
+            mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True):
         broken = pdf_tools.extract_text(str(pdf))
     assert broken["status"] != "ok" and broken.get("reason"), broken
 
@@ -193,7 +196,8 @@ def test_without_pdfkit_the_shipped_pypdf_reads_the_text_layer(tmp_path) -> None
 
     pdf = tmp_path / "invoice.pdf"
     pdf.write_bytes(_pdf(["INVOICE 2023_015", "Total: 120.00 EUR"], 10))
-    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"):
+    with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
+            mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True):  # the macOS route
         result = pdf_tools.extract_text(str(pdf))
     assert result["status"] == "ok" and result["source"] == "pypdf", result
     assert "Total: 120.00 EUR" in result["text"], result

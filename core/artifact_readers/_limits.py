@@ -13,6 +13,11 @@ from __future__ import annotations
 #: Pages parsed out of one PDF. Beyond this the remaining pages are listed as omitted, so the
 #: model is told the document continued rather than shown a silent stop.
 MAX_PDF_PAGES = 400
+#: Bytes of one local PDF the portable (non-macOS) reader copies into its scratch before decoding.
+#: The copy lives in the scratch, so this stays at half of MAX_SCRATCH_BYTES and the decoder keeps
+#: room; a larger file is refused in plain words before any of it is copied, and the copy streams,
+#: so the serving process never holds the whole file.
+MAX_PORTABLE_PDF_BYTES = 256 * 1024 * 1024
 #: Paragraphs plus table rows taken from one DOCX.
 MAX_DOCX_BLOCKS = 20_000
 #: Characters kept per extracted unit before that unit alone is cut (the cut is stated on it).
@@ -118,6 +123,10 @@ SUBPROCESS_MAX_STDERR_BYTES = 2 * 1024 * 1024
 #: bound here would be a claim nothing enforces. Memory-hungry input is bounded instead by the
 #: CPU limit, the wall-clock deadline and the aggregate scratch quota below.
 SUBPROCESS_CPU_SECONDS = 60
+#: Address space one decoder may map, on Linux only (RLIMIT_AS via the shell, which Linux honours;
+#: macOS refuses it, see above). Without it a hostile file can make the decoder commit memory until
+#: the computer runs out (measured 2026-10-29 under bubblewrap: 8 GB committed, exit 0).
+SUBPROCESS_MAX_ADDRESS_SPACE_BYTES = 4 * 1024 * 1024 * 1024
 #: Open files one decoder may hold.
 #:
 #: There is deliberately no child-process ceiling: RLIMIT_NPROC is per-UID, not per-process, so a
