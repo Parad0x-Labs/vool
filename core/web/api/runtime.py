@@ -316,6 +316,16 @@ def _platform_release_tag() -> str:
     return "".join(ch for ch in plat if ch.isalnum())[:12]
 
 
+def _code_root_matches(project_root: Path) -> bool:
+    """Whether the imported ``core`` package lives in ``project_root`` (the folder the stamp reads)."""
+    try:
+        import core
+
+        return Path(core.__file__).resolve().parent.parent == Path(project_root).resolve()
+    except Exception:
+        return False
+
+
 def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, workstation_version: str) -> dict[str, Any]:
     from core.runtime_paths import runtime_home_identity
 
@@ -390,6 +400,11 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
         # False for a source copy with neither .git nor config/build-source.json: nothing says which
         # code it runs, so no test may treat it as any build (ops/build_identity.py refuses it).
         "identified": bool(commit),
+        # Whether the code this process runs is the code the stamp names: False when `core` was
+        # imported from another checkout (an editable install of an older line) while the stamp
+        # read this folder's git state. Such a mixed build served a passing identity check
+        # (approval proof, 2026-11-12); ops/build_identity.py refuses it.
+        "code_root_matches": _code_root_matches(project_root),
         "platform": platform_tag,
         "build_id": build_id,
         "started_at": started_at,

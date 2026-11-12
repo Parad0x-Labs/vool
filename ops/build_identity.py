@@ -164,6 +164,11 @@ def evaluate(
     release = str(observed.get("release_version") or "").strip()
     if expected_release and release != expected_release:
         reasons.append(f"it is release {release or 'unknown'}, but {label} is release {expected_release}")
+    if observed.get("code_root_matches") is False:
+        reasons.append(
+            "it runs code from another checkout than the one its stamp names (core was imported from "
+            "elsewhere, e.g. an editable install of an older line); start it from its own folder"
+        )
     if observed.get("dirty"):
         diff = str(observed.get("diff_sha256") or "").strip().lower()
         if not diff:
@@ -286,6 +291,10 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"UNREACHABLE {exc}", file=sys.stderr)
         return EXIT_UNREACHABLE
     reasons = evaluate(observed, expected_commit=commit, expected_release=release, allowed_diffs=allowed, lane_label=label, stale=stale)
+    if "code_root_matches" not in observed and not args.json:
+        # Builds before this field cannot say where their code was loaded from; they are not
+        # refused for it, so a mixed build of such a commit still needs its start command checked.
+        print("note: this build does not report where its code was loaded from (older build)", file=sys.stderr)
     return _report(args.url, observed, reasons, args)
 
 

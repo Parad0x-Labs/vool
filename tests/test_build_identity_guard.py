@@ -189,3 +189,46 @@ def test_no_manifest_and_unknown_lane_fail_closed(tmp_path, monkeypatch):
     unknown = _tool("check-tree", str(repo), "--lane", "chat", env_manifest=manifest)
     assert unknown.returncode == 2 and "not in the heads manifest" in unknown.stderr
 
+
+
+def test_a_build_running_another_checkouts_code_is_refused(tmp_path):
+    """Approval proof, Nov 12: a daemon started by path from one checkout, with an interpreter
+    whose editable install pointed at an older checkout, ran the older `core` while its stamp
+    (read from the started folder) named the new commit, and `check` said OK. The stamp now
+    says whether the imported core lives in the folder it names, and `check` refuses when not."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    own = _stamp(REPO)
+    assert own["code_root_matches"] is True
+    other = _repo(tmp_path / "other")
+    mixed = _stamp(other)  # this process imported REPO's core, the stamp reads `other`
+    assert mixed["code_root_matches"] is False and mixed["commit_full"] == _git(other, "rev-parse", "HEAD")
+
+    class Version(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            raw = json.dumps(mixed).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Version)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+        refused = _tool("check", "--url", url, "--expect-commit", mixed["commit_full"])
+        assert refused.returncode == 3, refused.stdout + refused.stderr
+        assert "another checkout" in refused.stdout
+        mixed["code_root_matches"] = True
+        accepted = _tool("check", "--url", url, "--expect-commit", mixed["commit_full"])
+        assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+        del mixed["code_root_matches"]
+        older = _tool("check", "--url", url, "--expect-commit", mixed["commit_full"])
+        assert older.returncode == 0 and "does not report where its code was loaded from" in older.stderr
+    finally:
+        server.shutdown()
