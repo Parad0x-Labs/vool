@@ -104,6 +104,8 @@ _NOT_TAKE_BACKS = [
     # an ordinary object or a description
     "Lightning might strike that tree.",
     "I forget I said that sometimes.",
+    # taking back a question un-says no statement
+    "Forget I asked, I found the receipt.",
 ]
 
 
@@ -198,3 +200,41 @@ def test_an_ordinary_chat_capsule_follows_the_take_back_law(tmp_path, fact, late
     first, question, value = fact
     capsule = _ordinary_chat_capsule(tmp_path, first, later, question)
     assert (value not in capsule) is withdrawn, (later, capsule)
+
+
+# ── the forget command: its stored target is a description, not a retraction ────────────────
+
+@pytest.mark.parametrize("command", [
+    "Forget the exact identifier I mentioned in this chat, but keep the budget note.",
+    "Forget the exact identifier I said in this chat, but keep the budget note.",
+    "Forget the exact identifier I told you in this chat, but keep the budget note.",
+    "Forget the exact identifier I asked you to remember in this chat, but keep the budget note.",
+    "Forget I said anything about the identifier in this chat, keep the budget note.",
+])
+def test_a_forget_commands_stored_target_never_withdraws_a_kept_memory(tmp_path, monkeypatch, command):
+    """The forget authority withdraws by subject from the targets a forget command stored, and the
+    command parser stores relative clauses cut from the request ("i mentioned in this chat"). Read
+    as a retraction of the speaker's own saying, such a fragment withdrew every memory of the chat
+    through "chat", including the budget note the person asked to keep (measured on this branch
+    before the fix; plain 247124ed never read "forget I ..." as a retraction)."""
+    from core import runtime_paths
+    from core.context_namespace import ensure_chat_namespace
+    from core.persistent_memory import maybe_handle_memory_command, summarize_memory
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", None)
+    chat = "take-back-forget-command"
+    ensure_chat_namespace(chat)
+    assert maybe_handle_memory_command(
+        "Remember this exact identifier for this chat: INSTALL-MEM-E91D-7319.", session_id=chat)[0]
+    assert maybe_handle_memory_command("Keep this exact budget note in this chat: 0.091 SOL.", session_id=chat)[0]
+
+    handled, reply = maybe_handle_memory_command(command, session_id=chat)
+
+    assert handled, reply
+    remembered = "\n".join(summarize_memory(chat_id=chat, limit=20))
+    assert "0.091 SOL" in remembered, (command, reply, remembered)
+    if reply.startswith("Nothing was removed"):
+        # what the reply says is what happened: nothing was withdrawn behind it either
+        assert "INSTALL-MEM-E91D-7319" in remembered, (command, reply, remembered)
+

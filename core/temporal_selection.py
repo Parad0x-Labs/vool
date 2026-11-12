@@ -991,9 +991,10 @@ _RETRACTION_MARKER_RE = re.compile(
     r"ignore\s+(?:that|it|this|what\s+(?:i|we)\s+(?:said|told\s+you))|"
     # un-saying one's own words by naming the saying ("forget I said that",
     # "forget I ever mentioned the dentist") or the last message ("ignore my
-    # last message"): speech verbs, so the directive law below applies
+    # last message"): speech verbs, so the directive law below applies. Not
+    # "forget I asked": taking back a question un-says no statement
     r"forget\s+(?:i|we)\s+(?:ever\s+|even\s+|just\s+)?"
-    r"(?:said|mentioned|told\s+you|asked|wrote|typed|brought\s+(?:it|that|this)\s+up)|"
+    r"(?:said|mentioned|told\s+you|wrote|typed|brought\s+(?:it|that|this)\s+up)|"
     r"(?:ignore|forget)\s+(?:my|the)\s+(?:last|previous|prior|earlier)\s+"
     r"(?:message|msg|text|reply|answer|comment|note|line|bit|part|one)|"
     # taking one's own words back ("I take that back", "let me take back
@@ -1449,11 +1450,17 @@ def retraction_marker_is_live(text: str, match: re.Match[str]) -> bool:
     return True
 
 
-def retraction_marker(text: str) -> re.Match[str] | None:
+def retraction_marker(text: str, *, naming_the_saying: bool = True) -> re.Match[str] | None:
     """The first LIVE closed-class retraction in *text* (see
-    :func:`retraction_marker_is_live`), or None."""
+    :func:`retraction_marker_is_live`), or None. With ``naming_the_saying``
+    False, the forms that name the speaker's own saying ("forget I said ...",
+    "take back what I said ...", "I misspoke") are left out: a caller that
+    builds a retraction from a stored phrase (the forget authority's subject
+    withdrawal) only grants it to forms whose subject is named outright."""
     body = str(text or "")
     for match in _RETRACTION_MARKER_RE.finditer(body):
+        if not naming_the_saying and _SPEECH_NAMING_MARKER_RE.match(match.group(0)):
+            continue
         if retraction_marker_is_live(body, match):
             return match
     return None
