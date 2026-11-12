@@ -2988,8 +2988,18 @@ _KIND_LISTING_REFUSE_RE = re.compile(
 )
 
 
+#: Pointing back at the listed folder without naming a kind: "in there", "in that folder", "the 2 newest
+#: there". An existential "how many planets are there" is not a pointer.
+_POINTS_BACK_AT_THE_FOLDER_RE = re.compile(
+    r"\b(?:in|from|inside)\s+(?:there|it|that\s+folder|the\s+same\s+folder|that\s+one)\b"
+    r"|\b(?:newest|latest|recent|oldest|biggest|largest)\b[^.?!]{0,20}\bthere\b",
+    re.IGNORECASE,
+)
+_LISTING_KIND_LABELS_FOR_HINT = frozenset({"image", "video", "audio", "pdf", "document", "spreadsheet"})
+
+
 def machine_kind_listing_intent(
-    text: str, *, earlier_turns: Sequence[str] = (), folder_hint: str = ""
+    text: str, *, earlier_turns: Sequence[str] = (), folder_hint: str = "", kind_hint: str = ""
 ) -> dict[str, Any] | None:
     """`{"path", "kind", "limit", "newest_first"}` for "the <kind> files in <a known folder>", else None.
 
@@ -3001,14 +3011,36 @@ def machine_kind_listing_intent(
     if not clean or _KIND_LISTING_REFUSE_RE.search(clean):
         return None
     kind_match = _KIND_WORD_RE.search(clean)
-    if kind_match is None or not _LISTING_ASK_RE.search(clean):
+    # "just the 2 newest there" after a listing of pdfs: the kind and the folder come from the chat's
+    # own record of that listing (real-app check 2026-11-12: the model guessed two names instead).
+    if (
+        kind_match is None
+        and kind_hint in _LISTING_KIND_LABELS_FOR_HINT
+        and (folder_hint or "")
+        and _POINTS_BACK_AT_THE_FOLDER_RE.search(clean)
+        and (_NEWEST_COUNT_RE.search(clean) or re.search(r"\bhow\s+many\b|\bcount\b", clean, re.IGNORECASE))
+    ):
+        count = _NEWEST_COUNT_RE.search(clean)
+        if re.search(r"\bhow\s+many\b|\bcount\b", clean, re.IGNORECASE):
+            return {"path": folder_hint, "kind": kind_hint, "count_only": True}
+        digits = (count.group(1) or count.group(2)) if count else ""
+        return {"path": folder_hint, "kind": kind_hint, "limit": max(1, min(int(digits), 200)) if digits else 20,
+                "newest_first": True}
+    if kind_match is None:
+        return None
+    if not _LISTING_ASK_RE.search(clean) and not (
+        # "same for photos in that folder": a kind of file pointed at the folder already in view.
+        _POINTS_BACK_AT_THE_FOLDER_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)
+    ):
         return None
     # "pictures" names both a kind of file and a folder: the word that named the kind is not also the
     # folder ("the 2 most recent pictures there" is not ~/Pictures).
     kind_words = {kind_match.span(1)}
     folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
     path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
-    if not path and folder_hint and _FOLDER_ANAPHORA_RE.search(clean):
+    if not path and folder_hint and (
+        _FOLDER_ANAPHORA_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)
+    ):
         path = str(folder_hint)  # the folder the chat's own record resolved beats re-reading earlier wording
     if not path and _FOLDER_ANAPHORA_RE.search(clean):
         for earlier in earlier_turns:

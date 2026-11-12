@@ -1613,3 +1613,23 @@ def test_a_files_question_is_never_a_memory_recall(asked):
     from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
 
     assert _owned_by_another_lane(as_question(asked))
+
+
+@pytest.mark.parametrize("asked, expect", [
+    ("just the 2 newest there", {"path": "~/Documents", "kind": "pdf", "limit": 2, "newest_first": True}),
+    ("how many are in there", {"path": "~/Documents", "kind": "pdf", "count_only": True}),
+    ("same for photos in that folder", {"path": "~/Documents", "kind": "image", "limit": 200, "newest_first": False}),
+    ("same for videos", {"path": "~/Documents", "kind": "video", "limit": 200, "newest_first": False}),
+])
+def test_a_follow_up_on_a_listing_keeps_its_folder_and_kind(asked, expect):
+    from core.execution.constants import machine_kind_listing_intent
+
+    assert machine_kind_listing_intent(asked, folder_hint="~/Documents", kind_hint="pdf") == expect
+
+
+@pytest.mark.parametrize("asked", ["how many planets are there", "I love photos", "same for videos"])
+def test_no_listing_without_a_folder_in_view(asked):
+    from core.execution.constants import machine_kind_listing_intent
+
+    hint = {} if asked == "same for videos" else {"folder_hint": "~/Documents", "kind_hint": "pdf"}
+    assert machine_kind_listing_intent(asked, **hint) is None

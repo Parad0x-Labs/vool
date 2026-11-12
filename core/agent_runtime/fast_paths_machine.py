@@ -1856,6 +1856,7 @@ def maybe_handle_direct_machine_read_request(
         user_input,
         earlier_turns=_earlier_user_turns(session_id),
         folder_hint=str(((source_context or {}).get("_conversation_slots") or {}).get("path") or ""),
+        kind_hint=str(((source_context or {}).get("_conversation_slots") or {}).get("kind") or ""),
     )
     if kind_listing is not None:
         if isinstance(source_context, dict):
