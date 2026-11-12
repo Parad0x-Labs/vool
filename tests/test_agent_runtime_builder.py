@@ -633,3 +633,33 @@ def test_builder_loop_emits_permission_preview_with_exact_approval_payload() -> 
     assert preview["ok"] is False
     assert preview["approval_request"]["token"] == "[redacted]"
     assert "approval-token" not in repr(preview)
+
+
+def test_auto_builder_ranks_registered_coding_models_instead_of_bundle_default():
+    from storage.model_provider_manifest import ModelProviderManifest
+
+    def manifest(name, role, capabilities, **overrides):
+        return ModelProviderManifest(
+            provider_name="ollama-local", model_name=name, source_type="http",
+            license_name="Apache-2.0", license_reference="https://example.org/license",
+            runtime_dependency="ollama", capabilities=capabilities,
+            metadata={"bundle_role": role, "cost_class": "free_local"},
+            **overrides,
+        )
+
+    utility = manifest("qwen3:4b", "lightweight_utility", ["code_basic", "summarize"])
+    coder = manifest("qwen2.5:7b", "general", ["code_basic", "code_complex", "long_context"])
+    disabled = manifest("coder:32b", "coding", ["code_complex", "long_context"], enabled=False)
+    remote = coder.model_copy(update={"model_name": "remote-code", "metadata": {"cost_class": "paid_cloud", "bundle_role": "coding"}})
+    registry = SimpleNamespace(list_manifests=lambda **kwargs: [utility, disabled, remote, coder])
+    agent = SimpleNamespace(memory_router=SimpleNamespace(registry=registry))
+    assert controller.select_auto_builder_manifest(agent) is coder
+    registry.list_manifests = lambda **kwargs: [disabled, remote]
+    assert controller.select_auto_builder_manifest(agent) is None
+    # No model-name special case: another enabled coding lane wins by the same law.
+    other = coder.model_copy(update={"model_name": "another-local:9b"})
+    registry.list_manifests = lambda **kwargs: [utility, other]
+    assert controller.select_auto_builder_manifest(agent) is other
+    basic = coder.model_copy(update={"capabilities": ["code_basic"]})
+    registry.list_manifests = lambda **kwargs: [basic]
+    assert controller.select_auto_builder_manifest(agent) is basic

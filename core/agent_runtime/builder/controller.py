@@ -257,6 +257,41 @@ def builder_ollama_base_url(env: Mapping[str, str]) -> str:
     return raw.rstrip("/")
 
 
+def select_auto_builder_manifest(agent: Any) -> Any | None:
+    """The enabled local Ollama model that writes an unpinned build's files, chosen for coding.
+
+    The bundle's installed default says which model was installed, not which enabled model should
+    author source files: a 4B utility model wrote the build while a 7B coding-capable model sat
+    enabled next to it. The choice goes through the shared ranking, so its locality, license,
+    trust and paid-fallback exclusions bind here exactly as they do for a chat turn. Only a model
+    that declares the coding capability itself is a candidate: a long-context or summarization
+    claim is not coding support. This generator speaks native Ollama; any other backend stays
+    available by selecting it for the chat (the pinned lane). None means no eligible model.
+    """
+    from core.model_selection_policy import ModelSelectionRequest, rank_providers
+
+    registry = agent.memory_router.registry
+    manifests = [
+        manifest
+        for manifest in registry.list_manifests(enabled_only=True)
+        if str(getattr(manifest, "runtime_dependency", "") or "") == "ollama"
+    ]
+    for task_kind, capability in (("coding_help_complex", "code_complex"), ("coding_help_basic", "code_basic")):
+        candidates = [manifest for manifest in manifests if capability in (manifest.capabilities or ())]
+        ranked = rank_providers(
+            candidates,
+            ModelSelectionRequest(
+                task_kind=task_kind,
+                output_mode="plain_text",
+                local_only=True,
+                allow_paid_fallback=False,
+            ),
+        )
+        if ranked:
+            return ranked[0]
+    return None
+
+
 def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUILDER_NUM_PREDICT) -> dict[str, Any]:
     """The /api/chat body for one builder generation.
 
@@ -1095,7 +1130,6 @@ def _run_model_build(
     import os
 
     from core.agent_runtime.builder import app_builder, mutation_scope, pinned_generation
-    from core.runtime_provider_defaults import default_runtime_model_tag
 
     ctx = dict(source_context or {})
     # Resolved HERE as well as in the profile, not threaded through it. This lane is the last thing
@@ -1112,17 +1146,15 @@ def _run_model_build(
         target_rel = scope.root_dir
     else:
         target_rel = str(target.get("root_dir") or "generated/app").strip().strip("/") or "generated/app"
-    base_url = builder_ollama_base_url(os.environ)
-    model_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
 
     # One budget for the whole build, so the 65 possible generations share a single ceiling, and one
     # source_context, so every one of them is announced on the operator's event stream.
     generation_budget = BuilderGenerationBudget()
 
     # WHO GENERATES THE FILES. Selecting a model changes who reasons, and a build is reasoning that
-    # ends in source code -- so a pinned turn's files must come from the pinned model. The local
-    # lane below hardcodes the runtime's own Ollama tag, which is right when nothing is pinned and a
-    # silent substitution the moment something is.
+    # ends in source code -- so a pinned turn's files must come from the pinned model. When nothing
+    # is pinned, the local lane below ranks the enabled local Ollama models for coding
+    # (`select_auto_builder_manifest`); a pin bypasses that choice and is never silently substituted.
     #
     # This used to be settled by refusing the whole turn (`_should_run_builder_controller` returned
     # False for a pinned model). Measured on the installed build, the refusal did not produce a
@@ -1177,9 +1209,33 @@ def _run_model_build(
                 source_context=ctx,
                 reason="builder_local_lane_disabled",
             )
+        selected = select_auto_builder_manifest(agent)
+        if selected is None:
+            # No enabled local model declares coding support. Say so and offer the two ways
+            # forward -- never fall back to some other model on the operator's behalf.
+            return agent._action_fast_path_result(
+                task_id=task.task_id,
+                session_id=session_id,
+                user_input=effective_input,
+                response=(
+                    "No local model that can write code is turned on, so I didn't start this build. "
+                    "Turn one on in Settings → Models & Providers → Local models, or choose a model "
+                    "above the chat, then send the request again."
+                ),
+                confidence=0.9,
+                source_context=ctx,
+                reason="builder_local_model_unavailable",
+                success=False,
+                task_outcome="failed",
+                mode_override="advice_only",
+            )
+        selected_base_url = str((selected.runtime_config or {}).get("base_url") or "").strip()
+        if selected_base_url and not selected_base_url.startswith(("http://", "https://")):
+            selected_base_url = f"http://{selected_base_url}"
         generate_fn = build_ollama_generate_fn(
-            base_url=base_url,
-            model_tag=model_tag,
+            # The chosen lane's own endpoint, so the model is asked where it was registered.
+            base_url=(selected_base_url or builder_ollama_base_url(os.environ)).rstrip("/"),
+            model_tag=str(selected.model_name),
             source_context=ctx,
             budget=generation_budget,
         )

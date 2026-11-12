@@ -362,7 +362,20 @@ def _rank_once(
 
         ranked.append((score, manifest))
 
-    ranked.sort(key=lambda item: (item[0], item[1].provider_name, item[1].model_name), reverse=True)
+    # Equal coding fitness must not be settled by the lexical order of model tags: "qwen3:4b"
+    # sorts above an otherwise identical "qwen2.5:7b", so the smaller model wrote the build. For a
+    # coding task, model capacity breaks a score tie and only a tie; capability, trust, health and
+    # every hard exclusion above still decide first.
+    coding = request.task_kind in {"coding_help_basic", "coding_help_complex"}
+    ranked.sort(
+        key=lambda item: (
+            item[0],
+            model_parameter_billions(item[1].model_name) if coding else 0.0,
+            item[1].provider_name,
+            item[1].model_name,
+        ),
+        reverse=True,
+    )
     return [item[1] for item in ranked]
 
 
