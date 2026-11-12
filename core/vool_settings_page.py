@@ -5801,6 +5801,7 @@ function widgetPhoneAccess(host) {
     } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
     finally { pair.disabled = !src.running; }
   };
+}
 /* --- The Web0 switch (Advanced). One boolean at /api/web0/settings, written the same way.
    Same consent-control discipline as the boundary switches: an unreadable answer draws no
    switch (never a guessed state), a failed write re-reads and says so in plain words, and
