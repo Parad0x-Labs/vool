@@ -74,7 +74,9 @@ esac
 # and `plugins` (the first-party bundled packs, e.g. vool-database) are runtime CONTENT, not
 # repositories of developer conveniences: a bundle without them ships a runtime whose catalog
 # and library are silently empty (measured on the e1034c9b bundle: neither directory present).
-SRC_PACKAGES=(apps core adapters storage network relay retrieval sandbox tools ops installer config skills plugins)
+# `vendor/nebula-media` is the Media Studio worker (MIT, see its LICENSE):
+# core.media_worker_client finds it beside the code, at app/vendor/nebula-media.
+SRC_PACKAGES=(apps core adapters storage network relay retrieval sandbox tools ops installer config skills plugins vendor/nebula-media)
 
 # Version the bundle from the SHARED release manifest so it tracks the release instead of a
 # hardcoded 1.0. The Apple-numeric short version drops the channel suffix (0.4.2-closed-test ->
@@ -731,7 +733,9 @@ stage_self_contained() {
     say "        NON-RELEASE: copying the WORKING TREE (uncommitted changes ride along)"
     local d
     for d in "${SRC_PACKAGES[@]}"; do
-      [[ -d "${PROJECT_ROOT}/${d}" ]] && cp -R "${PROJECT_ROOT}/${d}" "${res}/app/${d}"
+      # A nested entry (vendor/nebula-media) needs its parent folder first.
+      [[ -d "${PROJECT_ROOT}/${d}" ]] && mkdir -p "$(dirname "${res}/app/${d}")" \
+        && cp -R "${PROJECT_ROOT}/${d}" "${res}/app/${d}"
     done
   fi
   find "${res}/app" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true

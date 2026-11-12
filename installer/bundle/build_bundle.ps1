@@ -78,10 +78,13 @@ New-Item -ItemType Directory -Force $appDir | Out-Null
 # e.g. vool-database) resolved from the app root at run time -- a bundle without them ships a
 # runtime with an empty library and catalog. `channels` was deleted from the tree (e7b1bd31)
 # and is removed here with them added, mirroring build_macos_app.sh's SRC_PACKAGES.
-foreach ($d in @("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "ops", "installer", "config", "skills", "plugins")) {
+# `vendor\nebula-media` is the Media Studio worker (MIT, see its LICENSE): found beside the code.
+foreach ($d in @("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "ops", "installer", "config", "skills", "plugins", "vendor\nebula-media")) {
   $src = Join-Path $RepoRoot $d
   if (-not (Test-Path $src)) { throw "staging list names a package absent from the repo: $d" }
-  Copy-Item $src (Join-Path $appDir $d) -Recurse -Force
+  $dest = Join-Path $appDir $d
+  New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
+  Copy-Item $src $dest -Recurse -Force
 }
 # Canonical project grounding reads only this small allowlist. Ship the same sources in the
 # installed bundle so a release build has the grounding that a source checkout has.

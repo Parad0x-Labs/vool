@@ -29,8 +29,8 @@ STAGE="$(mktemp -d "${OUT}/.linux-build.XXXXXX")"
 trap 'rm -rf -- "${STAGE}"' EXIT
 BUNDLE="${STAGE}/${NAME}"
 mkdir -p "${BUNDLE}/app"
-# Exact commit bytes: source, first-party plugins/skills and license notices.
-git archive "${SHA}" apps core adapters storage network relay retrieval sandbox tools ops installer config skills plugins \
+# Exact commit bytes: source, first-party plugins/skills, the Media Studio worker and license notices.
+git archive "${SHA}" apps core adapters storage network relay retrieval sandbox tools ops installer config skills plugins vendor/nebula-media \
   pyproject.toml uv.lock LICENSE README.md third_party | tar -xf - -C "${BUNDLE}/app"
 # Same python-build-standalone approach as macOS SELF_CONTAINED; isolate uv's
 # interpreter store so a developer's shared site-packages can never ride along.
