@@ -650,6 +650,53 @@ def _only_a_file_count(fragment: str) -> bool:
     )
 
 
+# A report that VOOL itself just did something with an effect outside the reply: "I saved your note
+# 'x'", "Saved your note 'x'.", "Deleted your note", "Sent your email to Bob", "Moved the photo to
+# your Desktop". The noun lists above name the objects (file, notes, funds...), so a claim about a
+# note, an email or a photo passed with no receipt (train thread, 2026-11-12). The claim is the
+# shape: the sentence opens with the past-tense verb, or "I"/"we" did it, and an object follows.
+# Edits inside the reply ("I removed the extra comma") are not effects, so text units are left out.
+_SELF_ACTION_VERB = (
+    r"(?:saved|deleted|removed|erased|sent|moved|renamed|copied|uploaded|downloaded|posted|e-?mailed|"
+    r"forwarded|shared|published|scheduled|booked|cancell?ed|archived|trashed|stored|installed|"
+    r"uninstalled|paid|transferred|filed|pinned)"
+)
+# "added"/"created"/"set up" make text inside a reply as often as things outside it ("I added a short
+# summary below", "I created a poem"), so they count only with an object that lives outside the reply.
+_SELF_MAKE_VERB = r"(?:added|created|set\s+up|made)"
+_OUTSIDE_OBJECT = (
+    r"(?:\w+\s+){0,2}(?:folders?|files?|notes?|events?|reminders?|appointments?|alarms?|tasks?|contacts?|"
+    r"calendar|entr(?:y|ies)|meetings?|bookings?|reservations?|accounts?|rules?|filters?|labels?|"
+    r"documents?|spreadsheets?|backups?|shortcuts?|playlists?)\b"
+)
+_TEXT_UNIT = (
+    r"(?:extra\s+|last\s+|first\s+|second\s+)?(?:sentence|word|line|comma|paragraph|phrase|bullet|period|"
+    r"space|typo|clause|heading|emoji)s?\b"
+)
+_SELF_ACTION_CLAIM_RE = re.compile(
+    r"(?:^\s*(?:(?:ok(?:ay)?|done|sure|great|all\s+set|got\s+it|alright)[\s,.!:—-]*)?"
+    r"|\b(?:i|we)(?:'ve|’ve)?\s+(?:(?:have|just|already|also|now)\s+)*)"
+    r"(?:" + _SELF_ACTION_VERB
+    + r"\s+(?:it\b|them\b|that\b|this\b|(?:your|the|a|an|these|those|both|all|my|new)\s+(?!" + _TEXT_UNIT + r")\w|['\"“‘])"
+    r"|" + _SELF_MAKE_VERB + r"\s+(?:your|the|a|an|these|those|both|all|my|new)\s+" + _OUTSIDE_OBJECT + r")",
+    re.IGNORECASE,
+)
+_SELF_ACTION_NOT_A_CLAIM_RE = re.compile(
+    r"\b(?:not|never|n't|n’t|no)\b|\b(?:if|once|when|after|before|unless)\b[^.!?]*$|\?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _claims_its_own_action(sentence: str) -> bool:
+    match = _SELF_ACTION_CLAIM_RE.search(sentence)
+    if match is None:
+        return False
+    before = sentence[: match.start()]
+    if _NOT_A_SELF_CLAIM_RE.search(before) or _SELF_ACTION_NOT_A_CLAIM_RE.search(before + sentence[match.start():match.end()]):
+        return False
+    return not sentence.rstrip().endswith("?")
+
+
 def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
@@ -724,6 +771,9 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
             continue  # "I'll store that" is an intention, not a report of a finished write
         return "persistence"
+    # Last, so a claim one of the kinds above names keeps its own kind and its own reply.
+    if any(_claims_its_own_action(sentence) for sentence in _split_sentences(body)):
+        return "mutation"
     return ""
 
 
