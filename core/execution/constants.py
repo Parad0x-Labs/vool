@@ -1491,7 +1491,9 @@ _PRESENT_DEVICE_WORDS = frozenset({
 })
 # "show me the event called School play" asks the calendar for a row, and "pull up my dentist
 # appointment" or "show me the reminder about bins" ask VOOL's own lists: the object names a
-# calendar or list item, not words a file's name carries, so those lanes keep it.
+# calendar or list item, not words a file's name carries, so those lanes keep it. (The calendar
+# reads job's own stand-down list is this one: it also stood down on "notes", which took "pull up
+# my meeting notes" from the file lane.)
 _PRESENT_ORGANIZER_WORDS = frozenset({
     "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
     "calendar", "calendars", "schedule", "agenda", "booking", "bookings", "contact", "birthday", "birthdays",
@@ -1504,14 +1506,6 @@ _PRESENT_DOCUMENT_WORDS = frozenset({
 # disk or the clutter, never words a file's name carries, so the cleanup lane keeps it.
 _PRESENT_STORAGE_WORDS = frozenset({
     "disk", "disks", "drive", "drives", "ssd", "storage", "space", "bloat", "junk", "clutter", "temp", "cache",
-})
-# An operator-owned object ("show me the event called School play") is the calendar/notes/
-# reminders lane's ask, never words a file's name carries: the file-present lane stands down and
-# the operator parse owns the turn -- the same boundary the phone lane drew (file lookups leave
-# calendar and list asks to their lanes), so the operator answer never depends on the file lane.
-_PRESENT_OPERATOR_OBJECT_WORDS = frozenset({
-    "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
-    "note", "notes", "agenda",
 })
 
 # "find the root cause", "find the bug", "find out why": the object names a cause or a fault the
@@ -1562,7 +1556,7 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     if all(word in _PRESENT_FAULT_WORDS for word in kept):
         return None  # "find the root cause" asks for a diagnosis, not a file
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
-           or word in _PRESENT_STORAGE_WORDS or word in _PRESENT_OPERATOR_OBJECT_WORDS for word in kept):
+           or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
     names_a_document = any(word in _PRESENT_KIND_WORDS or word in _PRESENT_DOCUMENT_WORDS for word in kept)
     if not names_a_document and any(word in _PRESENT_ORGANIZER_WORDS for word in kept):
