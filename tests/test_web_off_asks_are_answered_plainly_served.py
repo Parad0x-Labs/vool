@@ -91,3 +91,10 @@ def test_a_web_off_refusal_is_not_sealed_as_a_finished_answer(served):
         conn.close()
     assert last is not None and last[0] == "REFUSED_POLICY", last
     assert last[1] == "web_off_lookup_refusal", last
+
+
+@pytest.mark.parametrize("asked", ["is the british museum open on mondays this month", "how much does a cup of coffee cost in cafes these days"])
+def test_an_answer_from_memory_with_web_off_says_web_is_off(served, asked):
+    daemon, _provider = served
+    reply, _seconds = _ask(daemon, asked)
+    assert "web lookups are" in reply.lower(), reply

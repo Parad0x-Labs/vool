@@ -1160,6 +1160,13 @@ def append_conversation_event(
     """
     if _memory_persistence_suppressed(source_context, session_id):
         return
+    # A follow-up rewritten for routing ("retry pls" run as the earlier request) is stored as what
+    # the person typed. The rewrite never becomes their words in the chat.
+    if isinstance(source_context, dict):
+        _typed = str(source_context.get("_typed_user_text") or "")
+        _routed = " ".join(str(source_context.get("_routed_user_text") or "").split())
+        if _typed and _routed and " ".join(str(user_input or "").split()) == _routed:
+            user_input = _typed
     if stopped_request_id:
         return _record_stopped_turn(
             stopped_request_id, session_id=session_id, user_input=user_input, source_context=source_context

@@ -2784,6 +2784,13 @@ class VoolAgent(
                 effective_input, last_task_request(session_id)
             )
             if _carried:
+                # The rewrite is for routing only. The chat keeps what the person typed ("retry pls"),
+                # never the rewritten request (red/blue team 2026-11-12: the history showed "Please
+                # do my previous request again now: ..." as the user's words, and later turns, recall
+                # and memory read it).
+                if isinstance(runtime_source_context, dict):
+                    runtime_source_context["_typed_user_text"] = raw_turn_text or effective_input
+                    runtime_source_context["_routed_user_text"] = _carried
                 effective_input = _carried
                 interpreted = adapt_user_input(
                     effective_input,

@@ -1680,6 +1680,25 @@ def execute_grounded_turn(
             except Exception:
                 pass
 
+    # With the web unreachable, an answer the model wrote from memory to a question about something
+    # that changes ("the louvre opening hours today", a price, a schedule) says so: red/blue team
+    # 2026-11-12, Web lookups off, opening hours came back as plain fact with no word that nothing
+    # was looked up, so the later "try again" had nothing to rerun.
+    if not web_notes and not _current_claim.unsupported:
+        try:
+            from core.remote_fetch_policy import effective_web_available
+
+            if not effective_web_available(source_context) and _asks_about_something_that_changes(
+                effective_input, _requirements, source_context
+            ) and "web lookups" not in str(response or "").lower():
+                response = (
+                    f"{str(response or '').rstrip()}\n\n"
+                    "Web lookups are off, so this is from what I already know and may be out of date. "
+                    "You can turn them on in Settings, Privacy & Permissions."
+                )
+        except Exception:
+            pass
+
     if isinstance(source_context, dict):
         from hashlib import sha256
         source_context["claim_conviction"] = {
@@ -2150,3 +2169,34 @@ def execute_grounded_turn(
         "exact_response_control": False,
         "fast_path_hit": False,
     }
+
+
+def _asks_about_something_that_changes(text: str, requirements: Any, source_context: Any = None) -> bool:
+    """A question whose true answer can change from day to day (the requirement authority's own
+    reading, or the live-information classifier), and not one the chat's own records answer."""
+    try:
+        from core.agent_runtime.turn_frontdoor import _ASKS_FROM_OWN_RECORDS_RE
+
+        if _ASKS_FROM_OWN_RECORDS_RE.search(str(text or "")):
+            return False
+        from core.bootstrap_context import admitted_capsule_evidence_text
+        from core.memory_grounding import question_names_someone_in_the_records
+
+        ctx = source_context if isinstance(source_context, dict) else {}
+        if question_names_someone_in_the_records(
+            str(text or ""), admitted_capsule_evidence_text(ctx, str(ctx.get("session_id") or ""))
+        ):
+            return False
+    except Exception:
+        pass
+    if requirements is not None and (
+        bool(getattr(requirements, "current_information_required", False))
+        or bool(getattr(requirements, "external_evidence_required", False))
+    ):
+        return True
+    try:
+        from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+
+        return bool(live_info_mode(None, str(text or ""), interpretation=None))
+    except Exception:
+        return False

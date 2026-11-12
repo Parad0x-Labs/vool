@@ -95,3 +95,22 @@ def test_there_points_back_at_the_folder_named_earlier(served):
     assert [name for name in PICTURES if name in reply] == ["receipt.png", "trip-12.jpg"] or (
         "receipt.png" in reply and "trip-12.jpg" in reply and "trip-11.jpg" not in reply
     ), reply
+
+
+def _history_user_rows(daemon, session: str) -> list[str]:
+    import json
+    from urllib.request import urlopen
+
+    with urlopen(f"{daemon.base_url}/api/chat/history?session={session}", timeout=60) as response:
+        rows = json.loads(response.read().decode()).get("messages", [])
+    return [str(row.get("content") or "") for row in rows if row.get("role") == "user"]
+
+
+def test_a_rerun_keeps_what_the_person_typed_in_the_chat(served):
+    session = rig.canonical_session("pics-" + uuid.uuid4().hex[:8])
+    first = _chat(served, session, "which pics are in my downloads")
+    assert "trip-01.jpg" in first, first
+    again = _chat(served, session, "do that again pls")
+    assert "trip-01.jpg" in again, again
+    users = _history_user_rows(served, session)
+    assert users == ["which pics are in my downloads", "do that again pls"], users
