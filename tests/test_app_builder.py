@@ -392,3 +392,31 @@ def test_no_subject_leaves_the_prompt_exactly_as_it_was() -> None:
     assert subject_block((), workspace_root="/tmp") == ""
     assert subject_block(("does/not/exist.py",), workspace_root="/tmp") == ""
     assert subject_block(("",), workspace_root="/tmp") == ""
+
+
+def test_generation_failure_does_not_write_an_incomplete_batch(tmp_path):
+    from types import SimpleNamespace
+
+    from core.agent_runtime.builder.mutation_scope import resolve_mutation_scope
+
+    original = tmp_path / "a.py"
+    original.write_text("owner content")
+    calls = []
+    budget = SimpleNamespace(failure_code="", last_error="")
+    replies = iter(["print('proposal')", ""])
+    def generate(prompt):
+        reply = next(replies)
+        if not reply:
+            budget.failure_code = "builder_output_limit"
+            budget.last_error = "fixture generation exhausted"
+        return reply
+    generate.budget = budget
+    report = ab.build_app_from_spec(
+        request="Create a.py and b.py", target_rel="", source_context={"workspace": str(tmp_path)},
+        scope=resolve_mutation_scope("Create a.py and b.py", workspace_root=str(tmp_path)),
+        generate_fn=generate, run_tool_fn=lambda *a, **kw: calls.append((a, kw)),
+    )
+    assert not report.handled and report.error == budget.last_error
+    assert report.files_written == [] and calls == []
+    assert original.read_text() == "owner content"
+    assert not (tmp_path / "b.py").exists()

@@ -622,6 +622,13 @@ def build_app_from_spec(
                     "class/function/method names and signatures (do not invent new ones):\n" + impl_context
                 )
         content = strip_code_fences(generate_fn(prompt))
+        generation_error = getattr(getattr(generate_fn, "budget", None), "failure_code", "")
+        if generation_error:
+            # A failed generation cannot authorize a partial batch of the proposals before it:
+            # the files belong together. Leave the disk as it is and return the typed cause.
+            report.handled = False
+            report.error = str(getattr(generate_fn.budget, "last_error", "") or generation_error)
+            return report
         if content and len(content.encode("utf-8", "ignore")) <= MAX_FILE_BYTES:
             file_map[path] = content
     if not file_map:

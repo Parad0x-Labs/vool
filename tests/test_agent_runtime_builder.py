@@ -434,6 +434,7 @@ def test_builder_never_hands_reasoning_to_the_file_writer() -> None:
         assert generate("list the files") == ""
 
     # A monologue that leaked into content is not the answer either.
+    generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
     with mock.patch(
         "requests.post",
         return_value=_chat_response(content='Wait, the user might be confused.\n</think>\n\n["todo.py"]'),
@@ -441,19 +442,34 @@ def test_builder_never_hands_reasoning_to_the_file_writer() -> None:
         assert generate("list the files") == '["todo.py"]'
 
 
-def test_builder_retries_once_when_reasoning_ate_the_whole_token_budget() -> None:
-    # done_reason=length + empty content = the model reasoned past its budget and never answered.
-    responses = [
-        _chat_response(content="", thinking="thinking hard...", done_reason="length"),
-        _chat_response(content='["todo.py"]'),
-    ]
+def test_builder_stops_when_reasoning_ate_the_whole_token_budget() -> None:
+    # Revised contract: the prior doubled retry consumed minutes without output
+    # in the owner's Auto demo. Exhaustion now stops with a typed cause.
+    for content in ("", "<html>unfinished"):
+        generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
+        with mock.patch("requests.post", return_value=_chat_response(
+            content=content, thinking="private reasoning", done_reason="length")) as post, mock.patch.object(
+                controller, "_emit_builder_model_event") as emit:
+            assert generate("create the file") == ""
+            assert generate("a later file in the same build") == ""
+        assert post.call_count == 1
+        assert post.call_args.kwargs["json"]["options"]["num_predict"] == 6144
+        assert post.call_args.kwargs["timeout"] <= 120
+        assert generate.budget.failure_code == "builder_output_limit"
+        assert [c.args[1] for c in emit.call_args_list] == ["model.call_started", "model.call_failed"]
+        assert emit.call_args.kwargs["retryable"] is False
+
+
+def test_builder_timeout_has_a_safe_reason_and_never_retries() -> None:
+    import requests
     generate = controller.build_ollama_generate_fn(base_url="http://127.0.0.1:11434", model_tag="qwen3:4b")
-
-    with mock.patch("requests.post", side_effect=responses) as post:
-        assert generate("list the files") == '["todo.py"]'
-
-    assert post.call_count == 2
-    assert [call.kwargs["json"]["options"]["num_predict"] for call in post.call_args_list] == [6144, 12288]
+    with mock.patch("requests.post", side_effect=requests.Timeout("secret URL must not leak")) as post:
+        assert generate("file") == ""
+        assert generate("file") == ""
+    assert post.call_count == 1
+    assert generate.budget.failure_code == "builder_generation_timeout"
+    assert "120-second" in generate.budget.last_error
+    assert "secret" not in generate.budget.last_error
 
 
 def test_builder_does_not_retry_a_model_that_simply_answered_nothing() -> None:

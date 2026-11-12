@@ -19,9 +19,9 @@ from core.runtime_task_events import emit_runtime_event
 
 _BUILDER_NUM_PREDICT = 6144
 _BUILDER_NUM_CTX = 8192
-_BUILDER_CALL_TIMEOUT_SECONDS = 300.0
+_BUILDER_CALL_TIMEOUT_SECONDS = 120.0
 # One build can issue 1 plan + 16 files + 3 fix rounds x 16 = up to 65 sequential generations. At the
-# 300s per-call timeout that is 5.4 hours of silence with no way for the operator to tell a working
+# old 300s per-call timeout that was 5.4 hours of silence with no way for the operator to tell a working
 # build from a wedged one. The aggregate ceiling is what makes the worst case finite; the per-call
 # timeout never could, because it applies 65 times.
 _BUILDER_TOTAL_WALL_CLOCK_SECONDS = 900.0
@@ -80,6 +80,10 @@ class BuilderGenerationBudget:
     # every generation could only report "0 files written". Recorded here so the operator is told
     # whether their model was unreachable, unauthorized or simply silent.
     last_error: str = ""
+    # The typed cause once a LOCAL generation fails (timeout, transport, output limit, empty
+    # answer). Set once, it stops every later generation of the same build: a build that cannot
+    # write one file completely must not go on to write a partial batch.
+    failure_code: str = ""
 
     def elapsed(self) -> float:
         return max(0.0, time.monotonic() - self.started_monotonic)
@@ -156,6 +160,7 @@ def build_finished_successfully(
     tests_passed: bool,
     budget_exhausted_reason: str = "",
     proof_failed: bool = False,
+    generation_failure_code: str = "",
 ) -> bool:
     """Whether a build actually finished. A ceiling that stopped it means it did not.
 
@@ -166,9 +171,14 @@ def build_finished_successfully(
     `proof_failed` inverts the usual reading for one case. When the operator asked for a test that
     proves a bug BY FAILING, a green suite is the failure: it means the claimed bug was not
     reproduced. Scoring that as success is how a fabricated finding gets reported as verified.
+
+    `generation_failure_code` is a local generation that stopped the build (timeout, transport,
+    output limit, empty answer): files written before it are an incomplete batch, not a result.
     """
 
     if str(budget_exhausted_reason or "").strip():
+        return False
+    if str(generation_failure_code or "").strip():
         return False
     if proof_failed:
         return False
@@ -303,7 +313,13 @@ def build_ollama_generate_fn(
     so a build's 65 possible generations were invisible to the operator — every other model lane
     emits `model.call_started` / `.call_completed` / `.call_failed` through
     `core/memory_first_router.py`, and this one did not. `budget` bounds them in aggregate: the
-    per-call 300s timeout applies 65 times over and so bounds nothing.
+    per-call timeout applies to every call and alone cannot bound the whole build.
+
+    One attempt per generation. A thinking model that spends the whole output budget reasoning
+    used to be retried on a doubled budget; measured live, qwen3:4b spent 276.7s, returned nothing
+    usable (done_reason=length), and the retry then started a second, twice-as-long generation
+    while the activity line had already called the first one complete. A failed generation now
+    records a typed cause on the budget, emits `model.call_failed`, and stops the build.
     """
     import requests
 
@@ -384,6 +400,15 @@ def build_ollama_generate_fn(
         except Exception as exc:
             elapsed = time.monotonic() - started
             budget.seconds_spent += elapsed
+            timed_out = isinstance(exc, requests.Timeout)
+            budget.failure_code = "builder_generation_timeout" if timed_out else "builder_generation_transport_failed"
+            # The class, never the message: an exception body can carry a URL or a payload
+            # fragment, and this text reaches the operator's chat and event stream.
+            budget.last_error = (
+                f"{model_tag} did not finish within the {timeout:.0f}-second generation limit"
+                if timed_out
+                else f"{model_tag} could not complete the generation ({type(exc).__name__})"
+            )
             _emit_builder_model_event(
                 source_context,
                 "model.call_failed",
@@ -391,9 +416,9 @@ def build_ollama_generate_fn(
                 provider_id="ollama:builder",
                 model_id=model_tag,
                 locality="local",
-                # The class, not the message: an exception body can carry a URL or a payload
-                # fragment, and this reaches the operator's event stream.
                 reason=type(exc).__name__,
+                failure_code=budget.failure_code,
+                retryable=False,
                 call_index=call_index,
                 seconds=round(elapsed, 1),
             )
@@ -406,6 +431,33 @@ def build_ollama_generate_fn(
         message = dict(payload.get("message") or {})
         content = app_builder.strip_reasoning_monologue(str(message.get("content") or ""))
         truncated = str(payload.get("done_reason") or "").strip() == "length"
+        if truncated or not content.strip():
+            # Cut off at the output limit (a file that stops mid-way is not a file) or nothing
+            # usable at all. Either way this call did not complete, and saying so is the only
+            # truthful activity line: `model.call_completed` here is what told the operator a
+            # 276-second empty generation had finished.
+            budget.failure_code = "builder_output_limit" if truncated else "builder_empty_output"
+            budget.last_error = (
+                f"{model_tag} reached its {num_predict}-token output limit before completing usable file contents"
+                if truncated
+                else f"{model_tag} returned no usable file contents"
+            )
+            _emit_builder_model_event(
+                source_context,
+                "model.call_failed",
+                budget.last_error + ". No automatic retry.",
+                provider_id="ollama:builder",
+                model_id=model_tag,
+                locality="local",
+                reason=budget.failure_code,
+                failure_code=budget.failure_code,
+                retryable=False,
+                call_index=call_index,
+                seconds=round(elapsed, 1),
+                characters=len(content),
+                truncated=truncated or None,
+            )
+            return "", truncated
         _emit_builder_model_event(
             source_context,
             "model.call_completed",
@@ -422,12 +474,10 @@ def build_ollama_generate_fn(
         return content, truncated
 
     def generate_fn(prompt: str) -> str:
-        content, truncated = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT)
-        if content.strip() or not truncated:
-            return content
-        # A thinking model spent the entire budget reasoning and never reached its answer. Retry once
-        # on a doubled budget rather than write out an empty file.
-        content, _ = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT * 2)
+        if budget.failure_code:
+            # An earlier generation of this build already failed; its cause stands.
+            return ""
+        content, _ = generate_once(prompt, num_predict=_BUILDER_NUM_PREDICT)
         return content
 
     generate_fn.budget = budget  # type: ignore[attr-defined]
@@ -1214,6 +1264,26 @@ def _run_model_build(
         scope=scope,
     )
     response = app_builder.render_app_build_response(build_report)
+    if generation_budget.failure_code:
+        # A local generation failed (timeout, transport, output limit, empty answer). Say what
+        # stopped, what is on disk, and what the operator can do -- never a silent retry, and never
+        # a switch to another model or a paid lane on their behalf.
+        saved = (
+            "File writing did not start."
+            if not build_report.files_written
+            else f"{len(build_report.files_written)} file(s) were written before the failure; the build is incomplete."
+        )
+        response = (
+            f"Build stopped: {generation_budget.last_error}. {saved} "
+            "Your request remains in this chat. No automatic retry or model switch was made. "
+            "Select a different model and resend the request, or resend it to deliberately retry with the same model."
+            + (
+                " To continue in the cloud, open the model selector above the chat, choose a connected cloud "
+                "provider and model, then resend this request. Any required price and spending approval still applies."
+                if pinned_manifest is None
+                else ""
+            )
+        )
     # Name the absolute destination: the operator must never have to ask where a build went.
     _ws_root = str(ctx.get("workspace") or ctx.get("workspace_root") or "").strip().rstrip("/")
     _target_dir = str(build_report.target_dir or "").strip("/")
@@ -1227,6 +1297,7 @@ def _run_model_build(
         tests_passed=build_report.tests_passed,
         budget_exhausted_reason=generation_budget.exhausted_reason,
         proof_failed=build_report.proof_failed,
+        generation_failure_code=generation_budget.failure_code,
     )
     note = early_stop_note(
         generation_budget.exhausted_reason, files_written=build_report.files_written
@@ -1301,6 +1372,8 @@ def _run_model_build(
                 "generations": generation_budget.calls,
                 "generation_seconds": round(generation_budget.seconds_spent, 1),
                 "budget_exhausted": generation_budget.exhausted_reason or "",
+                "generation_error": generation_budget.last_error,
+                "failure_code": generation_budget.failure_code,
             }
         },
         mode_override="tool_executed" if build_report.files_written else "advice_only",
