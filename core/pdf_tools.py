@@ -24,6 +24,7 @@ reads as "this PDF is blank".
 from __future__ import annotations
 
 import json
+import math
 import platform
 import subprocess
 from pathlib import Path
@@ -191,22 +192,68 @@ def _uses_pdfkit() -> bool:
     return platform.system() == "Darwin"
 
 
-def _extract_portable(path: Path, max_pages: int, start_page: int = 1) -> dict[str, Any]:
-    """Off macOS there is no PDFKit: the reader lane's pypdf fallback, run in its sandbox."""
+def _too_large(size: int, limit: int) -> dict[str, Any]:
+    megabytes = max(1, -(-int(size) // (1024 * 1024)))
+    return {
+        "status": "unreadable",
+        "reason": (
+            f"the PDF is {megabytes} MB, over the {limit // (1024 * 1024)} MB this computer's PDF reader "
+            "takes; split it into smaller files or paste the part you need"
+        ),
+    }
+
+
+def _copy_bounded(source: Path, target: Path, limit: int) -> int | None:
+    """Stream ``source`` into ``target``; None (and nothing more copied) once it passes ``limit`` bytes.
+
+    Streamed, so the serving process never holds the whole file; bounded while copying, so a file
+    that grows after it was measured is still refused.
+    """
+    copied = 0
+    with source.open("rb") as reader, target.open("wb") as writer:
+        while chunk := reader.read(1024 * 1024):
+            copied += len(chunk)
+            if copied > limit:
+                return None
+            writer.write(chunk)
+    return copied
+
+
+def _extract_portable(
+    path: Path, max_pages: int, start_page: int = 1, *, timeout: float = _DEFAULT_TIMEOUT
+) -> dict[str, Any]:
+    """Off macOS there is no PDFKit: the reader lane's pypdf fallback, run in its sandbox.
+
+    ``timeout`` bounds the whole read, as it bounds the PDFKit helper on macOS, and never past the
+    reader lane's own extraction ceiling. A PDF over the portable reader's size ceiling is refused
+    before any of it is copied.
+    """
     from core.artifact_readers import pdf as pdf_reader
+    from core.artifact_readers._limits import EXTRACTION_TIMEOUT_S, MAX_PORTABLE_PDF_BYTES
     from core.artifact_readers._sandbox import Scratch, extraction_budget, require_confinement
     from core.artifact_readers._types import ReaderError
 
+    seconds = max(1, min(EXTRACTION_TIMEOUT_S, math.ceil(float(timeout or _DEFAULT_TIMEOUT))))
     try:
         require_confinement("pdf")  # says what to install, before "no decoder" could hide why
-        with Scratch("vool-pdf-") as scratch, extraction_budget(scratch=scratch.path):
+        size = path.stat().st_size
+        if size > MAX_PORTABLE_PDF_BYTES:
+            return _too_large(size, MAX_PORTABLE_PDF_BYTES)
+        with Scratch("vool-pdf-") as scratch, extraction_budget(scratch=scratch.path, seconds=seconds):
             source = scratch.path / "input.pdf"
-            source.write_bytes(path.read_bytes())
+            if _copy_bounded(path, source, MAX_PORTABLE_PDF_BYTES) is None:
+                return _too_large(MAX_PORTABLE_PDF_BYTES + 1, MAX_PORTABLE_PDF_BYTES)
             payload = pdf_reader._text_layer_pypdf(
                 source, max_pages=max_pages or _MAX_PAGES, scratch=scratch.path, start_page=start_page
             )
     except ReaderError as exc:
-        status = "missing_dependency" if getattr(exc, "code", "") in {"confinement_unavailable", "pdf_decoder_unavailable"} else "error"
+        code = str(getattr(exc, "code", "") or "")
+        if code in {"confinement_unavailable", "pdf_decoder_unavailable"}:
+            status = "missing_dependency"
+        elif code in {"decoder_timeout", "extraction_timeout"}:
+            status = "timeout"  # the same word the PDFKit route uses when its helper runs out of time
+        else:
+            status = "error"
         reason = " ".join(part for part in (str(exc), str(getattr(exc, "remediation", "") or "")) if part)
         return {"status": status, "reason": reason}
     except OSError as exc:
@@ -224,7 +271,11 @@ def _extract_portable(path: Path, max_pages: int, start_page: int = 1) -> dict[s
 def extract_text(
     path: str, *, max_pages: int = 0, start_page: int = 1, timeout: float = _DEFAULT_TIMEOUT
 ) -> dict[str, Any]:
-    """The text layer a PDF already carries. Empty text means a scanned page, not a blank one."""
+    """The text layer a PDF already carries. Empty text means a scanned page, not a blank one.
+
+    ``timeout`` bounds the read on both routes: the PDFKit helper on macOS, and the confined pypdf
+    reader elsewhere (whose whole extraction never runs past the reader lane's own ceiling).
+    """
 
     resolved, problem = _resolve(path)
     if problem is not None:
@@ -235,7 +286,7 @@ def extract_text(
         result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
         source = "pdfkit"
     else:
-        result, source = _extract_portable(resolved, bounded, first), "pypdf"
+        result, source = _extract_portable(resolved, bounded, first, timeout=timeout), "pypdf"
     assembled = _assemble(result, path=resolved, source=source)
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.

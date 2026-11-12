@@ -173,3 +173,67 @@ def test_installing_bubblewrap_works_without_a_restart(monkeypatch):
     monkeypatch.setattr(_sandbox, "_bwrap", real)  # the person installs it, as the reply told them
     _sandbox._BWRAP_CHECKED_AT["ok"] = time.monotonic() - _sandbox._BWRAP_RECHECK_SECONDS - 1
     assert _sandbox.confinement_available()
+
+
+@needs_bwrap
+def test_a_page_asked_for_by_number_is_that_page(tmp_path):
+    # The clean loop reads "page 3" of a long PDF with start_page; off macOS that read used to start
+    # at page 1 and label it page 3.
+    from core.pdf_tools import extract_text
+    from tests.reader_fixtures import native_text_pdf
+
+    path = tmp_path / "report.pdf"
+    path.write_bytes(native_text_pdf(pages=3, marker="BASALT-2290"))
+
+    third = extract_text(str(path), start_page=3, max_pages=1)
+    assert third["status"] == "ok", third
+    assert (third["page_start"], third["pages_read"], third["pages_total"]) == (3, 1, 3)
+    assert third["text"].startswith("[page 3]") and "BASALT-2290" in third["text"]
+    assert "Quarterly revenue" not in third["text"] and "Page 2 of 3" not in third["text"]
+
+    second = extract_text(str(path), start_page=2, max_pages=1)
+    assert second["text"].startswith("[page 2]") and "Page 2 of 3" in second["text"]
+    assert "BASALT-2290" not in second["text"]
+
+    past_the_end = extract_text(str(path), start_page=9, max_pages=1)  # as the PDFKit helper: the last page
+    assert past_the_end["page_start"] == 3 and "BASALT-2290" in past_the_end["text"]
+
+
+@needs_bwrap
+def test_a_pdf_over_the_size_ceiling_is_refused_before_it_is_copied(tmp_path, monkeypatch):
+    # Review 2026-11-01 follow-up 1: the whole file was read into the serving process before any size
+    # check, and one over the scratch quota was then refused as "expands to far more than its size".
+    from core import pdf_tools
+    from core.artifact_readers import _limits
+    from core.artifact_readers import pdf as pdf_reader
+
+    def never(*_args, **_kwargs):
+        raise AssertionError("the decoder must not start for a PDF over the ceiling")
+
+    monkeypatch.setattr(_limits, "MAX_PORTABLE_PDF_BYTES", 2 * 1024 * 1024)
+    monkeypatch.setattr(pdf_reader, "_text_layer_pypdf", never)
+    path = tmp_path / "scan-archive.pdf"
+    path.write_bytes(_pdf("big") + b"%" + b"x" * (3 * 1024 * 1024) + b"\n")
+
+    result = pdf_tools.extract_text(str(path))
+    assert result["status"] == "unreadable", result
+    assert "4 MB" in result["reason"] and "2 MB" in result["reason"] and "split it" in result["reason"]
+
+
+@needs_bwrap
+def test_the_timeout_the_caller_gives_bounds_the_linux_read(tmp_path, monkeypatch):
+    # Review 2026-11-01 follow-up 2: extract_text(timeout=...) bounded only the macOS helper.
+    import time
+
+    from core import pdf_tools
+    from core.artifact_readers import pdf as pdf_reader
+
+    monkeypatch.setattr(pdf_reader, "_PYPDF_SCRIPT", "import time\ntime.sleep(60)\n")
+    path = tmp_path / "slow.pdf"
+    path.write_bytes(_pdf("slow"))
+
+    started = time.monotonic()
+    result = pdf_tools.extract_text(str(path), timeout=2)
+    elapsed = time.monotonic() - started
+    assert result["status"] == "timeout", result
+    assert elapsed < 20, elapsed

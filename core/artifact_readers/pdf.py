@@ -120,7 +120,8 @@ print(json.dumps({"engine": "pypdf " + getattr(pypdf, "__version__", "?"), "page
 
 
 def _fallback_read_scope() -> list[str]:
-    """The narrowest scope that lets the fallback interpreter import pypdf and nothing else."""
+    """The narrowest scope that lets the fallback interpreter import pypdf: its own installation,
+    and the site-packages directory that holds pypdf, both read-only."""
     import sysconfig
 
     scope: list[str] = []
@@ -137,8 +138,10 @@ def _fallback_read_scope() -> list[str]:
         spec = importlib.util.find_spec("pypdf")
         origin = getattr(spec, "origin", None) if spec else None
         if origin:
-            # The directory CONTAINING the package, so `import pypdf` resolves -- not site-packages
-            # at large where every other installed distribution lives.
+            # The package, and the directory that holds it. `import pypdf` has to list that parent
+            # (the environment's site-packages) to find the package, so every distribution
+            # installed there is readable too, read-only. That is installed code only: not the
+            # repository, not the home folder and not VOOL's data.
             package_root = Path(origin).resolve().parent
             scope.append(str(package_root))
             scope.append(str(package_root.parent))

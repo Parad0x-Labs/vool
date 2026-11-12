@@ -13,6 +13,11 @@ from __future__ import annotations
 #: Pages parsed out of one PDF. Beyond this the remaining pages are listed as omitted, so the
 #: model is told the document continued rather than shown a silent stop.
 MAX_PDF_PAGES = 400
+#: Bytes of one local PDF the portable (non-macOS) reader copies into its scratch before decoding.
+#: The copy lives in the scratch, so this stays at half of MAX_SCRATCH_BYTES and the decoder keeps
+#: room; a larger file is refused in plain words before any of it is copied, and the copy streams,
+#: so the serving process never holds the whole file.
+MAX_PORTABLE_PDF_BYTES = 256 * 1024 * 1024
 #: Paragraphs plus table rows taken from one DOCX.
 MAX_DOCX_BLOCKS = 20_000
 #: Characters kept per extracted unit before that unit alone is cut (the cut is stated on it).
