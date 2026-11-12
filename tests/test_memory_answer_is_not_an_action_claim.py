@@ -212,3 +212,51 @@ def test_a_later_claim_in_the_same_sentence_is_still_read() -> None:
 
 def test_legacy_callers_without_a_request_keep_the_full_law() -> None:
     assert completion_claim_kind(RECORD_ANSWER) == "mutation"
+
+
+# --- a claim that VOOL did something, with no receipt, on any turn (train thread, 2026-11-12) ---
+# The gate named objects (file, notes, funds), so a claimed save, send or move of a note, an email or
+# a photo passed: "Saved your note 'X'." is VOOL's own wording after the keep-a-note port, and a model
+# can copy it on a turn where nothing was saved.
+
+FOLLOW_UP = "ok and what now?"
+
+
+@pytest.mark.parametrize("claim", [
+    "Created the folder 'x'.",
+    "Note saved: tomato seedlings.",
+    "I saved your note 'tomato seedlings'.",
+    "Saved your note 'x'.",
+    "Deleted your note 'x'.",
+    "Sent your email to Bob.",
+    "Moved the photo to your Desktop.",
+    "Done - I've booked the table for 7pm.",
+    "Ok, I forwarded it to Anna.",
+    "We archived those receipts.",
+    "I've added the dentist appointment to your calendar.",
+    "Uploaded the invoice to your drive.",
+    "I've set up a weekly reminder for the bins.",
+    "Done, renamed it to report-final.pdf.",
+])
+def test_a_claimed_action_with_no_receipt_is_withheld(claim: str) -> None:
+    result = _guard(FOLLOW_UP, claim)
+    assert result.get("action_honesty_validator", {}).get("applied") is True, result
+    assert claim not in result["response"]
+
+
+@pytest.mark.parametrize("answer", [
+    "You saved a note about tomatoes on June 3.",
+    "I removed the extra comma and tightened the second sentence.",
+    "If you want, I can save your note.",
+    "I haven't sent the email yet.",
+    "I can move the photo to your Desktop once you confirm.",
+    "Here is a plan I created for your week.",
+    "The email was sent by Bob last week.",
+    "I added a short summary below.",
+    "I created a poem about autumn for you.",
+    "I created a short list of ideas below.",
+])
+def test_words_inside_the_reply_and_other_peoples_actions_are_not_claims(answer: str) -> None:
+    result = _guard(FOLLOW_UP, answer)
+    assert result["response"] == answer
+    assert "action_honesty_validator" not in result

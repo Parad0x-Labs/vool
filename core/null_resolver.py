@@ -24,7 +24,8 @@ from urllib.parse import urlparse
 # Reuse the ONE compliant RPC path (publicnode endpoints only — never the
 # Origin-403 api.mainnet-beta endpoint) and the base58 codec, so there is no
 # second place an endpoint list could drift out of policy.
-from core.vool_wallet import _rpc_call, b58decode, b58encode
+from core.vool_wallet import _rpc_call as _wallet_rpc_call
+from core.vool_wallet import b58decode, b58encode
 from core.x402.client import NULL_REGISTRAR_MAINNET
 
 # ed25519 curve check for find_program_address. nacl is a hard dependency (the
@@ -206,6 +207,16 @@ def derive_domain_pda(
     seed_hash = hashlib.sha256(padded).digest()
     found = find_program_address([b"null-domain", seed_hash], program_id)
     return found[0] if found else None
+
+
+def _rpc_call(method: str, params: list, *, timeout: float = 5.0):
+    """The one network door for `.null` lookups. While the Web0 switch is off it
+    raises Web0OffError before any request is built, so no caller (route, CLI,
+    model tool, payment quote, registration check) reaches the chain."""
+    from core.web0_settings import require_web0_enabled
+
+    require_web0_enabled()
+    return _wallet_rpc_call(method, params, timeout=timeout)
 
 
 def _resolve_via_account_info(

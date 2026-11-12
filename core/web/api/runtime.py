@@ -593,6 +593,15 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     has no console to stream it to, so it was captured and discarded. The per-read timeout bounds a
     STALLED download without capping the total, so a slow large pull is never killed mid-way.
     """
+    from core import private_web
+
+    if private_web.current_route().active:
+        # Ollama downloads models itself, from this machine's address. VOOL cannot put that
+        # download through Tor or the VPN, so it does not start it.
+        raise RuntimeError(
+            "Model downloads wait while Private web is on, because the model app downloads "
+            "outside Tor or your VPN. Turn Private web off to download, then turn it back on."
+        )
     body = json.dumps({"model": model_tag, "stream": True}).encode("utf-8")
     request = urllib.request.Request(
         f"{progress.base_url}/api/pull",

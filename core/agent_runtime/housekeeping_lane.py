@@ -456,6 +456,12 @@ def parse_housekeeping(text: str) -> Plan | None:
     raw = " ".join(str(text or "").split())
     if not raw or len(raw) > 2000:
         return None
+    # "In what order did I bring up ..." asks about remembered conversation content, never a chat
+    # action, even when a broad "all" matcher sees "ONLY and ONLY" in it (BEAM 100K/14). "List the
+    # chats where I mentioned X" stays a chat search.
+    if (re.search(r"\bin\s+what\s+order\b", raw, re.IGNORECASE)
+            and re.search(r"\b(?:i|we)\b.{0,120}\b(?:bring(?:s|ing)?\s+up|brought\s+up|mentioned|raised|discussed)\b", raw, re.IGNORECASE)):
+        return None
     actions: list[Action] = []
     for clause in split_clauses(raw):
         action = _parse_action_clause(clause)

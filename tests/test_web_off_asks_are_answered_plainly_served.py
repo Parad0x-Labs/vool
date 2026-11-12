@@ -32,6 +32,7 @@ ASKS = (
     "go to example.net and give me the gist",              # bare-domain digest
     "what does the guardian homepage show right now",      # a live page without a URL
     "look up online who won the 2026 eurovision",          # explicit lookup
+    "what time does the sun go down in bergen today",      # sunset in its verb form (red team R1-16)
 )
 
 SWITCH_WORDS = ("web lookups are off", "turn them on in settings")

@@ -1,0 +1,232 @@
+{
+  "artifacts": {
+    "captions.srt": {
+      "bytes": 290,
+      "sha256": "258b9a7af975ca0ceb102edd40ddcfc5f2c2775d295f20cd083c4def63367c78"
+    },
+    "demo.mp4": {
+      "bytes": 209495,
+      "sha256": "6ac8317c40668d3c86927020d5db2eb7be2c5dc32d1eeaf952dcdfc60090d5e6"
+    },
+    "demo.webm": {
+      "bytes": 194564,
+      "sha256": "ea2e10e886aeaca7ba6e1cbd14c14b48debcd1617b8ae4c4b772d727b0ed5589"
+    },
+    "events.jsonl": {
+      "bytes": 2794,
+      "sha256": "2bf9f79e6e38fc479472808f6de56580b4789025be8a40b43fc3178b8c4dd71b"
+    },
+    "poster.png": {
+      "bytes": 58291,
+      "sha256": "910b3fb656e7d10b8c58a1d2b55feb09c8fc76b1b9771f426eaed0b94c02f62b"
+    }
+  },
+  "boot": {
+    "commit_full": "b75466b35872d431fc04af3b68722d31c1c6f632",
+    "healthz_verified": true,
+    "model_certification": {
+      "certified": false,
+      "endpoint": "/api/model-tool-certification/run",
+      "http_status": 200,
+      "model_name": "qwen2.5:7b",
+      "provider_name": "ollama-local",
+      "raw": "{'run_id': 'tool-cert-21b94b389df8472495be0d869e693400', 'fingerprint': 'e3b257b50ded111f63a33986a8f612d32ae8783ddc1fd32823473bad38d41cf5', 'provider_name': 'ollama-local', 'model_name': 'qwen2.5:7b', 'adapter_type': 'local_qwen_provider', 'state': 'degraded', 'successful': False, 'consecutive_failures': 1, 'regression_confirmed': False, 'latency_ms': 26836.64262498496, 'started_at': '2026-09-02T22:54:05.380394+00:00', 'completed_at': '2026-09-02T22:54:32.225838+00:00', 'observe_only': False, 'fingerprint_components': {'adapter_type': 'local_qwen_provider', 'adapter_version': 'openai-compatibl"
+    },
+    "verified_capabilities": [
+      "local_runtime"
+    ]
+  },
+  "captions": {
+    "count": 4,
+    "rows": [
+      {
+        "end_s": 3.043,
+        "event_type": "task_received",
+        "seq": 2,
+        "start_s": 2.182,
+        "text": "VOOL received the turn."
+      },
+      {
+        "end_s": 3.861,
+        "event_type": "task_classified",
+        "seq": 3,
+        "start_s": 3.093,
+        "text": "The turn was classified and routed."
+      },
+      {
+        "end_s": 6.008,
+        "event_type": "model_lane_proof",
+        "seq": 12,
+        "start_s": 3.911,
+        "text": "The answering lane was proven on the record: All ranked provider lanes failed."
+      },
+      {
+        "end_s": 8.008,
+        "event_type": "task_completed",
+        "seq": 13,
+        "start_s": 6.058,
+        "text": "The turn completed."
+      }
+    ],
+    "source": "/api/runtime/events (public typed events only); model_output_chunk excluded by allowlist"
+  },
+  "events": {
+    "count": 16,
+    "session_events": true,
+    "types": {
+      "model.fallback_chain_timing": 1,
+      "model_lane_failed": 2,
+      "model_lane_proof": 1,
+      "model_lane_selected": 1,
+      "model_lane_started": 2,
+      "model_routing_failed": 1,
+      "model_routing_started": 1,
+      "runtime_attempt_completed": 1,
+      "runtime_attempt_created": 1,
+      "semantic_resolution_receipt": 1,
+      "task_classified": 1,
+      "task_completed": 1,
+      "task_received": 1,
+      "turn.trace_completed": 1
+    }
+  },
+  "focus": [
+    {
+      "box": {
+        "height": 31,
+        "width": 154,
+        "x": 596,
+        "y": 8
+      },
+      "end_s": 6.261,
+      "justified_by": {
+        "event_type": "model_lane_proof",
+        "seq": 12
+      },
+      "region": "model-control",
+      "selector": "#modelCtrl",
+      "start_s": 3.761
+    }
+  ],
+  "generated_at": "2026-09-02T22:55:43Z",
+  "honesty": {
+    "captions_source": "public typed runtime events only; model_output_chunk excluded",
+    "captured": true,
+    "model_certified": false,
+    "model_lane": "operator_models",
+    "ui": "real browser interactions against the served product; no scripted UI responses"
+  },
+  "journey": {
+    "expected_events": [
+      "task_received",
+      "task_completed"
+    ],
+    "id": "local_chat",
+    "spec_hash": "bf4d358106cfd651cab9a5db0cd880b0fa7a1028be14f986720917fbdcfb6b2f",
+    "steps": [
+      {
+        "action": "goto",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "open-chat",
+        "note": "Open the real chat page",
+        "target": "/chat",
+        "value": ""
+      },
+      {
+        "action": "send_message",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "ask",
+        "note": "Type a real message into the composer and send it",
+        "target": "#input",
+        "value": "In two sentences: what should a good workshop checklist cover?"
+      }
+    ],
+    "title": "Ordinary local chat"
+  },
+  "mode": "capture",
+  "product": {
+    "app_version": "0.5.0",
+    "branch": "served-reality-bench",
+    "commit": "b75466b35872",
+    "commit_full": "b75466b35872d431fc04af3b68722d31c1c6f632",
+    "dirty": false
+  },
+  "redaction": {
+    "counts": {},
+    "engine": "ops.demo_studio.redact.RedactionEngine",
+    "scan": "clean"
+  },
+  "render": {
+    "mp4": {
+      "bytes": 209495,
+      "path": "demo.mp4",
+      "sha256": "6ac8317c40668d3c86927020d5db2eb7be2c5dc32d1eeaf952dcdfc60090d5e6"
+    },
+    "poster": {
+      "bytes": 58291,
+      "path": "poster.png",
+      "sha256": "910b3fb656e7d10b8c58a1d2b55feb09c8fc76b1b9771f426eaed0b94c02f62b"
+    },
+    "srt": {
+      "bytes": 290,
+      "path": "captions.srt",
+      "sha256": "258b9a7af975ca0ceb102edd40ddcfc5f2c2775d295f20cd083c4def63367c78"
+    },
+    "webm": {
+      "bytes": 194564,
+      "path": "demo.webm",
+      "sha256": "ea2e10e886aeaca7ba6e1cbd14c14b48debcd1617b8ae4c4b772d727b0ed5589"
+    },
+    "zoom_applied": 1,
+    "zoom_segments": [
+      {
+        "box": {
+          "height": 31,
+          "width": 154,
+          "x": 596,
+          "y": 8
+        },
+        "end_s": 6.261,
+        "justified_by": {
+          "event_type": "model_lane_proof",
+          "seq": 12
+        },
+        "region": "model-control",
+        "selector": "#modelCtrl",
+        "start_s": 3.761
+      }
+    ],
+    "zoom_windows": [
+      [
+        3.761,
+        6.261
+      ]
+    ]
+  },
+  "schema": "demo-studio/evidence-manifest@1",
+  "steps_executed": [
+    {
+      "action": "goto",
+      "id": "open-chat",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "send_message",
+      "id": "ask",
+      "ok": true,
+      "reason": ""
+    }
+  ],
+  "timeline": {
+    "alignment": "event created_at minus capture t0; ±0.5s against video frames",
+    "t0_epoch": 1788389676.394163,
+    "t1_epoch": 1788389743.372135
+  },
+  "verdict": "pass",
+  "verification": {
+    "violations": []
+  }
+}

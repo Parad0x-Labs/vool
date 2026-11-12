@@ -407,7 +407,8 @@ def test_the_stale_sweep_ends_a_seal_left_claimed(monkeypatch) -> None:
 # the worker's draft nobody was shown does not. A turn the person stopped teaches nothing.
 # ---------------------------------------------------------------------------------------------
 
-NAME = "my name is Zephyrine Calloway"
+# A fact the model has to answer (a stated name is answered before the model: tests/test_name_learning.py).
+NAME = "my sister is called Zephyrine Calloway"
 
 
 def _no_answer_turn(request_id: str, session: str, learned: _Learned, *, register_first: bool) -> None:

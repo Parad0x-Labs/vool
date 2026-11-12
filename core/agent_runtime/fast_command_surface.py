@@ -2229,12 +2229,20 @@ def action_fast_path_result(
             failover_used=False,
             mismatch=False,
         )
+    # The Activity row under a browser step that never ran (refused, expired, not loaded) shows
+    # what happened to the step, the same words as the reply, never the model's narration
+    # ("Would you like to try again", "there was a stale approval") from before the reply check.
+    row_text = decorated_response
+    if checkpoint_status == "failed":
+        from core.agent_runtime.action_honesty_validator import _browser_step_completed, unanswered_browser_reply
+
+        row_text = (not _browser_step_completed() and unanswered_browser_reply()) or decorated_response
     agent._emit_runtime_event(
         source_context,
         event_type=event_type,
         message=(
             f"{'Completed' if checkpoint_status == 'completed' else 'Awaiting approval for' if checkpoint_status == 'pending_approval' else 'Failed'} action response: "
-            f"{agent._runtime_preview(decorated_response)}"
+            f"{agent._runtime_preview(row_text)}"
         ),
         task_id=task_id,
         status=reason,
@@ -2244,7 +2252,7 @@ def action_fast_path_result(
         source_context,
         status=checkpoint_status,
         final_response=decorated_response if checkpoint_status == "completed" else "",
-        failure_text="" if checkpoint_status != "failed" else decorated_response,
+        failure_text="" if checkpoint_status != "failed" else row_text,
     )
     return {
         "task_id": task_id,

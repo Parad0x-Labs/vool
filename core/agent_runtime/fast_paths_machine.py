@@ -3166,6 +3166,14 @@ def maybe_handle_direct_machine_read_request(
             # "the biggest file in my downloads" measured the whole home folder (VOOL's own
             # databases included) and never looked at Downloads first.
             largest_args["drive"] = f"~/{named_place}"  # the tool resolves a home folder here too
+        else:
+            from core.execution.constants import points_back_at_the_folder
+
+            # "whats the largest file in that folder" right after a listing measured the whole home
+            # folder (red team R1-12, 2026-11-12). The folder is the chat's own record of what it listed.
+            recorded_folder = str(((source_context or {}).get("_conversation_slots") or {}).get("path") or "")
+            if recorded_folder and points_back_at_the_folder(user_input):
+                largest_args["drive"] = recorded_folder
         kind = largest_kind(user_input)
         if kind != "both":
             largest_args["kind"] = kind
@@ -3413,14 +3421,25 @@ def maybe_handle_direct_machine_read_request(
         if resolved_path:
             from core.folder_overview import build_folder_overview
 
-            return agent._fast_path_result(
-                session_id=session_id,
-                user_input=user_input,
-                response=build_folder_overview(resolved_path),
-                confidence=0.96,
-                source_context=source_context,
-                reason="folder_audit_fast_path",
+            # The folder is read through the authorized listing tool, so the turn carries its receipt
+            # and the chat records the folder it showed. As a bare reply with no receipt nothing was
+            # recorded, and one turn later "how many files are in that folder" had no folder to point
+            # at (red team R1-12, 2026-11-12). A refused or failed read is that refusal, not an overview.
+            listing = execute_authorized_runtime_tool(
+                "machine.list_directory", {"path": resolved_path, "limit": 200}, source_context=dict(source_context or {})
             )
+            if listing is not None:
+                listed_ok = bool(getattr(listing, "ok", False))
+                return _machine_tool_fast_path_result(
+                    agent,
+                    user_input=user_input,
+                    session_id=session_id,
+                    source_context=source_context,
+                    intent="machine.list_directory",
+                    execution=listing,
+                    reason="folder_audit_fast_path",
+                    response_text=build_folder_overview(resolved_path) if listed_ok else None,
+                )
     # "whats inside the lisbon folder?" names the folder by one word of its name: find it, then list it.
     contents_name = None if email_owns_folder_reference else machine_named_folder_contents_intent(user_input)
     if contents_name is not None and not _names_the_bound_workspace(contents_name, source_context):
@@ -3659,3 +3678,48 @@ def _earlier_user_turns(session_id: str, *, look_back: int = 4) -> list[str]:
     except Exception:
         return []
     return [str((row or {}).get("user") or "") for row in reversed(rows) if str((row or {}).get("user") or "").strip()]
+
+
+def maybe_answer_exact_read_first(
+    agent: Any,
+    user_input: str,
+    *,
+    session_id: str,
+    source_surface: str,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any] | None:
+    """An ask one of the exact read lanes answers in full, answered by that lane, else None.
+
+    The clean local loop admits every ask about the owner's files and answers it with a model and
+    tools. Where an exact lane exists -- a kind of file in a known folder, a count or the biggest
+    file of the folder this chat just listed, the files of a folder named by name, a typed path, or
+    the file a pick from a printed list points at -- that lane's answer is the measured one, and
+    the model in the loop was guessing it (red team round 3 on head 5, 2026-11-12: with the loop on,
+    "how many files are in that folder" and "the second one - how much was that?" never reached the
+    lanes that answer them). Anything else stays with the loop. None changes nothing.
+    """
+    from core.agent_runtime.fast_paths_pdf import maybe_handle_pdf_read, pdf_read_request
+    from core.execution.constants import machine_kind_listing_intent, points_back_at_the_folder
+
+    text = str(user_input or "")
+    slots = dict((source_context or {}).get("_conversation_slots") or {})
+    folder_hint, kind_hint = str(slots.get("path") or ""), str(slots.get("kind") or "")
+    exact = (
+        machine_kind_listing_intent(
+            text, earlier_turns=_earlier_user_turns(session_id), folder_hint=folder_hint, kind_hint=kind_hint
+        ) is not None
+        or machine_named_folder_contents_intent(text) is not None
+        or machine_folder_audit_intent(text) is not None
+        or machine_path_listing_intent(text) is not None
+        or (machine_largest_intent(text) is not None and bool(folder_hint) and points_back_at_the_folder(text))
+    )
+    picked = list(slots.get("picked") or [])
+    if picked and pdf_read_request(text) is not None:
+        answered = maybe_handle_pdf_read(agent, text, session_id=session_id, source_context=source_context)
+        if answered is not None:
+            return answered
+    if not exact:
+        return None
+    return maybe_handle_direct_machine_read_request(
+        agent, text, session_id=session_id, source_surface=source_surface, source_context=source_context
+    )

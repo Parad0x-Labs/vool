@@ -93,6 +93,7 @@ def test_web0_tools_http_uses_door_against_nonloopback_portal(monkeypatch):
 
     portal = "http://null-portal.example.invalid"   # non-loopback, env-overridable target
     monkeypatch.setattr(web0_tools, "NULL_PORTAL_URL", portal)
+    monkeypatch.setattr("core.web0_settings.web0_enabled", lambda: True)  # Web0 switch on: the door is what is tested
     captured: dict = {}
 
     def fake_door(request, *, timeout=0.0, context=None):
@@ -118,6 +119,7 @@ def test_web0_tools_veto_refuses_before_socket(monkeypatch):
     import core.web0_tools as web0_tools
 
     monkeypatch.setattr(web0_tools, "NULL_PORTAL_URL", "http://null-portal.example.invalid")
+    monkeypatch.setattr("core.web0_settings.web0_enabled", lambda: True)  # Web0 switch on: the door is what is tested
 
     def must_not_be_called(*args, **kwargs):  # pragma: no cover - veto must fire first
         raise AssertionError("socket reached despite turn-level veto")

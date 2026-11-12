@@ -23,6 +23,33 @@ def test_owner_browser_switch_and_page_are_served(pact_rig):
     assert b'iframe' not in response.body
 
 
+PNG = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000000'
+                    '1f15c4890000000d49444154789c6360f8cf00000301010018dd8db00000000049454e44ae426082')
+ASSETS = {
+    '/s.css': ('text/css', b'body{background:#fff url(/bg.png)}@font-face{font-family:board;src:url(/f.woff2)}h1{font-family:board,serif;color:#123456}'
+                         b'a{display:inline-block;width:333px}a:hover{background:url(/hover.png)}#end:target{background:url(/target.png)}'),
+    '/p.png': ('image/png', PNG), '/bg.png': ('image/png', PNG), '/hover.png': ('image/png', PNG), '/target.png': ('image/png', PNG), '/svg-inner.png': ('image/png', PNG),
+    '/o.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg"/>'), '/f.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    '/v.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><image href="/svg-inner.png" width="8" height="8"/>'
+                                b'<script>fetch("/svg-script")</script></svg>'),
+    '/f.woff2': ('font/woff2', b'wOF2 fixture font'),
+    '/wrong.png': ('text/html', b'<h1>not a picture</h1>'),
+}
+STYLED = (b'<link rel="stylesheet" href="/s.css"><h1>Platform board</h1><a href="#end">Jump to end</a><img src="/p.png" width="8" height="8">'
+          b'<img src="/v.svg" width="8" height="8"><img src="/redir.png" width="8" height="8"><img src="/wrong.png" width="8" height="8">'
+          b'<object data="/o.svg" type="image/svg+xml"></object><iframe src="/f.svg"></iframe>'
+          b'<div style="height:40000px">Platform 2</div><p id="end">End of board</p>')
+ASSET_HEADERS: dict = {}
+# Loading '/' asks the server for exactly the document and, inside that approved load, its one
+# picture (/secret, refused as not an image). The page's script fetches and its POST never run.
+ROOT_LOAD = [('GET', '/'), ('GET', '/secret')]
+
+
+def page_load(path: str) -> list:
+    """What one approved load of a fixture page asks the server for."""
+    return list(ROOT_LOAD) if path == '/' else [('GET', path)]
+
+
 @pytest.fixture
 def world(pact_rig, request):
     from core import policy_engine
@@ -30,13 +57,32 @@ def world(pact_rig, request):
 
     live.stop_all()
     requests = []
+    ASSET_HEADERS.clear()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_): pass
         def do_GET(self):
             requests.append(('GET', self.path))
             path = urlsplit(self.path).path
+            ASSET_HEADERS[path] = {k.lower(): v for k, v in self.headers.items()}
+            asset = ASSETS.get(path)
+            if asset is None and path.startswith('/many-') and path.endswith('.png'):
+                asset = ('image/png', PNG)
+            if path == '/redir.png':
+                # A picture that bounces to the cloud metadata address must never be followed.
+                self.send_response(302); self.send_header('Location', 'http://169.254.169.254/latest.png'); self.send_header('Content-Length', '0'); self.end_headers(); return
+            if asset is not None:
+                kind, body = asset
+                # Lower-case header names, as HTTP/2 sites send them.
+                self.send_response(200); self.send_header('content-type', kind); self.send_header('content-length', str(len(body))); self.end_headers()
+                try: self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError): pass
+                return
             if path == '/hang':
                 time.sleep(10)
+            if path == '/redirect-private':
+                self.send_response(302); self.send_header('Location', 'http://169.254.169.254/latest/meta-data/'); self.send_header('Content-Length', '0'); self.end_headers(); return
+            if path == '/redirect-loop':
+                self.send_response(302); self.send_header('Location', '/redirect-loop?n=' + str(len(requests))); self.send_header('Content-Length', '0'); self.end_headers(); return
             if path in {'/redirect', '/redirect-cookie'}:
                 self.send_response(302); self.send_header('Location', '/secret' if path=='/redirect' else '/cookie-result'); self.send_header('Set-Cookie','login=verified; Path=/; HttpOnly'); self.end_headers(); return
             if path == '/huge':
@@ -62,7 +108,20 @@ def world(pact_rig, request):
                 kind=parse_qs(urlsplit(self.path).query).get('kind',['card'])[0]
                 field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>','iban':'<input name="recipient_iban"><input name="note">','amount_only':'<input name="amount"><input name="note">','ccnum':'<input name="ccnum">','camel':'<input name="recipientIban"><input name="paymentAmount">'}[kind]
                 content=('<form method="post" action="/review-submit">'+field+'<button type="submit">Send</button></form>').encode()
-            if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a>'
+            if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a> <a href="/redirect">Moved timetable</a>'
+            if path == '/refresh':
+                # A page that tries to move on by itself: a meta refresh and a script.
+                content=b'<meta http-equiv="refresh" content="0;url=/other"><h1>Departures board</h1><script>location.href="/other"</script>'
+            if path == '/styled': content=STYLED
+            if path == '/unnamed':
+                # Links a person can see but that carry no words of their own.
+                content=b'''<h1>Index</h1><a href="/other"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="" width="20" height="20"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Later trains" width="20" height="20"></a>
+                <a href="/other" title="Timetable archive"><span style="display:inline-block;width:20px;height:20px"></span></a>
+                <a href="https://maps.example/riga/station" style="display:inline-block;width:20px;height:20px"></a>
+                <a href="#top" style="display:inline-block;width:20px;height:20px"></a>
+                <input name="q" placeholder="Search trains"><a href="/other">  Next\x20
+  page </a>'''
+            if path == '/many': content=('<h1>Gallery</h1>'+''.join(f'<img src="/many-{i}.png" width="8" height="8">' for i in range(100))).encode()
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()
             if path == '/find':
                 fields=parse_qs(urlsplit(self.path).query)
@@ -132,12 +191,16 @@ def test_real_page_injection_refusal_form_download_and_private_cleanup(world):
     assert 'Next train: 14:36' in snap['result']['page']['text']
     assert snap['result']['page']['authority']=='none'
     assert snap['frame']
-    assert requests==[('GET','/')],requests
+    # The approved load may ask for the page's own picture once (here /secret, which is then
+    # refused because it is not an image). The page's script fetches and its POST never run.
+    assert requests==ROOT_LOAD,requests
+    loaded=list(requests)
     from core.vool_browser.live import tool_intent
     result=tool_intent('vool-browser.inspect',{}, {'session_id':'live-test','surface':'api','platform':'web_companion'})
-    assert '14:36' in result['result']['page']['text'] and requests==[('GET','/')]
+    # Nothing at all is fetched outside the approved load.
+    assert '14:36' in result['result']['page']['text'] and requests==loaded
     token=propose(world,'click',{'selector':snap['nodes'][0]['selector']})
-    assert requests==[('GET','/')]
+    assert requests==loaded
     rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':False})
     address=next(n for n in snap['nodes'] if n['label']=='address')
     snap=finish(world,'type',{'selector':address['selector'],'text':'Example Road 21'})
@@ -206,17 +269,40 @@ def test_links_takeover_scroll_stop_and_policy_veto(world):
     assert requests==before
 
 
+def finish_agent(world,op,args):
+    """A step VOOL proposed, answered with Allow through the owner door."""
+    rig,item,origin,requests=world
+    token=item.propose(op,args,actor='agent')['proposal']['id']
+    status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True});assert status==200,data
+    deadline=time.monotonic()+20
+    while item.state=='running' and time.monotonic()<deadline: time.sleep(.05)
+    assert item.state!='running'
+    return item.snapshot()
+
+
 def test_hanging_huge_redirect_private_destinations_and_stop(world):
     rig,item,origin,requests=world
-    for suffix,state in [('/huge','page_too_large'),('/redirect','redirect_refused')]:
-        snap=finish(world,'navigate',{'url':origin+suffix})
-        assert snap['state']==state,snap
+    snap=finish(world,'navigate',{'url':origin+'/huge'})
+    assert snap['state']=='page_too_large',snap
+    # A page VOOL asked to open stops at its first redirect: Allow covered that address only.
+    snap=finish_agent(world,'navigate',{'url':origin+'/redirect'})
+    assert snap['state']=='redirect_refused' and snap['result']['redirect']['text']==origin+'/secret',snap
     assert ('GET','/secret') not in requests
-    snap=finish(world,'navigate',{'url':'http://127.0.0.1:1/admin'})
-    assert snap['state']=='destination_refused',snap
+    # The owner's own typed address follows the site's redirect, through the same gate...
+    snap=finish(world,'navigate',{'url':origin+'/redirect'})
+    # (/secret serves the timetable page, so its own picture request follows it.)
+    assert snap['state']=='ready' and snap['url']==origin+'/secret' and requests[-3:]==[('GET','/redirect'),('GET','/secret'),('GET','/secret')],(snap,requests)
+    # ...but never to a private or local address, and never in an endless loop.
+    snap=finish(world,'navigate',{'url':origin+'/redirect-private'})
+    assert snap['state']=='destination_refused' and requests[-1]==('GET','/redirect-private'),snap
+    before=len(requests)
+    snap=finish(world,'navigate',{'url':origin+'/redirect-loop'})
+    assert snap['state']=='redirect_refused' and len(requests)-before==6,(snap,requests[before:])
     before=list(requests)
-    for url in ['file:///etc/passwd','data:text/html,test','javascript:alert(1)']:
+    # A local or private address by its own name is refused before any card, like a file: URL.
+    for url in ['http://127.0.0.1:1/admin','http://localhost/','http://192.168.1.1/','file:///etc/passwd','data:text/html,test','javascript:alert(1)']:
         status,data=rig.post('/api/browser/propose',{'chat':'live-test','op':'navigate','args':{'url':url}});assert status==409
+        assert item.pending is None,url
     assert requests==before
     token=propose(world,'navigate',{'url':origin+'/hang'})
     rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
@@ -286,49 +372,94 @@ def test_live_view_in_chromium_keyboard_takeover_and_upload(world, tmp_path):
             assert requests==[]
             item=live.LiveSession('live-test',fixture_origin=origin)
             live._SESSIONS[live._key('live-test')]=item
+            def settled(step):
+                # One finished step: the session observed a new page state and the pane shows Ready.
+                from core.vool_browser.live import ENGINE_START_TIMEOUT
+                revision=item.revision;step()
+                # The cold start has its own ENGINE_START_TIMEOUT allowance; the 20 s page wait starts at readiness.
+                deadline=time.monotonic()+ENGINE_START_TIMEOUT+5
+                while not item.engine_ready and time.monotonic()<deadline:time.sleep(.05)
+                deadline=time.monotonic()+20
+                while (item.revision==revision or item.state=='running') and time.monotonic()<deadline:time.sleep(.05)
+                assert item.revision>revision and item.state=='ready',(item.state,item.result)
+                expect(page.locator('#status')).to_have_text('Ready',timeout=10000)
             page.goto(f'http://127.0.0.1:{server.server_port}/browser?chat=live-test')
-            page.locator('#address').fill(origin+'/')
-            page.locator('#address').press('Enter')
+            expect(page.locator('#blank')).to_be_visible()
+            # The owner's own typed address opens at once, with no review step.
+            page.locator('#address').fill(origin+'/other')
+            settled(lambda:page.locator('#address').press('Enter'))
+            expect(page.locator('#review')).to_be_hidden()
+            assert requests==[('GET','/other')],requests
+            # A navigate the model sends still waits for Allow in the pane; nothing is fetched first.
+            from core.vool_browser.live import tool_intent
+            from core.vool_browser.live_requests import turn_scope
+            context_={'session_id':'live-test','surface':'api','platform':'web_companion'}
+            with turn_scope(f'Use the browser to open {origin}/','live-test'):
+                proposed=tool_intent('vool-browser.navigate',{'url':origin+'/'},context_)
+            assert proposed['status']=='approval_required'
             page.locator('#approve').wait_for(state='visible')
-            assert requests==[]
+            expect(page.locator('#who')).to_have_text('VOOL asks to')
+            assert requests==[('GET','/other')]
             page.locator('#refuse').click()
             expect(page.locator("#approve")).to_be_hidden()
-            assert requests==[]
-            page.locator('#open').click();page.locator('#approve').wait_for(state='visible')
+            assert requests==[('GET','/other')]
+            with turn_scope(f'Use the browser to open {origin}/','live-test'):
+                tool_intent('vool-browser.navigate',{'url':origin+'/'},context_)
+            page.locator('#approve').wait_for(state='visible')
             # Approve using the keyboard, then observe the actual live screenshot.
-            page.locator('#approve').focus();page.keyboard.press('Enter')
-            # The cold start has its own ENGINE_START_TIMEOUT allowance; the 20 s page wait starts at readiness.
-            from core.vool_browser.live import ENGINE_START_TIMEOUT
-            deadline=time.monotonic()+ENGINE_START_TIMEOUT+5
-            while not item.engine_ready and time.monotonic()<deadline: time.sleep(.05)
+            page.locator('#approve').focus();settled(lambda:page.keyboard.press('Enter'))
             page.locator('#frame').wait_for(state='visible',timeout=20000)
-            assert ('GET','/') in requests
+            assert requests[1:]==[('GET','/'),('GET','/secret')],requests
             shots=os.environ.get('VOOL_BROWSER_SHOTS')
             if shots:
                 Path(shots).mkdir(parents=True,exist_ok=True)
                 page.screenshot(path=str(Path(shots)/'live-dark.png'),full_page=True)
+            # Back and forward walk the owner's own history, each one a direct step.
+            expect(page.locator('#back')).to_be_enabled()
+            settled(lambda:page.locator('#back').click())
+            expect(page.locator('#forward')).to_be_enabled()
+            assert requests[-1]==('GET','/other'),requests
+            settled(lambda:page.locator('#forward').click())
+            expect(page.locator('#forward')).to_be_disabled()
+            assert requests[-2:]==[('GET','/'),('GET','/secret')],requests
+            # A link on the page picture is clicked directly.
+            settled(lambda:page.locator('#hot button[aria-label="Later trains"]').click())
+            expect(page.locator('#hot button[aria-label="Back"]')).to_be_visible()
+            assert requests[-1]==('GET','/other')
+            settled(lambda:page.locator('#back').click())
+            expect(page.locator('#hot button[aria-label="Later trains"]')).to_be_visible()
+            # Filling a field is the owner's own step; it sends nothing.
+            page.locator('#hot button[aria-label="address"]').click()
+            page.locator('.editor input').fill('Example Road 21')
+            settled(lambda:page.locator('.editor button', has_text='Fill').first.click())
+            expect(page.locator('.editor')).to_have_count(0)
+            expect(page.locator('#review')).to_be_hidden()
+            assert not any(r[0]=='POST' for r in requests)
             page.locator('#takeover').click()
             expect(page.locator("#takeover")).to_be_disabled()
             assert item.takeover
-            node=next(n for n in item.nodes if n['type']=='file')
-            page.locator('#nodes').select_option(node['selector'])
-            page.locator('#file').set_input_files({'name':'address.txt','mimeType':'text/plain','buffer':b'Local address'})
+            # An upload always keeps its review, even from the owner's own hand.
+            page.locator('#list').click()
+            with page.expect_file_chooser() as chooser:
+                page.locator('#items .item', has_text='document').click()
+            chooser.value.set_files({'name':'address.txt','mimeType':'text/plain','buffer':b'Local address'})
             page.locator('#approve').wait_for(state='visible')
+            expect(page.locator('#who')).to_have_text('Check before sending')
             from core.runtime_execution_tools import execute_runtime_tool
             metadata=execute_runtime_tool('vool-browser.session.status',{'session':'ignored'},source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
             assert metadata.ok and metadata.details['observation']['pending']['op']=='upload'
             assert base64.b64encode(b'Local address').decode() not in json.dumps(metadata.details)
             assert 'args' not in metadata.details['observation']['pending']
-            page.locator('#approve').click()
-            expect(page.locator("#status")).to_have_text("Ready", timeout=15000)
+            settled(lambda:page.locator('#approve').click())
             assert not any(r[0]=='POST' for r in requests)
-            button=next(n for n in item.nodes if n['label']=='Send address')
-            page.locator('#nodes').select_option(button['selector'])
-            page.locator('#activate').click();page.locator('#approve').wait_for(state='visible')
+            # A form send from the owner's own click shows the review first.
+            page.locator('#items .item', has_text='Send address').click()
+            page.locator('#approve').wait_for(state='visible')
+            expect(page.locator('#pending')).to_contain_text('address = Example Road 21')
             page.locator('#refuse').click();expect(page.locator('#approve')).to_be_hidden()
             assert not any(r[0]=='POST' for r in requests)
-            page.locator('#activate').click();page.locator('#approve').wait_for(state='visible');page.locator('#approve').click()
-            expect(page.locator('#status')).to_have_text('Ready',timeout=15000)
+            page.locator('#items .item', has_text='Send address').click()
+            page.locator('#approve').wait_for(state='visible');settled(lambda:page.locator('#approve').click())
             assert len([r for r in requests if r[0]=='POST'])==1
             assert b'Local address' in requests[-1][2] and b'address.txt' in requests[-1][2]
             # Reflow and light appearance use the same served surface.
@@ -385,11 +516,14 @@ def test_get_form_select_compression_redirect_cookie_and_expiry(world):
     assert '06:05' in snap['result']['page']['text'],snap
     snap=finish(world,'navigate',{'url':origin+'/bomb'})
     assert snap['state']=='page_too_large',snap
-    snap=finish(world,'navigate',{'url':origin+'/redirect-cookie'})
+    snap=finish_agent(world,'navigate',{'url':origin+'/redirect-cookie'})
     assert snap['state']=='redirect_refused' and not any(r[1]=='/cookie-result' for r in requests)
     assert snap['result']['redirect']['authority']=='none'
     snap=finish(world,'navigate',{'url':snap['result']['redirect']['text']})
     assert 'login=verified' in snap['result']['page']['text'],snap
+    # The owner's own step follows the same redirect and carries the cookie it set.
+    snap=finish(world,'navigate',{'url':origin+'/redirect-cookie'})
+    assert snap['state']=='ready' and 'login=verified' in snap['result']['page']['text'],snap
     token=propose(world,'navigate',{'url':origin+'/'})
     item.pending['expires']=0
     before=list(requests)

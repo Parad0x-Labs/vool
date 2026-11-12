@@ -2243,7 +2243,9 @@ def _operator_profile_tool(intent: str, arguments: dict[str, Any], source_contex
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text,
                                       details={"observation": _tool_observation(intent=intent, tool_surface="profile", ok=True, status="ok")})
     if proposal.strength == "explicit":
-        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool")
+        # A name the user told the model to remember replaces the old one: a correction never raises a question.
+        change = profile.remember(principal, proposal.category, proposal.value, scope=proposal.scope, session_id=session_id, origin="explicit", actor="model_tool",
+                                  replace=proposal.category == "preferred_name")
     else:
         change = profile.propose_candidate(principal, proposal.category, proposal.value, session_id=session_id)
     ok = change.kind in {"saved", "updated", "unchanged", "candidate", "conflict"}
@@ -2898,6 +2900,17 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                 raise WalletFault("wallet_not_found", context={"reason": "no_wallet_registered"}, message="No wallet is set up yet, so nothing was proposed.")
             resource_url = str(args.get("resource_url") or "").strip()
             if resource_url:
+                # the assistant's own wallet first, when the owner gave it one: it pays only what its allowance
+                # permits (core.wallet.agent_pay). Everything else is parked for the owner exactly as before.
+                from core.wallet import agent_pay
+
+                ridden = agent_pay.fetch_for_turn(resource_url, source_context=context)
+                if ridden is not None:
+                    return _agent_fetch_result(intent, ridden)
+                if agent_pay.is_team_turn(context):
+                    # a team agent never parks a payment on the owner's own wallet: with no slice to pay from, nothing happens
+                    text = "Nothing was paid and nothing was requested: helper agents can pay only from the assistant's own wallet, and it has none that fits this service."
+                    return RuntimeExecutionResult(handled=True, ok=False, status="not_paid", response_text=text, details={"observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status="not_paid")})
                 outcome = wallet_x402.fetch_paid_resource(resource_url, wallet_id=wallet_id, source_context=context)
                 if outcome.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and outcome.proposal_id:
                     text = f"x402 offer parked as proposal {outcome.proposal_id} (state pending_approval). Nothing has been signed; approve it in your wallet."
@@ -2957,6 +2970,56 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
         return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text=text, details={"proposal": proposal.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", proposal_id=proposal.proposal_id, state=proposal.state)})
     except WalletFault as exc:
         return refusal(exc)
+
+
+def _agent_fetch_result(intent: str, ridden: dict[str, Any]) -> RuntimeExecutionResult:
+    """What the model is told after a paid fetch went through the assistant's own wallet: what was paid or why not,
+    in the owner's words, and the delivered content when there is some. Amounts come from the wallet's records."""
+    from core.wallet import agent_pay, proposals
+    from core.wallet import allowances as agent_allowances
+
+    payment = ridden.get("payment")
+    proposal_id = str(ridden.get("proposal_id") or "")
+    body = bytes(ridden.get("body") or b"").decode("utf-8", "replace")[: agent_pay.MAX_BODY_CHARS]
+    if payment is None:
+        status = str(ridden.get("status") or "")
+        text = f"The resource answered {ridden.get('http_status')} and asked for no payment." + (f" It returned:\n{body}" if body else "")
+        return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={"resource_body": body, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status)})
+    proposal = proposals.get_proposal(proposal_id)
+    amount = "the amount"
+    if proposal is not None:
+        try:
+            from core.wallet import amounts, chains
+
+            amount = f"{amounts.format_minor(int(proposal.amount_minor), int(chains.asset_for(proposal.network, proposal.asset).decimals))} {proposal.asset}"
+        except Exception:
+            amount = "the amount"
+    reason = agent_pay.explain(str(payment.get("reason") or ""))
+    decision = str(payment.get("decision") or "")
+    if decision == agent_allowances.DECISION_PAY and payment.get("paid"):
+        status = "paid"
+        text = f"Paid {amount} from the assistant's own wallet for this request. {reason}"
+        text += f" It returned:\n{body}" if body else " The payment went through, but the service returned nothing; it will not be paid again for this without your approval."
+    elif decision == agent_allowances.DECISION_PAY:
+        status = "payment_outcome_unknown"
+        text = f"A payment of {amount} was sent from the assistant's own wallet, but it is not confirmed yet. Nothing more will be paid for this request until it is known."
+    elif decision == agent_allowances.DECISION_ASK_OWNER:
+        status = "pending_approval"
+        text = f"Nothing was paid. {reason} The payment of {amount} is waiting as proposal {proposal_id}; approve it in your wallet if you want it paid."
+        hint = agent_pay.raise_hint(str(payment.get("reason") or ""))
+        text += f" {hint}" if hint else ""
+    else:
+        status = "not_paid"
+        text = f"Nothing was paid. {reason}"
+    said = agent_pay.notice_text(payment.get("notices") or [])
+    if said and status == "paid":
+        # ahead of the delivered content, so the owner reads it even when the content is long
+        text = text.replace(" It returned:\n", f" {said} It returned:\n", 1) if " It returned:\n" in text else f"{text} {said}"
+    if payment.get("paused"):
+        text += " The assistant's spending allowance has been paused after repeated problems; you can turn it back on in Settings."
+    return RuntimeExecutionResult(handled=True, ok=True, status=status, response_text=text, details={
+        "proposal_id": proposal_id, "agent_payment": {key: payment.get(key) for key in ("decision", "reason", "paid", "delivered", "notices", "paused")}, "resource_body": body,
+        "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=status, proposal_id=proposal_id)})
 
 
 def _wallet_spend(arguments: dict[str, Any]) -> RuntimeExecutionResult:
@@ -3652,12 +3715,16 @@ def _dispatch_runtime_tool(
             return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
-        if intent == "email.read":
-            return _email_read(arguments)
+        if intent in {"email.read", "email.open"}:
+            _mail_result = _email_read(arguments) if intent == "email.read" else _email_open(arguments)
+            if _mail_result.ok:
+                # The operator's own mailbox shows the name people use for them.
+                from core.operator_profile_turn import learn_name_from_mail
+
+                learn_name_from_mail((_mail_result.details or {}).get("messages"), source_context=source_context)
+            return _mail_result
         if intent == "email.reply":
             return _email_reply(arguments)
-        if intent == "email.open":
-            return _email_open(arguments)
         if intent in {"email.draft.save", "email.draft.get", "email.draft.approve",
                       "email.draft.send", "email.draft.reconcile"}:
             return _email_draft_tool(intent, arguments, source_context)
@@ -4369,6 +4436,26 @@ def _web0_publish(
             },
         )
 
+    from core.web0_settings import WEB0_OFF_MESSAGE, web0_enabled
+
+    if not web0_enabled():
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status="web0_off",
+            response_text=f"I won't publish to Arweave: {WEB0_OFF_MESSAGE}",
+            details={
+                "project_id": project_id,
+                "status": "publish_web0_off",
+                "observation": _tool_observation(
+                    intent="web0.publish",
+                    tool_surface="web0",
+                    ok=False,
+                    status="web0_off",
+                    project_id=project_id,
+                ),
+            },
+        )
     result = web0_publish(project_id, wallet, allow_network_publish=True)
     return _web0_result(
         "web0.publish",
@@ -5582,6 +5669,20 @@ _LISTING_KIND_LABELS = {
 }
 
 
+def _kind_label(kind: str) -> str:
+    """"Pictures", or "PNG files" / "JPG and JPEG files" for a kind named by its extension."""
+    if kind.startswith("ext:"):
+        names = [part.strip().upper() for part in kind[4:].split(",") if part.strip()]
+        return (" and ".join(names) or "Matching") + " files"
+    return _LISTING_KIND_LABELS.get(kind, "Files")
+
+
+def _human_size(num_bytes: int) -> str:
+    from core.file_size_answer import _human_size as _shared_human_size
+
+    return _shared_human_size(num_bytes)
+
+
 def _list_machine_directory(
     arguments: dict[str, Any], *, workspace_root: Path
 ) -> RuntimeExecutionResult:
@@ -5669,7 +5770,22 @@ def _list_machine_directory(
     # every entry by name, so a person asking for their recent photos got folders and installers.
     kind = str(arguments.get("kind") or "").strip().lower()
     kind_suffixes = _LISTING_KIND_SUFFIXES.get(kind, ())
+    if kind.startswith("ext:"):
+        # "ext:jpg,jpeg": the extensions the person named, and only those.
+        kind_suffixes = tuple(
+            "." + part.strip().lstrip(".") for part in kind[4:].split(",") if re.fullmatch(r"\.?[a-z0-9]{1,6}", part.strip())
+        )
     newest_first = bool(arguments.get("newest_first", False))
+    size_order = str(arguments.get("size_order") or "").strip().lower()
+    if size_order not in {"largest", "smallest"}:
+        size_order = ""
+
+    def _size_of(item: Path) -> int:
+        try:
+            return int(item.stat().st_size)
+        except OSError:
+            return 0
+
     children = [
         child for child in target.iterdir()
         if not child.name.startswith(".") and child.name not in hidden_names
@@ -5685,6 +5801,11 @@ def _list_machine_directory(
                 return 0.0
 
         children.sort(key=_mtime, reverse=True)
+    elif size_order:
+        # "which is the biggest one there": files by size, folders left out (a folder's own entry
+        # size says nothing about what it holds).
+        children = [child for child in children if child.is_file()]
+        children.sort(key=_size_of, reverse=size_order == "largest")
     else:
         children.sort(key=lambda item: item.name.lower())
     for child in children:
@@ -5693,6 +5814,7 @@ def _list_machine_directory(
                 "name": child.name,
                 "path": _home_relative_label(child),
                 "type": "directory" if child.is_dir() else "file",
+                **({"size_bytes": _size_of(child)} if size_order else {}),
             }
         )
     entries = matched[:limit]
@@ -5700,7 +5822,7 @@ def _list_machine_directory(
     if not entries:
         noun = "folders" if directories_only else "entries"
         if kind_suffixes:
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
         return RuntimeExecutionResult(
             handled=True,
             ok=True,
@@ -5727,7 +5849,7 @@ def _list_machine_directory(
         )
     label = "Visible folders" if directories_only else "Visible entries"
     if kind_suffixes:
-        label = f"{_LISTING_KIND_LABELS.get(kind, 'Files')}{', newest first,' if newest_first else ''}"
+        label = f"{_kind_label(kind)}{', newest first,' if newest_first else ''}"
     if bool(arguments.get("count_only", False)):
         # "how many files are in ~/Downloads" was answered with the first thirty filenames and a
         # bare "-...", so the number it asked for was nowhere in the reply and could not be
@@ -5750,7 +5872,7 @@ def _list_machine_directory(
             # "how many pdf files are in my Documents folder?": that kind only, and said whether
             # subfolders are included (they are not: this counts the folder itself).
             counted = len(matched)
-            noun = _LISTING_KIND_LABELS.get(kind, "files").lower()
+            noun = _kind_label(kind).lower()
             detail = " (not counting subfolders)"
         return RuntimeExecutionResult(
             handled=True,
@@ -5776,10 +5898,13 @@ def _list_machine_directory(
                 ),
             },
         )
+    if size_order:
+        label = f"{'Largest' if size_order == 'largest' else 'Smallest'} files"
     lines = [f"{label} under `{_home_relative_label(target)}`:"]
     for entry in entries:
         suffix = "/" if entry["type"] == "directory" else ""
-        lines.append(f"- {entry['name']}{suffix}")
+        size_note = f" ({_human_size(entry['size_bytes'])})" if "size_bytes" in entry else ""
+        lines.append(f"- {entry['name']}{suffix}{size_note}")
     if dropped:
         noun = "folders" if directories_only else "entries"
         lines.append(f"…and {dropped} more {noun} ({len(matched)} in total).")
@@ -8280,7 +8405,8 @@ def _pdf_result(intent: str, result: dict[str, Any], *, verb: str) -> RuntimeExe
             f"\n\n{text}"
         )
     else:
-        response = f"Could not read `{result.get('path')}`: {result.get('reason') or status}."
+        reason = str(result.get("reason") or "").strip().rstrip(".").rstrip()
+        response = f"Could not read `{result.get('path')}`: {reason or status}."
     return RuntimeExecutionResult(
         handled=True,
         ok=ok,

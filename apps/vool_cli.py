@@ -237,12 +237,29 @@ def render_resolve_lines(payload: dict[str, object]) -> list[str]:
     return lines
 
 
+def _web0_off_exit(clean: str, exc: Exception, *, json_mode: bool, dial: bool = False) -> int:
+    """A .null lookup asked for while the Web0 switch is off: say so, reach nothing."""
+    if json_mode:
+        payload = {"name": clean, "resolved": False, "web0_enabled": False, "message": str(exc)}
+        if dial:
+            payload["dialed"] = False
+        _emit_json(payload)
+    else:
+        print(str(exc))
+    return 2
+
+
 def cmd_resolve(name: str, *, json_mode: bool = False) -> int:
     clean = _strip_null_suffix(name)
     if not clean:
         print("usage: vool resolve <name>.null")
         return 2
-    record = resolve_null_domain(clean)
+    from core.web0_settings import Web0OffError
+
+    try:
+        record = resolve_null_domain(clean)
+    except Web0OffError as exc:
+        return _web0_off_exit(clean, exc, json_mode=json_mode)
     payload = resolve_record_payload(clean, record)
     if json_mode:
         _emit_json(payload)
@@ -596,8 +613,12 @@ def cmd_dial(
         return 2
 
     from core.null_dial import try_dial
+    from core.web0_settings import Web0OffError
 
-    record = resolve_null_domain(clean)
+    try:
+        record = resolve_null_domain(clean)
+    except Web0OffError as exc:
+        return _web0_off_exit(clean, exc, json_mode=json_mode, dial=True)
     if record is None:
         payload = {"name": clean, "resolved": False, "dialed": False}
         if json_mode:

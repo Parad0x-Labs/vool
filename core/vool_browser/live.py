@@ -34,6 +34,20 @@ from core.vool_browser.engine import find_engine_binary, isolation_launch_flags,
 from core.vool_browser.ops import Untrusted
 
 MAX_BYTES = 2_000_000
+# A page's look: its stylesheets, raster images and fonts, fetched only while the page the owner
+# approved is loading, GET only, through the same pinned public-address gateway, without cookies,
+# and within one budget per page. Scripts, frames, media, XHR and everything else stay refused.
+ASSET_TYPES = {
+    "stylesheet": ("text/css",),
+    "image": ("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/x-icon", "image/vnd.microsoft.icon",
+              # An SVG used as an image cannot run script or fetch anything in Chromium.
+              "image/svg+xml"),
+    "font": ("font/woff2", "font/woff", "font/ttf", "font/otf", "application/font-woff", "application/font-woff2", "application/x-font-woff"),
+}
+ASSET_REQUESTS = 80
+#: Redirect hops an owner's own step follows; a step VOOL asked for still stops at the first one.
+OWNER_REDIRECTS = 5
+ASSET_BYTES = 12_000_000
 TIMEOUT = 8
 ENGINE_START_TIMEOUT = 60
 _LOCK = threading.RLock()
@@ -233,6 +247,21 @@ def _canonical_url(value: Any) -> str:
         raise BrowserFault("destination_refused") from None
 
 
+def _private_by_name(url: str, fixture_origin: str = "") -> bool:
+    """A local name or a non-public IP literal. Names that RESOLVE privately are refused at fetch."""
+    parts = urlsplit(url)
+    if fixture_origin and f"{parts.scheme}://{parts.netloc}" == fixture_origin:
+        return False
+    host = (parts.hostname or "").strip("[]").lower().rstrip(".")
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal", ".lan", ".home.arpa")):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return not address.is_global or address.is_multicast
+
+
 def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     parts = urlsplit(url)
     if parts.scheme not in {"https", "http"} or not parts.hostname or parts.username or parts.password:
@@ -243,6 +272,10 @@ def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
 
     if runtime_origin_refusal(url):
         raise BrowserFault("destination_refused")
+    from core import private_web
+
+    if private_web.resolved_at_far_end(parts.hostname):
+        return ()
     answers = tuple(sorted({r[4][0] for r in socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM)}))
     fixture = bool(fixture_origin) and f"{parts.scheme}://{parts.netloc}" == fixture_origin
     if not answers or (any(not ipaddress.ip_address(a).is_global or ipaddress.ip_address(a).is_multicast for a in answers) and not fixture):
@@ -250,7 +283,15 @@ def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     return answers
 
 
-def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_origin: str, stopped: tuple[threading.Event, threading.Event], source_context: dict, download: bool, telemetry=None) -> tuple[int, dict, bytes]:
+def _same_url(a: str, b: str) -> bool:
+    """One address, as Chromium and the gate each spell it (fragment and bare-host slash aside)."""
+    def norm(value: str) -> tuple:
+        parts = urlsplit(str(value or "").split("#", 1)[0])
+        return (parts.scheme.lower(), parts.netloc.lower(), parts.path or "/", parts.query)
+    return norm(a) == norm(b)
+
+
+def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_origin: str, stopped: tuple[threading.Event, threading.Event], source_context: dict, download: bool, telemetry=None, asset: tuple[str, ...] = ()) -> tuple[int, dict, bytes]:
     """No ambient proxy, pinned DNS, no redirects, bounded decoded response."""
     from core.effect_gateway import named_background_effect_scope
     from core.remote_fetch_policy import open_remote
@@ -284,7 +325,10 @@ def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_ori
             if int(response.headers.get("Content-Length", "0")) > MAX_BYTES:
                 raise BrowserFault("page_too_large")
             media_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
-            if not download and ("attachment" in response.headers.get("Content-Disposition", "").lower() or media_type not in {"text/html", "text/plain", "application/xhtml+xml"}):
+            if asset:
+                if media_type not in asset:
+                    raise BrowserFault("download_refused")
+            elif not download and ("attachment" in response.headers.get("Content-Disposition", "").lower() or media_type not in {"text/html", "text/plain", "application/xhtml+xml"}):
                 raise BrowserFault("download_refused")
             chunks = []
             size = 0
@@ -352,6 +396,12 @@ class LiveSession:
         self.result: dict[str, Any] = {}
         self.frame = ""
         self.url = ""
+        self.title = ""
+        # The owner's back/forward list: addresses this session finished loading, in order.
+        # Going back is an ordinary GET of that address, through the same gateway and permit.
+        self.history: list[str] = []
+        self.history_index = -1
+        self.view = [1100, 720]
         self._document_origin = ""
         self.nodes: list[dict] = []
         self._forms: list[dict] = []
@@ -361,6 +411,9 @@ class LiveSession:
         self._lease_seconds = max(1, float(lease_seconds))
         self._owner_deadline = self.last_activity + self._lease_seconds
         self._completed: dict[str, dict] = {}
+        # How each of the last few proposals ended, by id, for the chat card: a step the owner
+        # took over from must never read "Done" because the page behind it is still there.
+        self._ended: dict[str, str] = {}
         self._telemetry: dict[str, Any] = {}
         self._lease_cleanup = None
         self._mutex = threading.RLock()
@@ -394,9 +447,13 @@ class LiveSession:
         self._engine_tmp: Path | None = None
         self._driver_pid = 0
         self._download: tuple[str, bytes] | None = None
+        # Open only while an approved page is loading: what its look may still fetch.
+        self._assets: dict[str, Any] | None = None
         self._proxy_server = None
         self._proxy_clients: set[Any] = set()
         self.engine_network_refusals = 0
+        # Requests the page itself made outside an approved load, refused before any network.
+        self.page_request_refusals = 0
         self._loop.call_soon_threadsafe(self._check_owner_lease)
 
     def owner_heartbeat(self) -> None:
@@ -424,8 +481,15 @@ class LiveSession:
     def _complete(self, proposal_id: str, result: dict) -> None:
         with self._mutex:
             self._completed[proposal_id] = result
+            self._end(proposal_id, str(result.get("status") or ("executed" if result.get("ok") else "failed")))
             while len(self._completed) > 8:
                 self._completed.pop(next(iter(self._completed)))
+
+    def _end(self, proposal_id: str, status: str) -> None:
+        # Caller holds _mutex. The first ending recorded is the true one.
+        self._ended.setdefault(proposal_id, status)
+        while len(self._ended) > 8:
+            self._ended.pop(next(iter(self._ended)))
 
     def wait_for_owner(self, proposal: dict, source_context: dict) -> dict:
         """Continue the original served tool call after its exact owner decision."""
@@ -468,6 +532,7 @@ class LiveSession:
                     self._submission_previews.pop(proposal_id, None)
                     self._telemetry.pop(proposal_id, None)
                     self.state = "refused"
+                    self._end(proposal_id, "stale_approval")
                     return {"ok": False, "status": "stale_approval", "view_url": view_url}
             self._stopped.wait(.05)
         self.stop()
@@ -571,7 +636,22 @@ class LiveSession:
         permit = self._permit
         try:
             _check()
-            if self.closed or not permit or request.url != permit["url"] or request.method != permit["method"] or permit["used"]:
+            assets = self._assets
+            if (assets is not None and not self.closed and request.method == "GET" and request.resource_type in ASSET_TYPES
+                    and urlsplit(request.url).scheme in {"http", "https"}):
+                await self._route_asset(route, request, assets)
+                return
+            if self.closed or not permit or not _same_url(request.url, permit["url"]) or request.method != permit["method"] or permit["used"]:
+                if (not self.closed and request.method == "GET" and request.is_navigation_request()
+                        and self._page is not None and request.frame == self._page.main_frame
+                        and urlsplit(request.url).scheme in {"http", "https"}):
+                    # A page moving itself on (a meta refresh) is not the owner's hand. Answering
+                    # "no content" keeps the current page on screen instead of an error page, and
+                    # the pane offers the address so the owner can open it with one click.
+                    self.result.setdefault("redirect", Untrusted.wrap(request.url, url=self.url or request.url, origin=""))
+                    await route.fulfill(status=204, body=b"")
+                    return
+                self.page_request_refusals += 1
                 await route.abort()
                 return
             permit["used"] = True
@@ -586,15 +666,34 @@ class LiveSession:
             await self._accept_cookies(request.url, headers.get("_cookies", []))
             low = {k.lower(): v for k, v in headers.items()}
             if 300 <= status < 400:
+                target = urljoin(request.url, low.get("location", ""))
+                if (permit.get("follow", 0) > 0 and status in {301, 302, 303, 307, 308}
+                        and urlsplit(target).scheme in {"http", "https"}
+                        and (request.method == "GET" or status in {301, 302, 303})):
+                    # The owner's own step (an address they typed, a link they clicked, a form they
+                    # approved) goes where the site sends it, one hop at a time, each hop through
+                    # the same gate: GET, pinned public address, no private or local target.
+                    permit["next"] = target
+                    # "No content" ends this navigation without an error page; the step then
+                    # opens the next hop itself (see _navigating).
+                    await route.fulfill(status=204, body=b"")
+                    return
                 self._blocked = "redirect_refused"
-                self.result = {"redirect": Untrusted.wrap(urljoin(request.url, low.get("location", "")), url=request.url, origin="")}
-                await route.abort()
+                self.result = {"redirect": Untrusted.wrap(target, url=request.url, origin="")}
+                if request.is_navigation_request() and self._page is not None and request.frame == self._page.main_frame:
+                    # Keep the page that was on screen instead of an error page; the pane offers the address.
+                    await route.fulfill(status=204, body=b"")
+                else:
+                    await route.abort()
                 return
             # No remote scripts, frames, forms that target another browsing context,
             # refresh navigation or subresources can escape the request gate.
             clean = {k: v for k, v in headers.items() if k.lower() == "content-type"}
             clean["X-DNS-Prefetch-Control"] = "off"
-            clean["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-src 'none'; base-uri 'none'"
+            clean["Content-Security-Policy"] = ("default-src 'none'; style-src 'unsafe-inline' http: https:; img-src http: https: data:; "
+                                                "font-src http: https: data:; form-action 'self'; frame-src 'none'; base-uri 'none'")
+            if 200 <= status < 300 and request.is_navigation_request():
+                self._assets = {"left": ASSET_REQUESTS, "bytes": ASSET_BYTES, "cancelled": permit["cancelled"], "telemetry": permit.get("telemetry")}
             await route.fulfill(status=status, headers=clean, body=raw)
             parts = urlsplit(request.url)
             self._document_origin = (parts.scheme, parts.netloc)
@@ -607,9 +706,46 @@ class LiveSession:
             self.result["failure_class"] = type(exc).__name__
             self.result["failure_phase"] = "network"
             with contextlib.suppress(Exception):
-                await route.abort()
+                if request.is_navigation_request() and self._page is not None and request.frame == self._page.main_frame:
+                    # Keep the page that was on screen, as a refused redirect does. Aborted, the
+                    # engine showed its own error page (chrome-error:// in the address bar) and
+                    # reloaded it, and that reload read as the page sending the owner on to the
+                    # address that had just failed (real pane, 2026-11-12).
+                    await route.fulfill(status=204, body=b"")
+                else:
+                    await route.abort()
         finally:
             self._routes.discard(task)
+
+    async def _route_asset(self, route: Any, request: Any, assets: dict[str, Any]) -> None:
+        if assets["left"] <= 0 or assets["bytes"] <= 0 or assets["cancelled"].is_set():
+            await route.abort()
+            return
+        assets["left"] -= 1
+        try:
+            # Two headers only: no cookie, no referrer, nothing that says which page asked.
+            status, headers, raw = await asyncio.to_thread(
+                _fetch, request.url, "GET", {"accept": "*/*", "user-agent": await request.header_value("user-agent") or ""}, None,
+                self.fixture_origin, (self._stopped, assets["cancelled"]), {"session_id": self.chat, "private_chat": self.private},
+                False, assets.get("telemetry"), ASSET_TYPES[request.resource_type],
+            )
+        except Exception:
+            await route.abort()
+            return
+        # A redirect (3xx) is never followed, so an asset cannot bounce to a private or local address.
+        if self.closed or self._assets is not assets or not 200 <= status < 300 or len(raw) > assets["bytes"]:
+            await route.abort()
+            return
+        assets["bytes"] -= len(raw)
+        # Only the type, never cookies, and an asset is never sniffed into something else. An SVG is
+        # served to Chromium as an image under a policy that also forbids script and every fetch, so it
+        # stays a picture even if a page tries to open it as a document.
+        # Header names arrive in whatever case the site sent (HTTP/2 sends them lower case); an
+        # empty type under nosniff makes Chromium drop the stylesheet or picture without a word.
+        media_type = next((str(v) for k, v in headers.items() if k.lower() == "content-type"), "")
+        await route.fulfill(status=status, body=raw, headers={
+            "Content-Type": media_type, "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox"})
 
     async def _accept_cookies(self, url: str, headers: list[str]) -> None:
         host = urlsplit(url).hostname
@@ -663,10 +799,15 @@ class LiveSession:
             pending = copy.deepcopy(self.pending)
             if pending and pending['id'] in self._submission_previews:
                 pending['submission'] = copy.deepcopy(self._submission_previews[pending['id']])
+            if pending:
+                pending["expires_in"] = max(0, int(pending["expires"] - time.monotonic()))
             return {"ok": True, "id": self.id, "state": self.state, "takeover": self.takeover,
-                    "pending": pending, "url": self.url, "revision": self.revision,
+                    "pending": pending, "url": self.url, "revision": self.revision, "title": self.title,
+                    "can_back": self.history_index > 0, "can_forward": 0 <= self.history_index < len(self.history) - 1,
+                    "view": list(self.view),
                     "nodes": self.nodes, "frame": self.frame, "result": self.result,
-                    "private": self.private, "closed": self.closed, "download_ready": self._download is not None}
+                    "private": self.private, "closed": self.closed, "download_ready": self._download is not None,
+                    "ended": dict(self._ended)}
 
     def propose(self, op: str, args: dict[str, Any], *, actor: str = "agent") -> dict[str, Any]:
         _check()
@@ -676,13 +817,28 @@ class LiveSession:
                 raise BrowserFault("busy")
             if actor == "agent" and self.takeover:
                 raise BrowserFault("paused")
+            if op in {"back", "forward", "reload"}:
+                # Owner-only moves through the addresses this session already loaded.
+                if actor != "owner":
+                    raise BrowserFault("unsupported")
+                step = {"back": -1, "forward": 1, "reload": 0}[op]
+                index = self.history_index + step
+                if not 0 <= index < len(self.history) or (op == "reload" and not self.url):
+                    raise BrowserFault("invalid_input")
+                op, args = "navigate", {"url": self.history[index], "history": index}
             if op not in {"navigate", "inspect", "click", "type", "scroll", "download", "upload"}:
                 raise BrowserFault("unsupported")
             safe: dict[str, Any] = {}
             review = None
             if op in {"navigate", "download"}:
                 url = _canonical_url(args.get("url"))
+                if _private_by_name(url, self.fixture_origin):
+                    # Plainly private or local by its own name: refused before any card, so the
+                    # person is never asked to allow something that can never run.
+                    raise BrowserFault("destination_refused")
                 safe["url"] = url
+                if op == "navigate" and actor == "owner" and type(args.get("history")) is int:
+                    safe["history"] = args["history"]
                 if op == "download":
                     parts = urlsplit(url)
                     if (parts.scheme, parts.netloc) != self._document_origin:
@@ -763,6 +919,25 @@ class LiveSession:
             self.state = "approval_required"
             return {"ok": False, "status": "approval_required", "view_url": "/browser?chat=" + quote(self.chat), "proposal": copy.deepcopy(self.pending)}
 
+    #: What the owner's own hand in the pane may run without a second click: moving around
+    #: and filling a field. Anything that sends data (a form, an upload), saves a file or
+    #: pays keeps its review, whoever asked for it.
+    OWNER_DIRECT_OPS = frozenset({"navigate", "scroll", "click", "type"})
+
+    def run_owner_step(self, proposal_id: str) -> dict[str, Any] | None:
+        """Run an owner proposal at once when it is a plain step; None leaves it for review.
+
+        Only the owner HTTP door calls this, with a proposal it just made as the owner from
+        the pane's own controls. Agent proposals never reach here and always wait for Allow.
+        """
+        with self._mutex:
+            pending = self.pending
+            if (not pending or pending["id"] != proposal_id or pending["actor"] != "owner"
+                    or pending["op"] not in self.OWNER_DIRECT_OPS or proposal_id in self._submission_previews
+                    or pending["args"].get("submit")):
+                return None
+        return self.decide(proposal_id, True)
+
     def decide(self, proposal_id: str, approve: bool) -> dict[str, Any]:
         _check()
         with self._mutex:
@@ -809,6 +984,36 @@ class LiveSession:
                 self.state = "page_failed"
                 self._complete(proposal["id"], {"ok": False, "status": "page_failed", **self.result})
 
+    async def _submit_and_wait(self, action) -> None:
+        async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
+            await action
+
+    async def _navigating(self, step) -> None:
+        """Run one navigating step; an owner's step then follows the site's redirects.
+
+        The gate refuses each redirect response and names its target ("next" on the permit) when
+        the permit allows following. Each hop is then a fresh, gated navigation: GET, pinned public
+        address, the same private and local address refusal. A step VOOL asked for has no hops.
+        """
+        try:
+            await step
+        except Exception:
+            if not (self._permit and self._permit.get("next")):
+                raise
+        while self._permit and self._permit.get("next") and not self.closed:
+            permit = self._permit
+            target = permit.pop("next")
+            if permit.get("follow", 0) <= 0:
+                self._blocked = "redirect_refused"
+                self.result["redirect"] = Untrusted.wrap(target, url=self.url or target, origin="")
+                return
+            permit.update(url=target.split("#")[0], method="GET", used=False, follow=permit["follow"] - 1, fields=None)
+            try:
+                await self._page.goto(target, wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
+            except Exception:
+                if not permit.get("next"):
+                    raise
+
     async def _execute(self, proposal: dict) -> None:
         self._execution_task = asyncio.current_task()
         observe = True
@@ -847,8 +1052,9 @@ class LiveSession:
                     self._download = ("download.bin", raw)
             elif op == "navigate":
                 self._url_from_form = False
-                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
-                await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
+                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"),
+                                "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                await self._navigating(self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000))
             elif op in {"click", "type", "upload"}:
                 # Only an action that leaves the page decides whether the next address was built by a form;
                 # a fill on the result page keeps the address it was given.
@@ -871,13 +1077,13 @@ class LiveSession:
                     if proposal.get("actor") == "owner":
                         self._owner_filled.add(self._field_key(args))
                     if args.get("submit"):
-                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
-                        async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
-                            await node.press("Enter")
+                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review"),
+                                        "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                        await self._navigating(self._submit_and_wait(node.press("Enter")))
                 elif args.get("navigates"):
-                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
-                    async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
-                        await node.click()
+                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review"),
+                                    "follow": OWNER_REDIRECTS if proposal.get("actor") == "owner" else 0}
+                    await self._navigating(self._submit_and_wait(node.click()))
                 else:
                     # A control that does not navigate (a checkbox, a plain button) is
                     # allowed no request at all.
@@ -895,19 +1101,27 @@ class LiveSession:
         finally:
             proposal.pop("_telemetry", None)
             proposal.pop("_review", None)
-            if self._permit:
-                self._permit["cancelled"].set()
-            self._permit = None
-            if observe and not self.closed and self._page is not None:
-                try:
-                    await self._observe()
-                except Exception as exc:
-                    self.result["observation_failure_class"] = type(exc).__name__
-                    self.result.setdefault("failure_phase", "observation")
-                    self.nodes = []
-                    self.frame = ""
-                    if outcome == "ready" and not self._download:
-                        outcome = "page_failed"
+            permit, self._permit = self._permit, None
+            if not observe or outcome != "ready":
+                self._assets = None
+            try:
+                if observe and not self.closed and self._page is not None:
+                    try:
+                        await self._observe()
+                    except Exception as exc:
+                        self.result["observation_failure_class"] = type(exc).__name__
+                        self.result.setdefault("failure_phase", "observation")
+                        self.nodes = []
+                        self.frame = ""
+                        if outcome == "ready" and not self._download:
+                            outcome = "page_failed"
+            finally:
+                # The page's look had its chance while it loaded; nothing more is fetched for it.
+                self._assets = None
+                if permit:
+                    permit["cancelled"].set()
+            if not self.closed and outcome == "ready" and self.url and proposal["op"] in {"navigate", "click", "type", "upload"}:
+                self._remember(proposal["args"].get("history"))
             if not self.closed:
                 from core.vool_browser.receipts import build_receipt
 
@@ -930,7 +1144,39 @@ class LiveSession:
                     completed["nodes"] = {"content_class": "untrusted_page_evidence", "authority": "none", "items": self.model_nodes()}
                 self._complete(proposal["id"], self.for_model(completed))
 
+    def _remember(self, index: Any) -> None:
+        if type(index) is int and 0 <= index < len(self.history):
+            self.history_index = index
+            self.history[index] = self.url
+            return
+        if self.history_index >= 0 and self.history[self.history_index] == self.url:
+            return
+        del self.history[self.history_index + 1:]
+        self.history.append(self.url)
+        if len(self.history) > 50:
+            del self.history[0]
+        self.history_index = len(self.history) - 1
+
     async def _observe(self) -> None:
+        if self._assets is not None:
+            # Give the page's look a moment to arrive; a slow image never holds the page up.
+            with contextlib.suppress(Exception):
+                await self._page.wait_for_load_state("load", timeout=4000)
+        for attempt in range(3):
+            try:
+                await self._observe_once()
+                return
+            except Exception as exc:
+                # A page that tries to move on by itself (a meta refresh) starts a navigation the
+                # gate refuses; Chromium drops the reading context while it does. The page stays
+                # where the owner put it, so read it again once things settle.
+                if attempt == 2 or self.closed or "Execution context was destroyed" not in str(exc):
+                    raise
+                with contextlib.suppress(Exception):
+                    await self._page.wait_for_load_state("domcontentloaded", timeout=2000)
+                await asyncio.sleep(0.2)
+
+    async def _observe_once(self) -> None:
         self.url = self._page.url
         # Fixed source, never a caller/page expression. Stable visible-node handles
         # are regenerated after every action and invalidated by the revision.
@@ -940,6 +1186,9 @@ class LiveSession:
         if self.closed:
             return
         self.nodes, self._forms = observed['nodes'], observed['forms']
+        view = observed.get('view')
+        if isinstance(view, list) and len(view) == 2 and all(type(v) is int and v > 0 for v in view):
+            self.view = view
         for node in self.nodes:
             form = self._forms[node['form']] if node['form'] >= 0 else None
             if form is not None and payment_form(form):
@@ -948,7 +1197,8 @@ class LiveSession:
                 node.pop('value', None)
                 node.pop('value_truncated', None)
         text = (await self._page.locator("body").inner_text())[:50000]
-        self.result["page"] = Untrusted.wrap(text, url=self.url, origin=urlsplit(self.url).netloc, title=(await self._page.title())[:300])
+        self.title = (await self._page.title())[:300]
+        self.result["page"] = Untrusted.wrap(text, url=self.url, origin=urlsplit(self.url).netloc, title=self.title)
         self.frame = base64.b64encode(await self._page.screenshot(type="jpeg", quality=65, timeout=3000)).decode()
         self.revision += 1
 
@@ -956,6 +1206,8 @@ class LiveSession:
         with self._mutex:
             self.takeover = value
             if self.pending:
+                if value:
+                    self._end(self.pending["id"], "paused")
                 self._telemetry.pop(self.pending["id"], None)
                 self._submission_previews.pop(self.pending["id"], None)
             self.pending = None
@@ -1003,6 +1255,8 @@ class LiveSession:
             self.nodes = []
             self.result = {}
             self._download = None
+            self._assets = None
+            self.history, self.history_index, self.title = [], -1, ""
             self._completed.clear()
             self._telemetry.clear()
             self._forms.clear()
@@ -1212,6 +1466,8 @@ class LiveSession:
         with self._mutex:
             nodes = copy.deepcopy(self.nodes)
         for node in nodes:
+            # Picture coordinates are the owner's pointing aid, not page evidence.
+            node.pop("box", None)
             if self._field_key(node) in self._owner_filled:
                 for key in ("value", "value_truncated", "checked"):
                     node.pop(key, None)
@@ -1294,6 +1550,10 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
     try:
         proposed = item.propose(op, arguments)
     except BrowserFault as fault:
+        if str(fault) == "destination_refused" and op == "navigate":
+            from core.vool_browser.live_requests import note_unanswered
+
+            note_unanswered(op, str(arguments.get("url") or ""), "destination_refused")
         if str(fault) != "element_missing" or op not in {"click", "type", "upload"}:
             raise
         # A handle the observation does not list is the model's argument mistake, not a
@@ -1308,5 +1568,14 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
 
         note_navigation_proposal(arguments["url"])
     if source_context.get("live_browser_wait_for_owner") is True:
-        return item.wait_for_owner(proposed["proposal"], source_context)
+        outcome = item.wait_for_owner(proposed["proposal"], source_context)
+        if outcome.get("ok"):
+            from core.vool_browser.live_requests import note_completed
+
+            note_completed(op, str(item.url or proposed["proposal"]["args"].get("url") or ""))
+        if not outcome.get("ok") and outcome.get("status") not in {None, "", "approval_required", "invalid_arguments"}:
+            from core.vool_browser.live_requests import note_unanswered
+
+            note_unanswered(op, str(proposed["proposal"]["args"].get("url") or proposed["proposal"]["args"].get("target") or ""), outcome["status"])
+        return outcome
     return proposed

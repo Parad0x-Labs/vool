@@ -204,6 +204,11 @@ def maybe_answer(
     _LOG.info("clean loop route: %s", decision.reason)
     if not decision.admit:
         return None
+    exact = _exact_read_first(agent, effective_input or text, session_id=session_id, context=context)
+    if exact is not None:
+        context["clean_local_loop_route"] = "exact_read_lane"
+        route.note_clean_turn(session_id)
+        return exact
     from core.clean_loop.brain import make_brain, model_label
     ctx = route_ctx
     provider_id, model_id = model_label(decision.brain)
@@ -288,6 +293,23 @@ def maybe_answer(
         changes.remember_pending(session_id, ctx.plans[-1])
     route.note_clean_turn(session_id)
     return result
+
+
+def _exact_read_first(agent: Any, text: str, *, session_id: str, context: dict[str, Any]) -> dict[str, Any] | None:
+    """An admitted ask that an exact read lane answers in full (a kind listing, a count or the biggest
+    file of the folder just listed, a folder named by name, a typed path, the picked file) is that
+    lane's: its answer is measured, the loop's model would be guessing it. The route has already
+    kept private, RED, write and remote turns out (core.agent_runtime.fast_paths_machine)."""
+    try:
+        from core.agent_runtime.fast_paths_machine import maybe_answer_exact_read_first
+
+        return maybe_answer_exact_read_first(
+            agent, text, session_id=session_id,
+            source_surface=str(context.get("surface", "cli")).lower(), source_context=context,
+        )
+    except Exception:
+        _LOG.exception("exact read lane failed; the clean loop answers")
+        return None
 
 
 def _settle_change(

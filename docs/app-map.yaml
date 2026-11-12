@@ -910,6 +910,15 @@ rows:
     tests: [tests/wallet/test_crypto_pilot_custody.py]
     label: TESTED
     target_release: 0.7.0
+  - id: wallet-agent-spending
+    title: Agent spending (an agent's own small wallet and its allowance)
+    area: crypto
+    ui: [vwCxAgents]
+    wired: ["/api/wallet/agents", "/api/wallet/agents/balance", "/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state"]
+    default: []
+    tests: [tests/wallet/test_agent_allowances.py, tests/wallet/test_agent_wallets.py, tests/wallet/test_agent_pay_x402_sdk.py, tests/wallet/test_agent_settings_api.py, tests/wallet/test_agent_spending_served.py]
+    label: TESTED
+    target_release: unknown
   - id: wallet-receive-balance
     title: Receive address, QR code and balance
     area: crypto

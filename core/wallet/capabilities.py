@@ -101,7 +101,7 @@ def account_view(entry: dict[str, Any], spec: chains.ChainIdentity, *, shared_ro
         "wallet_id": entry.get("wallet_id", ""), "label": entry.get("label", ""), "address": entry.get("public_key", ""),
         "network": entry.get("network", ""), "row": spec.network, "mode": mode, "mode_label": MODE_LABELS.get(mode, mode),
         "setup_state": setup_state, "can_sign": mode != "watch_only", "approval_method": entry.get("approval_method", ""),
-        "same_address_on_other_networks": sorted(shared_rows),
+        "same_address_on_other_networks": sorted(shared_rows), "agent_id": str(entry.get("agent_id") or ""),
     }
 
 

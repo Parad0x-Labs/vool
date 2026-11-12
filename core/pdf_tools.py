@@ -24,6 +24,7 @@ reads as "this PDF is blank".
 from __future__ import annotations
 
 import json
+import math
 import platform
 import subprocess
 from pathlib import Path
@@ -191,38 +192,123 @@ def _uses_pdfkit() -> bool:
     return platform.system() == "Darwin"
 
 
-def _extract_portable(path: Path, max_pages: int, *, start_page: int = 1) -> dict[str, Any]:
-    """Off macOS there is no PDFKit: the reader lane's pypdf fallback, run in its sandbox. Pages are
-    counted the way the PDFKit helper counts them: from `start_page` (clamped to the last page),
-    `max_pages` of them (0 = up to the cap)."""
+def _too_large(size: int, limit: int) -> dict[str, Any]:
+    # Its own status, not "unreadable": that one means "not PDF data", and a chat reply built on it
+    # told the owner a 300 MB PDF was a renamed text file (real chat on Linux, 2026-11-12).
+    megabytes = max(1, -(-int(size) // (1024 * 1024)))
+    return {
+        "status": "too_large",
+        "reason": (
+            f"the PDF is {megabytes} MB, over the {limit // (1024 * 1024)} MB this computer's PDF reader "
+            "takes; split it into smaller files or paste the part you need"
+        ),
+    }
+
+
+def _copy_bounded(source: Path, target: Path, limit: int) -> int | None:
+    """Stream ``source`` into ``target``; None (and nothing more copied) once it passes ``limit`` bytes.
+
+    Streamed, so the serving process never holds the whole file; bounded while copying, so a file
+    that grows after it was measured is still refused.
+    """
+    copied = 0
+    with source.open("rb") as reader, target.open("wb") as writer:
+        while chunk := reader.read(1024 * 1024):
+            copied += len(chunk)
+            if copied > limit:
+                return None
+            writer.write(chunk)
+    return copied
+
+
+def _no_sandbox() -> dict[str, Any]:
+    """Why no PDF opens on this computer, in words the owner can act on.
+
+    The reader's own sentence ("needs an external decoder ... untrusted document parsers
+    unconfined") is written for logs; this one is what a chat reply shows. ``cause`` tells the
+    two Linux cases apart: installing bubblewrap fixes the first, and changes nothing for the second.
+    """
+    from core.artifact_readers import _sandbox
+
+    if platform.system() == "Linux" and not _sandbox._bwrap():
+        return {
+            "status": "missing_dependency",
+            "cause": "sandbox_not_installed",
+            "reason": (
+                "VOOL opens PDFs only inside a protective sandbox (bubblewrap), which is not installed "
+                "here. Install it (for example: sudo apt install bubblewrap) and try again, or paste "
+                "the text instead"
+            ),
+        }
+    if platform.system() == "Linux":
+        return {
+            "status": "missing_dependency",
+            "cause": "sandbox_blocked",
+            "reason": (
+                "VOOL opens PDFs only inside a protective sandbox (bubblewrap), and this system does "
+                "not let it start. Paste the text instead"
+            ),
+        }
+    return {
+        "status": "missing_dependency",
+        "cause": "sandbox_unavailable",
+        "reason": (
+            "VOOL opens PDFs only inside a protective sandbox, and this computer has none it can "
+            "use. Paste the text instead"
+        ),
+    }
+
+
+def _extract_portable(
+    path: Path, max_pages: int, start_page: int = 1, *, timeout: float = _DEFAULT_TIMEOUT
+) -> dict[str, Any]:
+    """Off macOS there is no PDFKit: the reader lane's pypdf fallback, run in its sandbox.
+
+    ``timeout`` bounds the whole read, as it bounds the PDFKit helper on macOS, and never past the
+    reader lane's own extraction ceiling. A PDF over the portable reader's size ceiling is refused
+    before any of it is copied.
+    """
     from core.artifact_readers import pdf as pdf_reader
+    from core.artifact_readers._limits import EXTRACTION_TIMEOUT_S, MAX_PORTABLE_PDF_BYTES
     from core.artifact_readers._sandbox import Scratch, extraction_budget, require_confinement
     from core.artifact_readers._types import ReaderError
 
-    first = max(1, int(start_page or 1))
-    span = max_pages or _MAX_PAGES
+    seconds = max(1, min(EXTRACTION_TIMEOUT_S, math.ceil(float(timeout or _DEFAULT_TIMEOUT))))
     try:
         require_confinement("pdf")  # says what to install, before "no decoder" could hide why
-        with Scratch("vool-pdf-") as scratch, extraction_budget(scratch=scratch.path):
+        size = path.stat().st_size
+        if size > MAX_PORTABLE_PDF_BYTES:
+            return _too_large(size, MAX_PORTABLE_PDF_BYTES)
+        with Scratch("vool-pdf-") as scratch, extraction_budget(scratch=scratch.path, seconds=seconds):
             source = scratch.path / "input.pdf"
-            source.write_bytes(path.read_bytes())
-            payload = pdf_reader._text_layer_pypdf(source, max_pages=first - 1 + span, scratch=scratch.path)
+            if _copy_bounded(path, source, MAX_PORTABLE_PDF_BYTES) is None:
+                return _too_large(MAX_PORTABLE_PDF_BYTES + 1, MAX_PORTABLE_PDF_BYTES)
+            payload = pdf_reader._text_layer_pypdf(
+                source, max_pages=max_pages or _MAX_PAGES, scratch=scratch.path, start_page=start_page
+            )
     except ReaderError as exc:
-        status = "missing_dependency" if getattr(exc, "code", "") in {"confinement_unavailable", "pdf_decoder_unavailable"} else "error"
+        code = str(getattr(exc, "code", "") or "")
+        if code == "confinement_unavailable":
+            return _no_sandbox()
+        if code == "pdf_decoder_unavailable":
+            status = "missing_dependency"
+        elif code in {"pdf_unreadable", "not_a_pdf"}:
+            status = "unreadable"  # what the PDFKit route says about a file it cannot open as a PDF
+        elif code in {"decoder_timeout", "extraction_timeout"}:
+            # The same status and words the PDFKit route uses when its helper runs out of time.
+            return {"status": "timeout", "reason": f"PDF read exceeded {seconds}s"}
+        else:
+            status = "error"
         reason = " ".join(part for part in (str(exc), str(getattr(exc, "remediation", "") or "")) if part)
         return {"status": status, "reason": reason}
     except OSError as exc:
         return {"status": "error", "reason": f"the PDF could not be copied for reading ({exc.strerror or exc})"}
     pages = list(payload.get("pages") or [])
-    total = int(payload.get("page_count") or 0)
-    if total:
-        first = min(first, total)
-    pages = pages[first - 1:first - 1 + span]
     return {
         "status": "ok",
-        "pages_total": total,
+        "pages_total": int(payload.get("page_count") or 0),
         "pages_read": len(pages),
-        "page_start": first,
+        "page_start": int(payload.get("page_start") or 1),
         "page_text": [str(page.get("text") or "") for page in pages],
     }
 
@@ -230,7 +316,11 @@ def _extract_portable(path: Path, max_pages: int, *, start_page: int = 1) -> dic
 def extract_text(
     path: str, *, max_pages: int = 0, start_page: int = 1, timeout: float = _DEFAULT_TIMEOUT
 ) -> dict[str, Any]:
-    """The text layer a PDF already carries. Empty text means a scanned page, not a blank one."""
+    """The text layer a PDF already carries. Empty text means a scanned page, not a blank one.
+
+    ``timeout`` bounds the read on both routes: the PDFKit helper on macOS, and the confined pypdf
+    reader elsewhere (whose whole extraction never runs past the reader lane's own ceiling).
+    """
 
     resolved, problem = _resolve(path)
     if problem is not None:
@@ -238,9 +328,19 @@ def extract_text(
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     first = max(1, int(start_page or 1))
     if _uses_pdfkit():
-        result, source = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout), "pdfkit"
+        result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
+        source = "pdfkit"
+        if str(result.get("status")) == "missing_dependency":
+            # PDFKit's Python bindings are not part of macOS: they were found only where the owner had
+            # installed them in their own user folder, so on another Mac (or a home without them) every
+            # PDF read failed with "No module named 'Foundation'" (red team R1-07, 2026-11-12). The
+            # shipped pypdf decoder, run confined like the route off macOS, reads the same text layer.
+            # When that route has no answer either, the PDFKit reason stays: it names what is missing.
+            fallback = _extract_portable(resolved, bounded, first, timeout=timeout)
+            if str(fallback.get("status")) not in {"missing_dependency", "error"}:
+                result, source = fallback, "pypdf"
     else:
-        result, source = _extract_portable(resolved, bounded, start_page=first), "pypdf"
+        result, source = _extract_portable(resolved, bounded, first, timeout=timeout), "pypdf"
     assembled = _assemble(result, path=resolved, source=source)
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.
@@ -260,6 +360,19 @@ def ocr(path: str, *, max_pages: int = 0, scale: float = 2.0, timeout: float = 1
     resolved, problem = _resolve(path)
     if problem is not None:
         return {**problem, "path": str(path), "source": "vision", "text": "", "characters": 0}
+    if not _uses_pdfkit():
+        # Recognition runs on Apple's Vision. Off macOS there is no on-device recogniser yet, and
+        # the macOS helper started here only reports a missing Python module (real chat on Linux,
+        # 2026-11-12: "ModuleNotFoundError: No module named 'objc'").
+        return {
+            "status": "missing_dependency",
+            "cause": "ocr_not_available",
+            "reason": "reading text from scanned pages is not available on this computer yet",
+            "path": str(resolved),
+            "source": "none",
+            "text": "",
+            "characters": 0,
+        }
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     clamped_scale = max(1.0, min(float(scale or 2.0), 4.0))
     result = _run_helper(

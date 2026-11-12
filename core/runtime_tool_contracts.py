@@ -310,6 +310,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 # "the latest 10 pics in Downloads": only one kind of file, newest first.
                 "kind": "string optional (image|screenshot|video|audio|pdf|document|spreadsheet)",
                 "newest_first": "boolean optional",
+                "size_order": "string optional (largest|smallest: files only, by size)",
             },
             output_schema={"entries": "list[directory_entry]", "truncated": "boolean"},
             side_effect_class="read_only",
@@ -2273,7 +2274,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             unsupported_reason="Local file reading is disabled on this runtime.",
             input_schema={"path": "string", "start_page": "integer optional", "max_pages": "integer optional"},
             output_schema={
-                "status": "ok|no_text_layer|not_found|unreadable|missing_dependency|timeout|error",
+                "status": "ok|no_text_layer|not_found|unreadable|too_large|missing_dependency|timeout|error",
                 "text": "string",
                 "pages_total": "integer",
                 "pages_read": "integer",

@@ -50,6 +50,13 @@ def _http(
     headers: dict[str, str] | None = None,
     timeout: float = 15.0,
 ) -> dict[str, Any]:
+    if NULL_PORTAL_URL and url.startswith(NULL_PORTAL_URL):
+        from core.web0_settings import WEB0_OFF_MESSAGE, web0_enabled
+
+        if not web0_enabled():
+            # Web0 switch off: the builder works on a local draft and nothing
+            # (templates, project sync, compile, Arweave publish) leaves the machine.
+            return {"error": True, "refused": True, "code": "web0_off", "message": WEB0_OFF_MESSAGE}
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request_headers = {"Accept": "application/json"}
     if body is not None:

@@ -2196,6 +2196,10 @@ def date_time_fast_path(
     # the date", "todays date", "what is the date" and "tell me the date" all fell through to the
     # model, which then answered "I don't have a real-time clock" while the runtime had one. The
     # negative lookahead keeps "release date of X" / "due date for Y" out.
+    # Personal aiming/past-event questions ask for a remembered date, not today's calendar date
+    # (BEAM 100K/8: "By what date am I aiming to have my cover letter draft finished?").
+    if re.search(r"\bwhat\s+date\s+(?:am|was|did|do|have)\s+i\b", base, re.IGNORECASE):
+        return None
     asks_date = bool(_ASKS_DATE_RE.search(base))
     asks_time = bool(
         any(

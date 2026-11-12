@@ -35,7 +35,8 @@ def test_the_refusal_reads_as_refused_and_can_be_run_again(right):
     from core import conversation_state
 
     outcome, reason, actionable = _sealed(right)
-    assert (outcome, reason, actionable) == (conversation_state.REFUSED, "refused", True)
+    # The record names the missing right, so "try again" can check live whether it is on now.
+    assert (outcome, reason, actionable) == (conversation_state.REFUSED, f"missing_right:{right}", True)
 
 
 def test_a_result_that_is_not_a_phone_refusal_is_left_alone():

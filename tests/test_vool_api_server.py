@@ -1171,6 +1171,27 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             self.assertEqual(sys.path[0], str(PROJECT_ROOT))
             self.assertEqual(sys.path.count(str(PROJECT_ROOT)), 1)
 
+    def test_started_by_path_the_daemon_imports_this_checkouts_core_before_any_other(self) -> None:
+        # A served rig or launcher that runs `python apps/vool_api_server.py` puts apps/ first on
+        # sys.path, not the checkout. The first `core` import must already come from this checkout:
+        # a `core` reachable some other way (here PYTHONPATH; in a dev venv, an editable install of
+        # an older line) used to win, and the daemon then ran that other checkout's code.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            decoy = Path(tmp_dir) / "decoy"
+            (decoy / "core").mkdir(parents=True)
+            (decoy / "core" / "__init__.py").write_text(
+                "raise SystemExit('decoy core imported')\n", encoding="utf-8"
+            )
+            env = dict(os.environ, PYTHONPATH=str(decoy))
+            completed = subprocess.run(
+                [sys.executable, str(PROJECT_ROOT / "apps" / "vool_api_server.py"), "--help"],
+                cwd=tmp_dir, env=env, capture_output=True, text=True, timeout=120,
+            )
+        output = completed.stdout + completed.stderr
+        self.assertNotIn("decoy core imported", output)
+        self.assertEqual(completed.returncode, 0, output[-2000:])
+        self.assertIn("--port", completed.stdout)
+
     def test_runtime_version_stamp_uses_build_source_metadata_when_git_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             project_root = Path(tmp_dir)

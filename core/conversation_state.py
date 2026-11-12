@@ -33,7 +33,6 @@ DONE, REFUSED, FAILED, NEEDS_ANSWER = "done", "refused", "failed", "needs_answer
 _UNFINISHED = frozenset({REFUSED, FAILED})
 #: A bare go-ahead (no retry cue) may only answer a refusal that was the LAST thing said; with turns in between it may be
 #: answering something else (VOOL's own proposal), so it goes to the turn as written.
-_BARE_GO_MAX_AGE = 0
 _CUE_MAX_AGE = 4
 
 _REFUSAL_STATUSES = frozenset({"blocked_by_mode", "pending_approval", "cancelled", "denied"})
@@ -50,7 +49,7 @@ class PendingRequest:
 
 @dataclass(frozen=True)
 class Resolution:
-    kind: str  # "retry" | "retry_changed" | "referent_unresolved" | "none"
+    kind: str  # "retry" | "retry_changed" | "pick" | "referent_unresolved" | "none"
     request: str = ""
     slots: dict[str, Any] = field(default_factory=dict)
     note: str = ""
@@ -61,6 +60,8 @@ class Resolution:
         """The text the turn is ROUTED as. The transcript keeps what the user typed (persistent_memory)."""
         if self.kind == "retry_changed":
             return f"{self.request} (change: {self.change})"
+        if self.kind == "pick":
+            return self.request
         return self.request
 
 
@@ -137,6 +138,10 @@ _REFUSED_REASONS = frozenset({
 })
 
 
+#: Reason codes the producers seal in ``refused_request.reason`` that mean the web switch is off.
+_WEB_OFF_REASONS = frozenset({"web_off", "web_off_lookup_refusal", "offline_lookup_refusal", "live_browser_off"})
+
+
 def outcome_of(result: dict[str, Any] | None) -> tuple[str, str, bool]:
     """``(outcome, reason, actionable)`` for a sealed turn result, from its structured fields only."""
     result = result or {}
@@ -145,7 +150,14 @@ def outcome_of(result: dict[str, Any] | None) -> tuple[str, str, bool]:
     status = str(result.get("status") or "").strip().lower()
     task_outcome = str(result.get("task_outcome") or "").strip().lower()
     receipt_status = str((receipts[0].get("execution") or {}).get("status") or "").strip().lower() if receipts else ""
-    reasons = [status, str(details.get("reason") or "").strip().lower(), receipt_status]
+    refused = result.get("refused_request") if isinstance(result.get("refused_request"), dict) else {}
+    reasons = [str(refused.get("reason") or "").strip().lower(), status, str(details.get("reason") or "").strip().lower(), receipt_status]
+    reasons = ["web_off" if r in _WEB_OFF_REASONS else r for r in reasons]
+    missing = str(details.get("missing_right") or "").strip().lower()
+    if missing and status in {"refused", "permission_denied"} | _REFUSED_REASONS:
+        return REFUSED, f"missing_right:{missing}", True  # a paired phone lacks this right (request_trust.seal_remote_grant_refusal)
+    if task_outcome == "refused":
+        return REFUSED, next((r for r in reasons if r), "refused"), True
     reason = next((r for r in reasons if r in _REFUSED_REASONS), "") or next((r for r in reasons if r), "")
     if result.get("approval_request") or task_outcome == "pending_approval":
         return NEEDS_ANSWER, reason or "pending_approval", True
@@ -157,6 +169,28 @@ def outcome_of(result: dict[str, Any] | None) -> tuple[str, str, bool]:
     if receipts:
         return DONE, receipt_status, True
     return DONE, "", False
+
+
+_LIST_KEYS = ("entries", "matches", "items")
+_LISTED_MAX = 50
+
+
+def listed_of(details: dict[str, Any]) -> list[dict[str, str]]:
+    """The ordered list a tool result printed, as ``[{"name","path"}]`` (structured fields only; the reply text is not read)."""
+    for key in _LIST_KEYS:
+        raw = details.get(key)
+        if not isinstance(raw, list) or not raw:
+            continue
+        out: list[dict[str, str]] = []
+        for item in raw[:_LISTED_MAX]:
+            if isinstance(item, str) and item.strip():
+                out.append({"name": item.strip().replace("\\", "/").rsplit("/", 1)[-1], "path": item.strip()})
+            elif isinstance(item, dict) and (item.get("path") or item.get("name")):
+                path = str(item.get("path") or item.get("name"))
+                out.append({"name": str(item.get("name") or path.replace("\\", "/").rsplit("/", 1)[-1]), "path": path})
+        if out:
+            return out
+    return []
 
 
 def slots_of(result: dict[str, Any] | None) -> dict[str, Any]:
@@ -171,6 +205,9 @@ def slots_of(result: dict[str, Any] | None) -> dict[str, Any]:
     receipts = [r for r in ((result or {}).get("tool_receipts") or []) if isinstance(r, dict)]
     if receipts and str(receipts[0].get("tool_name") or "").strip():
         slots["tool"] = str(receipts[0]["tool_name"]).strip()
+    listed = listed_of(details)
+    if listed:
+        slots["listed"] = listed
     arguments = details.get("arguments") if isinstance(details.get("arguments"), dict) else {}
     for key in ("path", "kind", "limit", "newest_first"):
         if key in arguments and arguments[key] not in (None, ""):
@@ -191,6 +228,9 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
             try:
                 if actionable:
                     slots = {**slots_of(result), **dict(extra_slots or {})}
+                    reply = " ".join(str((result or {}).get("response") or (result or {}).get("response_text") or "").split())[:600]
+                    if reply and outcome in {REFUSED, FAILED, NEEDS_ANSWER}:
+                        slots["_reply"] = reply  # what VOOL showed: it names the blocker; later messages are grounded against it
                     conn.execute(
                         "INSERT OR REPLACE INTO conversation_state (session_id, request, outcome, reason, slots, turns_since, updated_at) "
                         "VALUES (?, ?, ?, ?, ?, 0, ?)",
@@ -206,55 +246,165 @@ def record_sealed_turn(session_id: str, request: str, result: dict[str, Any] | N
 
 
 # --- reading a message against the record ---------------------------------------------------------------------------
-#: A retry cue: a retry verb, or a do-verb with "again" / "once more". Function words, not sentences.
+#: A retry CUE: a retry verb, "again", "once more", "another go/shot/try", "the same". Function words. It is the fast yes;
+#: nothing here decides a message WITHOUT a cue (state and the arbiter do).
 _CUE_RE = re.compile(
-    r"\b(?:re-?try|re-?run|re-?do|re-?send|again|once\s+more|one\s+more\s+time)\b", re.IGNORECASE
-)
-#: The message reports a changed state ("i fixed it", "access is on now", "should work now") or says to go.
-_STATE_REPORT_RE = re.compile(
-    r"\b(?:fixed|enabled|allowed|granted|unlocked|approved|turned\s+(?:it\s+)?on|switched\s+(?:it\s+)?on|is\s+on|are\s+on)\b"
-    r"|\b(?:should|will|can|does)\s+work\b|\bworks?\s+now\b|^(?:ok(?:ay)?\s+)?(?:now\s+)?(?:go|go\s+ahead|do\s+it|proceed|try)(?:\s+now)?$",
+    r"\b(?:re-?try|re-?run|re-?do|re-?send|re-?check|repeat|again|once\s+more|one\s+more\s+(?:time|try|go|shot)|another\s+(?:go|shot|try|attempt|crack)|"
+    r"same\s+again|(?:the\s+)?same\s+thing|the\s+same)\b|^(?:ok(?:ay)?\s+|please\s+|pls\s+)?try\b",
     re.IGNORECASE,
 )
-#: Words that change WHAT would be redone; a message holding one is a request of its own.
+#: The cue with the do-verb / acknowledgements around it, stripped to leave the CHANGE (if any).
+_CUE_STRIP_RE = re.compile(
+    r"\b(?:(?:try|run|do|go|give|send|have|check|fetch|get|make|look|take)\s+(?:it\s+|that\s+|this\s+|them\s+)?)?"
+    r"(?:re-?try|re-?run|re-?do|re-?send|re-?check|repeat|again|once\s+more|one\s+more\s+(?:time|try|go|shot)|another\s+(?:go|shot|try|attempt|crack)|"
+    r"same\s+again|(?:the\s+)?same\s+thing|the\s+same)\b|^(?:ok(?:ay)?\s+|please\s+|pls\s+)?try\b(?:\s+(?:it|that|now))?",
+    re.IGNORECASE,
+)
+_ACK_WORDS = frozenset({
+    "now", "please", "pls", "plz", "thanks", "thx", "ty", "thank", "you", "ok", "okay", "k", "kk", "then", "again", "yo", "hey",
+    "lol", "haha", "cool", "great", "nice", "so", "and", "it", "that", "this", "them", "go", "on", "ahead", "me", "for", "sure",
+    "yes", "yep", "yeah", "alright", "right", "well", "more", "time", "one", "once", "a", "the", "same", "lot", "much", "mate",
+    "man", "bro", "dude", "buddy", "repeat", "all", "yours", "mine", "ours", "can", "could", "would", "will", "u", "still", "yet", "nothing", "anything", "something", "give", "done", "try", "shot", "crack",
+})
+#: The message reports that something changed or says it hopes it works: not a change to WHAT is run.
+_STATE_REPORT_RE = re.compile(
+    r"\b(?:fixed|enabled|allowed|granted|unlocked|approved|sorted|changed|updated|turned\s+(?:it\s+)?on|switched\s+(?:it\s+)?on|"
+    r"is\s+on|are\s+on|its\s+on|it'?s\s+on|works?\s+now)\b|\b(?:should|will|can|does|hope|hopefully)\b.{0,12}\bwork"
+    r"|^(?:ok(?:ay)?\s+)?(?:now\s+)?(?:go|go\s+ahead|do\s+it|proceed|try)(?:\s+now)?$",
+    re.IGNORECASE,
+)
+#: Words that change WHAT would be run; a message holding one has a task of its own.
 _CHANGE_RE = re.compile(
-    r"\b(?:but|instead|only|except|also|plus|without|different|another|other|new|more|less|fewer|rather)\b"
-    r"|\b(?:in|on|from|inside|into|under|for|with|to|at|of|about)\s+(?:the|my|this|that|those|these|a|an|\d+|~|/)"
-    r"|[~/]\S|\b(?:what|who|whom|whose|why|how|when|where|which)\b|\?",
+    r"\b(?:but|instead|only|just|except|also|plus|without|different|another|other|new|more|less|fewer|rather|sorted\s+by|"
+    r"newest|oldest|latest|biggest|smallest|largest)\b"
+    r"|\b(?:in|on|from|inside|into|under|for|with|to|at|of|about|by)\s+(?:the|my|this|that|those|these|a|an|\d+|~|/)"
+    r"|[~/]\S|\b(?:what|who|whom|whose|why|how|when|where|which)\b",
     re.IGNORECASE,
 )
 _ANAPHORIC_FOLDER_RE = re.compile(
     r"\b(?:that|those|the\s+same|same|previous|other)\s+(?:\w+\s+)?(?:folder|folders|directory|dir)\b|\b(?:in|from|inside)\s+there\b",
     re.IGNORECASE,
 )
-
-
-_CUE_STRIP_RE = re.compile(
-    r"\b(?:(?:try|run|do|go|give|send|have)\s+(?:it\s+|that\s+|this\s+|them\s+)?)?"
-    r"(?:re-?try|re-?run|re-?do|re-?send|again|once\s+more|one\s+more\s+time)\b|\b(?:ok(?:ay)?|please|pls|so|yes|yep|alright)\b",
+#: Words that drop the request. "thanks"-class words alone do not (a retry may be thanked).
+_NEGATION_RE = re.compile(
+    r"\b(?:no|nope|nah|not|never|nvm|cancel|stop|skip|drop|forget|leave|scrap|quit|abort|ignore|without|bye|brb|gtg|whatever|later|"
+    r"maybe|tomorrow|tonight|wait|hold\s+on|for\s+now|next\s+(?:week|time)|never\s*mind)\b"
+    r"|\b(?:do|does|did|is|are|was|were|has|have|had|can|could|would|should|wo|ca)n'?t\b"
+    r"|\b(?:cant|wont|dont|doesnt|didnt|isnt|arent|wasnt|couldnt|wouldnt|shouldnt|havent|hasnt)\b"
+    r"|\bchang(?:ed|e|ing)\s+(?:of\s+)?(?:my\s+)?mind\b",
     re.IGNORECASE,
+)
+#: Exits as a class: a negator, a cancel / postpone verb, or a changed mind. A retry cue in the same message wins (handled before).
+_DISMISS_RE = _NEGATION_RE
+_THANKS_RE = re.compile(r"\b(?:thanks|thank\s+you|thx|ty|cheers)\b", re.IGNORECASE)
+_DISMISS_WHOLE_RE = re.compile(r"^(?:no|nope|nah|nothing|skip\s+it|drop\s+it)[\s.!]*$", re.IGNORECASE)
+#: Bare reactions: with the obstacle gone these are still not a "go".
+_REACTION_WORDS = frozenset({
+    "ok", "okay", "k", "kk", "cool", "lol", "haha", "hehe", "hmm", "hm", "mm", "nice", "right", "good", "great", "yeah", "yep",
+    "yes", "sure", "alright", "fine", "wow", "oh", "ah", "ugh", "thanks", "thx", "ty", "noted", "got", "it", "to", "know",
+})
+#: Go-ahead function words, used only where the blocker is NOT known to be cleared (age 0): a bare go.
+_GO_RE = re.compile(r"\b(?:go\s+(?:on|ahead)|proceed|continue|carry\s+on|do\s+it)\b", re.IGNORECASE)
+_WH_RE = re.compile(r"\b(?:what|whats|what's|who|whom|whose|why|how|when|where|which)\b", re.IGNORECASE)
+#: Function words: pronouns, auxiliaries, determiners, acknowledgements, and the "show me / see / there" of asking to look.
+_FUNCTION_WORDS = frozenset(_ACK_WORDS | _REACTION_WORDS | {
+    "what", "whats", "what's", "you", "your", "got", "have", "has", "had", "there", "then", "i", "we", "me", "my", "is", "are", "was",
+    "do", "does", "did", "see", "show", "look", "its", "it's", "any", "found", "up", "out", "and", "or", "be", "been", "to",
+    "let", "lemme", "gimme", "give", "so", "well", "hm", "mm", "mmm", "eh", "um", "uh", "at", "in", "of", "a", "an",
+})
+_AUX_START = frozenset({"is", "are", "was", "were", "does", "do", "did", "can", "could", "will", "would", "should", "has", "have", "had"})
+_PROMPT_WORDS = frozenset({"work", "works", "working", "now", "them", "those", "these", "u", "ya", "ready", "yet"})
+_NO_WH_RE = re.compile(_WH_RE.pattern, re.IGNORECASE)
+
+
+def _cleared_exit(compact: str, pending: PendingRequest | None = None) -> bool:
+    """The closed set of messages that are NOT a retry although the blocker is cleared: a dismissal or postponement, thanks
+    alone, a question or task with content of its own."""
+    if _DISMISS_RE.search(compact) or _DISMISS_WHOLE_RE.match(compact):
+        return True
+    toks = _tokens(compact)
+    if toks and all(t in _THANKS_WORDS or t in _ACK_WORDS or t in _THANKS_TAIL for t in toks) and any(t in _THANKS_WORDS for t in toks):
+        return True
+    if _WH_RE.search(compact) and any(t not in _FUNCTION_WORDS for t in toks):
+        return True  # a question with content of its own
+    if toks and toks[0] in _AUX_START and any(t not in _FUNCTION_WORDS and t not in _PROMPT_WORDS for t in toks):
+        return True  # an auxiliary-first question with content of its own ("does it cost anything"); "does it work now" is a prompt
+    rest = _WH_RE.sub(" ", compact)
+    content = [t for t in toks if t not in _FUNCTION_WORDS]
+    if len(content) <= 1 and (not _CHANGE_RE.search(_NEUTRAL_RE.sub(" ", rest)) or _grounded(content, pending)):
+        return False  # one bare verb or noun has nothing of its own to do it to
+    if len(content) >= 2:
+        # Grounding, not a count: every content word must come from what the chat already said (the refusal reply, the
+        # request) or from the closed state-change / look-again verbs. One ungrounded word is a task of its own.
+        return not _grounded(content, pending)
+    return _own_task(rest)
+
+
+def _stem(token: str) -> str:
+    t = token.lower().strip("'")
+    for _ in range(2):
+        for suffix in ("ing", "ed", "es", "s", "ly", "d"):
+            if t.endswith(suffix) and len(t) - len(suffix) >= 3:
+                t = t[: -len(suffix)]
+                break
+    return t
+
+
+#: Closed classes (verbs of changing a switch; verbs of looking again; hedges), used only to ground a message.
+_STATE_VERBS = frozenset(_stem(w) for w in (
+    "turn", "turned", "switch", "switched", "enable", "enabled", "allow", "allowed", "grant", "granted", "toggle", "toggled", "tick",
+    "ticked", "flip", "flipped", "set", "fix", "fixed", "sort", "sorted", "change", "changed", "update", "updated", "unlock",
+    "unlocked", "approve", "approved", "work", "works", "working", "worked", "do", "done", "did", "given",
+))
+_LOOK_VERBS = frozenset(_stem(w) for w in ("look", "see", "check", "show", "try", "go", "run", "find", "get", "turn", "peek", "take", "have"))
+#: Nouns for the controls a person flips to remove a blocker.
+_CONTROLS = frozenset(_stem(w) for w in ("box", "checkbox", "button", "switch", "toggle", "option", "setting", "slider", "tab", "menu", "permission", "access", "right"))
+_HEDGES = frozenset({"think", "guess", "hope", "believe", "suppose", "reckon", "pretty", "really", "just", "finally", "ur", "thats", "that's", "ill", "im"})
+
+
+def _grounded(content: list[str], pending: PendingRequest | None) -> bool:
+    known: set[str] = set(_STATE_VERBS) | set(_LOOK_VERBS) | set(_CONTROLS)
+    if pending is not None:
+        for text in (pending.slots.get("_reply"), pending.request):
+            known |= {_stem(t) for t in _tokens(str(text or "")) if t not in _FUNCTION_WORDS}
+    return all(_stem(t) in known or t in _HEDGES for t in content)
+
+
+_THANKS_TAIL = frozenset({"anyway", "anyways", "though", "tho", "much", "again", "mate", "dude", "man"})
+_THANKS_WORDS = frozenset({"thanks", "thank", "thx", "ty", "cheers", "tyvm"})
+_BARE_GO_MAX_AGE = 0
+_ARBITRATE_MAX_AGE = 1
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9']+", str(text or "").lower())
+
+
+#: Fixed go-ahead / locus phrases whose preposition is not a "where" ("go on and", "done on my side").
+_NEUTRAL_RE = re.compile(r"\b(?:go|carry|move)\s+on\b|\bon\s+my\s+(?:side|end)\b|\bat\s+my\s+end\b", re.IGNORECASE)
+
+
+def _own_task(text: str) -> bool:
+    """Whether the message brings a task of its own (a question word, a change/where phrase, or an instruction)."""
+    from core.agent_runtime.answer_coverage import asks_for_work_of_its_own
+
+    text = _NEUTRAL_RE.sub(" ", text)
+
+    if _INVERTED_QUESTION_RE.match(text.strip()):
+        return True
+    return bool(_CHANGE_RE.search(text)) or asks_for_work_of_its_own(text)
+
+
+_INVERTED_QUESTION_RE = re.compile(
+    r"^(?:is|are|was|were|does|do|did|can|could|will|would|should|has|have|had|any|anything)\b[^?]*\?\s*$", re.IGNORECASE
 )
 
 
-_CLOSING_RE = re.compile(r"\b(?:thanks|thank\s+you|thx|bye|cheers|never\s*mind|nvm|forget\s+it|leave\s+it|don'?t|do\s+not|stop|cancel|later|for\s+now)\b", re.IGNORECASE)
-
-
-def _carries_new_task(text: str) -> bool:
-    """Whether the message brings a task of its own once the retry cue and acknowledgements are set aside."""
-    from core.agent_runtime.answer_coverage import asks_for_work_of_its_own
-
-    rest = " ".join(_CUE_STRIP_RE.sub(" ", text).replace(",", " ").split())
-    return bool(_CHANGE_RE.search(rest)) or (bool(rest) and asks_for_work_of_its_own(rest))
-
-
-#: A fresh unfinished request is one the very last turn (or the one before) left; only then is a message with no retry
-#: word asked about.
-_ARBITRATE_MAX_AGE = 1
-_DISMISS_WHOLE_RE = re.compile(r"^(?:no|nope|nah|nothing|skip\s+it|drop\s+it)[\s.!]*$", re.IGNORECASE)
-
-
 def _read_only(pending: PendingRequest) -> bool:
-    """Whether the recorded request only reads. An unknown tool counts as NOT read-only (fail closed)."""
+    """Whether the recorded request only reads. An unknown tool counts as NOT read-only (fail closed), except a request
+    the web switch refused: that lookup is a read by definition of the switch (no tool is named on that producer)."""
+    if (str(pending.reason or "") == "web_off" or str(pending.reason or "").startswith("missing_right:")) and not pending.slots.get("tool"):
+        return True
     try:
         from core.capability_graph import capability_for_intent
 
@@ -264,41 +414,227 @@ def _read_only(pending: PendingRequest) -> bool:
     return bool(capability) and str(capability).endswith(".read")
 
 
-def resolve(session_id: str, text: str, *, pending: PendingRequest | None = None, arbiter: Any = None) -> Resolution:
-    """Decide what a message is against the chat's record: retry / referent_unresolved / none.
+_MODE_REASONS = frozenset({"blocked_by_mode", "permission_denied", "disabled", "denied", "approval_denied", "pending_approval"})
 
-    ``arbiter(request, reason, message) -> "again" | "changed" | "neither" | None`` is the model arbitration
-    (core.intent_arbiter.arbitrate_followup). It is asked only when the record is refused/failed and fresh, and the message
-    is short with no task of its own and no closing word: the cases a retry-word list cannot decide. Its answer is honoured
-    (again -> retry, changed -> retry with the change) only for a request that only reads; any other answer, an error or None is "not a retry" (fail closed).
+
+def blocker_cleared(pending: PendingRequest, source_context: dict[str, Any] | None = None) -> bool | None:
+    """Whether what stopped the recorded request is gone NOW. ``None`` = unknown (never treated as cleared).
+
+    Read from live state per reason code: ``web_off`` -> the web is available; ``owner_local_required`` -> this turn is
+    the owner's own session; a mode refusal -> the permission authority no longer denies the recorded tool (an allow, or
+    a request for approval, is cleared: the retry then raises the normal approval card).
+    """
+    reason = str(pending.reason or "").strip().lower()
+    try:
+        if reason == "web_off":
+            from core.vool_browser import live
+
+            return bool(live.available())
+        if reason.startswith("missing_right:"):
+            if source_context is None:
+                return None
+            from core.request_trust import remote_turn_has_grant, turn_is_remote
+
+            if not turn_is_remote(source_context):
+                return True  # the owner's own session needs no phone right
+            return bool(remote_turn_has_grant(source_context, reason.split(":", 1)[1]))  # same live source the producer checks
+        if reason == "owner_local_required":
+            if source_context is None:
+                return None
+            from core.request_trust import turn_is_remote
+
+            return not turn_is_remote(source_context)
+        if reason in _MODE_REASONS:
+            tool = str(pending.slots.get("tool") or "")
+            if not tool:
+                return None
+            from core.authorized_tool_execution import authorize_runtime_tool
+
+            decision = authorize_runtime_tool(tool, {}, source_context=dict(source_context or {}))
+            if decision is None:
+                return None
+            return str(getattr(decision.effect, "value", decision.effect)) != "deny"
+    except Exception:
+        return None
+    return None
+
+
+def _split_cue(compact: str) -> tuple[bool, str]:
+    """``(has_cue, remainder)``: the message with its retry cue (and the do-verb around it) removed."""
+    if not _CUE_RE.search(compact):
+        return False, compact
+    rest = _CUE_STRIP_RE.sub(" ", compact, count=1)
+    rest = " ".join(rest.replace(",", " ").split()).strip(" .!?-;:")
+    return True, rest
+
+
+def _is_plain_remainder(rest: str, base_slots: dict[str, Any]) -> bool:
+    """Empty, only acknowledgements, or a report about the blocker -- and nothing that changes what runs."""
+    toks = _tokens(rest)
+    if all(t in _ACK_WORDS for t in toks):
+        return True
+    if apply_change(base_slots, rest) != dict(base_slots) or _CHANGE_RE.search(_NEUTRAL_RE.sub(" ", rest)) or _own_task(rest):
+        return False
+    return bool(_STATE_REPORT_RE.search(rest) or _GO_RE.search(rest))
+
+
+_ORD = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+        "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5}
+_COUNT = {"two": 2, "three": 3, "four": 4, "five": 5, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10}
+_PICK_RE = re.compile(
+    r"\b(?:the\s+)?(?P<edge>first|last)\s+(?P<n>two|three|four|five|\d{1,2})(?:\s+(?:ones|items|results|files|folders|pics|pictures))?\b"
+    r"|\b(?:the\s+)?(?P<ord>first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last|\d{1,2}(?:st|nd|rd|th))(?!\s+(?:time|week|year|night|month|day|few))(?:\s+(?:one|result|item|file|folder|pic|picture))?\b"
+    r"|(?:^|\b(?:the|open|show|get|grab|pick|take|whats|what's|is|on|at|with|me)\s+)(?P<nm>(?:number|no\.?)\s*(?P<num>\d{1,2}))\b|#\s*(?P<num2>\d{1,2})\b|\b(?:both|all\s+of\s+them)\b",
+    re.IGNORECASE,
+)
+_PICK_MAX_AGE = 3
+#: A bare yes: the closed class of affirmation words. Used only against a structured offer (an open approval request).
+_AFFIRM_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "ok", "okay", "k", "do", "it", "go", "ahead", "please", "pls",
+                           "proceed", "confirm", "approve", "approved", "sounds", "good", "fine", "that", "works", "then", "alright"})
+
+
+#: A pointer relative to the item picked last: "no not that one, the one before it", "the next one".
+_RELATIVE_PICK_RE = re.compile(
+    r"\b(?:the\s+)?(?:one|file|item|invoice|pic|picture)\s+(?P<before>before|above)\s*(?:it|that|this)?\b"
+    r"|\b(?:the\s+)?(?:one|file|item|invoice|pic|picture)\s+(?P<after>after|below)\s*(?:it|that|this)?\b"
+    r"|\bthe\s+(?P<prev>previous|prior)\s+(?:one|file|item)\b|\bthe\s+(?P<next>next)\s+(?:one|file|item)\b",
+    re.IGNORECASE,
+)
+
+
+def _relative_pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
+    """"the one before it" after "the second one": the neighbour, in the printed list, of the item picked last.
+
+    Red team R1-09 (2026-11-12): "no not that one, the one before it" after a pick from a listed folder
+    answered "Let me check that for you. One moment!" and ran nothing.
+    """
+    m = _RELATIVE_PICK_RE.search(compact)
+    if not m or pending is None:
+        return None
+    listed = pending.slots.get("listed") or []
+    picked = pending.slots.get("picked") or []
+    if not listed or not picked or pending.turns_since > _PICK_MAX_AGE:
+        return Resolution("referent_unresolved", note="The message points at a neighbour of an item this chat has not picked from a printed list; ask which item.")
+    paths = [str(item.get("path") or "") for item in listed]
+    last = str(picked[-1])
+    if last not in paths:
+        return Resolution("referent_unresolved", note="The item picked last is not in the printed list; ask which item.")
+    step = -1 if (m.group("before") or m.group("prev")) else 1
+    index = paths.index(last) + step
+    if not 0 <= index < len(paths):
+        return Resolution("referent_unresolved", note=f"There is no item {'before' if step < 0 else 'after'} {last} in the printed list; ask which one.")
+    chosen = listed[index]
+    name = f"“{chosen['path']}”"
+    a, b = m.span()
+    rewritten = (compact[:a] + name + compact[b:]).strip()
+    return Resolution("pick", rewritten, {"picked": [chosen["path"]], "listed": listed},
+                      f"“{compact}” points at: {name} (next to the item picked last, in the list printed earlier in this chat).")
+
+
+def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
+    """An ordinal pointer ("the second one", "the last two", "number 3") against the list the chat printed last."""
+    relative = _relative_pick(compact, pending)
+    if relative is not None:
+        return relative
+    m = _PICK_RE.search(compact)
+    if not m:
+        return None
+    listed = (pending.slots.get("listed") if pending else None) or []
+    if not listed or (pending and pending.turns_since > _PICK_MAX_AGE):
+        return Resolution("referent_unresolved", note="The message points at an item of a list this chat has not printed (or printed long ago); ask which list or which item.")
+    n = len(listed)
+    if m.group("edge"):
+        k = _COUNT[m.group("n").lower()]
+        picked = listed[:k] if m.group("edge").lower() == "first" else listed[-k:]
+    elif m.group("ord"):
+        o = m.group("ord").lower()
+        k = _ORD.get(o) or (int(re.sub(r"\D", "", o)) if o != "last" else 0)
+        picked = [listed[-1]] if o == "last" else ([listed[k - 1]] if 1 <= k <= n else [])
+    elif m.group("num") or m.group("num2"):
+        i = int(m.group("num") or m.group("num2"))
+        picked = [listed[i - 1]] if 1 <= i <= n else []
+    elif n == 2:
+        picked = list(listed)
+    else:
+        return None  # "both" / "all of them" only points when the printed list has exactly two items
+    if not picked:
+        return Resolution("referent_unresolved", note=f"The list printed earlier has {n} item(s); the pointer is outside it. Ask which one.")
+    names = ", ".join(f"“{i['path']}”" for i in picked)
+    a, b = m.span("nm") if m.group("nm") else m.span()
+    rewritten = (compact[:a] + names + compact[b:]).strip()
+    # The printed list rides along, so the next pointer ("the one before it") still has it after this
+    # pick's own turn replaces the record.
+    return Resolution("pick", rewritten, {"picked": [i["path"] for i in picked], "listed": listed},
+                      f"“{compact}” points at: {names} (from the list printed earlier in this chat).")
+
+
+def resolve(
+    session_id: str,
+    text: str,
+    *,
+    pending: PendingRequest | None = None,
+    arbiter: Any = None,
+    source_context: dict[str, Any] | None = None,
+    cleared: bool | Any | None = "probe",
+) -> Resolution:
+    """Decide what a message is against the chat's record: retry / retry_changed / referent_unresolved / none.
+
+    Order (core of the design: state first, wording last):
+    1. A retry CUE with a remainder that changes what runs -> ``retry_changed`` (deterministic; recorded request + change,
+       slots updated); a cue with nothing but acknowledgements / a report about the blocker -> ``retry``. A cue wins over a
+       thanks word ("retry thx"); a dismissal word in the remainder drops it.
+    2. No cue, the record unfinished and fresh, the message short, no task of its own, no dismissal:
+       the blocker is CLEARED (``blocker_cleared``) -> ``retry`` with no model call, except a bare reaction ("lol ok");
+       not cleared / unknown -> a state report or bare go retries (age 0); anything else asks ``arbiter(request, reason,
+       message) -> "yes" | "no" | None`` (yes/no: is the user asking to proceed or saying the obstacle is gone). Only "yes"
+       on a request that only reads counts; error / None = not a retry.
+    3. A no-cue message with a task of its own is a new task (``none``).
     """
     compact = " ".join(str(text or "").split())
     if not compact:
         return Resolution("none")
     pending = pending if pending is not None else load(session_id)
-    # `core.attempt_followup` has already had its turn (it runs before this resolver in the turn spine).
-    closing = bool(_CLOSING_RE.search(compact)) or bool(_DISMISS_WHOLE_RE.match(compact))
-    short = len(compact.split()) <= 14 and not closing
-    if short and pending is not None:
-        own_task = _carries_new_task(compact)
-        has_cue = bool(_CUE_RE.search(compact)) or bool(re.match(r"^(?:ok(?:ay)?\s+|please\s+)?(?:try|retry)\b", compact, re.IGNORECASE))
-        reports = bool(_STATE_REPORT_RE.search(compact))
-        if pending.outcome in _UNFINISHED:
-            if not own_task and ((has_cue and pending.turns_since <= _CUE_MAX_AGE) or (reports and pending.turns_since <= _BARE_GO_MAX_AGE)):
-                return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
-            # Whether the rest is a retry cannot be listed. A fresh unfinished request makes the arbiter decide, including
-            # for messages that look like a task of their own (the arbiter answers NEW for those).
-            if arbiter is not None and pending.turns_since <= _ARBITRATE_MAX_AGE:
-                try:
-                    verdict = arbiter(pending.request, pending.reason or pending.outcome, compact)
-                except Exception:
-                    verdict = None
-                if verdict in ("again", "changed") and _read_only(pending):
-                    if verdict == "again":
-                        return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
-                    return Resolution("retry_changed", pending.request, apply_change(pending.slots, compact), _note(pending), change=compact)
-        elif not own_task and has_cue and pending.turns_since <= _CUE_MAX_AGE and pending.outcome == DONE:
+    picked = _pick(compact, pending)
+    if picked is not None:
+        return picked
+    if pending is not None and pending.outcome == NEEDS_ANSWER and pending.turns_since == 0 and _read_only(pending):
+        toks = _tokens(compact)
+        if toks and len(toks) <= 5 and all(t in _AFFIRM_WORDS for t in toks):
+            # "yes do it" after VOOL's own open request: the offered read runs again as a fresh turn (approval applies again)
             return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+    # `core.attempt_followup` has already had its turn (it runs before this resolver in the turn spine).
+    if pending is not None and len(compact.split()) <= 14:
+        has_cue, rest = _split_cue(compact)
+        if re.match(r"^(?:what|who|whom|whose|why|how|when|where|which)\b", compact, re.IGNORECASE):
+            has_cue = False  # a question ABOUT retrying ("how do i try again?") is not a retry
+        unfinished = pending.outcome in _UNFINISHED
+        if has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome == DONE):
+            if _DISMISS_RE.search(rest) or _DISMISS_WHOLE_RE.match(rest):
+                pass
+            elif _is_plain_remainder(rest, pending.slots):
+                return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+            elif _read_only(pending):
+                return Resolution("retry_changed", pending.request, apply_change(pending.slots, rest), _note(pending), change=rest)
+        elif not has_cue and unfinished and pending.turns_since <= _ARBITRATE_MAX_AGE:
+            state = blocker_cleared(pending, source_context) if cleared == "probe" else cleared
+            if state is True:
+                # Refused, the person has since removed the blocker (live state), the record is fresh and only reads:
+                # any short message retries unless it is an exit (dismissal, a task or question of its own, thanks alone).
+                if _read_only(pending) and not _cleared_exit(compact, pending):
+                    return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+            elif (
+                not _DISMISS_RE.search(compact) and not _THANKS_RE.search(compact) and not _DISMISS_WHOLE_RE.match(compact)
+                and not _own_task(compact)
+            ):
+                if (_GO_RE.search(compact) or _STATE_REPORT_RE.search(compact)) and pending.turns_since <= _BARE_GO_MAX_AGE:
+                    return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+                if arbiter is not None:
+                    try:
+                        verdict = arbiter(pending.request, pending.reason or pending.outcome, compact)
+                    except Exception:
+                        verdict = None
+                    if verdict == "yes" and _read_only(pending):
+                        return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
     if _ANAPHORIC_FOLDER_RE.search(compact) and not (pending and pending.slots.get("path")):
         return Resolution("referent_unresolved", note=("The message points at a folder this chat has not resolved; ask which folder. " + (_note(pending) if pending else "")).strip())
     return Resolution("none", slots=dict(pending.slots) if pending else {}, note=_note(pending) if pending else "")

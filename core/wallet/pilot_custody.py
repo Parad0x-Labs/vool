@@ -360,6 +360,13 @@ def _require_pilot_row(wallet_id: str, *, source_context: dict[str, Any] | None)
     return row
 
 
+def _refuse_agent_wallet(wallet_id: str, *, source_context: dict[str, Any] | None) -> None:
+    """An agent's wallet keeps the one credential this machine derives for it: a changed or recovered credential would
+    be one the agent's payments could never open, or one a caller chose for a wallet that is not theirs to hold."""
+    if custody.agent_of(wallet_id):
+        raise _fault("wallet_setup_state_invalid", wallet_id=str(wallet_id)[:64], reason="agent_wallet_credential_is_fixed", source_context=source_context)
+
+
 def _backup_target(spec: chains.ChainIdentity) -> str:
     if spec.is_svm:
         return "Phantom or another Solana wallet: import private key"
@@ -409,9 +416,12 @@ def _journal(kind: str, payload: dict[str, Any], *, source_context: dict[str, An
 
 def create_pilot_wallet(
     *, network: str, method: str, credential: str = "", credential_confirmation: str = "", creation_key: str = "",
-    label: str = "", source_context: dict[str, Any] | None = None,
+    label: str = "", source_context: dict[str, Any] | None = None, agent_id: str = "", agent_return_address: str = "",
 ) -> dict[str, Any]:
-    """Reserve, generate, seal. Returns the public setup view; never key material."""
+    """Reserve, generate, seal. Returns the public setup view; never key material.
+
+    ``agent_id`` marks the row as an agent's own wallet in the transaction that reserves it (only
+    ``core.wallet.agent_wallets`` passes one): it is never an owner's wallet, not for one moment."""
     custody.require_enabled(source_context=source_context)
     if not str(network or "").strip():
         raise _fault("wallet_setup_state_invalid", reason="network_required", source_context=source_context)
@@ -447,8 +457,9 @@ def create_pilot_wallet(
         if existing is None:
             conn.execute(
                 "INSERT INTO wallet_profiles (wallet_id, mode, network, public_key, label, created_at, approval_method, is_default,"
-                " seal_policy, setup_state, creation_key, setup_updated_at) VALUES (?, ?, ?, '', ?, ?, ?, 0, ?, ?, ?, ?)",
-                (wallet_id, custody.MODE_POCKET_SEALED, spec.network, str(label or "")[:80], now, chosen, SEAL_POLICY, STATE_GENERATING, key, now),
+                " seal_policy, setup_state, creation_key, setup_updated_at, agent_id, agent_return_address) VALUES (?, ?, ?, '', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
+                (wallet_id, custody.MODE_POCKET_SEALED, spec.network, str(label or "")[:80], now, chosen, SEAL_POLICY, STATE_GENERATING, key, now,
+                 str(agent_id or ""), str(agent_return_address or "")),
             )
     if existing is not None:
         return _view(_load(existing[0]) or {})
@@ -981,6 +992,7 @@ def recover_with_backup(wallet_id: str, *, backup_value: str, method: str, crede
     from core.secret_redaction import register_exact_secret
 
     custody.require_enabled(source_context=source_context)
+    _refuse_agent_wallet(wallet_id, source_context=source_context)
     text = str(backup_value or "").strip()
     if text:
         register_exact_secret(text)
@@ -1013,6 +1025,7 @@ def recover_with_device(wallet_id: str, *, challenge: str, method: str, credenti
     credential. The challenge binds the operation to this wallet and its current generation: a stale one is refused
     before any prompt. A denial or a cancellation writes nothing and counts on the recovery throttle."""
     custody.require_enabled(source_context=source_context)
+    _refuse_agent_wallet(wallet_id, source_context=source_context)
     row = _require_recoverable_row(wallet_id, source_context=source_context)
     spec = chains.resolve_network(row["network"])
     if not row["device_sealed_blob"]:
@@ -1061,6 +1074,7 @@ def change_pilot_credential(wallet_id: str, *, current_credential: str, method: 
     opens the seal through the unlock throttle; the same key is re-sealed under the new credential, fenced like a
     recovery. Resetting the local credential never rotates the blockchain key."""
     custody.require_enabled(source_context=source_context)
+    _refuse_agent_wallet(wallet_id, source_context=source_context)
     row = _require_pilot_row(wallet_id, source_context=source_context)
     if row["setup_state"] not in {"", STATE_READY}:
         raise _fault("wallet_setup_state_invalid", wallet_id=row["wallet_id"], reason="setup_not_finished", source_context=source_context)

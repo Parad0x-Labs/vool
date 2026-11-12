@@ -12,6 +12,7 @@ from __future__ import annotations
 
 _ADAPTERS: dict[str, str] = {
     **{f"http:POST:/api/browser/{action}": f"browser.{action}" for action in ("settings", "propose", "decide", "takeover", "stop")},
+    **{f"http:POST:/api/private-web/{action}": f"private_web.{action}" for action in ("settings", "vpn_file", "forget_vpn_file")},
     # module CLI (python -m core.blackbox)
     "cli-module:core.blackbox:status": "blackbox.status",
     "cli-module:core.blackbox:verify": "blackbox.verify",
@@ -44,6 +45,8 @@ _ADAPTERS: dict[str, str] = {
     # settings routes
     "http:GET:/api/settings/prefs": "settings.prefs.list",
     "http:POST:/api/settings/prefs": "settings.prefs.set",
+    "http:GET:/api/web0/settings": "settings.web0.show",
+    "http:POST:/api/web0/settings": "settings.web0.set",
     "http:GET:/api/settings/credentials": "settings.credentials.list",
     "http:POST:/api/settings/credentials": "settings.credentials.set",
     # PA Contacts operator surfaces (core.command_registry.groups.contacts_group)
@@ -104,6 +107,7 @@ _ADAPTERS: dict[str, str] = {
 
 _EXTERNAL: dict[str, str] = {
     **{f"http:GET:{path}": "owner-local supervised browser view and evidence feed" for path in ("/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download", "/api/browser/*")},
+    "http:GET:/api/private-web": "owner-local Private web state for Settings (route, whether it is up, plain reason)",
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",
     "cli-script:vool-api": "API server entry point",
@@ -411,6 +415,7 @@ _EXTERNAL: dict[str, str] = {
 
 _ADAPTER_FAMILIES: dict[str, tuple[str, ...]] = {
     "http:POST:/api/browser/*": tuple("browser." + action for action in ("settings", "propose", "decide", "takeover", "stop")),
+    "http:POST:/api/private-web/*": tuple("private_web." + action for action in ("settings", "vpn_file", "forget_vpn_file")),
     # One POST under each prefix is ONE registered command (S-P6); the table that binds
     # them lives in core/web/api/onboarding_endpoints.py (_PACT_POST_PATHS).
     "http:POST:/api/onboarding/*": (

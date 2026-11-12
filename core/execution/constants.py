@@ -2069,9 +2069,16 @@ def machine_open_newest_one_followup(text: str, previous_reply: str) -> KindList
 
 _NAMED_FOLDER_CONTENTS_RE = re.compile(
     r"^\s*(?:(?:please|pls|hey|ok|okay|so|can\s+you|could\s+you|vool)[\s,]+)*"
-    r"(?:what(?:'s|s|\s+is)?\s+(?:inside|in)|what\s+do\s+i\s+have\s+in|show\s+me(?:\s+what(?:'s|s|\s+is)\s+(?:inside|in))?"
+    # "what invoices do i have in ...", "which files are in ...": a kind of thing named before the folder
+    # (red team R1-07, 2026-11-12: answered with only the folder's location).
+    r"(?:what(?:'s|s|\s+is)?\s+(?:inside|in)|what(?:\s+[\w'\-]+){0,2}?\s+do\s+i\s+(?:have|keep|got)\s+in"
+    r"|(?:what|which)\s+(?:files|documents|docs|invoices|pdfs|things|stuff)\s+(?:are|is)\s+(?:in|inside)"
+    r"|show\s+me(?:\s+what(?:'s|s|\s+is)\s+(?:inside|in))?"
     r"|list|open|look\s+(?:inside|in))\s+(?:the\s+|my\s+|that\s+)?"
-    r"(?P<name>[\w][\w'\-]*(?:\s+[\w][\w'\-]*){0,3}?)\s+folder[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
+    r"(?P<name>[\w][\w'\-]*(?:\s+[\w][\w'\-]*){0,3}?)\s+folder"
+    # where the folder sits, said after it: "(in documents)", "in my documents", "under downloads"
+    r"(?:\s*\(?\s*(?:in|inside|under|on)\s+(?:my\s+|the\s+)?[\w'\-]+(?:\s+folder)?\s*\)?)?"
+    r"[\s,.!?]*(?:please|pls|thanks)?[\s,.!?]*$",
     re.IGNORECASE,
 )
 _NAMED_FOLDER_NOT_A_NAME = frozenset({
@@ -4294,10 +4301,18 @@ _KNOWN_USER_FOLDERS = {
 _LISTING_KIND_WORDS = {
     "pic": "image", "pics": "image", "picture": "image", "pictures": "image", "photo": "image",
     "photos": "image", "image": "image", "images": "image", "screenshot": "screenshot", "screenshots": "screenshot",
-    "jpg": "image", "jpgs": "image", "jpeg": "image", "jpegs": "image", "png": "image", "pngs": "image",
+    # Other words for a screenshot ("gimme just the screen grabs", red team round 3, 2026-11-12).
+    "screen shot": "screenshot", "screen shots": "screenshot", "screen grab": "screenshot", "screen grabs": "screenshot",
+    "screengrab": "screenshot", "screengrabs": "screenshot", "screen capture": "screenshot",
+    "screen captures": "screenshot", "screencap": "screenshot", "screencaps": "screenshot",
+    # A file extension names that extension only: "show only the png files" listed every picture, jpgs
+    # included (red team round 3). The tool reads "ext:" kinds as suffixes.
+    "jpg": "ext:jpg,jpeg", "jpgs": "ext:jpg,jpeg", "jpeg": "ext:jpg,jpeg", "jpegs": "ext:jpg,jpeg",
+    "png": "ext:png", "pngs": "ext:png", "gif": "ext:gif", "gifs": "ext:gif", "heic": "ext:heic,heif",
     "video": "video", "videos": "video", "clip": "video", "clips": "video",
-    "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "audio", "mp3s": "audio",
-    "spreadsheet": "spreadsheet", "spreadsheets": "spreadsheet",
+    "mp4": "ext:mp4", "mov": "ext:mov",
+    "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "ext:mp3", "mp3s": "ext:mp3",
+    "spreadsheet": "spreadsheet", "spreadsheets": "spreadsheet", "csv": "ext:csv", "csvs": "ext:csv",
 }
 _KIND_WORD_RE = re.compile(r"\b(" + "|".join(sorted(_LISTING_KIND_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
 _KNOWN_FOLDER_RE = re.compile(
@@ -4309,8 +4324,8 @@ _FOLDER_ANAPHORA_RE = re.compile(
     re.IGNORECASE,
 )
 _LISTING_ASK_RE = re.compile(
-    r"\b(?:list|show|give\s+me|fetch|get|grab|find|check|see|tell\s+me|which|what(?:'s|\s+is|\s+are)?|"
-    r"are\s+there|any|latest|newest|recent|last|how\s+many|count)\b",
+    r"\b(?:list|show|give\s+me|gimme|lemme\s+see|fetch|get|grab|find|check|see|tell\s+me|which|what(?:'s|\s+is|\s+are)?|"
+    r"are\s+there|any|latest|newest|recent|last|how\s+many|count|i\s+(?:need|want)|only|just)\b",
     re.IGNORECASE,
 )
 _NEWEST_COUNT_RE = re.compile(
@@ -4326,12 +4341,58 @@ _KIND_LISTING_REFUSE_RE = re.compile(
 
 #: Pointing back at the listed folder without naming a kind: "in there", "in that folder", "the 2 newest
 #: there". An existential "how many planets are there" is not a pointer.
+class _ListingKinds(frozenset):
+    """The named kinds, plus any "ext:<suffixes>" kind (a kind named by its file extension)."""
+
+    def __contains__(self, kind: object) -> bool:
+        return frozenset.__contains__(self, kind) or (isinstance(kind, str) and kind.startswith("ext:") and len(kind) > 4)
+
+
 _POINTS_BACK_AT_THE_FOLDER_RE = re.compile(
     r"\b(?:in|from|inside)\s+(?:there|it|that\s+folder|the\s+same\s+folder|that\s+one)\b"
     r"|\b(?:newest|latest|recent|oldest|biggest|largest)\b[^.?!]{0,20}\bthere\b",
     re.IGNORECASE,
 )
-_LISTING_KIND_LABELS_FOR_HINT = frozenset({"image", "video", "audio", "pdf", "document", "spreadsheet", "screenshot"})
+_LISTING_KIND_LABELS_FOR_HINT = _ListingKinds({"image", "video", "audio", "pdf", "document", "spreadsheet", "screenshot"})
+
+
+_SIZE_ORDER_RE = re.compile(
+    r"\b(?P<big>biggest|largest|heaviest)\b|\b(?P<small>smallest|tiniest|lightest)\b", re.IGNORECASE
+)
+_COUNT_ASK_RE = re.compile(r"\bhow\s+many\b|\bcount\b|\bnumber\s+of\b", re.IGNORECASE)
+# "in it", "in that folder", or "there" after a word for an entry ("the biggest one there"). A bare
+# trailing "there" is not a pointer: "how many planets are there" asks about planets.
+_POINTS_AT_IT_RE = re.compile(
+    r"\b(?:in|from|inside)\s+(?:there|it|that\s+folder|that\s+directory|the\s+same\s+folder|this\s+folder)\b"
+    r"|\b(?:ones?|files?|items?|entries|things|pics|pictures|photos|docs|documents)\s+(?:are\s+|is\s+)?(?:in\s+)?there\b",
+    re.IGNORECASE,
+)
+
+
+def points_back_at_the_folder(text: str) -> bool:
+    """"in that folder", "in it", "...one there": the ask names its folder by pointing back at the chat."""
+    return bool(_POINTS_AT_IT_RE.search(" ".join(str(text or "").split())))
+
+
+def _folder_follow_up(clean: str, folder_hint: str) -> dict[str, Any] | None:
+    """A count or a size question about the folder this chat just listed, with no kind of file named.
+
+    Red team R1-12 (2026-11-12): one turn after VOOL listed `~/Documents/Invoices old`, "how many files
+    are in that folder" was answered "this turn did not establish a machine or path target" and "which
+    is the biggest one there" with "I don't have access to file sizes". The folder is the chat's own
+    record of the listing (`folder_hint`), never a guess from the wording.
+    """
+    if not folder_hint or not _POINTS_AT_IT_RE.search(clean):
+        return None
+    size = _SIZE_ORDER_RE.search(clean)
+    if size is not None:
+        count = _NEWEST_COUNT_RE.search(clean)
+        digits = (count.group(1) or count.group(2)) if count else ""
+        return {"path": folder_hint, "size_order": "largest" if size.group("big") else "smallest",
+                "limit": max(1, min(int(digits), 200)) if digits else 1}
+    if _COUNT_ASK_RE.search(clean):
+        return {"path": folder_hint, "count_only": True}
+    return None
 
 
 def machine_kind_listing_intent(
@@ -4363,7 +4424,7 @@ def machine_kind_listing_intent(
         return {"path": folder_hint, "kind": kind_hint, "limit": max(1, min(int(digits), 200)) if digits else 20,
                 "newest_first": True}
     if kind_match is None:
-        return None
+        return _folder_follow_up(clean, folder_hint)
     if not _LISTING_ASK_RE.search(clean) and not (
         # "same for photos in that folder": a kind of file pointed at the folder already in view.
         _POINTS_BACK_AT_THE_FOLDER_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)

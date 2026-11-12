@@ -158,6 +158,13 @@ def _offer_registration(
 
     status = getattr(outcome, "status", "")
     message = str(getattr(outcome, "message", "") or "")
+    if status == "refused" and (getattr(outcome, "extra", None) or {}).get("code") == "web0_off":
+        clear_fn(session_id)
+        return _response(
+            f"I can't register `{name}` right now: {message} Nothing was spent.",
+            intent="null_register_web0_off",
+            success=False,
+        )
     if status == "refused":
         # Already registered, or a premium/auction-only (1-3 char) name.
         clear_fn(session_id)
@@ -232,6 +239,12 @@ def _map_execute_outcome(name: str, outcome: Any) -> dict[str, Any]:
             f"Adjust it from a terminal: `vool spend-policy` to view, then "
             f"`vool spend-unfreeze` or `vool spend-set-cap ...` as needed.",
             intent="null_register_blocked",
+            success=False,
+        )
+    if status == "refused" and (getattr(outcome, "extra", None) or {}).get("code") == "web0_off":
+        return _response(
+            f"I did **not** spend anything — `{name}` was not registered. {message}",
+            intent="null_register_web0_off",
             success=False,
         )
     if status == "refused":

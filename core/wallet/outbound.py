@@ -72,6 +72,18 @@ def _validated_target(url: str, *, spec: chains.ChainIdentity | None = None, pub
     if host.endswith((".local", ".internal", ".lan", ".home.arpa")):
         raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "private_namespace", "host": host[:80]})
     loopback = host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
+    from core import private_web
+
+    if private_web.resolved_at_far_end(host) and not loopback:
+        # Looked up by Tor or the WireGuard tunnel, never here. The scheme and chain checks below
+        # still run; the door opens it through the route, by name.
+        addresses: tuple[str, ...] = ()
+        if public_only and parts.scheme != "https":
+            raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "insecure_transport", "host": host[:80]})
+        if spec is not None:
+            chains.rpc_origin_allowed_or_refuse(spec, str(url))
+        port = parts.port
+        return f"{parts.scheme}://{host}" + (f":{port}" if port else ""), addresses
     addresses = tuple(resolve_host_addresses(host))
     if not addresses:
         raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "dns_no_addresses"})

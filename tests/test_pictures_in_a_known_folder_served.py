@@ -114,3 +114,16 @@ def test_a_rerun_keeps_what_the_person_typed_in_the_chat(served):
     assert "trip-01.jpg" in again, again
     users = _history_user_rows(served, session)
     assert users == ["which pics are in my downloads", "do that again pls"], users
+
+
+@pytest.mark.parametrize("typed", [
+    "list the pics in my downloads pls",
+    "what pictures do i have in the downloads folder (on this mac)?",
+    "any  pics in downloads tho",
+])
+def test_the_chat_history_keeps_an_ordinary_turn_as_typed(served, typed):
+    # Red team R3-01: "pls" was stored as "please" and "folder (in" as "folder(in" on turns that
+    # were never rewritten for routing.
+    session = rig.canonical_session("pics-" + uuid.uuid4().hex[:8])
+    _chat(served, session, typed)
+    assert _history_user_rows(served, session) == [typed]

@@ -3152,7 +3152,8 @@
         "kind",
         "limit",
         "newest_first",
-        "path"
+        "path",
+        "size_order"
       ],
       "description": "List visible entries inside a safe local directory such as Desktop, Downloads, or Documents.",
       "native_name": "machine__list_directory",
@@ -3200,6 +3201,13 @@
               "string",
               "null"
             ]
+          },
+          "size_order": {
+            "description": "string optional (largest|smallest: files only, by size)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3208,7 +3216,8 @@
           "limit",
           "count_only",
           "kind",
-          "newest_first"
+          "newest_first",
+          "size_order"
         ],
         "type": "object"
       },

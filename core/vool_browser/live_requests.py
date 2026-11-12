@@ -7,15 +7,45 @@ from contextvars import ContextVar
 from urllib.parse import urlsplit, urlunsplit
 
 _CONFINED = ContextVar("supervised_browser_turn", default=None)
-_BROWSER = r"(?:(?:the|a|an|my|our|built[\s-]?in|live|integrated|vool)\s+){0,4}browser\b"
-_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+_BROWSER = r"(?:(?:the|teh|hte|a|an|my|our|built[\s-]?in|live|integrated|vool)\s+){0,4}(?:browser|broswer|brower|browswer)\b"
+_OPEN = r"(?:open|opne|oepn|opn|visit|browse|navigate|load|go\s+to)"
+_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:(?:please|pls|plz)\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:(?:please|pls|plz)\s+)?"
 _ASK = re.compile(
     _CLAUSE + r"(?:use|open|launch|start|show)\s+" + _BROWSER
-    + r"|" + _CLAUSE + r"(?:open|visit|browse|navigate|load)\b[^\n]{0,500}\b(?:in|with|using)\s+" + _BROWSER
-    + r"|^\s*(?:please\s+)?(?:browse|navigate\s+to)\s+https?://",
+    + r"|" + _CLAUSE + _OPEN + r"\b[^\n]{0,500}\b(?:in|with|using)\s+" + _BROWSER
+    + r"|^\s*(?:please\s+)?(?:browse|navigate\s+to)\s+https?://"
+    # "browse to the wikipedia page for Riga", "can you browse over to example.com"
+    + r"|" + _CLAUSE + r"browse\s+(?:over\s+)?to\b",
     re.IGNORECASE,
 )
 _URL = re.compile(r'https?://[^\s<>"\x27`]+', re.IGNORECASE)
+# A site named without "https://" ("open news.ycombinator.com"), on a common public suffix. File
+# names (notes.md, run.py, setup.sh) are not sites: those suffixes are left out on purpose.
+_TLDS = (r"com|org|net|io|dev|app|ai|co|uk|de|fr|lv|lt|ee|eu|info|edu|gov|me|tv|news|xyz|page|site|online|"
+         r"blog|us|ca|au|jp|ru|nl|se|no|fi|pl|es|it|ch|at|be|cz|dk|pt|br|in|ua|tr|kr|cn|tw|hk|sg|nz|ie|il|gr")
+_BARE = re.compile(r"(?<![@\w./:-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:" + _TLDS + r")(?:/[^\s<>\"\x27`]*)?)(?![\w@-])",
+                   re.IGNORECASE)
+
+
+def _trim(raw: str) -> str:
+    """An address as written in a sentence: no closing punctuation or unmatched bracket after it."""
+    value = str(raw or "")
+    while value:
+        last = value[-1]
+        if last in ".,;:!?\"\x27" or (last in ")]}" and value.count({")": "(", "]": "[", "}": "{"}[last]) < value.count(last)):
+            value = value[:-1]
+        else:
+            break
+    return value
+
+
+def addresses(text: str) -> list[str]:
+    """Every address the words name, as written (scheme ones first, then bare site names)."""
+    raw = str(text or "")
+    found = [_trim(u) for u in _URL.findall(raw)]
+    rest = _URL.sub(" ", raw)
+    found += ["https://" + _trim(m) for m in _BARE.findall(rest)]
+    return [u for u in found if u]
 _QUOTED = re.compile(r'```.*?```|`[^`]*`|"[^"\n]*"|\x27[^\x27\n]*\x27', re.DOTALL)
 
 
@@ -97,7 +127,7 @@ def _asks(text: str, verbs: str) -> bool:
             # "nobody wants you to submit it", "no need to submit it") grants nothing.
             if question or _NEGATION.search(clause):
                 continue
-            if re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool)\s+to\s+)(?:' + verbs + r')\b', clause.strip(), re.IGNORECASE):
+            if re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool|browser)\s+to\s+)(?:' + verbs + r')\b', clause.strip(), re.IGNORECASE):
                 return True
     return False
 
@@ -127,16 +157,31 @@ class _TurnBoundary:
         from core.instructional_request import asks_for_instructions_not_execution
 
         self.text = str(text or "")
+        self.chat = str(chat or "")
         self.followup = False
         self.active = requested(text)
+        # The person's own words asked to browse (never set later by a tool call or child text).
+        self.asked = self.active
         executable = '' if asks_for_instructions_not_execution(text) else _instruction_text(text)
-        self.urls = frozenset(_url(u.rstrip('.,;!?')) for u in _URL.findall(executable))
-        self.follow = _asks(executable, r'follow|click|press|tap|visit|navigate')
-        self.submit = _asks(executable, r'submit|send|sign\s+in|log\s+in')
-        self.fill = _asks(executable, r'fill|enter|type|select|choose')
+        self.urls = frozenset(_url(u) for u in addresses(executable))
+        self.follow = _asks(executable, r'follow|click|press|tap|visit|navigate|open\s+(?:the|that|this)\s+link')
+        # "search <site> for <words>" is filling the site's search box and sending it; the
+        # form send still shows its fields on the card before anything is sent.
+        searches = _asks(executable, r'search')
+        self.submit = _asks(executable, r'submit|send|sign\s+in|log\s+in') or searches
+        self.fill = _asks(executable, r'fill|enter|type|select|choose') or searches
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
-        self.open = bool(self.urls and (self.active or _asks(executable, r'open|browse|visit|navigate|load')))
+        self.open = bool(self.urls and (self.active or _asks(executable, r'open|opne|oepn|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
+        # The one address VOOL chose itself this turn, if any, and whether any page text was
+        # read before it: once a page was read, its text could have suggested the address.
+        self.chosen: str | None = None
+        self.page_read = False
+        # How this turn's browser request ended when it never ran: the reply names it truthfully.
+        self.unanswered: dict[str, str] | None = None
+        # The browser steps of this turn that ran after Allow, so a reply that fails later
+        # never claims nothing was looked at.
+        self.completed: list[dict[str, str]] = []
         # A follow-up acts on the page already open in this chat. Its authority is
         # what its own words grant (fill, submit, follow); it opens nothing new
         # unless it names an address itself.
@@ -183,16 +228,28 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     if boundary is None or not boundary.active:
         return True
     if intent in READS | CLOSE | {'respond.direct'}:
+        if intent in READS and arguments is not None:
+            boundary.page_read = True
         return True
     if intent in {'vool-browser.session.open', 'vool-browser.navigate'}:
         if not boundary.open:
-            return False
+            # "Use the browser to find Riga's timetable": no address written, so VOOL may
+            # choose one, once, before anything of a page was read this turn. The card still
+            # shows that exact address and needs Allow; local and private ones are refused.
+            return _may_choose(boundary)
         # Only an address the person wrote can be opened. Following a link on the
         # page is a click on an observed element, never an address the page supplied.
         if arguments is None:
             return bool(boundary.urls - boundary.proposed_urls)
         destination = _url(str(arguments.get('start_url') if intent.endswith('.open') else arguments.get('url')))
-        return destination not in boundary.proposed_urls and destination in boundary.urls
+        if destination in boundary.proposed_urls:
+            return False
+        if destination in boundary.urls:
+            return True
+        # "opne exmaple.com": the model may open the site it reads the typo as, once, while
+        # nothing of a page was read yet. The card shows the exact address; Allow decides.
+        return bool(boundary.chosen is None and not boundary.page_read and not boundary.completed
+                    and any(_misspelt(destination, written) for written in boundary.urls))
     if intent == 'vool-browser.click':
         return boundary.follow or boundary.submit
     if intent == 'vool-browser.type':
@@ -202,11 +259,83 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     return False
 
 
+def _host(url: str) -> str:
+    host = (urlsplit(url).hostname or '').lower()
+    return host[4:] if host.startswith('www.') else host
+
+
+def _misspelt(destination: str, written: str) -> bool:
+    """Whether `written`'s site name is `destination`'s with at most two typing slips
+    (a swapped, missing, extra or wrong letter), on the same top-level domain."""
+    a, b = _host(destination), _host(written)
+    if not a or not b or a == b or a.rsplit('.', 1)[-1] != b.rsplit('.', 1)[-1] or min(len(a), len(b)) < 6:
+        return False
+    previous2, previous = None, list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        row = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            value = min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost)
+            if previous2 is not None and i > 1 and j > 1 and ca == b[j - 2] and a[i - 2] == cb:
+                value = min(value, previous2[j - 2] + 1)
+            row.append(value)
+        previous2, previous = previous, row
+    return previous[-1] <= 2
+
+
+def _may_choose(boundary: _TurnBoundary) -> bool:
+    return bool(boundary.asked and not boundary.followup and not boundary.urls and boundary.chosen is None
+                and not boundary.proposed_urls and not boundary.completed and not boundary.page_read)
+
+
 def note_navigation_proposal(url: str) -> None:
     """One original request cannot repeat an approval under another tool alias."""
     boundary = _CONFINED.get()
     if boundary is not None and boundary.active:
-        boundary.proposed_urls.add(_url(url))
+        address = _url(url)
+        if address not in boundary.urls:
+            boundary.chosen = address
+        boundary.proposed_urls.add(address)
+
+
+def note_unanswered(op: str, url: str, status: str) -> None:
+    """Record that this turn's browser step did not run, and why, for the turn's reply."""
+    boundary = _CONFINED.get()
+    if boundary is not None:
+        boundary.unanswered = {"op": str(op or ""), "url": str(url or ""), "status": str(status or "")}
+
+
+def note_completed(op: str, url: str) -> None:
+    """Record that one of this turn's browser steps ran and observed the page."""
+    boundary = _CONFINED.get()
+    if boundary is not None and len(boundary.completed) < 20:
+        boundary.completed.append({"op": str(op or ""), "url": str(url or "")})
+
+
+def page_read() -> str:
+    """The address of this chat's open page when this turn read it (inspect or status), else ""."""
+    from core.vool_browser import live
+
+    boundary = _CONFINED.get()
+    if boundary is None or not boundary.page_read or not boundary.chat:
+        return ""
+    try:
+        item = live.session(boundary.chat)
+    except live.BrowserFault:
+        return ""
+    return str(item.url or "") if item is not None and not item.closed else ""
+
+
+def completed() -> list[dict[str, str]]:
+    """This turn's browser steps that ran, oldest first."""
+    boundary = _CONFINED.get()
+    return [dict(step) for step in boundary.completed] if boundary is not None else []
+
+
+def unanswered() -> dict[str, str] | None:
+    """This turn's browser step that never ran (refused, timed out, taken over), if any."""
+    boundary = _CONFINED.get()
+    return dict(boundary.unanswered) if boundary is not None and boundary.unanswered else None
 
 
 def turn_request() -> str:
@@ -219,8 +348,9 @@ def written_addresses(text: str, target: str) -> tuple[str, ...]:
     """The spellings in the person's words of the address a proposal opened, without a
     trailing slash, so they bind to the words around them at word boundaries."""
     wanted = _url(str(target or ''))
-    found = (raw.rstrip('.,;!?') for raw in _URL.findall(str(text or '')))
-    return tuple(dict.fromkeys(raw.rstrip('/') for raw in found if wanted and _url(raw) == wanted))
+    raw_text = str(text or '')
+    found = [_trim(u) for u in _URL.findall(raw_text)] + [_trim(m) for m in _BARE.findall(_URL.sub(' ', raw_text))]
+    return tuple(dict.fromkeys(raw.rstrip('/') for raw in found if wanted and _url(raw if '://' in raw else 'https://' + raw) == wanted))
 
 
 def within_turn() -> bool:

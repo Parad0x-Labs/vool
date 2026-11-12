@@ -234,6 +234,7 @@ class AuthorshipDecision:
         *,
         attempted_failed: tuple[str, ...] | list[str] | None = None,
         grounded_steps: int = 0,
+        observed_pages: tuple[str, ...] | list[str] | None = None,
     ) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
@@ -252,6 +253,10 @@ class AuthorshipDecision:
         own trace on the wire. The sentence is now evidence-aware: with grounded rows it names
         what actually happened — evidence WAS collected and kept; what was missing is a
         certified writer.
+
+        ``observed_pages`` are the pages this turn's approved browser steps opened. When the
+        writing failed after one opened, the refusal leads with that page and says it is still
+        in the Browser pane (Mac run 2026-11-11: it said "nothing this turn observed" instead).
         """
 
         attempted = tuple(str(name).strip() for name in (attempted_failed or ()) if str(name).strip())
@@ -325,19 +330,41 @@ class AuthorshipDecision:
                 f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
                 "Setup under \u201cWhere should it think?\u201d, or start a local model."
             )
-        evidence_sentence = (
-            f"This turn did collect grounded evidence ({grounded_steps} step"
-            f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
-            "records — what was missing is a certified model to write the answer from it."
-            if grounded_steps > 0
-            else "nothing this turn retrieved, computed or observed backs it, so the answer "
-            "would rest on the writing model alone."
-        )
+        pages = [str(page).strip() for page in (observed_pages or ()) if str(page).strip()]
+        opened = ", ".join(pages[:3])
+        if pages:
+            # The browser DID open the page this turn; only the writing failed. Saying "nothing
+            # this turn observed" here was false and sent the person to debug the browser
+            # (Mac run 2026-11-11).
+            grounded = (
+                f", and {grounded_steps} grounded step{'s' if grounded_steps != 1 else ''} succeeded"
+                if grounded_steps > 0
+                else ""
+            )
+            evidence_sentence = (
+                f"The browser opened {opened} this turn and the page is kept in the Browser pane{grounded}"
+                " — what was missing is a certified model to write the answer from it."
+            )
+        else:
+            evidence_sentence = (
+                f"This turn did collect grounded evidence ({grounded_steps} step"
+                f"{'s' if grounded_steps != 1 else ''} succeeded) and it is kept in the turn's "
+                "records — what was missing is a certified model to write the answer from it."
+                if grounded_steps > 0
+                else "nothing this turn retrieved, computed or observed backs it, so the answer "
+                "would rest on the writing model alone."
+            )
         # Plain words first, the runtime's own terms last (private-web test 2026-11-11: the person
         # saw "`ollama-local:qwen2.5:7b` is not certified to author on this runtime" as the
         # reply). The last paragraph is the cause; the chat page folds it behind "details".
+        plain = _plain_refusal_sentence(self.reason, author, attempted)
+        if pages:
+            plain = (
+                f"I opened {opened} in the browser, and it is still open in the Browser pane. "
+                f"{plain[:1].upper()}{plain[1:]} Ask again to have it read."
+            )
         return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {_plain_refusal_sentence(self.reason, author, attempted)}\n\n"
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} {plain}\n\n"
             f"{_plain_refusal_remedy(author)}\n\n"
             f"Details: {evidence_sentence} {cause} {remedy}"
         )
@@ -1424,7 +1451,23 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
     return record.decision.refusal_text(
         attempted_failed=record.attempted_failed,
         grounded_steps=len(record.support_rows or ()),
+        observed_pages=_browser_pages_opened(),
     ), payload
+
+
+def _browser_pages_opened() -> tuple[str, ...]:
+    """Pages this turn's approved browser steps opened, if any. Never raises."""
+    try:
+        from core.vool_browser.live_requests import completed
+
+        seen: list[str] = []
+        for step in completed():
+            url = str(step.get("url") or "").strip()
+            if url and url not in seen:
+                seen.append(url)
+        return tuple(seen)
+    except Exception:
+        return ()
 
 
 # ---- execution claims ------------------------------------------------------------------------

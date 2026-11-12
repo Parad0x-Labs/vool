@@ -67,6 +67,18 @@ def prepare_live_info_request(
             source_context=source_context,
         )
 
+    private_web_refusal = _private_web_refusal()
+    if private_web_refusal:
+        # Private web is on but its route is down: the door refuses every lookup, so say that
+        # plainly here instead of letting the empty search read as "looked, found nothing".
+        return live_mode, "", disabled_live_info_result(
+            agent,
+            session_id=session_id,
+            user_input=user_input,
+            source_context=source_context,
+            response=private_web_refusal,
+        )
+
     query = recovered_query or agent._normalize_live_info_query(candidate_input, mode=live_mode)
     if agent._requires_ultra_fresh_insufficient_evidence(candidate_input):
         response = agent._ultra_fresh_insufficient_evidence_response(query=query)
@@ -79,6 +91,19 @@ def prepare_live_info_request(
             reason="live_info_insufficient_evidence",
         )
     return live_mode, query, None
+
+
+def _private_web_refusal() -> str:
+    """The plain sentence when Private web is on and its route is down, else ""."""
+    from core import private_web
+
+    route = private_web.current_route()
+    if not route.active:
+        return ""
+    problem = private_web.route_problem(route)
+    if not problem:
+        return ""
+    return f"{problem} Check Settings > Privacy & Permissions > Private web, or turn it off."
 
 
 def _explicit_remote_fetch_disabled(source_context: dict[str, object] | None) -> bool:

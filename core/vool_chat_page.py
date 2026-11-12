@@ -94,6 +94,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .plugins-empty { color:var(--muted); font-size:13px; }
 .modal.modal-lg { width:min(820px,94vw); height:min(615px,86vh); max-height:86vh; display:flex; flex-direction:column; }
 .modal.settings-frame-modal { padding:0; overflow:hidden; }
+.modal.settings-frame-modal.browser-surface { width:min(1280px,96vw); height:min(880px,92vh); max-height:92vh; }
 #settingsFrame { flex:1 1 auto; width:100%; min-height:0; border:0; background:var(--panel-solid); }
 .modal.modal-lg .modal-body { flex:1 1 auto; overflow:auto; min-height:0; }
 .plugins-search { width:100%; box-sizing:border-box; margin:2px 0 14px; padding:10px 13px; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:14px; }
@@ -4463,6 +4464,7 @@ function renderChat(chatId) {
   // A rebuilt transcript keeps its interrupted-reply note: a question cut off by a restart (boot
   // restore included, which never loads the Activity list) shows with Ask again under it.
   if (!run) { if (!st.recoveredTask) st.recoveredTask = interruptedQuestion(st); if (st.recoveredTask) paintRecoveryNote(st); }
+  if (window.VoolBrowserCard) { try { window.VoolBrowserCard.repaint(chatId); } catch (e) {} }
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
@@ -5894,6 +5896,8 @@ function startRunTimers(run) {
   if (run.timer || run.ledgerTimer) return;
   run.timer = setInterval(() => {
     if (run.ended) return;
+    // Named fragment call site: a browser request from this turn is answered in the chat itself.
+    if (window.VoolBrowserCard) { try { window.VoolBrowserCard.tick(run.chatId, isDisplayed(run.chatId)); } catch (e) {} }
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
     run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
@@ -7137,9 +7141,9 @@ function ledgerSameText(a, b) {
 function humanToolTitle(e, eventType, map) {
   const tool = String(e.tool_name || '').trim();
   const category = activityCategoryFor(tool)[0];
-  const active = { tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
-  const finished = { tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
-  const failed = { tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
+  const active = { browser: pageT('activity.tool.active.browser', 'Using the browser'), tests: pageT('activity.tool.active.tests', 'Running tests'), reads: pageT('activity.tool.active.reads', 'Reading'), edits: pageT('activity.tool.active.edits', 'Editing'), searches: pageT('activity.tool.active.searches', 'Searching'), commands: pageT('activity.tool.active.commands', 'Running command'), tools: pageT('activity.tool.active.tools', 'Running tool') };
+  const finished = { browser: pageT('activity.tool.finished.browser', 'Browser step done'), tests: pageT('activity.tool.finished.tests', 'Test command finished'), reads: pageT('activity.tool.finished.reads', 'Read finished'), edits: pageT('activity.tool.finished.edits', 'Edit finished'), searches: pageT('activity.tool.finished.searches', 'Search finished'), commands: pageT('activity.tool.finished.commands', 'Command finished'), tools: pageT('activity.tool.finished.tools', 'Tool finished') };
+  const failed = { browser: pageT('activity.tool.failed.browser', 'Browser step did not run'), tests: pageT('activity.tool.failed.tests', 'Test command failed'), reads: pageT('activity.tool.failed.reads', 'Read failed'), edits: pageT('activity.tool.failed.edits', 'Edit failed'), searches: pageT('activity.tool.failed.searches', 'Search failed'), commands: pageT('activity.tool.failed.commands', 'Command failed'), tools: pageT('activity.tool.failed.tools', 'Tool failed') };
   if (eventType === 'tool_selected') return active[category] || pageT('activity.tool.active.running', 'Running');
   if (eventType === 'tool_failed') return failed[category] || pageT('activity.tool.failed.tools', 'Tool failed');
   if (eventType === 'tool_executed') return finished[category] || pageT('activity.tool.finished.tools', 'Tool finished');
@@ -7284,6 +7288,8 @@ function runExecutionTruth(run) {
 // calls"), not "Files changed". "Files changed" is built separately, from canonical mutation
 // receipts, in the `changes` category below.
 const ACTIVITY_CATEGORY_RULES = [
+  // Before "searches": vool-browser.* names contain "browse" but are browser steps, not searches.
+  [['vool-browser'], 'browser', 'Browser'],
   [['search', 'research', 'web', 'lookup', 'browse', 'find', 'grep', 'index'], 'searches', 'Searches'],
   [['read', 'fetch', 'open', 'inspect', 'view', 'cat', 'load'], 'reads', 'Files read'],
   [['edit', 'write', 'patch', 'apply', 'create_file', 'modify', 'format'], 'edits', 'Edit tool calls'],
@@ -12996,6 +13002,8 @@ function openSurfaceInFrame(url, label) {
   settingsFrame.title = label || 'VOOL Settings';
   const dialog = settingsFrameOverlay.querySelector('[role="dialog"]');
   if (dialog) dialog.setAttribute('aria-label', label || 'VOOL Settings');
+  // The browser is a working surface, not a dialog: it gets nearly the whole window.
+  if (dialog) dialog.classList.toggle('browser-surface', url.indexOf('/browser?') === 0);
   settingsFrameOverlay.hidden = false;
   try { settingsFrame.focus(); } catch (e) {}
 }
@@ -13032,6 +13040,8 @@ window.addEventListener('message', async (e) => {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   if (d.type === 'vool-settings-close' || d.type === 'vool-setup-close') { closeSettingsFrame(); setupLineLoad(); return; }
+  // The framed browser closes its overlay; its session keeps running until it is stopped or idles out.
+  if (d.type === 'vool-browser-close') { closeSettingsFrame(); return; }
   // The framed setup page asks its host to open a Settings section (it cannot open windows itself).
   if (d.type === 'vool-setup-open-settings') { closeSettingsFrame(); openSettings(typeof d.section === 'string' ? d.section : ''); return; }
   // ...and to run the native folder picker, which only the host document's bridge can reach.
@@ -15423,6 +15433,7 @@ def _page_fragments() -> tuple[str, ...]:
     `VoolChips.html`; the companion stays last, exactly where it always evaluated.
     """
     from core.addon_store_fragment import render_addon_store_fragment
+    from core.browser_chat_card_fragment import render_browser_card_fragment
     from core.chat_visuals_fragment import render_chat_visuals_fragment
     from core.command_palette_fragment import render_palette_fragment
     from core.companion_drawer_fragment import render_companion_drawer_fragment
@@ -15455,6 +15466,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_companion_drawer_fragment(),
         render_council_fragment(),
         render_council_card_fragment(),
+        render_browser_card_fragment(),
         render_companion_fragment(),
         render_wallet_fragment(),
         render_contacts_fragment(),

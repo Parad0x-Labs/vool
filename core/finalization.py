@@ -222,7 +222,7 @@ def _withheld_claims_target(slot_text: str, withheld_claims: tuple[str, ...] | l
 
 _NOT_A_DEMAND_RE = __import__("re").compile(
     r"^\s*(?:(?:thanks?|thank\s+you|thx|ty|cheers|ok(?:ay)?|cool|great|nice|perfect|awesome|hi|hello|hey|please|pls|"
-    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good)[\s,!.]*)+$"
+    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good|sorry|oops|my\s+bad|pardon|hmm+|um+|ah|oh|right|alright|so|and|also)[\s,!.]*)+$"
     r"|^\s*(?:according\s+to|as\s+per|per|from|on|in)\s+(?:the\s+)?[\w .'-]{1,40}?[\s,:]*$"
     # How to answer, not something to answer: "just the count", "only the number", "short answer".
     r"|^\s*(?:just|only)\s+(?:the\s+|a\s+)?(?:count|number|total|names?|list|answer|yes\s+or\s+no)(?:\s+please|\s+pls)?[\s.!]*$"
@@ -2168,6 +2168,59 @@ def payload_availability_for_request_id(request_id: str) -> str | None:
         return AVAILABILITY_WITHHELD
     if verdicts:
         return sorted(verdicts)[0]
+    return None
+
+
+def request_lineage_governed_state(request_id: str) -> str | None:
+    """WITHHELD / ERASED when a payload this request governs was ITSELF put in that state.
+
+    ``payload_availability_for_request_id`` reports the stored column, and that column is also
+    set at BIRTH: a fresh finalization whose bytes equal an already-erased payload is bound to
+    that payload's privacy state (PASS003 inheritance), so the erased bytes cannot be minted
+    AVAILABLE again. That is a fact about the BYTES of the reply. It is not an act on this
+    request: nobody withheld or erased this turn.
+
+    A derivative that records what the PERSON said in a turn (an operator-profile item) must
+    gate on acts against its own turn. Measured 2026-11-11 on the chat page: say your name,
+    delete that chat, say it again in a new chat -- the acknowledgement was byte-identical to the
+    erased one, the new request was born ERASED, and the name VOOL had just said it would
+    remember was unservable from the first read.
+
+    So this reads the governance record: a state counts only when a transition INTO it was
+    recorded for one of this request's finalizations. The value bytes of the derivative are
+    still judged separately by ``writer_may_persist_text``, and erasing this request later still
+    sweeps its derivatives (``erase_finalization_payload`` runs the sweep for an already-erased
+    row). With no governance record to read, the stored column decides (fail closed).
+    """
+    clean = str(request_id or "").strip()
+    if not clean:
+        return None
+    conn = get_connection()
+    try:
+        try:
+            rows = conn.execute(
+                """
+                SELECT f.availability AS availability
+                  FROM a7_finalizations f
+                 WHERE f.request_id = ? AND f.availability IN (?, ?)
+                   AND EXISTS (
+                       SELECT 1 FROM a7_governance_events e
+                        WHERE e.finalization_id = f.finalization_id
+                          AND e.event_kind = 'availability_transition'
+                          AND e.new_state = f.availability
+                   )
+                """,
+                (clean, AVAILABILITY_WITHHELD, AVAILABILITY_ERASED),
+            ).fetchall()
+        except Exception:
+            return payload_availability_for_request_id(clean)
+    finally:
+        conn.close()
+    verdicts = {str(row["availability"] or "") for row in rows}
+    if AVAILABILITY_ERASED in verdicts:
+        return AVAILABILITY_ERASED
+    if AVAILABILITY_WITHHELD in verdicts:
+        return AVAILABILITY_WITHHELD
     return None
 
 

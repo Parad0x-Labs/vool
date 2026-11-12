@@ -75,6 +75,10 @@ def resolve_public_target(url: str) -> tuple[str, ...]:
         raise RemoteTurnTargetRefused("scheme_or_host_invalid", url)
     if host == "localhost" or host.endswith(_PRIVATE_NAMESPACES):
         raise RemoteTurnTargetRefused("private_namespace", url)
+    from core import private_web
+
+    if private_web.resolved_at_far_end(host):
+        return ()
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM)
     except OSError:
@@ -116,6 +120,10 @@ def refuse_local_target(url: str, *, resolve: bool = True) -> None:
             raise RemoteTurnTargetRefused("non_public_address", url)
         return
     if not resolve:
+        return
+    from core import private_web
+
+    if private_web.resolved_at_far_end(host):
         return
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM)

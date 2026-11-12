@@ -57,8 +57,10 @@ def _local_brain():
     return object()
 
 
-def test_route_is_off_unless_the_flag_is_set():
-    decision = route.decide("whats on my desktop?", source_context=OWNER, resolve_brain=_local_brain, env={})
+def test_route_is_off_when_the_flag_is_explicitly_disabled():
+    decision = route.decide(
+        "whats on my desktop?", source_context=OWNER, resolve_brain=_local_brain, env={route.FLAG_ENV: "0"}
+    )
     assert (decision.admit, decision.reason) == (False, "flag_off")
 
 
@@ -99,6 +101,11 @@ def test_route_needs_a_local_brain():
         ({**OWNER, "_trusted_project_id": "proj-1"}, "project_owns_turn"),
         ({**OWNER, "planned_subturn": True}, "planned_subturn"),
         ({"surface": "channel", "_owner_local": False}, "not_owner_local"),
+        # A turn that carries files belongs to the lanes that read them: the loop's brain sees only
+        # the words, so the attached notes were never read (clean loop ON, reader rig m1-text).
+        ({**OWNER, "attachment_turn_id": "req:abc", "external_evidence": [{"kind": "text", "attachment_id": "a1"}]},
+         "attachment_turn"),
+        ({**OWNER, "external_evidence": [{"kind": "image", "reference": "attachment:a2"}]}, "attachment_turn"),
     ],
 )
 def test_route_leaves_turns_something_else_owns(context, reason):
@@ -110,6 +117,86 @@ def test_route_leaves_online_and_unrelated_asks_alone():
     online = route.decide("whats the weather in my town", source_context=OWNER, resolve_brain=_local_brain, env=ON)
     chat = route.decide("tell me a joke", source_context=OWNER, resolve_brain=_local_brain, env=ON)
     assert online.reason == "online_ask" and chat.reason == "not_about_own_files"
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "check my notes, did I write anything about the dentist?",
+        "search my notes for the dentist",
+        "find my note about the plumber",
+        "is there a note about the boiler service?",
+        "look in my Apple Notes for the wifi code",
+        "did i put the gate code in the notes app",
+    ],
+)
+def test_route_sends_the_persons_notes_to_the_notes_tools(ask):
+    """The loop's tools are file-only: it answered notes asks from files and the claim gate then said
+    "I haven't looked through your notes" (skills thread on c9a7f426, 2026-11-12). Also as a follow-up."""
+    route.note_clean_turn("sess-notes")
+    for session_id in ("", "sess-notes"):
+        decision = route.decide(ask, source_context=OWNER, session_id=session_id, resolve_brain=_local_brain, env=ON)
+        assert (decision.admit, decision.reason) == (False, "notes_ask"), (ask, session_id)
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "what's in my notes.md on the desktop?",
+        "open the notes file in Documents",
+        "read the notes on my desktop",
+        "what did i write in the flat viewing notes?",
+    ],
+)
+def test_route_keeps_a_notes_file_as_a_file_ask(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert decision.admit, (ask, decision.reason)
+
+
+@pytest.mark.parametrize(
+    "ask", ["I want to practise Spanish 15 minutes a day, any tips?", "how many minutes are in a week?"]
+)
+def test_route_does_not_take_minutes_as_a_files_topic(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "how much r tickets for the champions league final this year",
+        "how much is a ticket for the louvre these days? going in december",
+        "whats the cheapest flight from krakow to rome in january",
+        "do flights to oslo get cheaper in spring?",
+    ],
+)
+def test_route_leaves_prices_and_timetables_to_the_web(ask):
+    """Tickets and flights are the owner's only when the ask says so; these are web asks the loop
+    answered from files (red3 wordings, 2026-11-12). A follow-up must not ride in after them either."""
+    route.note_clean_turn("sess-travel")
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "when is my flight to lisbon",
+        "where are our cinema tickets",
+        "what seat am i in on the flight",
+        "what time does the flight i booked leave",
+        "find my hotel booking for march",
+        "whats on my itinerary for friday",
+    ],
+)
+def test_route_keeps_the_owners_own_tickets_and_flights(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert decision.admit, (ask, decision.reason)
+
+
+def test_route_still_reads_meeting_minutes_as_a_files_ask():
+    assert route.decide("what did the meeting minutes say about the budget?", source_context=OWNER,
+                        resolve_brain=_local_brain, env=ON).admit
 
 
 @pytest.mark.parametrize(
@@ -477,7 +564,7 @@ def test_the_hook_does_nothing_for_a_red_ask(home, monkeypatch):
 def test_the_hook_is_inert_with_the_flag_off(monkeypatch):
     from core.clean_loop import hook
 
-    monkeypatch.delenv(route.FLAG_ENV, raising=False)
+    monkeypatch.setenv(route.FLAG_ENV, "0")
     context = dict(OWNER)
     assert hook.maybe_answer(_Agent(), text="whats on my desktop", effective_input="x", session_id="s",
                              source_context=context) is None
@@ -729,8 +816,8 @@ def cloud_brain(monkeypatch):
     return brain_module
 
 
-def test_the_cloud_brain_is_off_by_default(cloud_brain, monkeypatch):
-    monkeypatch.delenv(cloud_brain.CLOUD_ENV, raising=False)
+def test_the_cloud_brain_is_off_when_explicitly_disabled(cloud_brain, monkeypatch):
+    monkeypatch.setenv(cloud_brain.CLOUD_ENV, "0")
     router = _Router(_Manifest("openrouter:glm", "glm-5.3-flashx", local=False))
     assert cloud_brain.resolve_cloud_manifest(router, {"requested_model": "glm-5.3-flashx", **OWNER}) is None
 
