@@ -6,6 +6,8 @@ import pytest
 from core import conversation_state as cs
 from core import runtime_continuity as rc
 
+_REAL_BLOCKER_CLEARED = cs.blocker_cleared
+
 
 @pytest.fixture(autouse=True)
 def _db(tmp_path, monkeypatch):
@@ -439,3 +441,40 @@ def test_a_bare_yes_never_runs_an_open_request_that_changes_things():
 def test_the_word_number_without_a_pointer_frame_is_not_an_ordinal(message):
     assert cs.resolve("o", message, pending=_printed(), cleared=None).kind == "none"
     assert cs.resolve("o", message, pending=None).kind == "none"
+
+
+# --- the phone's missing-right refusal (request_trust.seal_remote_grant_refusal) -----------------------------------------
+
+def _phone_refusal():
+    from core.request_trust import REMOTE_GRANT_COMPUTER, seal_remote_grant_refusal
+
+    return seal_remote_grant_refusal(
+        {"success": True, "status": "done", "response_text": "This phone can't use tools on your computer yet.", "details": {}},
+        REMOTE_GRANT_COMPUTER,
+    )
+
+
+def test_a_missing_phone_right_is_recorded_as_a_refusal_with_the_right_named():
+    outcome, reason, actionable = cs.outcome_of(_phone_refusal())
+    assert (outcome, reason, actionable) == (cs.REFUSED, "missing_right:computer_tools", True)
+
+
+def test_the_phone_case_is_decided_by_the_right_the_device_holds_now(monkeypatch):
+    import core.request_trust as rt
+
+    monkeypatch.setattr(cs, "blocker_cleared", _REAL_BLOCKER_CLEARED)
+    cs.record_sealed_turn("ph", "list the pics in my downloads", _phone_refusal())
+    sc = {rt.REMOTE_DEVICE_KEY: "dev1"}
+    held = {"v": False}
+    monkeypatch.setattr(rt, "remote_turn_has_grant", lambda ctx, grant: held["v"] and grant == "computer_tools")
+    monkeypatch.setattr(rt, "turn_is_remote", lambda ctx: True)
+    pending = cs.load("ph")
+    assert cs.blocker_cleared(pending, sc) is False
+    held["v"] = True
+    assert cs.blocker_cleared(pending, sc) is True
+    # right granted: the owner's own words "Try again, I fixed permissions" and a bare "ok done" both rerun, no model call
+    for text in ("Try again, I fixed permissions", "ok done", "lol ok"):
+        assert cs.resolve("ph", text, source_context=sc, arbiter=_arb("no")).kind == "retry"
+    # right still missing: a bare reaction does not rerun
+    held["v"] = False
+    assert cs.resolve("ph", "lol ok", source_context=sc, arbiter=_arb("no")).kind == "none"

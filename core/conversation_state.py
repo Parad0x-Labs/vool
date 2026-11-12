@@ -153,6 +153,9 @@ def outcome_of(result: dict[str, Any] | None) -> tuple[str, str, bool]:
     refused = result.get("refused_request") if isinstance(result.get("refused_request"), dict) else {}
     reasons = [str(refused.get("reason") or "").strip().lower(), status, str(details.get("reason") or "").strip().lower(), receipt_status]
     reasons = ["web_off" if r in _WEB_OFF_REASONS else r for r in reasons]
+    missing = str(details.get("missing_right") or "").strip().lower()
+    if missing and status in {"refused", "permission_denied"} | _REFUSED_REASONS:
+        return REFUSED, f"missing_right:{missing}", True  # a paired phone lacks this right (request_trust.seal_remote_grant_refusal)
     if task_outcome == "refused":
         return REFUSED, next((r for r in reasons if r), "refused"), True
     reason = next((r for r in reasons if r in _REFUSED_REASONS), "") or next((r for r in reasons if r), "")
@@ -367,7 +370,7 @@ _INVERTED_QUESTION_RE = re.compile(
 def _read_only(pending: PendingRequest) -> bool:
     """Whether the recorded request only reads. An unknown tool counts as NOT read-only (fail closed), except a request
     the web switch refused: that lookup is a read by definition of the switch (no tool is named on that producer)."""
-    if str(pending.reason or "") == "web_off" and not pending.slots.get("tool"):
+    if (str(pending.reason or "") == "web_off" or str(pending.reason or "").startswith("missing_right:")) and not pending.slots.get("tool"):
         return True
     try:
         from core.capability_graph import capability_for_intent
@@ -394,6 +397,14 @@ def blocker_cleared(pending: PendingRequest, source_context: dict[str, Any] | No
             from core.vool_browser import live
 
             return bool(live.available())
+        if reason.startswith("missing_right:"):
+            if source_context is None:
+                return None
+            from core.request_trust import remote_turn_has_grant, turn_is_remote
+
+            if not turn_is_remote(source_context):
+                return True  # the owner's own session needs no phone right
+            return bool(remote_turn_has_grant(source_context, reason.split(":", 1)[1]))  # same live source the producer checks
         if reason == "owner_local_required":
             if source_context is None:
                 return None
