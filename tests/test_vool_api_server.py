@@ -2765,8 +2765,11 @@ def test_runtime_version_response_detects_and_reports_the_build() -> None:
     assert result["deterministic"] is True
     assert result["runtime_release_version"] == "0.4.0-closed-test"
     assert "0.4.0-closed-test" in result["response"]
-    assert "abc123def456" in result["response"]
-    assert "uncommitted changes" in result["response"]  # dirty flag surfaced
+    assert result["runtime_build_id"] == "0.4.0-closed-test+abc123"
+    # The person reads the version and channel in plain words; the build id and commit stay in the
+    # result fields and response headers (0.7.8 sweep block 3: the hash read as noise).
+    assert result["response"].startswith("You're on VOOL 0.4.0-closed-test (closed-test channel).")
+    assert "abc123def456" not in result["response"]
     assert runtime_version_response("hello there", rt) is None
 
 

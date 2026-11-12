@@ -14,6 +14,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # Folders that are noise for an "explain this project" overview — build output, caches, VCS internals.
 _SKIP_DIRS = {
@@ -95,14 +96,29 @@ def _unbound_guidance(path: str = "") -> str:
     )
 
 
+def _shown(path: Any) -> str:
+    """A folder as the person knows it: its own name, never VOOL's internal storage path (0.7.8 sweep
+    block 3 printed the full internal path of a project folder). Under the home folder it is shown from ~."""
+    from pathlib import Path
+
+    raw = str(path or "").strip()
+    if not raw:
+        return raw
+    candidate = Path(raw).expanduser()
+    try:
+        return "~/" + str(candidate.relative_to(Path.home())) if candidate.is_relative_to(Path.home()) else candidate.name or raw
+    except Exception:
+        return candidate.name or raw
+
+
 def _empty_guidance(path: str, *, project_bound: bool) -> str:
     if project_bound:
         return (
-            f"This project's folder — `{path}` — is empty (no files or subfolders yet). "
+            f"This project's folder — `{_shown(path)}` — is empty (no files or subfolders yet). "
             "Add files there and I'll read them, or give me a path to look at."
         )
     return (
-        f"The workspace folder — `{path}` — is empty. To have me read a real project, open this chat "
+        f"The workspace folder — `{_shown(path)}` — is empty. To have me read a real project, open this chat "
         "inside a project (the **+ Project** button) or give me a path like `read ~/Desktop/my-app`."
     )
 
@@ -141,7 +157,7 @@ def build_folder_overview(workspace_root: str, *, project_bound: bool = False) -
         except OSError:
             continue
 
-    lines: list[str] = [f"Here's what's actually in `{root}`:", ""]
+    lines: list[str] = [f"Here's what's actually in `{_shown(root)}`:", ""]
     if readme_summary:
         lines.extend([readme_summary, ""])
     if stack:
@@ -557,11 +573,11 @@ def build_exact_file_facts(
 
     if facts.count == 0:
         return (
-            f"Counted from the bound workspace `{root}`: no {subject} were found — the count is 0.\n\n{scope}"
+            f"Counted from the bound workspace `{_shown(root)}`: no {subject} were found — the count is 0.\n\n{scope}"
         )
 
     lines = [
-        f"Counted, not estimated, from the bound workspace `{root}`.",
+        f"Counted, not estimated, from the bound workspace `{_shown(root)}`.",
         "",
         f"- {subject.capitalize()} (.{wanted}): {facts.count:,}",
     ]

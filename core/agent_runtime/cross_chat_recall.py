@@ -23,6 +23,7 @@ session reaches here; private chats never search or quote other chats.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import re
@@ -241,6 +242,22 @@ def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
 
 
 
+_DATA_STORE_RE = re.compile(
+    r"\b(?:databases?|databse|datbase|db|tables?|tabels?|spreadsheets?|sheets?|csv|workbook|repo|repository)\b",
+    re.IGNORECASE,
+)
+
+
+def _chat_works_on_a_data_store(source_context: dict[str, Any] | None) -> bool:
+    """Earlier asks in this chat were about a database, table or sheet: a follow-up such as "how many
+    titles do we have in total" counts rows there, not something the person told VOOL (database
+    run 9, 2026-11-12: it got "I don't have that saved" after five library-database turns)."""
+    for item in list((source_context or {}).get("conversation_history") or [])[:-1]:
+        if isinstance(item, dict) and str(item.get("role") or "") == "user" and _DATA_STORE_RE.search(str(item.get("content") or "")):
+            return True
+    return False
+
+
 def _chat_has_owner_statements(source_context: dict[str, Any] | None) -> bool:
     for item in list((source_context or {}).get("conversation_history") or [])[:-1]:
         if isinstance(item, dict) and str(item.get("role") or "") == "user" and _is_statement(str(item.get("content") or "")):
@@ -345,10 +362,8 @@ def _forget_times(tokens: tuple[str, ...]) -> dict[str, str]:
             continue
         finally:
             if memory is not None:
-                try:
+                with contextlib.suppress(Exception):
                     memory.close()
-                except Exception:
-                    pass
     return {token: latest[str(token).casefold()] for token in tokens if str(token).casefold() in latest}
 
 
@@ -475,7 +490,9 @@ def accept_pending_offer(text: str, *, session_id: str) -> str:
 _EXPLICIT_RECALL_RE = re.compile(
     r"^\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?(?:remind\s+me(?!\s+(?:to|in|at|on|tomorrow|tonight|later|every)\b)|"
     r"(?:do|did)\s+(?:you|u)\s+(?:remember|recall|know|have)\b|(?:find|get|look\s+up)\s+my\b|did\s+i\s+(?:tell|mention|give)\b|"
-    r"i\s+(?:saved|stored|kept|noted|wrote\s+down|put)\s+(?:a|an|the|my)\s+[^?.!]{2,60}?\b(?:somewhere|earlier|before)\b)",
+    r"i\s+(?:saved|stored|kept|noted|wrote\s+down|put)\s+(?:a|an|the|my)\s+[^?.!]{2,60}?\b(?:somewhere|earlier|before)\b|"
+    # "what was the wifi password i saved somewhere?", "where's the code i gave you before"
+    r"(?:what|where|which)\b[^?.!]{0,60}?\bi\s+(?:saved|stored|gave\s+you|told\s+you|mentioned)\b[^?.!]{0,30}?\b(?:somewhere|earlier|before|last\s+time)\b)",
     re.IGNORECASE,
 )
 
@@ -545,6 +562,8 @@ def cross_chat_recall(
         return None
     if _owned_by_another_lane(text):
         return None
+    if not explicit_recall and _chat_works_on_a_data_store(source_context):
+        return None
     from core.chat_housekeeping import query_terms, search_chats
 
     terms = tuple(t for t in query_terms(text) if t not in _QUESTION_WORDS)
@@ -605,4 +624,4 @@ def cross_chat_recall(
     return CrossChatRecall(response=response, found=False, chats_searched=result.chats_searched)
 
 
-__all__ = ["CrossChatRecall", "LANE_ID", "accept_pending_offer", "as_question", "cross_chat_recall"]
+__all__ = ["LANE_ID", "CrossChatRecall", "accept_pending_offer", "as_question", "cross_chat_recall"]

@@ -907,6 +907,7 @@
     "run.error_prefix": "Erreur : ",
     "run.failed_safely": "Échec sûr — aucune réponse n'a été produite",
     "run.failed_safely_label": "Échec sûr",
+    "run.no_reply_retry": "Je n’ai pas pu terminer cette réponse. Appuie sur Réessayer ou pose la question autrement.",
     "run.no_response": "(aucune réponse)",
     "run.permission_denied": "Permission refusée",
     "run.report_problem": "Signaler un problème",
@@ -2890,7 +2891,7 @@
     "settings.local_models.mp_open": "Choisir un modèle local",
     "settings.models.local_pick": "Un modèle est présent sur cet ordinateur. Ouvrez-le et appuyez sur Utiliser ce modèle pour commencer."
   },
-  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
+  "source_catalog_sha256": "cefc3f9e621d70d8ddca64716418e73d32e2846b93ddc45e5980a0b8afc588ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4396,6 +4396,22 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
         )
     truncated = len(body) > max_bytes
     text = body[:max_bytes].decode("utf-8", errors="replace")
+    # A web page is read as its words, never its markup: the raw HTML (doctype, meta tags, CSS
+    # links) was shown to the person as the page's content and fed to models as tokens (0.7.8 sweep
+    # block 2c, FR-WEB-URL-01: "summarize https://www.iana.org/help/example-domains" printed
+    # `<!doctype html> <html> <head> ...`). Other content types pass through unchanged.
+    page_title = ""
+    if "html" in content_type.lower() or text.lstrip()[:15].lower().startswith(("<!doctype html", "<html")):
+        from html import unescape as _unescape_html
+
+        from core.demo_source import _html_to_text
+
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", text)
+        if title_match:
+            page_title = " ".join(_unescape_html(title_match.group(1)).split())
+        text = _html_to_text(text)
+        if page_title and not text.startswith(page_title):
+            text = f"{page_title}\n\n{text}"
     return RuntimeExecutionResult(
         handled=True,
         ok=True,

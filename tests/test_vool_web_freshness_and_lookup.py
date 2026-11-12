@@ -235,9 +235,9 @@ def test_explicit_remote_fetch_false_uses_local_memory_on_trusted_surface(make_a
 def test_live_info_without_web_fallback_returns_deterministic_disabled_response(make_agent, context_result_factory):
     """With the web fallback disabled, a live price ask never delivers unverified numbers.
 
-    The old deterministic pre-model refusal moved to the output truth guard: the model may run,
-    but a value-asserting answer about a current price this turn never observed is replaced by
-    the honest no-reading refusal, so no stale figure reaches the user."""
+    The turn needs current facts and cannot look them up, so it says Web lookups are off and where
+    to turn them on, before any model call (0.7.8 sweep block 2c: the model ran and its withdrawn
+    answer read "not mentioned in the records", a wrong reason for a switched-off lookup)."""
     agent = make_agent()
     agent.context_loader.load = mock.Mock(return_value=context_result_factory())  # type: ignore[assignment]
     agent.memory_router.resolve = mock.Mock(  # type: ignore[assignment]
@@ -263,8 +263,11 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
 
     response = result["response"].lower()
     assert "67,432.18" not in response and "coingecko" not in response, result["response"]
-    assert "didn't run any live lookup" in response, result["response"]
-    assert "not going to state them" in response, result["response"]
+    # Owner decision (2026-11-12): with Web lookups off, a current-information ask is told so, in
+    # plain words, before any model call -- the model's answer from memory is never written.
+    assert response.startswith("web lookups are off"), result["response"]
+    assert "settings > privacy & permissions > web lookups" in response, result["response"]
+    assert not agent.memory_router.resolve.called
     for marker in FORBIDDEN_CHAT_WRAPPERS:
         assert marker not in response
 

@@ -1009,7 +1009,9 @@ def execute_grounded_turn(
             task_id=task.task_id,
             session_id=session_id,
             user_input=effective_input,
-            response=unavailable_current_answer(effective_input, current_evidence.outcome),
+            response=unavailable_current_answer(
+                effective_input, current_evidence.outcome, reason=current_evidence.reason
+            ),
             confidence=0.3,
             source_context=source_context,
             reason=f"current_evidence_{current_evidence.outcome}",

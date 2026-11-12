@@ -173,7 +173,7 @@ def test_the_lane_calls_web_fetch_and_returns_the_tool_s_own_text(monkeypatch) -
 @pytest.mark.parametrize(
     "status,expected",
     [
-        ("disabled_by_policy", "policy setting"),
+        ("disabled_by_policy", "web lookups are off"),
         ("captcha", "bot check"),
         ("login_wall", "behind a login"),
     ],

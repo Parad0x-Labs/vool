@@ -641,8 +641,14 @@ def _looks_like_runtime_version_question(text: str) -> bool:
         # The user named an OS, so they are asking about the OS -- unless they named this product
         # too ("which VOOL build am I running on Windows?"), where the build really is the subject.
         return False
-    has_version_term = any(term in clean for term in ("version", "which build", "what build", "release version", "build number"))
-    has_subject = any(term in clean for term in ("vool", "you", "your", "running", "installed", "this build", "this version"))
+    words = set(re.findall(r"[a-z']+", clean))
+    has_version_term = any(term in clean for term in ("version", "which build", "what build", "release version", "build number")) or (
+        "vool" in words and "build" in words
+    )
+    # Chat shorthand for "you" ("what version r u", "ur version?") is the same subject.
+    has_subject = any(term in clean for term in ("vool", "you", "your", "running", "installed", "this build", "this version")) or bool(
+        words & {"u", "ur"}
+    )
     # Live incident, 2026-08-06, session openclaw:2fd81093adaf0eb4d1d1: a 150-word correctness-audit
     # brief was answered with the build stamp instead of ever reaching the agent, because "historical
     # Git versions" supplied `version` and "you may run safe read-only commands" supplied `you` -- two
@@ -655,23 +661,64 @@ def _looks_like_runtime_version_question(text: str) -> bool:
     return has_version_term and has_subject and looks_like_a_short_question
 
 
+_UPDATE_QUESTION_RE = re.compile(
+    r"\b(?:(?:am\s+i|are\s+(?:you|we)|is\s+(?:this|vool|it))\s+(?:on|running|using)?\s*(?:the\s+)?(?:latest|newest|most\s+recent)"
+    r"|up\s*to\s*date|is\s+there\s+(?:an?\s+)?(?:new\s+)?(?:update|upgrade|newer\s+version)|any\s+updates?\b"
+    r"|(?:new|newer)\s+(?:version|release|build)(?:\s+of\s+(?:vool|you|u|this\s+app))?\s+(?:out|available|released))",
+    re.IGNORECASE,
+)
+
+
+def _update_status_sentence(release: str) -> str:
+    """What the updater itself knows, in plain words; never a guess (0.7.8 sweep block 3: "is there an
+    update?" was answered "No" by a model while update checks were off)."""
+    try:
+        from core.updater.runtime import get_update_subsystem
+
+        subsystem = get_update_subsystem()
+        status = dict(subsystem.status_payload() or {}) if subsystem is not None else {}
+    except Exception:
+        status = {}
+    if not status or not status.get("configured") or not status.get("online_access"):
+        return ("Update checks are off on this computer, so I can't tell whether a newer version exists. "
+                "You can turn them on in Settings under Updates.")
+    target = str(status.get("target_version") or "").strip()
+    if target and target != release:
+        return f"Version {target} is available. You can install it from Settings under Updates."
+    return "No newer version has been found. Settings under Updates can check again now."
+
+
+_UPDATE_SUBJECT_RE = re.compile(r"\b(?:vool|you|u|ur|app|version|software|build|release)\b", re.IGNORECASE)
+
+
+def _asks_about_vool_updates(text: str) -> bool:
+    """An update question about VOOL itself. "any updates on my order?" or "is my passport up to
+    date?" are someone else's updates: they need VOOL as the subject, or a bare short ask
+    ("is there an update?")."""
+    compact = " ".join(str(text or "").split())
+    if not _UPDATE_QUESTION_RE.search(compact):
+        return False
+    return bool(_UPDATE_SUBJECT_RE.search(compact)) or len(re.findall(r"[\w']+", compact)) <= 4
+
+
 def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, Any] | None:
     """Deterministic answer to 'what version are you running' -- reports the exact VOOL build
     the API headers report, so version-correlated issues can be debugged from what the user sees."""
-    if not _looks_like_runtime_version_question(text):
+    asks_update = _asks_about_vool_updates(text)
+    if not asks_update and not _looks_like_runtime_version_question(text):
         return None
     stamp = dict(runtime.runtime_version_stamp or {})
     release = str(stamp.get("release_version") or "unknown")
     build = str(stamp.get("build_id") or "unknown")
-    commit = str(stamp.get("commit") or "")
     channel = str(stamp.get("channel_name") or "")
-    lines = [f"- VOOL release: `{release}`" + (f" (channel `{channel}`)" if channel else "")]
-    lines.append(f"- Build: `{build}`" + (" (uncommitted changes)" if bool(stamp.get("dirty")) else ""))
-    if commit:
-        lines.append(f"- Commit: `{commit}`")
+    # Plain words for the person: the version and channel. The build id and commit stay in the
+    # response headers and diagnostics (0.7.8 sweep block 3: the hash read as noise).
+    lines = [f"You're on VOOL {release}" + (f" ({channel} channel)." if channel else ".")]
+    if asks_update:
+        lines.append(_update_status_sentence(release))
     model = str(runtime.runtime_model_tag or "").strip()
-    if model:
-        lines.append(f"- Local model: `{model}`")
+    if model and not asks_update:
+        lines.append(f"Answers on this computer come from the local model {model}.")
     return {
         "response": "\n".join(lines),
         "confidence": 1.0,
@@ -1718,6 +1765,16 @@ def _dispatch_get(
                             **(artifact_meta if isinstance(artifact_meta, dict) else {}),
                         }
                     messages.append(assistant_message)
+        # A turn cut off by VOOL stopping (a restart mid-reply) left nothing in the transcript: the
+        # exchange is written only when its reply finalizes, so the chat reopened empty and the
+        # question was lost (0.7.8 sweep block 3, INTERRUPT-01). The runtime's interrupted-turn
+        # record supplies the question, marked `interrupted` so the page shows it with Ask again
+        # and never sends it to a model as context. Only when the cut-off turn is the chat's last:
+        # a turn finished after it means the person already moved on.
+        if session_id and not str((query.get("event_kind") or [""])[0]):
+            interrupted_row = _interrupted_question_row(session_id, messages)
+            if interrupted_row is not None:
+                messages.append(interrupted_row)
         # Private chat (core.private_chat): the page shows the ghost while the chat is private.
         # Present only when it is, so an ordinary chat's history is byte-identical.
         history_payload: dict[str, Any] = {"session_id": session_id, "messages": messages}
@@ -8960,3 +9017,43 @@ def _dispatch_post_inner(
         return apply_runtime_headers(json_response(200, resp_payload), runtime)
 
     return apply_runtime_headers(json_response(404, {"error": "not found"}), runtime)
+
+
+def _interrupted_question_row(session_id: str, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
+    try:
+        from core.memory.revocation import authorize_payload
+        from core.runtime_continuity import interrupted_chat_requests
+
+        info = interrupted_chat_requests().get(session_id) or {}
+    except Exception:
+        return None
+    asked = " ".join(str(info.get("request_preview") or "").split())
+    if not asked:
+        return None
+    cut_at = _parse_iso(str(info.get("updated_at") or ""))
+    last_ts = next((m.get("ts") for m in reversed(messages) if m.get("ts")), None)
+    finished_at = _parse_iso(str(last_ts or ""))
+    if finished_at is not None and (cut_at is None or finished_at >= cut_at):
+        return None
+    last_user = next((m.get("content") for m in reversed(messages) if m.get("role") == "user"), "")
+    if " ".join(str(last_user or "").split()) == asked:
+        return None
+    try:
+        if not authorize_payload(asked, chat_id=session_id):
+            return None
+    except Exception:
+        return None
+    return {"role": "user", "content": asked, "interrupted": True}
+
+
+def _parse_iso(value: str):
+    from datetime import datetime, timezone
+
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)

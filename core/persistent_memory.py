@@ -902,7 +902,8 @@ def _memory_recall_response(
         # share nothing with it but "test" (battery v8, 2026-11-11). Typed slot questions ("the
         # current exact identifier") are matched by their slot above, not here. With no such row
         # this lane has nothing to say, and the turn goes on to the cross-chat lane and the conversation.
-        from core.chat_housekeeping import _doc_stems, _term_in, query_terms as _terms
+        from core.chat_housekeeping import _doc_stems, _term_in
+        from core.chat_housekeeping import query_terms as _terms
 
         asked = [term for term in _terms(query) if term not in _RECALL_FRAME_TERMS]
         if asked:

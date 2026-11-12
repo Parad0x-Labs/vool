@@ -2928,6 +2928,8 @@ class VoolAgent(
         if not browser_turn:
             from core.agent_runtime.cross_chat_recall import (
                 LANE_ID as _CROSS_CHAT_LANE,
+            )
+            from core.agent_runtime.cross_chat_recall import (
                 accept_pending_offer,
                 cross_chat_recall,
             )

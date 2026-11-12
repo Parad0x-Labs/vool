@@ -310,6 +310,19 @@ def prefetch_current_evidence(
         return PrefetchResult(reason="local_answer_no_research")
     if not current_required:
         return PrefetchResult(reason="not_current_information")
+    try:
+        from core.remote_fetch_policy import effective_web_available
+
+        web_on = effective_web_available(source_context)
+    except Exception:
+        web_on = True
+    if not web_on:
+        # The turn needs current facts and Web lookups are off: say so, before any model call. The
+        # model answered from memory and the claim check withdrew it as "That is not mentioned in the
+        # records I have from our conversations" -- a wrong reason for a switched-off lookup (0.7.8
+        # sweep block 2c: "look up the latest news about the olympics", "how cold is it in oslo
+        # right now", "what does the bbc homepage say right now").
+        return PrefetchResult(ran=True, reason=WEB_LOOKUPS_OFF, outcome=OUTCOME_REFUSED)
 
     context = source_context if isinstance(source_context, dict) else {}
     receipts_before = len(context.get("web_retrieval_receipts") or []) if isinstance(context, dict) else 0
@@ -391,13 +404,24 @@ def prefetch_current_evidence(
     )
 
 
-def unavailable_current_answer(effective_input: str, outcome: str) -> str:
+#: `PrefetchResult.reason` when the turn needed current facts and Web lookups are switched off.
+WEB_LOOKUPS_OFF = "web_lookups_off"
+
+WEB_LOOKUPS_OFF_ANSWER = (
+    "Web lookups are off, so I can't check current information for that. "
+    "Turn them on in Settings > Privacy & Permissions > Web lookups."
+)
+
+
+def unavailable_current_answer(effective_input: str, outcome: str, *, reason: str = "") -> str:
     """What a person is told when the turn could not get the current facts it needed.
 
     Names the actual boundary. A refusal is a permission fact and sends nobody to fix a
     working key; a failure is a transport fact. Neither is dressed as an answer, and
     neither invites the model to fill the gap from its weights.
     """
+    if reason == WEB_LOOKUPS_OFF:
+        return WEB_LOOKUPS_OFF_ANSWER
     subject = " ".join(str(effective_input or "").split()).strip()
     tail = f' for "{subject[:160]}"' if subject else ""
     if outcome == OUTCOME_REFUSED:
@@ -426,6 +450,8 @@ __all__ = [
     "OUTCOME_FAILED",
     "OUTCOME_PARTIAL",
     "OUTCOME_REFUSED",
+    "WEB_LOOKUPS_OFF",
+    "WEB_LOOKUPS_OFF_ANSWER",
     "PrefetchResult",
     "build_model_input",
     "evidence_manifest",

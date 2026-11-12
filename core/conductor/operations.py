@@ -651,9 +651,7 @@ def _workspace_source_inquiry(request_text: str) -> bool:
     # mentions the boiler service?") is not a code inquiry: this source-scoped investigation drops
     # every .txt/.md/.csv by design, so it found 0 files and the turn said it could not read files
     # (0.7.8 sweep block 3, 2026-11-12). Those turns go to the ordinary file tools instead.
-    if words & _PERSONAL_DOCUMENT_CUES and not words & _CODE_ONLY_CUES:
-        return False
-    return True
+    return not (words & _PERSONAL_DOCUMENT_CUES and not words & _CODE_ONLY_CUES)
 
 
 def _workspace_capability_accepts(clause: TurnClause) -> bool:

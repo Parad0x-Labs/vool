@@ -31,7 +31,7 @@ _DOC_ASK_RE = re.compile(
 _STOP = {
     "read", "open", "show", "display", "me", "my", "the", "our", "file", "files", "list", "note", "notes", "doc", "docs",
     "document", "documents", "which", "of", "mentions", "mention", "talks", "about", "has", "have", "contains", "contain",
-    "says", "say", "where", "did", "i", "write", "wrote", "down", "note", "noted", "put", "save", "saved", "jot", "jotted",
+    "says", "say", "where", "did", "i", "write", "wrote", "down", "noted", "put", "save", "saved", "jot", "jotted",
     "what", "what's", "whats", "is", "are", "on", "in", "find", "search", "for", "a", "an", "and", "to", "it", "please",
     "pls", "can", "you", "u", "that", "this", "there", "plan", "budget",
 }

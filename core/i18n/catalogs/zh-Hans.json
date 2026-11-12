@@ -907,6 +907,7 @@
     "run.error_prefix": "错误: ",
     "run.failed_safely": "安全失败 — 未产生任何回答",
     "run.failed_safely_label": "安全失败",
+    "run.no_reply_retry": "我没能写完这条回复。请点“重试”，或换一种问法。",
     "run.no_response": "(无响应)",
     "run.permission_denied": "权限被拒绝",
     "run.report_problem": "报告问题",
@@ -2890,7 +2891,7 @@
     "settings.local_models.mp_open": "选择本地模型",
     "settings.models.local_pick": "这台电脑上有一个模型。打开它并点“使用此模型”即可开始。"
   },
-  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
+  "source_catalog_sha256": "cefc3f9e621d70d8ddca64716418e73d32e2846b93ddc45e5980a0b8afc588ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

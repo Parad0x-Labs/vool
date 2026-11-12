@@ -840,9 +840,9 @@ def handle_schedule_reminder(
     schedule_reminder_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    from core.operator.when import normalize_time_words
-
     import dataclasses as _dc
+
+    from core.operator.when import normalize_time_words
 
     if _dc.is_dataclass(intent):
         intent = _dc.replace(intent, raw_text=normalize_time_words(intent.raw_text))

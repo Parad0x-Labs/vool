@@ -140,7 +140,7 @@ def test_memory_qa_turn_drops_bootstrap_that_does_not_bear_on_the_question(monke
     assert "Agent identity" in delivered
     assert "Operating mode" in delivered  # main's name for the safety item's execution line
     assert "Conversation policy" in delivered
-    assert "Task class: chat_conversation" in delivered
+    assert "Request type: chat_conversation" in delivered
     assert len(delivered) < len(full)
 
 

@@ -907,6 +907,7 @@
     "run.error_prefix": "خطأ: ",
     "run.failed_safely": "فشل بأمان — لم تُنتج أي إجابة",
     "run.failed_safely_label": "فشل بأمان",
+    "run.no_reply_retry": "لم أتمكن من إكمال هذا الرد. اضغط «حاول مرة أخرى» أو اطرح السؤال بطريقة أخرى.",
     "run.no_response": "(لا استجابة)",
     "run.permission_denied": "تم رفض الإذن",
     "run.report_problem": "الإبلاغ عن مشكلة",
@@ -2890,7 +2891,7 @@
     "settings.local_models.mp_open": "اختر نموذجًا محليًا",
     "settings.models.local_pick": "يوجد نموذج على هذا الحاسوب. افتحه واضغط «استخدم هذا النموذج» للبدء."
   },
-  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
+  "source_catalog_sha256": "cefc3f9e621d70d8ddca64716418e73d32e2846b93ddc45e5980a0b8afc588ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

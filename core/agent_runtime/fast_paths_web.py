@@ -79,6 +79,17 @@ _DOWNLOAD_MARKERS = (
 
 _MAX_TEXT_CHARS = 20_000
 
+# Asks for the page DIGESTED rather than read out: a summary, the gist, an explanation. The fetched
+# page is then the evidence a model writes the answer from; printing the page itself was not an
+# answer (0.7.8 sweep block 2c, FR-WEB-URL-01 p1/p3).
+_DIGEST_RE = re.compile(
+    r"\b(?:summar(?:y|ise|ize|ising|izing)|sum\s+(?:it|this|that)\s+up|gist|tl;?\s*dr|explain(?:s|ed)?|"
+    r"main\s+(?:points?|idea)|key\s+(?:points?|takeaways?)|takeaways?|overview|in\s+(?:one|a\s+few|two|three|\d+)\s+"
+    r"(?:lines?|sentences?|words|bullets?)|what(?:'s|\s+is)\s+(?:it|this|that|the\s+page)\s+about|briefly|in\s+short)\b",
+    re.IGNORECASE,
+)
+_DIGEST_PAGE_CHARS = 12_000
+
 
 # Regions whose contents the user is DISPLAYING -- a pasted log line, a code comment, a JSON
 # payload, a quoted sentence. Anything inside one is data under discussion, never a destination for
@@ -190,18 +201,41 @@ def _render(execution: Any, *, url: str) -> str:
 
 def _failure_text(status: str, *, reason: str, url: str) -> str:
     """Each barrier keeps its own words, for the same reason the PDF statuses do."""
-    if status == "disabled_by_policy":
+    shown = url.split("://", 1)[-1].rstrip("/")
+    if status in {"disabled_by_policy", "unsupported", "unavailable"} or "web lookups are off" in reason.lower():
+        # The same plain sentence every web-off reply uses, and the address without code marks (0.7.8
+        # sweep block 2c, WEB-READ-01 p2: "I could not fetch example.org`: Web fetch is disabled by
+        # runtime web policy..").
+        try:
+            from core.policy_engine import allow_web_fallback
+
+            switch_on = bool(allow_web_fallback())
+        except Exception:
+            switch_on = False
+        if switch_on:
+            # The switch is on and the fetch was still refused: this chat or this computer is kept
+            # local (Offline chat, Local Only). Sending the person to a switch that is already on
+            # would be wrong advice.
+            return (
+                f"This chat is kept on this computer, so I didn't open {shown}. "
+                "Switch the chat out of Offline (or turn off Local Only) to read web pages."
+            )
         return (
-            f"Web access is switched off on this runtime, so I did not open `{url}`. "
-            f"That is a policy setting, not a problem with the page."
+            f"Web lookups are off, so I didn't open {shown}. "
+            "Turn them on in Settings > Privacy & Permissions > Web lookups."
         )
     if status == "captcha":
-        return f"`{url}` served a bot check rather than the page, so there is nothing I can read there."
+        return f"{shown} served a bot check rather than the page, so there is nothing I can read there."
     if status == "login_wall":
-        return f"`{url}` is behind a login, so the page never loaded for me."
+        return f"{shown} is behind a login, so the page never loaded for me."
     if status == "missing_dependency":
-        return f"I cannot fetch web pages on this runtime: {reason or status}."
-    return f"I could not fetch `{url}`: {reason or status}."
+        return f"I can't open web pages on this computer right now: {str(reason or status).rstrip('.')}."
+    cause = " ".join(str(reason or status).split()).rstrip(".")
+    # The tool's own sentence names the address in code marks ("Web fetch for `X` failed: ..."); the
+    # reply already names it, so only the cause is kept.
+    cause = re.sub(r"^Web fetch (?:for|did not open)\s+`[^`]*`\s*(?:failed\s*)?:?\s*", "", cause).replace("`", "")
+    cause = re.sub(r"^with\s+", "", cause) or status
+    return f"I couldn't open {shown}: {cause}."
 
 
 def maybe_handle_url_read(
@@ -210,6 +244,7 @@ def maybe_handle_url_read(
     *,
     session_id: str,
     source_context: dict[str, Any] | None,
+    interpretation: Any = None,
 ) -> dict[str, Any] | None:
     """Fetch the URL the message names. None when it names none, so dispatch continues as today."""
     from core.vool_browser.live_chat import refuse_if_off
@@ -279,6 +314,13 @@ def maybe_handle_url_read(
                 grounding_lifecycle.record_typed_observations(source_context, entries=[row])
         except Exception:
             pass
+    if ok and _DIGEST_RE.search(user_input):
+        digest = _digest_from_page(
+            agent, user_input, url=url, execution=execution, rendered=body,
+            session_id=session_id, source_context=source_context, interpretation=interpretation,
+        )
+        if digest is not None:
+            return digest
     return _machine_tool_fast_path_result(
         agent,
         user_input=user_input,
@@ -289,6 +331,61 @@ def maybe_handle_url_read(
         reason="web_fetch_fast_path" if ok else "web_fetch_fast_path_failed",
         response_text=body,
     )
+
+
+def _digest_from_page(
+    agent: Any,
+    user_input: str,
+    *,
+    url: str,
+    execution: Any,
+    rendered: str,
+    session_id: str,
+    source_context: dict[str, Any] | None,
+    interpretation: Any,
+) -> dict[str, Any] | None:
+    """The answer to "summarize / explain / give the gist of <url>": a model writes it from the page
+    this turn fetched, under the strict live-evidence frame (answer only from the page). If no model
+    answers, the page text itself is shown, said plainly, never markup."""
+    from urllib.parse import urlparse
+
+    details = dict(getattr(execution, "details", {}) or {})
+    page_text = str(details.get("text") or "").strip()
+    final_url = str(details.get("final_url") or url).strip()
+    if not page_text or interpretation is None:
+        return None
+    note = {
+        "summary": page_text[:_DIGEST_PAGE_CHARS],
+        "result_url": final_url,
+        "result_title": page_text.splitlines()[0][:120],
+        "origin_domain": urlparse(final_url).netloc,
+        "source_type": "tool_receipt",
+    }
+    try:
+        from core.agent_runtime.current_evidence_prefetch import _bind_existing_notes
+        from core.identity_manager import load_active_persona
+
+        _bind_existing_notes([note], task=None, effective_input=user_input, source_context=source_context)
+        return agent._chat_surface_model_wording_result(
+            session_id=session_id,
+            user_input=user_input,
+            source_context=source_context,
+            persona=load_active_persona(agent.persona_id),
+            interpretation=interpretation,
+            task_class="research",
+            response_class=agent.ResponseClass.UTILITY_ANSWER,
+            reason="web_fetch_digest",
+            model_input=agent._chat_surface_live_info_model_input(
+                user_input=user_input, query=final_url, mode="fresh_lookup", notes=[note],
+            ),
+            fallback_response=(
+                f"I opened {urlparse(final_url).netloc or final_url} but couldn't write the summary this time. "
+                f"Here is the page text:\n\n{page_text[:4000]}"
+            ),
+            tool_backing_sources=["web_lookup"],
+        )
+    except Exception:
+        return None
 
 
 __all__ = ["maybe_handle_url_read", "url_read_request"]

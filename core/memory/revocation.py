@@ -578,7 +578,7 @@ def generation(chat_id=None, runtime_home=None) -> str:
 
 
 #: One reader check's view of the revocations, per (chat, home). Set only by `one_check_snapshot`.
-_SNAPSHOT: "contextvars.ContextVar[dict | None]" = contextvars.ContextVar("vool_revocation_snapshot", default=None)
+_SNAPSHOT: contextvars.ContextVar[dict | None] = contextvars.ContextVar("vool_revocation_snapshot", default=None)
 
 
 @contextlib.contextmanager
@@ -600,10 +600,8 @@ def one_check_snapshot():
         for key, value in cache.items():
             if isinstance(key, tuple) and key and key[0] == "__stores__":
                 for memory in value:
-                    try:
+                    with contextlib.suppress(Exception):
                         memory.close()
-                    except Exception:
-                        pass
 
 
 def revoked_tokens(chat_id=None, runtime_home=None, *, owner_memory=None) -> tuple[str, ...]:

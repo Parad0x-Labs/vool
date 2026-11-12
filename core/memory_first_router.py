@@ -285,25 +285,54 @@ def _cached_free_vram_gb() -> float | None:
     return _FREE_VRAM_GB_CACHE
 
 
-_INSTALLED_CACHE: tuple[float, frozenset[str]] | None = None
+_INSTALLED_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
 
 
-def _installed_local_model_names_cached() -> frozenset[str]:
-    """Installed Ollama model names, read at most every 30 s; empty when unknown."""
-    global _INSTALLED_CACHE
+def _installed_model_names_at(base_url: str) -> frozenset[str]:
+    """Model names the Ollama server at `base_url` reports installed, read at most every 30 s per
+    server; empty when unknown (no answer, not an Ollama server)."""
     import time as _time
 
+    key = str(base_url or "").strip().rstrip("/")
+    if not key:
+        return frozenset()
     now = _time.monotonic()
-    if _INSTALLED_CACHE is not None and now - _INSTALLED_CACHE[0] < 30.0:
-        return _INSTALLED_CACHE[1]
+    cached = _INSTALLED_CACHE.get(key)
+    if cached is not None and now - cached[0] < 30.0:
+        return cached[1]
     try:
         from core.local_ollama_inventory import installed_ollama_model_names
 
-        names = frozenset(str(n).strip().lower() for n in installed_ollama_model_names(timeout_seconds=1.0) if str(n).strip())
+        names = frozenset(
+            str(n).strip().lower() for n in installed_ollama_model_names(base_url=key, timeout_seconds=1.0) if str(n).strip()
+        )
     except Exception:
         names = frozenset()
-    _INSTALLED_CACHE = (now, names)
+    _INSTALLED_CACHE[key] = (now, names)
     return names
+
+
+def _not_installed_local(manifest: Any) -> bool:
+    """A local manifest whose own server answers with an inventory that lacks its model.
+
+    Each manifest is checked against ITS server: a provider on another port (a test stub, a second
+    runtime) is never judged by this machine's Ollama list. Unknown inventory is never "missing".
+    """
+    try:
+        from core.local_model_policy import manifest_is_local
+
+        if not manifest_is_local(manifest):
+            return False
+        base_url = str(dict(getattr(manifest, "runtime_config", None) or {}).get("base_url") or "").strip()
+        if base_url.endswith("/v1"):
+            base_url = base_url[: -len("/v1")]
+        installed = _installed_model_names_at(base_url)
+    except Exception:
+        return False
+    if not installed:
+        return False
+    name = str(getattr(manifest, "model_name", "") or "").strip().lower()
+    return bool(name) and name not in installed and f"{name}:latest" not in installed and name.removesuffix(":latest") not in installed
 
 
 def _local_model_free_memory_gb() -> float | None:
@@ -885,6 +914,9 @@ def _mint_routing_plan_for_turn(
             context_identity=f"turnctx-{turn_id}",
             context_reason="canonical_session_transcript",
             applied_rule_ids=applied_rule_ids,
+            not_installed_provider_ids=frozenset(
+                str(m.provider_id) for m in list(manifests or ()) if _not_installed_local(m)
+            ),
         )
     except _turn_routing.RoutingIdentityError:
         return None
@@ -6038,16 +6070,11 @@ class MemoryFirstRouter:
         # plan's selected model. Measured on the 0.7.8 sweep (block 2): every plan named an
         # uninstalled qwen3.5:9b while qwen3:8b wrote every answer. Unknown inventory changes
         # nothing, and at least one local candidate is always kept.
-        _installed = _installed_local_model_names_cached()
-        if _installed:
-            from core.local_model_policy import manifest_is_local as _is_local
+        from core.local_model_policy import manifest_is_local as _is_local
 
-            _kept = [
-                m for m in ranked_manifests
-                if not _is_local(m) or str(m.model_name or "").strip().lower() in _installed
-            ]
-            if any(_is_local(m) for m in _kept):
-                ranked_manifests = _kept
+        _kept = [m for m in ranked_manifests if not _not_installed_local(m)]
+        if any(_is_local(m) for m in _kept):
+            ranked_manifests = _kept
         capability_truth = hydrate_capability_truth_with_benchmarks(
             tuple(provider_capability_truth_for_manifest(entry) for entry in ranked_manifests)
         )

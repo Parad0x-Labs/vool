@@ -306,8 +306,8 @@ def test_remind_me_my_fact_is_not_a_reminder_to_schedule():
 
 
 def test_a_cut_off_first_reply_keeps_its_question_as_the_chat_title(monkeypatch):
-    from core.memory import entries
     import core.runtime_continuity as continuity
+    from core.memory import entries
 
     monkeypatch.setattr(continuity, "interrupted_chat_requests", lambda: {
         "chat-cut": {"request_preview": "Write an essay about Trakai Castle.", "updated_at": "2026-11-11T01:00:00+00:00"},
@@ -1088,3 +1088,338 @@ def test_real_asks_stay_demands(text):
     from core.finalization import _is_a_demand
 
     assert _is_a_demand(text)
+
+
+# --- Sweep block 3 (b): version and update questions in plain words ------------------------------
+
+def _version_runtime():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        runtime_version_stamp={"release_version": "0.7.8", "build_id": "0.7.8+9f3e21", "commit": "9f3e21aa77",
+                               "channel_name": "stable"},
+        runtime_model_tag="qwen3:8b",
+    )
+
+
+class _Updater:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def status_payload(self):
+        return dict(self.payload)
+
+
+@pytest.mark.parametrize("asked", ["what version r u", "ur version?", "which vool build is this"])
+def test_version_asks_in_chat_shorthand_get_the_version_without_the_hash(asked):
+    from core.web.api.service import runtime_version_response
+
+    result = runtime_version_response(asked, _version_runtime())
+    assert result is not None
+    assert result["response"].startswith("You're on VOOL 0.7.8 (stable channel).")
+    assert "9f3e21" not in result["response"]
+
+
+@pytest.mark.parametrize("asked", ["is there an update?", "r u up to date", "is a newer version of vool out"])
+def test_update_asks_say_what_the_updater_knows(monkeypatch, asked):
+    import core.updater.runtime as updater
+    from core.web.api.service import runtime_version_response
+
+    monkeypatch.setattr(updater, "get_update_subsystem", lambda: _Updater({"configured": True, "online_access": False}))
+    off = runtime_version_response(asked, _version_runtime())["response"]
+    assert "Update checks are off on this computer, so I can't tell whether a newer version exists." in off
+    assert "up to date" not in off.replace("r u up to date", "")
+
+    monkeypatch.setattr(updater, "get_update_subsystem",
+                        lambda: _Updater({"configured": True, "online_access": True, "target_version": "0.7.9"}))
+    assert "Version 0.7.9 is available." in runtime_version_response(asked, _version_runtime())["response"]
+
+    monkeypatch.setattr(updater, "get_update_subsystem",
+                        lambda: _Updater({"configured": True, "online_access": True, "target_version": ""}))
+    assert "No newer version has been found." in runtime_version_response(asked, _version_runtime())["response"]
+
+
+@pytest.mark.parametrize("asked", ["any updates on my order?", "is my passport up to date",
+                                   "is there an update on the bakery delivery", "what is the latest version of python",
+                                   "can u build me a list"])
+def test_other_peoples_updates_and_versions_are_not_answered_with_vools(asked):
+    from core.web.api.service import runtime_version_response
+
+    assert runtime_version_response(asked, _version_runtime()) is None
+
+
+# --- Sweep block 3 (c): a folder is named the way the person knows it --------------------------------
+
+def test_a_project_folder_is_shown_by_its_name_not_vools_storage_path(tmp_path):
+    from core.folder_overview import build_folder_overview
+
+    root = tmp_path / "vool-data" / "projects" / "Garden"
+    root.mkdir(parents=True)
+    (root / "seeds.md").write_text("tomatoes, basil\n", encoding="utf-8")
+    text = build_folder_overview(str(root), project_bound=True)
+    assert "`Garden`" in text
+    assert str(tmp_path) not in text
+
+
+def test_an_empty_folder_under_home_is_shown_from_home(tmp_path, monkeypatch):
+    from core.folder_overview import _empty_guidance
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    folder = tmp_path / "Documents" / "trip"
+    folder.mkdir(parents=True)
+    text = _empty_guidance(str(folder), project_bound=True)
+    assert "`~/Documents/trip`" in text and str(tmp_path) not in text
+
+
+# --- Sweep block 3 (d): no setting names in the calendar reply --------------------------------------
+
+@pytest.mark.parametrize("tool", ["check_availability", "list_calendars", "inspect_calendar_event"])
+def test_no_calendar_reasons_name_the_settings_page_not_variables(tool):
+    from core.operator.registry import _operator_capability_unavailable_reason
+
+    reason = _operator_capability_unavailable_reason(tool)
+    assert "Settings under Calendars" in reason
+    assert "VOOL_" not in reason and "runtime" not in reason
+
+
+# A stated address is not a mailbox read (found by the hive transcript-paste suite: "my email is
+# x@y" in a pasted chat got the no-mailbox reply instead of the hive lane).
+@pytest.mark.parametrize("text", ["my email is researcher@example.test and here is the backstory",
+                                  "fyi my email is now ada@mail.lt", "my email: bo@x.io",
+                                  "our email address is team@shop.example"])
+def test_stating_an_email_address_is_not_a_mailbox_read(text):
+    from core.agent_runtime.agent import _no_mailbox_reply
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents(text) == ()
+    assert _no_mailbox_reply(text) is None
+
+
+@pytest.mark.parametrize("text", ["is my email from ada@x.io here yet?", "did my email to ben@x.io bounce",
+                                  "read my latest email"])
+def test_mail_asks_that_mention_an_address_still_read_mail(text):
+    from core.tool_demand_signals import mailbox_retrieval_intents
+
+    assert mailbox_retrieval_intents(text) == ("email.read",)
+
+
+# Database run 9: after five library-database turns, "how many titles do we have in total" got
+# "I don't have that saved" from the recall lane.
+@pytest.mark.parametrize("asked", ["how many titles do we have in total", "which member joined most recently?",
+                                   "what's the oldest one?"])
+def test_a_follow_up_in_a_database_chat_is_the_chats_not_a_recall(monkeypatch, asked):
+    import core.agent_runtime.cross_chat_recall as recall
+
+    monkeypatch.setattr(recall, "_owner_local", lambda _ctx: True)
+    monkeypatch.setattr(recall, "_private", lambda *_a: False)
+    monkeypatch.setattr(recall, "_short_question_the_owner_answered", lambda *_a: True)
+
+    def _no_search(*_a, **_k):
+        raise AssertionError("the recall lane searched other chats")
+
+    monkeypatch.setattr("core.chat_housekeeping.search_chats", _no_search)
+    ctx = {"conversation_history": [{"role": "user", "content": "what do I have in my library db"},
+                                    {"role": "assistant", "content": "books, loans and members"},
+                                    {"role": "user", "content": asked}]}
+    assert recall.cross_chat_recall(asked, session_id="openclaw:" + "d" * 20, source_context=ctx) is None
+
+
+def test_saying_saved_still_recalls_inside_a_database_chat():
+    from core.agent_runtime.cross_chat_recall import _EXPLICIT_RECALL_RE, _chat_works_on_a_data_store
+
+    assert _chat_works_on_a_data_store({"conversation_history": [{"role": "user", "content": "show me the tasks tabel"}, {"role": "user", "content": "x"}]})
+    assert not _chat_works_on_a_data_store({"conversation_history": [{"role": "user", "content": "my gate code is 4471"}, {"role": "user", "content": "x"}]})
+    assert _EXPLICIT_RECALL_RE.match("what was the wifi password i saved somewhere")
+
+
+# --- Sweep block 2c: web pages, digests and web-off answers ----------------------------------------
+
+_IANA_HTML = (
+    "<!doctype html>\n<html>\n<head>\n\t<title>Example Domains</title>\n\t<meta charset=\"utf-8\" />\n"
+    "<link rel=\"stylesheet\" href=\"/static/css/site.css\"/>\n<script>var x = 1;</script>\n</head>\n<body>\n"
+    "<nav>Domains Protocols Numbers</nav>\n<h1>Example Domains</h1>\n"
+    "<p>As described in RFC 2606 and RFC 6761, a number of domains such as example.com and example.org are "
+    "maintained for documentation purposes.</p>\n</body>\n</html>"
+)
+
+
+class _HtmlResponse:
+    def __init__(self, body: bytes, content_type: str) -> None:
+        self._body, self.headers = body, {"content-type": content_type}
+
+    def geturl(self):
+        return "https://www.iana.org/help/example-domains"
+
+    def read(self, _n):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+
+def _fetch_with(monkeypatch, body: bytes, content_type: str):
+    import core.runtime_execution_tools as rt
+
+    monkeypatch.setattr(rt, "_remote_fetch_allowed", lambda _ctx: True)
+    monkeypatch.setattr("core.remote_fetch_policy.open_remote", lambda _req, timeout=0: _HtmlResponse(body, content_type))
+    return rt._web_fetch({"url": "https://www.iana.org/help/example-domains"}, source_context={})
+
+
+def test_a_fetched_web_page_is_its_words_not_its_markup(monkeypatch):
+    result = _fetch_with(monkeypatch, _IANA_HTML.encode(), "text/html; charset=utf-8")
+    text = result.details["text"]
+    assert result.ok and text.startswith("Example Domains")
+    assert "RFC 2606" in text
+    for markup in ("<!doctype", "<meta", "stylesheet", "var x", "<p>"):
+        assert markup not in text
+
+
+def test_a_plain_text_fetch_is_left_as_it_came(monkeypatch):
+    body = b'{"slideshow": {"title": "Sample <b>Slide</b> Show"}}'
+    result = _fetch_with(monkeypatch, body, "application/json")
+    assert result.details["text"] == body.decode()
+
+
+class _DigestAgent:
+    persona_id = "default"
+
+    class ResponseClass:
+        UTILITY_ANSWER = "utility"
+
+    def __init__(self) -> None:
+        self.model_inputs: list[str] = []
+
+    def _chat_surface_live_info_model_input(self, *, user_input, query, mode, notes, runtime_note=""):
+        from core.agent_runtime.chat_surface import live_info_model_input
+
+        return live_info_model_input(self, user_input=user_input, query=query, mode=mode, notes=notes,
+                                     runtime_note=runtime_note)
+
+    def _chat_surface_model_wording_result(self, **kwargs):
+        self.model_inputs.append(kwargs["model_input"])
+        return {"response": "MODEL-SUMMARY", "reason": kwargs["reason"]}
+
+    def _fast_path_result(self, *, response: str, reason: str, **_: object):
+        return {"response": response, "reason": reason}
+
+    def _emit_runtime_event(self, *_a, **_k):
+        return None
+
+
+@pytest.mark.parametrize("asked", ["summarize https://www.iana.org/help/example-domains for me",
+                                   "can you check https://www.iana.org/help/example-domains and tell me the gist",
+                                   "open https://www.iana.org/help/example-domains and explain it in two lines"])
+def test_a_summary_of_a_page_is_written_by_a_model_from_the_fetched_text(monkeypatch, asked):
+    from types import SimpleNamespace
+
+    from core.agent_runtime import fast_paths_web
+
+    page = "Example Domains\nAs described in RFC 2606 and RFC 6761, example.com is kept for documentation."
+    monkeypatch.setattr(
+        "core.runtime_execution_tools.execute_runtime_tool",
+        lambda intent, arguments, *, source_context=None: SimpleNamespace(
+            ok=True, status="ok", response_text="Fetched.",
+            details={"text": page, "final_url": "https://www.iana.org/help/example-domains"}),
+    )
+    agent = _DigestAgent()
+    result = fast_paths_web.maybe_handle_url_read(agent, asked, session_id="t", source_context={},
+                                                  interpretation=SimpleNamespace(raw_text=asked))
+    assert result == {"response": "MODEL-SUMMARY", "reason": "web_fetch_digest"}
+    assert "RFC 2606" in agent.model_inputs[0] and "Answer ONLY using" in agent.model_inputs[0]
+
+
+def test_reading_a_page_out_still_shows_the_page(monkeypatch):
+    from types import SimpleNamespace
+
+    from core.agent_runtime import fast_paths_web
+
+    monkeypatch.setattr(
+        "core.runtime_execution_tools.execute_runtime_tool",
+        lambda intent, arguments, *, source_context=None: SimpleNamespace(
+            ok=True, status="ok", response_text="Fetched.",
+            details={"text": "Example Domains\nRFC 2606 text", "final_url": "https://example.org"}),
+    )
+    agent = _DigestAgent()
+    result = fast_paths_web.maybe_handle_url_read(agent, "open https://example.org and tell me what the page says",
+                                                  session_id="t", source_context={},
+                                                  interpretation=SimpleNamespace(raw_text="x"))
+    assert "RFC 2606 text" in str(result["response"]) and not agent.model_inputs
+
+
+@pytest.mark.parametrize("cause, sentence", [
+    ("Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups.", "Web lookups are off, so I didn't open example.org."),
+    ("Web fetch for `https://example.org` failed: <urlopen error timed out>", "I couldn't open example.org: <urlopen error timed out>."),
+])
+def test_a_failed_page_read_is_said_plainly(monkeypatch, cause, sentence):
+    from core.agent_runtime.fast_paths_web import _failure_text
+
+    monkeypatch.setattr("core.policy_engine.allow_web_fallback", lambda: False)
+    reply = _failure_text("unsupported" if "off" in cause else "error", reason=cause, url="https://example.org")
+    assert reply.startswith(sentence)
+    assert "`" not in reply and ".." not in reply and "runtime" not in reply
+
+
+@pytest.mark.parametrize("asked", ["any news on the olympics today?", "how windy is it in riga right now",
+                                   "what's the bitcoin price this minute"])
+def test_a_current_question_with_web_lookups_off_says_so_before_any_model_call(monkeypatch, asked):
+    from core.agent_runtime import current_evidence_prefetch as prefetch
+
+    monkeypatch.setattr(prefetch, "requires_current_information", lambda *_a: True)
+    monkeypatch.setattr("core.remote_fetch_policy.effective_web_available", lambda _ctx=None: False)
+
+    class _NoFetch:
+        def _collect_live_web_notes(self, **_k):
+            raise AssertionError("fetched with web lookups off")
+
+    result = prefetch.prefetch_current_evidence(
+        _NoFetch(), task=None, effective_input=asked, classification={}, interpretation=None,
+        source_context={}, is_chat_surface=True, action_forbidden=False, remote_fetch_disabled=False,
+        skip_for_local_answer=False, already_have_notes=False,
+    )
+    assert result.blocking
+    answer = prefetch.unavailable_current_answer(asked, result.outcome, reason=result.reason)
+    assert answer.startswith("Web lookups are off")
+    assert "records" not in answer
+
+
+# Sweep block 2c (7): every routing plan named an uninstalled qwen3.5:9b as its selected model.
+def test_a_routing_plan_never_selects_a_local_model_that_is_not_installed():
+    from core import turn_routing
+    from tests.test_a9_turn_routing_authority import _manifest
+
+    missing, present = _manifest("ollama-local", "qwen3.5:9b"), _manifest("ollama-local", "qwen3:8b")
+    plan = turn_routing.mint_turn_routing_plan(
+        turn_id="t1", session_id="s1", manifests=[missing, present],
+        not_installed_provider_ids=frozenset({missing.provider_id}),
+    )
+    assert plan.selected_model == "qwen3:8b"
+    assert {row.model_id: row.reason for row in plan.eligibility}["qwen3.5:9b"] == "not_installed"
+    assert missing.provider_id not in plan.fallback_ladder
+
+
+def test_a_pin_on_a_model_that_is_not_installed_does_not_silently_widen():
+    from core import turn_routing
+    from tests.test_a9_turn_routing_authority import _manifest
+
+    missing = _manifest("ollama-local", "qwen3.5:9b")
+    plan = turn_routing.mint_turn_routing_plan(
+        turn_id="t3", session_id="s1", requested_model="qwen3.5:9b",
+        manifests=[missing, _manifest("ollama-local", "qwen3:8b")],
+        not_installed_provider_ids=frozenset({missing.provider_id}),
+    )
+    assert plan.selected_model == "" and plan.reason == "pin_unresolved"
+
+
+def test_each_local_model_is_judged_by_its_own_servers_inventory(monkeypatch):
+    import core.memory_first_router as router
+    from tests.test_a9_turn_routing_authority import _manifest
+
+    inventories = {"http://127.0.0.1:11434": frozenset({"qwen3:8b"}), "http://127.0.0.1:5999": frozenset()}
+    monkeypatch.setattr(router, "_installed_model_names_at", lambda base: inventories.get(base, frozenset()))
+    assert router._not_installed_local(_manifest("ollama-local", "qwen3.5:9b"))
+    assert not router._not_installed_local(_manifest("ollama-local", "qwen3:8b"))
+    # A provider on another server whose inventory is unknown (a stub, a second runtime) is never "missing".
+    assert not router._not_installed_local(_manifest("ollama-local", "stub:1b", base_url="http://127.0.0.1:5999"))

@@ -486,6 +486,14 @@ def test_served_forget_leaves_no_forgotten_words_in_the_runtime_database(served)
     and its write-ahead log hold no byte of the forgotten words after "Forget applied", while the daemon
     still runs, and the words the person did not forget are still there."""
     daemon, home = served["daemon"], served["home"]
+    # The model's rhyme names the bakery, as a rhyme about it would: the forgotten words then sit in
+    # the finalized answer too. (The run used to reach that column only through an ambiguity
+    # clarifier that echoed the request; with the chat's own statement in hand the clarifier now
+    # stands aside and the model answers, so the answer itself has to carry the name.)
+    from tests.test_memory_forget_served_p0 import MODEL
+
+    plain_rhyme = served["provider"].table[MODEL]
+    served["provider"].table[MODEL] = "A short rhyme: at Flourstone Bakehouse the ovens glow, and warm loaves go."
     session = "forget-run-history"
     answers = {}
     for message in (
@@ -495,6 +503,7 @@ def test_served_forget_leaves_no_forgotten_words_in_the_runtime_database(served)
     ):
         answers[message] = _reply_text(daemon.chat(message, session_id=session, mode="auto")).strip()
         assert answers[message]
+    served["provider"].table[MODEL] = plain_rhyme   # later turns get the ordinary rhyme again
     # The person pins their question, the answer, and something else (the pin panel's own door).
     rhyme_request = "Tell me a short rhyme about the Flourstone Bakehouse."
     _pin(daemon, session, "user", rhyme_request)

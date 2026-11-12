@@ -2634,9 +2634,8 @@ def plan_conductor_turn(
     # with web.fetch never called (0.7.8 sweep block 2, 2026-11-12).
     try:
         from core.agent_runtime.fast_paths_web import url_read_request
-        from core.tool_demand_signals import resolve_demand_signals
-
         from core.retrieval_constraints import analyze_retrieval_constraints
+        from core.tool_demand_signals import resolve_demand_signals
 
         # Only a web ask the person did not forbid: "Do NOT search the web for this" names the
         # web too, and that turn is still the conductor's to split.

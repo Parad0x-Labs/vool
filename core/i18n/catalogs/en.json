@@ -1523,6 +1523,7 @@
     "run.failed_safely": "Failed safely — no answer was produced",
     "run.failed_safely_label": "Failed safely",
     "run.model_identity_title": "Recorded model identity",
+    "run.no_reply_retry": "I couldn't finish that reply. Press Try again, or ask it another way.",
     "run.no_response": "(no response)",
     "run.paused_price": "Paused — waiting for your price",
     "run.permission_denied": "Permission denied",

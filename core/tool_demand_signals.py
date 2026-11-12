@@ -961,6 +961,9 @@ _SENTENCE_BREAK_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 MAILBOX_RETRIEVAL_INTENTS: tuple[str, ...] = ("email.read",)
 
 
+_STATES_AN_ADDRESS_RE = re.compile(r"\s*(?:address\s+)?(?:is|was|=|:)\s+(?:now\s+)?[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.IGNORECASE)
+
+
 def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
     """The email read seat for a request about mail the user received, or () when the text is not one.
 
@@ -995,6 +998,9 @@ def mailbox_retrieval_intents(text: str) -> tuple[str, ...]:
             anchor = sender_first
         example = _EXAMPLE_FRAME_RE.search(sentence)
         if example is not None and example.start() < anchor.start():
+            continue
+        # "my email is ada@example.test": the person states their address; nothing asks to read mail.
+        if _STATES_AN_ADDRESS_RE.match(sentence[anchor.end():]):
             continue
         if _FIRST_PERSON_REPORT_RE.match(sentence) and not _REQUEST_FRAME_RE.search(sentence):
             continue

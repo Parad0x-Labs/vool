@@ -20,6 +20,7 @@ mailed a guessed stranger had the account resolved.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -110,10 +111,8 @@ def _contact_addresses() -> set[str]:
     except Exception:
         return set()
     found: set[str] = set()
-    try:
+    with contextlib.suppress(Exception):
         found.update(match.casefold() for match in _ADDRESS_RE.findall(json.dumps(rows, default=str)))
-    except Exception:
-        pass
     return found
 
 
@@ -274,4 +273,4 @@ def guard_email_arguments(
     )
 
 
-__all__ = ["EmailArgumentVerdict", "guard_email_arguments", "ACCOUNT_INTENTS", "RECIPIENT_INTENTS"]
+__all__ = ["ACCOUNT_INTENTS", "RECIPIENT_INTENTS", "EmailArgumentVerdict", "guard_email_arguments"]

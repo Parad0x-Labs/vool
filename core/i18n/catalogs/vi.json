@@ -907,6 +907,7 @@
     "run.error_prefix": "Lỗi: ",
     "run.failed_safely": "Thất bại an toàn — không tạo ra câu trả lời nào",
     "run.failed_safely_label": "Thất bại an toàn",
+    "run.no_reply_retry": "Tôi chưa hoàn thành được câu trả lời này. Hãy nhấn Thử lại hoặc hỏi theo cách khác.",
     "run.no_response": "(không có phản hồi)",
     "run.permission_denied": "Bị từ chối quyền",
     "run.report_problem": "Báo cáo sự cố",
@@ -2890,7 +2891,7 @@
     "settings.local_models.mp_open": "Chọn mô hình cục bộ",
     "settings.models.local_pick": "Có một mô hình trên máy tính này. Mở nó và nhấn Dùng mô hình này để bắt đầu."
   },
-  "source_catalog_sha256": "d06e3851ed8e6a26b465ab0768a46fb296d6095c39c9f086ff545b4ec2eed50e",
+  "source_catalog_sha256": "cefc3f9e621d70d8ddca64716418e73d32e2846b93ddc45e5980a0b8afc588ad",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2998,10 +2998,9 @@ def missing_configuration_result(action: str) -> OperatorActionResult:
         ok=False,
         status="unavailable",
         response_text=(
-            f"I can't {action} because no calendar provider is configured on this runtime. "
-            "Add a calendar account in Settings, under Calendars (a headless install can set "
-            "VOOL_CALENDAR_PROVIDER and VOOL_CALENDAR_URL instead). Without a provider I can still "
-            "write a clearly-labelled local .ics draft — it would not be an event on any calendar."
+            f"I can't {action} because no calendar is connected yet. Add a calendar account in "
+            "Settings, under Calendars. Until then I can write a clearly-labelled local calendar "
+            "file (.ics) — it would not be an event on any calendar."
         ),
         details={"reason": "missing_calendar_configuration"},
     )

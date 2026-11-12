@@ -2503,7 +2503,8 @@ function resumedTranscriptLength(run, owner) {
 function canonicalMessagesForModel(history) {
   // Messages brought in from another app are history to read, never model input: they are
   // left out here, so continuing such a chat sends only what was said in VOOL.
-  return (history || []).filter((m) => !(m && m.imported)).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
+  // A question whose reply was cut off by VOOL stopping is shown, not sent: Ask again sends it.
+  return (history || []).filter((m) => !(m && (m.imported || m.interrupted))).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
 }
 function applyResponseCommit(run, commit) {
   if (!run || !commit || commit.type !== 'response.commit' || Number(commit.version) < 1) return false;
@@ -4303,6 +4304,9 @@ function renderChat(chatId) {
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
   privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
+  // A rebuilt transcript keeps its interrupted-reply note: a question cut off by a restart (boot
+  // restore included, which never loads the Activity list) shows with Ask again under it.
+  if (!run) { if (!st.recoveredTask) st.recoveredTask = interruptedQuestion(st); if (st.recoveredTask) paintRecoveryNote(st); }
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
@@ -8277,10 +8281,18 @@ async function loadActivityHistory() {
   try {
     const data = await fetchRuntimeActivity();
     activityHistory = Array.isArray(data.sessions) ? data.sessions : [];
-    target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available) || null;
-  } catch (e) { activityHistory = []; target.recoveredTask = null; }
+    target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available)
+      || interruptedQuestion(target) || null;
+  } catch (e) { activityHistory = []; target.recoveredTask = interruptedQuestion(target); }
   renderPanel();
   if (isDisplayed(chatId)) paintRecoveryNote(target);
+}
+// The chat's last question had its reply cut off by VOOL stopping, and nothing of it is left to
+// resume: the history row the server marks `interrupted` (INTERRUPT-01). The note offers Ask again.
+function interruptedQuestion(st) {
+  const last = st && st.history && st.history[st.history.length - 1];
+  if (!last || last.role !== 'user' || !last.interrupted) return null;
+  return { request_preview: String(last.content || ''), interruptedOnly: true };
 }
 // A chat whose turn was cut off by VOOL stopping is badged "Needs you" (it can be resumed). The
 // way to answer that lives in the Activity panel, so the chat itself says what happened and opens
@@ -8295,11 +8307,17 @@ function paintRecoveryNote(st) {
   const note = document.createElement('div');
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
-  text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.' + (asked ? ' You asked: \u201c' + asked.slice(0, 180) + '\u201d' : '') + ' Ask again, or resume or cancel the saved work.';
-  const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
-  btn.addEventListener('click', () => openPanel());
-  note.appendChild(text); note.appendChild(btn);
+  const resumable = !st.recoveredTask.interruptedOnly;
+  text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.'
+    + (asked && resumable ? ' You asked: \u201c' + asked.slice(0, 180) + '\u201d' : '')
+    + (resumable ? ' Ask again, or resume or cancel the saved work.' : (asked.endsWith('...') ? ' Ask it again to get the answer.' : ' Press Ask again to get the answer.'));
+  note.appendChild(text);
+  if (resumable) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
+    btn.addEventListener('click', () => openPanel());
+    note.appendChild(btn);
+  }
   // The plain way back: send the same question again in this chat (the reply was cut off, so
   // nothing of it was kept). Offered only when the question itself is known.
   if (asked && !asked.endsWith('...')) {
@@ -8309,13 +8327,18 @@ function paintRecoveryNote(st) {
       const sid = displayedChat;
       if (isChatBusy(sid)) return;
       st.recoveredTask = null; note.remove();
+      // The cut-off question row gives way to the same question sent again, so it shows once.
+      const last = st.history[st.history.length - 1];
+      if (last && last.interrupted && last.role === 'user') { st.history.pop(); if (isDisplayed(sid)) renderChat(sid); }
       await runTurn(asked, null, { chatId: sid });
     });
     note.appendChild(again);
   }
   const empty = logEl.querySelector('.empty');
   if (empty) empty.remove();
-  logEl.insertBefore(note, logEl.firstChild);
+  // Under the question it belongs to when the chat shows it; first in an otherwise empty chat.
+  if (st.recoveredTask.interruptedOnly) logEl.appendChild(note);
+  else logEl.insertBefore(note, logEl.firstChild);
 }
 function historyProjectLabel(sid) {
   const chat = _lastSessions.find((item) => item.session_id === sid) || {};
@@ -9900,6 +9923,7 @@ function attachmentMeta(a) {
 function historyEntryFromServer(m) {
   const entry = { role: m.role, content: m.content, ts: m.ts, request_id: m.request_id || '' };
   if (m.imported === true) entry.imported = true;
+  if (m.interrupted === true) entry.interrupted = true;
   if (m.artifact && typeof m.artifact === 'object') entry.artifact = { ...m.artifact };
   if (m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length) {
     entry.attachments = m.attachments.map((a) => Object.assign(attachmentMeta(a), { previewUrl: '' }));

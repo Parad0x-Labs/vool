@@ -376,9 +376,9 @@ def _operator_capability_unavailable_reason(tool_id: str) -> str:
         "telegram_send": "Telegram bridge sending is not configured on this runtime.",
         "inspect_processes": "Process inspection is not available on this host/runtime.",
         "inspect_services": "Service inspection is not available on this host/runtime.",
-        "check_availability": "No calendar provider is configured on this runtime (VOOL_CALENDAR_PROVIDER / VOOL_CALENDAR_URL).",
-        "list_calendars": "No calendar provider is configured on this runtime (VOOL_CALENDAR_PROVIDER / VOOL_CALENDAR_URL).",
-        "inspect_calendar_event": "No calendar provider is configured on this runtime (VOOL_CALENDAR_PROVIDER / VOOL_CALENDAR_URL).",
+        "check_availability": "No calendar is connected yet. Add one in Settings under Calendars.",
+        "list_calendars": "No calendar is connected yet. Add one in Settings under Calendars.",
+        "inspect_calendar_event": "No calendar is connected yet. Add one in Settings under Calendars.",
         "show_agenda": "No calendar is configured or chosen in Settings yet, so there is no agenda to read.",
         "search_calendar_event": "No calendar is configured or chosen in Settings yet, so there is nothing to search.",
     }

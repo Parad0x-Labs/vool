@@ -1386,7 +1386,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             capability_id="web.fetch",
             capability_claim="fetch public web pages when web access is enabled and report policy, network, or page barriers honestly",
             supported=web_enabled,
-            unsupported_reason="Web fetch is disabled by runtime web policy.",
+            unsupported_reason="Web lookups are off. Turn them on in Settings > Privacy & Permissions > Web lookups.",
             # `timeout_s` is what core/execution/web_tools.py:140 actually reads. This declared
             # `timeout_seconds`, so the argument a model was told to send was discarded on arrival
             # and every fetch silently used the 15s default.
