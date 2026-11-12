@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -308,7 +309,9 @@ def test_an_instant_answer_frees_the_chat_at_once(http_rig):
 
     status, body = _turn_post(daemon, "what version are you running?", session_id, turn_id="t-ver-1", timeout=60.0)
     assert status == 200, (status, body)
-    assert "VOOL release" in json.dumps(body), body
+    # The door's own build answer names the running version ("You are on VOOL 0.8.0-beta ..."); the
+    # wording may change, the instant answer and the free slot below may not.
+    assert re.search(r"VOOL \d+\.\d+\.\d+", json.dumps(body)), body
     assert _queue_state(daemon, session_id).get("turn_active") is False, "the instant answer left the chat busy"
     status, body = _turn_post(daemon, M2, session_id, turn_id="t-ver-2", timeout=120.0)
     assert status == 200, (status, body)
