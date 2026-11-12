@@ -190,6 +190,13 @@ def test_the_owner_sets_up_agent_spending_in_settings_and_vool_pays_from_chat_in
 
             # --- the first payment to a service is still the owner's: the sheet asks for the owner's own PIN ------------
             site.asked_at = site.url + "?n=1"
+            # --- Web lookups are off on a fresh install: the allowance does not open the web, and nothing is paid -------
+            text = _ask(daemon, site.asked_at, "agent-spend-web-off")
+            assert "Web lookups are off" in text, text
+            assert site.paid_requests == [] and _get(daemon, "/api/wallet/agents")["agent_spending"]["waiting"] == []
+            # the owner turns Web lookups on, through the door the Privacy & Permissions switch posts to
+            status, switched = _door(daemon, "/api/onboarding/pact/boundary", {"key": "web_lookups", "value": True})
+            assert status == 200 and switched["live"]["allow_web_fallback"] is True, switched
             text = _ask(daemon, site.asked_at, "agent-spend-1")
             assert "Nothing was paid" in text and "first payment to this service" in text, text
             assert site.paid_requests == []
