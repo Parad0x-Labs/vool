@@ -1063,15 +1063,22 @@ def _update_runtime_checkpoint(
     # is consulted at THIS durable boundary — WITHHELD/ERASED verdicts veto
     # the write; a store failure fails closed (refusal, never disclosure).
     if next_final_response.strip():
-        from core.finalization import writer_may_persist_text
+        from core.finalization import erased_only_before, writer_may_persist_text
 
-        if not writer_may_persist_text(next_final_response):
+        _began = str(current.get("created_at") or "")
+
+        def _may_persist(text: str) -> bool:
+            # A writer that began after an erasure may hold bytes that match only that older
+            # tombstone: they are its own, not a resurrection (see the in-transaction check).
+            return writer_may_persist_text(text) or erased_only_before(text, _began)
+
+        if not _may_persist(next_final_response):
             raise CheckpointTransitionRefused(
                 f"checkpoint {checkpoint_id}: governed payload is WITHHELD/ERASED; "
                 "stale-writer resurrection refused"
             )
         for evidence_value in _iter_source_context_strings(merged_source_context):
-            if not writer_may_persist_text(evidence_value):
+            if not _may_persist(evidence_value):
                 raise CheckpointTransitionRefused(
                     f"checkpoint {checkpoint_id}: source_context carries "
                     "WITHHELD/ERASED payload; write refused"
@@ -1112,11 +1119,19 @@ def _update_runtime_checkpoint(
             # inside the runtime write transaction; sqlite serialization makes
             # check+commit atomic against the erase transaction. Fail closed:
             # an outage refuses the write rather than risking resurrection.
+            from core.finalization import erased_only_before as _erased_only_before
             from core.finalization import writer_may_persist_text as _wpt
+
+            # A checkpoint opened AFTER an erasure is a new writer: bytes that match only an
+            # older erasure tombstone are its own, not a resurrection (deleting a chat must not
+            # make a new chat's identical question or answer unwritable).
+            _writer_began = str(current.get("created_at") or "")
 
             def _durable_veto(text: str) -> bool:
                 try:
-                    return not _wpt(str(text or ""))
+                    if _wpt(str(text or "")):
+                        return False
+                    return not _erased_only_before(str(text or ""), _writer_began)
                 except Exception:
                     return True
 

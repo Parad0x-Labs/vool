@@ -2155,6 +2155,45 @@ def text_is_unserveable_on(conn: sqlite3.Connection, text: str) -> bool:
     return row is not None
 
 
+def erased_only_before(text: str, cutoff_iso: str) -> bool:
+    """True when the ONLY governance truth for these bytes is an erasure tombstone written before
+    ``cutoff_iso`` -- no live finalization row, no governed derivative carries them.
+
+    Lineage, not likeness: an erasure removes what was written; a writer that began AFTER the
+    erasure and produces the same bytes (a new chat asking the deleted chat's question, a fresh
+    answer that happens to match) is not resurrecting anything. Measured on the 0.7.8 sweep
+    (2026-11-12): deleting a chat made the next chat's identical question unwritable. Any read
+    failure answers False, so the caller keeps its fail-closed veto."""
+    clean = _sha256_hex(str(text or ""))
+    cutoff = str(cutoff_iso or "").strip()
+    if not clean or not cutoff:
+        return False
+    try:
+        with _availability_connection() as conn:
+            if conn.execute("SELECT 1 FROM a7_finalizations WHERE content_hash = ? LIMIT 1", (clean,)).fetchone():
+                return False
+            # A derivative of a payload that was ERASED is covered by that erasure's tombstone
+            # time below; any other governed derivative (live or withheld) keeps the veto.
+            if conn.execute(
+                """
+                SELECT 1 FROM a8_governed_derivatives d
+                LEFT JOIN a7_finalizations f ON f.finalization_id = d.finalization_id
+                WHERE d.value_key = ? AND COALESCE(f.availability, '') != ?
+                LIMIT 1
+                """,
+                (clean, AVAILABILITY_ERASED),
+            ).fetchone():
+                return False
+            rows = conn.execute(
+                "SELECT created_at FROM a7_governance_events WHERE event_kind = ? AND reason IN (?, ?)",
+                (EVENT_KIND_ERASURE_DIGEST_TOMBSTONE, clean, _keyed_tombstone_value(clean)),
+            ).fetchall()
+    except Exception:
+        return False
+    times = [str(row["created_at"] or "") for row in rows]
+    return bool(times) and all(t and t < cutoff for t in times)
+
+
 def payload_availability_for_text(text: str) -> str | None:
     """Serve-time availability verdict for payload-derived text (see
     payload_availability_for_hash)."""
