@@ -23,6 +23,7 @@ from core import policy_engine
 from core.agent_runtime.agent import VoolAgent
 from core.agent_runtime.daemon import VoolDaemon
 from core.app_version import VOOL_VERSION
+from core.build_provenance import worktree_diff_sha256
 from core.chat_session_identity import fold_chat_session_id, is_canonical_chat_session_id
 from core.compute_mode import ComputeModeDaemon
 from core.daemon import DaemonConfig
@@ -209,7 +210,7 @@ def build_source_metadata(project_root: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     metadata: dict[str, Any] = {}
-    for key in ("ref", "branch", "commit", "commit_full", "source_url", "source_kind"):
+    for key in ("ref", "branch", "commit", "commit_full", "source_url", "source_kind", "diff_sha256"):
         value = str(payload.get(key) or "").strip()
         if value:
             metadata[key] = value
@@ -223,6 +224,16 @@ def git_checkout_state(project_root: Path) -> dict[str, Any]:
     commit_full = git_output(project_root, "rev-parse", "HEAD")
     if not re.fullmatch(r"[0-9a-f]{40}", commit_full):
         return {"valid": False, "branch": "", "commit": "", "commit_full": "", "dirty": False}
+    # git walks UP: a plain source copy sitting anywhere inside another checkout would report that
+    # checkout's HEAD and edits as its own. Only a folder that IS a repository's top level speaks
+    # for itself; anything else is unidentified unless config/build-source.json names its source.
+    toplevel = git_output(project_root, "rev-parse", "--show-toplevel")
+    try:
+        same_root = bool(toplevel) and Path(toplevel).resolve() == Path(project_root).resolve()
+    except OSError:
+        same_root = False
+    if not same_root:
+        return {"valid": False, "branch": "", "commit": "", "commit_full": "", "dirty": False}
     branch = git_output(project_root, "branch", "--show-current")
     short_commit = git_output(project_root, "rev-parse", "--short=12", "HEAD") or commit_full[:12]
     dirty = bool(git_output(project_root, "status", "--short"))
@@ -234,6 +245,8 @@ def git_checkout_state(project_root: Path) -> dict[str, Any]:
         # repo that abbreviates differently, and the About panel has to report the exact build.
         "commit_full": commit_full,
         "dirty": dirty,
+        # Which uncommitted edits: `dirty` alone cannot tell two edited trees on one commit apart.
+        "diff_sha256": worktree_diff_sha256(project_root) if dirty else "",
     }
 
 
@@ -333,11 +346,13 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
             commit_full = packaged_commit
         commit = (commit_full or packaged_commit)[:12]
         dirty = bool(build_source.get("dirty_state"))
+        diff_sha256 = str(build_source.get("diff_sha256") or "") if dirty else ""
     elif bool(git_state.get("valid")):
         branch = str(git_state.get("branch") or build_source.get("branch") or build_source.get("ref") or "")
         commit = str(git_state.get("commit") or "").strip()
         commit_full = str(git_state.get("commit_full") or "").strip()
         dirty = bool(git_state.get("dirty"))
+        diff_sha256 = str(git_state.get("diff_sha256") or "") if dirty else ""
     else:
         branch = str(build_source.get("branch") or build_source.get("ref") or "")
         recorded_commit = str(build_source.get("commit") or "").strip()
@@ -348,6 +363,7 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
         if not commit_full and re.fullmatch(r"[0-9a-f]{40}", recorded_commit):
             commit_full = recorded_commit
         dirty = bool(build_source.get("dirty_state"))
+        diff_sha256 = str(build_source.get("diff_sha256") or "") if dirty else ""
     release_version = str(release.get("release_version") or "").strip() or "unknown-release"
     platform_tag = _platform_release_tag()
     build_parts = [release_version]
@@ -370,6 +386,10 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
         "commit": commit,
         "commit_full": commit_full,
         "dirty": dirty,
+        "diff_sha256": diff_sha256,
+        # False for a source copy with neither .git nor config/build-source.json: nothing says which
+        # code it runs, so no test may treat it as any build (ops/build_identity.py refuses it).
+        "identified": bool(commit),
         "platform": platform_tag,
         "build_id": build_id,
         "started_at": started_at,
@@ -1166,6 +1186,13 @@ def bootstrap_runtime_services(
         runtime_version_stamp.get("commit") or "unknown",
         runtime_version_stamp.get("dirty"),
     )
+    if not runtime_version_stamp.get("identified"):
+        logger.warning(
+            "Runtime build is UNIDENTIFIED: %s has no .git and no %s, so nothing says which commit this "
+            "copy runs. Stamp the copy (ops/build_identity.py stamp-copy) before testing it.",
+            project_root,
+            BUILD_SOURCE_PATH,
+        )
 
     compute_mode_disabled = env_bool("VOOL_DISABLE_COMPUTE_MODE") or (
         os.name == "nt" and not env_bool("VOOL_ENABLE_WINDOWS_COMPUTE_MODE")

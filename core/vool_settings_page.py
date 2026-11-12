@@ -2615,7 +2615,17 @@ function widgetBuild(stack) {
   /* One readable line first; the full field list (what a problem report needs) is folded
      under Technical details and still copied whole by "Copy build info". */
   const version = src.release_version || src.app_version || '';
-  if (version) stack.appendChild(el('div', null, 'VOOL ' + version));
+  /* The exact build sits next to the version, same notation as the chat footer, so a tester can
+     tell at a glance whether this window runs the build they mean (a test copy on an old commit
+     once passed for the current one because only the version line was shown). */
+  const commit = String(src.commit || '').slice(0, 8);
+  const build = commit ? commit + (src.dirty ? '+dirty' : '') : '';
+  if (version) {
+    const line = el('div', null, 'VOOL ' + version + (build ? ' · ' + build : ''));
+    line.id = 'settings-build-line';
+    if (src.build_id) line.title = String(src.build_id);
+    stack.appendChild(line);
+  }
   const dl = el('dl', 'kv');
   const keys = Object.keys(src).filter(k => typeof src[k] !== 'object');
   keys.forEach(k => {
