@@ -18,7 +18,7 @@ MAX_FILES_LIMIT = 200
 DEFAULT_MAX_FILES = 25
 
 #: Values a piece can take. FILE_TOKENS are always known; RECEIPT_TOKENS need the document read
-#: (macOS only in this version: untrusted documents are read only inside process confinement).
+#: (untrusted documents are read only inside process confinement: the macOS sandbox, or bubblewrap on Linux).
 FILE_TOKENS = ("date", "year", "month", "day", "name")
 RECEIPT_TOKENS = ("doc_date", "doc_year", "doc_month", "doc_shop", "doc_amount")
 #: Only a CSV column can carry these two: what the file ended up as.

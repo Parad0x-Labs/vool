@@ -37,8 +37,11 @@ def _digest(path: Path) -> str:
 
 def renamed_shape(pieces: list[dict[str, str]]) -> re.Pattern[str] | None:
     """What a name made by this rule looks like, so a file this routine already renamed in place is
-    left alone instead of being renamed again."""
-    if not pieces:
+    left alone instead of being renamed again.
+
+    None when the rule has no fixed text and no value with a shape (the shop alone, say): every name
+    would look done. Each file's own new name then tells, since it is the name the file already has."""
+    if not pieces or not any("text" in piece or piece["token"] in _SHAPES for piece in pieces):
         return None
     parts = []
     for piece in pieces:

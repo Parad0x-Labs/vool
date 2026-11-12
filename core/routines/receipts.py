@@ -1,7 +1,8 @@
 """The date, shop and amount of a receipt, read from its text.
 
-Reading the document itself goes through VOOL's confined document readers, which this version runs
-only on macOS; elsewhere a routine that needs a receipt's values says so and leaves those files alone.
+Reading the document itself goes through VOOL's confined document readers (the macOS sandbox, or
+bubblewrap on Linux); on a computer with neither, a routine that needs a receipt's values says so and
+leaves those files alone.
 The text rules are plain and strict: a value that cannot be read with confidence is left empty, and the
 routine then leaves that file for the person instead of guessing.
 """

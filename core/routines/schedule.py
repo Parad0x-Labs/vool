@@ -170,9 +170,13 @@ _DEFAULT_LOCK = threading.Lock()
 
 
 def start_default_poller() -> None:
-    """Start the one process-wide schedule poller. Called by the served boot; safe to call twice."""
+    """Start the one process-wide schedule poller. Called by the served boot; safe to call twice.
+
+    VOOL_ROUTINE_SCHEDULE_POLLER=0 leaves it off (tests that drive tick() at chosen times, embedded runs)."""
     global _DEFAULT
 
+    if str(os.environ.get("VOOL_ROUTINE_SCHEDULE_POLLER") or "").strip().lower() in {"0", "off", "false"}:
+        return
     with _DEFAULT_LOCK:
         if _DEFAULT is not None and _DEFAULT._thread is not None and _DEFAULT._thread.is_alive():
             return

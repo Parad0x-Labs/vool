@@ -40,7 +40,10 @@ font:16px/1.5 system-ui,sans-serif;max-width:980px;margin:0 auto;padding:32px 24
 
 JS = r"""
 (function(){'use strict';
-var T=function(k,p){return window.VOOLT('routines.'+k,p);};
+/* In a right-to-left page, each name, path or value inside a sentence keeps its own direction (an Arabic
+   or Hebrew sentence would otherwise reorder "2026/11/scan.pdf" into a jumble): it is isolated, invisibly. */
+var RTL=document.documentElement.dir==='rtl';
+var T=function(k,p){if(p&&RTL){var q={};Object.keys(p).forEach(function(n){q[n]=(typeof p[n]==='string'&&p[n])?'\u2068'+p[n]+'\u2069':p[n];});p=q;}return window.VOOLT('routines.'+k,p);};
 var C=function(k,p){return window.VOOLT(k,p);};
 var ID=/^rt-[0-9a-f]{10}$/;
 function el(tag,text,cls){var n=document.createElement(tag);if(text!=null&&text!=='')n.textContent=String(text);if(cls)n.className=cls;return n;}

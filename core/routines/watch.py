@@ -227,6 +227,18 @@ def start(folder_text: str) -> dict[str, Any]:
         return _public(state)
 
 
+def _overdue(state: dict[str, Any]) -> bool:
+    return time.time() > state["deadline"] + _GRACE_SECONDS
+
+
+def _expire(state: dict[str, Any]) -> dict[str, Any]:
+    """The deadline passed while nothing was watching (VOOL was closed or asleep): what the folder looks
+    like now may include changes made after the 30 minutes, so nothing is kept."""
+    forget()
+    return {"id": state["id"], "folder": state["folder"], "running": False, "seconds_left": 0,
+            "end_reason": "expired", "notes": []}
+
+
 def refresh(state: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """The watch as it stands; a running watch past its deadline ends here if its timer could not."""
     with _LOCK:
@@ -234,12 +246,8 @@ def refresh(state: dict[str, Any] | None = None) -> dict[str, Any] | None:
         if not state:
             return None
         if not state.get("ended"):
-            if time.time() > state["deadline"] + _GRACE_SECONDS:
-                # The deadline passed while nothing was watching (VOOL was closed or asleep): what the folder
-                # looks like now may include changes made after the 30 minutes, so nothing is kept.
-                forget()
-                return {"id": state["id"], "folder": state["folder"], "running": False, "seconds_left": 0,
-                        "end_reason": "expired", "notes": []}
+            if _overdue(state):
+                return _expire(state)
             if state["id"] not in _TIMERS:
                 _arm(state)
             try:
@@ -263,6 +271,8 @@ def stop(watch_id: str = "", *, reason: str = "stopped") -> dict[str, Any]:
             raise RoutineError("no_watch", "There is no watch to stop. Start one first.", 409)
         if state.get("ended"):
             return _public(state)
+        if _overdue(state):
+            return _expire(state)
         timer = _TIMERS.pop(state["id"], None)
         if timer is not None:
             timer.cancel()

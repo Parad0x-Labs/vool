@@ -17,6 +17,31 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+def home_env(root: Path, extra_env: dict[str, str] | None = None) -> dict[str, str]:
+    """The environment of the daemon below: the person's home and VOOL's home under ``root``."""
+    person = root / "person"
+    vool_home = root / "vool"
+    env = dict(os.environ, HOME=str(person), VOOL_HOME=str(vool_home), VOOL_UNATTENDED="1", VOOL_CREDENTIAL_STORE="vault",
+               VOOL_KEY_STORAGE_MODE="file", VOOL_LOCAL_MODELS_ENABLED="0", VOOL_SKIP_PROVIDER_PREWARM="1",
+               VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0", VOOL_DISABLE_MESH_DAEMON="1", VOOL_DISABLE_COMPUTE_MODE="1",
+               VOOL_DISABLE_STUN="1", VOOL_INSTALL_PROFILE="local-only", VOOL_READER_TOOLS_DIR=str(vool_home / "reader_tools"),
+               # Its own skills tree (saved routines are skills): the test session's shared one would carry a
+               # routine saved by one test into the next.
+               VOOL_PLUGINS_DIR=str(vool_home / "plugins"),
+               VOOL_PLUGIN_LIFECYCLE_PATH=str(vool_home / "plugin-lifecycle.json"))
+    env.update(extra_env or {})
+    env.pop("PYTEST_CURRENT_TEST", None)
+    return env
+
+
+def in_home(root: Path, code: str, *, extra_env: dict[str, str] | None = None) -> str:
+    """Run VOOL's own code in another process on the daemon's homes (the same files and database)."""
+    done = subprocess.run([sys.executable, "-c", code], env=home_env(root, extra_env), capture_output=True, text=True,
+                          timeout=180)
+    assert done.returncode == 0, done.stderr[-4000:]
+    return done.stdout
+
+
 @contextlib.contextmanager
 def served(root: Path, *, extra_env: dict[str, str] | None = None):
     person = root / "person"
@@ -27,14 +52,9 @@ def served(root: Path, *, extra_env: dict[str, str] | None = None):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    env = dict(os.environ, HOME=str(person), VOOL_HOME=str(vool_home), VOOL_UNATTENDED="1", VOOL_CREDENTIAL_STORE="vault",
-               VOOL_KEY_STORAGE_MODE="file", VOOL_LOCAL_MODELS_ENABLED="0", VOOL_SKIP_PROVIDER_PREWARM="1",
-               VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="0", VOOL_DISABLE_MESH_DAEMON="1", VOOL_DISABLE_COMPUTE_MODE="1",
-               VOOL_DISABLE_STUN="1", VOOL_INSTALL_PROFILE="local-only", VOOL_READER_TOOLS_DIR=str(vool_home / "reader_tools"))
+    env = home_env(root, extra_env)
     # No default model endpoint may reach a local model service on this machine.
     env.update(OLLAMA_HOST=f"http://127.0.0.1:{port}", VOOL_OLLAMA_URL=f"http://127.0.0.1:{port}")
-    env.update(extra_env or {})
-    env.pop("PYTEST_CURRENT_TEST", None)
     log = (root / "daemon.log").open("wb")
     process = subprocess.Popen([sys.executable, "-m", "apps.vool_api_server", "--bind", "127.0.0.1", "--port", str(port)],
                                env=env, stdout=log, stderr=subprocess.STDOUT)
