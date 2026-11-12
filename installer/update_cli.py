@@ -246,6 +246,7 @@ def cmd_recover(args: argparse.Namespace) -> int:
         health_probe=probe.probe,
         installed_version=_installed_version(),
         channel=args.channel,
+        migration_catalog=MigrationCatalog(),  # the same catalog this tool installs updates with
     )
     if not results:
         print("No unfinished updates found — nothing to recover.")
@@ -255,6 +256,9 @@ def cmd_recover(args: argparse.Namespace) -> int:
             "aborted": "An unfinished update was cleaned up (the app was never changed).",
             "rolled_back": "An unfinished update was rolled back and the previous version restarted.",
             "finalized": "An update that had been interrupted mid-install turned out healthy and is now complete.",
+            "left_running": "An update is still running in another VOOL process, so it was left alone.",
+            "rollback_failed": "An unfinished update could not be fully undone. Its backups were kept; "
+                               "restart VOOL to try again.",
         }.get(item.action, item.action)
         print(verb)
     return 0

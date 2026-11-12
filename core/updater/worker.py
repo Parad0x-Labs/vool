@@ -202,7 +202,7 @@ def main() -> int:
                 data_dir=subsystem.data_dir, app_path=Path(subsystem.feed.app_path),
                 helper=subsystem._make_helper(), health_probe=subsystem._make_probe(),
                 installed_version=subsystem.installed_version, channel=subsystem.feed.channel,
-                platform=subsystem.platform, status_store=subsystem.status,
+                platform=subsystem.platform, status_store=subsystem.status, migration_catalog=subsystem.catalog,
             )
             ok = all(result.action != "rollback_failed" for result in results)
             receipt = {"ok": ok, "actions": [{"txid": result.txid, "action": result.action} for result in results]}

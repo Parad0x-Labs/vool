@@ -324,7 +324,7 @@ class UpdateSubsystem:
                 return recover_interrupted_update(
                     data_dir=self.data_dir, app_path=Path(self.feed.app_path),
                     helper=helper, health_probe=probe, installed_version=self.installed_version,
-                    channel=self.feed.channel, platform=self.platform,
+                    channel=self.feed.channel, platform=self.platform, migration_catalog=self.catalog,
                 )
             finally:
                 self._recovering = False

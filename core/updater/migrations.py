@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -117,29 +118,74 @@ class MigrationCatalog:
         return []
 
 
-def snapshot_tree(sources: list[Path], snapshot_dir: Path) -> dict[str, Path]:
-    """Copy each existing source into snapshot_dir, returning {name: snapshot_path}."""
+def _snapshot_key(relative_path: str) -> Path:
+    """Where one declared relative path lives inside a snapshot: the whole relative path, never
+    just its basename (two declared paths such as ``alpha/state.json`` and ``beta/state.json``
+    would otherwise share one snapshot entry, and a restore would write one file's bytes into
+    both). Absolute paths and ``..`` would leave the snapshot folder, so they are refused."""
+    candidate = Path(str(relative_path))
+    if not candidate.parts or candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"unsafe snapshot path: {relative_path!r}")
+    return Path(*candidate.parts)
+
+
+def _snapshot_keys(paths: list[Path], relative_paths) -> list[str]:
+    keys = [path.name for path in paths] if relative_paths is None else [str(rel) for rel in relative_paths]
+    if len(keys) != len(paths):
+        raise ValueError("relative_paths must name every path, in order")
+    return keys
+
+
+def _remove(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
+def snapshot_tree(sources: list[Path], snapshot_dir: Path,
+                  relative_paths: list[str] | tuple[str, ...] | None = None) -> dict[str, Path]:
+    """Copy each existing source into snapshot_dir, returning {key: snapshot_path}.
+
+    The key is the declared relative path when ``relative_paths`` is given (every production
+    caller knows it), else the basename, which is what snapshots taken before this change used."""
     saved: dict[str, Path] = {}
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    for source in sources:
+    for source, key in zip(sources, _snapshot_keys(sources, relative_paths), strict=True):
         if not source.exists():
             continue
-        target = snapshot_dir / source.name
-        if target.exists():
-            shutil.rmtree(target) if target.is_dir() else target.unlink()
+        target = snapshot_dir / _snapshot_key(key)
+        _remove(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, target) if source.is_dir() else shutil.copy2(source, target)
-        saved[source.name] = target
+        saved[key] = target
     return saved
 
 
-def restore_tree(snapshot_dir: Path, destinations: list[Path]) -> None:
-    """Restore snapshots over their destinations (removing what arrived after)."""
-    for destination in destinations:
-        restored = snapshot_dir / destination.name
-        if destination.exists():
-            shutil.rmtree(destination) if destination.is_dir() else destination.unlink()
-        if restored.exists():
-            shutil.copytree(restored, destination) if restored.is_dir() else shutil.copy2(restored, destination)
+def restore_tree(snapshot_dir: Path, destinations: list[Path],
+                 relative_paths: list[str] | tuple[str, ...] | None = None) -> None:
+    """Restore snapshots over their destinations (removing what arrived after).
+
+    The snapshot is copied, never moved, so a retry after an interrupted restore still has it.
+    The copy is staged beside the destination and swapped in with renames: an interruption
+    mid-copy leaves the live destination as it was instead of deleted or half written.
+    A destination with no snapshot entry did not exist when the snapshot was taken, so it is
+    removed."""
+    for destination, key in zip(destinations, _snapshot_keys(destinations, relative_paths), strict=True):
+        restored = snapshot_dir / _snapshot_key(key)
+        if not restored.exists():
+            _remove(destination)
+            continue
+        staged = destination.parent / f".vool-restore-{destination.name}"
+        discard = destination.parent / f".vool-discard-{destination.name}"
+        _remove(staged)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(restored, staged) if restored.is_dir() else shutil.copy2(restored, staged)
+        if destination.exists() or destination.is_symlink():
+            _remove(discard)
+            os.rename(destination, discard)
+        os.rename(staged, destination)
+        _remove(discard)
 
 
 def read_recorded_schema(user_home: Path) -> str:
@@ -192,7 +238,7 @@ def run_migrations(
         affected = [home / rel for rel in step.affected_paths]
         snapshot_complete = False
         try:
-            snapshot_tree(affected, step_snapshot)
+            snapshot_tree(affected, step_snapshot, relative_paths=step.affected_paths)
             snapshot_complete = True
             step.forward(MigrationContext(user_home=home, snapshot_dir=step_snapshot, step_name=step.name))
         except Exception as exc:
@@ -213,12 +259,12 @@ def run_migrations(
             # Snapshot restores run failed-step-first, then completed steps in reverse:
             # each earlier snapshot overwrites the later one, so the LAST restore is
             # step 0's — the user data ends at its exact pre-migration state.
-            restore_order = ([(step_snapshot, affected)] if snapshot_complete else []) + [
-                (snap, aff) for _, snap, aff in reversed(applied)
+            restore_order = ([(step_snapshot, affected, step.affected_paths)] if snapshot_complete else []) + [
+                (snap, aff, done.affected_paths) for done, snap, aff in reversed(applied)
             ]
-            for snap, aff in restore_order:
+            for snap, aff, rels in restore_order:
                 try:
-                    restore_tree(snap, aff)
+                    restore_tree(snap, aff, relative_paths=rels)
                 except Exception as rexc:
                     logger.error("migration snapshot restore ALSO failed: %s", rexc)
                     restore_errors.append(str(rexc))
