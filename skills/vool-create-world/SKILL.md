@@ -9,7 +9,7 @@ type: capability_skill
 id: create-world
 risk-class: workspace_write
 task-families: []
-triggers: [create a world, build a world, make a world, new world, world pack, playable world, build a park, build a course, gathering place]
+triggers: [create a world, build a world, make a world, new world, world pack, playable world, build a park, build a course, gathering place, voolworld]
 capability-families: [workspace]
 tool-intents: [workspace.read_file, workspace.write_file, sandbox.run_command]
 permitted-tools: [workspace.read_file, workspace.write_file, workspace.ensure_directory, sandbox.run_command]
