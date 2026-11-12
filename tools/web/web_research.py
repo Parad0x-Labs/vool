@@ -2604,20 +2604,38 @@ def _weather_reading_label(
     out it is another place's weather and is declined, so the next provider answers instead. A
     place nobody can locate keeps the provider's own name: a label is never invented.
     """
+    return _station_verdict(requested, area_name, country_name, latitude, longitude, timeout_s=timeout_s)[0]
+
+
+def _station_verdict(
+    requested: str,
+    area_name: str,
+    country_name: str,
+    latitude: object = None,
+    longitude: object = None,
+    *,
+    timeout_s: float = 8.0,
+) -> tuple[str | None, _PlacePoint | None]:
+    """`_weather_reading_label`'s answer, plus where the asked place is when that was measured.
+
+    (label, None): the reading stands under `label`. (None, point): the station is farther than
+    `_SAME_PLACE_KM` from `point`, the asked place, so a caller that can ask its provider again by
+    coordinates knows exactly where to ask.
+    """
     req = _normalize_place(requested)
     if not req or _place_names_correspond(requested, area_name):
-        return _join_place(area_name, country_name)
+        return _join_place(area_name, country_name), None
     try:
         station = (float(latitude), float(longitude))
     except (TypeError, ValueError):
         # Nothing to measure: the provider's own name stands, and no lookup is spent finding out.
-        return _join_place(area_name, country_name)
+        return _join_place(area_name, country_name), None
     asked = _requested_place_point(requested, timeout_s=timeout_s)
     if asked is None:
-        return _join_place(area_name, country_name)
+        return _join_place(area_name, country_name), None
     if _rough_km(station, (asked.latitude, asked.longitude)) > _SAME_PLACE_KM:
-        return None
-    return _join_place(asked.name, asked.country or country_name)
+        return None, asked
+    return _join_place(asked.name, asked.country or country_name), None
 
 
 def _rough_km(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -2923,31 +2941,33 @@ def _open_meteo_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -
     )
 
 
-def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> WeatherResult | None:
-    """The wttr.in reading for an already-validated place, or None -- first provider."""
-    page_url = "https://wttr.in/" + urllib.parse.quote(clean_location)
-    api_url = page_url + "?format=j1"
+def _wttr_payload(query: str, *, timeout_s: float, coordinates: bool = False) -> tuple[str, dict[str, Any]]:
+    """(page url, the `data` object) of one wttr.in j1 answer for a place name, or for a
+    "lat,lon" pair (`coordinates=True`, sent as written: wttr.in reads the comma literally)."""
+    page_url = "https://wttr.in/" + (query if coordinates else urllib.parse.quote(query))
     # Reporting used to happen here, because this was the one path that had been fixed (2026-08-13:
     # a Local Only turn quoting live wttr.in data while its trace reported `web_calls: 0`). It now
     # happens in `_open_remote`, which every outbound path in this module goes through -- keeping
     # the explicit call as well would count this fetch twice and break the same account from the
     # other direction.
-    request = urllib.request.Request(api_url, headers={"User-Agent": "VOOL-WEATHER/1.0"})
+    request = urllib.request.Request(page_url + "?format=j1", headers={"User-Agent": "VOOL-WEATHER/1.0"})
     with _open_remote(request, timeout=min(max(timeout_s, 3.0), 12.0)) as response:
         payload = json.loads(response.read(300000).decode("utf-8", errors="ignore"))
+    return page_url, dict((payload.get("data") or payload) if isinstance(payload, dict) else {})
 
-    root_payload = dict((payload.get("data") or payload) if isinstance(payload, dict) else {})
-    current_items = list(root_payload.get("current_condition") or [])
+
+def _wttr_area(root_payload: dict[str, Any]) -> dict[str, Any]:
     nearest_items = list(root_payload.get("nearest_area") or [])
-    daily_items = list(root_payload.get("weather") or [])
-    if not current_items:
+    return dict(nearest_items[0] or {}) if nearest_items else {}
+
+
+def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> WeatherResult | None:
+    """The wttr.in reading for an already-validated place, or None -- first provider."""
+    page_url, root_payload = _wttr_payload(clean_location, timeout_s=timeout_s)
+    if not list(root_payload.get("current_condition") or []):
         return None
 
-    current = current_items[0] or {}
-    area = nearest_items[0] if nearest_items else {}
-    # wttr.in's `weather` array is the daily forecast, one entry per day starting today --
-    # `weather[0]` is today's own forecast, distinct from `current_condition` (the live reading).
-    today = daily_items[0] if daily_items else {}
+    area = _wttr_area(root_payload)
     area_name = _first_nested_value(area.get("areaName")) or clean_location
     country_name = _first_nested_value(area.get("country"))
     if not _weather_place_corresponds(
@@ -2960,13 +2980,37 @@ def _wttr_weather_lookup(clean_location: str, *, timeout_s: float = 8.0) -> Weat
     ):
         return None
     # Labelled with the place that was asked about, not the provider's station district
-    # ("Saint-Merri, France" for Paris); a station far from that place is another place's weather,
-    # and the second provider answers instead.
-    place = _weather_reading_label(
+    # ("Saint-Merri, France" for Paris).
+    place, asked = _station_verdict(
         clean_location, area_name, country_name, area.get("latitude"), area.get("longitude"), timeout_s=timeout_s
     )
     if place is None:
-        return None
+        if asked is None:
+            return None
+        # The station by NAME is somewhere else (measured 2026-11-12: "Tokyo" -> Shikinejima, an
+        # island 155 km out, 20 C while the city read 12 C). Asked again by the city's own
+        # coordinates, wttr.in answers from a station in the city (Kabukicho); one more call to
+        # the same provider instead of serving an island's weather or giving up.
+        page_url, root_payload = _wttr_payload(
+            f"{asked.latitude:.4f},{asked.longitude:.4f}", timeout_s=timeout_s, coordinates=True
+        )
+        area = _wttr_area(root_payload)
+        try:
+            station = (float(area.get("latitude")), float(area.get("longitude")))
+        except (TypeError, ValueError):
+            return None
+        if (
+            not list(root_payload.get("current_condition") or [])
+            or _rough_km(station, (asked.latitude, asked.longitude)) > _SAME_PLACE_KM
+        ):
+            return None
+        place = _join_place(asked.name, asked.country or _first_nested_value(area.get("country")) or country_name)
+
+    current = next(iter(root_payload.get("current_condition") or [{}])) or {}
+    # wttr.in's `weather` array is the daily forecast, one entry per day starting today --
+    # `weather[0]` is today's own forecast, distinct from `current_condition` (the live reading).
+    daily_items = list(root_payload.get("weather") or [])
+    today = daily_items[0] if daily_items else {}
 
     def _numeric(value: Any) -> float | None:
         try:

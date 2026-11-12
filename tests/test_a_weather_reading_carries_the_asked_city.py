@@ -118,6 +118,31 @@ def test_a_far_station_is_not_the_asked_citys_reading(case: SubstitutionCase) ->
         assert web_research._wttr_weather_lookup(case.location) is None
 
 
+def test_a_far_station_is_replaced_by_the_station_at_the_citys_own_coordinates() -> None:
+    """RECORDED 2026-11-12: wttr.in/Tokyo answers from Shikinejima (20 C); wttr.in/35.6895,139.6917
+    answers from Kabukicho, a Tokyo district (12 C). The lookup asks once more, by the city's own
+    coordinates, and serves THAT reading under the city's name."""
+
+    urls: list[str] = []
+
+    def _by_url(request, timeout=None):
+        urls.append(request.full_url)
+        asked_by_coordinates = "," in request.full_url.split("/")[3]
+        if asked_by_coordinates:
+            return _fake_remote(_wttr_payload("Kabukicho", "Japan", 35.695, 139.702))
+        return _fake_remote(_wttr_payload("Shikinejima", "Japan", 34.327, 139.218))
+
+    with mock.patch.object(web_research, "_open_remote", side_effect=_by_url), mock.patch.object(
+        web_research, "_open_meteo_geocode", side_effect=_no_geocoder
+    ):
+        result = web_research._wttr_weather_lookup("tokyo")
+
+    assert result is not None
+    assert result.place_label == "Tokyo, Japan"
+    assert len(urls) == 2 and urls[1].startswith("https://wttr.in/35.")
+    assert result.source_url == urls[1].split("?")[0]
+
+
 def test_the_conductor_line_names_the_city_not_the_station() -> None:
     """The several-part lane renders `place_label` first: the red-team line 'Saint-Merri, France:
     Overcast, 18.0C (source: wttr.in)' came from here."""
