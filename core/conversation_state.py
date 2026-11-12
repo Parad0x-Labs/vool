@@ -512,6 +512,8 @@ _PICK_RE = re.compile(
     re.IGNORECASE,
 )
 _PICK_MAX_AGE = 3
+#: "newest first", "most recent last", "sorted A to Z first": the word before first/last says how to order.
+_ORDER_BEFORE_RE = re.compile(r"\b(?:\w+est|recent|alphabetical(?:ly)?|order(?:ed)?|sorted)\s*$", re.IGNORECASE)
 #: A bare yes: the closed class of affirmation words. Used only against a structured offer (an open approval request).
 _AFFIRM_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "ok", "okay", "k", "do", "it", "go", "ahead", "please", "pls",
                            "proceed", "confirm", "approve", "approved", "sounds", "good", "fine", "that", "works", "then", "alright"})
@@ -562,6 +564,10 @@ def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
         return relative
     m = _PICK_RE.search(compact)
     if not m:
+        return None
+    if m.group("ord") and m.group("ord").lower() in {"first", "last"} and _ORDER_BEFORE_RE.search(compact[:m.start("ord")]):
+        # "list the members, newest first" names an order, not an item: measured on the Mac (Database run 16b,
+        # 2026-11-12) it was read as a pointer into an unprinted list, and the reply asked "which list or which item".
         return None
     listed = (pending.slots.get("listed") if pending else None) or []
     if not listed or (pending and pending.turns_since > _PICK_MAX_AGE):
@@ -659,9 +665,49 @@ def resolve(
                         verdict = None
                     if verdict == "yes" and _read_only(pending):
                         return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
-    if _ANAPHORIC_FOLDER_RE.search(compact) and not (pending and pending.slots.get("path")):
+    folder_pointer = _ANAPHORIC_FOLDER_RE.search(compact)
+    if folder_pointer and not (pending and pending.slots.get("path")) and (
+        _NAMES_A_FOLDER_RE.search(folder_pointer.group(0)) or _record_is_about_files(pending)
+    ):
         return Resolution("referent_unresolved", note=("The message points at a folder this chat has not resolved; ask which folder. " + (_note(pending) if pending else "")).strip())
-    return Resolution("none", slots=dict(pending.slots) if pending else {}, note=_note(pending) if pending else "")
+    note = _note(pending) if pending and _looks_back_at_the_record(compact, pending) else ""
+    return Resolution("none", slots=dict(pending.slots) if pending else {}, note=note)
+
+
+_NAMES_A_FOLDER_RE = re.compile(r"\b(?:folders?|director(?:y|ies)|dir)\b", re.IGNORECASE)
+#: Words that point back at what the chat last did, or ask about how it ended.
+_LOOKS_BACK_RE = re.compile(
+    r"\b(?:it|that|this|those|them|again|why|what\s+happened|went\s+wrong|error|errors|failed|fail|failing|broke|broken|"
+    r"stuck|retry|redo|same)\b",
+    re.IGNORECASE,
+)
+
+
+def _record_is_about_files(pending: PendingRequest | None) -> bool:
+    """Whether "in there" can mean a folder: no record yet, or the record is a folder or file ask.
+
+    In a chat whose last request read a database or the web, "what's the oldest book in there" points at that, not
+    at a folder: measured on the Mac (Database run 16b, 2026-11-12), it got "points at a folder ... ask which folder"
+    and the reply asked which list the person meant."""
+    if pending is None:
+        return True
+    slots = pending.slots or {}
+    if slots.get("listed") or slots.get("kind"):
+        return True
+    tool = str(slots.get("tool") or "").lower()
+    return not tool or tool.startswith("machine.") or "file" in tool or "folder" in tool or "director" in tool
+
+
+def _looks_back_at_the_record(compact: str, pending: PendingRequest) -> bool:
+    """Whether a message that is not a retry still needs to know how the chat's last request ended.
+
+    "why did it fail?" or "ok" right after a refusal does; a new ask of its own does not, and being told "Earlier in this
+    chat the user asked: ... It ended failed." beside it led the model to answer the old request or to call the new one
+    unsupported (Database run 16b on the Mac, 2026-11-12: "is Ines holding any books at the moment" carried the failed
+    "add a notes column" ask)."""
+    if pending.turns_since > _CUE_MAX_AGE:
+        return False
+    return len(compact.split()) <= 3 or bool(_LOOKS_BACK_RE.search(compact))
 
 
 def apply_change(slots: dict[str, Any], change: str) -> dict[str, Any]:

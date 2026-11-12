@@ -60,6 +60,13 @@ FRAMED = [
     # directive between content and question keeps the content sentence
     ("Answer briefly. My sister moved last spring. When is her birthday?",
      "My sister moved last spring. When is her birthday?"),
+    # a bare shape of the reply, no verb (measured 2026-11-12: "Two sentences." planned as a request)
+    ("What is a good way to keep basil alive on a windowsill? Two sentences.",
+     "What is a good way to keep basil alive on a windowsill?"),
+    ("In one sentence. Where did Ilse hide the spare key?", "Where did Ilse hide the spare key?"),
+    ("what did the vet say about rex? short answer please", "what did the vet say about rex?"),
+    ("Who fixed the gate? Keep it to two sentences.", "Who fixed the gate?"),
+    ("Which café did Noor like best? 20 words max.", "Which café did Noor like best?"),
 ]
 
 
@@ -86,6 +93,9 @@ UNCHANGED = [
     "If it rains, the match moves indoors. When is the match?",
     # a single sentence is never split
     "Answer this for me: which day is the bin collection?",
+    # a sentence that names a count of sentences but says something about the world stays
+    "Two sentences were missing from my report. Which page were they on?",
+    "Three points went to the visitors. Who scored them?",
 ]
 
 

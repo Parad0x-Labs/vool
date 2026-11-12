@@ -210,6 +210,12 @@ class Registry:
             )
             return int(cur.lastrowid or 0)
 
+    def last_seq(self) -> int:
+        """The sequence number of the newest event (0 when there is none)."""
+        with self._lock:
+            row = self._conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()
+        return int(row[0] or 0)
+
     def events(self, after: int = 0, kind: str | None = None) -> list[dict[str, Any]]:
         with self._lock:
             if kind is None:

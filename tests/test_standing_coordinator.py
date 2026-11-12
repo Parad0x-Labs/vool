@@ -38,6 +38,7 @@ class FakeTeamPort:
         self.present = True
         self.raises = False
         self.team_spend: SpendView | None = None
+        self.pause_supported = True
 
     def put(self, agent_id: str, state: AgentState = AgentState.RUNNING, **fields) -> None:
         base = {"agent_id": agent_id, "state": state, "started_at": T0, "label": agent_id.upper()}
@@ -50,7 +51,8 @@ class FakeTeamPort:
         if not self.present:
             return None
         return TeamSnapshot(team_id=team_id, agents=tuple(self.agents.values()), started_at=T0,
-                            title="Refactor", session_id="chat-1", spend=self.team_spend)
+                            title="Refactor", session_id="chat-1", spend=self.team_spend,
+                            pause_supported=self.pause_supported)
 
     def nudge(self, team_id, agent_id, text):
         self.calls.append(("nudge", agent_id, text))
@@ -151,6 +153,17 @@ def test_auto_pause_policy_pauses_the_stalled_agent(rig):
     rig.at(900)
     assert rig.port.kinds("pause") == [("pause", "a")]
     assert "I paused it" in rig.notifier.items[-1]["body"]
+
+
+def test_a_team_that_cannot_pause_is_never_paused_nor_told_it_was(rig):
+    rig.port.pause_supported = False
+    rig.port.put("a")
+    rig.coordinator.watch(TEAM, policy(max_nudges=0, auto_pause_stalled=True))
+    rig.at(900)
+    assert rig.port.kinds("pause") == []
+    [esc] = [n for n in rig.notifier.items if n["kind"] == "escalate"]
+    assert "cannot be paused from here, so stop it" in esc["body"], esc["body"]
+    assert "paused it" not in esc["body"] and "pausing" not in esc["body"]
 
 
 def test_waiting_and_paused_agents_are_not_nudged(rig):

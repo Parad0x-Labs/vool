@@ -11,6 +11,7 @@ internal ids except the alert id the user's choice must name.
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -20,6 +21,8 @@ from core.agent_team.contract import ContractRefused
 from core.agent_team.coordinator import TeamCoordinator
 from core.agent_team.limits import Limits, LimitsRefused
 from core.agent_team.registry import LIVE_STATES, Registry
+
+logger = logging.getLogger(__name__)
 
 _LOCK = threading.RLock()
 _TEAMS: dict[str, TeamCoordinator] = {}
@@ -101,11 +104,38 @@ def start(session_id: str, plan: Sequence[Mapping[str, Any]], *, team_limits: Ma
             (_team_dir(session_id) / "session.txt").write_text(str(session_id))
             team.start_loop()
             _TEAMS[_team_dir(session_id).name] = team
+        since = team.registry.last_seq() + 1
         try:
             rows = team.start(list(plan))
         except (ContractRefused, LimitsRefused) as exc:
             return {"ok": False, "error": str(exc)}
+        _watch_new_agents(session_id, team.team_dir.name, since)
     return {"ok": True, "agents": rows, "status": team.status()["lines"]}
+
+
+def _watch_new_agents(session_id: str, team_dir_name: str, since: int) -> None:
+    """Hand the agents just started to the standing coordinator, so a stuck agent, a question and the
+    final report reach this chat's notifications without the user asking for status.
+
+    One watch per chat team at a time: while a watch is open it already covers agents planned later in
+    the same chat. Off with the coordinator (VOOL_STANDING_COORDINATOR=0). Never fails a start: the
+    agents run under their own limits either way.
+    """
+    try:
+        from core.standing_coordinator import api as coordinator_api
+        from core.standing_coordinator.daemon import disabled_by_env
+        from core.standing_coordinator.team_port import batch_team_id, team_id_prefix
+
+        if disabled_by_env():
+            return
+        coordinator = coordinator_api.default_coordinator()
+        whole = team_id_prefix(team_dir_name)
+        if any(w["team_id"] == whole or str(w["team_id"]).startswith(whole + ":")
+               for w in coordinator.store.active_watches()):
+            return
+        coordinator.watch(batch_team_id(team_dir_name, since), session_id=session_id)
+    except Exception:
+        logger.warning("agent team: the standing coordinator could not watch the new agents", exc_info=True)
 
 
 def status(session_id: str) -> dict[str, Any]:

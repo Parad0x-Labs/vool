@@ -1100,6 +1100,27 @@
       "registry_command_id": "context.pages.list",
       "surface": "http"
     },
+    "http:GET:/api/coordinator/decisions": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/coordinator/decisions",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.decisions",
+      "surface": "http"
+    },
+    "http:GET:/api/coordinator/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/coordinator/status",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.status",
+      "surface": "http"
+    },
+    "http:GET:/api/coordinator/watches": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/coordinator/watches",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.watches",
+      "surface": "http"
+    },
     "http:GET:/api/council/events": {
       "classification": "GENERATED_ADAPTER",
       "name": "GET /api/council/events",
@@ -2325,6 +2346,34 @@
       "registry_command_id": "context.pages.archive",
       "surface": "http"
     },
+    "http:POST:/api/coordinator/decide": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/coordinator/decide",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.decide",
+      "surface": "http"
+    },
+    "http:POST:/api/coordinator/forget": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/coordinator/forget",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.forget",
+      "surface": "http"
+    },
+    "http:POST:/api/coordinator/unwatch": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/coordinator/unwatch",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.unwatch",
+      "surface": "http"
+    },
+    "http:POST:/api/coordinator/watch": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/coordinator/watch",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "coordinator.watch",
+      "surface": "http"
+    },
     "http:POST:/api/council/convene": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/council/convene",
@@ -3533,7 +3582,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 335,
-    "GENERATED_ADAPTER": 160,
+    "GENERATED_ADAPTER": 167,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

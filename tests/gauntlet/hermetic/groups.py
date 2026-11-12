@@ -31,6 +31,11 @@ def _cross_chat() -> dict[str, Any]:
     Splitting these across children would make the isolation claim meaningless: two processes share
     no history, so "B did not see A" would be true of any implementation, including a broken one.
     Keeping them together is what makes the assertion about the product.
+
+    Each code is remembered "for this chat". A bare "Remember ..." is saved to the person's shared
+    memory, which every chat may read by design (tests/test_profile_admission_contract.py), so it
+    cannot stand in for one chat's own history. What a turn saw is read from the whole wire (system
+    prompt, chat messages and prompt): history reaches an answering call as chat messages.
     """
     from tests.gauntlet import harness as H  # noqa: N812  (reads as the module name at every call site)
 
@@ -49,12 +54,12 @@ def _cross_chat() -> dict[str, Any]:
                 "session_id": turn.session_id,
                 "status": turn.status,
                 "reply": turn.reply,
-                "prompt_seen_by_model": "\n".join(call.prompt for call in turn.model_calls),
+                "prompt_seen_by_model": "\n".join(call.wire for call in turn.model_calls),
             }
         )
 
-    record("A1", chat_a.say(f"Remember this project code: {alpha_marker}. Acknowledge it."))
-    record("B1", chat_b.say(f"Remember this project code: {beta_marker}. Acknowledge it."))
+    record("A1", chat_a.say(f"Remember this project code for this chat: {alpha_marker}. Acknowledge it."))
+    record("B1", chat_b.say(f"Remember this project code for this chat: {beta_marker}. Acknowledge it."))
     record("A2", chat_a.say("What was the project code I gave you?"))
     record("B2", chat_b.say("What was the project code I gave you?"))
     record("A3", chat_a.say("Summarise everything we have discussed so far."))

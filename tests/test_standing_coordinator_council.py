@@ -67,6 +67,8 @@ def test_council_run_is_watched_escalated_asked_and_closed_through_the_inbox(hom
     assert stuck["session_id"] == "chat-9" and stuck["payload"]["section"] == "needs"
     assert stuck["payload"]["event_type"] == "coordinator_escalate"
     assert "cannot take a message" in stuck["body"] and "$0.01" in stuck["body"]
+    # A council run has no pause: the user is told to stop it, never that it was (or should be) paused.
+    assert "stop it if it stays stuck" in stuck["body"] and "pausing" not in stuck["body"]
 
     status_code, status = coordinator_api.status("council:run-a")
     assert status_code == 200 and status["spend"] == {"cost_usd": 0.012, "tokens": 1500, "calls": 1}

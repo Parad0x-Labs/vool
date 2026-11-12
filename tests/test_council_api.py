@@ -286,3 +286,36 @@ def test_prewarm_is_killed_by_the_local_models_disabled_marker(tmp_path, monkeyp
     while _time.time() < deadline and "providers" not in calls:
         _time.sleep(0.05)
     assert "arbiter" in calls and "providers" in calls
+
+
+def test_a_run_convened_but_not_yet_written_is_served_live_not_missing(isolated_council, monkeypatch) -> None:
+    """The run thread writes the first state file only after it starts. A card polling right after
+    convene got 404 here, showed "this run's record is no longer on disk" for a live run, stopped
+    polling, and offered neither Stop nor Watch (seen on the real app, 2026-11-12)."""
+    import threading
+
+    held = threading.Event()
+
+    def first_step_held(base_url):
+        held.wait(10)
+        return ""
+
+    monkeypatch.setattr("core.council.api.read_current_pin", first_step_held)
+    status, payload = _post("/api/council/convene", {"problem": "why does the turn lie", "seats": CLOUD_BENCH},
+                            "127.0.0.1")
+    assert status == 200 and payload["ok"] is True
+    run_id = payload["run_id"]
+    try:
+        status, snapshot = _get("/api/council/status", "127.0.0.1", {"run": [run_id]})
+        assert status == 200, snapshot
+        assert snapshot["live"] is True
+        run = snapshot["run"]
+        assert run["state"] == "convened" and run["problem"] == "why does the turn lie" and run["rounds"] == []
+        assert [s["seat_id"] for s in run["seats"]] == [s["seat_id"] for s in payload["seats"]]
+    finally:
+        held.set()
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if not _get("/api/council/status", "127.0.0.1", {"run": [run_id]})[1].get("live"):
+            break
+        time.sleep(0.1)

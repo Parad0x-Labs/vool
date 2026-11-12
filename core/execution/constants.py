@@ -1668,7 +1668,9 @@ _COMPARE_KIND_WORDS = {
 _COMPARE_KIND_ALT = "|".join(sorted(_COMPARE_KIND_WORDS, key=len, reverse=True))
 _COMPARE_WHICH_RE = re.compile(
     r"\bwhich\s+(?:of\s+(?:my|the)\s+(?P<knoun>" + _COMPARE_KIND_ALT + r")\s+)?is\s+(?:the\s+)?"
-    r"(?:biggest|largest|bigger|larger)\s*,?\s*(?P<alts>[^?!.]+)",
+    # A dot inside a name ("school_play.mp4") belongs to the alternative; a dot that ends the
+    # sentence does not.
+    r"(?:biggest|largest|bigger|larger)\s*[,:]?\s*(?P<alts>(?:[^?!.]|\.(?=[0-9a-z]))+)",
     re.IGNORECASE,
 )
 _COMPARE_OF_MINE_RE = re.compile(
@@ -1682,6 +1684,27 @@ _COMPARE_MY_RE = re.compile(
 )
 _COMPARE_ALT_SPLIT_RE = re.compile(r"\s+(?:or|and|vs\.?|versus)\s+", re.IGNORECASE)
 _COMPARE_ALT_STOP = frozenset({"the", "a", "an", "my", "one", "ones", "please", "pls"})
+# A compare with no "of my <kind>s" is about FILES only when its words say so. Measured
+# 2026-11-12 in the real app on the v0.8 head (auto model selection run 1): "Which is bigger, a
+# kilometre or a mile? One sentence." was answered "I couldn't find a file called 'kilometre' or
+# 'mile' in your files" -- every "which is bigger, A or B" was read as a question about files.
+# The words that say files: a file name with its extension, a file-only word (file, pdf, doc),
+# "my" before a kind word ("my school play video"), or a folder of this computer ("in my
+# Downloads", "on my laptop"). "a desktop or a laptop" names no folder; "my car or my house"
+# names no file.
+_COMPARE_FILE_EXTENSIONS = (
+    "mp4|mov|m4v|avi|mkv|webm|jpg|jpeg|png|heic|heif|gif|webp|tif|tiff|bmp|pdf|mp3|m4a|wav|aac|"
+    "flac|aiff|csv|txt|md|doc|docx|xls|xlsx|ppt|pptx|key|pages|numbers|zip|dmg|pkg|iso|json|xml|"
+    "html|epub|psd|svg|rar|7z|gz|tar"
+)
+_COMPARE_SAYS_FILES_RE = re.compile(
+    r"\b[0-9a-z][\w\-]*\.(?:" + _COMPARE_FILE_EXTENSIONS + r")\b"
+    r"|\b(?:files?|pdfs?|docs?|" + _COMPARE_FILE_EXTENSIONS + r")\b"
+    r"|\bmy\s+(?:[0-9a-z'\-]+\s+){0,3}(?:" + _COMPARE_KIND_ALT + r")\b"
+    r"|\b(?:in|on|from|inside)\s+(?:my|the|this)\s+(?:downloads|desktop|documents|pictures|movies|music)\b"
+    r"|\b(?:in|on|from)\s+(?:my|this)\s+(?:computer|mac|pc|laptop|disk|drive)\b",
+    re.IGNORECASE,
+)
 
 
 class CompareAsk(NamedTuple):
@@ -1690,6 +1713,10 @@ class CompareAsk(NamedTuple):
     kind: str  # "", video, image, pdf, audio or doc -- the kind noun from the ask
     names: tuple[tuple[str, ...], ...]  # 2+ alternatives of 1-3 words; () for "biggest of my <kind>s"
     place: str  # "Desktop"/"Downloads"/"Documents"/"Pictures" when the ask names one, else ""
+    # False for a bare "which is bigger, A or B" whose words name no file: it is a file compare
+    # only right after the chat showed a file it names (the caller decides that), else a
+    # general question for the answering model.
+    says_files: bool = True
 
 
 def machine_named_compare_intent(text: str) -> CompareAsk | None:
@@ -1706,11 +1733,17 @@ def machine_named_compare_intent(text: str) -> CompareAsk | None:
     which = _COMPARE_WHICH_RE.search(raw)
     if which is not None:
         names = []
+        kinds: set[str] = set()
         for part in _COMPARE_ALT_SPLIT_RE.split(which.group("alts")):
             words = [
                 word for word in re.findall(r"[0-9a-z]+", part.lower().replace("'", ""))
                 if word not in _COMPARE_ALT_STOP and len(word) >= 3
             ]
+            # "my school play video": the kind word says which files, it is not in the name.
+            named = [word for word in words if word not in _COMPARE_KIND_WORDS]
+            if named and len(named) < len(words):
+                kinds.update(_COMPARE_KIND_WORDS[word] for word in words if word in _COMPARE_KIND_WORDS)
+                words = named
             if words:
                 names.append(tuple(dict.fromkeys(words[:3])))
         if len(names) < 2:
@@ -1719,10 +1752,14 @@ def machine_named_compare_intent(text: str) -> CompareAsk | None:
         # so the place is read from the rest of the sentence.
         place = _named_place(raw[: which.start("knoun")] + " " + raw[which.end("knoun"):]) \
             if which.group("knoun") else _named_place(raw)
+        kind = _COMPARE_KIND_WORDS.get(str(which.group("knoun") or "").lower(), "")
+        if not which.group("knoun") and len(kinds) == 1:
+            kind = next(iter(kinds))
         return CompareAsk(
-            _COMPARE_KIND_WORDS.get(str(which.group("knoun") or "").lower(), ""),
+            kind,
             tuple(names),
             place,
+            bool(which.group("knoun")) or bool(_COMPARE_SAYS_FILES_RE.search(raw)),
         )
     whole = _COMPARE_OF_MINE_RE.search(raw)
     if whole is not None:

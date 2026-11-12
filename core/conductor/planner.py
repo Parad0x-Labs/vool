@@ -27,6 +27,7 @@ exactly as they do today.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import re
 import uuid
@@ -352,37 +353,110 @@ _REMARK_ON_WHAT_YOU_KNOW_RE = re.compile(
 )
 
 
-def _without_clauses_that_ask_nothing(
-    clauses: Sequence[ProposedClause], original: str
-) -> list[ProposedClause]:
-    """The proposed clauses minus those lying wholly inside what the message says but does not ask.
+def _spans_that_ask_nothing(original: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]] | None:
+    """`(what the message says but does not ask, what it asks)` as spans of `original`, or None.
 
-    The model proposes, the runtime disposes: the ONE interpretation of the message
-    (`answer_coverage.interpret_request`) already reads "my mate says her life is like one big locked
-    file" as the context of "whats she on about?", and "you know this one" as a remark on "whats my
-    sisters name?". Planned as their own requests they became unresolved nodes, and the reply ended
-    in "Could not be answered: - my mate says her life is like one big locked file" (measured
-    2026-10-28 on qwen3:8b, the PC and a phone alike). Only a clause no request unit overlaps is
-    dropped, and the dependency indexes are renumbered; when anything cannot be read the proposal
-    stands as it was.
+    The ONE interpretation of the message (`answer_coverage.interpret_request`) already reads "my
+    mate says her life is like one big locked file" as the context of "whats she on about?", and
+    "you know this one" as a remark on "whats my sisters name?". None when it cannot be read.
     """
     try:
         from core.agent_runtime.answer_coverage import interpret_request
 
         units = tuple(interpret_request(original).units)
     except Exception:
-        return list(clauses)
+        return None
     # A constraint can be a deliverable the planner is right to plan ("and show the working", "say
     # exactly what cannot be determined"), so of the constraints only a remark on what the assistant
-    # knows asks nothing; every context statement does.
+    # knows asks nothing; every context statement does. A sentence that only shapes the reply ("Two
+    # sentences.", "Keep it to one line.") asks nothing either, whatever kind it was read as:
+    # measured 2026-11-12 in the real app on the v0.8 head, "What is a good way to keep basil alive
+    # on a windowsill? Two sentences." was planned as two requests and the reply ended in "Could not
+    # be answered: Two sentences." The directive grammar is the retrieval lane's, its one owner.
+    try:
+        from core.context_retrieval import _sentence_is_answer_frame
+    except Exception:  # pragma: no cover - the grammar is part of the same build
+        def _sentence_is_answer_frame(_sentence: str) -> bool:
+            return False
+
     def _asks_nothing(unit: Any) -> bool:
         if unit.kind == "context":
+            return True
+        if _sentence_is_answer_frame(str(unit.text or "")):
             return True
         return unit.kind == "constraint" and bool(_REMARK_ON_WHAT_YOU_KNOW_RE.fullmatch(
             " ".join(str(unit.text or "").split()).strip(" .,!?")))
 
-    asks_nothing = [(u.start, u.end) for u in units if _asks_nothing(u)]
-    asks = [(u.start, u.end) for u in units if not _asks_nothing(u)]
+    return ([(u.start, u.end) for u in units if _asks_nothing(u)],
+            [(u.start, u.end) for u in units if not _asks_nothing(u)])
+
+
+def without_sentences_that_ask_nothing(original: str) -> str:
+    """The message minus what its one reading holds as context, a remark or a courtesy.
+
+    Only decides whether a planner call is worth spending; the turn itself is never rewritten. A
+    turn that is one request plus "i sell handmade candles at markets" can only plan as that one
+    request once `_without_clauses_that_ask_nothing` drops the context clause, so the planner call
+    buys nothing. The same holds for words the reading leaves outside every unit when they are a
+    courtesy ("ok and", "sorry,", "thanks,": `core.finalization`'s reading of what is not a demand).
+    Fails toward the turn: a reading that cannot be had, that holds no request, or whose spans are
+    not the message's own characters keeps the whole message.
+    """
+    read = _spans_that_ask_nothing(original)
+    if read is None:
+        return original
+    asks_nothing, asks = read
+    if not asks:
+        return original
+    spans = sorted([*asks_nothing, *asks])
+    if any(lo2 < hi for (_lo, hi), (lo2, _hi2) in itertools.pairwise(spans)):
+        return original
+    if any(not 0 <= lo < hi <= len(original) for lo, hi in spans):
+        return original
+    try:
+        from core.finalization import _is_a_demand
+    except Exception:  # pragma: no cover - the reading is part of the same build
+        return original
+    cut = list(asks_nothing)
+    edges = [0, *[x for span in spans for x in span], len(original)]
+    for lo, hi in zip(edges[0::2], edges[1::2], strict=False):
+        gap = original[lo:hi]
+        if gap.strip(" ,;:.!?–—-\n\t") and not _is_a_demand(gap.strip(" ,;:–—-")):
+            cut.append((lo, hi))
+    if not cut:
+        return original
+    kept: list[str] = []
+    cursor = 0
+    for start, end in sorted(cut):
+        kept.append(original[cursor:start])
+        cursor = end
+    kept.append(original[cursor:])
+    # The comma, dash or joining word left at the edge of a cut goes with it: "i make leather
+    # wallets by hand, what should i post this week?" is one question, not ", what should i ...",
+    # and "ok and how many are still out on loan" is not "and how many ...".
+    pieces = (re.sub(r"^(?:and|also|plus|then|so|but)\b\s*", "", " ".join(piece.split()).strip(" ,;:–—-"),
+                     flags=re.IGNORECASE) for piece in kept)
+    remainder = " ".join(piece for piece in pieces if piece)
+    return remainder or original
+
+
+def _without_clauses_that_ask_nothing(
+    clauses: Sequence[ProposedClause], original: str
+) -> list[ProposedClause]:
+    """The proposed clauses minus those lying wholly inside what the message says but does not ask.
+
+    The model proposes, the runtime disposes: the message's one reading (`_spans_that_ask_nothing`)
+    holds "my mate says her life is like one big locked file" as context and "you know this one"
+    as a remark. Planned as their own requests they became unresolved nodes, and the reply ended
+    in "Could not be answered: - my mate says her life is like one big locked file" (measured
+    2026-10-28 on qwen3:8b, the PC and a phone alike). Only a clause no request unit overlaps is
+    dropped, and the dependency indexes are renumbered; when anything cannot be read the proposal
+    stands as it was.
+    """
+    read = _spans_that_ask_nothing(original)
+    if read is None:
+        return list(clauses)
+    asks_nothing, asks = read
     if not asks_nothing or not asks:
         return list(clauses)
     kept: list[ProposedClause] = []
@@ -2629,6 +2703,7 @@ def plan_conductor_turn(
         _subject_without_answer_frame,
         recall_question_needs_no_planner,
         turn_may_hold_several_requests,
+        without_reply_directives,
     )
     from core.plain_task_routing import is_ordinary_multi_part_plain_task
 
@@ -2701,6 +2776,17 @@ def plan_conductor_turn(
     if plain_shaped and not _turn_requires_live_evidence(original):
         return None
     if not turn_may_hold_several_requests(original):
+        return None
+    # A turn that is one request plus sentences that only shape the reply ("Two sentences.") can
+    # only plan as that one request once those sentences are dropped (above), so the planner call
+    # is not spent on it: measured at 38 s of a 79 s turn on qwen3.5:4b (2026-11-12).
+    if not turn_may_hold_several_requests(without_reply_directives(original)):
+        return None
+    # The same for one request plus what the person tells about themselves: "what should i post
+    # each day next week? i sell handmade candles at markets" spent a planner call to learn that
+    # the second sentence asks nothing (case X11, qwen3:8b, the Oct 28 rechecks), and before that
+    # clause was dropped the reply ended in "Could not be answered: - i sell handmade candles ...".
+    if not turn_may_hold_several_requests(without_sentences_that_ask_nothing(original)):
         return None
     # One question about the speaker's own facts is one reader call from memory. A planner call
     # here returns a single clause (and so None) at the price of a whole model call; the joiner
@@ -2860,6 +2946,7 @@ __all__ = [
     "conductor_system_prompt",
     "parse_clauses",
     "plan_conductor_turn",
+    "without_sentences_that_ask_nothing",
 ]
 
 

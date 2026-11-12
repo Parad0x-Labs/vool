@@ -384,10 +384,13 @@ class CouncilOrchestrator:
             "result": "stopped", "detail": "stopped by the operator while paused"})
 
     # ------------------------------------------------------------------ state
-    def _persist(self, state_name: str, **extra: Any) -> None:
-        self.current_state = state_name
+    def state_view(self, state_name: str = "", **extra: Any) -> dict[str, Any]:
+        """The run as its state file records it: what ``_persist`` writes, built without writing.
+
+        The council API serves this for a run it holds whose thread has not written its first
+        state yet, so a card polling right after convene sees the run and not a missing record."""
         state = {
-            "state": state_name,
+            "state": state_name or self.current_state,
             "problem": self.problem,
             "exhibits_present": bool(str(self.exhibits or "").strip()),
             "chat_session": self.chat_session,
@@ -408,7 +411,11 @@ class CouncilOrchestrator:
             "outcome": self.outcome,
         }
         state.update(extra)
-        self.store.write_state(state)
+        return state
+
+    def _persist(self, state_name: str, **extra: Any) -> None:
+        self.current_state = state_name
+        self.store.write_state(self.state_view(state_name, **extra))
         if self.on_transition is not None:
             with contextlib.suppress(Exception):  # a progress listener must never kill the run
                 self.on_transition({"run_id": self.run_id, "state": state_name, **extra})

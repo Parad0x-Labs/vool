@@ -105,6 +105,44 @@ _WANTS_CURRENT = (
     r"\bthis\s+(?:week|month|quarter|year)\b",
 )
 
+# A request to make or plan the person's OWN output: what they will post, write or cook. A period
+# in it ("this week", "this month") says when that output happens; nothing in the world has to be
+# observed now. Matched on the shape: a first-person "what should I post", an idea or plan noun for
+# such output, or a head verb that makes it ("write me a post", "plan my meals"). Measured
+# 2026-11-12 on the frozen v0.8 candidate through the served chat door: "what should i post this
+# week?", "what should i cook this week?", "write me a post for this week" and "draft a newsletter
+# for this month" were each refused with "That is not mentioned in the records I have ..." or
+# "Web lookups are off, so I can't look this up online", while "... next week" was answered.
+_OWN_OUTPUT_PLAN_RE = re.compile(
+    r"\b(?:what|which)\s+(?:\w+\s+){0,2}?(?:should|could|can|shall)\s+(?:i|we)\s+"
+    r"(?:post|share|put\s+(?:up|out|on)|write|tweet|blog|film|record|cook|make|bake|prepare|serve)\b"
+    r"|\b(?:post|posting|content|caption|tweet|recipe|meal|menu|dinner|newsletter|blog)\s+"
+    r"(?:ideas?|plan|calendar|schedule)\b"
+    r"|\bideas?\s+(?:for|of)\s+(?:what\s+to\s+)?(?:post|share|write|cook|make|bake)\b"
+    r"|^\s*(?:please\s+)?(?:help\s+me\s+)?(?:write|draft|compose|plan|create|make|prepare|outline|brainstorm)\s+"
+    r"(?:(?:me|us)\s+)?(?:(?:a|an|my|our|some|the)\s+)?(?:\w+\s+){0,3}?"
+    r"(?:posts?|captions?|tweets?|newsletters?|content|meals?|menus?|recipes?)\b",
+    re.IGNORECASE,
+)
+# What still makes such a request a look at the world: output ABOUT what is happening ("write a
+# post about the news this week") needs that news observed.
+_WORLD_HAPPENINGS_RE = re.compile(
+    r"\b(?:news|headlines?|happening|happened|weather|forecast|elections?|scores?|results?|trending|"
+    r"prices?|exchange\s+rates?|stock\s+market|stocks?|what['’]?s\s+on)\b",
+    re.IGNORECASE,
+)
+
+
+def _period_scopes_own_output(text: str) -> bool:
+    """Whether the only freshness word is a period that says when the person's own output happens.
+
+    "current", "latest", "today's" and "right now" keep their meaning; so does a request whose
+    output is about what is happening in the world."""
+    clean = " ".join(str(text or "").split())
+    if _matches(clean, (_WANTS_CURRENT[0],)):
+        return False
+    return bool(_OWN_OUTPUT_PLAN_RE.search(clean)) and not _WORLD_HAPPENINGS_RE.search(clean)
+
 # A request whose SUBSTANCE is facts about named things in the world. Read by the requirements
 # authority into `ExecutionRequirements.world_facts_requested`; deliberately NOT a care level and
 # NOT consulted by `answer_mode_for`, so routing is unchanged (such a turn is DIRECT and reaches
@@ -600,7 +638,9 @@ def answer_mode_for(request: str) -> AnswerMode:
         # records-scoped, a mixed turn keeps its promotion while any asking unit names no
         # store, and an ask that promised evidence, named a currency conversion or demanded a
         # breakdown was promoted above and keeps its contract.
-        if _records_scoped_currency_ask(text):
+        # "what should i post this week?" plans the person's own output (see `_OWN_OUTPUT_PLAN_RE`):
+        # the period is when they post, not a lookup owed now.
+        if _records_scoped_currency_ask(text) or _period_scopes_own_output(text):
             return AnswerMode.DIRECT
         # Currency alone means "go and look" only when the subject is the WORLD. "what is your
         # current mood right now" carries every currency marker and is a question about the

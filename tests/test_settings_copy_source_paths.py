@@ -13,8 +13,9 @@ Guards, each answering one question:
 - in EVERY shipped locale, the copy the served page renders from -- the localized settings
   model, the locale bundle, the provider key guide and the static markup -- names no
   repository path;
-- a real browser that opens every Settings group through the daemon's own /settings route
-  paints no repository path, which also covers widget strings built in the page script.
+- a real browser that opens every Settings group of the real daemon process (its own
+  /settings route, in the state its boot leaves it) paints no repository path, which also
+  covers widget strings built in the page script.
 
 Code comments inside the served scripts are developer notes nobody sees; they are not copy
 and are deliberately not scanned.
@@ -23,10 +24,7 @@ from __future__ import annotations
 
 import json
 import re
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -155,46 +153,16 @@ def test_served_settings_copy_names_no_repository_path(tag: str) -> None:
     assert not leaks, f"{tag}: Settings copy names repository paths:\n" + "\n".join(leaks)
 
 
-def test_every_settings_group_paints_without_a_repository_path(monkeypatch) -> None:
+def test_every_settings_group_paints_without_a_repository_path(tmp_path) -> None:
     from core.vool_settings_page import settings_groups
-    from core.web.api.runtime import RuntimeServices
-    from core.web.api.service import dispatch_get, dispatch_post
+    from tests._blackbox_served_rig import ServedDaemon
     from tests.served_browser import launch_chromium
 
-    monkeypatch.delenv("VOOL_RESEARCH_NETWORKING", raising=False)
-    runtime = RuntimeServices(display_name="Settings copy fixture")
-
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args): pass
-
-        def answer(self, result):
-            self.send_response(result.status)
-            self.send_header("Content-Type", result.content_type)
-            self.end_headers()
-            self.wfile.write(result.body or b"")
-
-        def do_GET(self):
-            u = urlsplit(self.path)
-            self.answer(dispatch_get(path=u.path, query=parse_qs(u.query), headers=dict(self.headers),
-                                     runtime=runtime, model_name="fixture", client_host="127.0.0.1"))
-
-        def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
-            self.answer(dispatch_post(path=urlsplit(self.path).path, body=body, headers=dict(self.headers),
-                                      runtime=runtime, model_name="fixture", client_host="127.0.0.1"))
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    manager, browser = launch_chromium()
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    # Count the page's own reads so each group is collected after its widgets have answered.
-    page.add_init_script(
-        "(() => { const f = window.fetch; window.__copyInflight = 0;"
-        " window.fetch = function (...a) { window.__copyInflight++;"
-        " return f.apply(this, a).finally(() => { window.__copyInflight--; }); }; })()"
-    )
+    # The real daemon process, not an in-process handler: whatever it installs at boot (the
+    # wallet's payment authority, for one, reported by the Models group) is in the state each
+    # group paints, exactly as people see it. Measured 2026-11-12 on the v0.8 head: an
+    # in-process walk passed while the served Models group painted an internal module label.
+    daemon = ServedDaemon(tmp_path / "home", env_extra={"VOOL_RESEARCH_NETWORKING": ""})
     collect = """() => {
       const body = document.body.cloneNode(true);
       body.querySelectorAll('script, style, template, noscript').forEach(n => n.remove());
@@ -204,21 +172,35 @@ def test_every_settings_group_paints_without_a_repository_path(monkeypatch) -> N
       return parts.join('\\n');
     }"""
     painted: dict[str, str] = {}
+    groups = settings_groups()
     try:
-        page.goto(f"http://127.0.0.1:{server.server_port}/settings")
-        page.locator("#nav .nav-item").first.wait_for()
-        groups = settings_groups()
-        assert page.evaluate("MODEL.map(g => g.id)") == [g["id"] for g in groups]
-        for group in groups:
-            page.locator(f'#nav [data-group="{group["id"]}"]').click()
-            page.wait_for_function(
-                "t => document.getElementById('paneTitle').textContent === t && window.__copyInflight === 0",
-                arg=group["title"],
+        daemon.start()
+        manager, browser = launch_chromium()
+        try:
+            page = browser.new_page(viewport={"width": 1200, "height": 900})
+            errors: list[str] = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            # Count the page's own reads so each group is collected after its widgets have answered.
+            page.add_init_script(
+                "(() => { const f = window.fetch; window.__copyInflight = 0;"
+                " window.fetch = function (...a) { window.__copyInflight++;"
+                " return f.apply(this, a).finally(() => { window.__copyInflight--; }); }; })()"
             )
-            painted[group["id"]] = page.evaluate(collect)
-        assert not errors, errors
+            page.goto(f"{daemon.base_url}/settings")
+            page.locator("#nav .nav-item").first.wait_for()
+            assert page.evaluate("MODEL.map(g => g.id)") == [g["id"] for g in groups]
+            for group in groups:
+                page.locator(f'#nav [data-group="{group["id"]}"]').click()
+                page.wait_for_function(
+                    "t => document.getElementById('paneTitle').textContent === t && window.__copyInflight === 0",
+                    arg=group["title"],
+                )
+                painted[group["id"]] = page.evaluate(collect)
+            assert not errors, errors
+        finally:
+            browser.close(); manager.stop()
     finally:
-        browser.close(); manager.stop(); server.shutdown(); server.server_close()
+        daemon.stop()
 
     # The walk really painted each group's own rows, not a stale or empty pane.
     for group in groups:

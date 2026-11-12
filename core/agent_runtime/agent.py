@@ -1430,6 +1430,18 @@ def _no_calendar_reply(text: str) -> str | None:
         return None
     if _re.search(r"\b(?:schedule|book|add|create|move|cancel|set)\s+(?:a|an|the|my)\b", clean, _re.IGNORECASE):
         return None  # an order to change the calendar goes to its own lane and approval
+    # "plan my meals for this week" asks for a plan to be made: the verb is not the noun "plans".
+    # Measured 2026-11-12 on the frozen v0.8 candidate through the served chat door: it and "plan
+    # my posts for next week" were answered "No calendar is connected yet". Planning the day or the
+    # week itself ("plan my week") still reads the calendar.
+    plan_verb = _re.match(
+        r"\s*(?:please\s+)?plan\s+(?:out\s+)?(?:(?:my|our|a|an|the|some)\s+)?([\w'’-]+)(\s+of\b)?", clean, _re.IGNORECASE
+    )
+    if plan_verb and (plan_verb.group(2) or plan_verb.group(1).lower() not in {
+        "day", "days", "week", "weekend", "month", "morning", "afternoon", "evening", "tonight", "tomorrow",
+        "today", "schedule", "calendar", "agenda", "time",
+    }):
+        return None
     try:
         import os as _os
 

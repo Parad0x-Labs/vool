@@ -21,6 +21,7 @@ class StandingCoordinatorError(ValueError):
 
 
 class AgentState(str, enum.Enum):
+    QUEUED = "queued"  # planned, not started yet (waiting on the tasks it depends on)
     RUNNING = "running"
     WAITING = "waiting"  # stopped on a decision only someone else can make
     PAUSED = "paused"
@@ -129,6 +130,9 @@ class TeamSnapshot:
     session_id: str = ""
     #: The registry's own team total, when it keeps one. Else the sum of the agents.
     spend: SpendView | None = None
+    #: Whether the port can pause an agent. A team that cannot is never told it was paused,
+    #: and a stuck agent there is put to the user with a stop recommendation instead.
+    pause_supported: bool = True
 
     def total_spend(self) -> SpendView:
         if self.spend is not None:

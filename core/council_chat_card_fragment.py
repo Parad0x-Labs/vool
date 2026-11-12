@@ -76,6 +76,11 @@ _CARD_CSS = """
 .vcx-dispute{font-size:11.5px;color:var(--warn,#f0b429);margin:3px 0;white-space:pre-wrap}
 .vcx-stop{background:none;border:1px solid var(--bad,#f87171);color:var(--bad,#f87171);
   border-radius:7px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer;margin-top:7px}
+.vcx-watch{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:7px}
+.vcx-watch-btn{background:none;border:1px solid var(--border,#262b35);color:var(--ink,#e8eaf0);
+  border-radius:7px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
+.vcx-watch-btn:disabled{opacity:.5;cursor:default}
+.vcx-watch-note{font-size:11px;color:var(--muted,#9aa1af)}
 """
 
 _CARD_JS = r"""
@@ -157,6 +162,7 @@ function record(chatId, runId){
       attentionEl: null, attentionAttached: false, actionNote: '', modelDraft: {},
       verdictEl: null, scoreEl: null, score: null, scoreAsked: false,
       candidateEl: null, summaryEl: null, stopEl: null,
+      watchEl: null, watchBtn: null, watchNote: null, watching: false, watchError: '',
       timer: null, sig: '', open: {}, bodies: {}
     };
     runs[id] = rec;
@@ -757,6 +763,7 @@ function render(rec){
     buildRounds(rec);
   }
   ensureStop(rec);
+  ensureWatch(rec);
 }
 
 function ensureStop(rec){
@@ -766,6 +773,9 @@ function ensureStop(rec){
   // removed the only way out of exactly the run that is sitting there waiting for the
   // operator. What disqualifies a run is being FINISHED, or having no record to act on.
   var wanted = !!rec.run && !rec.missing && !isTerminal(String((rec.run || {}).state || ''));
+  // A card rebuilt after the chat was switched away and back is a new node: the old button went
+  // with the old one, and removing it from the new card would throw.
+  if (rec.stopEl && rec.stopEl.parentNode !== rec.node) rec.stopEl = null;
   if (wanted && !rec.stopEl) {
     rec.stopEl = el('button', 'vcx-stop', 'Stop council');
     rec.stopEl.type = 'button';
@@ -779,6 +789,85 @@ function ensureStop(rec){
   } else if (!wanted && rec.stopEl) {
     rec.node.removeChild(rec.stopEl);
     rec.stopEl = null;
+  }
+}
+
+// The standing coordinator watches a run on request: a seat stuck with no report, a pause that
+// needs the operator and the end of the run then reach the bell, with this chat closed. The card
+// shows only what the server says: "watching" is read back from the coordinator, never assumed
+// from the click, and a refusal is shown in the server's own words.
+var WATCH_NOTE = 'Watching: you will hear under the bell if it gets stuck, needs you or finishes.';
+
+function coordinatorTeam(rec){ return 'council:' + rec.runId; }
+
+function paintWatch(rec){
+  if (!rec.watchEl) return;
+  var watching = rec.watching === true;
+  rec.watchBtn.textContent = watching ? 'Stop watching' : 'Watch this run';
+  rec.watchBtn.title = watching ? '' : 'Tell me under the bell if it gets stuck, needs me or finishes';
+  rec.watchBtn.dataset.watch = watching ? 'unwatch' : 'watch';
+  rec.watchBtn.setAttribute('data-watch', rec.watchBtn.dataset.watch);
+  var note = rec.watchError || (watching ? WATCH_NOTE : '');
+  rec.watchNote.textContent = note;
+  rec.watchNote.hidden = !note;
+}
+
+function readWatch(rec){
+  return fetch('/api/coordinator/status?team=' + encodeURIComponent(coordinatorTeam(rec)))
+    .then(function(r){ return r.json().then(function(d){ return { status: r.status, data: d }; }); })
+    .then(function(res){
+      // 404 is "not watched". Anything else unreadable leaves the control offering a watch.
+      rec.watching = res.status === 200 && !!res.data && res.data.watching === true;
+      paintWatch(rec);
+    })
+    .catch(function(){ paintWatch(rec); });
+}
+
+function toggleWatch(rec){
+  var watching = rec.watching === true;
+  var url = watching ? '/api/coordinator/unwatch' : '/api/coordinator/watch';
+  var body = watching ? { team_id: coordinatorTeam(rec) }
+    : { team_id: coordinatorTeam(rec), session_id: String(rec.chatId || '') };
+  rec.watchBtn.disabled = true;
+  rec.watchError = '';
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json().then(function(d){ return { status: r.status, data: d }; }); })
+    .then(function(res){
+      if (!res.data || res.data.ok !== true) {
+        rec.watchError = String((res.data && res.data.error) || ('the server refused this (' + res.status + ')'));
+        paintWatch(rec);
+        return null;
+      }
+      return readWatch(rec);
+    })
+    .catch(function(err){ rec.watchError = 'could not reach VOOL: ' + err; paintWatch(rec); })
+    .then(function(){ if (rec.watchBtn) rec.watchBtn.disabled = false; });
+}
+
+function ensureWatch(rec){
+  // Offered on the same runs as Stop: a run that can still get stuck or need the operator.
+  var wanted = !!rec.run && !rec.missing && !isTerminal(String((rec.run || {}).state || ''));
+  if (rec.watchEl && rec.watchEl.parentNode !== rec.node) {
+    rec.watchEl = null; rec.watchBtn = null; rec.watchNote = null;  // the card was rebuilt
+  }
+  if (wanted && !rec.watchEl) {
+    rec.watchEl = el('div', 'vcx-watch');
+    rec.watchBtn = el('button', 'vcx-watch-btn', 'Watch this run');
+    rec.watchBtn.type = 'button';
+    rec.watchBtn.addEventListener('click', function(){ toggleWatch(rec); });
+    rec.watchNote = el('span', 'vcx-watch-note');
+    rec.watchNote.hidden = true;
+    rec.watchEl.appendChild(rec.watchBtn);
+    rec.watchEl.appendChild(rec.watchNote);
+    rec.node.appendChild(rec.watchEl);
+    rec.watchError = '';
+    paintWatch(rec);
+    readWatch(rec);
+  } else if (!wanted && rec.watchEl) {
+    rec.node.removeChild(rec.watchEl);
+    rec.watchEl = null;
+    rec.watchBtn = null;
+    rec.watchNote = null;
   }
 }
 
