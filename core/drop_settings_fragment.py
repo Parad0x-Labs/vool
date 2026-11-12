@@ -21,7 +21,7 @@ window.VoolDrop={mountInto:function(host){
   var root=el('div');root.className='vd-root';host.appendChild(root);
   function line(key,fallback,tag){var n=el(tag||'div',t(key,fallback));root.appendChild(n);return n;}
   function input(key,fallback,type){var label=el('label',t(key,fallback));var n=el('input');n.type=type||'text';if(type==='checkbox'){label.className='vd-toggle';label.prepend(n);}else label.appendChild(n);root.appendChild(label);return n;}
-  function button(parent,key,fallback,run){var n=el('button',t(key,fallback));n.type='button';n.className='btn';parent.appendChild(n);n.onclick=async function(){n.disabled=true;try{await run();}catch(e){clear();status.textContent=errorText(e.code);}finally{n.disabled=false;}};return n;}
+  function button(parent,key,fallback,run){var n=el('button',t(key,fallback));n.type='button';n.className='btn';parent.appendChild(n);n.onclick=async function(){n.disabled=true;try{await run();}catch(e){clear();status.textContent=errorText(e.code);if(!panel.hidden&&select.value)await show().catch(function(){});}finally{n.disabled=false;}};return n;}
   function errorText(code){
     if(code==='DROP_DISABLED')return t('drop.off','Drop is off.');
     if(['IDENTITY_MISMATCH','SELF_SESSION','FINGERPRINT_CONFIRMATION_REQUIRED','INVALID_PEER'].includes(code))return t('drop.pin_error','Check the fingerprint with the other person before connecting.');
