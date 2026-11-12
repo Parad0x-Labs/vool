@@ -205,3 +205,95 @@ def test_a_concrete_wrong_outcome_tied_to_the_cited_code_is_accepted_and_keeps_i
     assert _as_survey_row(candidate)["harm_class"] == "integrity", candidate["failure_scenario"]
     defect, bare = _undeclared(candidate)
     assert defect == "" and bare["harm_class"] == "integrity", (defect, candidate["failure_scenario"])
+
+
+# ---- real-model audit attempt 3 (qwen3:8b through /api/chat, 2026-11-12, e706d5dc): the rule backed a story
+# the cited line contradicts and refused the real bug every time it was found. Wording verbatim from the rows.
+SHIP_NEGATIVE_BASE = {"title": "", "file": "stock.py", "line_start": 29, "line_end": 29,
+                      "cited_line_text": "        self.on_hand[sku] = self.on_hand.get(sku, 0) - qty",
+                      "harm_class": "integrity"}
+CONTRADICTED_BY_ITS_LINE = [
+    # stock.py:25 is `self.reserved[sku] = max(0, self.reserved[sku] - qty)`: reserved cannot go negative. The
+    # story's only "input" was the 0 it copied from that max(0, ...), and "but" read as the wrong outcome.
+    {"title": "No Check for Negative Reserved Quantity", "file": "stock.py", "line_start": 25, "line_end": 25,
+     "cited_line_text": "        self.reserved[sku] = max(0, self.reserved[sku] - qty)",
+     "failure_scenario": "The release method uses max(0, ...) to prevent negative reserved quantities, but this does "
+                         "not account for cases where the reserved quantity is less than the qty being released, "
+                         "leading to potential negative values.",
+     "harm_class": "integrity"},
+    # Authored: the same claim with a concrete input still contradicts the clamp on its line.
+    {"title": "release goes negative", "file": "stock.py", "line_start": 25, "line_end": 25,
+     "cited_line_text": "        self.reserved[sku] = max(0, self.reserved[sku] - qty)",
+     "failure_scenario": "release('A', 5) with reserved 3 leaves reserved at -2 instead of 0.",
+     "harm_class": "integrity"},
+    # stock.py:20 calls can_reserve, which refuses qty <= 0; the story says nothing stops a negative qty.
+    {"title": "No Validation for Negative Qty in Reserve", "file": "stock.py", "line_start": 20, "line_end": 20,
+     "cited_line_text": "        if not self.can_reserve(sku, qty):",
+     "failure_scenario": "The reserve method calls can_reserve, which checks if qty is positive, but does not "
+                         "validate that qty is not negative, leading to potential negative reserved quantities.",
+     "harm_class": "integrity"},
+]
+
+
+# Authored: a literal copied out of the cited code is the source speaking, not an input the story gives.
+COPIED_LITERAL = [
+    "The line calls self.on_hand.get(sku, 0) - qty, but nothing logs the change.",
+    "on_hand.get(sku, 0) is used here, but the default should be documented.",
+]
+
+
+@pytest.mark.parametrize("scenario", COPIED_LITERAL)
+def test_a_literal_copied_from_the_cited_code_is_not_an_input(scenario):
+    candidate = dict(SHIP_NEGATIVE_BASE, failure_scenario=scenario, title="not a bug")
+    assert _as_survey_row(candidate)["harm_class"] not in {"integrity", "crash"}, scenario
+    defect, _ = _undeclared(candidate)
+    assert REFUSED_AS_PRIMARY in defect, scenario
+
+
+@pytest.mark.parametrize("candidate", CONTRADICTED_BY_ITS_LINE, ids=lambda c: c["title"])
+def test_a_story_its_own_cited_line_contradicts_is_not_promoted(candidate):
+    assert _as_survey_row(candidate)["harm_class"] not in {"integrity", "crash"}, candidate["failure_scenario"]
+    defect, bare = _undeclared(candidate)
+    assert REFUSED_AS_PRIMARY in defect, (bare["harm_class"], candidate["failure_scenario"])
+
+
+SHIP_NEGATIVE = dict(SHIP_NEGATIVE_BASE, title="No Check for Negative on_hand")
+
+# stock.py:29 lets ship drive on_hand below zero. The model found it in both builds and words it as a condition on
+# the code's own names with a hedged bad value; the rule wanted a number and read "could become" as speculation.
+SHIP_NEGATIVE_AS_FOUND = [
+    "If qty exceeds the available stock, on_hand could become negative, which is not valid.",
+    "If qty exceeds the available quantity, on_hand could become negative, which is invalid.",
+    "If the qty exceeds the available stock, the on_hand could become negative, which is invalid. The code does "
+    "not check for this scenario.",
+    # Authored: other comparisons a model writes for the same bug.
+    "When qty is greater than on_hand, on_hand ends up below zero.",
+    "If qty > on_hand[sku], ship leaves on_hand negative.",
+]
+
+
+@pytest.mark.parametrize("scenario", SHIP_NEGATIVE_AS_FOUND)
+def test_the_real_ship_bug_in_the_models_words_keeps_its_class(scenario):
+    candidate = dict(SHIP_NEGATIVE, failure_scenario=scenario)
+    assert _as_survey_row(candidate)["harm_class"] == "integrity", scenario
+    defect, bare = _undeclared(candidate)
+    assert defect == "" and bare["harm_class"] == "integrity", (defect, scenario)
+
+
+# A condition on the code's names is an input, but it still needs a bad value, and a hedge on a quality is still
+# only a hunch. None of these may be promoted.
+CONDITION_WITHOUT_A_BAD_VALUE = [
+    "If qty exceeds the available stock, ship could be slow.",
+    "If qty is greater than on_hand, the code may be hard to read.",
+    "When qty exceeds on_hand, on_hand is updated correctly.",
+    "If qty is negative, on_hand might be confusing to read.",
+    "If qty exceeds the stock, ship might take longer to run.",
+]
+
+
+@pytest.mark.parametrize("scenario", CONDITION_WITHOUT_A_BAD_VALUE)
+def test_a_condition_without_a_bad_value_is_not_promoted(scenario):
+    candidate = dict(SHIP_NEGATIVE, failure_scenario=scenario, title="not a bug")
+    assert _as_survey_row(candidate)["harm_class"] not in {"integrity", "crash"}, scenario
+    defect, _ = _undeclared(candidate)
+    assert REFUSED_AS_PRIMARY in defect, scenario

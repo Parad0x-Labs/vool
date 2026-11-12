@@ -953,14 +953,82 @@ _CONTRAST_OR_ERROR_RE = re.compile(
 )
 
 
+#: A bad value is a wrong outcome even when hedged: "on_hand could become negative" says what goes wrong, where
+#: "could be slow" says only what might. (Real-model audit attempt 3, 2026-11-12: qwen3:8b worded the real
+#: ship bug that way every time it found it, and the speculation check refused it.)
+_BAD_VALUE_RE = re.compile(
+    r"\bnegative\b|\bbelow\s+zero\b|\bless\s+than\s+zero\b|(?<![\w.\-])-\d",
+    re.IGNORECASE,
+)
+#: A condition on the code's own quantities is a concrete input, as a literal is: "if qty exceeds the available
+#: stock" can be run as surely as "ship('A', 5) with on_hand 3". It must compare or sign a value; "if something
+#: goes wrong" is not one.
+_CONDITION_RE = re.compile(
+    r"\b(?:if|when|whenever|once|after)\s+(?:the\s+)?[A-Za-z_][\w.\[\]]*\s+"
+    r"(?:exceeds?|is\s+(?:greater|larger|bigger|more|less|smaller|fewer|lower|higher)\s+than"
+    r"|is\s+(?:above|below|over|under|negative|zero)|[<>]=?)\s*[^,.;]*",
+    re.IGNORECASE,
+)
+#: An assignment on a cited line, and whether it clamps the value at zero.
+_ASSIGNMENT_RE = re.compile(r"^\s*(?:self\.)?([A-Za-z_]\w*)(?:\[[^\]]*\])?\s*[-+]?=\s*(.+)$")
+_CLAMPED_AT_ZERO_RE = re.compile(r"^max\(\s*0\s*,|^max\(.*,\s*0\s*\)\s*$")
+
+
 def _scenario_states_a_wrong_outcome(text: str) -> bool:
-    """Whether the story says what goes wrong (a contrast or an error), not only what might."""
+    """Whether the story says what goes wrong (a contrast or an error), not only what might.
+
+    A bad value (negative stock) is stated even under a hedge; anything else must not be hedged.
+    """
+    outcome = _CONDITION_RE.sub(" ", text)
+    if _BAD_VALUE_RE.search(outcome):
+        return True
     return bool(_CONTRAST_OR_ERROR_RE.search(text)) and not _SPECULATIVE_RE.search(text)
 
 
+_CALL_IN_TEXT_RE = re.compile(r"([A-Za-z_]\w*)\(([^()]*)\)?")
+
+
+def _literals_beyond_the_code(text: str, window: str) -> bool:
+    """Whether the story gives a literal of its own, not one it copied from the cited code.
+
+    Attempt 3's false High had one literal: the 0 of "max(0, ...)", quoted from the very line it cited. A call's
+    arguments that the cited lines pass to the same callee are the source speaking, not an input; the same call
+    with the story's own values ("can_reserve('A', 5)") is one.
+    """
+    called: dict[str, set[str]] = {}
+    for name, args in _CALL_IN_TEXT_RE.findall(window):
+        called.setdefault(name, set()).update(m.group(0) for m in _SCENARIO_LITERAL_RE.finditer(args))
+
+    def _unless_copied(match: re.Match) -> str:
+        literals = {m.group(0) for m in _SCENARIO_LITERAL_RE.finditer(match.group(2))}
+        if literals and literals <= called.get(match.group(1), set()):
+            return " "
+        return match.group(0)
+
+    return bool(_SCENARIO_LITERAL_RE.search(_CALL_IN_TEXT_RE.sub(_unless_copied, text)))
+
+
+def _cited_lines_contradict(text: str, evidence: Any, path: str, start: int, end: int) -> bool:
+    """Whether the story claims a value goes negative that its own cited lines clamp at zero.
+
+    Attempt 3 promoted "potential negative values" for stock.py:25, `self.reserved[sku] = max(0, ...)`. Every
+    assignment on the cited lines whose name the story uses must be unclamped for the claim to stand.
+    """
+    if not _BAD_VALUE_RE.search(_CONDITION_RE.sub(" ", text)):
+        return False
+    lines = str(evidence.sources.get(path, "") or "").splitlines()
+    named = []
+    for line in lines[max(0, start - 1): min(len(lines), end)]:
+        match = _ASSIGNMENT_RE.match(line)
+        if match and re.search(r"(?<![\w])" + re.escape(match.group(1)) + r"(?![\w])", text, re.IGNORECASE):
+            named.append(bool(_CLAMPED_AT_ZERO_RE.search(match.group(2).strip())))
+    return bool(named) and all(named)
+
+
 def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, start: int, end: int) -> bool:
-    """Whether a failure scenario can be settled by running something: it gives a concrete input (a number or
-    a quoted value) AND names code that sits on the cited lines (±1).
+    """Whether a failure scenario can be settled by running something: it gives a concrete input (a literal of
+    its own, or a condition on a value) AND names code that sits on the cited lines (±1), AND those lines do not
+    contradict it.
 
     The harm vocabulary alone decided this before, so a real, concrete bug worded "the 2 units remain reserved"
     rather than "incorrect" was demoted and refused as the primary finding (live agent-team comparison,
@@ -971,10 +1039,14 @@ def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, 
     # A literal and a nearby name are not enough on their own (independent review, 2026-10-07: "With 2 orders,
     # order.lines may be hard to read" and "The 3 lines that update order.lines are clear and correct" were
     # promoted to the top severity). The story must also state the wrong outcome it claims.
-    if not _SCENARIO_LITERAL_RE.search(text) or not _scenario_states_a_wrong_outcome(text):
+    if not _scenario_states_a_wrong_outcome(text):
         return False
     lines = str(evidence.sources.get(path, "") or "").splitlines()
     window = "\n".join(lines[max(0, start - 2): min(len(lines), end + 1)])
+    if not (_literals_beyond_the_code(text, window) or _CONDITION_RE.search(text)):
+        return False
+    if _cited_lines_contradict(text, evidence, path, start, end):
+        return False
     tokens = {t for t in _CODE_TOKEN_RE.findall(window) if len(t) >= 4 and t not in _NOT_GROUNDING}
     # Inside a method `self.available` is called `available` (review of 6ad76ec7: "can_reserve('A', 5) with
     # available 5 -> False, should be True" did not ground).
