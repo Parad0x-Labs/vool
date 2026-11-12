@@ -38,8 +38,8 @@ Kiekvienas paleidimas, sąlygos ir silpnosios vietos paskelbti: [atminties lygin
 | Paleisti VOOL | [Diegimas](getting-started/install.md) |
 | Suprasti pirmąjį ekraną | [Pirmasis paleidimas](getting-started/first-run.md) |
 | Nurodyti jam modelį | [Modelio prijungimas](getting-started/connect-a-model.md) |
-| Valdyti, kokios išlaidos gali atsirasti | [Išlaidų ribos](../../guides/spending-limits.md) |
-| Žinoti, kas palieka jūsų kompiuterį | [Vietoje ir debesijoje](../../concepts/local-and-cloud.md) |
+| Valdyti, kokios išlaidos gali atsirasti | [Išlaidų ribos](guides/spending-limits.md) |
+| Žinoti, kas palieka jūsų kompiuterį | [Vietoje ir debesijoje](concepts/local-and-cloud.md) |
 
 ## Kas yra VOOL
 
@@ -57,7 +57,7 @@ Kiekvienas paleidimas, sąlygos ir silpnosios vietos paskelbti: [atminties lygin
 VOOL yra beta versija Mac kompiuteriams su Apple Silicon, Mac kompiuteriams su Intel ir Linux x86_64. Mac programos
 dar nėra notarizuotos Apple, todėl pirmą kartą atidarant macOS paprašys patvirtinimo;
 [Diegimo](getting-started/install.md#pirmasis-atidarymas-mac-kompiuteryje) puslapyje parodyta, kaip tai padaryti. Prieš diegdami
-perskaitykite [Leidimų būseną](../../trust/release-status.md).
+perskaitykite [Leidimų būseną](trust/release-status.md).
 {% endhint %}
 
 ## Du režimai, be užuolankų
@@ -73,6 +73,6 @@ rašoma skyriuje [Duomenų tvarkymas](trust/data-handling.md).
 
 ## Pagalba
 
-* [DUK](../../help/faq.md) — dažniausiai užduodami klausimai
+* [DUK](help/faq.md) — dažniausiai užduodami klausimai
 * [Problemų sprendimas](help/troubleshooting.md) — kai kas nors nepasileidžia
 * [Discord](https://discord.gg/V9NkjP3Fzz) — paklauskite komandos

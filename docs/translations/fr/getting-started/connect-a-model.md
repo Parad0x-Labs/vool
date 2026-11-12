@@ -13,18 +13,18 @@ reste sur votre machine ou la quitte.
 
 Si un moteur local est installé et en marche, VOOL le détecte et liste ses modèles.
 En sélectionner un fait afficher Local à l’indicateur. Les détails de configuration se trouvent dans
-[Exécuter un modèle local](../../../guides/local-models.md).
+[Exécuter un modèle local](../guides/local-models.md).
 
 ## Cloud
 
 Ajoutez une clé de fournisseur dans **Réglages → Clés API**. La clé est conservée dans un fichier chiffré sur cet
-ordinateur (voir [Modèle de sécurité](../../../trust/security.md#keys)) et sert à envoyer les requêtes
+ordinateur (voir [Modèle de sécurité](../trust/security.md#clés)) et sert à envoyer les requêtes
 **depuis votre machine directement au fournisseur**.
 
 Sélectionner un modèle cloud fait afficher le nom du fournisseur à l’indicateur, et celui-ci change avant
 qu’aucune requête ne soit envoyée.
 
-Voir [Connecter OpenRouter](../../../guides/openrouter.md) pour la marche à suivre propre à OpenRouter.
+Voir [Connecter OpenRouter](../guides/openrouter.md) pour la marche à suivre propre à OpenRouter.
 
 ## Changer de modèle
 

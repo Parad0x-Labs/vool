@@ -6,6 +6,8 @@ docs/translations/<lang>/ holds the docs in the app's languages. What these chec
   byte, URLs, headings, tables, hints, lists, numbers, links and the app's own labels); a page
   whose English source changed since it was translated is out of date, which warns here and
   is published with a notice, so editing an English page never blocks on 16 retranslations;
+* each translated Error Book is what tools/docs/translate_error_book.py makes from the app's
+  own error texts, laid out like the English book;
 * the checker catches each kind of drift it promises to catch;
 * the site build marks machine-translated and out-of-date pages, links untranslated pages to
   the English ones, shows Arabic and Hebrew right to left, and the publish gate catches a link
@@ -111,6 +113,53 @@ def test_glossary_app_labels_come_from_the_app_catalogs() -> None:
     for item in data["app_labels"]:
         if "key" in item:
             assert english.get(item["key"]) == item["en"], item
+
+
+# ---------------------------------------------------------------------------
+# The Error Book in each language
+# ---------------------------------------------------------------------------
+
+BOOK_TRANSLATOR = TOOLS / "translate_error_book.py"
+
+
+def test_error_book_layout_follows_the_english_book() -> None:
+    """The translated books are laid out by the same code as the English one: with the English
+    words it gives docs/ERROR_BOOK.md exactly, so a layout change cannot leave them behind."""
+    teb = _load(BOOK_TRANSLATOR, "error_book_translator_under_test")
+    assert teb.check_english(teb.load_words()), (
+        "tools/docs/translate_error_book.py no longer reproduces docs/ERROR_BOOK.md: make the "
+        "same change there and in tools/docs/error_book_words.json")
+
+
+def test_each_translated_error_book_is_what_the_app_texts_make() -> None:
+    """A translated book made from today's English book is exactly what the tool makes from the
+    app's texts and the book's words, so no one edits it by hand and a changed app text shows.
+    One made from an older English book is out of date, like any other page."""
+    teb = _load(BOOK_TRANSLATOR, "error_book_translator_under_test")
+    words = teb.load_words()
+    ct = _checker()
+    english = ct.sha256_file(str(DOCS / "ERROR_BOOK.md"))
+    behind = []
+    for lang in sorted(words["languages"]):
+        path = DOCS / "translations" / lang / "ERROR_BOOK.md"
+        if ct.Page(str(path)).meta.get("source_sha256") != english:
+            continue
+        if path.read_text(encoding="utf-8") != teb.translated_page(lang, words):
+            behind.append(lang)
+    assert not behind, "run: python3 tools/docs/translate_error_book.py " + " ".join(behind)
+
+
+def test_checker_holds_the_error_book_to_the_app_texts(tmp_path: Path) -> None:
+    """Each code's message on a translated Error Book is the app's own text in that language;
+    a hand edit to one fails the check."""
+    ct = _checker(_copy_docs(tmp_path) / "docs")
+    assert ct.main(["stamp", "de", "ERROR_BOOK.md"]) == 0
+    _data, catalogs = ct.load_glossary()
+    message = catalogs["de"]["fault.permission_denied.message"]
+    _edit(Path(ct.TRANSLATIONS) / "de" / "ERROR_BOOK.md", message, message[:-1] + "!")
+    problems = ct.check_all().blocking("de")
+    assert any("ERROR_BOOK.md" in p and "must read" in p and message[:24] in p
+               for p in problems), problems
 
 
 # ---------------------------------------------------------------------------

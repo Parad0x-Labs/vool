@@ -15,9 +15,9 @@ con su proveedor si añades una.
 1. **¿Dónde debe pensar?** En este ordenador con un modelo local, o en línea con una clave de un
    proveedor al que pagas. Consulta [Conectar un modelo](connect-a-model.md).
 2. **Elige una carpeta.** La carpeta del proyecto en la que trabaja VOOL. Consulta
-   [Espacios de trabajo](../../../concepts/workspaces.md).
+   [Espacios de trabajo](../concepts/workspaces.md).
 3. **¿Qué puede hacer solo?** Con qué frecuencia VOOL se detiene y te pregunta antes de cambiar algo. Consulta
-   [Herramientas](../../../concepts/tools.md).
+   [Herramientas](../concepts/tools.md).
 4. **¿Cómo debe llamarte?** Opcional. Basta con un nombre o un apodo, y se queda en
    este ordenador.
 
@@ -33,7 +33,7 @@ breve comprobación en tu equipo.
 * No crea una cuenta.
 * No exige una clave de la nube. Un modelo local basta para usar la app.
 * No indexa tu disco. Solo lee archivos cuando una petición los necesita; consulta
-  [Espacios de trabajo](../../../concepts/workspaces.md) para ver a qué carpetas puede acceder.
+  [Espacios de trabajo](../concepts/workspaces.md) para ver a qué carpetas puede acceder.
 
 {% hint style="info" %}
 Puedes elegir otra carpeta de proyecto en cualquier momento con **+ Proyecto** en la barra lateral del chat.

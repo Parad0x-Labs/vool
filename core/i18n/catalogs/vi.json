@@ -805,7 +805,7 @@
     "fault.wallet_quote_mismatch.message": "Phê duyệt không còn khớp với chuyển khoản đã xem trước, nên chưa ký hay gửi gì. Bắt đầu lại từ bản xem trước mới.",
     "fault.wallet_quote_unavailable.action": "Dữ liệu chuỗi không rõ không bao giờ coi là không; kiểm tra điểm cuối của dòng và bằng chứng danh tính của nó.",
     "fault.wallet_quote_unavailable.message": "Mạng chưa trả lời trọn vẹn về số dư hoặc phí của chuyển khoản này, nên chưa chuẩn bị phê duyệt và chưa gửi gì. Thử lại sau ít phút.",
-    "fault.wallet_recipient_refused.action": "Từ chối: tài khoản Solana mới dưới mức thuê tối thiểu, tài khoản thực thi hoặc ngoài đường cong, địa chỉ EIP-681 xấu hoặc người nhận là hợp đồng đã biết.",
+    "fault.wallet_recipient_refused.action": "Từ chối: tài khoản Solana mới dưới mức thuê tối thiểu, tài khoản thực thi hoặc ngoài đường cong, tổng kiểm tra EIP-55 sai, địa chỉ số không, hợp đồng biên dịch sẵn và hợp đồng hệ thống.",
     "fault.wallet_recipient_refused.message": "Người nhận đó không thể an toàn nhận chuyển khoản này trên mạng này, nên chưa chuẩn bị gì. Kiểm tra địa chỉ rồi thử lại.",
     "fault.wallet_recovery_refused.action": "Phục hồi niêm phong lại chỉ một ví sẵn có và chỉ từ bản dự phòng giải mã ra đúng khóa của ví đó (cả hai chiều).",
     "fault.wallet_recovery_refused.message": "Bằng chứng khôi phục đó không khớp ví này, nên chưa thay đổi gì: khóa đã lưu phải là bản dự phòng VOOL đã hiển thị cho đúng địa chỉ này, đúng định dạng đã hiển thị. Kiểm tra rồi thử lại, hoặc dùng các tùy chọn khác.",

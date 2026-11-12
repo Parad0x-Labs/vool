@@ -13,18 +13,18 @@ VOOL không đi kèm mô hình nào. Bạn tự chọn một mô hình, và lự
 
 Nếu một môi trường chạy cục bộ đã được cài và đang chạy, VOOL sẽ phát hiện và liệt kê các mô hình của nó.
 Khi chọn một mô hình trong đó, chỉ báo sẽ hiển thị Cục bộ. Chi tiết thiết lập có trong
-[Chạy mô hình cục bộ](../../../guides/local-models.md).
+[Chạy mô hình cục bộ](../guides/local-models.md).
 
 ## Đám mây
 
 Thêm khóa của nhà cung cấp trong **Cài đặt → Khóa API**. Khóa được lưu trong một tệp đã mã hóa trên máy tính
-này (xem [Mô hình bảo mật](../../../trust/security.md#keys)) và được dùng để gửi yêu cầu
+này (xem [Mô hình bảo mật](../trust/security.md#khóa)) và được dùng để gửi yêu cầu
 **từ máy của bạn thẳng tới nhà cung cấp**.
 
 Khi chọn một mô hình đám mây, chỉ báo sẽ hiển thị tên nhà cung cấp, và nó đổi trước khi
 có bất kỳ yêu cầu nào được gửi.
 
-Xem [Kết nối OpenRouter](../../../guides/openrouter.md) để biết quy trình riêng cho OpenRouter.
+Xem [Kết nối OpenRouter](../guides/openrouter.md) để biết quy trình riêng cho OpenRouter.
 
 ## Chuyển đổi
 

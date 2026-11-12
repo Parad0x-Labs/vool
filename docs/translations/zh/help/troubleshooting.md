@@ -28,12 +28,12 @@ curl http://localhost:11434/api/tags
 
 ## 回答很慢
 
-通常是模型大小相对可用内存来说太大了。见[运行本地模型](../../../guides/local-models.md)。
+通常是模型大小相对可用内存来说太大了。见[运行本地模型](../guides/local-models.md)。
 
 ## 错误显示代码
 
-每次失败都有一个固定的代码。[错误和错误代码](../../../reference/errors.md)说明如何读懂它，[错误手册](../../../ERROR_BOOK.md)则针对每个代码说明发生了什么、可能已经发生了什么，以及下一步该怎么做。
+每次失败都有一个固定的代码。[错误和错误代码](../reference/errors.md)说明如何读懂它，[错误手册](../ERROR_BOOK.md)则针对每个代码说明发生了什么、可能已经发生了什么，以及下一步该怎么做。
 
 ## 从头开始
 
-退出 VOOL，并删除[配置](../../../reference/configuration.md)中列出的“runtime home”文件夹。这会删除你的聊天、记忆、设置、已保存的密钥，以及 VOOL 在这台电脑上保管的任何钱包，所以请先保存你需要的内容：见[备份与恢复](../../../help/backup-and-recovery.md)。工作区中的文件不会受影响。
+退出 VOOL，并删除[配置](../reference/configuration.md)中列出的“runtime home”文件夹。这会删除你的聊天、记忆、设置、已保存的密钥，以及 VOOL 在这台电脑上保管的任何钱包，所以请先保存你需要的内容：见[备份与恢复](backup-and-recovery.md)。工作区中的文件不会受影响。

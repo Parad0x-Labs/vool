@@ -30,7 +30,7 @@ e identidades não são publicados.
 ## Telemetria
 
 O VOOL não envia telemetria de produto. Um relatório de bug só sai da sua máquina quando você o visualiza
-e escolhe enviá-lo; veja [Relato de bugs e privacidade](../../../trust/bug-reporting.md).
+e escolhe enviá-lo; veja [Relato de bugs e privacidade](bug-reporting.md).
 
 ## Valem os termos do seu provedor
 

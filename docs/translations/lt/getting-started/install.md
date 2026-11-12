@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 VOOL 0.7.7-beta programą Mac kompiuteriams su Apple Silicon, Mac kompiuteriams su Intel ir Linux x86_64 galima atsisiųsti iš
 [leidimo v0.7.7-beta](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
 Taip pat galite įdiegti iš šaltinio kodo naudodami paleidimo scenarijų macOS, Linux arba Windows sistemoje.
-Apie pasirašymą ir atnaujinimus skaitykite skyriuje [Leidimų būsena](../../../trust/release-status.md).
+Apie pasirašymą ir atnaujinimus skaitykite skyriuje [Leidimų būsena](../trust/release-status.md).
 
 ## Reikalavimai
 
@@ -22,7 +22,7 @@ Apie pasirašymą ir atnaujinimus skaitykite skyriuje [Leidimų būsena](../../.
 | Linux | glibc 2.31 | Ubuntu 22.04 ar naujesnė |
 
 Vietiniams modeliams reikia gerokai daugiau operatyviosios atminties nei pačiai programai. Patarimai dėl dydžio pateikti skyriuje
-[Vietinio modelio paleidimas](../../../guides/local-models.md).
+[Vietinio modelio paleidimas](../guides/local-models.md).
 
 ## Programos atsisiuntimas
 

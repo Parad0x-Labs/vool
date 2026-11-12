@@ -13,18 +13,18 @@ fica na sua máquina ou sai dela.
 
 Se um ambiente de execução local estiver instalado e em funcionamento, o VOOL o detecta e lista os modelos dele.
 Ao selecionar um, o indicador passa a mostrar Local. Os detalhes de configuração estão em
-[Executar um modelo local](../../../guides/local-models.md).
+[Executar um modelo local](../guides/local-models.md).
 
 ## Nuvem
 
 Adicione uma chave de provedor em **Configurações → Chaves de API**. A chave fica guardada em um arquivo criptografado
-neste computador (veja [Modelo de segurança](../../../trust/security.md#keys)) e é usada para fazer os pedidos
+neste computador (veja [Modelo de segurança](../trust/security.md#chaves)) e é usada para fazer os pedidos
 **da sua máquina diretamente ao provedor**.
 
 Ao selecionar um modelo na nuvem, o indicador passa a mostrar o nome do provedor, e ele muda antes de
 qualquer pedido ser feito.
 
-Veja [Conectar o OpenRouter](../../../guides/openrouter.md) para o fluxo específico do OpenRouter.
+Veja [Conectar o OpenRouter](../guides/openrouter.md) para o fluxo específico do OpenRouter.
 
 ## Trocar de modelo
 

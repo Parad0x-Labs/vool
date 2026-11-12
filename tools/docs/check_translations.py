@@ -32,6 +32,8 @@ has the why):
     or as a multi-word phrase is written exactly as the app shows it in that
     language (core/i18n/catalogs), and macOS words exactly as Apple writes them
     (tools/docs/translation_glossary.json);
+  * on the Error Book, each code's message and next step exactly as the app
+    shows them in that language (tools/docs/translate_error_book.py makes it);
   * in Chinese and Japanese, no line break between two characters of a paragraph
     (a browser shows it as a space in the middle of the sentence);
   * no machine paths.
@@ -77,7 +79,10 @@ _URL = re.compile(r"https?://[^\s)>\]\"'`]+")
 _HEADING = re.compile(r"^(#{1,6})\s+\S")
 _HINT = re.compile(r'^\s*\{%\s*hint\s+style="?(\w+)"?\s*%\}\s*$')
 _LIST_ITEM = re.compile(r"^\s*(?:([*+-])|(\d+)[.)])\s+\S")
-_NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+# A number. Thousands may be grouped the way the language writes them: 120,000, 120.000, or
+# 120 000 with a space or a no-break space (French, Polish, Russian, Ukrainian, Lithuanian).
+_NUMBER = re.compile(r"\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?!\d)|\d+(?:[.,]\d+)*")
+_GROUP_SPACE = re.compile(r"[ \u00a0\u202f]")
 _MACHINE_PATH = re.compile(r"(?:/Users/|/home/|/Volumes/|[A-Za-z]:\\Users\\)")
 _BOLD = re.compile(r"\*\*(.+?)\*\*", re.S)
 _QUOTED = re.compile(r'"([^"\n]+)"|\u201c([^\u201d\n]+)\u201d')
@@ -87,6 +92,10 @@ STATUSES = ("machine", "reviewed")
 # Chinese and Japanese put no spaces between words, but a browser shows a line break inside a
 # paragraph as a space: 接続することも⏎できます reads 接続することも できます.
 UNSPACED_LANGS = ("ja", "zh")
+# Pages made from the app's own texts (tools/docs/translate_error_book.py): each code's message and
+# next step are the app's words in that language, so they count as app labels. The page must show
+# them exactly, and a digit inside them is the app's (1つ for "one"), not a fact the page changed.
+APP_TEXT_PAGES = ("ERROR_BOOK.md",)
 
 
 # ---------------------------------------------------------------------------
@@ -181,14 +190,14 @@ class Page:
         return re.sub(r"^#{1,6}\s", " ", flat, flags=re.M)
 
     def numbers_outside(self, labels=()):
-        """Every number in the prose, as a sorted list (a decimal comma reads as a
-        point). Digits inside the given labels are not counted: an app label can
+        """Every number in the prose, as a sorted list (a decimal comma, and a comma or
+        space between groups of thousands, reads as a point: 120 000 is 120,000). Digits inside the given labels are not counted: an app label can
         carry a digit its English does not (何を1人で行えますか？)."""
         flat = self.number_text
         for label in sorted(set(labels), key=len, reverse=True):
             if label:
                 flat = flat.replace(label, " ")
-        return sorted(n.replace(",", ".") for n in _NUMBER.findall(flat))
+        return sorted(_GROUP_SPACE.sub(".", n).replace(",", ".") for n in _NUMBER.findall(flat))
 
     @staticmethod
     def _slugs(body):
@@ -254,6 +263,13 @@ def labels_for(lang, data, catalogs):
         local = per_lang.get(lang)
         out[en] = en if local is None else local
     return out
+
+
+def app_texts(lang, catalogs):
+    """{English message or next step of a fault code: the app's words for it in `lang`}."""
+    return {catalogs["en"][key]: catalogs[lang][key] for key in catalogs["en"]
+            if key.startswith("fault.") and key.endswith((".message", ".action"))
+            and key in catalogs[lang]}
 
 
 def english_labels_on(page, known):
@@ -394,7 +410,8 @@ def check_language(lang, report, data, catalogs, english_summary):
     labels = labels_for(lang, data, catalogs)
     translated = set(pages)
     for src in pages:
-        report.pages[lang][src] = _check_page(lang, src, translated, labels, en_section, report)
+        page_labels = {**labels, **app_texts(lang, catalogs)} if src in APP_TEXT_PAGES else labels
+        report.pages[lang][src] = _check_page(lang, src, translated, page_labels, en_section, report)
 
 
 def _check_page(lang, src, translated, labels, en_section, report):

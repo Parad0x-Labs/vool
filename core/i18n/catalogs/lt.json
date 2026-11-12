@@ -805,7 +805,7 @@
     "fault.wallet_quote_mismatch.message": "Patvirtinimas nebeatitinka perkėlimo, kuris buvo parodytas, todėl niekas nebuvo pasirašyta ar išsiųsta. Pradėkite iš naujo nuo šviežio numatymo.",
     "fault.wallet_quote_unavailable.action": "Nežinomi grandinės duomenys niekada nelaikomi nuliu; patikrinkite eilutės galą ir jo tapatybės įrodymą.",
     "fault.wallet_quote_unavailable.message": "Tinklas nedavė pilno atsakymo apie šio perkėlimo balansą ar komisinius, todėl patvirtinimas nebuvo ruošiamas ir niekas nebuvo išsiųsta. Pabandykite po akimirkos.",
-    "fault.wallet_recipient_refused.action": "Atmesta: nauja Solanos paskyra žemiau nuomos minimumo, vykdomoji ar ne kreivės paskyra, blogas EIP-681 adresas arba žinomas kontrakto gavėjas.",
+    "fault.wallet_recipient_refused.action": "Atmesta: nauja Solanos paskyra žemiau nuomos minimumo, vykdomoji ar ne kreivės paskyra, bloga EIP-55 kontrolinė suma, nulinis adresas, iš anksto sukompiliuoti ir sisteminiai kontraktai.",
     "fault.wallet_recipient_refused.message": "Šis gavėjas šiame tinkle negali saugiai priimti šio perkėlimo, todėl niekas nebuvo paruošta. Patikrinkite adresą ir bandykite dar kartą.",
     "fault.wallet_recovery_refused.action": "Atkūrimas iš naujo užantspauduoja tik esamą piniginę ir tik iš atsarginės kopijos, kuri iššifruoja į tos piniginės patį raktą (abi kryptys).",
     "fault.wallet_recovery_refused.message": "Šis atkūrimo įrodymas netinka šiai piniginei, todėl niekas nepasikeitė: įrašytas raktas turi būti atsarginė kopija, kurią VOOL rodė būtent šiam adresui, tokia forma, kokia ji buvo parodyta. Pasitikrinkite ir bandykite dar kartą arba naudokite kitus variantus.",

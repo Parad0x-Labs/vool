@@ -32,19 +32,19 @@ Jeśli to polecenie nic nie zwróci, środowisko uruchomieniowe nie działa.
 ## Odpowiedzi są powolne
 
 Zwykle chodzi o rozmiar modelu w stosunku do dostępnej pamięci RAM. Zobacz
-[Uruchamianie modelu lokalnego](../../../guides/local-models.md).
+[Uruchamianie modelu lokalnego](../guides/local-models.md).
 
 ## Błąd pokazuje kod
 
-Każdy błąd ma stały kod. Strona [Błędy i kody błędów](../../../reference/errors.md) wyjaśnia, jak go
-odczytać, a [Księga błędów](../../../ERROR_BOOK.md) podaje dla każdego kodu, co się stało, co mogło się
+Każdy błąd ma stały kod. Strona [Błędy i kody błędów](../reference/errors.md) wyjaśnia, jak go
+odczytać, a [Księga błędów](../ERROR_BOOK.md) podaje dla każdego kodu, co się stało, co mogło się
 już stać i co zrobić dalej.
 
 ## Zaczynanie od nowa
 
 Zamknij VOOL i usuń folder „runtime home” wskazany w sekcji
-[Konfiguracja](../../../reference/configuration.md). Spowoduje to usunięcie twoich czatów, pamięci,
+[Konfiguracja](../reference/configuration.md). Spowoduje to usunięcie twoich czatów, pamięci,
 ustawień, zapisanych kluczy i każdego portfela, który VOOL przechowuje na tym komputerze, więc
 najpierw zapisz to, czego potrzebujesz: zobacz
-[Kopia zapasowa i odzyskiwanie](../../../help/backup-and-recovery.md). Pliki obszaru roboczego pozostają
+[Kopia zapasowa i odzyskiwanie](backup-and-recovery.md). Pliki obszaru roboczego pozostają
 nietknięte.

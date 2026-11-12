@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 VOOL 0.7.7-beta के ऐप डाउनलोड Apple Silicon वाले Mac, Intel वाले Mac और Linux x86_64 के लिए
 [v0.7.7-beta रिलीज़](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta) पर उपलब्ध हैं।
 आप macOS, Linux या Windows पर बूटस्ट्रैप स्क्रिप्ट से सोर्स से भी इंस्टॉल कर सकते हैं।
-साइनिंग और अपडेट की जानकारी के लिए [रिलीज़ की स्थिति](../../../trust/release-status.md) देखें।
+साइनिंग और अपडेट की जानकारी के लिए [रिलीज़ की स्थिति](../trust/release-status.md) देखें।
 
 ## ज़रूरतें
 
@@ -22,7 +22,7 @@ VOOL 0.7.7-beta के ऐप डाउनलोड Apple Silicon वाले M
 | Linux | glibc 2.31 | Ubuntu 22.04 या नया |
 
 स्थानीय मॉडल को ऐप से कहीं ज़्यादा मेमोरी चाहिए। आकार से जुड़ी सलाह
-[स्थानीय मॉडल चलाना](../../../guides/local-models.md) में है।
+[स्थानीय मॉडल चलाना](../guides/local-models.md) में है।
 
 ## ऐप डाउनलोड करें
 

@@ -15,9 +15,9 @@ dostawcy, jeśli go dodasz.
 1. **Gdzie ma myśleć?** Na tym komputerze z modelem lokalnym albo online z kluczem od
    dostawcy, któremu płacisz. Zobacz [Podłączanie modelu](connect-a-model.md).
 2. **Wybierz folder.** Folder projektu, w którym pracuje VOOL. Zobacz
-   [Obszary robocze](../../../concepts/workspaces.md).
+   [Obszary robocze](../concepts/workspaces.md).
 3. **Co może robić sam?** Jak często VOOL zatrzymuje się i pyta cię, zanim cokolwiek zmieni. Zobacz
-   [Narzędzia](../../../concepts/tools.md).
+   [Narzędzia](../concepts/tools.md).
 4. **Jak ma Cię nazywać?** Opcjonalne. Wystarczy imię lub pseudonim i zostaje ono na
    tym komputerze.
 
@@ -33,7 +33,7 @@ test na twoim komputerze.
 * Nie zakłada konta.
 * Nie wymaga klucza do chmury. Do korzystania z aplikacji wystarczy model lokalny.
 * Nie indeksuje twojego dysku. Czyta pliki tylko wtedy, gdy wymaga tego żądanie; foldery, do których ma
-  dostęp, opisuje sekcja [Obszary robocze](../../../concepts/workspaces.md).
+  dostęp, opisuje sekcja [Obszary robocze](../concepts/workspaces.md).
 
 {% hint style="info" %}
 W każdej chwili możesz wybrać inny folder projektu przyciskiem **+ Projekt** na pasku bocznym czatu.

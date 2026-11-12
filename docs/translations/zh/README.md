@@ -34,8 +34,8 @@ VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。�
 | 让 VOOL 运行起来 | [安装](getting-started/install.md) |
 | 看懂第一个界面 | [首次运行](getting-started/first-run.md) |
 | 给它指定模型 | [连接模型](getting-started/connect-a-model.md) |
-| 控制可能发生的花费 | [花费限额](../../guides/spending-limits.md) |
-| 了解什么会离开你的电脑 | [本地与云端](../../concepts/local-and-cloud.md) |
+| 控制可能发生的花费 | [花费限额](guides/spending-limits.md) |
+| 了解什么会离开你的电脑 | [本地与云端](concepts/local-and-cloud.md) |
 
 ## VOOL 是什么
 
@@ -47,7 +47,7 @@ VOOL 0.7 自带的记忆在同样的题目上答对了 150 道中的 123 道。�
 
 {% hint style="warning" %}
 VOOL 目前为测试版，支持 Apple Silicon Mac、Intel Mac 和 Linux x86_64。Mac 版应用尚未经过
-Apple 公证，因此首次打开时 macOS 会请你确认；[安装](getting-started/install.md#在-mac-上首次打开)页面介绍了操作方法。安装前请先查看[发布状态](../../trust/release-status.md)。
+Apple 公证，因此首次打开时 macOS 会请你确认；[安装](getting-started/install.md#在-mac-上首次打开)页面介绍了操作方法。安装前请先查看[发布状态](trust/release-status.md)。
 {% endhint %}
 
 ## 两种模式，说得明明白白
@@ -61,6 +61,6 @@ VOOL 只区分两种状态，界面上始终显示当前是哪一种：
 
 ## 获取帮助
 
-* [常见问题](../../help/faq.md) — 最常被问到的问题
+* [常见问题](help/faq.md) — 最常被问到的问题
 * [故障排除](help/troubleshooting.md) — 有东西启动不了时
 * [Discord](https://discord.gg/V9NkjP3Fzz) — 向团队提问

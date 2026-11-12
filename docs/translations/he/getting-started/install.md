@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 ל-VOOL 0.7.7-beta יש הורדות של היישום למחשבי Mac עם Apple Silicon, למחשבי Mac עם Intel ול-Linux x86_64,
 בדף [הגרסה v0.7.7-beta](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta).
 אפשר גם להתקין מקוד המקור עם סקריפט האתחול (bootstrap) ב-macOS, ב-Linux או ב-Windows.
-פרטים על חתימה ועדכונים בדף [מצב הגרסה](../../../trust/release-status.md).
+פרטים על חתימה ועדכונים בדף [מצב הגרסה](../trust/release-status.md).
 
 ## דרישות
 
@@ -22,7 +22,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 | Linux | glibc 2.31 | Ubuntu 22.04 או חדש יותר |
 
 מודלים מקומיים צריכים הרבה יותר זיכרון מהיישום עצמו. הנחיות לבחירת גודל בדף
-[הרצת מודל מקומי](../../../guides/local-models.md).
+[הרצת מודל מקומי](../guides/local-models.md).
 
 ## הורדת היישום
 

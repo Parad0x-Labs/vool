@@ -13,18 +13,18 @@ makinenizde mi kalacağını yoksa makinenizden mi çıkacağını belirler.
 
 Yerel bir çalışma ortamı kuruluysa ve çalışıyorsa VOOL onu algılar ve modellerini listeler.
 Birini seçtiğinizde gösterge Yerel olur. Kurulum ayrıntıları
-[Yerel model çalıştırma](../../../guides/local-models.md) sayfasındadır.
+[Yerel model çalıştırma](../guides/local-models.md) sayfasındadır.
 
 ## Bulut
 
 **Ayarlar → API anahtarları** bölümünde bir sağlayıcı anahtarı ekleyin. Anahtar bu bilgisayarda şifrelenmiş
-bir dosyada saklanır (bkz. [Güvenlik modeli](../../../trust/security.md#keys)) ve istekleri
+bir dosyada saklanır (bkz. [Güvenlik modeli](../trust/security.md#anahtarlar)) ve istekleri
 **makinenizden doğrudan sağlayıcıya** göndermek için kullanılır.
 
 Bir bulut modeli seçtiğinizde gösterge sağlayıcının adını gösterir ve bu değişiklik herhangi bir istek
 yapılmadan önce gerçekleşir.
 
-OpenRouter'a özgü akış için [OpenRouter bağlama](../../../guides/openrouter.md) sayfasına bakın.
+OpenRouter'a özgü akış için [OpenRouter bağlama](../guides/openrouter.md) sayfasına bakın.
 
 ## Geçiş yapma
 

@@ -30,7 +30,7 @@ y las identidades no se publican.
 ## Telemetría
 
 VOOL no envía telemetría del producto. Un informe de error solo sale de tu equipo cuando lo previsualizas
-y decides enviarlo; consulta [Informes de errores y privacidad](../../../trust/bug-reporting.md).
+y decides enviarlo; consulta [Informes de errores y privacidad](bug-reporting.md).
 
 ## Se aplican las condiciones de tu proveedor
 

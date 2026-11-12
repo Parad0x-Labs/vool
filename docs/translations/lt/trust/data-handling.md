@@ -30,7 +30,7 @@ ir tapatybės neskelbiamos.
 ## Telemetrija
 
 VOOL nesiunčia jokios produkto telemetrijos. Klaidos ataskaita palieka jūsų kompiuterį tik tada, kai ją
-peržiūrite ir nusprendžiate išsiųsti; žr. [Pranešimai apie klaidas ir privatumas](../../../trust/bug-reporting.md).
+peržiūrite ir nusprendžiate išsiųsti; žr. [Pranešimai apie klaidas ir privatumas](bug-reporting.md).
 
 ## Taikomos jūsų tiekėjo sąlygos
 

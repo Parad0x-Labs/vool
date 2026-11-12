@@ -805,7 +805,7 @@
     "fault.wallet_quote_mismatch.message": "La aprobación ya no coincide con la transferencia vista, así que no se firmó ni envió nada. Empieza de nuevo con una vista previa fresca.",
     "fault.wallet_quote_unavailable.action": "Los datos desconocidos de cadena nunca se tratan como cero; comprueba el punto final de la fila y su prueba de identidad.",
     "fault.wallet_quote_unavailable.message": "La red no dio una respuesta completa sobre saldo o comisión de esta transferencia, así que no se preparó aprobación ni se envió nada. Prueba dentro de un momento.",
-    "fault.wallet_recipient_refused.action": "Rechazado: una cuenta nueva de Solana bajo la renta mínima, una cuenta ejecutable o fuera de curva, una dirección EIP-681 mala o un destinatario contrato conocido.",
+    "fault.wallet_recipient_refused.action": "Rechazado: una cuenta nueva de Solana bajo la renta mínima, una cuenta ejecutable o fuera de curva, una suma de comprobación EIP-55 incorrecta, la dirección cero, los precompilados y los contratos del sistema.",
     "fault.wallet_recipient_refused.message": "Ese destinatario no puede recibir con seguridad esta transferencia en esta red, así que no se preparó nada. Comprueba la dirección y reintenta.",
     "fault.wallet_recovery_refused.action": "La recuperación resella solo una cartera existente y solo desde una copia que decodifique a la clave propia de esa cartera (ambas direcciones).",
     "fault.wallet_recovery_refused.message": "Esa prueba de recuperación no encaja con este monedero, así que no se cambió nada: la clave guardada debe ser la copia que VOOL mostró exactamente para esta dirección, en el formato mostrado. Compruébalo y reintenta, o usa las otras opciones.",

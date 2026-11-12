@@ -32,18 +32,18 @@ Jei ši komanda nieko negrąžina, vykdymo aplinka neveikia.
 ## Atsakymai lėti
 
 Paprastai tai lemia modelio dydis, palyginti su turima operatyviąja atmintimi. Žr.
-[Vietinio modelio paleidimas](../../../guides/local-models.md).
+[Vietinio modelio paleidimas](../guides/local-models.md).
 
 ## Klaidoje rodomas kodas
 
-Kiekviena nesėkmė turi pastovų kodą. Puslapyje [Klaidos ir klaidų kodai](../../../reference/errors.md)
-paaiškinta, kaip jį perskaityti, o [Klaidų knygoje](../../../ERROR_BOOK.md) prie kiekvieno kodo nurodyta,
+Kiekviena nesėkmė turi pastovų kodą. Puslapyje [Klaidos ir klaidų kodai](../reference/errors.md)
+paaiškinta, kaip jį perskaityti, o [Klaidų knygoje](../ERROR_BOOK.md) prie kiekvieno kodo nurodyta,
 kas nutiko, kas galbūt jau įvyko ir ką daryti toliau.
 
 ## Pradėti iš naujo
 
 Uždarykite VOOL ir pašalinkite aplanką „runtime home“, nurodytą skyriuje
-[Konfigūracija](../../../reference/configuration.md). Taip ištrinsite savo pokalbius, atmintį, nustatymus,
+[Konfigūracija](../reference/configuration.md). Taip ištrinsite savo pokalbius, atmintį, nustatymus,
 išsaugotus raktus ir bet kurią piniginę, kurią VOOL laiko šiame kompiuteryje, todėl pirmiausia
-išsisaugokite tai, ko reikia: žr. [Atsarginės kopijos ir atkūrimas](../../../help/backup-and-recovery.md). Darbo
+išsisaugokite tai, ko reikia: žr. [Atsarginės kopijos ir atkūrimas](backup-and-recovery.md). Darbo
 srities failai nepaliečiami.

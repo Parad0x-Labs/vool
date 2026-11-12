@@ -30,7 +30,7 @@ ve kimlikler yayımlanmaz.
 ## Telemetri
 
 VOOL ürün telemetrisi göndermez. Bir hata raporu makinenizden yalnızca siz onu önizleyip
-göndermeyi seçtiğinizde çıkar; bkz. [Hata bildirimi ve gizlilik](../../../trust/bug-reporting.md).
+göndermeyi seçtiğinizde çıkar; bkz. [Hata bildirimi ve gizlilik](bug-reporting.md).
 
 ## Sağlayıcınızın koşulları geçerlidir
 

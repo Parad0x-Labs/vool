@@ -6,7 +6,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 
 # 安装
 
-VOOL 0.7.7-beta 在 [v0.7.7-beta 发布版](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta)中提供适用于 Apple Silicon Mac、Intel Mac 和 Linux x86_64 的应用下载。在 macOS、Linux 或 Windows 上，你也可以用引导脚本从源码安装。签名和更新的详细信息见[发布状态](../../../trust/release-status.md)。
+VOOL 0.7.7-beta 在 [v0.7.7-beta 发布版](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta)中提供适用于 Apple Silicon Mac、Intel Mac 和 Linux x86_64 的应用下载。在 macOS、Linux 或 Windows 上，你也可以用引导脚本从源码安装。签名和更新的详细信息见[发布状态](../trust/release-status.md)。
 
 ## 系统要求
 
@@ -18,7 +18,7 @@ VOOL 0.7.7-beta 在 [v0.7.7-beta 发布版](https://github.com/Parad0x-Labs/vool
 | Windows | 10（64 位） | 11 |
 | Linux | glibc 2.31 | Ubuntu 22.04 或更新版本 |
 
-本地模型需要的内存比应用本身多得多。模型大小的建议见[运行本地模型](../../../guides/local-models.md)。
+本地模型需要的内存比应用本身多得多。模型大小的建议见[运行本地模型](../guides/local-models.md)。
 
 ## 下载应用
 
