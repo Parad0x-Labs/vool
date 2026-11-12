@@ -58,6 +58,9 @@ def two_enabled_packages(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     monkeypatch.setenv("VOOL_CREDENTIAL_STORE", "vault")
     tool_registry.reset()
+    from core import tool_demand_signals
+
+    tool_demand_signals._PLUGIN_REMOVED.clear()
     try:
         for plugin_id, name, description, tool, tool_description in (
             ("acme-text-digest", "Text digest example", "Compute the SHA-256 digest of supplied text.",
@@ -159,4 +162,54 @@ def test_a_plugin_that_cannot_run_is_explained_before_any_model_answers(two_enab
     assert lane.unavailable_plugin_notice(ask) == changed
     assert lane.unavailable_plugin_notice("fingerprint for vx-2") == changed      # still said on the next ask
     manager.uninstall("acme-text-digest", remove_key=True)
-    assert lane.unavailable_plugin_notice(ask) == ""                              # gone: nothing of it remains to name
+    # Removed while the app runs: said so (real chat 2026-11-12: silence here got an invented fingerprint).
+    assert lane.unavailable_plugin_notice(ask) == lane.REMOVED.format(name="Text digest example")
+    assert lane.unavailable_plugin_notice("what's a good name for a cat?") == ""
+
+
+def test_a_fingerprint_repeated_exactly_counts_as_grounded() -> None:
+    """Real chat 2026-11-12: the plugin returned the fingerprint as colon-separated bytes, the
+    model repeated it, and the answer was refused because no 5-character piece was shared."""
+    import hashlib
+
+    value = hashlib.sha256(b"vx-7781").digest().hex(":")
+    shown = ["[untrusted output]\n" + json.dumps({"sha256": value, "bytes": 7})]
+    assert not is_ungrounded(f"The fingerprint of that text is {value} as asked.", shown)
+    assert not is_ungrounded(f"The fingerprint of that text is {value.replace(':', '')} as asked.", shown)
+    invented = hashlib.sha256(b"something else").digest().hex(":")
+    assert is_ungrounded(f"The fingerprint of that text is {invented} as asked.", shown)
+
+
+def test_a_refused_wording_still_shows_what_the_plugin_returned(two_enabled_packages) -> None:
+    """The plugin's result was in hand; the person was shown "Incomplete ... returned output" instead."""
+    from core.agent_runtime.research_tool_loop_facade import plugin_result_in_plain_words
+
+    step = {"tool_name": "acme-word-count.count", "ok": True,
+            "summary": "Plugin `acme-word-count.count` returned output; its claims need independent verification.",
+            "response_text": "[untrusted output from MCP server 'acme-word-count' tool 'count']\n{\"words\": 4, \"characters\": 19}"}
+    said = plugin_result_in_plain_words([step])
+    assert said == "This is what the Word count plugin returned. VOOL has not checked it.\n\nwords: 4\ncharacters: 19"
+    assert plugin_result_in_plain_words([dict(step, ok=False)]) == ""
+    assert plugin_result_in_plain_words([dict(step, tool_name="search_web")]) == ""
+    assert plugin_result_in_plain_words([]) == ""
+
+
+def test_a_short_follow_up_keeps_the_plugin_on_offer(two_enabled_packages) -> None:
+    """Real chat 2026-11-12: "and characters?" after a word count was read alone, got no tool,
+    and the model asked what "characters" meant."""
+    from core.execution_requirements import requirements_for
+    from core.tool_demand_signals import plugin_follow_up
+
+    def chat(*said):
+        return {"conversation_history": [m for text in said for m in ({"role": "user", "content": text}, {"role": "assistant", "content": "ok"})][:-1]}
+
+    first = "count the words in: red green blue"
+    assert plugin_follow_up("and characters?", chat(first, "and characters?"))
+    assert plugin_follow_up("now do the same for vx-22", chat(first, "and characters?", "now do the same for vx-22"))
+    assert not plugin_follow_up("and characters?", chat("what's a good name for a cat?", "and characters?"))
+    assert not plugin_follow_up("thanks, that helps", chat(first, "thanks, that helps"))
+    assert not plugin_follow_up("what is the weather in Vilnius tomorrow", chat(first, "what is the weather in Vilnius tomorrow"))
+    assert not plugin_follow_up("and characters?", chat(first, "what's a good name for a cat?", "and characters?"))
+    assert not plugin_follow_up("and characters?", None)
+    wanted = requirements_for("and characters?", source_context=chat(first, "and characters?"))
+    assert wanted.tools_required and wanted.allowed_toolsets == ("plugin",)

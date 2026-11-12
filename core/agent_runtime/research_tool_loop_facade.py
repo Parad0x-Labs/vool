@@ -497,6 +497,56 @@ def _within_turn_navigation(loop: Any) -> Any:
     return run_in_turn_scope
 
 
+_PLUGIN_OUTPUT_HEADER = re.compile(r"^\[untrusted output from MCP server '[^']*' tool '[^']*'\]\n?")
+_PLUGIN_RESULT_LIMIT = 1500
+
+
+def plugin_result_in_plain_words(executed_steps: list[dict[str, Any]]) -> str:
+    """What an added plugin returned, said plainly, for a turn whose model wording was refused.
+
+    Measured in real chat (2026-11-12, local model): the plugin ran and returned the right value,
+    the model's sentence about it was refused by an answer check, and the person was shown
+    "Incomplete -- model synthesis failed (ungrounded) ... 1 of 1 tool steps succeeded. Last result:
+    Plugin `x.y` returned output; its claims need independent verification." The result they asked
+    for was in hand and never shown. The plugin's output is still only the plugin's word, so it is
+    shown as exactly that: named as the plugin's, and said to be unchecked by VOOL.
+
+    "" unless the turn's last step is a plugin tool that ran and returned something.
+    """
+    if not executed_steps:
+        return ""
+    step = executed_steps[-1]
+    if not step.get("ok"):
+        return ""
+    try:
+        from core import plugin_manager
+        from core.plugin_tools import plugin_id_for_intent
+
+        plugin_id = plugin_id_for_intent(str(step.get("tool_name") or ""))
+        if not plugin_id:
+            return ""
+        try:
+            name = str(plugin_manager.inspect(plugin_id).get("name") or plugin_id)
+        except Exception:
+            name = plugin_id
+    except Exception:
+        return ""
+    body = _PLUGIN_OUTPUT_HEADER.sub("", str(step.get("response_text") or "").strip()).strip()
+    if not body:
+        return ""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, dict) and parsed and all(
+        isinstance(value, (str, int, float, bool)) or value is None for value in parsed.values()
+    ):
+        body = "\n".join(f"{str(key).replace('_', ' ')}: {value}" for key, value in parsed.items())
+    if len(body) > _PLUGIN_RESULT_LIMIT:
+        body = body[:_PLUGIN_RESULT_LIMIT].rstrip() + "\n(The rest is left out here.)"
+    return f"This is what the {name} plugin returned. VOOL has not checked it.\n\n{body}"
+
+
 def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> list[str]:
     """Everything the model was shown from this turn's tools, for judging whether its answer used it.
 
@@ -2785,7 +2835,14 @@ class ResearchToolLoopFacadeMixin:
                 tool_name=str(executed_steps[-1].get("tool_name") or ""),
                 status=reject_reason,
             )
-            final_message = self._tool_loop_final_message(None, executed_steps)
+            plugin_result = plugin_result_in_plain_words(executed_steps)
+            if plugin_result:
+                # The tool's own result is the answer the person asked for; only the model's
+                # wording was refused. The turn is complete, not a failed audit.
+                final_message = plugin_result
+                reject_reason = ""
+            else:
+                final_message = self._tool_loop_final_message(None, executed_steps)
         else:
             final_message = self._tool_loop_final_message(synthesis, executed_steps)
         _syn_provider = str(getattr(synthesis, "provider_id", "") or "")

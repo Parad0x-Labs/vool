@@ -1421,6 +1421,11 @@ def model_visible_specs(
                 explicit.append(intent)
         for family in signals.required_families:
             _add_family(family)
+        if not signals.required_families and not signals.explicit_intents:
+            from core.tool_demand_signals import plugin_follow_up
+
+            if plugin_follow_up(user_text, source_context):
+                _add_family("plugin")
     expansions: tuple[str, ...] = ()
     if expanded_families is not None:
         expansions = tuple(str(f).strip().lower() for f in expanded_families if str(f).strip())

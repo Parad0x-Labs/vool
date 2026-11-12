@@ -953,9 +953,10 @@ def _compute_requirements(
     # Registered plugin intents are the same closed vocabulary the tool offer seats.
     # Consent controls availability; naming one still requires a tool-capable lane
     # so a disabled package is explained instead of a fabricated result.
-    from core.tool_demand_signals import resolve_demand_signals
+    from core.tool_demand_signals import plugin_follow_up, resolve_demand_signals
 
-    if ("plugin" in resolve_demand_signals(candidate_text).required_families
+    if (("plugin" in resolve_demand_signals(candidate_text).required_families
+         or plugin_follow_up(candidate_text, source_context))
             and not constraints.forbids_all_tools and not constraints.forbids("plugin")):
         reasons.append("plugin_tool_request")
         return ExecutionRequirements(

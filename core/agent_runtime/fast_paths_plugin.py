@@ -30,6 +30,10 @@ CHANGED = (
     + WHERE
     + ", review it again and enable it. Then ask me again."
 )
+REMOVED = (
+    "The {name} plugin was removed, so I can\u2019t use it. "
+    "Open Skills & Plugins to add it again, then ask me again."
+)
 
 
 def unavailable_plugin_notice(text: str) -> str:
@@ -37,6 +41,12 @@ def unavailable_plugin_notice(text: str) -> str:
     from core.tool_demand_signals import plugins_named_in_words, resolve_demand_signals
 
     signals = resolve_demand_signals(text)
+    if not signals.required_families and not signals.explicit_intents:
+        from core.tool_demand_signals import removed_plugins_named_in_words
+
+        removed = removed_plugins_named_in_words(text)
+        if removed:
+            return REMOVED.format(name=removed[0])
     if tuple(signals.required_families) != ("plugin",):
         return ""   # nothing asked of a plugin, or another tool family owns the turn
     from core import plugin_manager
