@@ -314,3 +314,18 @@ def test_with_web_lookups_off_writing_release_notes_is_not_refused_as_a_lookup(t
     result = _turn(text, "openclaw:8234567890abcdef0006")
     assert "web lookups are off" not in str(result.get("response") or "").lower(), result
 
+
+# The seat is recorded as coming from this reading, so the tools-less chat lane keeps a fresh lookup
+# the live-information lane serves inside it ("latest telegram bot api updates": its own retrieval
+# and the model, tests/test_vool_web_freshness_and_lookup.py), while the person's own "search the web
+# for ..." still leaves for the web tools.
+@pytest.mark.parametrize(("text", "only_by_reading"), [
+    ("latest telegram bot api updates", True),
+    ("is the warsaw zoo open on mondays in winter?", True),
+    ("search the web for the daugava river length", False),
+    ("open the Wikipedia page for the Daugava river and tell me how long it is", False),
+])
+def test_a_web_seat_says_whether_only_this_reading_asked_for_it(text, only_by_reading):
+    demand = resolve_demand_signals(text)
+    assert "web" in demand.required_families
+    assert demand.web_by_online_reading_only is only_by_reading
