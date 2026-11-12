@@ -37,9 +37,11 @@ class _DoorCapture:
 
     def __init__(self):
         self.urls: list[str] = []
+        self.lookups: list[bool] = []
 
-    def __call__(self, request, *, timeout):
+    def __call__(self, request, *, timeout, lookup=False):
         self.urls.append(str(getattr(request, "full_url", "")))
+        self.lookups.append(lookup)
 
         class _Resp:
             def __enter__(self):
@@ -54,7 +56,7 @@ class _DoorCapture:
         return _Resp()
 
 
-def test_google_html_fetch_goes_through_door(monkeypatch):
+def test_google_html_fetch_goes_through_door(monkeypatch, enable_web):
     import tools.web.google_html as gh
 
     capture = _DoorCapture()
@@ -63,15 +65,18 @@ def test_google_html_fetch_goes_through_door(monkeypatch):
     assert hits == []  # fake body parses to nothing; that's fine
     assert len(capture.urls) >= 1
     assert any("sam+altman+news" in u for u in capture.urls), capture.urls
+    # A search is a lookup: the door holds it to the Web lookups switch.
+    assert all(capture.lookups), capture.lookups
 
 
-def test_ddg_instant_goes_through_door(monkeypatch):
+def test_ddg_instant_goes_through_door(monkeypatch, enable_web):
     import tools.web.ddg_instant as di
 
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
 
-    def _door(request, *, timeout):
+    def _door(request, *, timeout, lookup=False):
         captured["url"] = str(getattr(request, "full_url", ""))
+        captured["lookup"] = lookup
 
         class _Resp:
             def __enter__(self):
@@ -89,6 +94,7 @@ def test_ddg_instant_goes_through_door(monkeypatch):
     payload = di.ddg_instant_answer("who is ada lovelace")
     assert payload["AbstractText"] == "an answer"
     assert "ada+lovelace" in captured["url"], captured
+    assert captured["lookup"] is True, captured
 
 
 @pytest.mark.parametrize("module_fn", ["google_html", "ddg_instant"])
@@ -110,7 +116,8 @@ def test_veto_refuses_scrapers_before_socket(monkeypatch, module_fn):
                 di.ddg_instant_answer("private query")
 
 
-def test_web_fetch_tool_honors_veto_before_io(monkeypatch):
+def test_web_fetch_tool_honors_veto_before_io(monkeypatch, enable_web):
+    # Web lookups on, so the refusal under test is the per-turn veto, not the switch.
     import core.runtime_execution_tools as ret
 
     _forbid_urlopen(monkeypatch)
@@ -125,15 +132,16 @@ def test_web_fetch_tool_honors_veto_before_io(monkeypatch):
     assert "disabled by policy" in result.response_text
 
 
-def test_web_fetch_tool_success_still_through_door(monkeypatch):
+def test_web_fetch_tool_success_still_through_door(monkeypatch, enable_web):
     """The happy path keeps its byte-cap semantics and goes through the door."""
     import core.remote_fetch_policy as rfp
     import core.runtime_execution_tools as ret
 
     seen: dict[str, object] = {}
 
-    def _door(request, *, timeout):
+    def _door(request, *, timeout, lookup=False):
         seen["url"] = str(getattr(request, "full_url", ""))
+        seen["lookup"] = lookup
         seen["reported"] = None
         real_note = rfp.note_remote_fetch_attempt
         real_note(seen["url"])
@@ -173,4 +181,5 @@ def test_web_fetch_tool_success_still_through_door(monkeypatch):
     assert result.ok is True
     assert result.status == "ok"
     assert seen["url"] == "https://example.invalid/page"
+    assert seen["lookup"] is True
     assert "hello page" in result.details["text"]
