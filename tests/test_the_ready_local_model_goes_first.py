@@ -188,3 +188,23 @@ def test_what_vool_says_it_runs_is_the_ready_model(monkeypatch) -> None:
     # While boot is making qwen3:8b ready, that is the model named, not the boot guess.
     monkeypatch.setattr("core.local_model_readiness._model_being_checked", lambda: "qwen3:8b")
     assert model_in_use("qwen2.5:7b") == "qwen3:8b"
+
+
+def test_the_builder_generates_with_an_installed_ready_model(monkeypatch) -> None:
+    # Cloud re-audit N4: the builder used the machine recommendation qwen3:4b, never pulled, and
+    # every "make a one page site" ask failed in seconds with "no usable file list".
+    from core.local_model_readiness import local_model_for_work
+
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests",
+        lambda self, enabled_only=False, limit=256: [_manifest(name) for name in INSTALLED],
+    )
+    monkeypatch.setattr(authorship, "author_certification", _ready_only("qwen3:8b"))
+    assert local_model_for_work("qwen3:4b") == "qwen3:8b"
+    monkeypatch.setattr(authorship, "author_certification", _ready_only())
+    assert local_model_for_work("qwen3:4b") == "qwen2.5:7b"
+    assert local_model_for_work("qwen3:8b") == "qwen3:8b"
+    monkeypatch.setattr(
+        "core.model_registry.ModelRegistry.list_manifests", lambda self, enabled_only=False, limit=256: []
+    )
+    assert local_model_for_work("qwen3:4b") == "qwen3:4b"

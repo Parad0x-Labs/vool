@@ -1063,7 +1063,9 @@ def _run_model_build(
     else:
         target_rel = str(target.get("root_dir") or "generated/app").strip().strip("/") or "generated/app"
     base_url = builder_ollama_base_url(os.environ)
-    model_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
+    from core.local_model_readiness import local_model_for_work
+
+    model_tag = local_model_for_work(str(default_runtime_model_tag() or "").strip()) or "qwen2.5:7b"
 
     # One budget for the whole build, so the 65 possible generations share a single ceiling, and one
     # source_context, so every one of them is announced on the operator's event stream.

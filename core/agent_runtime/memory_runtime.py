@@ -458,6 +458,8 @@ def _selected_model_block_cause(block_reason: str, *, model_was_attempted: bool)
         "spend_cap_exceeded",
     }:
         return "running it would exceed your spend cap"
+    if code == "device_monthly_spend_cap_exceeded":
+        return "this phone has reached its monthly cloud limit; raise it for this phone in VOOL Settings on your computer"
     if code == "cloud_policy_unreadable":
         return "its saved cloud policy could not be read; repair it in Settings before trying again"
     if code == "daily_call_cap_exceeded":

@@ -329,6 +329,42 @@ def model_in_use(boot_model: str) -> str:
     return tag
 
 
+def local_model_for_work(preferred: str) -> str:
+    """The local model a background job (the website/app builder) should generate with.
+
+    ``default_runtime_model_tag`` is the machine's recommendation, not what is installed: on the
+    cloud re-audit boxes it named qwen3:4b, which was never pulled, and every "make a one page site"
+    failed in three seconds with "the model did not return a usable file list" (10 of 10). The
+    ready model goes first (the one the person pressed Use this model on), then the recommendation
+    if it is a registered local model, then any registered local model; the recommendation only
+    when nothing local is registered at all.
+    """
+
+    tag = str(preferred or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [
+            m
+            for m in ModelRegistry().list_manifests(enabled_only=True)
+            if manifest_is_local(m) and str(getattr(m, "provider_name", "")).startswith("ollama")
+        ]
+        names = [str(m.model_name) for m in manifests]
+        ready = [str(m.model_name) for m in manifests if author_certification(m).certified]
+        for pool in (ready, names):
+            if not pool:
+                continue
+            for name in pool:
+                if name.lower() == tag.lower():
+                    return name
+            return pool[0]
+    except Exception:
+        pass
+    return tag
+
+
 def mark_boot_readiness_check(running: bool) -> None:
     if running:
         _BOOT_CHECK_RUNNING.set()

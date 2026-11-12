@@ -595,7 +595,9 @@ def runtime_model_status_response(
             "deterministic": True,
             "requested_model": selected,
         }
-    default_model = str(runtime.runtime_model_tag or "").strip() or "unknown"
+    from core.local_model_readiness import model_in_use
+
+    default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
     lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
@@ -716,7 +718,9 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines = [f"You're on VOOL {release}" + (f" ({channel} channel)." if channel else ".")]
     if asks_update:
         lines.append(_update_status_sentence(release))
-    model = str(runtime.runtime_model_tag or "").strip()
+    from core.local_model_readiness import model_in_use
+
+    model = model_in_use(str(runtime.runtime_model_tag or "").strip())
     if model and not asks_update:
         lines.append(f"Answers on this computer come from the local model {model}.")
     return {
