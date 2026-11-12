@@ -702,7 +702,14 @@ class LiveSession:
             self.result["failure_class"] = type(exc).__name__
             self.result["failure_phase"] = "network"
             with contextlib.suppress(Exception):
-                await route.abort()
+                if request.is_navigation_request() and self._page is not None and request.frame == self._page.main_frame:
+                    # Keep the page that was on screen, as a refused redirect does. Aborted, the
+                    # engine showed its own error page (chrome-error:// in the address bar) and
+                    # reloaded it, and that reload read as the page sending the owner on to the
+                    # address that had just failed (real pane, 2026-11-12).
+                    await route.fulfill(status=204, body=b"")
+                else:
+                    await route.abort()
         finally:
             self._routes.discard(task)
 

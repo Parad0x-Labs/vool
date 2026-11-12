@@ -128,6 +128,24 @@ def test_page_that_moves_itself_on_is_never_followed(world):
     assert snap['state'] == 'ready' and paths(requests) == ['/refresh', '/other']
 
 
+def test_an_address_that_does_not_answer_keeps_the_page_and_offers_nothing(world):
+    """Real pane on a gated v0.8 build (2026-11-12): a typed name that does not resolve showed
+    the engine's own error page, chrome-error://chromewebdata/ in the address bar, and then
+    "This page sends you on to:" the very address that had just failed, with an Open button.
+    The engine's error page reloads itself, and that reload read as the page moving on."""
+    rig, item, origin, requests = world
+    status, data, snap = owner_now(rig, item, 'navigate', {'url': origin + '/'})
+    assert snap['state'] == 'ready', snap
+    before = list(requests)
+    status, data, snap = owner_now(rig, item, 'navigate', {'url': 'https://nothing-answers-here.invalid/'})
+    assert snap['state'] not in {'ready', 'running'}, snap
+    time.sleep(3)  # long enough for an error page to reload itself
+    snap = item.snapshot()
+    assert 'redirect' not in snap['result'], snap['result']
+    assert item.url == origin + '/' and not str(snap.get('url') or '').startswith('chrome-error:'), snap.get('url')
+    assert requests == before, requests
+
+
 def test_back_forward_reload_walk_only_the_owners_own_history(world):
     rig, item, origin, requests = world
     # Nothing to go back to on a fresh session.
