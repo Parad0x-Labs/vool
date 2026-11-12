@@ -150,21 +150,23 @@ _REJECTED = frozenset({
     "IDENTITY_MISMATCH", "SELF_SESSION", "UNKNOWN_PREKEY", "PREKEY_UNAVAILABLE", "EXPIRED", "REPLAY",
     "SKIP_LIMIT", "INVALID_COUNTER", "WRONG_SESSION", "UNKNOWN_SESSION", "SESSION_REVOKED", "PAYLOAD_LIMIT",
     "SESSION_EXHAUSTED", "CHAIN_EXHAUSTED", "INPUT_LIMIT", "INVALID_ID", "UNKNOWN_DROP", "DROP_REVOKED",
-    "DROP_WITHHELD", "UNKNOWN_INVITE", "INVALID_MANIFEST", "CHUNK_INDEX", "CHUNK_SIZE", "CHUNK_CONFLICT",
+    "UNKNOWN_INVITE", "INVALID_MANIFEST", "CHUNK_INDEX", "CHUNK_SIZE", "CHUNK_CONFLICT",
     "INVALID_TASK", "TASK_CONFLICT", "INVALID_RESULT", "UNSUPPORTED_PAYLOAD",
     "ADMISSION_CONFLICT", "FILE_INTEGRITY", "INVALID_BASE64",
 })
 
 
-# This home's own queues are full. The frame is left in the folder for a later
-# poll; it never stops the frames behind it and is never consumed unread.
-_HELD = frozenset({"STORE_LIMIT", "ADMISSION_QUOTA"})
+# This home's own queues are full, or a pending forget barrier withholds every
+# Drop until another Drop's cleanup finishes. The frame is left in the folder for a
+# later poll; it never stops the frames behind it and is never consumed unread.
+_HELD = frozenset({"STORE_LIMIT", "ADMISSION_QUOTA", "DROP_WITHHELD"})
 
 
 # Authentic frames that arrived ahead of the frame they depend on (a synced
-# folder can deliver files out of order). They stay in the encrypted inbox and
-# are retried on the next poll; a forgotten or expired Drop discards them.
-_DEFERRED = frozenset({"MISSING_MANIFEST", "TASK_BEFORE_PACKET"})
+# folder can deliver files out of order), or while a pending forget barrier
+# withholds this Drop. They stay in the encrypted inbox and are retried on the
+# next poll; a forgotten or expired Drop discards them.
+_DEFERRED = frozenset({"MISSING_MANIFEST", "TASK_BEFORE_PACKET", "DROP_WITHHELD"})
 
 
 def _discard(path: Path):
@@ -385,9 +387,9 @@ class DropHome:
             try:
                 state = self._live(row["session"])
             except DropError as exc:
-                # A Drop being deleted or expired keeps its queued send until its cleanup
-                # removes it; it never stops this home's other sends or its poll.
-                if exc.code in {"DROP_REVOKED", "EXPIRED"}:
+                # A Drop being deleted, expired or withheld keeps its queued send until its
+                # cleanup removes it or the barrier lifts; it never stops this home's poll.
+                if exc.code in {"DROP_REVOKED", "EXPIRED", "DROP_WITHHELD"}:
                     continue
                 raise
             self.relay.put(state["peer"], row["request"], wire)
@@ -421,8 +423,9 @@ class DropHome:
 
     def poll(self):
         """Read this home's mailbox. Returns one outcome per frame processed:
-        ``received``, ``duplicate``, ``rejected`` (consumed without effect) or
-        ``held`` (left in the folder because this home's queue is full)."""
+        ``received``, ``duplicate``, ``rejected`` (consumed without effect),
+        ``deferred`` (kept in the encrypted inbox) or ``held`` (left in the folder
+        because this home's queue is full or its Drops are withheld for now)."""
         with self.scope():
             self._expire()
             self._flush()

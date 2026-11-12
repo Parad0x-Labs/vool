@@ -552,3 +552,30 @@ def test_a_deleted_note_does_not_linger_in_the_database_journals(pair, tmp_path)
     assert leftovers == []
     for journal in (b.root / "drops.db-wal", b.root / "crypto" / "sessions" / "drop.sqlite-wal"):
         assert not journal.exists() or journal.stat().st_size == 0, journal.name
+
+
+def test_other_drops_wait_while_one_deletion_is_unfinished(tmp_path, monkeypatch):
+    """A pending forget barrier withholds every Drop in the home. Frames that arrive for the
+    other Drops meanwhile wait in the folder; they used to be consumed and lost."""
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay"
+    LocalRelay(relay, create=True)
+    with DropHome(tmp_path / "a", relay) as a, DropHome(tmp_path / "b", relay) as b:
+        stuck_sid = b.join(a.invite(b.fingerprint), a.fingerprint)
+        other = b.join(a.invite(b.fingerprint), a.fingerprint)
+        assert a.poll() == ["received", "received"]
+        stuck = b.root / stuck_sid / "unexpected-directory"
+        stuck.parent.mkdir(mode=0o700, exist_ok=True)
+        stuck.mkdir()  # a real cleanup failure, no mocked exception
+        with pytest.raises(DropError, match="DROP_FORGET_INCOMPLETE"):
+            b.delete(stuck_sid)
+        selected = tmp_path / "f.bin"
+        selected.write_bytes(os.urandom(300))
+        a.send_packet(other, "for the other Drop", selected)
+        outcomes = b.poll()
+        assert "rejected" not in outcomes and set(outcomes) == {"held"}
+        assert len(a.relay.messages(b.fingerprint)) == 2
+        stuck.rmdir()
+        b.delete(stuck_sid)  # the owner tries again; the barrier lifts
+        assert b.poll() == ["received", "received"]
+        assert b.show(other)["note"] == "for the other Drop" and b.show(other)["status"] == "ready"
