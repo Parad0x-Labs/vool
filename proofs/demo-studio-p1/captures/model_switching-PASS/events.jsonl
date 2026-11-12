@@ -1,0 +1,13 @@
+{"created_at": "2026-09-02T23:14:59.554948+00:00", "event_type": "runtime_attempt_created", "message": "Runtime attempt attempt-db631b908e4c4cf1a67265eab3dd939b created (unknown mode).", "seq": 1}
+{"created_at": "2026-09-02T23:14:59.643257+00:00", "event_type": "task_received", "message": "Received request: Reply with one short sentence naming your lane.", "seq": 2}
+{"created_at": "2026-09-02T23:14:59.953213+00:00", "event_type": "task_classified", "message": "Task classified as unknown.", "seq": 3}
+{"created_at": "2026-09-02T23:15:00.188945+00:00", "event_type": "model_routing_started", "message": "Autopilot routed normalization_assist through the daily lane.", "seq": 4}
+{"created_at": "2026-09-02T23:15:00.197583+00:00", "event_type": "model_lane_selected", "message": "Selected ollama-local:qwen2.5:7b for the daily lane.", "seq": 5}
+{"created_at": "2026-09-02T23:15:00.247961+00:00", "event_type": "model_lane_started", "message": "Using ollama-local:qwen2.5:7b.", "seq": 6}
+{"created_at": "2026-09-02T23:15:00.257332+00:00", "event_type": "model_lane_failed", "message": "ollama-local:qwen2.5:7b failed; trying fallback if available.", "seq": 7}
+{"created_at": "2026-09-02T23:15:00.268381+00:00", "event_type": "model_routing_failed", "message": "All ranked provider lanes failed.", "seq": 8}
+{"created_at": "2026-09-02T23:15:00.296388+00:00", "event_type": "model_lane_proof", "message": "All ranked provider lanes failed.", "seq": 9}
+{"created_at": "2026-09-02T23:15:00.339477+00:00", "event_type": "task_completed", "message": "Completed task with final response: `qwen2.5:7b` failed before producing a usable answer. No cached or remembered text was substituted. Retry the turn.", "seq": 10}
+{"created_at": "2026-09-02T23:15:00.385067+00:00", "event_type": "semantic_resolution_receipt", "message": "Resolution: 9 gates consulted, preempted by nothing", "seq": 11}
+{"created_at": "2026-09-02T23:15:00.388565+00:00", "event_type": "runtime_attempt_completed", "message": "Runtime attempt attempt-db631b908e4c4cf1a67265eab3dd939b -> SUCCEEDED.", "seq": 12}
+{"created_at": "2026-09-02T23:15:00.429753+00:00", "event_type": "turn.trace_completed", "message": "Turn trace completed.", "seq": 13}

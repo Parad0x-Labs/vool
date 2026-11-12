@@ -1,0 +1,39 @@
+1
+00:00:01,847 --> 00:00:02,247
+An attachment was staged through the upload door: Attached note.txt (text, 89 B)
+
+2
+00:00:02,297 --> 00:00:02,697
+An attachment was staged through the upload door: Attached photo.png (image, 70 B)
+
+3
+00:00:02,747 --> 00:00:03,147
+The attachment was bound to the turn.
+
+4
+00:00:03,197 --> 00:00:03,597
+The attachment was bound to the turn.
+
+5
+00:00:03,647 --> 00:00:04,047
+VOOL received the turn.
+
+6
+00:00:04,097 --> 00:00:04,497
+The turn was classified and routed.
+
+7
+00:00:04,547 --> 00:00:04,947
+The answering lane was proven on the record: All ranked provider lanes failed.
+
+8
+00:00:04,997 --> 00:00:05,397
+The turn completed.
+
+9
+00:00:05,447 --> 00:00:05,847
+The attachment was released after the turn.
+
+10
+00:00:05,897 --> 00:00:09,047
+The attachment was released after the turn.

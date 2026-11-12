@@ -1,0 +1,272 @@
+{
+  "artifacts": {
+    "captions.srt": {
+      "bytes": 241,
+      "sha256": "6fd6c68d8f7518f9b9edf58390ade1706b498fed123f33cd7419237f06e9f4dc"
+    },
+    "demo.mp4": {
+      "bytes": 382310,
+      "sha256": "5eaac6ab842326b14ca8df3ef825508544595378ece564ee2fa0cf8af2e8a4f1"
+    },
+    "demo.webm": {
+      "bytes": 332553,
+      "sha256": "18c664c17093b6251403a39c1892f5a1b643fad33f7e541ad2661fb999170075"
+    },
+    "events.jsonl": {
+      "bytes": 1538,
+      "sha256": "54a63aa496456a9f652e39f0b6f837ba3c55860409def4b499de0bb27ec5d0ea"
+    },
+    "poster.png": {
+      "bytes": 190006,
+      "sha256": "a4d38f03405c2ef9fd80247384165c1da51214f7689ed0c6d6f2852796807b09"
+    }
+  },
+  "boot": {
+    "commit_full": "bd1b899d4a4c44993f70bfab56bbd32d3673630b",
+    "healthz_verified": true,
+    "model_certification": {},
+    "verified_capabilities": [
+      "local_runtime"
+    ]
+  },
+  "captions": {
+    "count": 3,
+    "rows": [
+      {
+        "end_s": 0.47,
+        "event_type": "task_received",
+        "seq": 2,
+        "start_s": 0.07,
+        "text": "VOOL received the turn."
+      },
+      {
+        "end_s": 0.92,
+        "event_type": "model_lane_proof",
+        "seq": 5,
+        "start_s": 0.52,
+        "text": "The answering lane was proven on the record: Fast-path response completed without model inference."
+      },
+      {
+        "end_s": 2.92,
+        "event_type": "task_completed",
+        "seq": 6,
+        "start_s": 0.97,
+        "text": "The turn completed."
+      }
+    ],
+    "source": "/api/runtime/events (public typed events only); model_output_chunk excluded by allowlist"
+  },
+  "events": {
+    "count": 9,
+    "session_events": true,
+    "types": {
+      "model.call_completed": 1,
+      "model.call_started": 1,
+      "model_lane_proof": 1,
+      "runtime_attempt_completed": 1,
+      "runtime_attempt_created": 1,
+      "semantic_resolution_receipt": 1,
+      "task_completed": 1,
+      "task_received": 1,
+      "turn.trace_completed": 1
+    }
+  },
+  "focus": [
+    {
+      "box": {
+        "height": 31,
+        "width": 154,
+        "x": 595,
+        "y": 8
+      },
+      "end_s": 2.646,
+      "justified_by": {
+        "event_type": "model_lane_proof",
+        "seq": 5
+      },
+      "region": "model-control",
+      "selector": "#modelCtrl",
+      "start_s": 0.146
+    }
+  ],
+  "generated_at": "2026-09-02T23:31:15Z",
+  "honesty": {
+    "captions_source": "public typed runtime events only; model_output_chunk excluded",
+    "captured": true,
+    "model_certified": false,
+    "model_lane": "scripted_stub",
+    "ui": "real browser interactions against the served product; no scripted UI responses"
+  },
+  "journey": {
+    "expected_events": [
+      "task_received",
+      "task_completed"
+    ],
+    "id": "restart_resume_continuity",
+    "spec_hash": "a6d31a4e94a9bb9ee025b2fc972ec7464071887c3b6febfd42412576daa0bc44",
+    "steps": [
+      {
+        "action": "goto",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "open-chat",
+        "note": "Open the real chat page",
+        "target": "/chat",
+        "value": ""
+      },
+      {
+        "action": "send_message",
+        "budget_s": 90.0,
+        "expect": [],
+        "id": "ask",
+        "note": "Type a real message into the composer and send it",
+        "target": "#input",
+        "value": "Remember the codeword LANTERN for this session and reply OK."
+      },
+      {
+        "action": "restart_daemon",
+        "budget_s": 240.0,
+        "expect": [],
+        "id": "restart",
+        "note": "Terminate the daemon tree and re-launch the same staged app",
+        "target": "",
+        "value": ""
+      },
+      {
+        "action": "reload",
+        "budget_s": 60.0,
+        "expect": [],
+        "id": "reload",
+        "note": "Reload the real page",
+        "target": "",
+        "value": ""
+      },
+      {
+        "action": "click",
+        "budget_s": 60.0,
+        "expect": [],
+        "id": "reopen",
+        "note": "Reopen the pre-restart session from the real sidebar",
+        "target": "#sessions .session .s-title",
+        "value": ""
+      },
+      {
+        "action": "expect_text",
+        "budget_s": 60.0,
+        "expect": [],
+        "id": "transcript",
+        "note": "The transcript must carry the codeword after restart",
+        "target": "#log",
+        "value": "LANTERN"
+      }
+    ],
+    "title": "Restart/resume continuity"
+  },
+  "mode": "capture",
+  "product": {
+    "app_version": "0.5.0",
+    "branch": "served-reality-bench",
+    "commit": "bd1b899d4a4c",
+    "commit_full": "bd1b899d4a4c44993f70bfab56bbd32d3673630b",
+    "dirty": false
+  },
+  "redaction": {
+    "counts": {},
+    "engine": "ops.demo_studio.redact.RedactionEngine",
+    "scan": "clean"
+  },
+  "render": {
+    "mp4": {
+      "bytes": 382310,
+      "path": "demo.mp4",
+      "sha256": "5eaac6ab842326b14ca8df3ef825508544595378ece564ee2fa0cf8af2e8a4f1"
+    },
+    "poster": {
+      "bytes": 190006,
+      "path": "poster.png",
+      "sha256": "a4d38f03405c2ef9fd80247384165c1da51214f7689ed0c6d6f2852796807b09"
+    },
+    "srt": {
+      "bytes": 241,
+      "path": "captions.srt",
+      "sha256": "6fd6c68d8f7518f9b9edf58390ade1706b498fed123f33cd7419237f06e9f4dc"
+    },
+    "webm": {
+      "bytes": 332553,
+      "path": "demo.webm",
+      "sha256": "18c664c17093b6251403a39c1892f5a1b643fad33f7e541ad2661fb999170075"
+    },
+    "zoom_applied": 1,
+    "zoom_segments": [
+      {
+        "box": {
+          "height": 31,
+          "width": 154,
+          "x": 595,
+          "y": 8
+        },
+        "end_s": 2.646,
+        "justified_by": {
+          "event_type": "model_lane_proof",
+          "seq": 5
+        },
+        "region": "model-control",
+        "selector": "#modelCtrl",
+        "start_s": 0.146
+      }
+    ],
+    "zoom_windows": [
+      [
+        0.146,
+        2.646
+      ]
+    ]
+  },
+  "schema": "demo-studio/evidence-manifest@1",
+  "steps_executed": [
+    {
+      "action": "goto",
+      "id": "open-chat",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "send_message",
+      "id": "ask",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "restart_daemon",
+      "id": "restart",
+      "ok": true
+    },
+    {
+      "action": "reload",
+      "id": "reload",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "click",
+      "id": "reopen",
+      "ok": true,
+      "reason": ""
+    },
+    {
+      "action": "expect_text",
+      "id": "transcript",
+      "ok": true,
+      "reason": ""
+    }
+  ],
+  "timeline": {
+    "alignment": "event created_at minus capture t0; ±0.5s against video frames",
+    "t0_epoch": 1788391823.350174,
+    "t1_epoch": 1788391875.619673
+  },
+  "verdict": "pass",
+  "verification": {
+    "violations": []
+  }
+}

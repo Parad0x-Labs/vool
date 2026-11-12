@@ -1,0 +1,16 @@
+{"created_at": "2026-09-02T22:54:38.610971+00:00", "event_type": "runtime_attempt_created", "message": "Runtime attempt attempt-7d81b71013d44b1ca9ce99a4e89c2470 created (unknown mode).", "seq": 1}
+{"created_at": "2026-09-02T22:54:38.826393+00:00", "event_type": "task_received", "message": "Received request: In two sentences: what should a good workshop checklist cover?", "seq": 2}
+{"created_at": "2026-09-02T22:54:39.737526+00:00", "event_type": "task_classified", "message": "Task classified as unknown.", "seq": 3}
+{"created_at": "2026-09-02T22:54:39.884272+00:00", "event_type": "model_routing_started", "message": "Autopilot routed normalization_assist through the daily lane.", "seq": 4}
+{"created_at": "2026-09-02T22:54:39.889006+00:00", "event_type": "model_lane_selected", "message": "Selected ollama-local:qwen2.5:7b for the daily lane.", "seq": 5}
+{"created_at": "2026-09-02T22:54:39.912622+00:00", "event_type": "model_lane_started", "message": "Using ollama-local:qwen2.5:7b.", "seq": 6}
+{"created_at": "2026-09-02T22:54:40.316124+00:00", "event_type": "model_lane_failed", "message": "ollama-local:qwen2.5:7b failed; trying fallback if available.", "seq": 7}
+{"created_at": "2026-09-02T22:54:40.318224+00:00", "event_type": "model_lane_started", "message": "Using ollama-local:qwen3:4b.", "seq": 8}
+{"created_at": "2026-09-02T22:54:40.531789+00:00", "event_type": "model_lane_failed", "message": "ollama-local:qwen3:4b failed; trying fallback if available.", "seq": 9}
+{"created_at": "2026-09-02T22:54:40.553035+00:00", "event_type": "model_routing_failed", "message": "All ranked provider lanes failed.", "seq": 10}
+{"created_at": "2026-09-02T22:54:40.554359+00:00", "event_type": "model.fallback_chain_timing", "message": "2 provider attempts took 0.5s; ollama-local:qwen2.5:7b was slowest at 0.4s.", "seq": 11}
+{"created_at": "2026-09-02T22:54:40.555056+00:00", "event_type": "model_lane_proof", "message": "All ranked provider lanes failed.", "seq": 12}
+{"created_at": "2026-09-02T22:54:42.702097+00:00", "event_type": "task_completed", "message": "Completed task with final response: `qwen2.5:7b` failed before producing a usable answer; fallback `qwen3:4b` failed before producing a usable answer. No cached or remembered text was substituted. Retry the turn.", "seq": 13}
+{"created_at": "2026-09-02T22:54:42.901751+00:00", "event_type": "semantic_resolution_receipt", "message": "Resolution: 9 gates consulted, preempted by nothing", "seq": 14}
+{"created_at": "2026-09-02T22:54:42.902649+00:00", "event_type": "runtime_attempt_completed", "message": "Runtime attempt attempt-7d81b71013d44b1ca9ce99a4e89c2470 -> SUCCEEDED.", "seq": 15}
+{"created_at": "2026-09-02T22:54:42.925982+00:00", "event_type": "turn.trace_completed", "message": "Turn trace completed.", "seq": 16}

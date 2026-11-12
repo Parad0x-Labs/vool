@@ -1,0 +1,104 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/test_demo_studio_journeys.py ______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_journeys.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_journeys.py:24: in <module>
+    from ops.demo_studio.journeys import (
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+_____________ ERROR collecting tests/test_demo_studio_redaction.py _____________
+ImportError while importing test module '<repo>/tests/test_demo_studio_redaction.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_redaction.py:16: in <module>
+    from ops.demo_studio.redact import RedactionEngine, leak_scan, redact_text
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+______________ ERROR collecting tests/test_demo_studio_dryrun.py _______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_dryrun.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_dryrun.py:19: in <module>
+    from ops.demo_studio.runner import StudioConfig, StudioMode, run_journey
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+_____________ ERROR collecting tests/test_demo_studio_boot_gate.py _____________
+ImportError while importing test module '<repo>/tests/test_demo_studio_boot_gate.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_boot_gate.py:21: in <module>
+    from ops.demo_studio.boot import StudioBootRefused, verify_served_boot
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+_______________ ERROR collecting tests/test_demo_studio_abort.py _______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_abort.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_abort.py:26: in <module>
+    from ops.demo_studio.journeys import JOURNEYS, StepSpec
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+_______________ ERROR collecting tests/test_demo_studio_focus.py _______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_focus.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_focus.py:16: in <module>
+    from ops.demo_studio.focus import (
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+______________ ERROR collecting tests/test_demo_studio_render.py _______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_render.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_render.py:21: in <module>
+    from ops.demo_studio.render import FFMPEG_TIMEOUT_S, ffmpeg_available, render_deliverables
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+_____________ ERROR collecting tests/test_demo_studio_sabotage.py ______________
+ImportError while importing test module '<repo>/tests/test_demo_studio_sabotage.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_sabotage.py:28: in <module>
+    import ops.demo_studio.boot as boot_mod
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+____________ ERROR collecting tests/test_demo_studio_capture_e2e.py ____________
+ImportError while importing test module '<repo>/tests/test_demo_studio_capture_e2e.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+<python>/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_demo_studio_capture_e2e.py:22: in <module>
+    from ops.demo_studio.runner import StudioConfig, StudioMode, run_journey
+E   ModuleNotFoundError: No module named 'ops.demo_studio'
+=========================== short test summary info ============================
+ERROR tests/test_demo_studio_journeys.py
+ERROR tests/test_demo_studio_redaction.py
+ERROR tests/test_demo_studio_dryrun.py
+ERROR tests/test_demo_studio_boot_gate.py
+ERROR tests/test_demo_studio_abort.py
+ERROR tests/test_demo_studio_focus.py
+ERROR tests/test_demo_studio_render.py
+ERROR tests/test_demo_studio_sabotage.py
+ERROR tests/test_demo_studio_capture_e2e.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 9 errors during collection !!!!!!!!!!!!!!!!!!!!
+9 errors in 2.51s
