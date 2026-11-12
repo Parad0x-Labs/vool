@@ -21,6 +21,7 @@
 ## Guides
 
 * [Run a local model](guides/local-models.md)
+* [Provider keys](guides/provider-keys.md)
 * [Connect OpenRouter](guides/openrouter.md)
 * [Code with VOOL](guides/coding.md)
 * [Skills and plugins](guides/skills-and-plugins.md)
@@ -28,8 +29,11 @@
 * [Build and test a skill](guides/build-and-test-a-skill.md)
 * [Skill tools and limits](guides/skill-tools-and-limits.md)
 * [Add-on security](guides/addon-security.md)
+* [Notifications and model offers](guides/notifications.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
+* [Pay for web resources (x402)](guides/paid-resources.md)
+* [Private invoices with Zcash](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
 
 ## Reference
