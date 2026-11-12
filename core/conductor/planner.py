@@ -2716,6 +2716,13 @@ def plan_conductor_turn(
             return None
     except Exception:
         pass
+    # One clause, one demanded slot, one sentence: same reasoning, any subject matter. The
+    # conductor's planner call would return the turn undivided at the cost of its catalog-sized
+    # system prompt.
+    from core.agent_runtime.turn_planner import single_shape_needs_no_planner
+
+    if single_shape_needs_no_planner(original):
+        return None
 
     try:
         raw = ask_model(conductor_system_prompt(), original)

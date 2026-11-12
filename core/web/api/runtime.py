@@ -11,12 +11,14 @@ import re
 import secrets
 import subprocess
 import threading
+import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from core import policy_engine
@@ -2453,6 +2455,51 @@ def _admit_turn_context_page(
         logger.debug("turn-context admission skipped", exc_info=True)
 
 
+#: Extraction runs when the person goes QUIET, not after every turn.
+#: A background model call interleaving the chat evicts the engine's prompt cache for the next
+#: turn (measured on the hidden set: tool turns paid full prefill and ran 17% slower than BASE)
+#: and lands in every turn's byte and serial-call counts. Turn state and time only, never
+#: wording: a session's turns batch while the person keeps talking (gap under the quiet
+#: window) and flush when quiet arrives (timer) or the batch cap bounds staleness. Facts told
+#: in-session still reach the next turn through the chat's own history (needles); this lane
+#: writes the cross-conversation store, and a quiet-gap flush always runs before a later chat
+#: could need it. 0 keeps today's run-after-every-turn behaviour (tests pin that).
+#:
+#: Read AT USE, never at import: the product default ("90") is applied by the process entry
+#: point AFTER this module is imported, so a module-level read froze the test default "0"
+#: into the served daemon and the quiet batch never ran there.
+_extraction_pending: dict[str, dict[str, Any]] = {}
+_extraction_timer: dict[str, Any] = {}
+_extraction_lock = threading.Lock()
+
+
+def _extraction_quiet_seconds() -> float:
+    """The quiet window, read at use so the process entry point's product default can land."""
+    try:
+        return float(os.environ.get("VOOL_EXTRACTION_QUIET_SECONDS", "0") or 0)
+    except ValueError:
+        return 0.0
+
+
+def _extraction_batch_cap() -> int:
+    try:
+        return int(os.environ.get("VOOL_EXTRACTION_BATCH_TURNS", "8") or 8)
+    except ValueError:
+        return 8
+
+
+def _flush_memory_extraction(runtime: RuntimeServices, session_id: str) -> None:
+    """Run one session's pending batch through the extraction lane (best-effort, never raises)."""
+    with _extraction_lock:
+        batch = _extraction_pending.pop(session_id, None)
+        timer = _extraction_timer.pop(session_id, None)
+    if timer is not None:
+        with contextlib.suppress(Exception):
+            timer.cancel()
+    if batch and batch["messages"]:
+        _run_extraction_batch(runtime, batch)
+
+
 def schedule_memory_extraction(
     runtime: RuntimeServices,
     *,
@@ -2495,6 +2542,87 @@ def schedule_memory_extraction(
     )
     if not messages:
         return
+    quiet_seconds = _extraction_quiet_seconds()
+    if quiet_seconds <= 0:
+        # Today's behaviour: run after every turn.
+        _dispatch_memory_extraction(
+            runtime, source_context, access_policy, messages, clean_session_id
+        )
+        return
+    now = time.time()
+    due_gap_batch: dict[str, Any] | None = None
+    due_cap_batch: dict[str, Any] | None = None
+    with _extraction_lock:
+        pending = _extraction_pending.get(clean_session_id)
+        if pending is not None and now - pending["last"] >= quiet_seconds:
+            # The person went quiet before this turn: the held batch is due now, WITHOUT this
+            # turn's excerpt (which starts the next batch).
+            due_gap_batch = _extraction_pending.pop(clean_session_id, None)
+            pending = None
+        merged = list((pending or {}).get("messages") or [])
+        merged.extend(messages)
+        new_count = int((pending or {}).get("turns") or 0) + 1
+        _extraction_pending[clean_session_id] = {
+            "messages": merged[-40:],  # the extractor's own excerpt bound is 20 exchanges
+            "turns": new_count,
+            "session": clean_session_id,
+            "last": now,
+            "source_context": source_context,
+            "chat_id": access_policy.chat_id,
+            "project_id": access_policy.project_id,
+        }
+        if new_count >= _extraction_batch_cap():
+            # Staleness bound while the person keeps talking: the cap flushes the whole batch.
+            due_cap_batch = _extraction_pending.pop(clean_session_id, None)
+        old_timer = _extraction_timer.pop(clean_session_id, None)
+        if quiet_seconds > 0:
+            _extraction_timer[clean_session_id] = threading.Timer(
+                quiet_seconds,
+                _flush_memory_extraction,
+                args=(runtime, clean_session_id),
+            )
+            _extraction_timer[clean_session_id].daemon = True
+            _extraction_timer[clean_session_id].start()
+    if old_timer is not None:
+        with contextlib.suppress(Exception):
+            old_timer.cancel()
+    for batch in (due_gap_batch, due_cap_batch):
+        if batch and batch["messages"]:
+            _run_extraction_batch(runtime, batch)
+
+
+def _run_extraction_batch(runtime: RuntimeServices, batch: dict[str, Any]) -> None:
+    """Dispatch one held batch through the extraction lane (best-effort, never raises).
+
+    A held batch is admitted again at dispatch, by a read that creates nothing: its chat must
+    still be an active namespace. A chat deleted or archived inside the quiet window takes its
+    held turns with it, as the run-after-every-turn path never saw them after the delete. (A
+    forget said inside the window is refused at the memory write itself: every writer is fenced
+    by the revocation authority.)
+    """
+    with contextlib.suppress(Exception):
+        from core.context_namespace import load_chat_namespace
+
+        namespace = load_chat_namespace(str(batch.get("chat_id") or ""))
+        if namespace is None or namespace.lifecycle_state != "active":
+            return
+        _dispatch_memory_extraction(
+            runtime,
+            batch["source_context"],
+            SimpleNamespace(chat_id=batch["chat_id"], project_id=batch["project_id"]),
+            list(batch["messages"]),
+            str(batch.get("session") or ""),
+        )
+
+
+def _dispatch_memory_extraction(
+    runtime: RuntimeServices,
+    source_context: dict[str, Any] | None,
+    access_policy: Any,
+    messages: list[dict],
+    session_id: str,
+) -> None:
+    """The extraction lane invocation shared by the immediate and quiet-batch paths."""
     try:
         from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
         from core.fact_extractor import FactExtractor
@@ -2506,9 +2634,12 @@ def schedule_memory_extraction(
             or SEMANTIC_MEMORY_AGENT_ID
         ).strip() or SEMANTIC_MEMORY_AGENT_ID
         memory = VoolMemory(runtime_home=runtime_home, agent_id=semantic_agent_id)
+        lane_model, lane_client = _fact_extraction_lane()
         extractor = FactExtractor(
             memory=memory,
             ollama_url=ollama_base_url(),
+            model=lane_model,
+            model_client=lane_client,
             close_memory_on_finish=True,
             session_id=access_policy.chat_id,
             project_id=access_policy.project_id,
@@ -2516,6 +2647,142 @@ def schedule_memory_extraction(
         extractor.trigger_async(messages)
     except Exception:
         return
+
+
+def _installed_fact_extraction_model() -> str:
+    """The extractor's model tag, chosen from the installed inventory; "" keeps its own default.
+
+    Selection is structural (the installed inventory), never wording. See
+    _fact_extraction_lane: another model is used only when it is SMALLER than the serving
+    model; otherwise the lane runs on the serving model through the serving adapter.
+    """
+    with contextlib.suppress(Exception):
+        from core.local_ollama_inventory import installed_ollama_model_names
+        from core.runtime_provider_defaults import default_runtime_model_tag
+
+        names = [name for name in installed_ollama_model_names() if "embed" not in name.lower()]
+        if not names:
+            return ""
+        primary = str(default_runtime_model_tag() or "").strip().lower()
+
+        def _parameter_billions(tag: str) -> float:
+            match = re.search(r":(\d+(?:\.\d+)?)b", tag.lower())
+            return float(match.group(1)) if match else 99.0
+
+        primary_size = _parameter_billions(primary) if primary else 99.0
+        smaller = [name for name in names if _parameter_billions(name) < primary_size]
+        if smaller:
+            return min(smaller, key=_parameter_billions)
+        return primary or min(names, key=_parameter_billions)
+    return ""
+
+
+def _lane_manifest_for(model_tag: str):
+    """An IN-MEMORY manifest for the extraction lane's adapter; never persisted, never ranked.
+
+    Registering the tag as a real lane would add it to the ranked candidates every tool turn
+    tries (measured: each tool round then ran twice, once per candidate, doubling the turn's
+    bytes), and the register door is a person's deliberate act. The manifest carries exactly
+    what the adapter's payload builder needs, sized by the same seam as every other lane.
+    """
+    from core.runtime_provider_defaults import (
+        _ollama_context_sizing,
+        default_local_provider_base_url,
+    )
+    from storage.model_provider_manifest import ModelProviderManifest
+
+    sizing = _ollama_context_sizing("general", model_tag=model_tag)
+    window = int(sizing["selected_num_ctx"])
+    return ModelProviderManifest(
+        provider_name="ollama-local",
+        model_name=model_tag,
+        source_type="http",
+        adapter_type="local_qwen_provider",
+        license_name="user-managed",
+        license_reference="user-managed",
+        runtime_config={
+            "base_url": default_local_provider_base_url(),
+            "context_window": window,
+            "supports_json_schema": True,
+            "temperature": 0.7,
+        },
+        metadata={"runtime_family": "ollama", "bundle_role": "general", "context_window": window},
+    )
+
+
+def _serving_lane_model_client(model_tag: str, manifest: Any = None):
+    """A model_client that runs one extraction call through the SERVING adapter.
+
+    The extractor's own lane posts straight to the engine with its own runner options; on a
+    host with no smaller installed model that would load a second large model beside the
+    serving one and flip its runner key every turn. Through the serving adapter the call
+    carries the same num_ctx/num_thread/keep_alive as the answering calls: one runner, one
+    residency, no reloads. Returns None when the serving lane cannot be
+    resolved, which leaves the extractor's own posting path in charge.
+    """
+    from core.fact_extractor import FACT_EXTRACT_SYSTEM, FACT_EXTRACT_USER
+
+    def _client(conversation: str) -> str:
+        from adapters.base_adapter import ModelRequest
+        from core.model_registry import ModelRegistry
+
+        registry = ModelRegistry()
+        resolved = (
+            manifest
+            if manifest is not None
+            else registry.get_manifest("ollama-local", model_tag)
+        )
+        if resolved is None:
+            return ""
+        from core.provider_execution_boundary import invoke_provider_execution_boundary
+
+        adapter = registry.build_adapter(resolved)
+        response = invoke_provider_execution_boundary(
+            adapter, "run_text_task",
+            ModelRequest(
+                task_kind="normalization_assist",
+                prompt="",
+                messages=[
+                    {"role": "system", "content": FACT_EXTRACT_SYSTEM},
+                    {"role": "user", "content": FACT_EXTRACT_USER.format(conversation=conversation)},
+                ],
+                temperature=0.1,
+                max_output_tokens=512,
+                output_mode="plain_text",
+                reasoning_mode="disabled",
+            ),
+        )
+        return str(getattr(response, "output_text", "") or "")
+
+    return _client
+
+
+def _fact_extraction_lane() -> tuple[str, Any]:
+    """(model_tag, model_client) for the extraction lane, right-sized for the host.
+
+    A smaller installed chat model is the lane's tag (a background lane on a smaller model is
+    right-sizing); with no smaller model the tag is the serving model itself. Whenever the
+    tag's manifest resolves, the call rides that manifest's ADAPTER -- one runner key and one
+    keep_alive with every other lane on that model (the extractor's own posting path carries
+    unstamped runner options, which flips the runner every time it interleaves the arbiter or
+    the serving lane on the same model). Never a tag the host did not install, and never a
+    second large model loaded beside the serving one.
+    """
+    model = _installed_fact_extraction_model()
+    if not model:
+        return "", None
+    with contextlib.suppress(Exception):
+        from core.model_registry import ModelRegistry
+
+        registry = ModelRegistry()
+        manifest = registry.get_manifest("ollama-local", model)
+        if manifest is None:
+            # An installed-but-unregistered tag: an IN-MEMORY manifest (never persisted, never
+            # ranked -- registering it would add a candidate every tool turn then tries) so the
+            # lane rides a real adapter instead of posting raw with unstamped runner options.
+            manifest = _lane_manifest_for(model)
+        return model, _serving_lane_model_client(model, manifest)
+    return model, None
 
 
 def _memory_capture_allowed(source_context: dict[str, Any] | None) -> bool:

@@ -1018,6 +1018,11 @@ def assemble_tool_offer(
 
         resolved_hint = family_hint_from_task_class(str(task_class))
 
+    # The offer and the graph share ONE budget: the assembly seam and the native seam must
+    # offer the same intents (pinned by test_p0_toolchain_authority), so this seam never
+    # narrows the fill the graph's own discovery bound already sizes.
+    offer_budget = int(max_candidates or _DEFAULT_MAX_CANDIDATES)
+
     # Offered by task capability: a code task open in this session seats the control-plane tools
     # its current stage needs, as caller-typed explicit seats the family ranking cannot evict.
     # Read from the task journal (core.code_assistant), never from the conversation.
@@ -1094,7 +1099,7 @@ def assemble_tool_offer(
             source_context=source_context,
             expanded_families=expansions,
             skill_allowed=skill_seats,
-            max_candidates=int(max_candidates or _DEFAULT_MAX_CANDIDATES),
+            max_candidates=offer_budget,
         )
     )
     specs = _scope_download_specs(specs, str(user_text or ""))

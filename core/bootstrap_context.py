@@ -404,6 +404,37 @@ def _asks_for_what_was_said(query: str) -> bool:
     return bool(_WHAT_WAS_SAID_RE.search(str(query or "")))
 
 
+def _capsule_block_carries_no_evidence(text: str) -> bool:
+    """Whether a ``<retrieved_context>`` block holds no evidence at all.
+
+    A grounding block whose every evidence-bearing field is empty (no actions, no queries, no
+    sources, zero source_count) says only "nothing happened" -- measured on the model-free speed
+    harness it rode every plain turn as ~420 bytes. Blocks with content, and blocks whose body does
+    not parse as the observation JSON, are always kept (fail toward shipping).
+    """
+    body = str(text or "").strip()
+    if not body.startswith("<retrieved_context>"):
+        return False
+    brace = body.find("{")
+    close = body.rfind("}")
+    if brace == -1 or close <= brace:
+        return False
+    try:
+        payload = json.loads(body[brace : close + 1])
+    except ValueError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return (
+        not payload.get("actions_taken")
+        and not payload.get("queries_run")
+        and not payload.get("sources")
+        and not payload.get("source_domains")
+        and not payload.get("notes")
+        and int(payload.get("source_count") or 0) == 0
+    )
+
+
 def _with_semantic_memory_capsule(
     transcript: list[dict[str, str]],
     *,
@@ -506,7 +537,16 @@ def _with_semantic_memory_capsule(
             )
         finally:
             _context_retrieval._set_retrieval_telemetry(prior_telemetry)
-        return [dict(message) for message in injected if message is not carrier_turn]
+        kept = [
+            dict(message)
+            for message in injected
+            if message is not carrier_turn
+            and not (
+                str(message.get("role") or "") == "system"
+                and _capsule_block_carries_no_evidence(str(message.get("content") or ""))
+            )
+        ]
+        return kept
     except Exception:
         return base
 
@@ -1410,6 +1450,9 @@ def build_bootstrap_context(
             # deliberately NOT resurrected here: that was a cross-turn bleed (a screen question
             # inherited a prior "telegram" subject). A genuine follow-up still carries its
             # subject through `references`, which adapt_user_input resolves for real anaphora.
+            # The empty rendering ("none. References: none.") stays: the bootstrap budgeter's
+            # admission cascade is pinned by test_the_chat_bootstrap_budget_holds_the_mandatory_set,
+            # and omitting the item flipped which mandatory block the budget trims.
             content=(
                 f"Current topics: {_compact_join(topic_hints, limit=4) or 'none'}. "
                 f"References: {_compact_join(references, limit=3) or 'none'}."

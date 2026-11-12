@@ -1,0 +1,25 @@
+name: speed-tracker
+
+# Model-free local-speed gate: drives the fixed turn set through the real daemon against the
+# in-repo recording engine and fails when any turn type is more than 10% heavier or slower than
+# the last stored release (docs/benchmarks/speed/). No secrets, no network, no model.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  speed-tracker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run the speed tracker (model-free)
+        run: python ops/speed_tracker.py

@@ -38,6 +38,12 @@ from core.prompt_debug import dump_outbound_prompt
 from core.provider_invocation_gateway import seal_direct_provider_invocation
 from core.runtime_provider_defaults import _ollama_context_window_for_bundle_role
 
+try:  # the ONE runner-key seam; import cycles would defeat the sharing, so fall back to none
+    from adapters.openai_compatible_adapter import shared_ollama_thread_option
+except Exception:  # pragma: no cover - defensive only
+    def shared_ollama_thread_option() -> dict:
+        return {}
+
 _FLAG_ENV = "VOOL_INTENT_ARBITER"
 _MODEL_ENV = "VOOL_ARBITER_MODEL"
 
@@ -279,10 +285,15 @@ def arbitrate(
             "keep_alive": "30m",  # keep the tiny arbiter model resident: only the FIRST arbitration pays a load
             # Sized, because keep_alive makes this residency LAST: an unsized load pins the
             # model at its native context for the full thirty minutes (see _arbiter_num_ctx).
+            # The thread stamp comes from the ONE runner-key seam (the adapter's
+            # shared_ollama_thread_option): two calls to one model that disagree on it reload
+            # the model, and this lane shares its model with the serving runner whenever the
+            # arbiter's pick equals the serving tag.
             "options": {
                 "temperature": 0,
                 "num_predict": 96,
                 "num_ctx": _arbiter_num_ctx(model),
+                **shared_ollama_thread_option(),
             },
         }
         # This call posts straight to Ollama instead of going through the provider adapter, so it was
@@ -544,7 +555,13 @@ def prewarm_async() -> None:
                 "stream": False,
                 "think": False,
                 "keep_alive": "30m",
-                "options": {"num_predict": 1, "num_ctx": _arbiter_num_ctx(model)},
+                # Same runner-key seam as every other native-Ollama payload (see the
+                # adjudication call above): one thread stamp, one runner per model.
+                "options": {
+                    "num_predict": 1,
+                    "num_ctx": _arbiter_num_ctx(model),
+                    **shared_ollama_thread_option(),
+                },
             }
             permit = seal_direct_provider_invocation(
                 provider_id="ollama",

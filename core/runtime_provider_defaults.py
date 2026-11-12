@@ -423,6 +423,11 @@ _PRODUCT_RUNTIME_ENV_DEFAULTS: tuple[tuple[str, str], ...] = (
     ("VOOL_EVIDENCE_HOP", "1"),
     ("VOOL_EVIDENCE_VERIFY", "1"),
     ("VOOL_EVIDENCE_KERNEL", "1"),
+    # The product runs memory extraction when the person goes quiet, not after every turn
+    # (a background call interleaving the chat evicts the engine prompt cache for the next
+    # turn -- measured on the hidden set). Tests default to 0 (run after every turn) unless
+    # they opt into the quiet-batch path explicitly.
+    ("VOOL_EXTRACTION_QUIET_SECONDS", "90"),
 )
 
 
@@ -438,6 +443,13 @@ _ADAPTIVE_CONTEXT_ENV = "VOOL_ADAPTIVE_CONTEXT"
 _CONTEXT_WINDOW_OVERRIDE_ENV = "VOOL_OLLAMA_CONTEXT_WINDOW"
 _BASELINE_CONTEXT_WINDOW = 4096
 _MIN_CTX = 1024
+# Roles whose lanes share a model with the serving lane but used to size a SMALLER window
+# (light roles resolve at half the general share). Ollama keys a loaded runner on the model
+# plus its options: a light lane asking for half the window reloads the model for each of its
+# calls while the serving lane reloads it back, so one model thrashes between two runners.
+# These roles size to the GENERAL share so every lane of one model names one window; heavier
+# lanes (heavy_reasoning and friends) keep their full share, so heavy stays above light.
+_RUNNER_UNITY_ROLES = frozenset({"classifier", "lightweight_utility", "tiny", "router"})
 _HARDWARE_CONTEXT_CEILING = {"A": 4096, "B": 8192, "C": 16384, "D": 32768, "E": 32768}
 _FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off", "disabled"})
 # Stands in for a model whose size cannot be proven, so an unrecognized tag is bounded by the
@@ -609,7 +621,12 @@ def _ollama_context_sizing(
         return result
     try:
         effective_kv = "q8_0" if (kv_quant == "q8_0" or resolve_kv_quant(env_map) == "q8_0") else "fp16"
-        adaptive = int(resolve_num_ctx(bucket=clean_bucket, role=bundle_role, kv_quant=effective_kv))
+        effective_role = (
+            "general"
+            if str(bundle_role or "").strip().lower() in _RUNNER_UNITY_ROLES
+            else bundle_role
+        )
+        adaptive = int(resolve_num_ctx(bucket=clean_bucket, role=effective_role, kv_quant=effective_kv))
         result["selected_num_ctx"] = min(max(adaptive, _BASELINE_CONTEXT_WINDOW), safe_ceiling)
         result["context_sizing_policy"] = "adaptive_persisted_bucket"
         return result
@@ -774,6 +791,9 @@ def _ensure_local_ollama_provider(
         "context_window": context_window,
         "prewarm": {
             "strategy": "ollama_chat",
+            # Pinned at 15m by existing tests. The residency rule: a serving call
+            # carries a keep_alive AT LEAST as long as this (the adapter sends 30m), and every
+            # serving call restarts the timer, so the longer serving value governs live chats.
             "keep_alive": "15m",
             "message": " ",
             "timeout_seconds": 45,
