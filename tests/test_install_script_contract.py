@@ -626,12 +626,14 @@ class _VerifyFixtureServer:
 def _supervisor_boundary_doubles(tmp_path: Path) -> str:
     """Function doubles for the OWNING supervisor setup boundary, per platform: the REAL
     install_macos_launch_agent runs and its launchctl is recorded on Darwin; on every
-    other host it chains into the REAL Linux keepalive installer, whose systemctl probe
-    is doubled to report "no user bus" (return 1) so it lands on the XDG autostart
-    fallback hermetically -- no real service manager, scheduled task or owner state is
-    touched on any platform. Both doubles report through the fixture's /bootstrap-marker
-    so bootstrap-before-verification ordering stays provable in one linear request log
-    whichever platform's boundary ran."""
+    other host it chains into the REAL Linux keepalive installer, whose systemctl is
+    doubled to report a user bus (return 0), so the systemd user service is installed and
+    started now (``enable --now``, recorded) hermetically -- no real service manager,
+    scheduled task or owner state is touched on any platform. (Without a user bus the
+    installer only writes an XDG autostart entry, which runs at the next login; that path
+    starts VOOL directly and has its own test below.) Both doubles report through the
+    fixture's /bootstrap-marker so bootstrap-before-verification ordering stays provable
+    in one linear request log whichever platform's boundary ran."""
     launchctl_record = tmp_path / "launchctl-calls.txt"
     systemctl_record = tmp_path / "systemctl-calls.txt"
     return (
@@ -643,7 +645,7 @@ def _supervisor_boundary_doubles(tmp_path: Path) -> str:
         "systemctl() {\n"
         f"  printf '%s\\n' \"$*\" >> {_sh(systemctl_record)}\n"
         "  curl -sf --max-time 2 http://127.0.0.1:11435/bootstrap-marker >/dev/null 2>&1 || true\n"
-        "  return 1\n"
+        "  return 0\n"
         "}\n"
     )
 
@@ -663,8 +665,8 @@ def _supervisor_keep_functions() -> tuple[str, ...]:
     """The REAL supervisor-setup functions each platform's --start path must run.
 
     install_macos_launch_agent is the owner everywhere, but on a non-Darwin host it
-    immediately chains into install_linux_keepalive_service (whose no-bus fallback is
-    install_linux_xdg_autostart). Leaving those stubbed — as the CI failures showed —
+    immediately chains into install_linux_keepalive_service (the systemd user service
+    when a user bus answers, else install_linux_xdg_autostart). Leaving those stubbed — as the CI failures showed —
     means LAUNCH_AGENT_PATH stays empty, so --start never takes the supervised verify
     branch and falls through to exec'ing the direct launcher the harness never writes
     (exit 42 against the canary / exit 127 "Start_VOOL.sh: No such file or directory").
@@ -680,10 +682,10 @@ def _supervisor_keep_functions() -> tuple[str, ...]:
 
 
 def _assert_platform_supervisor_entry(run_dir: Path, runtime_home: Path) -> None:
-    """The platform's own supervisor entry was really installed inside the isolated home:
-    the launch-agent plist on Darwin, the XDG autostart entry (via the doubled no-bus
-    systemctl probe) everywhere else — the boundary that makes --start verify the served
-    runtime instead of exec'ing a launcher."""
+    """The platform's own supervisor entry was really installed inside the isolated home and
+    started now: the launch-agent plist on Darwin, the systemd user service (via the doubled
+    systemctl, ``enable --now``) everywhere else — the boundary that makes --start verify the
+    served runtime instead of exec'ing a launcher."""
     from tests.platform_helpers import bash_path
 
     if _platform_system() == "Darwin":
@@ -694,11 +696,12 @@ def _assert_platform_supervisor_entry(run_dir: Path, runtime_home: Path) -> None
         assert "<key>VOOL_LAUNCHD_SUPERVISOR</key>" in body
         assert bash_path(runtime_home) in body
     else:
-        assert (run_dir / "systemctl-calls.txt").exists(), "the systemd probe boundary must run"
-        entry = run_dir / "isolated-home" / ".config" / "autostart" / "vool-runtime.desktop"
-        assert entry.is_file(), "the XDG autostart fallback must be written by the owning boundary"
-        body = entry.read_text(encoding="utf-8")
-        assert "VOOL_LAUNCHD_SUPERVISOR=1" in body
+        calls = (run_dir / "systemctl-calls.txt").read_text(encoding="utf-8").splitlines()
+        assert "--user enable --now vool-runtime.service" in calls, "the service must be started now"
+        unit = run_dir / "isolated-home" / ".config" / "systemd" / "user" / "vool-runtime.service"
+        assert unit.is_file(), "the systemd user service must be written by the owning boundary"
+        body = unit.read_text(encoding="utf-8")
+        assert "Restart=always" in body
         assert bash_path(runtime_home) in body
 
 
@@ -918,6 +921,39 @@ def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path)
         )
     finally:
         fixture.stop()
+
+
+def test_installer_start_with_only_a_login_autostart_entry_starts_vool_now(tmp_path: Path) -> None:
+    """No systemd user bus (WSL without systemd, OpenRC, an SSH session without lingering): the
+    keep-alive is an XDG autostart entry, which only runs at the NEXT login. --start must then
+    start VOOL itself, the way it does on a computer with no supervisor, instead of waiting four
+    minutes for a runtime nothing started and exiting 1 (seen in a real source install on a
+    fresh Linux account, 2026-11-12: "did not stay verifiably healthy", and VOOL never ran).
+    """
+    import sys
+
+    marker = _canary_direct_launcher(tmp_path)
+    runtime_home = tmp_path / "runtime1"
+    result = _run_installer_main(
+        tmp_path / "run1",
+        real_python=sys.executable,
+        agent_name="LoginOnly",
+        runtime_home=runtime_home,
+        auto_start=True,
+        launch_agent_path="",
+        keep_functions=("install_macos_launch_agent", "install_linux_keepalive_service",
+                        "install_linux_xdg_autostart"),
+        sleep_fast=True,
+        # The Linux owner on any host, with no user bus answering.
+        override_functions="uname() { echo Linux; }\n" + "systemctl() { return 1; }\n" + "write_launcher() { :; }\n",
+    )
+    combined = result.stdout + result.stderr
+    assert "command not found" not in combined, combined[-2000:]
+    autostart = tmp_path / "run1" / "isolated-home" / ".config" / "autostart" / "vool-runtime.desktop"
+    assert autostart.is_file() and "VOOL_LAUNCHD_SUPERVISOR=1" in autostart.read_text(encoding="utf-8")
+    assert marker.exists() and result.returncode == 42, "--start must run the direct launcher now"
+    assert "did not stay verifiably healthy" not in result.stdout
+    assert "Launchd runtime verified" not in result.stdout
 
 
 def test_installer_without_start_bootstraps_supervisor_but_does_not_verify(tmp_path: Path) -> None:

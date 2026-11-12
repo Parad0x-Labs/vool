@@ -24,6 +24,8 @@ INSTALL_PROFILE_OVERRIDE="${VOOL_INSTALL_PROFILE:-}"
 AGENT_NAME_OVERRIDE="${VOOL_AGENT_NAME:-}"
 DESKTOP_SHORTCUT_PATH=""
 LAUNCH_AGENT_PATH=""
+# 1 when that entry only runs at the next login (the XDG autostart fallback): nothing is running yet.
+LAUNCH_AGENT_AT_LOGIN_ONLY=0
 RUNTIME_REQUIREMENTS_FILE="${PROJECT_ROOT}/requirements-runtime.txt"
 WHEELHOUSE_DIR="${PROJECT_ROOT}/vendor/wheelhouse"
 BUNDLED_LIQUEFY_DIR="${PROJECT_ROOT}/vendor/liquefy-openclaw-integration"
@@ -1505,6 +1507,7 @@ Terminal=false
 Categories=Utility;
 EOF
   LAUNCH_AGENT_PATH="${desktop_path}"
+  LAUNCH_AGENT_AT_LOGIN_ONLY=1
   say "Linux autostart entry installed (no systemd user bus): ${desktop_path}"
 }
 
@@ -2072,7 +2075,8 @@ main() {
     say
     say "Launching VOOL now..."
     say "Verifying live launch through the shell launcher..."
-    if [[ -n "${LAUNCH_AGENT_PATH}" ]]; then
+    # An autostart entry starts VOOL at the next login, not now: start it here like a computer with no agent.
+    if [[ -n "${LAUNCH_AGENT_PATH}" && "${LAUNCH_AGENT_AT_LOGIN_ONLY}" -eq 0 ]]; then
       local launchd_runtime_ready=0
       local launchd_runtime_consecutive=0
       for _ in $(seq 1 240); do
