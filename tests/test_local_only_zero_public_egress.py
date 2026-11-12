@@ -461,9 +461,40 @@ def test_web_tools_answer_offline_instead_of_searching(monkeypatch: pytest.Monke
 
     result = _run(_local_only_context())
     assert result.ok is False and calls == []
-    assert "this chat is Offline" in result.user_safe_response_text
+    assert "this chat is offline" in result.user_safe_response_text.lower()
     assert "VOOL_ENABLE_WEB" not in result.user_safe_response_text
     # Control: a Computer + web chat does reach the research step.
     with contextlib.suppress(Exception):
         _run(_computer_web_context())
     assert calls == ["research"]
+
+
+def test_an_offline_chat_answers_a_wikipedia_ask_plainly_without_a_model_call() -> None:
+    """Measured 2026-11-12 on the Mac: the Offline Wikipedia ask spent a 53 s model call choosing a
+    web tool the door then refused. The front door now answers it, and an ordinary request in the
+    same Offline chat still reaches the model (the control)."""
+    from unittest import mock
+
+    from core import policy_engine
+    from core.remote_fetch_policy import OFFLINE_LOOKUP_TEXT
+    from tests.test_mixed_demand_terminal_closure_p0 import _model_stand_in
+    from tests.test_turn_attempt_chain import _Harness
+
+    context = {"surface": "openclaw", "platform": "openclaw", **_local_only_context()}
+    harness = _Harness("offline-wikipedia-front-door")
+    try:
+        with mock.patch.object(policy_engine, "local_only_mode", return_value=False), \
+                mock.patch.object(policy_engine, "allow_web_fallback", return_value=True), \
+                _model_stand_in(harness.agent, "A stand-in answer."):
+            looked_up = harness.agent.run_once(
+                "according to wikipedia, when was the eiffel tower finished?",
+                source_context=dict(context), session_id_override=harness.session_id,
+            )
+            ordinary = harness.agent.run_once(
+                "tell me a short joke",
+                source_context=dict(context), session_id_override=harness.session_id,
+            )
+    finally:
+        harness.close()
+    assert str(looked_up.get("response") or "") == OFFLINE_LOOKUP_TEXT
+    assert str(ordinary.get("response") or "") == "A stand-in answer."

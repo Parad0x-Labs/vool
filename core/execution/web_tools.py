@@ -46,7 +46,13 @@ def execute_web_tool(
         # request, so the tool does not pretend to search. Measured 2026-11-12 on the Mac: with
         # Web lookups on, an Offline chat ran web.research, every fetch was refused, and the user
         # saw only the tool's header line and "Search failed" -- never that the chat is Offline.
-        reason = web_unavailable_reason(source_context)
+        from core.auto_local_only_mode import turn_selected_offline
+        from core.remote_fetch_policy import OFFLINE_LOOKUP_TEXT
+
+        reason = (
+            OFFLINE_LOOKUP_TEXT if turn_selected_offline(source_context)
+            else web_unavailable_reason(source_context)
+        )
         return ToolIntentExecution(
             handled=True,
             ok=False,

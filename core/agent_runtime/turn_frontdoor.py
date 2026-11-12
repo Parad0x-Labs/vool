@@ -2183,6 +2183,50 @@ def handle_turn_frontdoor(
         live_info_wanted = False
     from core.model_own_tools import turn_has_provider_search as _model_searches_itself
 
+    # An Offline chat asked for something only the web can answer (an explicit lookup, a named
+    # public source): answer that plainly here, before any model call. Measured 2026-11-12 on the
+    # Mac: "according to wikipedia, ..." in an Offline chat spent a full 53 s model call choosing
+    # web.research, which the door then refused, and the page showed "Search failed". Live data
+    # (weather, prices) keeps its own refusal through the live-info lane below.
+    if not live_info_wanted and not action_forbidden:
+        from core.auto_local_only_mode import turn_selected_offline as _chat_offline
+
+        if _chat_offline(source_context):
+            _offline_needs_web = False
+            try:
+                from core.execution_requirements import requirements_for as _reqs
+
+                _need = _reqs(effective_input, source_context=source_context)
+                _offline_needs_web = bool(_need.external_evidence_required) and str(
+                    _need.answer_mode
+                ) != "LIVE_DATA"
+            except Exception:
+                _offline_needs_web = False
+            if not _offline_needs_web:
+                # The tool-demand authority is what seats a web search for "according to
+                # wikipedia, ..." (the requirement authority reads it DIRECT).
+                try:
+                    from core.tool_demand_signals import resolve_demand_signals as _demand
+
+                    _offline_needs_web = "web" in tuple(
+                        getattr(_demand(effective_input), "required_families", ()) or ()
+                    )
+                except Exception:
+                    _offline_needs_web = False
+            if _offline_needs_web:
+                from core.remote_fetch_policy import OFFLINE_LOOKUP_TEXT
+
+                return {
+                    "result": agent._fast_path_result(
+                        session_id=session_id,
+                        user_input=effective_input,
+                        response=OFFLINE_LOOKUP_TEXT,
+                        confidence=0.95,
+                        source_context=source_context,
+                        reason="offline_lookup_refusal",
+                    )
+                }
+
     # The lane's conversation row is held until this door SERVES its result: a refusal or a slice
     # answer set aside below is not this message's turn, and the lane that does answer records it.
     with deferred_turn_rows() as _live_info_rows:

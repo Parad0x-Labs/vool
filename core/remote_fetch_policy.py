@@ -202,6 +202,13 @@ MACHINE_OFFLINE_TEXT = (
 )
 
 
+#: An Offline chat asked to look something up that is not weather, prices or news.
+OFFLINE_LOOKUP_TEXT = (
+    "This chat is Offline: nothing leaves this computer, so I can't look this up online. "
+    "Choosing Computer + web or Local first in the model menu allows web lookups for this chat."
+)
+
+
 def web_unavailable_reason(source_context: dict[str, Any] | None = None) -> str:
     """Why THIS turn has no web, in the user's words: machine-wide offline, an Offline chat, or
     the switch. With no context given, the turn's bound scope is read (tool surfaces)."""
@@ -1047,6 +1054,7 @@ __all__ = [
     "explicit_remote_fetch_disabled",
     "local_only_active",
     "web_unavailable_reason",
+    "OFFLINE_LOOKUP_TEXT",
     "note_remote_fetch_attempt",
     "open_keyed_request",
     "open_remote",
