@@ -11,6 +11,18 @@ def looks_like_builder_request(lowered: str) -> bool:
     text = " ".join(str(lowered or "").split()).strip().lower()
     if not text:
         return False
+    # A plain-words site ask ("id love a basic one page website for the bakery, can you do
+    # that?") carries no build verb, so neither arm below could see it and the turn died in
+    # clarifying questions (measured 2026-10-27, audit mailweb B01-B07). It runs BEFORE the
+    # whole-message deliberation veto below because it is sentence-scoped and carries its own
+    # opt-out, quoted-payload and per-sentence deliberation guards: a rider question after the
+    # ask ("...for my cake shop. what do you think?") must not un-ask it, which is the same law
+    # `imperative_build_sentences` applies to verb-led builds.
+    if build_request_intent.is_want_site_request(str(lowered or "")):
+        # Passed the text as given, not the lowered copy: a named thing ("for Bea's Plant
+        # Corner") is read from the caller's own capitals when they are still there, and the
+        # detector also reads the lowered spelling on its own.
+        return True
     # Discussing a build is not requesting one. This was the widest of the four detectors — a bare
     # `"build" in text` — so "lets discuss whether we should build an api", "how would you build a
     # bot like that" and "why did you create that file earlier" all claimed a build. The

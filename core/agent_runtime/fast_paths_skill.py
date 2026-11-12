@@ -1709,7 +1709,8 @@ def maybe_handle_skill_request(
         result = run("skill.rollback", {"skill": name, "version": int(request.get("version") or 0)})
         if result is None:
             return plain(
-                "This build has no `skill.rollback` tool, so I did not pretend to run it.",
+                "This copy of the app can't restore older skill versions yet, so I did not run it "
+                "— nothing changed.",
                 reason="skill_rollback_unsupported",
             )
         return plain(
@@ -1727,7 +1728,7 @@ def maybe_handle_skill_request(
     if action == "validate":
         result = run("skill.validate", {"path": name})
         if result is None:
-            return plain(f"This build has no `skill.{action}` tool, so I did not pretend to run it.", reason=f"skill_{action}_unsupported")
+            return plain(f"This copy of the app can't {action} skills yet, so I did not run it — nothing changed.", reason=f"skill_{action}_unsupported")
         return plain(str(getattr(result, "response_text", "") or ""), reason="skill_validate", execution=result)
 
     if action == "activate":
@@ -1772,7 +1773,7 @@ def maybe_handle_skill_request(
                     reason="skill_activate_exists",
                 )
         if result is None:
-            return plain("This build has no `skill.install` tool, so I did not pretend to run it.", reason="skill_install_unsupported")
+            return plain("This copy of the app can't install skills yet, so I did not run it — nothing changed.", reason="skill_install_unsupported")
         if str(getattr(result, "status", "") or "") == "ok":
             _clear_pending(chat)
         return plain(str(getattr(result, "response_text", "") or ""), reason="skill_activate", execution=result)
@@ -1795,7 +1796,7 @@ def maybe_handle_skill_request(
             arguments["scope"] = target_scope
         result = run("skill.install", arguments)
         if result is None:
-            return plain(f"This build has no `skill.{action}` tool, so I did not pretend to run it.", reason=f"skill_{action}_unsupported")
+            return plain(f"This copy of the app can't {action} skills yet, so I did not run it — nothing changed.", reason=f"skill_{action}_unsupported")
         if str(getattr(result, "status", "") or "") == "ok":
             _clear_pending(chat)
         return plain(str(getattr(result, "response_text", "") or ""), reason=f"skill_{action}", execution=result)
@@ -1813,7 +1814,7 @@ def maybe_handle_skill_request(
             arguments["scope"] = scope
         result = run("skill.export", arguments)
         if result is None:
-            return plain("This build has no `skill.export` tool, so I did not pretend to run it.", reason="skill_export_unsupported")
+            return plain("This copy of the app can't export skills yet, so I did not run it — nothing changed.", reason="skill_export_unsupported")
         text = str(getattr(result, "response_text", "") or "")
         if str(getattr(result, "status", "") or "") == "ok":
             text += (
@@ -1869,7 +1870,7 @@ def maybe_handle_skill_request(
             result = run("skill.import", arguments)
             last = result
             if result is None:
-                return plain("This build has no `skill.import` tool, so I did not pretend to run it.", reason="skill_import_unsupported")
+                return plain("This copy of the app can't import skills yet, so I did not run it — nothing changed.", reason="skill_import_unsupported")
             if refused(result):
                 return plain(str(getattr(result, "response_text", "") or ""), reason="skill_import", execution=result)
             details = dict(getattr(result, "details", {}) or {})
@@ -1944,7 +1945,7 @@ def maybe_handle_skill_request(
             arguments["scope"] = scope
         result = run("skill.remove", arguments)
         if result is None:
-            return plain("This build has no `skill.remove` tool, so I did not pretend to run it.", reason="skill_remove_unsupported")
+            return plain("This copy of the app can't remove skills yet, so I did not run it — nothing changed.", reason="skill_remove_unsupported")
         return plain(str(getattr(result, "response_text", "") or ""), reason="skill_remove", execution=result)
 
     if action == "pack":
@@ -1960,7 +1961,7 @@ def maybe_handle_skill_request(
             {"name": name, "description": _purpose_of(user_input) or f"Skills bundled as {name}.", "skills": skills},
         )
         if result is None:
-            return plain("This build has no `skill.pack` tool, so I did not pretend to run it.", reason="skill_pack_unsupported")
+            return plain("This copy of the app can't bundle skills into a plugin yet, so I did not run it — nothing changed.", reason="skill_pack_unsupported")
         details = dict(getattr(result, "details", {}) or {})
         text = str(getattr(result, "response_text", "") or "")
         if str(getattr(result, "status", "") or "") == "ok":

@@ -590,10 +590,26 @@ def test_chat_surface_help_uses_deterministic_fast_path(make_agent):
         source_context={"surface": "openclaw", "platform": "openclaw"},
     )
 
-    assert result["response"] == "deterministic help lane"
+    # `help` has its own short canned reply (fast_paths_utility.help_short_reply);
+    # the full capability manifest belongs to the capability question below.
+    from core.agent_runtime.fast_paths_utility import help_short_reply
+
+    assert result["response"] == help_short_reply(agent)
+    assert "The short version:" in result["response"]
+    assert result["response"] != "deterministic help lane"
     assert result["response_class"] == ResponseClass.UTILITY_ANSWER.value
     assert result["model_execution"]["used_model"] is False
     assert result["model_execution"]["source"] == "fast_path"
+
+    capability = agent.run_once(
+        "what can you do",
+        session_id_override="openclaw:help-fast-path",
+        source_context={"surface": "openclaw", "platform": "openclaw"},
+    )
+
+    assert capability["response"] == "deterministic help lane"
+    assert capability["model_execution"]["used_model"] is False
+    assert capability["model_execution"]["source"] == "fast_path"
 
 
 def test_repeated_chat_greetings_on_openclaw_surface_use_bounded_fast_path(make_agent):

@@ -1257,6 +1257,29 @@ def bootstrap_runtime_services(
     )
     for warning in model_registry.startup_warnings():
         logger.warning("Model warning: %s", warning)
+    def _ready_then_relabel() -> str:
+        """Ready a model, then make every label name the model turns will use.
+
+        Boot logs and stamps its primary before the check has run: on a fresh CPU-only profile
+        that was "Primary local model: qwen2.5:7b" for the ~2 minutes qwen3:8b took to turn ready,
+        and the Settings build details kept saying so after (phone parity audit, Oct 29).
+        """
+
+        ready_a_local_model_on_boot(model_registry, primary_model=runtime_model_tag, env=provider_env)
+        from core.local_model_readiness import model_in_use
+
+        in_use = model_in_use(runtime_model_tag) or runtime_model_tag
+        if in_use != runtime_model_tag:
+            # The stamp is shared by reference with /healthz and /api/runtime/version.
+            runtime_version_stamp["model_tag"] = in_use
+            runtime_version_stamp["default_model_tag"] = in_use
+            logger.info(
+                "Primary local model is now %s (ready); %s is not ready to answer.",
+                in_use,
+                runtime_model_tag,
+            )
+        return in_use
+
     def _run_provider_prewarm() -> None:
         # Warming loads the model into memory, so it cannot start until the model is on disk.
         model_pull.wait(timeout=_MODEL_PULL_WAIT_SECONDS)
@@ -1266,11 +1289,10 @@ def bootstrap_runtime_services(
             runtime_home=runtime_home,
             requested_profile=requested_profile,
         )
-        # Its own thread: a check can take minutes and must never hold bootstrap or prewarm.
+        # Its own thread: a check can take minutes and must never hold bootstrap or prewarm. Once a
+        # model is ready, the build details name the model turns use (not the boot guess).
         threading.Thread(
-            target=ready_a_local_model_on_boot,
-            args=(model_registry,),
-            kwargs={"primary_model": runtime_model_tag, "env": provider_env},
+            target=_ready_then_relabel,
             name="vool-local-model-readiness",
             daemon=True,
         ).start()

@@ -375,6 +375,20 @@ def parse_note_request(text: str) -> dict[str, Any]:
     elif quoted and len(quoted) >= 2:
         body = quoted[1].strip()
     else:
+        # An "about ..."/"for ..." span holds the note's words only when it says more than a bare
+        # topic: a comma clause ("about the boiler service, it was 90 euros") or a longer clock-free
+        # phrase ("for the plumber visit on friday"). "about the meeting at 10:30" or "for the 9:15
+        # train" names a thing — and a clock to schedule it with — without giving any words, so the
+        # ask still comes back for them.
+        topic = (
+            re.search(r"\bnotes?\b(?:\s+down)?\s+about\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bnotes?\b(?:\s+down)?\s+for\s+(?!me\b|later\b)(.+)$", raw, re.IGNORECASE | re.DOTALL)
+        )
+        topic_body = ""
+        if topic:
+            span = topic.group(1).strip()
+            has_clock = re.search(r"(?<!\d)\d{1,2}:\d{2}(?!\d)", span) is not None
+            topic_body = span if ("," in span or len(span.split()) >= 4) and not has_clock else ""
         # The plain ways people say what a note holds: "save a note saying buy milk", "take a note: the boiler
         # is due", "note to self: call the bank", "write down a note that the key is under the mat".
         plain = (
@@ -390,9 +404,27 @@ def parse_note_request(text: str) -> dict[str, Any]:
                 r"\bnote\s+to\s+(?!(?:my|our|the|a|an|his|her|their|your|self|myself|me|him|them|us)\b)([a-z]+\b.*)$",
                 raw, re.DOTALL,
             )
+            # "add a note to my notes app that the boiler service is due nov 12": a few words (at most six) may
+            # sit between "note" and the "that" clause carrying the content; a "that" farther away is not it.
+            or re.search(r"\bnote\b(?:\s+\w+){1,6}?\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "save this one: buy zucchini for saturday's bbq": a demonstrative (optionally "one") then the
+            # content colon; a clock time's colon never sits right after the demonstrative, so it never separates.
+            # The same demonstrative may name its destination first ("stick this in my notes: call the bank"),
+            # so a short note-free span may sit between it and the colon.
+            or re.search(r"\b(?:this|that)\b(?:\s+one)?[^\n:\"“]{0,40}?(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # The dash forms of the same separators: "keep a note - the bike lock code is 7291",
+            # "stick this in my notes - the gate code is 1199" (a spaced hyphen or any en/em dash).
+            or re.search(r"\bnotes?\b[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
+            or re.search(r"\b(?:this|that)\b(?:\s+one)?[^\n]{0,40}?\s[-\u2013\u2014]\s*(.+)$", raw, re.DOTALL)
+            # "note down the gate code 1199" / "write down that the meter reads 4471": the phrasal verbs
+            # whose words are the object itself; a note word after them belongs to the note-anchored
+            # patterns above, not to this one.
+            or re.search(r"\b(?:note|write|jot)\s+down\s+(?!notes?\b)(?!(?:for|about)\b)(?:(?:that|[-\u2013\u2014])\s*)?(.+)$", raw, re.IGNORECASE | re.DOTALL)
         )
         if plain:
             body = plain.group(1).strip()
+        elif topic_body:
+            body = topic_body
     wants_schedule = bool(re.search(r"\b(?:and\s+)?(?:schedule|add\s+it\s+to\s+(?:the\s+)?calendar|put\s+it\s+on\s+(?:the\s+)?calendar|book\s+it)\b", raw, re.IGNORECASE))
     return {"title": title, "body": body, "wants_schedule": wants_schedule}
 
@@ -544,7 +576,7 @@ def handle_save_note(
             details={"note_path": record["note_path"], "title": title, "requested_destination": "workspace"},
         )
         actions = note_action_items(record["note_path"])
-        response = f"Note saved: '{title}' at {record['note_path']}"
+        response = f"Saved your note '{title}'."
         details: dict[str, Any] = {**record, "actions_found": actions}
         if actions and parsed["wants_schedule"]:
             details["schedule_proposal_hint"] = actions[0]
@@ -574,15 +606,15 @@ def handle_save_note(
             details={"title": title, "requested_destination": "apple_notes", "apple_note_reference": delivered.get("note_reference", ""),
                      "operation_id": operation_id, "replayed": bool(delivered.get("replayed"))},
         )
-        response = f"Note saved in Apple Notes: '{title}'{where}. Created through the real Notes app bridge; verify it in Notes."
+        response = f"Saved your note '{title}' in Apple Notes{where}. Check it in the Notes app."
         if delivered.get("replayed"):
             response += " This same request was already delivered, so I answered from its recorded receipt; nothing was created twice."
         earlier = delivered.get("identical_earlier_note")
         if isinstance(earlier, dict):
-            response += (" An earlier, separate request had already created a note with identical content"
-                         f" (reference {str(earlier.get('note_reference') or 'unknown')[:80]}); this new request created its own.")
+            response += (" An earlier, separate request had already created a note with identical content;"
+                         " this new request created its own.")
         if delivered.get("receipt_unrecorded"):
-            response += (" WARNING: the note was created, but its delivery record could not be saved. Repeating this same"
+            response += (" The note was created, but its delivery record could not be saved. Repeating this same"
                          " request will not send it again; check Notes before asking for another copy.")
         return OperatorActionResult(
             ok=True,
@@ -614,7 +646,7 @@ def handle_save_note(
     )
     actions = note_action_items(record["note_path"])
     response = (
-        f"Note saved: '{title}' at {record['note_path']}"
+        f"Saved your note '{title}'."
         f"\n\nDestination note: you asked for Apple Notes{where} and that destination is NOT resolved ({reason}). {detail}"
         " A file under workspace/notes is NOT an Apple Notes note — what I saved is a clearly-labelled workspace fallback"
         " artifact, and the Apple Notes obligation remains open. " + _destination_guidance(delivery_state)
@@ -769,8 +801,7 @@ def handle_find_notes(
         return OperatorActionResult(ok=True, status="reported", response_text=f"No notes in this workspace match {query!r}.", details={"query": query, "count": 0})
     lines = [f"Notes matching {query!r} ({len(rows)}):"]
     for row in rows:
-        lines.append(f"- {row['title']}: {row['excerpt']}" + (f" — linked event {row['linked_event_uid'][:8]}" if row["linked_event_uid"] else ""))
-        lines.append(f"  {row['note_path']}")
+        lines.append(f"- {row['title']}: {row['excerpt']}" + (" (linked to an event)" if row["linked_event_uid"] else ""))
     return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"query": query, "count": len(rows), "notes": rows})
 
 

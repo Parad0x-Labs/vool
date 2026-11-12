@@ -9,16 +9,28 @@ from __future__ import annotations
 import inspect
 
 
-def test_machine_download_refused_under_remote_fetch_veto(monkeypatch):
+def test_machine_download_refused_under_remote_fetch_veto(monkeypatch, enable_web):
+    # Web lookups on, as the person would have them: with the switch off a download is refused at
+    # the switch before any network door, and the turn's veto below would never be reached.
     import urllib.request as _ur
 
     import core.agent_runtime.fast_paths_machine as fpm
+    import core.remote_fetch_policy as remote_fetch_policy
     from core.remote_fetch_policy import _REMOTE_FETCH_FORBIDDEN, RemoteFetchRefusedError
 
     class _Agent:
         def _fast_path_result(self, **kw):
             return kw
 
+    # The download reaches the one door AS a lookup, so it can never pass with lookups off.
+    door_calls: list[bool] = []
+    real_open_remote = remote_fetch_policy.open_remote
+
+    def _open_remote(request, *args, **kwargs):
+        door_calls.append(bool(kwargs.get("lookup")))
+        return real_open_remote(request, *args, **kwargs)
+
+    monkeypatch.setattr(remote_fetch_policy, "open_remote", _open_remote)
     token = _REMOTE_FETCH_FORBIDDEN.set(True)
     try:
         def refused_open(request, *, timeout):
@@ -36,6 +48,7 @@ def test_machine_download_refused_under_remote_fetch_veto(monkeypatch):
         _REMOTE_FETCH_FORBIDDEN.reset(token)
     assert result is not None
     assert "couldn't download" in str(result.get("response") or "")
+    assert door_calls == [True], door_calls
 
 
 def test_download_lane_source_guard_uses_the_one_door():

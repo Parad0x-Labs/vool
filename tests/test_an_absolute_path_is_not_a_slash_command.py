@@ -82,8 +82,8 @@ def test_the_wired_commands_still_return_their_own_guidance() -> None:
     new_session = ui_command_fast_path("/new", source_surface="api")
     trace = ui_command_fast_path("/trace", source_surface="api")
 
-    assert new_session and "New session" in new_session
-    assert trace and "/trace" in trace
+    assert new_session and "+ New button" in new_session
+    assert trace and "Ask me what I just did" in trace
     assert new_session != trace
 
 

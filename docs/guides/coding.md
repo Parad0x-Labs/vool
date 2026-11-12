@@ -25,5 +25,6 @@ before a large change so the diff is easy to read and easy to undo.
 ## Local or cloud
 
 Coding works in both modes. A 7B local coding model handles most day-to-day edits; larger
-cloud models handle longer reasoning. The mode indicator tells you which is active before
-you send.
+cloud models handle longer reasoning. The model indicator tells you which is active before
+you send: `LOCAL` for a local model, `CLOUD` for a cloud one, and by default `AUTO`
+(`VOOL Auto`, `Local first`) when VOOL picks.

@@ -79,6 +79,14 @@ if (window.VoolModelRadar) return;
 
 var COMPONENT_WORDS = {input_usd_per_m: 'input', output_usd_per_m: 'output', cached_input_usd_per_m: 'cached'};
 var feed = {findings: [], unread: 0, preferences: {}, open_conflicts: 0};
+// A failed feed read must never render as "Nothing qualified yet" (that text says quiet is the
+// design -- during an outage it would be saying the opposite of what is true). Until the FIRST
+// real answer the popup's list area holds one calm row and refresh retries on a growing delay;
+// after a first success a later failure keeps the last cards.
+var feedLoaded = false;        // false until the first real /api/model-radar/feed answer
+var feedRetryTimer = null;     // at most one pending retry; cleared the moment a real answer lands
+var feedRetryDelayMs = 1000;   // grows per failure, resets to 1 s after a real answer
+var FEED_RETRY_MAX_MS = 15000;
 var pop, prefsOpen = false;
 
 /* The page's i18n catalog owns this surface's words (the chat page's bootstrap defines
@@ -133,16 +141,25 @@ function when(iso){
 
 // ---- data --------------------------------------------------------------------------------
 
+function scheduleFeedRetry(){
+  clearTimeout(feedRetryTimer);
+  feedRetryTimer = setTimeout(refresh, feedRetryDelayMs);
+  feedRetryDelayMs = Math.min(Math.round(feedRetryDelayMs * 1.6), FEED_RETRY_MAX_MS);
+}
 function refresh(){
   return fetch('/api/model-radar/feed')
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if (!j || !j.ok) return;
-      feed = j;
+    .then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      // Render only on a real answer: an HTTP error, a broken body or ok:false is a failed read,
+      // not a quiet radar. Retry; after a first success the last cards simply stay.
+      if (!res.ok || !res.j || res.j.ok !== true){ scheduleFeedRetry(); return; }
+      feedLoaded = true;
+      clearTimeout(feedRetryTimer); feedRetryTimer = null; feedRetryDelayMs = 1000;
+      feed = res.j;
       paintChip();
       if (!pop.hidden) paintList();
     })
-    .catch(function(){});
+    .catch(function(){ scheduleFeedRetry(); });
 }
 function post(path, body){
   return fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
@@ -241,7 +258,9 @@ function paintList(){
   var conflicts = Number(feed.open_conflicts || 0);
   pop.innerHTML = '<div class="mr-head">' + RT('radar.head', 'Discover models \\u00b7 prices and evidence') +
     '<button type="button" class="mr-prefs-btn" id="mrPrefsBtn">' + RT('radar.preferences_btn', 'Preferences') + '</button></div>' +
-    (rows || '<div class="mr-empty">' + RT('radar.empty', 'Nothing qualified yet. The radar only speaks when a model becomes genuinely free under stated limits, or the same provider cuts a recorded price by half or more \\u2014 with fresh evidence. Quiet is the design, not an outage.') + '</div>') +
+    (rows || '<div class="mr-empty">' + (feedLoaded
+      ? RT('radar.empty', 'Nothing qualified yet. The radar only speaks when a model becomes genuinely free under stated limits, or the same provider cuts a recorded price by half or more \\u2014 with fresh evidence. Quiet is the design, not an outage.')
+      : RT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026')) + '</div>') +
     prefsHtml() +
     '<div class="mr-foot">' + RT('radar.foot', 'No auto-switching, ever. \\u201cTry once\\u201d runs one turn; \\u201cSet as default\\u201d goes through the ordinary model gate.') +
     (conflicts ? ' ' + RTF('radar.foot_conflicts', '{n} unresolved provider feed conflict(s) \\u2014 those models stay silent.', { n: conflicts }) : '') + '</div>';
@@ -269,7 +288,7 @@ function savePrefs(){
     min_interval_hours: Number((pop.querySelector('#mrPFreq') || {}).value || 0),
   }).then(function(r){
     var el = pop.querySelector('#mrPStatus');
-    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? RT('radar.saved', 'Saved.') : RTF('radar.save_failed', 'Could not save: {error}', { error: ((r.j && r.j.error) || r.status) }); }
+    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? RT('radar.saved', 'Saved.') : RTF('radar.save_failed', 'Could not save. Try again.'); }
     refresh();
   }).catch(function(){});
 }

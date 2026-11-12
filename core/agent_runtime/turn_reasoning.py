@@ -1628,6 +1628,18 @@ def execute_grounded_turn(
     except Exception as exc:
         _requires_current = False
         _requirements_capture_error = type(exc).__name__
+    # A records-scoped ask ("according to my notes") is not a current-information turn -- the
+    # authority reads it non-current, so no lifecycle and no lookup open for it -- but its answer
+    # is still adjudicated against the records it named: a value the records do not state is the
+    # same fabrication this guard exists for, with a different notice. The flag widens ONLY the
+    # guard's jurisdiction, never the classification the stamps below report.
+    _records_scoped = False
+    try:
+        from core.execution.constants import records_scoped_ask
+
+        _records_scoped = bool(records_scoped_ask(effective_input))
+    except Exception:
+        _records_scoped = False
     if isinstance(source_context, dict):
         from dataclasses import asdict
         source_context["execution_requirements"] = asdict(_requirements) if _requirements is not None else None
@@ -1636,7 +1648,7 @@ def execute_grounded_turn(
     _before_current_guard = response
     _current_claim = inspect_unsourced_current_claim(
         answer=response,
-        requires_current=_requires_current,
+        requires_current=bool(_requires_current or _records_scoped),
         notes=web_notes,
         session_id=str(session_id or ""),
         turn_id=str((source_context or {}).get("cancel_turn_id") or ""),
@@ -1652,13 +1664,27 @@ def execute_grounded_turn(
         # contract, the same law the render seam already applies for the price and
         # temperature kinds). Never weaker than before: nothing separable surviving
         # means the whole-answer notice, exactly as before.
+        from core.bootstrap_context import admitted_capsule_evidence_text
         from core.model_output_guard import replace_unobserved_live_claims
 
-        _split = replace_unobserved_live_claims(response, user_turn_text=effective_input)
+        # The memory the turn carried exempts the user's OWN figures (number + unit or
+        # currency stated there) at every level of the split, exactly as this seam's own
+        # recognition exempts them in the whole-text trigger -- see the memory-figure
+        # section in core.model_output_guard (measured 2026-10-30, org-credit job 3).
+        _split = replace_unobserved_live_claims(
+            response,
+            user_turn_text=effective_input,
+            evidence_text=admitted_capsule_evidence_text(
+                source_context or {}, str(session_id or "")
+            ),
+        )
         if _split != response:
             response = _split
         else:
             response = unverified_current_answer(effective_input)
+        # The splitter kept nothing separable: the whole answer was withdrawn for the notice above.
+        _declined = response != _split
+        if _declined or _records_scoped:
             # Which reason the withdrawal names. A question about someone this chat's records name was answered
             # from those records: the value is not in the records. Otherwise, with the web unreachable for this
             # turn (the Web lookups switch, an Offline chat, a computer kept fully local), that is why nothing
@@ -1666,6 +1692,11 @@ def execute_grounded_turn(
             # latest news about the olympics" was withdrawn as "not mentioned in the records"). With the web
             # reachable, an answer whose values the binder read against the user's own records and found
             # unsupported (no record states them, none contradicts) keeps the records notice.
+            # A records-SCOPED ask ("according to my notes") reaches the records withdrawal whichever notice
+            # the lines above substituted, separated or not: it asked the notes, the notes hold nothing, and
+            # that is what the reply must say -- "I didn't run any live lookup" answers a door it never
+            # knocked on (live-or-records job, 0246fbfa). Every other turn keeps this branch's original
+            # reach, the answers the splitter declined.
             _binding = _current_claim.claim_binding or {}
             try:
                 from core.bootstrap_context import admitted_capsule_evidence_text
@@ -1673,7 +1704,7 @@ def execute_grounded_turn(
                 from core.remote_fetch_policy import effective_web_available, lookup_unavailable_reason
                 from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
 
-                if question_names_someone_in_the_records(
+                if _records_scoped or question_names_someone_in_the_records(
                     effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
                 ):
                     response = RECORDS_WITHDRAWAL_NOTICE
@@ -2075,7 +2106,7 @@ def execute_grounded_turn(
             # The same code also covers a paid call whose answer never came, a rejected key, a
             # cancel and cache or memory sources: only a turn no model could take gets this line.
             and _model_execution_source(evidence["model_execution"]) in _NO_MODEL_SOURCES
-            else "Task did not meet its completion requirements."
+            else "The task did not finish everything it needed to."
             if terminal_outcome.is_unfulfilled
             else f"Completed task with final response: {agent._runtime_preview(response)}"
         ),

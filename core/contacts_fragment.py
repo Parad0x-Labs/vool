@@ -107,6 +107,26 @@ _JS = r"""
   var STATES = {committed: 'Saved.', cancelled: 'Cancelled; nothing changed.', expired: 'Expired; nothing changed.', stale: 'No longer applies as reviewed; nothing changed.'};
   var state = {contacts: [], selected: null, options: null, suggestions: [], pending: [], credential: null, query: '', view: ''};
   var overlay = null, listEl = null, detailEl = null, searchEl = null, statusEl = null, suggestEl = null, pendingEl = null, chooserEl = null, lastFocus = null;
+  // A failed read (the fetch threw, a non-OK answer, a body without the list) must never render
+  // as "Nothing saved yet." -- that reads as lost contacts. Until the FIRST real answer the list
+  // holds one calm row and the read retries on a growing delay; after a first success a later
+  // transient failure keeps the last good rows. One pending timer serves the whole overlay.
+  var contactsLoaded = false;
+  var retryTimer = null, retryDelayMs = 1000, RETRY_MAX_MS = 15000;
+  var retryWork = [];
+  var chooserRefresh = null;
+  function scheduleRetry(work) {
+    if (retryWork.indexOf(work) < 0) retryWork.push(work);
+    if (retryTimer) return;
+    retryTimer = setTimeout(function() { retryTimer = null; var due = retryWork; retryWork = []; due.forEach(function(fn) { fn(); }); }, retryDelayMs);
+    retryDelayMs = Math.min(Math.round(retryDelayMs * 1.6), RETRY_MAX_MS);
+  }
+  function retryLanded(work) {
+    var at = retryWork.indexOf(work); if (at >= 0) retryWork.splice(at, 1);
+    if (!retryWork.length && retryTimer) { clearTimeout(retryTimer); retryTimer = null; retryDelayMs = 1000; }
+  }
+  function retryProtection() { if (state.view === 'protection') renderProtection(); }
+  function retryChooser() { if (chooserEl && chooserRefresh) chooserRefresh(); }
 
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; }
   function button(label, cls, onClick) { var b = el('button', 'vc-btn' + (cls ? ' ' + cls : ''), label); b.type = 'button'; b.addEventListener('click', onClick); return b; }
@@ -185,8 +205,13 @@ _JS = r"""
       state.options ? Promise.resolve(null) : request('GET', '/api/contacts/options'),
       request('GET', '/api/contacts/operations')
     ]).then(function(res) {
-      if (!res[0].ok) { say(why(res[0], 'Contacts could not be read.'), true); return; }
-      state.contacts = res[0].body.contacts || [];
+      if (!res[0].ok || !Array.isArray(res[0].body.contacts)) {
+        say(why(res[0], 'Contacts could not be read.'), true);
+        if (!contactsLoaded) { renderList(); scheduleRetry(refresh); }
+        return;
+      }
+      contactsLoaded = true; retryLanded(refresh);
+      state.contacts = res[0].body.contacts;
       state.suggestions = (res[1] && res[1].ok && res[1].body.suggestions) || [];
       if (res[2] && res[2].ok) applyOptions(res[2].body);
       if (res[3] && res[3].ok) { state.pending = res[3].body.operations || []; state.credential = res[3].body.credential || null; }
@@ -213,6 +238,8 @@ _JS = r"""
 
   function renderList() {
     listEl.textContent = '';
+    // The unread state is one calm row; "Nothing saved yet." belongs to a real answer alone.
+    if (!contactsLoaded) { listEl.appendChild(el('div', 'vc-empty', CT('load.unreachable', 'Can’t reach VOOL right now, trying again…'))); return; }
     if (!state.contacts.length) { listEl.appendChild(el('div', 'vc-empty', state.query ? CT('contacts.no_match', 'No saved contact matches.') : CT('contacts.nothing_saved', 'Nothing saved yet.'))); return; }
     state.contacts.forEach(function(c) {
       var row = el('button', 'vc-row' + (c.contact_id === state.selected ? ' vc-on' : '')); row.type = 'button'; row.setAttribute('role', 'listitem');
@@ -805,7 +832,16 @@ _JS = r"""
     panel.appendChild(el('div', 'vc-note', 'A PIN or password protects every change to a saved contact, every deletion, and every new name that is the same as or looks like a saved one. Adding someone new does not need it. It never approves a payment, an email or an invitation. Setting, changing or resetting it asks your computer to confirm it is you, in its own window.'));
     detailEl.appendChild(panel);
     return request('GET', '/api/contacts/credential').then(function(res) {
-      var cred = res.ok ? res.body : {}; state.credential = cred;
+      // An unread credential must not read as "Not set up yet.": that answer belongs to a real
+      // read alone; until then one calm row, re-asked on the growing delay.
+      if (!res.ok) {
+        state.credential = null;
+        panel.appendChild(el('div', 'vc-empty', CT('load.unreachable', 'Can’t reach VOOL right now, trying again…')));
+        scheduleRetry(retryProtection);
+        return panel;
+      }
+      retryLanded(retryProtection);
+      var cred = res.body; state.credential = cred;
       panel.appendChild(el('div', 'vc-sub', cred.enrolled ? ('Set: a ' + (cred.kind === 'password' ? 'password' : 'PIN') + (cred.retry_after_seconds ? ' · paused for ' + cred.retry_after_seconds + ' seconds after wrong attempts' : '')) : 'Not set up yet.'));
       if (!cred.enrolled) panel.appendChild(protectionForm(panel, cred, 'Enroll'));
       else { panel.appendChild(protectionForm(panel, cred, 'Change')); panel.appendChild(protectionForm(panel, cred, 'Reset')); }
@@ -862,7 +898,7 @@ _JS = r"""
     });
   }
 
-  function closeChooser() { if (chooserEl) { chooserEl.remove(); chooserEl = null; } }
+  function closeChooser() { if (chooserEl) { chooserEl.remove(); chooserEl = null; } chooserRefresh = null; retryLanded(retryChooser); }
 
   function choose(opts) {
     opts = opts || {};
@@ -877,8 +913,16 @@ _JS = r"""
         var q = input.value.trim();
         request('GET', '/api/contacts' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function(res) {
           results.textContent = '';
+          // An unreachable or unreadable answer is not "No matching saved entry.": one calm row
+          // until a real answer, re-asked on the growing delay while the chooser stays open.
+          if (!res.ok || !Array.isArray(res.body.contacts)) {
+            results.appendChild(el('div', 'vc-empty', CT('load.unreachable', 'Can’t reach VOOL right now, trying again…')));
+            chooserRefresh = render; scheduleRetry(retryChooser);
+            return;
+          }
+          retryLanded(retryChooser);
           var items = [];
-          ((res.ok && res.body.contacts) || []).forEach(function(c) {
+          res.body.contacts.forEach(function(c) {
             (c.endpoints || []).forEach(function(e) {
               if (opts.kind && e.kind !== opts.kind) return;
               if (opts.network && e.network !== opts.network) return;

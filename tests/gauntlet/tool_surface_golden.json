@@ -2798,20 +2798,29 @@
     },
     "machine.find_folder": {
       "arguments": [
+        "drives",
         "name"
       ],
-      "description": "Search local drives for folders whose name matches a query. Case-insensitive, bounded depth/time, skips system folders, never follows links. Read-only.",
+      "description": "Search the home folder (and plugged-in drives when drives is true) for folders whose name matches a query. Case-insensitive, bounded depth/time, skips system folders, never follows links. Read-only.",
       "native_name": "machine__find_folder",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "drives": {
+            "description": "boolean optional",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "name": {
             "description": "string",
             "type": "string"
           }
         },
         "required": [
-          "name"
+          "name",
+          "drives"
         ],
         "type": "object"
       },

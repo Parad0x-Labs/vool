@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import email as email_lib
+import email.policy
 import email.utils
 import imaplib
 import ipaddress
@@ -73,6 +74,83 @@ def _header_safe(value: Any) -> str:
     """Collapse CR/LF (and trim) out of a header value so it can neither inject extra headers nor
     raise a ValueError when assigned to an EmailMessage."""
     return " ".join(str(value or "").splitlines()).strip()
+
+
+_WIRE_POLICY = email.policy.default.clone(max_line_length=998)
+
+
+def _strip_comments(text: str) -> str:
+    """Drop RFC 5322 comments `( ... )` (nested, with quoted-pairs) outside angle brackets."""
+    out: list[str] = []
+    depth = 0
+    in_angle = False
+    escaped = False
+    for ch in text:
+        if depth:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            continue
+        if ch == "<":
+            in_angle = True
+        elif ch == ">":
+            in_angle = False
+        elif ch == "(" and not in_angle:
+            depth = 1
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def message_id_list(value: Any) -> list[str]:
+    """Every msg-id in a Message-ID / In-Reply-To / References value, in order, deduplicated.
+
+    RFC 5322 lets these headers be folded across lines, padded with whitespace, carry
+    comments, and (In-Reply-To / References) list several ids. Each id comes back in its
+    canonical `<left@right>` form with all folding whitespace removed, so a stored id, a
+    wire header and a lookup key compare equal however the header was folded. A value
+    without angle brackets (a bare legacy id) is kept as its whitespace-separated tokens.
+    Lists/tuples are flattened."""
+    if isinstance(value, (list, tuple)):
+        parts: list[str] = []
+        for item in value:
+            for mid in message_id_list(item):
+                if mid not in parts:
+                    parts.append(mid)
+        return parts
+    text = _strip_comments(str(value or ""))
+    ids: list[str] = []
+    if "<" in text:
+        rest = text
+        while "<" in rest:
+            _before, _lt, after = rest.partition("<")
+            inner, gt, rest = after.partition(">")
+            if not gt:
+                break
+            core_id = "".join(inner.split())
+            if core_id:
+                mid = f"<{core_id}>"
+                if mid not in ids:
+                    ids.append(mid)
+        return ids
+    for token in text.split():
+        if token not in ids:
+            ids.append(token)
+    return ids
+
+
+def normalize_message_id(value: Any) -> str:
+    """The single canonical msg-id in a Message-ID value ('' when there is none).
+
+    `'\\n <abc@host>'` (a folded header), `' <abc@host> (comment)'` and `'<abc@host>'`
+    all normalise to `'<abc@host>'`."""
+    ids = message_id_list(value)
+    return ids[0] if ids else ""
 
 
 def _decoded_header(parsed: Any, name: str) -> str:
@@ -305,12 +383,11 @@ def threading_headers(*, in_reply_to: str = "", references: list[str] | None = N
     In-Reply-To names the message being answered; References carries the WHOLE
     ancestor chain (parent's references + parent's own id) so MUAs thread on
     any ancestor. All values pass through header injection sanitizing."""
-    parent = _header_safe(in_reply_to)
+    parent = normalize_message_id(_header_safe(in_reply_to))
     if not parent:
         return None
     chain: list[str] = []
-    for ref in [*(references or []), parent]:
-        clean = _header_safe(ref)
+    for clean in [*message_id_list([_header_safe(ref) for ref in (references or [])]), parent]:
         if clean and clean not in chain:
             chain.append(clean)
     return {"In-Reply-To": parent, "References": " ".join(chain)}
@@ -377,10 +454,13 @@ def send_email(
     # The draft flow reserves its Message-ID BEFORE dispatch (the durable send
     # reservation), so the wire message must carry exactly that id — never a fresh
     # one that the reservation cannot reconcile.
-    message_id = (_header_safe(message_id_override)
+    message_id = (normalize_message_id(_header_safe(message_id_override))
                   or _generate_message_id(creds.get("from_addr") or creds.get("username") or ""))
     try:
-        message = EmailMessage()
+        # Header lines up to RFC 5322's 998-character limit: at the default 78 a long generated
+        # Message-ID is folded onto its own line ('Message-ID:\n <id>'), and a receiver reading the
+        # raw value back gets ' <id>', which no longer matches the id we reserved (audit R10).
+        message = EmailMessage(policy=_WIRE_POLICY)
         message["From"] = _header_safe(creds.get("from_addr") or creds.get("username") or "")
         message["To"] = _header_safe(", ".join(recipients))
         message["Subject"] = _header_safe(subj)
@@ -401,16 +481,26 @@ def send_email(
     except Exception as exc:
         return _provider_error_result(exc)
     if adapter is not None:
-        reply_to_rfc = str((extra_headers or {}).get("In-Reply-To") or "").strip()
+        reply_to_rfc = normalize_message_id((extra_headers or {}).get("In-Reply-To"))
         # Every provider send is bound to a mailbox: the approval's identity when a
         # reviewed draft is sent, otherwise the mailbox this account slot is
         # configured for. The adapter proves it under the dispatching credential.
         bound_identity = str(expected_identity or "") or configured_identity(account, creds)
         try:
-            return adapter.send(raw_mime=message.as_bytes(), thread_id="", reply_to_rfc=reply_to_rfc,
-                                expected_identity=bound_identity)
+            result = adapter.send(raw_mime=message.as_bytes(), thread_id="", reply_to_rfc=reply_to_rfc,
+                                  expected_identity=bound_identity)
         except Exception as exc:
             return _provider_error_result(exc)
+        # The receipt id is read back off the wire, where a runtime can keep a fold's
+        # whitespace ('\n <id>', ' <id>'). Whatever the adapter's parse kept, the id this
+        # result carries into every receipt store and reconciliation is the canonical one,
+        # identical to the id the draft reserved.
+        details = getattr(result, "details", None)
+        if isinstance(details, dict) and details.get("message_id"):
+            receipt_id = normalize_message_id(details.get("message_id"))
+            if receipt_id:
+                details["message_id"] = receipt_id
+        return result
     username = str(creds.get("username") or "")
     password = str(creds.get("password") or "")
     try:
@@ -540,7 +630,7 @@ def _summary_from_parsed(parsed: Any) -> dict[str, str]:
         "to": _decoded_header(parsed, "To"),
         "subject": _decoded_header(parsed, "Subject"),
         "date": str(parsed.get("Date") or ""),
-        "message_id": str(parsed.get("Message-ID") or "").strip(),
+        "message_id": normalize_message_id(parsed.get("Message-ID")),
         "snippet": _text_snippet(parsed),
     }
 
@@ -931,11 +1021,10 @@ def _fetch_all(creds: dict[str, Any], folder: str, cap: int = 500) -> tuple[list
 
 
 def _references_of(parsed: Any) -> list[str]:
-    refs = str(parsed.get("References") or "").split()
-    in_reply_to = str(parsed.get("In-Reply-To") or "").strip()
-    chain = [r for r in refs if r.strip()]
-    if in_reply_to and in_reply_to not in chain:
-        chain.append(in_reply_to)
+    chain = message_id_list(parsed.get("References"))
+    for in_reply_to in message_id_list(parsed.get("In-Reply-To")):
+        if in_reply_to not in chain:
+            chain.append(in_reply_to)
     return chain
 
 
@@ -963,16 +1052,17 @@ def open_message(*, account: str = "", folder: str = "INBOX", message_id: str) -
     if missing is not None:
         return missing  # type: ignore[return-value]
     creds = _load_account("imap", account)
+    wanted_id = normalize_message_id(wanted)
     try:
         raws, folder_total = _fetch_all(creds, str(folder or "INBOX"))
         bounded = folder_total > len(raws)
         for seq, raw in raws:
             parsed = email_lib.message_from_bytes(raw)
-            if str(parsed.get("Message-ID") or "").strip() == wanted:
+            if normalize_message_id(parsed.get("Message-ID")) == wanted_id:
                 entry = _summary_from_parsed(parsed)
                 entry["seq"] = seq
                 entry["body"] = _body_text(parsed)
-                entry["in_reply_to"] = str(parsed.get("In-Reply-To") or "").strip()
+                entry["in_reply_to"] = " ".join(message_id_list(parsed.get("In-Reply-To")))
                 entry["references"] = " ".join(_references_of(parsed))
                 entry["reply_to"] = _decoded_header(parsed, "Reply-To") or entry["from"]
                 return EmailReadResult(True, "executed", f"Opened message {wanted}.", messages=[entry])
@@ -1027,9 +1117,10 @@ def open_thread(*, account: str = "", folder: str = "INBOX", message_id: str, li
     parsed_by_id: dict[str, tuple[str, Any]] = {}
     for seq, raw in raws:
         parsed = email_lib.message_from_bytes(raw)
-        mid = str(parsed.get("Message-ID") or "").strip()
+        mid = normalize_message_id(parsed.get("Message-ID"))
         if mid:
             parsed_by_id[mid] = (seq, parsed)
+    anchor = normalize_message_id(anchor) or anchor
     if anchor not in parsed_by_id:
         return EmailReadResult(
             False, "not_found",
@@ -1066,7 +1157,7 @@ def open_thread(*, account: str = "", folder: str = "INBOX", message_id: str, li
         entry = _summary_from_parsed(parsed)
         entry["seq"] = seq
         entry["body"] = _body_text(parsed)
-        entry["in_reply_to"] = str(parsed.get("In-Reply-To") or "").strip()
+        entry["in_reply_to"] = " ".join(message_id_list(parsed.get("In-Reply-To")))
         entry["references"] = " ".join(_references_of(parsed))
         entry["reply_to"] = _decoded_header(parsed, "Reply-To") or entry["from"]
         messages.append(entry)
@@ -1089,7 +1180,7 @@ def message_in_folder(*, account: str = "", folder: str = "Sent", message_id: st
     Provider lookups are bound to `expected_identity` (the reservation's mailbox;
     the slot's configured mailbox when none is given): a credential that cannot
     be proven to reach it yields that refusal as the status, never an absence."""
-    wanted = str(message_id or "").strip()
+    wanted = normalize_message_id(message_id)
     if not wanted:
         return FolderLookupResult(False, "missing_message_id", "No message id given to look up.")
     account, creds, refusal = _selected_account("imap", str(account or ""))
@@ -1147,7 +1238,7 @@ def message_in_folder(*, account: str = "", folder: str = "Sent", message_id: st
                 if raw is None:
                     continue
                 parsed = email_lib.message_from_bytes(raw)
-                if str(parsed.get("Message-ID") or "").strip() == wanted:
+                if normalize_message_id(parsed.get("Message-ID")) == wanted:
                     return FolderLookupResult(True, "found", f"{wanted} is present in {folder}.", found=True)
     except Exception as exc:
         return FolderLookupResult(False, "read_failed", f"Sent-folder lookup failed ({type(exc).__name__}): {exc}")

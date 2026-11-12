@@ -45,6 +45,7 @@ import contextlib
 import errno
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -59,7 +60,18 @@ from pathlib import Path
 from typing import Any
 
 from core.chat_session_identity import canonical_chat_session_id
+from core.i18n.turn_locale import turn_text
 from core.runtime_paths import active_data_dir
+
+_LOG = logging.getLogger(__name__)
+
+# What a person reads when this computer's isolation layer stops a file from being opened.
+# Which layer is absent and why is an operator fact; it goes to the log, never the chat.
+ATTACH_READ_BLOCKED_KEY = "attach.read_blocked_security"
+ATTACH_READ_BLOCKED_EN = (
+    "This computer's security settings stop VOOL from opening this file safely, "
+    "so it wasn't read. You can paste its text instead."
+)
 
 # --- limits: stated once, carried to the client through `limits_payload` ---------------------------
 
@@ -890,6 +902,20 @@ def _read_derivative(attachment_id: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _person_refusal_text(exc: Any) -> str:
+    """The words a person reads for a typed reader refusal.
+
+    The confinement-unavailable refusal names which isolation layer is absent and why -- operator
+    facts. The person gets one plain sentence instead, and the technical detail goes to the log.
+    """
+    if getattr(exc, "code", "") == "confinement_unavailable":
+        _LOG.warning(
+            "attachment refused (%s): %s %s", exc.code, exc.message, getattr(exc, "remediation", "") or "",
+        )
+        return turn_text(ATTACH_READ_BLOCKED_KEY, ATTACH_READ_BLOCKED_EN)
+    return f"{exc.message} {exc.remediation}".strip()
+
+
 def _extract_artifact(*, name: str, data: bytes, media_type: str, question: str = "", **options: Any) -> dict[str, Any]:
     """Run the owning reader over these bytes and shape the result for storage.
 
@@ -904,7 +930,7 @@ def _extract_artifact(*, name: str, data: bytes, media_type: str, question: str 
     try:
         result = readers.read(data, name=name, extension=extension, question=question, **options)
     except readers.ReaderUnavailable as exc:
-        raise AttachmentRefused(exc.code, f"{exc.message} {exc.remediation}".strip(), http_status=415) from exc
+        raise AttachmentRefused(exc.code, _person_refusal_text(exc), http_status=415) from exc
     except readers.ReaderRefused as exc:
         raise AttachmentRefused(exc.code, f"{exc.message} {exc.remediation}".strip()) from exc
     except readers.ReaderFailed as exc:

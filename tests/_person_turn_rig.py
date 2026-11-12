@@ -28,7 +28,12 @@ def person_env_generator(tmp_path, monkeypatch):
     configure_runtime_home(home)
     import storage.db as sdb
 
-    db_path = tmp_path / "person.db"
+    # The database gets a folder of its own, as in the real app (the runtime home's data folder). The
+    # folder holding the active database is protected runtime state, so a database file sitting
+    # directly in tmp_path made the fake person home beside it protected too, and every read of
+    # the person's own folders through the authorized machine tools was refused.
+    db_path = tmp_path / "db" / "person.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     sdb.configure_default_db_path(db_path)
     from storage.migrations import run_migrations
 

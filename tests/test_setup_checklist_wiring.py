@@ -64,7 +64,7 @@ def test_settings_checklist_and_nav_resolve_through_catalog() -> None:
         "T('setup.checklist.start', 'Start setup')",
         "T('setup.checklist.dismiss'",
         "T('setup.checklist.reminder_hidden'",
-        "tfmt('setup.checklist.not_saved', 'Not saved — {error}'",
+        "T('setup.checklist.not_saved', 'Not saved. Try again.'",
         "T('setup.checklist.disappears'",
     ):
         assert call in html, call

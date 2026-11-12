@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from dataclasses import replace as dataclass_replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -483,7 +484,9 @@ def _handle_list_reminders(
         intent,
         task_id=task_id,
         session_id=session_id,
-        list_reminders_fn=_list_reminders,
+        list_owner_reminders_fn=_list_owner_reminders,
+        chat_label_fn=_ChatLabels().get,
+        is_private_chat_fn=_is_private_chat,
         now_fn=lambda: CLOCK.now_utc().isoformat(),
         audit_log_fn=audit_logger.log,
     )
@@ -495,6 +498,8 @@ def _handle_cancel_reminder(
     task_id: str,
     session_id: str,
 ) -> OperatorActionResult:
+    if str(getattr(intent, "referent", "") or ""):
+        return _handle_cancel_referent(intent, task_id=task_id, session_id=session_id)
     return operator_handlers.handle_cancel_reminder(
         intent,
         task_id=task_id,
@@ -503,6 +508,87 @@ def _handle_cancel_reminder(
         list_reminders_fn=_list_reminders,
         cancel_reminder_fn=_cancel_reminder,
         audit_log_fn=audit_logger.log,
+    )
+
+
+def _handle_cancel_referent(
+    intent: OperatorActionIntent,
+    *,
+    task_id: str,
+    session_id: str,
+) -> OperatorActionResult:
+    """Resolve a pointer-only cancel ("cancel that one") against what this chat actually holds.
+
+    The pointer means the last thing waiting: the most recently created still-pending reminder in
+    this chat, else the newest still-waiting queued message. Either way the REAL cancel runs and
+    the reply is its real result; when this chat holds nothing to point at, the reply says so
+    and asks which thing was meant, instead of claiming a cancel that did not happen or ending
+    the request as a failure. The turn's own message cannot be a
+    candidate: a dispatched turn has claimed its queue row (it is in flight, not pending), and a
+    reminder row only exists once a scheduling turn created it.
+    """
+    rows = _list_reminders(session_id=session_id, include_delivered=False)
+    pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+    if pending:
+        latest = max(
+            pending,
+            key=lambda row: (str(row.get("created_at") or ""), str(row.get("due_at_utc") or "")),
+        )
+        resolved = dataclass_replace(intent, action_id=str(latest.get("reminder_id")), referent=None)
+        return operator_handlers.handle_cancel_reminder(
+            resolved,
+            task_id=task_id,
+            session_id=session_id,
+            load_reminder_fn=_load_reminder,
+            list_reminders_fn=_list_reminders,
+            cancel_reminder_fn=_cancel_reminder,
+            audit_log_fn=audit_logger.log,
+        )
+    from core import runtime_continuity
+
+    waiting = runtime_continuity.list_queued_messages(session_id, statuses=("pending",))
+    if waiting:
+        newest = waiting[-1]  # rows come back in send order; the last one is the newest
+        queue_item_id = str(newest.get("queue_item_id") or "")
+        preview = str((newest.get("payload") or {}).get("text") or "").strip()
+        cancelled = runtime_continuity.cancel_queue_item(queue_item_id, session_id=session_id)
+        audit_logger.log(
+            "operator_action_cancel_queued_message",
+            target_id=task_id,
+            target_type="task",
+            details={"queue_item_id": queue_item_id, "outcome": "cancelled" if cancelled else "not_cancellable"},
+        )
+        if cancelled:
+            shown = f" '{preview[:80]}'" if preview else ""
+            return OperatorActionResult(
+                ok=True,
+                status="executed",
+                response_text=f"Cancelled the queued message{shown}. It will not be sent.",
+                details={"kind": "cancel_queued_message", "queue_item_id": queue_item_id, "cancelled": True},
+            )
+        return OperatorActionResult(
+            ok=False,
+            status="failed",
+            response_text="That message was already on its way out, so I could not stop it there.",
+            details={"kind": "cancel_queued_message", "queue_item_id": queue_item_id, "cancelled": False},
+        )
+    # Nothing to point at is a question, not a failure: the person meant SOME thing by the
+    # pointer, so ask which one instead of ending the request. Routed as the operator lane's
+    # own ask-back shape (the Notes delete ask uses the same status), so a served turn asks
+    # plainly and the next reply can name the thing to cancel.
+    return OperatorActionResult(
+        ok=False,
+        status="approval_required",
+        response_text=(
+            "I couldn't find a reminder to cancel in this chat, and no message is waiting to be "
+            "sent. What would you like me to cancel?"
+        ),
+        details={
+            "kind": "cancel_reminder",
+            "referent": str(intent.referent),
+            "resolved": False,
+            "requires_user_answer": True,
+        },
     )
 
 
@@ -644,9 +730,9 @@ def _provider_adapter_or_refusal(action: str, *, read_only: bool = False):
     except SelectionsUnavailableError as exc:
         return None, OperatorActionResult(
             ok=False, status="storage_unavailable",
-            response_text=(f"I could not read which calendars are chosen for sync ({exc}), so no calendar action can be "
-                           "proved safe right now. Nothing was sent; check the calendar settings storage."),
-            details={"reason": "selections_unavailable"},
+            response_text=("I could not read which calendars are chosen for sync, so no calendar action can be "
+                           "proved safe right now. Nothing was sent. Check your calendar settings, then try again."),
+            details={"reason": "selections_unavailable", "detail": str(exc)},
         )
     if config is None:
         if not read_only and _readable_settings_calendars():
@@ -682,8 +768,8 @@ def _handle_check_availability(
             )
         except calendar_provider.SelectionsUnavailableError as exc:
             result = OperatorActionResult(ok=False, status="storage_unavailable",
-                                          response_text=f"I could not read which calendars are chosen for sync ({exc}); I will not claim free time over an unknown set.",
-                                          details={"reason": "selections_unavailable"})
+                                          response_text="I could not read which calendars are chosen for sync, so I did not check your free time. Try again in a moment.",
+                                          details={"reason": "selections_unavailable", "detail": str(exc)})
     if result.ok and result.details.get("options"):
         # The offered slots are the selection state for the next 'option N' reply. Reusing
         # the pending-action store keeps ONE live offer per session and no new framework.
@@ -1629,6 +1715,48 @@ def _schedule_reminder(**kwargs):
 
 def _list_reminders(**kwargs):
     return operator_reminders.list_reminders(get_connection_fn=get_connection, **kwargs)
+
+
+def _list_owner_reminders(**kwargs):
+    return operator_reminders.list_owner_reminders(get_connection_fn=get_connection, **kwargs)
+
+
+def _is_private_chat(session_id: str) -> bool:
+    from core.private_chat import is_private
+
+    return is_private(session_id)
+
+
+#: The plain-words cap on a chat's title in a reminder listing line (the sidebar keeps 80).
+_CHAT_LABEL_MAX_CHARS = 48
+
+
+class _ChatLabels:
+    """Chat titles for a listing ask: ONE snapshot of the sidebar's source, read lazily.
+
+    The log parse happens on the first foreign row and is shared by every row of the same
+    ask; a store fault leaves the map empty and every origin falls back to plain words.
+    """
+
+    def __init__(self) -> None:
+        self._labels: dict[str, str] | None = None
+
+    def get(self, session_id: str) -> str:
+        if self._labels is None:
+            try:
+                from core.memory.entries import list_conversation_sessions
+
+                self._labels = {
+                    str(row.get("session_id") or ""): str(row.get("title") or "").strip()
+                    for row in list_conversation_sessions(limit=1_000_000)
+                    if str(row.get("session_id") or "")
+                }
+            except Exception:
+                self._labels = {}
+        label = self._labels.get(str(session_id or ""), "")
+        if len(label) > _CHAT_LABEL_MAX_CHARS:
+            label = label[:_CHAT_LABEL_MAX_CHARS - 1].rstrip() + "…"
+        return label
 
 
 def _load_reminder(reminder_id: str):

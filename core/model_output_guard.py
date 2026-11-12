@@ -1476,8 +1476,242 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 _LIVE_CLAIM_WINDOW = 120
 
 
+# --- Memory-stated figures: a recorded figure is an observed value, not a live claim -------------
+#
+# Measured 2026-10-30 (org-credit job 3, fresh 100-question memory run on 411efdb2): five
+# answers about figures the user themselves stated in earlier chats -- "What's my current
+# salary?" against a memory that says "my $98,000 salary", a raise history, a snack budget --
+# were replaced whole by the unverified-live-value notice, or had it spliced mid-answer,
+# because every currency figure bound to a currentness anchor read as an unobserved live
+# price.  A figure a record states is recorded fact, not a market reading: the answer stands.
+#
+# The exemption is decided by the EVIDENCE TEXT the turn carried (the admitted capsule), and
+# only by it: a figure is exempt when the SAME number AND unit/currency is stated there --
+# "$98,000" in the reply against "my $98,000 salary" in the memory, across notations ("GBP
+# 90,000" == "£90,000").  A figure the memory does not state keeps the notice (the made-up
+# salary, the Bitcoin quote, the invented FX rate), and no question keyword is consulted:
+# "salary" nowhere enters the decision, so a live price that HAPPENS to sit in a salary
+# question stays guarded.  This mirrors `user_turn_text` one level up: the user's current
+# turn is exempt at L1495; the user's recorded statements are exempt here.  Dated memory
+# still never becomes an observation channel for `turn_ran_observations` or
+# `turn_has_current_evidence`; this is a value-for-value stand-down, narrower than a channel.
+#
+# The capsule is BOTH sides of past chats -- the user's lines, VOOL's own old replies and the
+# tool results they quoted (an old "BTC was $61,250 at 14:02" record).  Review R1
+# (2026-10-30): a record's figure being present is not permission to re-assert it as a
+# CURRENT market reading -- "Bitcoin is $61,250 right now" against that record is exactly
+# the stale-price-stated-as-current failure this guard exists for.  So the exemption never
+# applies to a match whose own clause states the figure as the value of a MARKET-priced
+# subject (crypto asset/ticker, commodity, an FX conversion pair): those keep the notice
+# however old the record is.  The subject recognizers are imported, not written here -- see
+# `_clause_states_a_market_priced_value` below the keys helper.
+#
+# Scope (v0.8 merge, 2026-11-12): the measured failure was MONEY -- salary, offer, raise,
+# budget -- with the percentages that ride along ("a 12% increase to $110,000").  Those are
+# the only figures the exemption stands down.  A temperature and every other measured
+# quantity (metres, kilograms, points, days) is a reading or a record, and whether a recorded
+# one may be stated as CURRENT is the record law's call: `recorded_state_retention` binds the
+# subject, honours negations and same-day corrections, owns only the user's own lines and
+# only this chat's scope.  A bare number-and-unit match must not overrule it, and neither may
+# it stand down a figure the capsule states AS A RECORD ("My highest share price was 56
+# euros"): the record law exempts general measured quantities only, so a price or a
+# temperature stated as a record is no exemption.  The owner's frozen acceptance rounds pin
+# that law (tests/test_owner_fresh_guard_contracts.py, test_owner_fresh_round2.py,
+# test_p300_fresh_acceptance_20260930.py, test_final_repair_fresh2.py and K17/K18 of
+# test_final_repair_fresh_acceptance.py); without this scope, 23 of their cases had a stale,
+# negated, foreign, quoted or assistant-said figure stated back as the current one.
+
+#: Currency tokens the price kind reads, canonicalised to lowercase ISO codes -- the same
+#: formal standard `_LIVE_CURRENCY_CODE` cites.  "cents" stays its own unit: 42 cents is not
+#: 0.42 dollars, and no conversion is attempted (a currency conversion needs a live rate).
+_MEMORY_FIGURE_CURRENCY: dict[str, str] = {
+    "$": "usd", "€": "eur", "£": "gbp", "¥": "jpy",
+    **{code.lower(): code.lower() for code in
+       ("USD", "EUR", "GBP", "JPY", "CHF", "SEK", "NOK", "DKK", "PLN",
+        "CZK", "HUF", "CAD", "AUD", "NZD", "CNY", "INR")},
+    "dollar": "usd", "dollars": "usd", "euro": "eur", "euros": "eur",
+    "pound": "gbp", "pounds": "gbp", "cent": "cents", "cents": "cents",
+}
+#: Spoken scale words between a number and its unit ("90 thousand dollars"), so the
+#: memory-figure key of "90 thousand dollars" is (90000, "usd"), not (90, "usd").
+_MEMORY_FIGURE_SCALE: dict[str, float] = {
+    "thousand": 1e3, "million": 1e6, "billion": 1e9, "trillion": 1e12,
+}
+#: Unit spellings folded onto one key so a reading and its record match across notation:
+#: "22°C" and "22 C" are the same temperature, "68 percent" and "68%" the same fraction.
+_MEMORY_FIGURE_UNIT_FOLD: dict[str, str] = {
+    "celsius": "c", "fahrenheit": "f", "kelvin": "k", "°c": "c", "°f": "f",
+    "percent": "%",
+}
+_MEMORY_FIGURE_NUMBER_RE = re.compile(r"\d[\d,._]*(?!\S*[€£¥])")
+
+
+def _memory_figure_keys(text: str) -> frozenset[tuple[float, str]]:
+    """Every ``(number, unit-or-currency)`` figure a text states, from the same value
+    vocabulary the live kinds read: the price and temperature shapes plus the prose-safe
+    measured values (``90 thousand dollars`` scales, ``12,400 tonnes`` does not).
+
+    A number alone is not a figure and yields nothing: the unit/currency IS the figure's
+    identity, which is what keeps "98,000 miles" from exempting "$98,000".
+    """
+
+    body = str(text or "")
+    keys: set[tuple[float, str]] = set()
+    for pattern in (_LIVE_PRICE_RE, _LIVE_TEMPERATURE_RE, _MEASURED_QUANTITY_RE):
+        for match in pattern.finditer(body):
+            chunk = match.group(0)
+            currency = ""
+            for token in ("$", "€", "£", "¥"):
+                if token in chunk:
+                    currency = _MEMORY_FIGURE_CURRENCY[token]
+                    chunk = chunk.replace(token, " ")
+                    break
+            number_match = _MEMORY_FIGURE_NUMBER_RE.search(chunk)
+            if number_match is None:
+                continue
+            try:
+                number = float(number_match.group(0).replace(",", "").rstrip("."))
+            except ValueError:
+                continue
+            tail = chunk[number_match.end():].strip().lower().split()
+            head = chunk[: number_match.start()].strip().lower().split()
+            if not currency:
+                # "42 EUR" / "98,000 dollars" carry the currency right of the number,
+                # "EUR 42" left of it; a scale word may sit between number and unit.
+                if len(tail) >= 2 and tail[0] in _MEMORY_FIGURE_SCALE \
+                        and tail[1] in _MEMORY_FIGURE_CURRENCY:
+                    number *= _MEMORY_FIGURE_SCALE[tail[0]]
+                    currency = _MEMORY_FIGURE_CURRENCY[tail[1]]
+                elif tail and tail[0] in _MEMORY_FIGURE_CURRENCY:
+                    currency = _MEMORY_FIGURE_CURRENCY[tail[0]]
+                elif head and head[-1] in _MEMORY_FIGURE_CURRENCY:
+                    currency = _MEMORY_FIGURE_CURRENCY[head[-1]]
+            if currency:
+                keys.add((round(number, 6), currency))
+                continue
+            if tail and tail[0] in _MEMORY_FIGURE_SCALE:
+                number *= _MEMORY_FIGURE_SCALE[tail[0]]
+                tail = tail[1:]
+            if tail:
+                unit = _MEMORY_FIGURE_UNIT_FOLD.get(tail[0].strip("°"), tail[0].strip("°"))
+                keys.add((round(number, 6), unit))
+            elif "%" in chunk:
+                keys.add((round(number, 6), "%"))
+    return frozenset(keys)
+
+
+#: Word-boundary patterns over the price lane's closed alias table, longest first so "bitcoin"
+#: is never also read as "btc" (the same law `price_assets_named` states).  Built once from
+#: `core.agent_runtime.fast_live_info_price._PRICE_ASSET_ALIASES` -- imported, not copied,
+#: so this guard can never drift from the table every market lane reads.
+_MARKET_ALIAS_BOUNDARIES: list[tuple[str, re.Pattern[str]]] | None = None
+
+
+def _clause_states_a_market_priced_value(clause: str) -> bool:
+    """Whether ``clause`` asserts a figure as the value of a MARKET-priced subject.
+
+    Review R1 (2026-10-30): the memory-figure exemption below must not stand down a match
+    whose own clause re-asserts a recorded figure as a CURRENT market reading.  Every
+    recognizer here is imported from the module that owns it -- no private market vocabulary
+    is written into this guard:
+
+    * ``price_assets_named`` (default authorization): the clause's own market semantics
+      bind a crypto asset / ticker / commodity alias -- "ETH is currently trading at
+      $3,000", "Bitcoin is trading at $97,400".  This is the G4-safe authority: an alias
+      alone authorizes nothing.
+    * the bare-subject form that authority cannot see (no market word in the clause):
+      "Bitcoin is $61,250 right now."  The quote-intent recognizer admits the clause on its
+      recency marker (the same arm the market lane's quote recognizers read), and the alias
+      table supplies the subject -- guarded by the authority's own law that an asset is a
+      proper/mass noun and never takes a common-noun determiner, which is what keeps "your
+      Gold Coast flat" an address, not an asset.
+    * ``fx_conversion_intent``: the clause itself carries a currency-pair conversion shape
+      ("100 USD to EUR is currently about 92 EUR") -- a rate statement, never a user's own
+      figure.
+    """
+
+    global _MARKET_ALIAS_BOUNDARIES
+    text = " ".join(str(clause or "").split())
+    if not text:
+        return False
+    try:
+        from core.agent_runtime.fast_live_info_price import _PRICE_ASSET_ALIASES
+        from core.currency_intent import fx_conversion_intent
+        from core.market_intent import market_quote_intent_present
+        from core.semantic_claim_authority import (
+            _COMMON_NOUN_DETERMINERS,
+            price_assets_named,
+        )
+    except Exception:
+        return False
+    if price_assets_named(text):
+        return True
+    if fx_conversion_intent(text) is not None:
+        return True
+    if not market_quote_intent_present(text):
+        return False
+    if _MARKET_ALIAS_BOUNDARIES is None:
+        _MARKET_ALIAS_BOUNDARIES = [
+            (alias, re.compile(rf"\b{re.escape(alias)}\b", re.IGNORECASE))
+            for alias in sorted(_PRICE_ASSET_ALIASES, key=len, reverse=True)
+        ]
+    lowered = text.lower()
+    for _alias, pattern in _MARKET_ALIAS_BOUNDARIES:
+        for mention in pattern.finditer(lowered):
+            before = lowered[: mention.start()].split()
+            if before and before[-1] in _COMMON_NOUN_DETERMINERS:
+                continue
+            return True
+    return False
+
+
+def _plain_number(number: float) -> str:
+    """``98000.0`` -> ``"98000"``, ``2.5`` -> ``"2.5"``: a record's number written back as text
+    the keys helper reads, never in exponent notation."""
+    text = f"{number:.6f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+@functools.lru_cache(maxsize=64)
+def _capsule_record_figure_keys(evidence_text: str) -> frozenset[tuple[float, str]]:
+    """The figure keys of every value the capsule states AS A RECORD, read by the record
+    law's own reader (`_record_assertions`: the user's own lines, quotes and foreign
+    possessors masked, asserted and denied values alike).  Cached per capsule text: the
+    sentence-level split asks once per sentence of the same reply."""
+    try:
+        from core.unsourced_current_claim import _record_assertions
+
+        assertions = _record_assertions(evidence_text)
+    except Exception:
+        return frozenset()
+    keys: set[tuple[float, str]] = set()
+    for assertion in assertions:
+        number, unit = assertion.get("number"), str(assertion.get("unit") or "")
+        if number is None or not unit:
+            continue
+        keys |= _memory_figure_keys(f"{_plain_number(float(number))} {unit}")
+    return frozenset(keys)
+
+
+def _memory_figure_exemptable(
+    kind: str, match_text: str, record_keys: frozenset[tuple[float, str]]
+) -> bool:
+    """Whether the memory-figure exemption may stand this live-shaped match down at all.
+
+    Money (the price kind) and percentages only, and never a figure the capsule states as a
+    record -- see the scope note in the memory-figure section above.
+    """
+    if kind == "measured-quantity":
+        lowered = match_text.lower()
+        if "%" not in lowered and "percent" not in lowered:
+            return False
+    elif kind != "price":
+        return False
+    return not (record_keys and _memory_figure_keys(match_text) & record_keys)
+
+
 def unobserved_live_value_claims(
-    text: str, *, user_turn_text: str = ""
+    text: str, *, user_turn_text: str = "", evidence_text: str = ""
 ) -> tuple[str, ...]:
     """The kinds of time-anchored live values this reply states, in a stable order.
 
@@ -1494,7 +1728,25 @@ def unobserved_live_value_claims(
     tonnes at the moment" after the user wrote "I have 3 tonnes of gravel at the moment" is
     retention, not invention. Values whose prose-safe measured-value string appears in the
     user's own words are skipped; kinds with NO surviving match drop out. Dated memory and
-    hydrated history are not exempt channels -- only this turn's user text.
+    hydrated history are not exempt channels for readings -- a temperature or a measured
+    quantity the memory states stays with the record law (see ``evidence_text``).
+
+    ``evidence_text`` is the memory/evidence the turn carried (the admitted capsule, BOTH
+    sides of the past chats: the user's lines, VOOL's old replies and the tool results they
+    quoted). A money or percentage figure STATED IN IT -- same number AND unit/currency,
+    notation-insensitive ("GBP 90,000" == "£90,000") -- is a recorded fact, not an
+    invention: salary, offer, budget, a raise, a price paid. A temperature, any other
+    measured quantity, and a figure the capsule states as a record are not exempted here:
+    the record law judges those (`_memory_figure_exemptable`). Each exempt match is
+    skipped exactly like a user-turn echo, and a
+    kind whose every match is memory-stated drops out -- UNLESS the match's own clause
+    states the figure as the value of a market-priced subject (crypto asset/ticker,
+    commodity, an FX pair: "Bitcoin is $61,250 right now" against a recorded "BTC was
+    $61,250"), which keeps the notice however old the record is; see
+    `_clause_states_a_market_priced_value`. A figure the evidence does not state is
+    untouched: the notice's premise ("any specific numbers I gave would be invented") is
+    true for it, and no question keyword is consulted -- see the memory-figure section
+    above.
     """
 
     body = _INLINE_CODE_RE.sub(" ", _FENCED_CODE_RE.sub(" ", str(text or "")))
@@ -1519,6 +1771,8 @@ def unobserved_live_value_claims(
         return ()
 
     exempt_exact = set(prose_safe_measured_value_matches(user_turn_text))
+    memory_figures = _memory_figure_keys(evidence_text) if evidence_text else frozenset()
+    record_keys = _capsule_record_figure_keys(str(evidence_text)) if memory_figures else frozenset()
     found: list[str] = []
     for kind, pattern in _LIVE_VALUE_KINDS:
         for match in pattern.finditer(body):
@@ -1539,6 +1793,17 @@ def unobserved_live_value_claims(
                 if match_text in exempt_exact or reply_match_is_user_supplied(
                     match_text, user_turn_text
                 ):
+                    continue
+            if (
+                memory_figures
+                and _memory_figure_exemptable(kind, match.group(0), record_keys)
+                and _memory_figure_keys(match.group(0)) & memory_figures
+            ):
+                # R1: a figure the capsule states may be re-asserted as the user's own
+                # recorded fact, but never as the CURRENT value of a market-priced
+                # subject -- a stale recorded market price stated as current keeps the
+                # notice, whichever side of the past chats stated it first.
+                if not _clause_states_a_market_priced_value(body[clause_start:clause_end]):
                     continue
             if kind not in found:
                 found.append(kind)
@@ -1783,7 +2048,9 @@ def _attribution_only(sentence: str) -> bool:
     return not unobserved_live_value_claims(stripped)
 
 
-def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> str:
+def replace_unobserved_live_claims(
+    text: str, *, user_turn_text: str = "", evidence_text: str = ""
+) -> str:
     """Withdraw the sentences that assert unobserved live values, keep the rest.
 
     Until this existed, one current-anchored value replaced the WHOLE answer: a
@@ -1810,17 +2077,26 @@ def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> st
     ``user_turn_text`` carries the current turn's user message through to the
     sentence-level recognitions: a value the user stated this turn is exempt at
     every level of the split, exactly as it is in the whole-text trigger.
+    ``evidence_text`` carries the memory/evidence the turn held the same way:
+    a figure the capsule states is exempt at every level of the split, except a
+    clause asserting it as a market-priced subject's value (R1), which never is.
     """
 
     body = str(text or "")
-    kinds = unobserved_live_value_claims(body, user_turn_text=user_turn_text)
+    kinds = unobserved_live_value_claims(
+        body, user_turn_text=user_turn_text, evidence_text=evidence_text
+    )
     if not kinds:
         return body
     sentences = [part for part in _SENTENCE_SPLIT_RE.split(body) if part.strip()]
     if len(sentences) <= 1:
         return unverified_live_value_notice(kinds)
     convicted = [
-        bool(unobserved_live_value_claims(sentence, user_turn_text=user_turn_text))
+        bool(
+            unobserved_live_value_claims(
+                sentence, user_turn_text=user_turn_text, evidence_text=evidence_text
+            )
+        )
         for sentence in sentences
     ]
     # An attribution-only fragment adjacent to a convicted sentence is part of
@@ -1837,7 +2113,7 @@ def replace_unobserved_live_claims(text: str, *, user_turn_text: str = "") -> st
     for sentence, is_convicted in zip(sentences, convicted, strict=False):
         if is_convicted:
             for kind in unobserved_live_value_claims(
-                sentence, user_turn_text=user_turn_text
+                sentence, user_turn_text=user_turn_text, evidence_text=evidence_text
             ):
                 if kind not in convicted_kinds:
                     convicted_kinds.append(kind)

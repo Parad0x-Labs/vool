@@ -15,8 +15,9 @@ def test_locked_observer_cannot_steal_sound_or_replay_after_unlock(tag):
 let cursor=10, ready=false, claims=[], played=0;
 window.VoolNotificationAudio={ready:()=>ready,cue:async()=>{played++;}};
 globalThis.fetch=async(url,opts)=>{
- if(url==='/api/notifications/audio'){claims.push(JSON.parse(opts.body).after);return {json:async()=>({ok:true,notification_ids:['fresh']})};}
- return {json:async()=>({ok:true,items:[],unread:0,cursor})};
+ if(url==='/api/notifications/audio'){claims.push(JSON.parse(opts.body).after);return {ok:true,json:async()=>({ok:true,notification_ids:['fresh']})};}
+ // A real 200 answer: the inbox read renders only a response whose HTTP status was OK.
+ return {ok:true,json:async()=>({ok:true,items:[],unread:0,cursor})};
 };
 """+script+r"""
 await window.VoolNotify.refresh();

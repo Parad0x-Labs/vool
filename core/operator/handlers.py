@@ -1036,52 +1036,88 @@ def handle_list_reminders(
     *,
     task_id: str,
     session_id: str,
-    list_reminders_fn: Any,
+    list_owner_reminders_fn: Any,
+    chat_label_fn: Any,
+    is_private_chat_fn: Any,
     now_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+    """The owner's reminders, asked for and answered in ANY chat.
+
+    A reminder set in one chat is the owner's, not that chat's: the listing reads every
+    pending reminder of the runtime, soonest due first, and names the chat each one came
+    from in plain words. Two rules hold: a chat marked private keeps its reminders to
+    itself (they never appear in another chat's listing), and cancel/move pointers stay
+    scoped to the chat that owns them -- this lane only reads.
+    """
+    rows = list_owner_reminders_fn(include_delivered=False)
     now = now_fn()
+    visible: list[dict[str, Any]] = []
+    for row in rows:
+        owner_session = str(row.get("session_id") or "")
+        if owner_session != session_id:
+            # A private chat's reminders are that chat's alone; is_private_chat_fn fails
+            # closed (an unreadable privacy store hides, never leaks).
+            try:
+                private = bool(is_private_chat_fn(owner_session))
+            except Exception:
+                private = True
+            if private:
+                continue
+        visible.append(row)
     # "did i set a reminder to feed the iguana?" / "reminder for the dentist?": answer about THAT
     # reminder -- found or plainly not found -- never with tips or parser text.
     subject = _asked_reminder_subject(str(getattr(intent, "raw_text", "") or ""))
     if subject:
         words = [w for w in re.findall(r"[a-z0-9']{3,}", subject.lower()) if w not in {"the", "and", "for", "about"}]
-        hits = [row for row in rows if words and all(w in str(row.get("note") or "").lower() for w in words)]
+        hits = [row for row in visible if words and all(w in str(row.get("note") or "").lower() for w in words)]
         if not hits:
-            others = f" You have {len(rows)} other pending reminder{'' if len(rows) == 1 else 's'} here." if rows else ""
+            others = (
+                f" You have {len(visible)} other pending reminder{'' if len(visible) == 1 else 's'}."
+                if visible else ""
+            )
             return OperatorActionResult(
                 ok=True, status="reported",
-                response_text=f"I don't have a reminder about “{subject}” in this chat.{others}",
-                details={"count": 0, "asked_subject": subject},
+                response_text=f"I don't have a reminder about “{subject}”.{others}",
+                details={"count": 0, "asked_subject": subject, "scope": "owner"},
             )
-        rows = hits
-    if not rows:
-        return OperatorActionResult(
-            ok=True,
-            status="reported",
-            response_text="You have no pending reminders in this chat.",
-            details={"count": 0},
-        )
-    lines = []
-    for row in rows:
+        visible = hits
+    lines: list[str] = []
+    shown: list[dict[str, Any]] = []
+    for row in visible:
+        owner_session = str(row.get("session_id") or "")
         due = str(row.get("due_at_utc") or "")
         overdue = " (OVERDUE)" if due and due <= now else ""
         wall = format_due_time(due, str(row.get("tz_name") or ""), str(row.get("due_wall") or ""))
         status = str(row.get("status") or "")
         flag = " [delivery uncertain -- an attempt was interrupted]" if status == "delivery_uncertain" else overdue
-        lines.append(f"- {row.get('note')} — due {wall}{flag} (id {str(row.get('reminder_id'))[:8]})")
+        origin = ""
+        if owner_session != session_id:
+            try:
+                label = str(chat_label_fn(owner_session) or "").strip()
+            except Exception:
+                label = ""
+            origin = f' — set in "{label}"' if label else " — set in another chat"
+        lines.append(f"- {row.get('note')} — due {wall}{flag}{origin} (id {str(row.get('reminder_id'))[:8]})")
+        shown.append(row)
+    if not shown:
+        return OperatorActionResult(
+            ok=True,
+            status="reported",
+            response_text="You have no pending reminders.",
+            details={"count": 0, "scope": "owner"},
+        )
     audit_log_fn(
         "operator_action_list_reminders",
         target_id=task_id,
         target_type="task",
-        details={"count": len(rows)},
+        details={"count": len(shown)},
     )
     return OperatorActionResult(
         ok=True,
         status="reported",
         response_text="Pending reminders:\n" + "\n".join(lines),
-        details={"count": len(rows), "reminders": rows},
+        details={"count": len(shown), "reminders": shown, "scope": "owner"},
     )
 
 
@@ -1102,6 +1138,36 @@ def handle_cancel_reminder(
         list_reminders_fn=list_reminders_fn,
     )
     if target is None:
+        # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
+        # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
+        # way (reminders-everywhere law).
+        if getattr(intent, "action_id", ""):
+            return OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text="I could not find a pending reminder for that unambiguously. Say 'list my reminders', then specify the reminder id.",
+                details={"kind": "cancel_reminder"},
+            )
+        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+        pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
+        if pending:
+            # More than one candidate and no id: name them instead of sending the user elsewhere.
+            lines = []
+            for row in pending[:3]:
+                wall = format_due_time(
+                    str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
+                )
+                lines.append(f"- {row.get('note')} — due {wall} (id {str(row.get('reminder_id'))[:8]})")
+            more = f"\n(and {len(pending) - 3} more)" if len(pending) > 3 else ""
+            return OperatorActionResult(
+                ok=False,
+                status="invalid_request",
+                response_text=(
+                    f"This chat has {len(pending)} pending reminders:\n" + "\n".join(lines) + more
+                    + "\nWhich one should I cancel? Say it with the reminder id."
+                ),
+                details={"kind": "cancel_reminder", "pending_count": len(pending)},
+            )
         return OperatorActionResult(
             ok=False,
             status="invalid_request",
@@ -1129,10 +1195,15 @@ def handle_cancel_reminder(
             response_text=f"I could not cancel that reminder: {outcome.get('reason') or outcome.get('status')}.",
             details=outcome,
         )
+    wall = format_due_time(
+        str(target.get("due_at_utc") or ""), str(target.get("tz_name") or ""), str(target.get("due_wall") or "")
+    )
     return OperatorActionResult(
         ok=True,
         status="executed",
-        response_text=f"Reminder cancelled: {target.get('note')} will not be delivered.",
+        response_text=(
+            f"Reminder cancelled: {target.get('note')} will not be delivered. It was due {wall}."
+        ),
         details={**outcome, "reminder_id": str(target.get("reminder_id")), "note": target.get("note")},
         learned_plan=_learned_plan(
             "Verified reminder cancellation workflow: resolve target by id or most recent, CAS the store row, verify the transition.",

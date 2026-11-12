@@ -79,7 +79,7 @@ _INTERROGATIVE_OPENER_RE = re.compile(
 )
 _IMPERATIVE_ASK_RE = re.compile(
     r"^(?:so|ok|okay|hey|and|also|then|now|please|pls|just|quick(?:ly)?|could\s+you|can\s+you)?[\s,]*"
-    r"(?:tell|show|give|list|check|report|find|look|see|read|display|print|get|fetch|scan|"
+    r"(?:tell|show|give|list|check|report|find|look|see|read|search|display|print|get|fetch|scan|"
     r"inspect|measure|count|summari[sz]e|run|pull\s+up|bring\s+up)\b",
     re.IGNORECASE,
 )
@@ -319,6 +319,89 @@ def conversation_recall_remainder(text: str) -> tuple[str, ...] | None:
         if clause.endswith("?") or _INTERROGATIVE_OPENER_RE.match(clause) or _IMPERATIVE_ASK_RE.match(clause):
             remaining.append(clause)
     return tuple(remaining) if recalled else None
+
+
+# The user's own kept material, named as the SOURCE OF TRUTH of the ask. A bare currency word
+# widens a DIRECT ask into a current-information requirement (the signals and amount arms in
+# core/execution_requirements.py); when the ask itself says where its answer must be read from,
+# a live retrieval can never produce that reading, and the widening has fired on the wrong
+# subject. The vocabulary is STORE-shaped, not topic-shaped: a preposition or a reporting verb
+# must SEAT the notes/records/chats as the source, so a sentence that merely mentions notes
+# stays untouched, and an ask that names the web is a lookup whatever it recalls (the same
+# `_NAMES_A_WEB_SOURCE_RE` guard the recall family above applies).
+_RECORDS_SOURCE_NOUN = r"(?:notes?|notebooks?|records?|chats?|conversations?|journals?|diar(?:y|ies))"
+_RECORDS_SOURCE_DET = r"(?:my|our|the|this|that|these|those|his|her|their)"
+# Anchors no note-WRITING imperative carries: a write places its target with "in/into/to", never
+# "according to/per/from", so these fire without an ask shape.
+_RECORDS_SOURCE_ANCHOR_RE = re.compile(
+    r"\b(?:according\s+to|as\s+(?:noted|recorded|written)\s+in|per|from|out\s+of|off|based\s+on)\s+"
+    + _RECORDS_SOURCE_DET
+    + r"\s+"
+    + _RECORDS_SOURCE_NOUN
+    + r"\b",
+    re.IGNORECASE,
+)
+# Shapes a write command can share ("write this in my notes", "save this in my notes"): the
+# placement, the kept material made to speak, and the user's own telling asked back. Each needs
+# the question shape an imperative write lacks.
+_RECORDS_SOURCE_WEAK_RE = re.compile(
+    r"\b(?:in|within|inside)\s+" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\b"
+    # An adverb may sit between the store and its verb ("what does my journal currently say"):
+    # the store still governs the telling, so the shape holds. Bounded to the adverbs people
+    # place there, not an open slot -- "my notes someone wrote" is not this shape.
+    r"|\b" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\s+"
+    r"(?:currently|now|still|again|already|also|even|just|exactly|actually)?\s*"
+    r"(?:say|says|said|show|shows|showed|list|lists|listed|state|states|stated|hold|holds|held|"
+    r"have|has|had|mention|mentions|mentioned|record|records|recorded|note|notes|noted|tell|tells|"
+    r"told|put|puts)\b"
+    r"|\bwhat\s+did\s+(?:i|we)\s+(?:tell\s+(?:you|u)|say|mention|write|note|record|log|put|ask)\b"
+    r"|\b(?:have|had)\s+(?:i|we)\s+(?:told\s+(?:you|u)|said|mentioned|written|noted|recorded)\b"
+    r"|\b(?:that|which)\s+(?:i|we)\s+(?:told\s+(?:you|u)|said|mentioned|wrote|noted|recorded)\b"
+    r"|\b(?:check|read|search|scan|review|look\s+at|look\s+through|look\s+up\s+in|go\s+through|"
+    r"dig\s+through)\s+" + _RECORDS_SOURCE_DET + r"\s+" + _RECORDS_SOURCE_NOUN + r"\b",
+    re.IGNORECASE,
+)
+# A clause that WRITES to the kept material, not one that reads it. Checked before the weak
+# shapes because a question form of a write ("can you save this in my notes?") carries both the
+# question mark and the exact placement the weak group reads. The verb must open the clause, so
+# a past-tense read ("what did i write in my notes") is never taken for a write.
+_RECORDS_WRITE_IMPERATIVE_RE = re.compile(
+    r"^(?:so|ok|okay|hey|hi|and|but|also|then|now|please|pls|just|quick(?:ly)?|"
+    r"can\s+you|could\s+you|will\s+you|would\s+you)?[\s,]*"
+    r"(?:writ(?:e|ing)|save|saving|stor(?:e|ing)|jot(?:ting)?|add(?:ing)?|update|updating|"
+    r"edit(?:ing)?|remov(?:e|ing)|delet(?:e|ing)|eras(?:e|ing)|append(?:ing)?|note\s+down|"
+    r"put(?:ting)?)\b"
+    r"[\s\S]{0,60}?"
+    r"\b(?:in|into|onto|to|on|from|within|inside)\s+" + _RECORDS_SOURCE_DET + r"\s+"
+    + _RECORDS_SOURCE_NOUN + r"\b",
+    re.IGNORECASE,
+)
+
+
+def records_scoped_ask(text: str) -> bool:
+    """True when the ask names the user's own notes/records/chats as its source of truth.
+
+    Read clause by clause, the same discipline the recall family above uses. A bare
+    what-was-said turn is still the recall arm's to answer in core/execution_requirements.py;
+    this recognizer only disarms the currency widenings for an ask that names its store.
+    """
+    lowered = " ".join(str(text or "").strip().lower().split())
+    if not lowered or _NAMES_A_WEB_SOURCE_RE.search(lowered):
+        return False
+    asks_a_question = "?" in lowered
+    for clause in _CLAUSE_SPLIT_RE.split(lowered):
+        piece = clause.strip()
+        if not piece or _RECORDS_WRITE_IMPERATIVE_RE.match(piece):
+            continue
+        if _RECORDS_SOURCE_ANCHOR_RE.search(piece):
+            return True
+        if _RECORDS_SOURCE_WEAK_RE.search(piece) and (
+            asks_a_question
+            or _INTERROGATIVE_OPENER_RE.match(piece) is not None
+            or _IMPERATIVE_ASK_RE.match(piece) is not None
+        ):
+            return True
+    return False
 
 
 # A device the sentence itself marks as NOT this host: another kind of device ("my phone", "her
@@ -953,6 +1036,18 @@ def refers_to_current_scope(text: str) -> bool:
 
 
 _NOT_A_FOLDER_NAME = frozenset({"in", "on", "at", "from", "to", "of", "into", "inside", "there", "here", "it", "that", "this"})
+# A plugged-in drive the person names: "on my external drive", "on the usb stick", "on all my drives".
+# Without one, a folder search stays in the person's home folder.
+FOLDER_ON_DRIVE_RE = re.compile(
+    r"\b(?:on|in|from|across)\s+(?:(?:my|the|an?|any|all|every|of)\s+)*"
+    r"(?:(?:external|usb|thumb|flash|backup|portable|plugged[\s-]?in|other|hard)\s+)*"
+    r"(?:drives?|disks?|sticks?|volumes?|sd\s+cards?)\b",
+    re.IGNORECASE,
+)
+
+
+def machine_folder_search_wants_drives(text: str) -> bool:
+    return bool(FOLDER_ON_DRIVE_RE.search(str(text or "")))
 
 
 def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
@@ -1387,8 +1482,11 @@ _PRESENT_APP_WORDS = frozenset({
     "url", "tab", "window",
 })
 # A folder noun makes the object a folder search ("open the invoices folder"), which the
-# named-folder lanes own.
-_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir"})
+# named-folder lanes own. A project is a folder too: "open my garden planner project" binds the
+# chat to that folder at the chat door (core.workspace_from_words), and a disk search for a FILE
+# named "garden planner project" then answered "I couldn't find a file matching ..." under the
+# notice that VOOL was now working in that very folder (train port real-app run, 2026-11-12).
+_PRESENT_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "directories", "dir", "project", "projects"})
 # "find my phone" is not a file lookup (the loose search stands down on it too): the object names
 # a device the owner owns, not words a file's name carries.
 _PRESENT_DEVICE_WORDS = frozenset({
@@ -1396,11 +1494,17 @@ _PRESENT_DEVICE_WORDS = frozenset({
 })
 # "show me the event called School play" asks the calendar for a row, and "pull up my dentist
 # appointment" or "show me the reminder about bins" ask VOOL's own lists: the object names a
-# calendar or list item, not words a file's name carries, so those lanes keep it.
+# calendar or list item, not words a file's name carries, so those lanes keep it. (The calendar
+# reads job's own stand-down list is this one: it also stood down on "notes", which took "pull up
+# my meeting notes" from the file lane.)
 _PRESENT_ORGANIZER_WORDS = frozenset({
     "event", "events", "meeting", "meetings", "appointment", "appointments", "reminder", "reminders",
     "calendar", "calendars", "schedule", "agenda", "booking", "bookings", "contact", "birthday", "birthdays",
 })
+# "find my notes about pollen" and "show me my notes" ask VOOL's own notes: the notes noun alone,
+# with no word of a file's name beside it, is the notes store, which the notes lane reads. Named
+# beside other words ("pull up my meeting notes") it is a document on the disk and stays here.
+_PRESENT_NOTES_WORDS = frozenset({"note", "notes"})
 # ...unless the ask also names a document: "pull up my meeting notes", "the booking confirmation pdf".
 _PRESENT_DOCUMENT_WORDS = frozenset({
     "notes", "minutes", "slides", "deck", "invoice", "receipt", "ticket", "tickets", "confirmation", "invite",
@@ -1422,6 +1526,14 @@ _PRESENT_FAULT_WORDS = frozenset({
     "reasons", "culprit", "regression", "fault", "faults", "error", "errors", "mistake", "mistakes",
     "out", "why", "fix", "solution", "answer",
 })
+
+
+def _contracted(word: str) -> str:
+    """The word a contraction or its apostrophe-less spelling stands on: "what's" and "whats" read "what"."""
+    for tail in ("'s", "’s", "'re", "’re"):
+        if word.endswith(tail):
+            return word[: -len(tail)]
+    return word[:-1] if word in {"whats", "wheres", "whos", "hows"} else word
 
 
 class PresentFileAsk(NamedTuple):
@@ -1450,7 +1562,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
     offset = match.start("obj")
     for token in match.group("obj").split():
         word = token.strip(" .'\"-").lower()
-        if not word or word in _PRESENT_OBJECT_STOP:
+        # "what's in plan.py" opens with a question word too: a contraction reads as its word.
+        if not word or word in _PRESENT_OBJECT_STOP or _contracted(word) in _PRESENT_OBJECT_STOP:
             break
         kept.append(word)
         offset = raw.find(token, offset) + len(token)
@@ -1458,6 +1571,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         return None  # "show me what you found" names nothing to search for
     if all(word in _PRESENT_FAULT_WORDS for word in kept):
         return None  # "find the root cause" asks for a diagnosis, not a file
+    if all(word in _PRESENT_NOTES_WORDS for word in kept):
+        return None  # "find my notes about pollen" searches the notes store, not a file named notes
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
@@ -3585,7 +3700,7 @@ _IMAGE_GEN_DEPICT_RE = re.compile(
 # claiming one of these sends an ordinary sentence into the image renderer.
 _IMAGE_GEN_FIGURATIVE_RE = re.compile(
     r"\bdraw(?:s|n|ing)?\s+(?:(?:your|my|our|their|his|her|its)\s+)?(?:own\s+)?"
-    r"(?:a|an|the|some|any)?\s*"
+    r"(?:(?:a|an|the|some|any)\s*)?"
     r"(?:conclusion|conclusions|inference|inferences|comparison|comparisons|parallel|parallels|"
     r"distinction|distinctions|analogy|analogies|attention|blank|breath|fire|criticism|praise|"
     r"crowd|crowds|line|lines|contrast|contrasts|lesson|lessons)\b"
@@ -3627,11 +3742,6 @@ _IMAGE_REQUEST_VERB_RE = re.compile(
 )
 
 
-_IMAGE_FETCH_VERB_RE = re.compile(
-    r"^\s*(?:(?:please|pls|can\s+you|could\s+you|would\s+you)[\s,]+)*(?:give|get|send|show|find|fetch|grab|bring|pull\s+up)\b",
-    re.IGNORECASE,
-)
-
 # Editing a picture that already exists is not generating one (audit N5: "make the cat picture half the size" and
 # "make it black and white" were sent to image generation, "save that as a jpg onto my desktop" to memory). The
 # object is definite -- "the cat picture", "my photo", "it" -- where a generation asks for "a picture" or "me a ...".
@@ -3667,6 +3777,12 @@ PICTURE_EDIT_UNSUPPORTED_REPLY = (
 def picture_edit_request(text: str) -> bool:
     """Whether the text asks to change or re-save a picture that already exists, which no VOOL tool does today."""
     return bool(_PICTURE_EDIT_RE.search(" ".join(str(text or "").split())))
+
+
+_IMAGE_FETCH_VERB_RE = re.compile(
+    r"^\s*(?:(?:please|pls|can\s+you|could\s+you|would\s+you)[\s,]+)*(?:give|get|send|show|find|fetch|grab|bring|pull\s+up)\b",
+    re.IGNORECASE,
+)
 
 
 def image_generation_intent(text: str) -> str | None:
@@ -3784,6 +3900,18 @@ _VERB_NAME_FOLDER_RE = re.compile(
     r"\b(?:create|make|crate|creat|mkdir)\s+(?:the\s+|a\s+|an\s+)?(?P<path>[A-Za-z0-9_./-]+)\s+(?:folder|directory|dir)\b",
     re.IGNORECASE,
 )
+# A folder name can stand attached to the folder noun with NO create verb in front of it:
+# "there's a docs folder", "make sure an assets directory exists". Measured on the audit
+# wording 2026-10-27: with only the verb-led patterns, "make sure there's a docs folder"
+# read "make sure" as the create verb plus a path named `sure`, and the approval card
+# targeted a folder called `sure`. The name standing immediately before the folder noun
+# (optional article in front) is the path; a create verb itself never names the folder.
+_ARTICLE_NOUN_PATH_RE = re.compile(
+    r"\b(?:a|an|the|this|my)?\s*[`\"']?"
+    r"(?P<path>(?!create\b|make\b|setup\b|mkdir\b|crate\b|creat\b|bootstrap\b)[A-Za-z0-9_./-]+)"
+    r"\s+(?:folder|directory|dir)\b",
+    re.IGNORECASE,
+)
 _FOLDER_PATH_RE = re.compile(
     r"\b(?:folder|directory|dir|path)\s+(?:called|named)?\s*[`\"']?(?P<path>[A-Za-z0-9_./-]+)",
     re.IGNORECASE,
@@ -3889,6 +4017,21 @@ _PATH_STOP_WORDS = {
     "desktop",
     "please",
     "pls",
+    # An idiom filler standing after a create verb is never a folder name. Measured on the
+    # audit wording 2026-10-27: "make sure there's a docs folder ..." supplied `sure` as the
+    # directory to create, and the approval card targeted a folder called `sure`. These words
+    # close that class; real folder words people ask for (note, notes, docs) stay extractable.
+    "sure",
+    "certain",
+    "certainly",
+    "them",
+    "those",
+    "then",
+    "so",
+    "everything",
+    "nothing",
+    "something",
+    "anything",
 }
 _BUILDER_RESEARCH_MARKERS = (
     "build",

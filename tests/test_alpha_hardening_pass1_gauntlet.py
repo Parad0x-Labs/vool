@@ -36,7 +36,7 @@ ALPHA_SHIP_THRESHOLDS = {
 }
 
 FAST_PATH_CHAT_CASES = (
-    ("help", "utility_answer", "here's what i can do on this computer:"),
+    ("help", "utility_answer", "the short version:"),
     ("hey", "smalltalk", "hey."),
     ("hello", "smalltalk", "hello."),
     ("how are you", "smalltalk", "running clean. what do you need?"),

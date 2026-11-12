@@ -739,6 +739,61 @@ def pending_approval_record(session_id: str, approval_id: str, *, include_approv
         return dict(entry)
 
 
+#: The fields of a pending approval a chat page may show: the same prompt the turn stream carries
+#: when it asks, never the fingerprint, mode or grant bookkeeping behind it.
+_PROMPT_FIELDS = (
+    "approval_id", "task_id", "intent", "action", "action_plain", "command", "affected_resources",
+    "expected_side_effects", "reversible", "scope_options", "one_time", "edit_batch",
+    "diff_preview", "expires_at", "planned_actions", "planned_action_count", "excluded_actions",
+    "planned_action_label", "request_text",
+)
+
+
+def pending_approvals_for_session(session_id: str) -> list[dict[str, Any]]:
+    """This chat's open approval prompts, oldest first, as the turn stream showed them.
+
+    The prompt used to exist on the page only for as long as the turn's stream was open: a reload,
+    a restart, or a turn sent from another window left "needs your approval" in the transcript and
+    no Allow anywhere (fresh-user test on 1cbf433, 2026-10-29). The store already keeps the prompt
+    durably; this is its read. Resolved, consumed, expired and other chats' approvals are absent.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return []
+    _ensure_approvals_restored()
+    now = time.time()
+    rows: list[dict[str, Any]] = []
+    with _LOCK:
+        for entry in _APPROVALS.values():
+            if str(entry.get("session_id") or "") != clean_session:
+                continue
+            if entry.get("status") != "pending" or float(entry.get("expires_at") or 0) <= now:
+                continue
+            rows.append(
+                {
+                    key: (list(entry[key]) if isinstance(entry[key], tuple) else entry[key])
+                    for key in _PROMPT_FIELDS
+                    if key in entry
+                }
+            )
+    rows.sort(key=lambda row: float(row.get("expires_at") or 0))
+    return rows
+
+
+def _asking_request_text(source_context: dict[str, Any] | None) -> str:
+    """The user's own message for the turn that raised a prompt (a sub-turn's parent message)."""
+    request = dict(source_context or {}).get("turn_request")
+    text = str(getattr(request, "user_text", "") or "")
+    if not text and isinstance(request, dict):
+        text = str(request.get("user_text") or "")
+    # Masked exactly as the chat transcript masks it: the page finds the asking message in that
+    # transcript, and this text is mirrored to disk with the prompt, where a typed card number or
+    # password must never land in the clear.
+    from core.secret_redaction import redact_secrets
+
+    return redact_secrets(text)[:4000]
+
+
 def session_has_pending_workspace_approval(session_id: str) -> bool:
     """Whether THIS chat currently shows a pending permission ask inside the chat-workspace class.
 
@@ -3924,6 +3979,40 @@ def _new_approval_request(
         if command_line
         else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
     )
+    # The plain-words name of the same action, from the keyed phrase table
+    # (approval.action.<intent>), in the page's own language, naming the target by its name
+    # when the ask knows one -- so a page can read the ask without the dotted id the exact
+    # `action` line still carries (pinned by an existing test). A command card names the exact
+    # line that will run, so it has no second name; a tool without a keyed phrase keeps "" and
+    # the page falls back to `action`.
+    from core.approval_action_phrases import localized_action_words, localized_target_words
+    from core.private_chat_languages import ui_locale_of
+
+    ask_locale = ui_locale_of(source_context)
+    action_plain = (
+        ""
+        if command_line
+        else localized_action_words(display_intent, ask_locale, display_arguments)
+    )
+
+    def _named_rows(rows: tuple[dict[str, str], ...]) -> list[dict[str, str]]:
+        # Each bullet the page renders carries its own plain phrase (the keyed everyday
+        # words, never the dotted id) and, when the plan names a target, its own "called
+        # Receipts" clause -- so the page never re-derives either from the id.
+        named = []
+        for row in rows:
+            member_intent = str(row.get("intent") or "")
+            target = {"target": str(row.get("target") or "")}
+            named.append(
+                {
+                    "intent": member_intent,
+                    "target": row.get("target", ""),
+                    "phrase": localized_action_words(member_intent, ask_locale, None),
+                    "target_plain": localized_target_words(member_intent, ask_locale, target),
+                }
+            )
+        return named
+
     skill_card = _skill_install_card(display_arguments, display_context) if display_intent == "skill.install" else {}
     if skill_card:
         action_text = skill_card["action"]
@@ -3932,6 +4021,7 @@ def _new_approval_request(
         "task_id": task_id,
         "intent": intent,
         "action": action_text,
+        "action_plain": action_plain,
         **({"skill": skill_card["skill"]} if skill_card else {}),
         **({"command": command_line} if command_line else {}),
         "affected_resources": _x_request_resources(display_intent, display_arguments)
@@ -3951,12 +4041,12 @@ def _new_approval_request(
         "expires_at": time.time() + 86400,
         # What the "allow all planned changes" button would actually cover, named file by file, so
         # the operator approves a visible list rather than a count.
-        "planned_actions": [dict(item) for item in planned_actions],
+        "planned_actions": _named_rows(planned_actions),
         "planned_action_count": len(batch_fingerprints),
         # And what it would NOT cover, from the same plan, named the same way. A batch that quietly
         # dropped the `sandbox.run_command` sitting beside the writes still showed a truthful count,
         # so the operator could only learn the command was excluded by being asked about it later.
-        "excluded_actions": [dict(item) for item in excluded_actions],
+        "excluded_actions": _named_rows(excluded_actions),
         # Server-derived button copy. The composition of the covered set is what decides it, so the
         # browser never has to classify anything to phrase the grant it is offering.
         "planned_action_label": _planned_batch_label(planned_actions),
@@ -3966,6 +4056,9 @@ def _new_approval_request(
             **request,
             "fingerprint": fingerprint,
             "session_id": session_id,
+            # The message that asked, so a page that reloads (or never sent the turn) can find the
+            # turn to resume once the operator allows it. Served to the owner's page with the prompt.
+            "request_text": _asking_request_text(source_context),
             "mode": mode.value,
             "mode_revision": mode_revision,
             "actions": tuple(action.value for action in actions),

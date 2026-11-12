@@ -104,7 +104,7 @@ def test_served_resume_with_the_review_data_answers_only_from_a_whole_receipt(re
     _delivered_then_stopped(harness, workspace, fault, f'save a note to Apple Notes titled "Valid inspection" with: {_REVIEW_BODY}', "Valid inspection")
     assert bridge.calls == 1
     resumed = _turn(harness, "resume", workspace)
-    assert resumed.startswith("Note saved in Apple Notes: 'Valid inspection'") and "answered from its recorded receipt" in resumed, resumed
+    assert resumed.startswith("Saved your note 'Valid inspection' in Apple Notes") and "answered from its recorded receipt" in resumed, resumed
     assert bridge.calls == 1
 
     # Review finding 1: the receipt later carries the legacy flag and a whitespace reference.
@@ -113,7 +113,7 @@ def test_served_resume_with_the_review_data_answers_only_from_a_whole_receipt(re
     raw = _damage(workspace, "Harbour inspection", lambda op: op.update(legacy=True, note_reference="   "))
     refused = _turn(harness, "resume", workspace)
     assert "destination is NOT resolved (effect_journal_quarantined)" in refused and "flagged legacy" in refused, refused
-    assert "Note saved in Apple Notes" not in refused and bridge.calls == 2 and _preserved(workspace) == [raw]
+    assert "Check it in the Notes app" not in refused and bridge.calls == 2 and _preserved(workspace) == [raw]
     assert any(_REVIEW_BODY in text for text in _note_texts(workspace)), "the labelled workspace fallback was written"
 
     # Review finding 2, after the owner's check: the receipt records content that is not the request's.
@@ -123,7 +123,7 @@ def test_served_resume_with_the_review_data_answers_only_from_a_whole_receipt(re
     raw = _damage(workspace, "Warehouse key register", lambda op: op.update(content_key="a" * 64))
     refused = _turn(harness, "resume", workspace)
     assert "destination is NOT resolved (effect_journal_quarantined)" in refused and "does not derive its id" in refused, refused
-    assert "Note saved in Apple Notes" not in refused and bridge.calls == 3 and _preserved(workspace) == [raw]
+    assert "Check it in the Notes app" not in refused and bridge.calls == 3 and _preserved(workspace) == [raw]
     assert fault.fired == 3
 
 
@@ -146,7 +146,7 @@ def test_served_resume_with_novel_identity_swaps_refuses_and_keeps_a_valid_flow(
     raw = _damage(workspace, title, claim_another_folder)
     refused = _turn(harness, "resume", workspace)
     assert "destination is NOT resolved (effect_journal_quarantined)" in refused and "different content than this request" in refused, refused
-    assert "Note saved in Apple Notes" not in refused and bridge.calls == 1 and _preserved(workspace) == [raw]
+    assert "Check it in the Notes app" not in refused and bridge.calls == 1 and _preserved(workspace) == [raw]
 
     _owner_checks_notes_and_resumes_delivery(workspace)
     spares = "Cold store spares"
@@ -155,7 +155,7 @@ def test_served_resume_with_novel_identity_swaps_refuses_and_keeps_a_valid_flow(
     raw = _damage(workspace, spares, lambda record: record.update(task_id="another-turn-of-this-chat"))
     refused = _turn(harness, "resume", workspace)
     assert "destination is NOT resolved (effect_journal_quarantined)" in refused and "does not derive its id" in refused, refused
-    assert "Note saved in Apple Notes" not in refused and bridge.calls == 2 and _preserved(workspace) == [raw]
+    assert "Check it in the Notes app" not in refused and bridge.calls == 2 and _preserved(workspace) == [raw]
 
     # Valid flow after the owner's check: an older record shape of this same request still replays, sending nothing.
     _owner_checks_notes_and_resumes_delivery(workspace)
@@ -164,5 +164,5 @@ def test_served_resume_with_novel_identity_swaps_refuses_and_keeps_a_valid_flow(
     assert bridge.calls == 3
     _damage(workspace, service, lambda record: [record.pop("session_id"), record.pop("task_id")])
     resumed = _turn(harness, "resume", workspace)
-    assert resumed.startswith(f"Note saved in Apple Notes: '{service}'") and "answered from its recorded receipt" in resumed, resumed
+    assert resumed.startswith(f"Saved your note '{service}' in Apple Notes") and "answered from its recorded receipt" in resumed, resumed
     assert bridge.calls == 3 and fault.fired == 3

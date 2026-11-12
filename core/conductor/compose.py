@@ -97,6 +97,10 @@ _EXCEPTION_PREFIX_RE = re.compile(
 # polarity -- see `_looks_like_leaked_internals` below.
 _INTERNAL_REASON_PHRASES = (
     ("comparison needs at least two dependencies", "not enough of the values it compares came back"),
+    # The door's refusal code for a lookup while Web lookups is off (core.remote_fetch_policy).
+    ("web_lookups_off", "Web lookups are off; turn them on in Settings > Privacy & Permissions"),
+    # The door's Local Only denial (core.remote_fetch_policy.LOCAL_ONLY_EGRESS_DENIAL).
+    ("local only is in force", "Local Only is on, so nothing may leave this machine"),
     ("no weather observation returned", "no weather reading came back for it"),
     ("no quote returned", "no price came back for it"),
     ("no evaluable arithmetic", "there was no calculation in it to run"),
@@ -173,7 +177,7 @@ def reader_facing_reason(reason: str) -> str:
     if operation_match is not None:
         text = operation_match.group("detail").strip()
     if _INTERNAL_CAPABILITY_REASON_RE.match(text):
-        return "the available answer path does not safely match this request"
+        return "this kind of request cannot be answered with what is available here"
     lowered = text.lower()
     for marker, phrase in _INTERNAL_REASON_PHRASES:
         if marker in lowered:
@@ -199,7 +203,8 @@ def reason_for_outcome(outcome: NodeOutcome) -> str:
     """The reader-facing reason for one node's failure -- the preferred, fail-closed entry point.
 
     Tier 1: codes that can ONLY originate from a caught exception
-    (`_GENERIC_REASON_BY_EXCEPTION_CODE`) map to a fixed generic phrase plus the receipt id.
+    (`_GENERIC_REASON_BY_EXCEPTION_CODE`) map to a fixed generic phrase. The receipt id stays on
+    the outcome record, never in the reader-facing phrase.
     `failure_reason` / `failure_detail_full` are NEVER consulted for these -- not "cleaned", not
     read at all -- which is what makes this tier fail closed regardless of what the exception
     said. `RESULT_MISSING_FIELDS`, `PLAN_DEADLINE_EXPIRED`, `NOT_REACHED` are likewise fixed,
@@ -221,18 +226,15 @@ def reason_for_outcome(outcome: NodeOutcome) -> str:
     if code is NodeFailureCode.CANCELLED:
         # Structural, never exception-derived: the owning turn's cancellation marker
         # fired before the node started, and the fixed phrase is the whole answer.
-        receipt_suffix = f" (receipt {outcome.receipt_id})" if outcome.receipt_id else ""
-        return "this turn was cancelled before this part could run" + receipt_suffix
+        return "this turn was cancelled before this part could run"
     if code is NodeFailureCode.TRANSPORT_FAILED:
         # A network fact with an actionable boundary, named as one -- the live source
         # was unreachable, which is not a runtime fault and sends nobody to debug
-        # their own code. The type-derived token rides on the receipt; the phrase is
-        # fixed and carries no exception text.
-        receipt_suffix = f" (receipt {outcome.receipt_id})" if outcome.receipt_id else ""
-        return "the live source for this could not be reached" + receipt_suffix
+        # their own code. The type-derived token rides on the outcome record; the
+        # phrase is fixed and carries no exception text and no receipt id.
+        return "the live source for this could not be reached"
     if code in _GENERIC_REASON_BY_EXCEPTION_CODE:
-        receipt_suffix = f" (receipt {outcome.receipt_id})" if outcome.receipt_id else ""
-        return _GENERIC_REASON_BY_EXCEPTION_CODE[code] + receipt_suffix
+        return _GENERIC_REASON_BY_EXCEPTION_CODE[code]
     if code is NodeFailureCode.RESULT_MISSING_FIELDS:
         return "the runtime did not get back everything it needed to answer this"
     if code is NodeFailureCode.RESULT_UNFULFILLED:

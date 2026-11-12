@@ -290,6 +290,86 @@ import threading as _threading
 _BOOT_CHECK_RUNNING = _threading.Event()
 
 
+def _model_being_checked() -> str:
+    """The local model whose readiness check is running now, or ``""``."""
+    try:
+        from core.local_model_policy import manifest_is_local
+        from core.local_model_tool_certification import certification_applies, certification_status
+        from core.model_registry import ModelRegistry
+
+        for manifest in ModelRegistry().list_manifests(enabled_only=True):
+            if manifest_is_local(manifest) and certification_applies(manifest):
+                if str(certification_status(manifest).get("state") or "") == "probing":
+                    return str(manifest.model_name)
+    except Exception:
+        pass
+    return ""
+
+
+def model_in_use(boot_model: str) -> str:
+    """The local model VOOL answers with now, for what it tells the person.
+
+    Boot names its primary before the boot check has run; when that model is not ready and
+    another local model is, turns answer with the ready one, so that is the one to name.
+    """
+
+    tag = str(boot_model or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification, unready_local_model_names
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [m for m in ModelRegistry().list_manifests(enabled_only=True) if manifest_is_local(m)]
+        if not any(author_certification(m).certified for m in manifests):
+            # Nothing is ready yet. While boot (or the button) is making a model ready, that is the
+            # model VOOL is about to use, not the boot guess the check will replace.
+            return _model_being_checked() or tag
+        if tag.lower() not in unready_local_model_names(manifests):
+            return tag
+        for manifest in manifests:
+            if author_certification(manifest).certified:
+                return str(manifest.model_name)
+    except Exception:
+        pass
+    return tag
+
+
+def local_model_for_work(preferred: str) -> str:
+    """The local model a background job (the website/app builder) should generate with.
+
+    ``default_runtime_model_tag`` is the machine's recommendation, not what is installed: on the
+    cloud re-audit boxes it named qwen3:4b, which was never pulled, and every "make a one page site"
+    failed in three seconds with "the model did not return a usable file list" (10 of 10). The
+    ready model goes first (the one the person pressed Use this model on), then the recommendation
+    if it is a registered local model, then any registered local model; the recommendation only
+    when nothing local is registered at all.
+    """
+
+    tag = str(preferred or "").strip()
+    try:
+        from core.final_answer_authorship import author_certification
+        from core.local_model_policy import manifest_is_local
+        from core.model_registry import ModelRegistry
+
+        manifests = [
+            m
+            for m in ModelRegistry().list_manifests(enabled_only=True)
+            if manifest_is_local(m) and str(getattr(m, "provider_name", "")).startswith("ollama")
+        ]
+        names = [str(m.model_name) for m in manifests]
+        ready = [str(m.model_name) for m in manifests if author_certification(m).certified]
+        for pool in (ready, names):
+            if not pool:
+                continue
+            for name in pool:
+                if name.lower() == tag.lower():
+                    return name
+            return pool[0]
+    except Exception:
+        pass
+    return tag
+
+
 def mark_boot_readiness_check(running: bool) -> None:
     if running:
         _BOOT_CHECK_RUNNING.set()

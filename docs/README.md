@@ -8,8 +8,10 @@ VOOL is a desktop AI assistant. It installs as an application on your computer a
 run AI models locally on that machine, or connect to a cloud AI provider using your own
 API key. It keeps a readable record of every action it takes.
 
-It is free and works offline with local models. There are downloads for Macs (Apple Silicon
-and Intel) and Linux x86_64; Windows is experimental and installs from source.
+It is free. With a local model, your chats and files need no internet connection; live facts
+such as weather or prices come from public web services only while Web lookups is on. There are
+downloads for Macs (Apple Silicon and Intel) and Linux x86_64; Windows is experimental and
+installs from source.
 
 These docs cover installing VOOL, connecting a model, and the concepts behind how it
 handles your files, your memory, and your keys.
@@ -43,7 +45,8 @@ Every run, the setup and the weak spots are published: [memory benchmarks](https
 
 * **A desktop application.** It installs on your computer — not a browser tab, not a
   hosted service.
-* **Works offline.** With a local model selected, VOOL needs no internet connection.
+* **Works offline for chats and files.** With a local model selected, your chats and files need
+  no internet connection. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
 * **Local by default.** With a local model selected, prompts and files are processed
   on your machine.
 * **Model-agnostic.** Local runtimes and cloud providers are both selectable. You supply
@@ -58,15 +61,16 @@ are not notarized yet, so macOS asks you to confirm the first time you open one;
 [Release status](trust/release-status.md) before installing.
 {% endhint %}
 
-## Two modes, stated plainly
+## Two ways to answer, stated plainly
 
-VOOL distinguishes exactly two states, and the interface always shows which one is active:
+VOOL answers in two ways, and the chat header always shows which way the next request
+runs — for example **AUTO** with **Local first**:
 
 1. **Local** — the work stays on this computer.
 2. **Cloud** — the selected context is sent directly to the provider you selected,
    from your machine, using your key.
 
-There is no third state, and there is no Parad0x-operated relay in between. The detail
+There is no Parad0x-operated relay in between. The detail
 is in [Data handling](trust/data-handling.md).
 
 ## Getting help

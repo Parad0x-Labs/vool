@@ -345,6 +345,8 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
 #sessions .arch-head:hover { color:var(--ink); }
 #sessions .side-empty { color:var(--muted); font-size:12px; padding:8px 10px; }
+#sessions .side-loading { color:var(--muted); font-size:12px; padding:8px 10px; }
+.server-turn-working { color:var(--muted); }
 /* Chat/project lifecycle indicator: a compact, terminal-style status tag -- never a progress bar,
    never a percentage, only what the runtime has actually reported. Priority (highest first) is
    needs_user > working > complete_unseen, enforced in chatLifecycleState(), not here -- only one
@@ -640,7 +642,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
 .perm-ico { font-size:15px; flex:0 0 auto; }
 .perm-copy { flex:1 1 auto; min-width:0; }
 .perm-msg { font-weight:650; }
-.perm-meta { color:var(--muted); font-size:11px; line-height:1.45; margin-top:2px; }
+.perm-meta { color:var(--muted); font-size:11px; line-height:1.45; margin-top:2px; overflow-wrap:anywhere; }
 .perm-detail { margin-top:7px; padding:7px 8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--muted); font-size:11px; white-space:pre-wrap; max-height:160px; overflow:auto; }
 .perm-actions { flex:0 0 auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
 .perm-btn { font:inherit; font-size:12.5px; border:1px solid var(--border); background:var(--field); color:var(--ink); border-radius:8px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
@@ -1335,7 +1337,7 @@ body:not(.panel-open) #xpanel { display:none; }
        unconditionally), so the element was permanently hidden. /web0 and /trace are reachable from
        Settings -> Advanced, which is a link that actually works. -->
 </header>
-<div id="offlineBar" class="offline-bar" role="status" hidden><span class="ob-text" id="offlineText">VOOL isn&rsquo;t running right now. Your chats are safe. Reconnecting&hellip;</span><button type="button" id="offlineRetry">Try again</button></div>
+<div id="offlineBar" class="offline-bar" role="status" hidden><span class="ob-text" id="offlineText" data-i18n="chat.offline_bar">VOOL isn&rsquo;t running right now. Your chats are safe. Reconnecting&hellip;</span><button type="button" id="offlineRetry" data-i18n="chat.offline_retry">Try again</button></div>
 <div id="searchBar" class="search-bar" role="search" hidden>
   <input type="search" id="searchInput" class="search-field" placeholder="Search this chat — messages, answers, tool results" autocomplete="off" spellcheck="false" aria-label="Search this chat" data-i18n-placeholder="header.search_placeholder" data-i18n-aria-label="header.search_aria">
   <span id="searchCount" class="search-count" aria-live="polite"></span>
@@ -1616,7 +1618,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <section class="set-sec">
         <h3>Limits <span class="set-sub">power-user caps</span></h3>
         <div class="set-field"><label for="setReserve">Keep free for me <span id="setReserveVal" class="set-num">20%</span> <span class="set-sub2">RAM heavy tasks won&rsquo;t touch</span></label><input type="range" id="setReserve" min="10" max="80" step="5" class="set-range"></div>
-        <div class="set-field row"><label for="setTokenBudget">Daily cloud token budget <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
+        <div class="set-field row"><label for="setTokenBudget">Daily cloud use guide <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
         <p class="set-help">The RAM reserve is enforced live by the resource governor (a bigger reserve means VOOL leaves more for you). The token budget is a guide today &mdash; nothing enforces it yet and the Usage panel below does not chart against it. A hard daily cut-off is coming next.</p>
       </section>
       <div class="set-row" style="margin-bottom:14px">
@@ -1663,7 +1665,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <div id="wsList" class="keys-list" aria-live="polite"></div>
       </section>
       <section class="set-sec">
-        <h3>Token usage <span class="set-sub">local free vs cloud paid</span></h3>
+        <h3>Usage <span class="set-sub">local free vs cloud paid</span></h3>
         <p class="set-help">How many tokens ran free on your local model vs a paid cloud lane, per model. Counts served responses on this machine.</p>
         <div class="usage-tabs" id="usageTabs" role="tablist">
           <button type="button" class="usage-tab" data-range="today" role="tab">Today</button>
@@ -2290,6 +2292,9 @@ function newChatState(chatId) {
     mode: 'manual',
     projectId: '',
     pins: [],
+    // False until a real /api/chat/pins answer set `pins`. The pin panel's "No pinned messages"
+    // row may appear only on that answer -- never from a failed read across a restart.
+    pinsKnown: false,
     stickyModel: '',
     bypassGrant: null,
     approvalToken: '',
@@ -2313,9 +2318,17 @@ function newChatState(chatId) {
     chatLedgerSeen: Object.create(null),
     chatLedgerBusy: false,
     chatLedgerTruncated: false,
+    // True while the chat's event ledger could not be read (fetch threw or answered non-OK) and
+    // nothing has rendered yet: the Activity panel then shows the calm retry row, never its
+    // "no activity" text, which a restart window would otherwise fabricate.
+    ledgerUnreachable: false,
     chatActivityOpen: {},
     recoveredTask: null,
     recoveredActivityOpen: {},
+    // The server's own record that THIS chat has a turn executing right now ({preview} or null),
+    // adopted when this page holds no run of its own -- after a reload or a restart. See
+    // adoptServerRunningTurn; the persisted transcript replaces it when the turn ends.
+    serverTurn: null,
   };
 }
 function chatState(chatId) {
@@ -2483,8 +2496,8 @@ function flushQueuedPatch(id) {
       return;
     }
     _patchRetry.delete(id);
-    toast(res.status === 0 ? "VOOL couldn't be reached, so the new chat name wasn't saved. Try renaming it again."
-      : "Couldn't save the new chat name. Try renaming it again.");
+    toast(res.status === 0 ? pageT('chat.rename_failed_offline', 'VOOL couldn’t be reached, so the new chat name wasn’t saved. Try renaming it again.')
+      : pageT('chat.rename_failed', 'Couldn’t save the new chat name. Try renaming it again.'));
     loadSessions();
   });
 }
@@ -2737,10 +2750,10 @@ function showLoadFailed(chatId) {
   const box = document.createElement('div');
   box.className = 'empty load-failed'; box.setAttribute('role', 'status');
   const h = document.createElement('div'); h.className = 'load-failed-title';
-  h.textContent = "Couldn\u2019t load this chat right now.";
+  h.textContent = pageT('chat.load_failed_title', 'Couldn’t load this chat right now.');
   const p = document.createElement('div'); p.className = 'load-failed-text';
-  p.textContent = "VOOL isn\u2019t reachable at the moment. Your chat is safe and will show again once VOOL is back.";
-  const b = document.createElement('button'); b.type = 'button'; b.className = 'tc-view'; b.textContent = 'Try again';
+  p.textContent = pageT('chat.load_failed_text', 'VOOL isn’t reachable at the moment. Your chat is safe and will show again once VOOL is back.');
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'tc-view'; b.textContent = pageT('chat.load_failed_retry', 'Try again');
   b.addEventListener('click', () => openSession(chatId));
   box.appendChild(h); box.appendChild(p); box.appendChild(b);
   logEl.appendChild(box);
@@ -2900,7 +2913,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
     edit.addEventListener('click', () => resendFromBubble(el, false));
     actions.insertBefore(edit, actions.firstChild);
   }
-  // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
+  // Pin: save this message to the chat so it's findable later (the pin button in the header opens the pinned list).
   const pin = document.createElement('button');
   pin.type = 'button'; pin.className = 'vi msg-act msg-pin'; pin.dataset.ico = 'pin';
   setPinBtn(pin, isPinnedLocal(role, text));
@@ -3066,7 +3079,7 @@ function resendFromBubble(el, sendNow) {
   inputEl.setSelectionRange(text.length, text.length);
 }
 
-// ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
+// ---- Pinned messages: save an answer in a long chat, find it again from the header pin ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
 function setPinBtn(btn, on) { btn.textContent = on ? pageT('pin.pinned', 'Pinned') : pageT('pin.pin', 'Pin'); btn.title = on ? pageT('pin.unpin_title', 'Unpin this message') : pageT('pin.pin_title', 'Pin this message to the chat'); btn.classList.toggle('on', !!on); }
 function updatePinCount() {
@@ -3074,10 +3087,29 @@ function updatePinCount() {
   const n = view.pins.length; const nEl = b.querySelector('.pin-n'); if (nEl) nEl.textContent = n ? String(n) : '';
   b.classList.toggle('has', n > 0);
 }
+const pinsRetry = makeListRetry(function () { loadPins(); });
 async function loadPins() {
   const chatId = displayedChat, target = chatState(chatId);   // owner bound before the await
-  try { const r = await fetch('/api/chat/pins?session=' + encodeURIComponent(chatId)); target.pins = (await r.json()).pins || []; }
-  catch (e) { target.pins = []; }
+  // Only a real OK answer may set the pin list. A fetch that threw or answered non-OK is an
+  // unknown state -- writing [] there made a reload across a restart say "No pinned messages"
+  // for pins that exist. Before the first answer the panel holds the calm retry row; after a
+  // first answer a later failure keeps the last good pins.
+  const failed = function () {
+    if (target.pinsKnown) return;   // keep the last good list
+    pinsRetry.schedule();
+    const o = document.getElementById('pinOverlay');
+    if (o && !o.hidden) renderPinPanel();
+  };
+  try {
+    const r = await fetch('/api/chat/pins?session=' + encodeURIComponent(chatId));
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d || !Array.isArray(d.pins)) { failed(); }
+    else {
+      target.pins = d.pins; target.pinsKnown = true; pinsRetry.settled();
+      const o = document.getElementById('pinOverlay');
+      if (o && !o.hidden) renderPinPanel();   // a retry that lands repaints the open panel
+    }
+  } catch (e) { failed(); }
   updatePinCount();
 }
 async function togglePin(role, text, btn) {
@@ -3102,11 +3134,12 @@ function pinnedMessageEl(p) {
     return String(t.dataset.raw != null ? t.dataset.raw : t.textContent).trim() === want;
   }) || null;
 }
-function openPinPanel() { const o = document.getElementById('pinOverlay'); if (o) { o.hidden = false; renderPinPanel(); } }
+function openPinPanel() { const o = document.getElementById('pinOverlay'); if (o) { o.hidden = false; if (!view.pinsKnown) loadPins(); renderPinPanel(); } }
 function closePinPanel() { const o = document.getElementById('pinOverlay'); if (o) o.hidden = true; }
 function renderPinPanel() {
   const body = document.getElementById('pinBody'); if (!body) return;
   body.innerHTML = '';
+  if (!view.pinsKnown) { body.appendChild(listRetryRow('pin-empty')); return; }   // unknown, not empty
   if (!view.pins.length) {
     const e = document.createElement('div'); e.className = 'pin-empty';
     e.textContent = pageT('pin.empty', 'No pinned messages in this chat yet. Hover any message and hit Pin.');
@@ -3174,7 +3207,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed') : 'Copy failed';
+  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed. Try again.') : 'Copy failed. Try again.';
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -3259,7 +3292,34 @@ function loadCollapsed() { return _jget('vool_project_collapsed', '{}'); }
 function saveCollapsed(c) { localStorage.setItem('vool_project_collapsed', JSON.stringify(c)); }
 let _serverProjects = {};   // {id: {id, name, root, exists}}
 let _lastSessions = [];
+// The sidebar's FIRST answer is a state of its own: until it lands the list is unknown, not
+// empty -- a VOOL restart made that window read as data loss (fresh-test item 14). One quiet
+// row while the ask is out, a retry row when it failed, and the empty state only after the
+// server itself says there are none.
+let sessionsFirstLoadDone = false;   // synced with sessionsLoaded at the first real answer
+let sessionsLoadFailed = false;
+function paintSessionsLoadState() {
+  sessionsEl.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'side-loading';
+  row.setAttribute('role', 'status');
+  row.textContent = sessionsLoadFailed
+    ? pageT('sidebar.load_retry', 'Could not load your chats yet, retrying')
+    : pageT('sidebar.loading', 'Loading your chats…');
+  sessionsEl.appendChild(row);
+}
+// The retry timer itself is the release scheduleSessionsRetry() below (one timer, one law);
+// the shadowed first-load variant was dropped in the 0.7.7 dry-run merge.
 let _sessionCounts = null;   // true per-group chat counts from the server; the page is capped
+// Across a VOOL restart the daemon rebinds its port and the sessions fetch fails or answers
+// "starting" while the store opens; an answer that is not a real list must never render as
+// "No past chats yet." (that reads as lost data). Until the FIRST real answer the list area
+// holds one calm row and loadSessions retries on a growing delay; after a first success a
+// later transient failure keeps the last good list -- same law as refreshProjects above.
+let sessionsLoaded = false;   // false until the first real /api/chat/sessions answer renders
+let sessionsRetryTimer = null;   // at most one pending retry; cleared the moment a real answer lands
+let sessionsRetryDelayMs = 1000;   // grows per failure, resets to 1 s after a real answer
+const SESSIONS_RETRY_MAX_MS = 15000;   // same cap as the connection watcher's healthz backoff
 function loadProjects() { return _serverProjects; }
 async function refreshProjects() {
   try {
@@ -3657,8 +3717,8 @@ async function deleteSession(sid, title) {
   // 404 on a chat whose first turn never finished is the expected answer (nothing on disk yet);
   // the tombstone covers the turn persisting it afterwards. Any other refusal keeps the row.
   if (!res.ok && !(res.status === 404 && (wasRunning || wasPending))) {
-    toast(res.status === 0 ? "VOOL couldn't be reached, so nothing was deleted. Try again in a moment."
-      : "Couldn't delete this chat yet. Try again in a moment.");
+    toast(res.status === 0 ? pageT('chat.delete_failed_offline', 'VOOL couldn’t be reached, so nothing was deleted. Try again in a moment.')
+      : pageT('chat.delete_failed', 'Couldn’t delete this chat yet. Try again in a moment.'));
     await loadSessions();
     return;
   }
@@ -3684,7 +3744,7 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const caret = document.createElement('span'); caret.className = 'proj-caret'; caret.textContent = collapsed ? '▸' : '▾';
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
-  nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
+  nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ✕') : name;
   nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
@@ -4042,6 +4102,7 @@ async function refreshSidebarActivity() {
     const data = await fetchSidebarLifecycle();
     sidebarActivityHistory = Array.isArray(data.sessions) ? data.sessions : sidebarActivityHistory;
   } catch (e) { /* transient; the next tick retries */ }
+  adoptServerRunningTurn(displayedChat);
   maybeRepaintSidebarLifecycle();
   await refreshReminderArtifacts(displayedChat);
   // The queue's bounded fallback wakeup. Common cases never reach here (the sending page's own
@@ -4123,6 +4184,9 @@ function groupCount(pid, pageLength) {
 }
 
 function renderSessions(sessions) {
+  // Until the server has answered the chat list even once, the list is unknown -- never painted
+  // as empty. The loading/retry row is the only thing the sidebar shows in that window.
+  if (!sessionsFirstLoadDone) { paintSessionsLoadState(); return; }
   // A chat that has sent its first message but is not yet in the server's log is overlaid here, so
   // it survives every re-render until the server's own record replaces it.
   _lastSessions = mergePendingSessions(sessions);
@@ -4164,6 +4228,9 @@ function renderSessions(sessions) {
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
     ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
     ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    // Reachable without a mouse, like a project head: the head is a button that opens/closes its group.
+    ph.tabIndex = 0; ph.setAttribute('role', 'button'); ph.setAttribute('aria-expanded', pinCollapsed ? 'false' : 'true');
+    ph.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === ph) { e.preventDefault(); ph.click(); } });
     sessionsEl.appendChild(ph);
     if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
   }
@@ -4179,6 +4246,9 @@ function renderSessions(sessions) {
     gh.appendChild(c); gh.appendChild(n); gh.appendChild(cnt);
     appendLifecycleBadge(gh, aggregateLifecycleState(general));
     gh.addEventListener('click', () => { const cc = loadCollapsed(); cc[GEN_KEY] = !cc[GEN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    // Reachable without a mouse, like a project head: the head is a button that opens/closes its group.
+    gh.tabIndex = 0; gh.setAttribute('role', 'button'); gh.setAttribute('aria-expanded', genCollapsed ? 'false' : 'true');
+    gh.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === gh) { e.preventDefault(); gh.click(); } });
     sessionsEl.appendChild(gh);
     if (!genCollapsed) { for (const s of general) sessionsEl.appendChild(makeSessionItem(s, false, projectIds.length > 0)); }
   }
@@ -4219,7 +4289,7 @@ function startRename(item, titleEl, id) {
     if (save && input.value.trim()) {
       const res = await postSession(id, { title: input.value });
       if (!res.ok) {
-        toast(res.status === 0 ? "VOOL couldn't be reached, so the new name wasn't saved." : "Couldn't rename this chat. Try again.");
+        toast(res.status === 0 ? pageT('chat.rename_failed_offline', 'VOOL couldn’t be reached, so the new chat name wasn’t saved. Try renaming it again.') : pageT('chat.rename_failed', 'Couldn’t save the new chat name. Try renaming it again.'));
         if (input.parentNode) input.parentNode.replaceChild(titleEl, input);   // the old name stays
         return;
       }
@@ -4276,8 +4346,8 @@ async function postSession(id, patch) {
 async function archiveSession(id, archived) {
   const res = await postSession(id, { archived: archived });   // persist the state change immediately
   if (!res.ok) {
-    toast(res.status === 0 ? (archived ? "VOOL couldn't be reached, so the chat wasn't archived." : "VOOL couldn't be reached, so the chat wasn't brought back.")
-      : (archived ? "Couldn't archive this chat. Try again in a moment." : "Couldn't bring this chat back. Try again in a moment."));
+    toast(res.status === 0 ? (archived ? pageT('chat.archive_failed_offline', 'VOOL couldn’t be reached, so the chat wasn’t archived.') : pageT('chat.unarchive_failed_offline', 'VOOL couldn’t be reached, so the chat wasn’t brought back.'))
+      : (archived ? pageT('chat.archive_failed', 'Couldn’t archive this chat. Try again in a moment.') : pageT('chat.unarchive_failed', 'Couldn’t bring this chat back. Try again in a moment.')));
     return;
   }
   // Archiving the ACTIVE thread mid-stream: leave the live output + currentSessionId untouched and
@@ -4288,15 +4358,79 @@ async function archiveSession(id, archived) {
   else loadSessions();
 }
 
+// One quiet row for the sessions area before the first real answer: 'loading' goes up before the
+// first fetch, 'retry' whenever that fetch failed or the store was still opening (the restart
+// window). Once a real answer has rendered, this does nothing -- a later transient failure keeps
+// the last good list rather than repainting over it. Clearing the area here is safe because it
+// only ever runs before the first successful load.
+function paintSessionsState(kind) {
+  if (sessionsLoaded) return;
+  const row = document.createElement('div');
+  if (kind === 'retry') { row.className = 'side-loading'; row.setAttribute('role', 'status'); }
+  else row.className = 'side-empty';
+  row.textContent = kind === 'retry'
+    ? pageT('sidebar.load_retry', 'Could not load your chats yet, retrying')
+    : pageT('sidebar.loading', 'Loading your chats…');
+  sessionsEl.innerHTML = '';
+  sessionsEl.appendChild(row);
+}
+// A failed or not-yet-real answer is never a "no chats" answer: pull the list again on a growing
+// delay (reset after a real answer) instead of leaving the area blank and waiting for the
+// connection watcher's slower healthz backoff to reload the page's data.
+function scheduleSessionsRetry() {
+  clearTimeout(sessionsRetryTimer);
+  sessionsRetryTimer = setTimeout(loadSessions, sessionsRetryDelayMs);
+  sessionsRetryDelayMs = Math.min(Math.round(sessionsRetryDelayMs * 1.6), SESSIONS_RETRY_MAX_MS);
+}
+// The same law, one helper for every other list/panel loader: a fetch that threw or answered
+// anything but a real list is an UNKNOWN state -- it must never render as the surface's empty
+// state, because during a restart that reads as lost data. Each surface owns one of these (one
+// pending timer at most, delay reset by a real answer) and re-runs its own loader on the tick.
+function makeListRetry(reload) {
+  const self = { timer: null, delayMs: 1000 };
+  self.schedule = function () {
+    clearTimeout(self.timer);
+    self.timer = setTimeout(function () { self.timer = null; try { reload(); } catch (e) {} }, self.delayMs);
+    self.delayMs = Math.min(Math.round(self.delayMs * 1.6), SESSIONS_RETRY_MAX_MS);
+  };
+  self.settled = function () { clearTimeout(self.timer); self.timer = null; self.delayMs = 1000; };
+  return self;
+}
+// The one calm row an unknown state paints, in the surface's own empty-row style. No list, no
+// "none yet" -- just that the answer has not landed and the page is asking again.
+function listRetryRow(emptyClass) {
+  const row = document.createElement('div');
+  row.className = emptyClass || 'side-empty';
+  row.setAttribute('role', 'status');
+  row.textContent = pageT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026');
+  return row;
+}
 async function loadSessions() {
   try {
+    if (!sessionsLoaded) paintSessionsState('loading');   // a calm row before the first answer, painted BEFORE the projects await so the sidebar is never blank while it waits
     await refreshProjects();   // server-side project list drives the sidebar grouping
     const r = await fetch('/api/chat/sessions');
-    const data = await r.json();
+    const data = await r.json().catch(() => null);   // an unreadable body is not a list either
+    // Render only on a real answer. An HTTP error, a broken body, or a store still opening
+    // ("starting") must never render as an empty list -- that reads as lost data during a
+    // restart. Retry instead; after a first success the last good list simply stays.
+    if (!r.ok || !data || data.state === 'starting' || !Array.isArray(data.sessions)) {
+      if (!sessionsLoaded) { paintSessionsState('retry'); sessionsLoadFailed = true; }
+      scheduleSessionsRetry();
+      return;
+    }
+    sessionsLoaded = true;
+    sessionsFirstLoadDone = true; sessionsLoadFailed = false;
+    clearTimeout(sessionsRetryTimer); sessionsRetryTimer = null; sessionsRetryDelayMs = 1000;
     _sessionCounts = (data && typeof data.counts === 'object') ? data.counts : null;
-    renderSessions(data.sessions || []);
+    renderSessions(data.sessions);
     await restoreChatBypass(displayedChat);
-  } catch (e) {}
+  } catch (e) {
+    // The fetch itself threw -- the daemon is rebinding its port across a restart. Same law as
+    // above: never a fake-empty list, retry on the growing delay.
+    if (!sessionsLoaded) { paintSessionsState('retry'); sessionsLoadFailed = true; }
+    scheduleSessionsRetry();
+  }
 }
 
 // Paint a chat: its transcript from its OWN bucket, and -- if it owns a run -- that run's card,
@@ -4325,8 +4459,11 @@ function renderChat(chatId) {
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
-  const councilRows = [];
+  if (!st.history.length && !run && !st.serverTurn) {
+    showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []);
+    if (isDisplayed(chatId)) setupLineReflect();   // an empty chat is the setup line's one home
+    return;
+  }  const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
     if (isPrivateEntry(m)) markPrivateMsg(el);
@@ -4340,6 +4477,14 @@ function renderChat(chatId) {
   });
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
+  // A turn the SERVER is still executing (this page reloaded mid-answer): its request text and a
+  // working row come from the server's own record. Nothing here invents an answer; the persisted
+  // transcript replaces both rows when the turn ends.
+  if (st.serverTurn && !run) {
+    if (st.serverTurn.preview) addMsg('user', st.serverTurn.preview);
+    const working = addMsg('assistant', pageT('chat.turn_working', 'Working on your message…'));
+    if (working && working.classList) working.classList.add('server-turn-working');
+  }
   privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
   // A rebuilt transcript keeps its interrupted-reply note: a question cut off by a restart (boot
@@ -4349,11 +4494,55 @@ function renderChat(chatId) {
   followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
+  if (isDisplayed(chatId)) setupLineReflect();   // a chat with a transcript (or a live run) is not new
 }
 
 // Restore the single permission bar for the chat now on screen: show ITS pending request, or hide
 // the bar entirely. A grant raised in a background chat is held in that chat's bucket and painted
 // only when the user is actually looking at it.
+// A pending approval is the server's (core.mode_permission_policy keeps it, mirrored to disk), not
+// this page's: the stream that carried it ends with the turn. Rebuilt from the store when a chat
+// reaches the screen, so a reload, a restart or a turn sent from another window still offers
+// Allow / Deny. Measured on 1cbf433: after a reload the chat said "needs your approval" and no
+// button existed anywhere, the bell offered only Dismiss.
+async function restorePendingApproval(chatId) {
+  const owner = chatState(chatId);
+  if (owner.pendingApproval || (owner.run && !owner.run.ended)) return;
+  let rows = [];
+  try {
+    const data = await fetchJsonWithin('/api/chat/approvals?session=' + encodeURIComponent(chatId), null, 8000);
+    rows = Array.isArray(data && data.approvals) ? data.approvals : [];
+  } catch (e) { return; }
+  // The chat may have started a turn, or answered the prompt, while the read was out.
+  if (owner.pendingApproval || (owner.run && !owner.run.ended)) return;
+  owner.approvalAskedElsewhere = false;
+  for (let r = rows.length - 1; r >= 0; r--) {
+    const a = rows[r];
+    const asked = String(a.request_text || '').trim();
+    // A grant is bound to the turn that asked (its task id). A turn sent without one (another
+    // client) cannot be resumed from here under the same identity: Allow would only ask again.
+    if (!asked || !String(a.task_id || '')) { owner.approvalAskedElsewhere = true; continue; }
+    // Allow re-sends the message that asked, so it must be found exactly; a prompt whose message
+    // is not in this transcript is not offered (there would be nothing to resume).
+    let index = -1;
+    for (let i = owner.history.length - 1; i >= 0; i--) {
+      const h = owner.history[i];
+      if (h.role === 'user' && String(h.content || '').trim() === asked) { index = i; break; }
+    }
+    if (index < 0) { owner.approvalAskedElsewhere = true; continue; }
+    const reply = index + 1;
+    owner.pendingApprovalRun = {
+      promptEntry: owner.history[index],
+      turnId: String(a.task_id),
+      historyIndex: (reply < owner.history.length && owner.history[reply].role === 'assistant') ? reply : -1,
+    };
+    owner.approvalAskedElsewhere = false;
+    showPermBar(chatId, { approval: a });
+    if (isDisplayed(chatId)) paintRecoveryNote(owner);
+    return;
+  }
+  if (owner.approvalAskedElsewhere && isDisplayed(chatId)) paintRecoveryNote(owner);
+}
 function reflectPermBar() {
   const pending = view.pendingApproval;
   const run = view.run;
@@ -4398,16 +4587,19 @@ async function openSession(id) {
   if (!view.run && !view.history.length) {
     try {
       const r = await fetch('/api/chat/history?session=' + encodeURIComponent(id));
-      if (r.status >= 500) historyUnreachable = true;
-      const data = await r.json();
+      // Any non-OK answer or unreadable body is not a transcript. Rendering it as an empty chat
+      // would read as lost messages, so it routes to the load-failed state below instead.
+      if (!r.ok) historyUnreachable = true;
+      const data = await r.json().catch(() => null);
+      if (!data) historyUnreachable = true;
       chatState(id).privateChat = !!(data && data.private_chat);
-      if (isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
+      if (data && isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
         if (m.role === 'assistant') {
           const normalized = splitAssistantDisplayContent(m.content, m.display_metadata);
           view.history.push({ ...historyEntryFromServer(m), content: normalized.content, display_metadata: normalized.display_metadata });
         } else view.history.push(historyEntryFromServer(m));
       }
-    } catch (e) { if (isNetworkFailure(e)) historyUnreachable = true; }
+    } catch (e) { historyUnreachable = true; }
   }
   if (!isDisplayed(id)) return;   // the user moved on again while we were fetching
   restoreStagedAttachments(id);   // a draft left unsent in this chat comes back with the chat
@@ -4417,6 +4609,8 @@ async function openSession(id) {
   if (!isDisplayed(id)) return;
   reflectComposer();
   reflectPermBar();
+  // Not awaited: opening a chat never waits on this read. It paints only if the chat is still shown.
+  restorePendingApproval(id);
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue(id);
@@ -4457,6 +4651,7 @@ function newChat() {
   reflectModel();       // a new chat starts back on local-first Auto (its bucket has no sticky)
   reflectComposer(); hidePermBar();
   showEmpty();
+  setupLineReflect();   // a brand-new empty chat is where the setup line may appear
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue();
@@ -4526,6 +4721,7 @@ async function newChatInProject(pid) {
   reflectModel();
   reflectComposer(); hidePermBar();
   showEmpty();
+  setupLineReflect();   // same law as newChat(): a minted chat starts empty
   document.body.classList.remove('sidebar-open');
   if (pid) {
     let bound = false;
@@ -4539,7 +4735,7 @@ async function newChatInProject(pid) {
       // project's memory into a chat the UI called isolated.
       view.projectId = '';
       renderContextBar();
-      toast(emptyT('chat.toast_project_failed', 'Could not put this chat in the project — it is NOT isolated. Try again.'));
+      toast(emptyT('chat.toast_project_failed', 'Could not put this chat in the project, so it is not isolated there. Try again.'));
     } else {
       if (isDisplayed(sid)) applyProjectModel(pid);
     }
@@ -4573,7 +4769,14 @@ async function restoreCurrent() {
   const target = chatState(chatId);
   try {
     const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
-    const data = await r.json();
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data) {
+      // A failed read is not an empty chat: boot across a restart used to fall through to the
+      // greeting here, which read as every chat lost. The load-failed state says what is true,
+      // and the connection watcher re-opens the chat once VOOL answers again.
+      if (isDisplayed(chatId) && !target.run && !target.history.length) showLoadFailed(chatId);
+      return;
+    }
     target.privateChat = !!(data && data.private_chat);
     if (isDisplayed(chatId)) reflectPrivate();
     // The operator may have sent a turn while this snapshot was in flight.
@@ -4585,14 +4788,16 @@ async function restoreCurrent() {
       for (const m of msgs) target.history.push(historyEntryFromServer(m));
       // One render path for every way a chat reaches the screen, so boot and re-open cannot drift.
       if (isDisplayed(chatId)) renderChat(chatId);
+      restorePendingApproval(chatId);
     } else if (isDisplayed(chatId)) {
-      showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      showEmpty();  // a real OK answer with no messages: the greeting, never a blank static screen
       privateReloadNote(target);
     }
+    // Boot hydration just resolved this chat's emptiness: reflect it, so a restored transcript
+    // cannot keep (or flash) the line that the pre-hydration empty bucket allowed.
+    if (isDisplayed(chatId)) setupLineReflect();
   } catch (e) {
-    if (isDisplayed(chatId) && !target.run && !target.history.length) {
-      if (isNetworkFailure(e)) showLoadFailed(chatId); else showEmpty();
-    }
+    if (isDisplayed(chatId) && !target.run && !target.history.length) showLoadFailed(chatId);
   }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat
 }
@@ -5411,7 +5616,7 @@ function mountAnswerExport(host, chatId, requestId) {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
-        if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
+        if (!result.ok && !result.cancelled) { throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.')); }
         status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
@@ -5419,17 +5624,17 @@ function mountAnswerExport(host, chatId, requestId) {
           + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || ''));
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
+          throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.'));
         }
         const blob = await response.blob();
-        if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
+        if (!/^application\/pdf\b/i.test(blob.type)) { throw new Error(label('msg.pdf_failed', 'PDF export failed. Try again.')); }
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = downloadFilenameFrom(response.headers.get('Content-Disposition'), 'VOOL answer.pdf');
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || label('msg.pdf_failed', 'PDF export failed'); }
+    } catch (error) { status.textContent = label('msg.pdf_failed', 'PDF export failed. Try again.'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -5828,7 +6033,7 @@ function reflectComposer() {
   if (sendEl) {
     sendEl.disabled = locked;
     sendEl.textContent = locked ? pageT('composer.council', 'Council')
-      : (isChatBusy(displayedChat) ? pageT('composer.queue', 'Queue') : pageT('composer.send', 'Send'));
+      : (isChatBusy(displayedChat) ? pageT('composer.queue', 'Wait and send') : pageT('composer.send', 'Send'));
   }
   const lockEl = document.getElementById('councilLock');
   if (lockEl) {
@@ -6372,11 +6577,11 @@ function reviewStatePresentation(value) {
     not_run: { cls: '', icon: '', label: '', evidence: '', detail: '', meta: '' },
     running: { cls: 'run', icon: '»', label: running, evidence: running, detail: T('run.review.detail.running', 'no reviewer verdict recorded yet'), meta: T('run.review.meta.running', 'model review running') },
     passed: { cls: 'ok', icon: '✓', label: T('run.review.label.passed', 'Independent review passed'), evidence: T('run.review.evidence.passed', 'Model-reviewed — passed'), detail: T('run.review.detail.passed', 'reviewer model returned PASS — this is not validation or answer proof'), meta: T('run.review.meta.passed', 'model review passed') },
-    flagged: { cls: 'fail', icon: '⚠', label: flagged, evidence: flagged, detail: T('run.review.detail.flagged', 'reviewer executed and returned a flagged verdict — this is not validation proof'), meta: T('run.review.meta.flagged', 'review flagged') },
-    blocked: { cls: 'fail', icon: '⚠', label: unavailable, evidence: unavailable, detail: T('run.review.detail.blocked', 'review was blocked before a reviewer verdict was produced'), meta: T('run.review.meta.blocked', 'model review blocked') },
-    degraded: { cls: 'fail', icon: '⚠', label: degraded, evidence: degraded, detail: T('run.review.detail.degraded', 'review path was degraded or unavailable; no reviewer verdict was produced'), meta: T('run.review.meta.degraded', 'model review degraded') },
-    runtime_failed: { cls: 'fail', icon: '⚠', label: failedToRun, evidence: failedToRun, detail: T('run.review.detail.runtime_failed', 'review execution failed before producing a valid verdict'), meta: T('run.review.meta.runtime_failed', 'model review failed to run') },
-    unavailable: { cls: 'fail', icon: '⚠', label: unavailable, evidence: unavailable, detail: T('run.review.detail.unavailable', 'legacy review evidence is ambiguous; no reviewer verdict can be inferred'), meta: T('run.review.meta.unavailable', 'model review unavailable') },
+    flagged: { cls: 'fail', icon: '✕', label: flagged, evidence: flagged, detail: T('run.review.detail.flagged', 'reviewer executed and returned a flagged verdict — this is not validation proof'), meta: T('run.review.meta.flagged', 'review flagged') },
+    blocked: { cls: 'fail', icon: '✕', label: unavailable, evidence: unavailable, detail: T('run.review.detail.blocked', 'review was blocked before a reviewer verdict was produced'), meta: T('run.review.meta.blocked', 'model review blocked') },
+    degraded: { cls: 'fail', icon: '✕', label: degraded, evidence: degraded, detail: T('run.review.detail.degraded', 'review path was degraded or unavailable; no reviewer verdict was produced'), meta: T('run.review.meta.degraded', 'model review degraded') },
+    runtime_failed: { cls: 'fail', icon: '✕', label: failedToRun, evidence: failedToRun, detail: T('run.review.detail.runtime_failed', 'review execution failed before producing a valid verdict'), meta: T('run.review.meta.runtime_failed', 'model review failed to run') },
+    unavailable: { cls: 'fail', icon: '✕', label: unavailable, evidence: unavailable, detail: T('run.review.detail.unavailable', 'legacy review evidence is ambiguous; no reviewer verdict can be inferred'), meta: T('run.review.meta.unavailable', 'model review unavailable') },
   };
   return presentations[state] || presentations.unavailable;
 }
@@ -6705,9 +6910,12 @@ function visibleTabs() {
   };
   return PANEL_TABS.filter((t) => has[t]);
 }
-// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log).
+// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log):
+// visibility, counts, copy and the catalog lookup all keep using the key, while a person reads the
+// plain word below it. A key with no entry here shows its own name, as before.
+const PANEL_TAB_PLAIN_WORDS = { 'Event log': 'History', 'Receipts': 'Records' };
 function panelTabLabel(name) {
-  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), name);
+  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), PANEL_TAB_PLAIN_WORDS[name] || name);
 }
 function buildTabs() {
   xpTabsEl.innerHTML = '';
@@ -6823,14 +7031,14 @@ const LEDGER_MAP = {
   model_lane_started:           ['run', '◆', 'Model running'],
   model_lane_completed:         ['ok',  '◆', 'Model answered'],
   model_verification_receipt:   ['meta', '≡', 'Model identity receipt'],
-  model_lane_failed:            ['fail','⚠', 'Model call failed'],
-  model_lane_contract_failed:   ['fail','⚠', 'Model output rejected'],
+  model_lane_failed:            ['fail','✕', 'Model call failed'],
+  model_lane_contract_failed:   ['fail','✕', 'Model output rejected'],
   model_lane_verifier_started:  ['run', '»', 'Model review running'],
   model_lane_verifier_completed:['ok',  '✓', 'Independent review passed'],
-  model_lane_verifier_degraded: ['fail','⚠', 'Model review degraded'],
-  model_lane_verifier_flagged:  ['fail','⚠', 'Review flagged'],
-  model_lane_verifier_blocked:  ['fail','⚠', 'Model review unavailable'],
-  model_lane_verifier_failed:   ['fail','⚠', 'Model review failed to run'],
+  model_lane_verifier_degraded: ['fail','✕', 'Model review degraded'],
+  model_lane_verifier_flagged:  ['fail','✕', 'Review flagged'],
+  model_lane_verifier_blocked:  ['fail','✕', 'Model review unavailable'],
+  model_lane_verifier_failed:   ['fail','✕', 'Model review failed to run'],
   // Attachment receipts (core/chat_attachments.py via the API door and the router): what was
   // attached, refused, sent with a message, read or withheld by a model, and released after.
   attachment_staged:            ['ok',  '\u{1F4CE}', 'Attached'],
@@ -6848,29 +7056,29 @@ const LEDGER_MAP = {
   tool_fallback_to_research:    ['run', '»', 'Falling back to research'],
   tool_loop_resumed:            ['run', '▸', 'Resumed tools'],
   tool_loop_completed:          ['ok',  '✓', 'Tools done'],
-  tool_repeat_blocked:          ['fail','⚠', 'Repeated tool blocked'],
+  tool_repeat_blocked:          ['fail','✕', 'Repeated tool blocked'],
   tool_synthesizing:            ['run', '»', 'Synthesizing'],
   workflow_planner_step:        ['run', '»', 'Plan step'],
   workflow_planner_stop:        ['ok',  '✓', 'Plan complete'],
   task_pending_approval:        ['wait','⏸', 'Waiting for approval'],
-  task_interrupted:             ['fail','⚠', 'Interrupted'],
+  task_interrupted:             ['fail','✕', 'Interrupted'],
   task_completed:               ['ok',  '✓', 'Completed'],
   task_failed:                  ['fail','✕', 'Failed'],
-  stale_result_rejected:        ['fail','⚠', 'Stale result rejected'],
-  model_routing_failed:         ['fail','⚠', 'Routing failed'],
+  stale_result_rejected:        ['fail','✕', 'Stale result rejected'],
+  model_routing_failed:         ['fail','✕', 'Routing failed'],
   // The canonical workspace-mutation receipts emitted by core/runtime_execution_tools.py. These are
   // the only events that testify a file on disk actually changed; without them keyed here they fell
   // to the ['run','•',''] default and rendered as an unlabelled bullet.
   workspace_mutation_completed:          ['ok',  '✎', 'File changed'],
   workspace_mutation_rollback_completed: ['ok',  '↩', 'Change rolled back'],
   workspace_mutation_failed:             ['fail','✕', 'File change failed'],
-  workspace_mutation_rollback_conflict:  ['fail','⚠', 'Rollback conflict'],
+  workspace_mutation_rollback_conflict:  ['fail','✕', 'Rollback conflict'],
   // The router emits TWO shapes: model_lane_* for the lane timeline and DOTTED model.call_* for each
   // per-adapter call. Only the underscore names were keyed here, so every dotted type fell to the
   // ['run','•',''] default and rendered as a bare bullet with no label and no sub-line.
   'model.call_started':              ['run', '◆', 'Model running'],
   'model.call_completed':            ['ok',  '◆', 'Model answered'],
-  'model.call_failed':               ['fail','⚠', 'Model call failed'],
+  'model.call_failed':               ['fail','✕', 'Model call failed'],
   'model.response_constraint_retry': ['run', '»', 'Retrying for output shape'],
   // Retrieval receipts (core/retrieval_observability.py, core/fresh_data/fx.py). Unkeyed, a FAILED
   // retrieval fell to ['run','•',''] and drew a neutral running bullet reading "Web retrieval
@@ -8501,25 +8709,37 @@ function scopeCandidateSessionIds() {
 }
 async function loadScopedEvidence() {
   const key = scopeKey();
-  if (panelScope === 'chat') { scopedEvidence = { key: key, loading: false, sessions: [], dropped: 0 }; return; }
+  if (panelScope === 'chat') { scopedEvidence = { key: key, loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 }; return; }
   if (scopedEvidence.key === key) return;                  // already loaded or loading for this scope
-  scopedEvidence = { key: key, loading: true, sessions: [], dropped: 0 };
+  scopedEvidence = { key: key, loading: true, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
   const ids = scopeCandidateSessionIds();
   const capped = ids.slice(0, SCOPE_SESSION_CAP);
   const out = [];
+  let failedReads = 0, answered = 0;
   for (const sid of capped) {
     try {
       const r = await fetch('/api/runtime/events?session=' + encodeURIComponent(sid) + '&limit=200');
-      if (!r.ok) continue;
+      if (!r.ok) { failedReads++; continue; }
       const d = await r.json();
+      answered++;
       const events = d.events || [];
       if (events.length) out.push({ session_id: sid, title: chatTitleFor(sid), events: events });
-    } catch (e) { /* one unreadable chat must not empty the whole scope */ }
+    } catch (e) { failedReads++; /* one unreadable chat must not empty the whole scope */ }
   }
   if (scopeKey() !== key) return;                          // the user moved on mid-load
-  scopedEvidence = { key: key, loading: false, sessions: out, dropped: Math.max(0, ids.length - capped.length) };
+  scopedEvidence = { key: key, loading: false, sessions: out, dropped: Math.max(0, ids.length - capped.length), failedReads: failedReads, answered: answered };
+  // Every read in the scope failed: the events are unknown, not absent. Ask again on the growing
+  // delay rather than leaving a scope-empty text standing in for a panel VOOL never answered.
+  if (failedReads && !answered) scopedEvidenceRetry.schedule();
+  else scopedEvidenceRetry.settled();
   renderPanelBody();
 }
+// The wide-scope event sweep's own retry: a re-read has to clear the cached key first, or
+// loadScopedEvidence would treat the failed sweep as already loaded for this scope.
+const scopedEvidenceRetry = makeListRetry(function () {
+  scopedEvidence = { key: '', loading: false, sessions: [], dropped: 0, failedReads: 0, answered: 0 };
+  loadScopedEvidence();
+});
 function scopeNoteHtml() {
   const note = document.getElementById('xpScopeNote');
   if (!note) return;
@@ -8536,6 +8756,9 @@ function scopeNoteHtml() {
 // After a page refresh there's no view.run; rebuild the LAST turn's timeline from the ledger so the
 // Activity panel is never blank when the user looks back at what just happened.
 let activityHistory = [];
+// True once /api/runtime/sessions has really answered. Until then a wide-scope panel has NO
+// answer, and "no activity yet" would be fabricated from a failed fetch.
+let activityHistoryKnown = false;
 let sidebarActivityHistory = [];
 let sidebarLifecycleRequest = null;
 function fetchSidebarLifecycle() {
@@ -8544,6 +8767,50 @@ function fetchSidebarLifecycle() {
       .finally(() => { sidebarLifecycleRequest = null; });
   }
   return sidebarLifecycleRequest;
+}
+// A reload throws away every run this page held, but the server keeps executing the turn. The
+// lifecycle rows are the page's evidence: status 'running' with a live worker means a turn of
+// THIS chat is in flight right now, whatever this page's own state says.
+function serverRunningRow(chatId) {
+  const id = String(chatId || '');
+  if (!id) return null;
+  for (const row of (sidebarActivityHistory || [])) {
+    if (row && row.session_id === id && row.status === 'running' && row.worker_live === true) return row;
+  }
+  return null;
+}
+// Adopt the server's running turn for a chat this page cannot otherwise show. After a reload
+// mid-answer the transcript reads empty (a turn reaches the log only when it ends), so the chat
+// looked brand new and its queued message like an orphan on it. This paints the turn's own
+// request text plus a working row -- from the server's record, never invented words -- and keeps
+// a sidebar row for the chat until the server's chat list knows it. When the turn ends, the
+// transcript is re-read and the serverTurn painting is dropped.
+function adoptServerRunningTurn(chatId) {
+  const id = String(chatId || '');
+  if (!id) return;
+  const owner = chatState(id);
+  const row = serverRunningRow(id);
+  if (!row) {
+    if (!owner.serverTurn) return;
+    owner.serverTurn = null;
+    // Off the screen at once: the working row is gone the moment the server stops saying the
+    // turn runs. The finished words arrive with the re-reads below.
+    if (isDisplayed(id)) renderChat(id);
+    // The turn's log row can land just after the lifecycle flip, so read now and once more.
+    restoreCurrent(id);
+    setTimeout(function () { restoreCurrent(id); }, 3000);
+    loadSessions();
+    return;
+  }
+  // This page's own run paints the turn; a claim being decided may become one any moment.
+  if ((owner.run && !owner.run.ended) || owner.pumpHold) return;
+  if (!_lastSessions.some(function (s) { return s.session_id === id && !s.pending; })) {
+    ensureSessionInSidebar(id, String(row.request_preview || ''));
+  }
+  const preview = String(row.request_preview || '');
+  if (owner.serverTurn && owner.serverTurn.preview === preview) return;
+  owner.serverTurn = { preview: preview };
+  if (isDisplayed(id)) renderChat(id);
 }
 let runtimeActivityRequest = null;
 function fetchRuntimeActivity() {
@@ -8563,9 +8830,15 @@ async function loadActivityHistory() {
   try {
     const data = await fetchRuntimeActivity();
     activityHistory = Array.isArray(data.sessions) ? data.sessions : [];
+    activityHistoryKnown = true;
     target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available)
       || interruptedQuestion(target) || null;
-  } catch (e) { activityHistory = []; target.recoveredTask = interruptedQuestion(target); }
+  } catch (e) {
+    // A failed read is not "no activity": keep the last good list (and the unknown mark until
+    // a first real answer lands, so the panel never claims an empty it did not read). A question
+    // this chat itself shows as cut off still gets its note.
+    if (!target.recoveredTask) target.recoveredTask = interruptedQuestion(target);
+  }
   renderPanel();
   if (isDisplayed(chatId)) paintRecoveryNote(target);
 }
@@ -8583,20 +8856,40 @@ function paintRecoveryNote(st) {
   if (!logEl) return;
   const old = logEl.querySelector('.recovery-note');
   if (!st || !st.recoveredTask) { if (old) old.remove(); return; }
-  if (old) return;
   const h = st.recoveredTask.execution_history || {};
   const asked = String(h.request_preview || st.recoveredTask.request_preview || '').trim();
+  const waiting = String(st.recoveredTask.status || h.status || '') === 'pending_approval';
+  // A chat waiting for an OK was not interrupted: VOOL did not stop, it is asking, and the
+  // permission bar (restorePendingApproval) is where it is answered. No note competes with it.
+  if (waiting && st.pendingApproval) { if (old) old.remove(); return; }
+  // The note says what is true NOW: a restore that learns the prompt was asked elsewhere repaints it.
+  const state = !waiting ? 'interrupted' : (st.approvalAskedElsewhere ? 'elsewhere' : 'expired');
+  if (old && old.dataset.state === state) return;
+  if (old) old.remove();
   const note = document.createElement('div');
+  note.dataset.state = state;
   note.className = 'recovery-note'; note.setAttribute('role', 'status');
   const text = document.createElement('div');
   const resumable = !st.recoveredTask.interruptedOnly;
-  text.textContent = 'Reply interrupted: VOOL stopped before it finished answering.'
-    + (asked && resumable ? ' You asked: \u201c' + asked.slice(0, 180) + '\u201d' : '')
-    + (resumable ? ' Ask again, or resume or cancel the saved work.' : (asked.endsWith('...') ? ' Ask it again to get the answer.' : ' Press Ask again to get the answer.'));
+  // Every sentence of the note reads through the catalog, so it speaks the person's language.
+  const youAsked = (n) => ' ' + pageTF('recovery.you_asked', 'You asked: “{question}”', { question: asked.slice(0, n) });
+  if (!waiting) {
+    text.textContent = pageT('permissions.recovery_interrupted', 'Reply interrupted: VOOL stopped before it finished answering.')
+      + (asked && resumable ? youAsked(180) : '')
+      + ' ' + (resumable ? pageT('recovery.ask_again_or_resume', 'Ask again, or resume or cancel the saved work.')
+        : (asked.endsWith('...') ? pageT('recovery.ask_it_again', 'Ask it again to get the answer.')
+          : pageT('recovery.press_ask_again', 'Press Ask again to get the answer.')));
+  } else {
+    // A request that was waiting for an OK: say whether it can still be answered here.
+    const quoted = asked ? youAsked(160) : '';
+    text.textContent = st.approvalAskedElsewhere
+      ? pageT('recovery.waiting_elsewhere', 'This request is waiting for your OK, but it was sent from somewhere else, so it cannot be allowed here.') + quoted + ' ' + pageT('recovery.send_again', 'Send it again here to allow it, or cancel it.')
+      : pageT('recovery.waiting_expired', 'This request was waiting for your OK, and that question is no longer open.') + quoted + ' ' + pageT('recovery.resume_or_cancel', 'You can resume it or cancel it.');
+  }
   note.appendChild(text);
   if (resumable) {
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
+    btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = pageT('permissions.recovery_resume_or_cancel', 'Resume or cancel…');
     btn.addEventListener('click', () => openPanel());
     note.appendChild(btn);
   }
@@ -8604,7 +8897,7 @@ function paintRecoveryNote(st) {
   // nothing of it was kept). Offered only when the question itself is known.
   if (asked && !asked.endsWith('...')) {
     const again = document.createElement('button');
-    again.type = 'button'; again.className = 'tc-view'; again.textContent = 'Ask again';
+    again.type = 'button'; again.className = 'tc-view'; again.textContent = pageT('recovery.ask_again', 'Ask again');
     again.addEventListener('click', async () => {
       const sid = displayedChat;
       if (isChatBusy(sid)) return;
@@ -8643,7 +8936,9 @@ function renderActivityHistoryHtml() {
     const bounded = h.bounded_execution || {};
     const task = h.request_preview || item.request_preview || h.title || 'Task';
     const status = h.request_state_label || h.status || item.status || 'unknown';
-    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
+    // A session this page has no name for came from somewhere else: say that in words
+    // instead of leaking a slice of its session id.
+    const chatTitle = chat.title || pageT('permissions.activity_chat_fallback', 'Another window');
     const evidence = [];
     if (h.latest_tool) evidence.push('last action ' + h.latest_tool);
     if (Array.isArray(h.changed_paths) && h.changed_paths.length) evidence.push(h.changed_paths.length + ' file' + (h.changed_paths.length === 1 ? '' : 's') + ' changed');
@@ -8744,23 +9039,30 @@ function wireActivityPanelActions() {
       button.disabled = true;
       try {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
-        const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+        const d = await r.json(); if (!r.ok) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
         view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
-      } catch (e) { button.disabled = false; toast(pageT('recovery.cancel_failed_prefix', 'Could not cancel recovered task: ') + e.message); }
+      } catch (e) { button.disabled = false; toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     }
   }));
 }
+const ledgerRetry = makeListRetry(function () { loadRecoveredLedger(); });
 async function loadRecoveredLedger() {
   const chatId = displayedChat;           // owner bound before the first await, as above
   const target = chatState(chatId);
   target.recoveredActivityOpen = {};
   try {
-    let cursor = 0, pages = 0, truncated = false;
+    let cursor = 0, pages = 0, truncated = false, readAny = false;
     while (pages < 8) {
       pages++;
       const res = await fetch('/api/runtime/events?session=' + encodeURIComponent(chatId) + '&after=' + cursor + '&limit=200');
-      if (!res.ok) break;
+      if (!res.ok) {
+        // A non-OK answer is not an empty ledger: while nothing has rendered, the panel must say
+        // the state is unknown (see ledgerUnreachable), not "no activity".
+        if (pages === 1 && !target.chatLedger.length) target.ledgerUnreachable = true;
+        break;
+      }
       const d = await res.json();
+      readAny = true;
       const more = d.events || [];
       for (const event of more) appendToChatLedger(target, event);
       if (typeof d.next_after === 'number') cursor = d.next_after;
@@ -8778,6 +9080,8 @@ async function loadRecoveredLedger() {
     let lastTurn = '';
     for (let i = events.length - 1; i >= 0; i--) { if (events[i].client_turn_id) { lastTurn = events[i].client_turn_id; break; } }
     target.recoveredLedger = lastTurn ? events.filter((e) => e.client_turn_id === lastTurn) : events.slice(-40);
+    if (readAny) { target.ledgerUnreachable = false; ledgerRetry.settled(); }
+    else if (target.ledgerUnreachable) ledgerRetry.schedule();
   } catch (e) {
     // Hydration is a merge into immutable runtime-event identity, not a destructive replacement.
     // A transient refresh failure must not erase live events already rendered for this chat.
@@ -8785,6 +9089,7 @@ async function loadRecoveredLedger() {
     let lastTurn = '';
     for (let i = existing.length - 1; i >= 0; i--) { if (existing[i].client_turn_id) { lastTurn = existing[i].client_turn_id; break; } }
     target.recoveredLedger = lastTurn ? existing.filter((event) => event.client_turn_id === lastTurn) : existing.slice(-40);
+    if (!existing.length) { target.ledgerUnreachable = true; ledgerRetry.schedule(); }
   }
 }
 function renderPanel() {
@@ -8796,6 +9101,15 @@ function renderPanel() {
   return renderPanelBody();
 }
 let lastActivityBodySig = '';
+// The panel's one-row fallback when nothing rendered: the calm retry row while the underlying
+// read failed (a failed read is not "no activity"), and the scope's true-empty text only after a
+// real answer. Chat scope reads the chat's own ledger; wider scopes read the runtime session list.
+function panelActivityEmptyRow() {
+  if (panelScope === 'chat' ? !!view.ledgerUnreachable : !activityHistoryKnown) return listRetryRow('xp-empty');
+  const e = document.createElement('div'); e.className = 'xp-empty';
+  e.textContent = emptyScopeText(pageT('panel.kind_activity', 'activity'));
+  return e;
+}
 function renderPanelBody() {
   updateTabCounts();
   if (!document.body.classList.contains('panel-open')) return;
@@ -8812,6 +9126,7 @@ function renderPanelBody() {
       sigRun ? (sigRun.chatId + ':' + sigRun.start) : 'none',
       (view.chatLedger || []).length, (view.recoveredLedger || []).length,
       (view.activityHistory || []).length, (view.scopedEvidence && view.scopedEvidence.sessions ? view.scopedEvidence.sessions.length : 0),
+      !!view.ledgerUnreachable, activityHistoryKnown,
       sigRun ? (sigRun.ledger || []).length : 0, sigRun ? sigRun.steps.length : 0,
       sigRun ? (sigRun.ended ? ('end:' + sigRun.status) : 'live') : '',
       sigRun ? String(sigRun.model || '') : '',
@@ -8847,11 +9162,12 @@ function renderPanelBody() {
       // claimed. It used to be the last turn only.
       restored += renderChatActivity(view, { live: false });
       restored += renderActivityHistoryHtml();
-      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>';
+      body.innerHTML = restored;
+      if (!restored) body.appendChild(panelActivityEmptyRow());
       xpBodyEl.dataset.activityRendered = '1';
       wireActivityPanelActions(); return;
     }
-    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>'; return;
+    body.appendChild(panelActivityEmptyRow()); return;
   }
   let html = '';
   if (panelTab === 'Steps') {
@@ -9021,6 +9337,9 @@ function renderAgents(body) {
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
     if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.reading_scope', 'Reading activity for {scope}\u2026', { scope: scopeWhere() })) + '</div>'; return; }
+    // A sweep where every read failed leaves the events unknown: the calm retry row, never the
+    // scope-empty text (a chat that really answered with no events keeps that text true).
+    if (!scopedEvidence.sessions.length && scopedEvidence.failedReads && !scopedEvidence.answered) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026')) + '</div>'; return; }
     if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
@@ -9052,7 +9371,9 @@ async function renderReceipts(body) {
   if (panelScope !== 'chat') { renderScopedReceipts(body); return; }
   try {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
-    const d = await r.json();
+    const d = await r.json().catch(() => null);
+    // A failed read is not "no receipts": only a real OK answer may show the empty state.
+    if (!r.ok || !d) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; return; }
     const list = d.receipts || [];
     if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
@@ -9066,7 +9387,7 @@ async function renderReceipts(body) {
     list.slice().reverse().forEach((rc) => { html += receiptRowHtml(rc); });
     body.innerHTML = html;
     wireReceiptActions(body, list);
-  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; }
+  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; }
 }
 // The store keeps issued_at as an epoch float. Shown raw it is not a time anyone can read, so it
 // is rendered as a local timestamp; the untouched receipt is still what "Copy receipt" hands over.
@@ -9075,16 +9396,19 @@ async function renderScopedReceipts(body) {
   const ids = scopeCandidateSessionIds();
   const capped = ids.slice(0, SCOPE_SESSION_CAP);
   const groups = [];
+  let failed = 0;
   for (const sid of capped) {
     try {
       const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(sid));
-      if (!r.ok) continue;
+      if (!r.ok) { failed++; continue; }
       const d = await r.json();
       const list = d.receipts || [];
       if (list.length) groups.push({ session_id: sid, title: chatTitleFor(sid), receipts: list, chain_verified: d.chain_verified });
-    } catch (e) { /* one unreadable chat must not empty the panel */ }
+    } catch (e) { failed++; /* one unreadable chat must not empty the panel */ }
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
+  // Every read failed: that is an unreachable panel, not a scope with no receipts.
+  if (!groups.length && failed && capped.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; return; }
   if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')
@@ -9108,7 +9432,7 @@ function receiptRowHtml(rc) {
   const cls = rc.verdict === 'clean' ? 'ok' : (rc.verdict === 'blocked_false_claim' ? 'fail' : 'run');
   const rid = String(rc.receipt_id || '');
   return '<details class="rc-item ' + cls + '" data-receipt="' + esc(rid) + '">'
-    + '<summary class="rc-sum"><span class="ic">' + (rc.signed ? '🔏' : '•') + '</span>'
+    + '<summary class="rc-sum"><span class="ic">' + (rc.signed ? '✓' : '•') + '</span>'
     + '<span class="rc-hd">Turn ' + esc(rc.turn_index) + ' · ' + esc(rc.verdict || 'unrecorded verdict')
     + '<span class="rc-sub mono">' + esc(String(rc.content_hash || 'no content hash').slice(0, 16)) + '</span></span></summary>'
     + '<div class="rc-body">'
@@ -9198,6 +9522,7 @@ async function refreshQueue(forChatId) {
   const chatId = String(forChatId || displayedChat);   // bind the chat before any await
   try {
     const res = await fetch(queueReadUrl(chatId));
+    if (!res.ok) return null;   // a failed read is not an empty queue; the chips stay as they are
     const data = await res.json();
     const items = (data && data.queue) || [];
     noteServerSlot(chatId, data);
@@ -9300,7 +9625,7 @@ function renderQueue(items) {
     const less = document.createElement('button');
     less.type = 'button'; less.className = 'qchip qchip-more'; less.id = 'queueMore';
     less.textContent = pageT('queue.show_less', 'Show less');
-    less.title = pageT('queue.collapse_title', 'Collapse the queue'); less.setAttribute('aria-expanded', 'true');
+    less.title = pageT('queue.collapse_title', 'Fold up the waiting messages'); less.setAttribute('aria-expanded', 'true');
     less.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, false);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -9321,7 +9646,10 @@ function queueWaitingState(chatId) {
     return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
   });
   const owner = chatState(chatId);
-  if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold) return [];
+  // A turn the server is executing for this chat (a reload took this page's own run away) means
+  // the chat is not idle: its queued item is waiting behind that turn by design, shown as this
+  // chat's own chip -- never as an orphan "waiting to send" banner.
+  if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold || serverRunningRow(chatId)) return [];
   return waiting;
 }
 function paintQueueWaiting(chatId) {
@@ -9461,7 +9789,7 @@ async function fetchJsonWithin(url, parentSignal, timeoutMs) {
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error('Could not read runtime state (HTTP ' + response.status + ').');
+    if (!response.ok) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     return await response.json();
   } catch (error) {
     if (timedOut) throw new Error('Runtime state did not respond within ' + (timeoutMs / 1000) + ' seconds. Please retry.');
@@ -9495,6 +9823,7 @@ async function runTurn(text, queueItemId, opts) {
     const sentAt = new Date().toISOString();
     if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
+    if (isDisplayed(chatId)) setupLineReflect();   // the first message ends this chat's "new, empty"
     userHistoryIndex = owner.history.length - 1;
     // Marked private only when the server's commit for this turn says so (applyPrivateCommit).
     ensureSessionInSidebar(chatId, text);
@@ -9629,7 +9958,7 @@ async function runTurn(text, queueItemId, opts) {
             run.text = pageT('run.queue_returned', 'Queued \u2014 waiting for this chat\u2019s current turn to finish.');
             if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
             if (run.textEl) run.textEl.textContent = run.text;
-            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Returned to the queue behind the chat\u2019s active turn'));
+            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Put back to wait behind the reply VOOL is writing'));
             releaseComposer(run);
             refreshQueue(chatId);
             return;
@@ -9690,15 +10019,18 @@ async function runTurn(text, queueItemId, opts) {
         return;
       }
     }
-    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
-    // reason, never an empty stream read as "(no response)" and marked Completed.
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: one keyed
+    // sentence, never an empty stream read as "(no response)" and marked Completed. The typed
+    // refusal words ride the machine field (run.error), not the person's transcript row; the page
+    // writes nothing to the browser console (tests/test_bug_report_chat_ui.py).
     if (!res.ok) {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
       const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      run.error = reason || String(res.status);
       run.text = reason
-        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
-        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+        ? pageT('run.refused_reason', 'VOOL did not run this turn.')
+        : pageT('run.refused_status', 'VOOL did not run this turn.');
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       if (run.textEl) run.textEl.textContent = run.text;
       finishRun(run, 'failed', run.text);
@@ -9798,10 +10130,12 @@ async function runTurn(text, queueItemId, opts) {
       finishRun(run, 'failed', pageT('run.couldnt_reach', "Couldn't reach VOOL"));
     }
     else {
+      // The raw exception stays a machine field (cross-tab/queue state reads run.error);
+      // the transcript row the person reads carries one keyed sentence.
       run.error = (e && e.message ? e.message : String(e));
-      run.text = run.text || (pageT('run.error_prefix', 'Error: ') + run.error);
-      withRunDom(run, () => { if (run.textEl) run.textEl.textContent = pageT('run.error_prefix', 'Error: ') + run.error; });
-      finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
+      run.text = run.text || pageT('chat.send_failed', 'The message could not be sent.');
+      withRunDom(run, () => { if (run.textEl) run.textEl.textContent = pageT('chat.send_failed', 'The message could not be sent.'); });
+      finishRun(run, 'failed', pageT('run.connection_error', 'Connection problem. Check the internet, then try again.'));
     }
   }
   // The stream is over: no batched repaint may land after the terminal paint below (or the error
@@ -9886,7 +10220,7 @@ async function postJsonWithin(url, body, timeoutMs) {
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: controller.signal });
     let data = null;
     try { data = await response.json(); } catch (e) { data = null; }
-    if (!response.ok && !(data && typeof data === 'object' && data.state)) throw new Error('Could not read runtime state (HTTP ' + response.status + ').');
+    if (!response.ok && !(data && typeof data === 'object' && data.state)) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     return data;
   } catch (error) {
     if (timedOut) throw new Error('Runtime state did not respond within ' + (timeoutMs / 1000) + ' seconds. Please retry.');
@@ -10094,7 +10428,7 @@ function buildDocPreview(chip, item) {
     try {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
       if (r.status === 410) { pre.textContent = pageT('attach.doc_erased', 'This document was erased from the chat; its name and size are all that remain.'); return; }
-      if (!r.ok) { pre.textContent = pageTF('attach.doc_gone_http', 'This document is no longer available (HTTP {status}).', { status: r.status }); return; }
+      if (!r.ok) { pre.textContent = pageT('attach.doc_gone_http', 'This document is no longer available.'); return; }
       paint(await r.text());
     } catch (e) { loaded = false; pre.textContent = pageT('attach.doc_preview_failed', 'The preview could not be loaded. Check the connection and try again.'); }
   }
@@ -10278,10 +10612,10 @@ async function uploadAttachment(item, chatId) {
       }
       item.state = 'ready'; item.retryable = false;
     } else {
-      // A validation refusal names its reason and is final for these bytes; a server or transport
-      // failure is retryable in place.
+      // A validation refusal is final for these bytes; a server or transport failure is retryable
+      // in place. The chip reads one keyed sentence, never the server's own words.
       item.state = 'failed';
-      item.error = (data && data.message) || pageTF('attach.upload_failed_http', 'Upload failed (HTTP {status}).', { status: res.status });
+      item.error = pageT('attach.upload_failed_http', 'The file could not be uploaded.');
       item.retryable = !(data && data.error && res.status < 500 && data.error !== 'upload_failed');
       // A FINAL refusal (a secret, an unsupported type, over the limit) takes its marker home: the
       // composer returns to its pre-paste bytes; the chip stays, red, with the door's reason.
@@ -10333,12 +10667,18 @@ function retryAttachment(localId) {
   uploadAttachment(item, cid);
 }
 // What THIS chat staged and never sent, back on the strip after a reload or a chat switch.
+const stagedRetry = makeListRetry(function () { restoreStagedAttachments(displayedChat); });
 async function restoreStagedAttachments(chatId) {
   const cid = String(chatId || '');
   if (!cid) return;
+  // A failed read is not "nothing staged": a draft that silently vanished from the strip reads as
+  // lost, so the read retries quietly on the growing delay. The strip itself only ever paints
+  // real attachments -- no message row belongs under the composer.
   try {
     const r = await fetch('/api/chat/attachments?session=' + encodeURIComponent(cid));
-    const d = await r.json();
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { stagedRetry.schedule(); return; }
+    stagedRetry.settled();
     const bucket = attachBucket(cid);
     const known = new Set(bucket.map((i) => i.id).filter(Boolean));
     ((d && d.attachments) || []).forEach((a) => {
@@ -10351,7 +10691,7 @@ async function restoreStagedAttachments(chatId) {
       });
     });
     if (isDisplayed(cid)) renderAttachStrip();
-  } catch (e) {}
+  } catch (e) { stagedRetry.schedule(); }
 }
 // Re-send the LAST turn of a chat after a failed send: same turn id, same attachments, no second
 // user bubble. The server treats the same turn as the same turn, so nothing is bound twice.
@@ -10557,8 +10897,11 @@ async function beginDictationRecording() {
         if (inputEl && isDisplayed(chatId)) inputEl.dispatchEvent(new Event('input'));
         showDictationNote(data.complete ? '' : (data.disclosure || dictT('partial_transcript', 'The recording was longer than the transcription budget; only part was transcribed.')));
       } else {
-        // The server's typed truth: a missing dependency names itself and what would fix it.
-        setDictationError((data && (data.message + (data.remediation ? ' ' + data.remediation : ''))) || dictT('failed_http', 'Dictation failed (HTTP ' + res.status + ').', { status: res.status }));
+        // The server's typed truth names what is missing on THIS machine and how to fix it, in
+        // words written for the person (core/artifact_readers/speech_tool.py). A refusal without
+        // them reads one keyed sentence, never a status code.
+        const typed = data && data.message ? String(data.message) + (data.remediation ? ' ' + data.remediation : '') : '';
+        setDictationError(typed || dictT('failed_http', 'Dictation did not work. Try again.'));
       }
     } catch (e) {
       setDictationError(dictT('did_not_complete', 'Dictation did not complete. Check the connection and try again.'));
@@ -10619,7 +10962,10 @@ async function probeDictationAvailability() {
     .then((r) => r.json())
     .then((j) => {
       if (j && j.available === false) {
-        showDictationNote((j.message || 'Dictation is unavailable on this machine.') + (j.remediation ? ' ' + j.remediation : ''));
+        // The same typed words as a failed recording (reason, then remedy); a probe without them
+        // reads one keyed sentence.
+        showDictationNote(j.message ? String(j.message) + (j.remediation ? ' ' + j.remediation : '')
+          : dictT('unavailable', 'Dictation is not available on this machine. Type instead.'));
       }
     })
     .catch(() => {});
@@ -10764,7 +11110,7 @@ async function postMode(payload, context) {
   const owner = context || modeContext(displayedChat);
   const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: owner.session_id, project_id: owner.project_id, turn_id: owner.turn_id }, payload || {})) });
   let data = {}; try { data = await r.json(); } catch (e) {}
-  if (!r.ok) { const err = new Error((data && data.error) || ('HTTP ' + r.status)); err.body = data; throw err; }
+  if (!r.ok) { const err = new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); err.body = data; throw err; }
   return data;
 }
 async function setModeController(mode, bypassToken, context) {
@@ -10784,7 +11130,7 @@ async function syncModeController() {
   try { await setModeController(owner.mode, owner.bypassGrant && owner.bypassGrant.token); }
   catch (e) {
     if (owner.mode === 'bypass_permissions') { owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode(); }
-    toast(pageTF('mode.activate_failed', 'Could not activate {label}: {error}', { label: (MODE_LABELS[owner.mode] || owner.mode), error: e.message }));
+    toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
   }
 }
 async function restoreChatBypass(chatId) {
@@ -10828,7 +11174,7 @@ async function refreshBypassReadiness(context) {
     Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || pageT('bypass.setup.project_fallback', 'Project')));
     add('__new', pageT('bypass.setup.new', 'Choose a new folder…'));
   } catch (e) {
-    if (bypassDialogContext === context) hint.textContent = pageTF('bypass.readiness.error', 'Could not check permissions: {error} Close and reopen to retry.', { error: e.message });
+    if (bypassDialogContext === context) { hint.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
   }
 }
 function openBypassModal() {
@@ -10915,7 +11261,8 @@ async function confirmBypass() {
     // A refusal arrives as (reason, workspace_reason, error) — never parse the prose:
     // the typed reason picks the catalog presentation, the message stays the fallback.
     const refusal = e.body && e.body.reason === 'bypass_workspace_required' && e.body.workspace_reason;
-    const detail = refusal ? pageT('bypass.readiness.' + String(refusal), String(e.message || '')) : e.message;
+    const plain = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
+    const detail = refusal ? pageT('bypass.readiness.' + String(refusal), plain) : plain;
     if (bypassDialogContext === context) { const error = document.getElementById('bypassError'); error.textContent = pageT('bypass.not_activated_prefix', 'Bypass was not activated: ') + detail; error.hidden = false; }
     else toast(pageTF('bypass.not_activated_original', 'Bypass was not activated for its original chat: {error}', { error: detail }));
   }
@@ -10926,7 +11273,7 @@ async function revokeBypass() {
   const token = owner.bypassGrant && owner.bypassGrant.token;
   try { await postMode({ op: 'revoke_bypass', token: token || '' }, context); } catch (e) {}
   owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode();
-  try { await setModeController('manual', '', context); } catch (e) { toast(pageTF('bypass.sync_failed', 'Bypass ended locally; controller sync failed: {error}', { error: e.message })); }
+  try { await setModeController('manual', '', context); } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 // The composer shows a short label; the exact name lives on the tooltip and, unchanged, in
 // Activity, About and receipts. "NVIDIA: Nemotron 3 Ultra 550B A55B (free)" is 41 characters and
@@ -10943,7 +11290,7 @@ function reflectModel() {
   // Label priority: known tier -> friendly cloud name -> the raw id itself (never blank).
   const label = isLocalOnlyMode() ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   reflectControl('modelPop', 'modelLbl', modelValue, { [modelValue]: label }, '');
-  // When Auto is sticking to this chat's cloud model, mark the pill (📌) so the switching-stop is visible.
+  // When Auto is sticking to this chat's cloud model, mark the pill so the switching-stop is visible.
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
   const laneKind = (modelValue === 'vool' || isLocalOnlyMode()) ? 'auto' : (isLocalModel(modelValue) ? 'local' : 'cloud');
@@ -11091,7 +11438,7 @@ function initComposerControls() {
       e.stopPropagation();
       const requested = it.getAttribute('data-mode'); closePops(null);
       if (requested === 'bypass_permissions') { openBypassModal(); return; }
-      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: err.message })); }
+      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: pageT('chat.try_again', 'Couldn’t do that just now. Try again.') })); }
     });
   });
   const modeItems = Array.from(document.querySelectorAll('#modePop .pop-item'));
@@ -11387,6 +11734,7 @@ async function refreshCloudStatus(probe) {
   try {
     const selected = selectedCloudProvider();
     const r = await fetch('/api/connections?probe=' + (probe ? '1' : '0') + (selected ? '&provider=' + encodeURIComponent(selected) : ''));
+    if (!r.ok) return;   // a failed answer is not "no key connected"; the pill stays as it is
     const j = await r.json();
     if (selected !== selectedCloudProvider()) return;
     renderConnections(j.connections || []);
@@ -11533,6 +11881,9 @@ async function renderLocalModels() {
   let data;
   try {
     const r = await fetch('/api/tags');
+    // A failed catalogue answer is not "No model on this computer yet": that row claims an
+    // inventory that was never read. Leave the popover as it was; the next open re-asks.
+    if (!r.ok) return;
     data = await r.json();
   } catch (e) { return; }   // fail-soft: leave the popover exactly as it was
   // /api/tags is the runtime's CONFIGURED catalogue: it always names the default tag, marked
@@ -11615,8 +11966,10 @@ function renderSelectionProvenance(sel) {
     return;
   }
   if (!sel || !sel.ok) {
+    // A failed read states the strip's own UNKNOWN word (never a comforting default), then the
+    // plain sentence of why: the catalog keeps the sentence free of capitals.
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(document.body.classList.contains('vool-offline') ? "unknown \u2014 VOOL isn\u2019t running right now" : pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(document.body.classList.contains('vool-offline') ? "unknown \u2014 VOOL isn\u2019t running right now" : pageT('header.run_prov_unknown', 'UNKNOWN') + ' \u2014 ' + pageT('header.run_prov_unanswered', 'VOOL did not answer this check yet.')) + '</span></span>';
     return;
   }
   const pin = String(sel.model || '').trim();
@@ -11633,7 +11986,7 @@ function renderSelectionProvenance(sel) {
   const rows = ['<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span>' + esc(pin ? (provider ? provider + ' · ' + pin : pin) : pageT('header.run_prov_none', 'none — VOOL Auto routing')) + '</span></span>',
     '<span class="pp-row"><b>' + esc(pageT('header.run_prov_cost', 'Spend class')) + '</b><span class="' + costCls + '">' + esc(costWord) + '</span></span>'];
   if (sel.free_cloud_enabled && sel.auto_free_model && sel.auto_free_model !== 'auto') {
-    rows.push('<span class="pp-row"><b>' + esc(pageT('header.run_prov_fallback', 'Auto free fallback')) + '</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
+    rows.push('<span class="pp-row"><b>' + esc(pageT('header.run_prov_fallback', 'Auto free backup')) + '</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
   }
   el.hidden = false;
   el.innerHTML = rows.join('');
@@ -11851,7 +12204,9 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
     throw new Error((j && (j.message || j.error)) || 'Could not select this model. Try again.');
   } catch (e) {
     if (!stillCurrent()) return false;
-    const message = e.message || 'Could not select this model. Try again.';
+    // The server's own refusal words never reach the person: one keyed sentence.
+    // dataset.selectionError rides the row hint, so it carries the keyed sentence too.
+    const message = pageT('chat.model_switch_failed', 'That model could not be picked. The old one stays.');
     if (rowEl) {
       rowEl.dataset.selectionError = message;
       const hint = rowEl.querySelector('.pi-hint');
@@ -11868,7 +12223,8 @@ async function switchAutoFreeModel(id, selectEl) {
     const j = await r.json();
     if (r.ok && j.ok) {
       autoFreeModel = j.model || id;
-      if (selectEl) selectEl.title = j.message || '';
+      // A tooltip carries no raw server words.
+      if (selectEl) selectEl.title = '';
       // Auto's fallback is one of the rows the provenance strip renders; refresh it from the
       // server rather than leaving the strip describing the previous fallback.
       refreshSelectionProvenance();
@@ -11944,7 +12300,7 @@ function buildCloudToolbar(onPricesChange) {
 
 function buildAutoFallbackControl(freeModels) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar auto-fallback';
-  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto fallback');
+  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto backup');
   const sel = document.createElement('select');
   const best = document.createElement('option'); best.value = 'auto'; best.textContent = pageT('model.auto_best_free', 'Best verified free'); sel.appendChild(best);
   freeModels.forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name || m.id; sel.appendChild(o); });
@@ -12008,7 +12364,7 @@ async function renderCloudModels() {
   let fetchError = '';
   try {
     const r = await fetch(catalogUrl);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     data = await r.json();
   } catch (e) { fetchError = String(e && e.message ? e.message : e); }  // fail-soft: keep whatever is already shown
   if (!current()) return;
@@ -12031,8 +12387,8 @@ async function renderCloudModels() {
     row.className = 'pop-group cloud-dyn cloud-empty';
     const msg = document.createElement('span'); msg.className = 'pi-hint';
     const refreshInfo = data && typeof data.refresh === 'object' && data.refresh ? data.refresh : null;
-    if (fetchError) msg.textContent = pageTF('model.catalog_load_failed', 'Could not load the model catalog: {error}', { error: fetchError });
-    else if (refreshInfo && refreshInfo.ok === false) msg.textContent = 'Model catalog refresh failed' + (refreshInfo.error ? ': ' + refreshInfo.error : '') + '.';
+    if (fetchError) { msg.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
+    else if (refreshInfo && refreshInfo.ok === false) { msg.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); }
     else msg.textContent = 'No model catalog loaded yet. The connection test checks your key, not the catalog.';
     row.appendChild(msg);
     const retry = document.createElement('button');
@@ -12214,7 +12570,7 @@ async function brCreateAnswerDraft() {
     brFlow.destination = (data.draft && data.draft.destination_repo) || brDefaultDestination;
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not build the report: ' + esc(e.message) + '</p>' +
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>' +
       '<div class="br-actions"><button type="button" class="set-btn" id="brBackAnswer">Back</button></div>';
     document.getElementById('brBackAnswer').addEventListener('click', renderAnswerReportForm);
   }
@@ -12277,10 +12633,10 @@ async function renderMyReports() {
   try {
     const res = await fetch('/api/bug-report/list');
     const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || 'list unavailable');
+    if (!res.ok || !data.ok) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     rows = data.reports || [];
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not load your reports: ' + esc(e.message) + '</p>';
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   const body = rows.length ? '<table class="br-mine"><tbody>' + rows.map((r) => {
@@ -12293,20 +12649,20 @@ async function renderMyReports() {
     '<div class="br-actions"><button type="button" class="set-btn" id="brMineClose">Close</button></div>';
   document.getElementById('brMineClose').addEventListener('click', closeBugReport);
   bugReportBody.querySelectorAll('.br-mine-del').forEach((b) => b.addEventListener('click', async () => {
-    try { await brPost('/api/bug-report/delete', { report_id: b.dataset.id }); } catch (e) { toast('Delete failed: ' + e.message); }
+    try { await brPost('/api/bug-report/delete', { report_id: b.dataset.id }); } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
     renderMyReports();
   }));
   bugReportBody.querySelectorAll('.br-mine-open').forEach((b) => b.addEventListener('click', async () => {
     try {
       const res = await fetch('/api/bug-report/status?report_id=' + encodeURIComponent(b.dataset.id));
       const st = await res.json();
-      if (!res.ok) throw new Error(st.error || 'not found');
+      if (!res.ok) { throw new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
       brFlow.reportId = st.report_id; brFlow.fingerprint = st.fingerprint || ''; brFlow.destination = st.destination_repo || '';
       brFlow.redaction = null; brFlow.approved = !!st.consent;
       brFlow.removedFields = st.consent ? (st.consent.removed_fields || []) : [];
       brFlow.removedAttachments = st.consent ? (st.consent.removed_attachments || []) : [];
       await renderBugReportReview();
-    } catch (e) { toast('Could not open the report: ' + e.message); }
+    } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
   }));
 }
 
@@ -12326,7 +12682,7 @@ async function brOpenOnGitHub() {
   let data;
   try {
     data = await brPost('/api/bug-report/handoff', { report_id: brFlow.reportId, method: 'browser' });
-  } catch (e) { toast('Could not prepare the GitHub page: ' + e.message); return; }
+  } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); return; }
   let pasteNote = '';
   if (!data.complete) {
     try { await brWriteClipboard(data.clipboard_text || ''); pasteNote = '<p class="br-status"><b>The report was too long for a link, so it is on your clipboard.</b> Paste it into the GitHub page.</p>'; }
@@ -12352,7 +12708,7 @@ async function brCopyReport(btn) {
     if (btn) { btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
     toast('Report copied. Paste it wherever you want to send it.');
   } catch (e) {
-    toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
+    toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
   }
 }
 
@@ -12363,10 +12719,10 @@ async function brPost(path, body) {
   let data = null;
   try { data = await res.json(); } catch (e) { data = {}; }
   if (!res.ok) {
-    // Plain words first: the diagnostic envelope's message when the server sent one,
-    // technical detail kept for the expandable section.
+    // Plain words in the carrier; the diagnostic envelope's message and codes stay in
+    // err.diagnostic for the expandable section.
     const diag = data && data.diagnostic;
-    const err = new Error((diag && diag.message) || data.error || data.detail || ('HTTP ' + res.status));
+    const err = new Error(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
     err.diagnostic = diag || null;
     err.httpStatus = res.status;
     throw err;
@@ -12396,7 +12752,7 @@ async function loadBugReportCandidates(turnId) {
     if (!res.ok || !data.ok) throw new Error(data.error || 'candidates unavailable');
     brFlow.candidates = data.candidates || [];
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not load failed turns: ' + esc(e.message) + '</p>';
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   let start = -1;
@@ -12494,7 +12850,7 @@ async function brCreateDraft() {
     brFlow.form = Object.assign({}, brFlow.form, { destination: brFlow.destination });
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Draft failed: ' + esc(e.message) + '</p><div class="br-actions"><button type="button" class="set-btn" id="brBackPick">Back</button></div>';
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p><div class="br-actions"><button type="button" class="set-btn" id="brBackPick">Back</button></div>';
     document.getElementById('brBackPick').addEventListener('click', () => renderBugReportPick(brFlow.selected));
   }
 }
@@ -12512,7 +12868,7 @@ async function brRefreshPreview() {
 async function renderBugReportReview() {
   bugReportBody.innerHTML = '<p class="br-status">Rendering the exact outbound preview&hellip;</p>';
   try { await brRefreshPreview(); } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Preview failed: ' + esc(e.message) + '</p>';
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
     return;
   }
   const p = brFlow.preview;
@@ -12572,7 +12928,7 @@ async function brRevoke() {
     brFlow.approved = false;
     toast('Approval withdrawn. Nothing can be sent until you approve again.');
     await renderBugReportReview();
-  } catch (e) { toast('Withdraw failed: ' + e.message); }
+  } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 
 async function brExport() {
@@ -12591,7 +12947,7 @@ async function brExport() {
     document.getElementById('brBackReview').addEventListener('click', renderBugReportReview);
     document.getElementById('brDoneX').addEventListener('click', closeBugReport);
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Local save failed: ' + esc(e.message) + '</p>' +
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>' +
       '<div class="br-actions"><button type="button" class="set-btn" id="brBackReview">Back to preview</button></div>';
     document.getElementById('brBackReview').addEventListener('click', renderBugReportReview);
   }
@@ -12618,7 +12974,7 @@ async function brApprove() {
     brFlow.approved = true;
     toast('Approved. Open it on GitHub, copy it, or save it.');
     await renderBugReportReview();
-  } catch (e) { toast('Approval failed: ' + e.message); }
+  } catch (e) { toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')); }
 }
 
 function brEditDraft() {
@@ -12651,7 +13007,7 @@ async function brSaveEdit() {
     toast('Edits saved — approval was reset.');
     await renderBugReportReview();
   } catch (e) {
-    bugReportBody.innerHTML = '<p class="br-status br-bad">Edit failed: ' + esc(e.message) + '</p>';
+    bugReportBody.innerHTML = '<p class="br-status br-bad">' + esc(pageT('chat.try_again', 'Couldn’t do that just now. Try again.')) + '</p>';
   }
 }
 
@@ -12691,7 +13047,9 @@ function brRenderFailed(failure) {
   // Plain words first; the technical detail (code, hashes, upstream status) sits in an
   // expandable disclosure, not in the first sentence a worried user reads.
   const diag = failure.diagnostic || {};
-  const plain = failure.message || 'submission failed';
+  // The first sentence is keyed plain words; the caller's raw refusal (server detail,
+  // e.message) is not shown, and the machine diagnostic stays in the disclosure.
+  const plain = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
   const techBits = [];
   if (diag.code) techBits.push('code: ' + diag.code);
   if (diag.upstream_status) techBits.push('upstream HTTP ' + diag.upstream_status);
@@ -13004,15 +13362,22 @@ function _explainCloudError(state, http, detail) {
   };
   if (map[code]) return map[code];
   if (code >= 500) return pageTF('cloud.err_5xx', 'Provider error ({code}): likely temporary — retry shortly. ', { code: code }) + (detail || '');
-  if (code >= 400) return pageTF('cloud.err_4xx', 'Request rejected ({code}). ', { code: code }) + (detail || pageT('cloud.check_key', 'Check the key and provider.'));
-  if (state === 'failed') return pageT('cloud.failed', 'Could not reach the provider — check your internet connection, the key, or the custom base URL. ') + (detail || '');
+  if (code >= 400) return pageTF('cloud.err_4xx', 'Request rejected ({code}). ', { code: code }) + (detail || pageT('cloud.check_key', 'Check the key and the company it belongs to.'));
+  if (state === 'failed') return pageT('cloud.failed', 'Could not reach that company — check your internet, the key, or the custom address if you set one. ') + (detail || '');
   return detail || pageT('cloud.unknown', 'Unknown issue — try Test again.');
 }
 async function renderKeys() {
   const box = document.getElementById('keysList'); if (!box) return;
+  // A failed read is not "no keys": clearing the box there made a stored key vanish (and the
+  // input read as the whole story) while VOOL was restarting. Keep what is on screen; only a
+  // real answer may repaint, and a real empty leaves the input as the whole story.
+  let keys = null;
+  try {
+    const r = await fetch('/api/cloud/keys');
+    if (!r.ok) return;
+    keys = ((await r.json()).keys) || [];
+  } catch (e) { return; }
   box.innerHTML = '';
-  let keys = [];
-  try { keys = (await (await fetch('/api/cloud/keys')).json()).keys || []; } catch (e) {}
   if (!keys.length) { return; }   // nothing stored yet -> the input above is the whole story
   const title = document.createElement('div'); title.className = 'keys-title'; title.textContent = 'Your keys'; box.appendChild(title);
   keys.forEach((k) => {
@@ -13147,7 +13512,7 @@ function _explainSearchError(state, detail) {
   if (state === 'unauthorized') return pageT('search_err.unauthorized', 'That provider rejected the key. Check you copied the whole key, and that it is for this provider.');
   if (state === 'rate_limited') return pageT('search_err.rate_limited', 'The provider is rate-limiting this key right now. It should work again shortly.');
   if (state === 'quota_exhausted') return pageT('search_err.quota_exhausted', 'This key has no quota left on its plan.');
-  if (state === 'unreachable') return pageT('search_err.unreachable', 'Could not reach the provider from this machine (offline, or the network blocked it).');
+  if (state === 'unreachable') return pageT('search_err.unreachable', 'VOOL could not reach the search service; the internet may be off or the network may be blocking it. Check the connection and try again.');
   if (state === 'no_key') return pageT('search_err.no_key', 'No key is stored for this provider yet.');
   // A REFUSAL is a policy verdict, not a verdict on the key. Reporting it as an
   // unusable search sent people to regenerate a credential that was never used
@@ -13218,6 +13583,7 @@ let councilReachable = null;
 async function refreshCouncilRuns() {
   try {
     const r = await fetch('/api/council/runs');
+    if (!r.ok) throw new Error('unreachable');   // a non-OK answer is "did not answer", not "no run"
     const d = await r.json();
     councilRuns = Array.isArray(d.runs) ? d.runs : [];
     councilReachable = true;
@@ -13346,8 +13712,31 @@ async function openCouncil() {
 }
 const pluginsOverlay = document.getElementById('pluginsOverlay');
 let _pluginCatalog = null;
+let _pluginsLoaded = false;   // a real catalog answer has rendered at least once
 let _pluginMode = 'plugins';   // 'plugins' (powers) | 'skills' (how to use them) — separate panels
+const pluginsRetry = makeListRetry(function () { const s = document.getElementById('pluginsSearch'); readPluginCatalog(s ? s.value : ''); });
 function closePlugins() { if (pluginsOverlay) pluginsOverlay.hidden = true; }
+// One reader for every catalog read (open, rescan, toggle). A fetch that threw or answered
+// non-OK is an unknown state, never "No plugins installed yet" -- that painted a failed read as
+// an empty collection. Before the first real answer the panel holds the calm retry row; after a
+// first answer a later failure keeps the cards on screen.
+async function readPluginCatalog(query) {
+  const body = document.getElementById('pluginsBody');
+  const failed = function () {
+    if (window.VoolAddons && window.VoolAddons.render) return;   // the add-on fragment owns its states
+    if (!_pluginsLoaded) {
+      if (body) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); }
+      pluginsRetry.schedule();
+    }
+  };
+  try {
+    const r = await fetch('/api/plugins');
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { failed(); return; }
+    _pluginCatalog = d; _pluginsLoaded = true; pluginsRetry.settled();
+    renderPluginPanel(_pluginCatalog, query == null ? '' : query);
+  } catch (e) { failed(); }
+}
 async function _openPanel(mode) {
   if (!pluginsOverlay) return;
   _pluginMode = mode;
@@ -13357,13 +13746,13 @@ async function _openPanel(mode) {
   const search = document.getElementById('pluginsSearch');
   if (title) title.textContent = window.VoolAddons ? (window.VOOLT ? window.VOOLT('addons.store_title') : 'Skills & Plugins') : ((mode === 'skills') ? 'Skills' : 'Plugins');
   if (search) { search.value = ''; search.placeholder = (mode === 'skills') ? 'Search skills…' : 'Search plugins…'; }
-  if (body) body.textContent = 'Loading…';
+  if (body && !_pluginsLoaded) body.textContent = 'Loading…';
   try {
     if (window.VoolAddons) { await window.VoolAddons.open(); }
-    else { _pluginCatalog = await (await fetch('/api/plugins')).json(); renderPluginPanel(_pluginCatalog, ''); }
+    else await readPluginCatalog('');
     if (search) search.focus();
   }
-  catch (e) { if (body) body.textContent = 'Could not read the catalog.'; }
+  catch (e) { if (body && !_pluginsLoaded && !(window.VoolAddons && window.VoolAddons.render)) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); } }
 }
 function openPlugins() { return _openPanel('plugins'); }
 function openSkills() { return _openPanel('skills'); }
@@ -13408,11 +13797,8 @@ async function rescanPlugins() {
     const r = await fetch('/api/plugins/rescan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     await r.json();
   } catch (e) { /* the catalog re-read below shows whatever state the server holds */ }
-  try {
-    _pluginCatalog = await (await fetch('/api/plugins')).json();
-    const s = document.getElementById('pluginsSearch');
-    renderPluginPanel(_pluginCatalog, s ? s.value : '');
-  } catch (e) { /* fail-soft */ }
+  const s = document.getElementById('pluginsSearch');
+  await readPluginCatalog(s ? s.value : '');
 }
 
 function renderPlugins(d, query) {
@@ -13560,9 +13946,8 @@ async function togglePlugin(id, enable) {
     });
     const d = await r.json();
     if (d && d.ok) {
-      _pluginCatalog = await (await fetch('/api/plugins')).json();
       const s = document.getElementById('pluginsSearch');
-      renderPluginPanel(_pluginCatalog, s ? s.value : '');
+      await readPluginCatalog(s ? s.value : '');   // a failed re-read keeps the cards as they are
     }
   } catch (e) { /* fail-soft: leave the card as-is */ }
 }
@@ -13595,6 +13980,8 @@ async function toggleSkill(id, enable, btn, status) {
 // ---- Files panel: everything VOOL generated, across all chats ----
 const filesOverlay = document.getElementById('filesOverlay');
 let _filesData = null;
+let _filesLoaded = false;   // a real /api/files answer has rendered at least once
+const filesRetry = makeListRetry(function () { readFiles(null); });
 function closeFiles() { if (filesOverlay) filesOverlay.hidden = true; }
 async function openFiles() {
   if (!filesOverlay) return;
@@ -13602,7 +13989,7 @@ async function openFiles() {
   const body = document.getElementById('filesBody');
   const search = document.getElementById('filesSearch');
   if (search) search.value = '';
-  if (body) body.textContent = 'Loading…';
+  if (body && !_filesLoaded) body.textContent = 'Loading…';
   // Focus goes to the first control that is showing: the search box, or the close button when
   // there is nothing to search yet (the search bar is hidden while there are no files).
   const focusFirst = () => {
@@ -13610,8 +13997,28 @@ async function openFiles() {
     if (search && !(controls && controls.hidden)) search.focus();
     else { const x = document.getElementById('filesClose'); if (x) x.focus(); }
   };
-  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); focusFirst(); }
-  catch (e) { if (body) body.textContent = isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so your files can\u2019t be listed." : 'Could not read your files.'; focusFirst(); }
+  await readFiles(focusFirst);
+}
+// A failed read is not "Nothing generated yet": before the first real answer the panel holds the
+// calm retry row and asks again on the growing delay; after a first answer a later failure keeps
+// the last good list rather than wiping it.
+async function readFiles(after) {
+  const body = document.getElementById('filesBody');
+  const failed = function () {
+    if (!_filesLoaded) {
+      if (body) { body.innerHTML = ''; body.appendChild(listRetryRow('plugins-empty')); }
+      filesRetry.schedule();
+    }
+    if (after) after();
+  };
+  try {
+    const r = await fetch('/api/files');
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d) { failed(); return; }
+    _filesData = d; _filesLoaded = true; filesRetry.settled();
+    renderFiles();
+    if (after) after();
+  } catch (e) { failed(); }
 }
 function _fmtBytes(n) {
   n = Number(n || 0);
@@ -13699,6 +14106,9 @@ async function renderUsage(range) {
   try {
     const q = usageRange === 'all' ? '?per_model=1' : ('?range=' + encodeURIComponent(usageRange) + '&per_model=1');
     const r = await fetch('/api/runtime/usage' + q);
+    // A failed read is not zero usage: route it to the unavailable note, never the zeroed cards
+    // and "No usage recorded" row a restart window would otherwise paint.
+    if (!r.ok) throw new Error('unavailable');
     data = await r.json();
   } catch (e) { usageBodyEl.textContent = 'Usage is unavailable right now.'; return; }
   const free = (data && data.free_local) || {}, freeCloud = (data && data.free_cloud) || {}, paid = (data && data.paid_cloud) || {};
@@ -13710,12 +14120,12 @@ async function renderUsage(range) {
   const paidUsd = Number(paid.usd || 0);
   const paidVal = fmtInt(paid.total_tokens) + (paid.total_tokens ? ('  ' + (paid.all_actual ? '$' : '~$') + paidUsd.toFixed(4)) : '');
   head.appendChild(usageCard('paid', 'Cloud (paid) tokens', paidVal));
-  head.appendChild(usageCard('', 'Total tokens', fmtInt(data && data.total_tokens)));
+  head.appendChild(usageCard('', pageT('settings.usage.total_word_pieces', 'Total word pieces'), fmtInt(data && data.total_tokens)));
   usageBodyEl.appendChild(head);
   if (!rows.length) { const e = document.createElement('div'); e.className = 'usage-empty'; e.textContent = 'No usage recorded in this window yet.'; usageBodyEl.appendChild(e); return; }
   const table = document.createElement('table'); table.className = 'usage-table';
   const thead = document.createElement('thead'); const htr = document.createElement('tr');
-  ['Model', 'Tokens', 'Responses', 'Cost'].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
+  [pageT('settings.usage.col_model', 'Model'), pageT('settings.usage.col_word_pieces', 'Word pieces'), pageT('settings.usage.col_answers', 'Answers'), pageT('settings.usage.col_cost', 'Cost')].forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; if (i > 0) th.style.textAlign = 'right'; htr.appendChild(th); });
   thead.appendChild(htr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
   rows.slice(0, 30).forEach((row) => {
@@ -13761,8 +14171,8 @@ async function saveCloudKey() {
       showKeySavedBanner(label || provider);
       toast('API key saved and encrypted on this machine.');
     }
-    else { orStatusEl.textContent = 'Could not save: ' + (j.error || r.status); orStatusEl.className = 'set-status err'; hideKeySavedBanner(); }
-  } catch (e) { orStatusEl.textContent = 'Could not save: ' + (e && e.message ? e.message : e); orStatusEl.className = 'set-status err'; }
+    else { orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; hideKeySavedBanner(); }
+  } catch (e) { orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; }
   orSaveEl.disabled = false;
 }
 
@@ -13852,10 +14262,10 @@ async function testCloudConnection() {
     paintCloudPill(j.state);
     if (orStatusEl) {
       if (j.state === 'ok') { orStatusEl.textContent = 'Connection verified — OpenRouter accepted your key.'; orStatusEl.className = 'set-status ok'; }
-      else if (j.detail === 'unauthorized') { orStatusEl.textContent = 'OpenRouter rejected the key (HTTP ' + (j.http_status || '?') + '). Re-check or replace it.'; orStatusEl.className = 'set-status err'; }
+      else if (j.detail === 'unauthorized') { orStatusEl.textContent = pageT('cloud.err_401', 'That key was refused. It may be wrong, expired, or withdrawn. Copy it fresh from the service’s own page and save it here again.'); orStatusEl.className = 'set-status err'; }
       else { orStatusEl.textContent = 'Could not reach OpenRouter — the key itself was not judged.'; orStatusEl.className = 'set-status err'; }
     }
-  } catch (e) { if (orStatusEl) { orStatusEl.textContent = 'Test failed: ' + (e && e.message ? e.message : e); orStatusEl.className = 'set-status err'; } }
+  } catch (e) { if (orStatusEl) { orStatusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.'); orStatusEl.className = 'set-status err'; } }
   orTestEl.disabled = false;
 }
 
@@ -13956,7 +14366,7 @@ if (sbExportBtn) sbExportBtn.addEventListener('click', async () => {
   try {
     const r = await fetch('/api/session/bundle/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, passphrase }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbExportStatus, d.error || 'Export refused.', true); return; }
+    if (!d.ok) { sbStatus(sbExportStatus, pageT('chat.session_export_failed', 'The chat list could not be saved to a file.'), true); return; }
     sbPass && (sbPass.value = ''); sbPass2 && (sbPass2.value = '');
     const a = document.createElement('a');
     a.href = '/api/session/bundle/download?path=' + encodeURIComponent(d.path);
@@ -13964,7 +14374,7 @@ if (sbExportBtn) sbExportBtn.addEventListener('click', async () => {
     document.body.appendChild(a); a.click(); a.remove();
     sbStatus(sbExportStatus, d.encrypted ? 'Saved: signed + encrypted bundle (' + d.counts.turns + ' turns).' : 'Saved: signed, UNENCRYPTED bundle (' + d.counts.turns + ' turns).', !d.encrypted);
     sbRenderExportPreview();
-  } catch (e) { sbStatus(sbExportStatus, 'Export failed: ' + (e && e.message || e), true); }
+  } catch (e) { sbStatus(sbExportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 if (sbImportFile) sbImportFile.addEventListener('change', () => {
   sbStagedPath = ''; sbNeedsConfirm = false;
@@ -13982,19 +14392,19 @@ if (sbPreviewBtn) sbPreviewBtn.addEventListener('click', async () => {
   try {
     const staged = await fetch('/api/session/bundle/upload', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Vool-Bundle-Name': encodeURIComponent(file.name) }, body: file });
     const sj = await staged.json();
-    if (!sj.ok) { sbStatus(sbImportStatus, sj.error || 'Could not stage the file.', true); return; }
+    if (!sj.ok) { sbStatus(sbImportStatus, pageT('chat.session_preview_failed', 'The preview could not be loaded.'), true); return; }
     sbStagedPath = sj.path;
     sbStatus(sbImportStatus, 'Previewing\u2026');
     const r = await fetch('/api/session/bundle/inspect-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: sbStagedPath, passphrase: String((sbImportPass && sbImportPass.value) || '') }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbImportStatus, d.error || 'Preview refused.', true); return; }
+    if (!d.ok) { sbStatus(sbImportStatus, pageT('chat.session_preview_failed', 'The preview could not be loaded.'), true); return; }
     sbNeedsConfirm = !!d.needs_confirmation;
     renderSbPreview(d);
     if (sbImportBtn) sbImportBtn.disabled = false;
     if (sbForeignRow) sbForeignRow.hidden = !sbNeedsConfirm;
     if (sbOpenRestored) sbOpenRestored.hidden = true;
     sbStatus(sbImportStatus, sbNeedsConfirm ? 'Signed by an UNKNOWN key — tick the acknowledgement to import it untrusted.' : 'Preview ready — review, then Import.');
-  } catch (e) { sbStatus(sbImportStatus, 'Preview failed: ' + (e && e.message || e), true); }
+  } catch (e) { sbStatus(sbImportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 function renderSbPreview(d) {
   if (!sbPreviewBox) return;
@@ -14022,14 +14432,14 @@ if (sbImportBtn) sbImportBtn.addEventListener('click', async () => {
   try {
     const r = await fetch('/api/session/bundle/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: sbStagedPath, passphrase: String((sbImportPass && sbImportPass.value) || ''), confirm_untrusted: !!(sbConfirmForeign && sbConfirmForeign.checked) }) });
     const d = await r.json();
-    if (!d.ok) { sbStatus(sbImportStatus, d.error || 'Import refused — nothing was changed.', true); return; }
+    if (!d.ok) { sbStatus(sbImportStatus, pageT('chat.session_import_failed', 'The chats could not be brought back. Nothing was changed.'), true); return; }
     sbRestoredId = d.imported_session_id || '';
     sbImportFile && (sbImportFile.value = '');
     if (sbImportBtn) sbImportBtn.disabled = true;
     if (sbPreviewBox) { sbPreviewBox.hidden = true; }
     if (sbOpenRestored) sbOpenRestored.hidden = false;
     sbStatus(sbImportStatus, 'Imported ' + d.counts.turns + ' turns' + (d.collision ? ' under a new id (the original was already here).' : '.') + (d.trust && d.trust.trusted === false ? ' Marked UNTRUSTED (unknown signer).' : ''));
-  } catch (e) { sbStatus(sbImportStatus, 'Import failed: ' + (e && e.message || e), true); }
+  } catch (e) { sbStatus(sbImportStatus, pageT('chat.try_again', 'Couldn’t do that just now. Try again.'), true); }
 });
 if (sbOpenRestored) sbOpenRestored.addEventListener('click', async () => {
   if (!sbRestoredId) return;
@@ -14158,6 +14568,17 @@ const permDetailEl = document.getElementById('permDetail');
 // when the server acts on it -- a superseding request, or a turn that ended without asking again.
 // Grants are held per chat (see the DISPATCHER block): a token granted in chat A must never be
 // attached to chat B's turn, where the server would reject it AND the grant would be destroyed.
+// One planned or excluded bullet in words a person reads: the keyed everyday phrase for the
+// action (approval.action.<intent> in the catalog), never the tool's dotted id. The server
+// names the target ("called Receipts") on the row itself; an old payload minted before the
+// phrase rode along still resolves it here from the intent, and an intent with no keyed
+// phrase reads the one general phrase instead -- never the id.
+function approvalBulletWords(p) {
+  const phrase = (p && p.phrase) || pageT('approval.action.' + String((p && p.intent) || ''), '');
+  const action = phrase || pageT('permissions.action_general', 'do this');
+  const target = (p && p.target_plain) || '';
+  return target ? (action + ' ' + target) : action;
+}
 function showPermBar(chatId, ev) {
   const owner = chatState(chatId);
   const a = (ev && ev.approval) || {};
@@ -14170,23 +14591,25 @@ function showPermBar(chatId, ev) {
   owner.goalApproval = null;
   // Painting the single permission bar is display work: only the chat on screen may drive it.
   if (!permBarEl || !isDisplayed(chatId)) return;
-  permMsgEl.textContent = a.action || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
+  permMsgEl.textContent = (a.action_plain || a.action) || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
   const resources = Array.isArray(a.affected_resources) && a.affected_resources.length ? a.affected_resources.join(', ') : pageT('permissions.no_path_reported', 'No specific path reported');
   const effects = a.expected_side_effects || pageT('permissions.side_effect_undescribed', 'Side effect not described');
   permMetaEl.textContent = pageTF('permissions.meta_line', 'Affects: {resources} · Side effects: {effects} · {reversibility}', { resources: resources, effects: effects, reversibility: (a.reversible ? pageT('permissions.reversible', 'Reversible') : pageT('permissions.may_not_reversible', 'May not be reversible')) });
   const detailBits = [];
-  if (a.intent) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + a.intent);
-  if (a.task_id) detailBits.push(pageT('permissions.detail_task', 'Task: ') + a.task_id);
+  // The folded details speak plain words: the server's action line names the action (never a
+  // bare dotted tool id), and a task id is bookkeeping a person cannot act on, so it is not
+  // rendered here at all.
+  if (a.action) detailBits.push(pageT('permissions.detail_tool', 'Tool: ') + (a.action_plain || a.action));
   if (Array.isArray(a.planned_actions) && a.planned_actions.length > 1) {
     detailBits.push(pageTF('permissions.planned_header', 'Planned changes in this request ({count}):', { count: a.planned_actions.length }));
-    a.planned_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });
+    a.planned_actions.forEach((p) => { detailBits.push('  - ' + approvalBulletWords(p)); });
   }
   // What the same plan asked for that this grant refuses. Named, because a truthful count of the
   // covered set still leaves an operator to GUESS whether the delete or the command beside it rode
   // along -- and the whole point of the bounded batch is that it did not.
   if (Array.isArray(a.excluded_actions) && a.excluded_actions.length) {
     detailBits.push(pageTF('permissions.not_covered_prefix', 'Not covered -- each of these asks separately ({count}):', { count: a.excluded_actions.length }));
-    a.excluded_actions.forEach((p) => { detailBits.push('  - ' + (p.intent || 'action') + ' ' + (p.target || '')); });
+    a.excluded_actions.forEach((p) => { detailBits.push('  - ' + approvalBulletWords(p)); });
   }
   if (a.diff_preview) detailBits.push('\n' + pageT('permissions.proposed_changes', 'Proposed changes:') + '\n' + a.diff_preview);
   permDetailEl.textContent = detailBits.join('\n'); permDetailEl.hidden = true;
@@ -14298,7 +14721,7 @@ async function resolvePermission(decision, scope) {
         const response = await fetch('/api/goal/retry', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({session_id:chatId, goal_id:goalApproval.goal_id})});
         const resumed = await response.json();
-        if (!response.ok || !resumed.ok) throw new Error(resumed.error || pageT('permissions.approval_gone', 'This approval is no longer available.'));
+        if (!response.ok || !resumed.ok) { throw new Error(pageT('permissions.approval_gone', 'This approval is no longer available.')); }
         if (window.VoolGoalCard) window.VoolGoalCard.refresh();
       } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
       return;
@@ -14321,7 +14744,7 @@ async function resolvePermission(decision, scope) {
       if (owner.run) { owner.run.permission = false; owner.run.permissionDenied = true; owner.run.action = pageT('run.permission_denied', 'Permission denied'); renderCard(owner.run); }
       toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
     }
-  } catch (e) { toast(pageT('permissions.resolve_failed_prefix', 'Could not resolve approval: ') + e.message); }
+  } catch (e) { toast(pageT('permissions.resolve_failed', 'This approval could not be answered. Please try again.')); }
 }
 if (permBarEl) {
   document.getElementById('permOnce').addEventListener('click', () => resolvePermission('allow', 'once'));
@@ -14357,7 +14780,7 @@ if (permBarEl) {
         openProjectMenu(chatId, chatGrantBtn);
         return;
       }
-      toast(pageT('permissions.chat_grant_failed_prefix', 'Could not grant chat workspace approval: ') + e.message);
+      toast(pageT('chat.try_again', 'Couldn’t do that just now. Try again.'));
     }
   });
   document.getElementById('permReview').addEventListener('click', () => { permDetailEl.hidden = !permDetailEl.hidden; });
@@ -14500,9 +14923,7 @@ panelBtnEl.addEventListener('click', togglePanel);
       exportAborter = null;
       if (closed) return;
       if (!r.ok) {
-        let msg = "Couldn\u2019t export this chat. Try again.";
-        try { const j = await r.json(); if (j && j.message) msg = j.message; } catch (e) {}
-        statusEl.textContent = msg;
+        statusEl.textContent = pageT('chat.try_again', 'Couldn’t do that just now. Try again.');
         return;
       }
       const blob = await r.blob();
@@ -14516,8 +14937,9 @@ panelBtnEl.addEventListener('click', togglePanel);
       overlay.hidden = true;
     } catch (e) {
       exportAborter = null;
+      // The app's own refusal words are not shown; the person reads one keyed sentence.
       statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
-        : (e && e.fromApp) ? e.message
+        : (e && e.fromApp) ? pageT('chat.try_again', 'Couldn’t do that just now. Try again.')
         : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;
@@ -14665,6 +15087,7 @@ if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopProp
 })();
 initComposerControls();
 buildTabs();
+paintSessionsLoadState();   // the quiet "Loading your chats…" row is up before the first ask resolves
 loadSessions();
 showEmpty();      // paint the welcome instantly so boot never flashes blank; restoreCurrent swaps in the transcript if the session has one
 restoreCurrent();
@@ -14711,8 +15134,8 @@ const UPDATE_ONLINE_OFF = pageT('update.online_off', 'Online access is off, so V
 const UPDATE_LABELS = {
   ready: pageT('update.ready', 'Update ready'), downloading: pageT('update.downloading', 'Downloading…'), verifying: pageT('update.verifying', 'Verifying…'),
   ready_to_restart: pageT('update.ready_to_restart', 'Ready to restart'), installing: pageT('update.installing', 'Installing…'), restarting: pageT('update.restarting', 'Restarting…'),
-  done: pageT('update.done', 'Updated'), rolled_back: pageT('update.rolled_back', 'Rolled back'), failed: pageT('update.failed', 'Update failed'),
-  unavailable: pageT('update.unavailable', 'Updates unavailable'), checking: pageT('update.checking', 'Checking…'), up_to_date: pageT('update.up_to_date', 'Up to date'),
+  done: pageT('update.done', 'Updated'), rolled_back: pageT('update.rolled_back', 'Rolled back'), failed: pageT('update.failed', 'Update failed. Try again later.'),
+  unavailable: pageT('update.unavailable', 'Updates are not available right now. Try again later.'), checking: pageT('update.checking', 'Checking…'), up_to_date: pageT('update.up_to_date', 'Up to date'),
 };
 const UPDATE_BUSY = new Set(['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting']);
 let _updateStatus = null;
@@ -14873,7 +15296,7 @@ const VoolConnection = (function () {
       clearTimeout(timer); delay = 2000;
       if (offline) {
         show(false);
-        toast('VOOL is running again.');
+        toast(pageT('chat.back_online', 'VOOL is running again.'));
         try { loadSessions(); } catch (e) {}
         try { if (logEl && logEl.querySelector('.load-failed')) openSession(displayedChat); } catch (e) {}
       }
@@ -14900,7 +15323,7 @@ const VoolConnection = (function () {
     retry.disabled = true;
     const ok = await check();
     retry.disabled = false;
-    if (!ok) toast("Still can't reach VOOL. It will keep trying.");
+    if (!ok) toast(pageT('chat.still_unreachable', "Still can't reach VOOL. It will keep trying."));
   });
   return { markOffline, check, isOffline: () => offline };
 })();
@@ -14974,6 +15397,11 @@ window.VoolPageActions = Object.freeze({
 // (derived state, core/setup_progress.py). No polling: fetch at boot, on focus/visibility, and
 // after the setup frame closes. Dismissing is the one "don't remind me" choice, persisted as an
 // ordinary preference through the prefs door; every step stays reachable as a Settings row.
+// LAW: the line belongs to a NEW, EMPTY chat only -- no transcript yet and no live turn of its
+// own -- while setup is unfinished. Any message, any running turn, or switching to a chat that
+// already has a transcript hides it (setupLineEligible / setupLineReflect below). Dismissal and
+// completion are the server's verdicts (setup_dismissed / complete, core/setup_progress.py); the
+// page only adds "and this chat is still empty" on top of them.
 async function setupLineLoad() {
   const line = document.getElementById('setupLine');
   if (!line) return;
@@ -15007,7 +15435,7 @@ async function setupLineLoad() {
       } catch (e) {}
       text.textContent = prog;
     }
-    line.hidden = !show;
+    setupLineReflect();   // wanted AND this chat still empty; the finally's noModelLinePaint paints once loaded
   } catch (e) { line.hidden = true; noModelState = null; }
   finally { line.dataset.loaded = '1'; noModelLinePaint(); }   // the markup starts hidden; this says the decision was made
 }
@@ -15025,6 +15453,21 @@ async function setupLineLoad() {
 var noModelState = null;
 var setupLineWanted = false;
 var noModelPoll = null;
+// The line's one home: the displayed chat is NEW -- no transcript yet, and no live turn of its
+// own. `view` is the displayed chat's bucket (reassigned only by setDisplayedChat), so this
+// verdict always describes the chat on screen, never the chat a background turn belongs to.
+function setupLineEligible() {
+  return !!view && !view.history.length && !(view.run && !view.run.ended);
+}
+// Repaint the line from BOTH halves of the law: the server wants it (setup unfinished, not
+// dismissed) AND the displayed chat is still empty. The no-model form outranks this paint -- it
+// is not dismissible and shows wherever no model can answer, empty chat or not.
+function setupLineReflect() {
+  const line = document.getElementById('setupLine');
+  if (!line || line.dataset.loaded !== '1') return;
+  if (line.classList.contains('no-model-line')) return;
+  line.hidden = !(setupLineWanted && setupLineEligible());
+}
 function noModelNeeded() {
   const cd = noModelState;
   if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
@@ -15042,7 +15485,7 @@ function noModelLinePaint() {
   const show = noModelNeeded();
   line.classList.toggle('no-model-line', show);
   if (show) line.hidden = false;
-  else if (line.dataset.loaded === '1') line.hidden = !setupLineWanted;
+  else if (line.dataset.loaded === '1') setupLineReflect();   // wanted AND this chat still empty
   if (show && !noModelPoll) noModelPoll = setInterval(() => { if (!document.hidden) setupLineLoad(); }, 20000);
   if (!show && noModelPoll) { clearInterval(noModelPoll); noModelPoll = null; }
 }

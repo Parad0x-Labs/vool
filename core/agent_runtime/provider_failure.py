@@ -68,10 +68,15 @@ _REASONING_ONLY_RE = re.compile(
 class ProviderFailure:
     kind: str
     detail: str = ""
+    #: A reason written for the person, set only by a call site that has verified the wording
+    #: (the audit's evidence_rejected branch). `operator_sentence` appends this and nothing else;
+    #: `detail` is engineering vocabulary for the structured call record and never reaches the
+    #: sentence, whatever shape it arrives in.
+    plain_reason: str = ""
 
     @property
     def model_answered(self) -> bool:
-        """Whether the provider actually produced a completion. Governs whether it is honest to
+        """Whether the provider actually produced a completion. Governs whether it is fair to
         send the operator to the model picker."""
         return self.kind in {
             EMPTY_CONTENT,
@@ -82,36 +87,54 @@ class ProviderFailure:
         }
 
     def operator_sentence(self, *, model_label: str = "", phase: str = "") -> str:
-        model = f"`{model_label}`" if model_label else "the selected model"
+        # The model id and the raw transport detail never go in this sentence: it is read by the
+        # person waiting on the answer. Both stay in the structured call record (last_call.error,
+        # the call manifests) that this label travels with.
         where = f" during the {phase} step" if phase else ""
         if self.kind == UNREACHABLE:
-            return f"{model} could not be reached{where} ({self.detail or 'transport failure'})."
+            return (
+                f"The AI service I tried could not be reached{where} — the connection itself "
+                "failed before any answer could start. Check the connection and try again."
+            )
         if self.kind == PROVIDER_ERROR:
-            return f"{model} returned a provider error{where}: {self.detail or 'unspecified'}."
+            return (
+                f"The AI service was reached{where} but answered with an error instead of a "
+                "result. Try again in a little while."
+            )
         if self.kind == EMPTY_CHOICES:
-            return f"{model} answered{where} but the response carried no choices."
+            return (
+                f"The AI service was reached{where} but its reply carried no answer at all. "
+                "Ask again — if it keeps happening, the service is having trouble."
+            )
         if self.kind == EMPTY_CONTENT:
             return (
-                f"{model} answered{where} and the final content was empty — the model was reached; "
-                "it did not produce the artifact this step required."
+                f"The AI service was reached{where} but its answer came back empty — it did not "
+                "produce the work this step needed."
             )
         if self.kind == REASONING_ONLY:
             return (
-                f"{model} answered{where} with reasoning only and no artifact. The model was "
-                "reached and spent its output budget thinking rather than answering."
+                f"The AI service was reached{where} but spent its whole reply thinking and never "
+                "wrote the answer. Ask again, or ask for a shorter answer."
             )
         if self.kind == OUTPUT_BUDGET_EXHAUSTED:
             return (
-                f"{model} hit its output-token limit{where} before finishing the artifact. The "
-                "model was reached; the budget ran out."
+                f"The AI service was reached{where} but ran out of room for its reply before it "
+                "could finish. Ask for something shorter, or split the request in parts."
             )
         if self.kind == UNUSABLE_ARTIFACT:
-            return (
-                f"{model} answered{where} and the content did not satisfy this step's contract: "
-                f"{self.detail or 'the artifact was rejected'}. The model was reached and produced "
-                "text; the text was not usable here."
+            sentence = (
+                f"The AI service answered{where}, but what it wrote could not be used for this "
+                "step — the text arrived and was set aside, not used."
             )
-        return f"{model} completed the call{where} but reported no token usage."
+            # Only a plain_reason a call site wrote for the person is appended. The `detail`
+            # field ("the completion did not contain the required artifact" and the like) stays
+            # in the structured call record, never in this sentence.
+            reason = " ".join(self.plain_reason.split())
+            if reason:
+                reason = f"{reason[0].upper()}{reason[1:].rstrip('.')}"
+                sentence = f"{sentence} {reason}."
+            return sentence
+        return f"The AI service finished{where} but did not report how much it used."
 
 
 def classify_provider_failure(

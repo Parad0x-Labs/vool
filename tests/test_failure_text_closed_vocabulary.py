@@ -16,8 +16,9 @@ The fix, end to end:
     the three sites that catch a real exception (`_run_one`'s render/node catches,
     `run_conductor_plan`'s pool-fault catch) also capture the FULL text and traceback.
   - `core/conductor/compose.py`: `reason_for_outcome` is the fail-closed renderer -- codes that
-    can only originate from a caught exception map to a fixed generic phrase plus the receipt id,
-    and NEVER consult the outcome's text at all. `reader_facing_reason` (the tier-2 fallback for
+    can only originate from a caught exception map to a fixed generic phrase (the receipt id
+    stays on the outcome and the receipt store; it never prints in the served text), and
+    NEVER consult the outcome's text at all. `reader_facing_reason` (the tier-2 fallback for
     outcomes built without a code) inverts the old default-open polarity: unrecognized text that
     still looks like leaked internals (an embedded exception-class shape, a filesystem path, an
     internal module path) renders a generic line instead of being passed through.
@@ -155,7 +156,9 @@ def test_no_raised_exception_shape_leaks_through_the_served_answer(_leaky_op, ca
 
     # The served side MUST NOT carry any of it.
     _assert_clean(composed.text)
-    assert outcome.receipt_id in composed.text, "the receipt id itself should reach the reader"
+    # The receipt id links the answer to the stored evidence, but it is an id: it stays on the
+    # outcome and the receipt (asserted above), never in the text the person reads.
+    assert outcome.receipt_id not in composed.text, "receipt ids never print in the served text"
     # Never the raw message content, whatever it said.
     assert str(exc) not in composed.text
 
@@ -263,7 +266,7 @@ def test_exception_derived_codes_never_consult_failure_reason_text(code):
     assert "/Users/" not in rendered
     assert "site-packages" not in rendered
     assert "core.agent_runtime" not in rendered
-    assert "ndf-unittest0000" in rendered
+    assert "ndf-unittest0000" not in rendered, "receipt ids never print in the served text"
 
 
 def test_unresolved_and_dependency_failed_codes_show_their_safe_detail():

@@ -25,6 +25,7 @@ from core.task_router import (
 
 from .constants import (
     _APPEND_CONTENT_ONLY_RE,
+    _ARTICLE_NOUN_PATH_RE,
     _BUILDER_RESEARCH_MARKERS,
     _CREATE_PATH_RE,
     _DIRECTORY_CREATE_MARKERS,
@@ -55,6 +56,7 @@ from .constants import (
     machine_disk_scope,
     machine_display_intent,
     machine_folder_search_intent,
+    machine_folder_search_wants_drives,
     machine_largest_intent,
 )
 from .models import WorkflowPlannerDecision
@@ -1278,13 +1280,18 @@ def _extract_workspace_bootstrap_path(text: str) -> str:
         marker in lowered for marker in _START_CODE_MARKERS
     )
     locative = (_INTO_PATH_RE,) if wants_creation else ()
+    # `_ARTICLE_NOUN_PATH_RE` sits after the explicit "named X" and "verb + name + folder"
+    # shapes (they are more specific) and before the bare verb-led `_CREATE_PATH_RE`, so an
+    # idiom like "make sure there's a docs folder" yields `docs` instead of reading the
+    # filler after the verb as the path.
     patterns = (
-        (_NAMED_PATH_RE, _VERB_NAME_FOLDER_RE, *locative)
+        (_NAMED_PATH_RE, _VERB_NAME_FOLDER_RE, _ARTICLE_NOUN_PATH_RE, *locative)
         if file_like_prompt
         else (
             _NAMED_PATH_RE,
             _VERB_NAME_FOLDER_RE,
             _FOLDER_PATH_RE,
+            _ARTICLE_NOUN_PATH_RE,
             _CREATE_PATH_RE,
             *locative,
         )
@@ -3308,7 +3315,8 @@ def plan_tool_workflow(
             return WorkflowPlannerDecision(
                 handled=True,
                 reason="planned_machine_folder_search",
-                next_payload={"intent": "machine.find_folder", "arguments": {"name": folder_search[1]}},
+                next_payload={"intent": "machine.find_folder", "arguments": {
+                    "name": folder_search[1], **({"drives": True} if machine_folder_search_wants_drives(text) else {})}},
             )
         if git_payload is not None:
             reason, next_payload = git_payload

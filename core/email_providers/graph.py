@@ -34,7 +34,7 @@ from core.email_providers.base import (
     _load_oauth_handle,
     _OAuthClient,
 )
-from core.email_tools import EmailReadResult, EmailResult, MailSearch
+from core.email_tools import EmailReadResult, EmailResult, MailSearch, message_id_list, normalize_message_id
 
 GRAPH_API_BASE = "https://graph.microsoft.com"
 GRAPH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
@@ -181,7 +181,7 @@ class GraphAdapter:
                    for h in m.get("internetMessageHeaders") or []}
         sender = m.get("from") or {}
         return {
-            "message_id": str(headers.get("message-id") or m.get("id") or ""),
+            "message_id": normalize_message_id(headers.get("message-id")) or str(m.get("id") or ""),
             "from": _mailbox_text(sender.get("emailAddress") or {}),
             "to": str(headers.get("to") or ""),
             "subject": str(m.get("subject") or ""),
@@ -291,7 +291,7 @@ class GraphAdapter:
         parent."""
         from urllib.parse import quote
 
-        needle = str(reply_to_rfc or "").strip()
+        needle = normalize_message_id(reply_to_rfc)
         if not needle:
             return ""
         filter_value = quote(
@@ -313,10 +313,10 @@ class GraphAdapter:
     def send(self, *, raw_mime: bytes, thread_id: str = "", reply_to_rfc: str = "",
              expected_identity: str = "") -> EmailResult:
         parsed = email_lib.message_from_bytes(raw_mime)
-        parent = str(reply_to_rfc or "").strip()
+        parent = normalize_message_id(reply_to_rfc)
         if parent:
-            carried = str(parsed.get("In-Reply-To") or "").strip()
-            if carried != parent or parent not in str(parsed.get("References") or "").split():
+            carried = normalize_message_id(parsed.get("In-Reply-To"))
+            if carried != parent or parent not in message_id_list(parsed.get("References")):
                 # STRUCTURAL GUARD, before any request: an approved reply must leave
                 # carrying its approved parent binding. Without it, or with another
                 # parent, it would silently become a different message.
@@ -332,7 +332,7 @@ class GraphAdapter:
         binding = self.principal_binding(expected_identity)
         text, subject = self._decoded_text(raw_mime)
         recipients = self._recipient_objects(str(parsed.get("To") or ""))
-        reserved_id = str(parsed.get("Message-ID") or "")
+        reserved_id = normalize_message_id(parsed.get("Message-ID"))
 
         # EXACT REPRESENTATION, chosen by what the approved message is.
         #  * A REPLY leaves as ONE documented sendMail in MIME form: base64 of the exact
@@ -447,7 +447,7 @@ class GraphAdapter:
         for item in items:
             headers = {str(h.get("name") or "").lower(): str(h.get("value") or "")
                        for h in item.get("internetMessageHeaders") or []}
-            if headers.get("message-id", "").strip() == message_id:
+            if normalize_message_id(headers.get("message-id")) == normalize_message_id(message_id):
                 return True, "matched exactly by the reserved Message-ID in the sent item"
             if not subject or str(item.get("subject") or "") != subject:
                 continue

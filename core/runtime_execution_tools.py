@@ -1550,27 +1550,41 @@ def _looks_like_a_name(word: str) -> bool:
 _SYSTEM_MOUNT_PREFIXES = ("/System/", "/private/", "/boot", "/snap/", "/dev", "/proc", "/sys", "/var/", "/usr/", "/efi")
 
 
-def _find_folder_roots() -> list[str]:
-    """Home first, then every other mounted drive that is not the system's own ("/" never)."""
+def _find_folder_drives() -> list[str]:
+    """Every mounted drive that is not the system's own ("/" never) and not the home folder."""
     from core import machine_diagnostics
 
     home = str(_machine_home())
-    roots = [home] if os.path.isdir(home) else []
+    drives: list[str] = []
     for row in machine_diagnostics.disk_usage():
         mount = str(row.get("mount") or "")
-        if not mount or mount == "/" or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
+        if not mount or mount == "/" or mount == home or mount.startswith(_SYSTEM_MOUNT_PREFIXES):
             continue
         if mount.startswith("/run/") and not mount.startswith("/run/media/"):
             continue
-        if mount not in roots:
-            roots.append(mount)
+        if mount not in drives:
+            drives.append(mount)
+    return drives
+
+
+def _find_folder_roots(include_drives: bool = False) -> list[str]:
+    """The home folder, plus the plugged-in drives only when the person asked for them."""
+    home = str(_machine_home())
+    roots = [home] if os.path.isdir(home) else []
+    if include_drives:
+        roots.extend(drive for drive in _find_folder_drives() if drive not in roots)
     return roots
+
+
+# Folders apps keep at the top of the home folder (~/Library, %USERPROFILE%\AppData): theirs, not
+# the person's. A folder search does not walk them.
+_FIND_FOLDER_HOME_APP_DIRS = frozenset({"library", "appdata", "snap"})
 
 
 def _machine_find_folder(
     arguments: dict[str, Any], *, workspace_root: Path | None = None
 ) -> RuntimeExecutionResult:
-    """Case-insensitive folder-name search across the machine's drive roots.
+    """Case-insensitive folder-name search in the home folder, and the plugged-in drives when asked.
 
     Read-only, bounded (depth/time/match caps), skips system/noise directories and
     never follows symlinks or junctions. Returns verified paths, the searched scope,
@@ -1589,6 +1603,10 @@ def _machine_find_folder(
 
     name = " ".join(str((arguments or {}).get("name") or (arguments or {}).get("query") or "").split()).strip(" .'\"")
     wants_hidden = str((arguments or {}).get("name") or (arguments or {}).get("query") or "").strip(" '\"").startswith(".")
+    from core.execution.constants import FOLDER_ON_DRIVE_RE
+
+    include_drives = (arguments or {}).get("drives") is True or bool(FOLDER_ON_DRIVE_RE.search(name))
+    name = " ".join(FOLDER_ON_DRIVE_RE.sub(" ", name).split()).strip(" .'\"")
     if not name:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="missing_argument",
@@ -1692,7 +1710,8 @@ def _machine_find_folder(
     # on both sides before comparing. (Without this, a folder plainly visible in a listing reads as
     # "not found" the moment its name uses a different separator than the query — a real reported bug.)
     needle_sep = re.sub(r"[\s_\-]+", "", needle)
-    roots = _find_folder_roots()
+    roots = _find_folder_roots(include_drives)
+    home_root = str(_machine_home())
     if not roots:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="no_results",
@@ -1725,7 +1744,10 @@ def _machine_find_folder(
 
     # The home folder first: "find my pictures folder" means ~/Pictures, and walking the drive
     # breadth-first spent the budget on system and app folders before it reached the user's own.
-    home = str(Path.home())
+    # One home for the whole search: the roots above were picked with _machine_home(), so the
+    # home-first walk must start there too — resolving "~" again from the raw environment can
+    # point at a different folder than the one the rest of this search calls home.
+    home = str(_machine_home())
     if os.path.isdir(home):
         # The drive that holds the home folder is searched through the home folder only. Audit
         # 2026-10-27: "check my Invoices folder" walked / to depth 6 (system and app folders, every
@@ -1758,9 +1780,7 @@ def _machine_find_folder(
                         or lowered_name.endswith(_APP_LIBRARY_SUFFIXES)
                     ):
                         continue
-                    if lowered_name.startswith(".") and not wants_hidden:
-                        # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
-                        # or walked unless the person names a dot-folder themselves.
+                    if current == home_root and lowered_name in _FIND_FOLDER_HOME_APP_DIRS:
                         continue
                     if lowered_name.startswith(".") and not wants_hidden:
                         # ~/.claude, ~/.gemini, ~/.ssh: app and credential folders are never listed
@@ -1812,6 +1832,8 @@ def _machine_find_folder(
     ]
     if timed_out:
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
+    if not include_drives and _find_folder_drives():
+        not_found.append('I looked in your home folder only. Say "on my external drive" to search your other drives too.')
     # "check my Invoices folder" when the invoices are loose files: say where they are.
     files = _files_named_like(name, workspace_root=workspace_root)
     if files:
@@ -3674,7 +3696,7 @@ def _dispatch_runtime_tool(
             status="disabled",
             reason=contract.unsupported_reason,
         )
-        unavailable_text = contract.unsupported_reason
+        unavailable_text = _unsupported_response_text(intent, contract, source_context)
         if intent.startswith("x."):
             from core.x_connect_hint import not_connected_text, x_connected
 
@@ -4694,6 +4716,30 @@ def _marketplace_purchase_knowledge(arguments: dict[str, Any]) -> RuntimeExecuti
     )
 
 
+def _web_lookups_held(source_context: dict[str, Any] | None) -> bool:
+    from core.remote_fetch_policy import effective_web_available
+
+    return not effective_web_available(source_context)
+
+
+def _web_fetch_refused_text(url: str, source_context: dict[str, Any] | None) -> str:
+    """What the person reads when a page was not opened: the switch (or Offline) by name when
+    that is what held, else the per-turn refusal as before."""
+    if _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(source_context=source_context)
+    return f"Web fetch is disabled by policy for `{url}`."
+
+
+def _unsupported_response_text(intent: str, contract: Any, source_context: dict[str, Any] | None) -> str:
+    if intent in {"web.fetch", "web.search"} and _web_lookups_held(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return web_lookups_off_text(source_context=source_context)
+    return str(contract.unsupported_reason or "")
+
+
 def _remote_fetch_allowed(source_context: dict[str, Any] | None) -> bool:
     if "allow_remote_fetch" in (source_context or {}):
         return bool((source_context or {}).get("allow_remote_fetch"))
@@ -4706,6 +4752,30 @@ def _web_url(raw_url: object) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("web tools require an absolute http(s) URL")
     return url
+
+
+_CHARSET_RE = re.compile(r"charset\s*=\s*[\"']?([A-Za-z0-9._-]+)", re.IGNORECASE)
+
+
+def _fetched_page_text(raw: bytes, *, content_type: str, content_encoding: str) -> tuple[str, str, bool]:
+    """(text, title, readable) for a fetched body. An HTML page becomes the text a person reads on
+    it; any other body (JSON, plain text) is returned as sent. A compressed body is decoded first,
+    and its declared charset is honoured."""
+    from tools.web.http_fetch import _decompress
+    from tools.web.page_text import looks_like_html, readable_page
+
+    decoded = _decompress(raw, content_encoding)
+    if decoded is None:
+        return "", "", False
+    match = _CHARSET_RE.search(content_type or "")
+    try:
+        text = decoded.decode(match.group(1) if match else "utf-8", errors="replace")
+    except LookupError:
+        text = decoded.decode("utf-8", errors="replace")
+    if not looks_like_html(content_type, text):
+        return text, "", False
+    page = readable_page(text)
+    return page.text, page.title, True
 
 
 def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
@@ -4729,7 +4799,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4765,13 +4835,14 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
     remote_turn = turn_is_remote(source_context)
     try:
         opened = (
-            open_public_only(url, make_request=_request, timeout=timeout_seconds)
+            open_public_only(url, make_request=_request, timeout=timeout_seconds, lookup=True)
             if remote_turn
-            else open_remote(_request(url), timeout=timeout_seconds)
+            else open_remote(_request(url), timeout=timeout_seconds, lookup=True)
         )
         with opened as response:
             final_url = str(response.geturl() or url)
             content_type = str(response.headers.get("content-type") or "").strip()
+            content_encoding = str(response.headers.get("content-encoding") or "").strip()
             body = response.read(max_bytes + 1)
     except RemoteTurnTargetRefused as refused:
         return RuntimeExecutionResult(
@@ -4798,7 +4869,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             handled=True,
             ok=False,
             status="disabled_by_policy",
-            response_text=f"Web fetch is disabled by policy for `{url}`.",
+            response_text=_web_fetch_refused_text(url, source_context),
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4810,12 +4881,16 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     except urllib.error.HTTPError as exc:
-        status = "login_wall" if int(exc.code or 0) in {401, 403} else "error"
+        # 401 asks for a sign-in. 403 is a refusal, most often a site turning away automated
+        # readers, and was reported as "behind a login" (fresh-user test, 2026-10-29), which sent
+        # people looking for an account the page never needed.
+        code = int(exc.code or 0)
+        status = "login_wall" if code == 401 else "access_refused" if code == 403 else "error"
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status=status,
-            response_text=f"Web fetch for `{url}` failed with HTTP {int(exc.code or 0)}.",
+            response_text=f"Web fetch for `{url}` failed with HTTP {code}.",
             details={
                 "observation": _tool_observation(
                     intent="web.fetch",
@@ -4823,7 +4898,7 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
                     ok=False,
                     status=status,
                     url=url,
-                    http_status=int(exc.code or 0),
+                    http_status=code,
                 ),
             },
         )
@@ -4845,23 +4920,13 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             },
         )
     truncated = len(body) > max_bytes
-    text = body[:max_bytes].decode("utf-8", errors="replace")
-    # A web page is read as its words, never its markup: the raw HTML (doctype, meta tags, CSS
-    # links) was shown to the person as the page's content and fed to models as tokens (0.7.8 sweep
-    # block 2c, FR-WEB-URL-01: "summarize https://www.iana.org/help/example-domains" printed
-    # `<!doctype html> <html> <head> ...`). Other content types pass through unchanged.
-    page_title = ""
-    if "html" in content_type.lower() or text.lstrip()[:15].lower().startswith(("<!doctype html", "<html")):
-        from html import unescape as _unescape_html
-
-        from core.demo_source import _html_to_text
-
-        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", text)
-        if title_match:
-            page_title = " ".join(_unescape_html(title_match.group(1)).split())
-        text = _html_to_text(text)
-        if page_title and not text.startswith(page_title):
-            text = f"{page_title}\n\n{text}"
+    # A web page is read as its words, never its markup (0.7.8 sweep block 2c, FR-WEB-URL-01:
+    # "summarize https://www.iana.org/help/example-domains" printed `<!doctype html> <html> ...`);
+    # a compressed body is decoded first and its charset honoured. Other content types pass through
+    # unchanged. The page's title leads its words, the way the summary path names the page.
+    text, title, readable = _fetched_page_text(body[:max_bytes], content_type=content_type, content_encoding=content_encoding)
+    if readable and title and not text.startswith(title):
+        text = f"{title}\n\n{text}"
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -4872,6 +4937,8 @@ def _web_fetch(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             "final_url": final_url,
             "content_type": content_type,
             "text": text,
+            "title": title,
+            "readable_text": readable,
             "truncated": truncated,
             "observation": _tool_observation(
                 intent="web.fetch",

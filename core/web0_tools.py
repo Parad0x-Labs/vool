@@ -156,7 +156,7 @@ def web0_create_project(
     normalized_template = _text(template_id)
     normalized_domain = _text(domain)
     if not normalized_template:
-        return {"error": "template_id_required"}
+        return {"error": "template_id_required", "message": "Say which page template you mean, then try again."}
     if not normalized_domain:
         return {"error": "domain_required"}
     response = http(
@@ -521,6 +521,7 @@ def web0_publish(
         return {
             "error": "publish_requires_explicit_allow_network_publish",
             "reason": "Publishing uploads content and may require signed network transactions.",
+            "message": "Publishing to the network must be allowed first. Allow network publishing, then try again.",
         }
     preview = web0_compile_preview(project.project_id, http=http)
     if preview.get("error"):

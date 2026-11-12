@@ -314,12 +314,20 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
                 fmt="audio",
             )
         if "unreadable-audio" in detail:
-            raise ReaderFailed("The audio decoder failed: the file could not be opened as audio.", code="decoder_failed", fmt="audio")
-        raise ReaderFailed(f"The audio decoder failed: {detail}", code="decoder_failed", fmt="audio")
+            raise ReaderFailed("The audio could not be opened for reading.", code="decoder_failed", fmt="audio")
+        # The helper's own output goes to the log: the message is shown to the person as written
+        # (the chat page shows dictation's typed words), so it carries no tool output.
+        _LOG.warning("speech helper could not read the audio: %s", detail)
+        raise ReaderFailed("The audio could not be read.", code="decoder_failed", fmt="audio")
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace") or "{}")
     except ValueError as exc:
-        raise ReaderFailed("The audio decoder produced output this runtime could not read.", code="decoder_bad_output", fmt="audio") from exc
+        raise ReaderFailed(
+            "I couldn't understand what the audio reader sent back. Try the file again, or attach "
+            "a transcript as text.",
+            code="decoder_bad_output",
+            fmt="audio",
+        ) from exc
     return payload if isinstance(payload, dict) else {}
 
 

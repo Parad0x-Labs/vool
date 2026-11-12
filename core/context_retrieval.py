@@ -245,7 +245,7 @@ _CAPSULE_FACTS_HEADER = (
 _COMPLETE_SOURCE_MAX_CHARS = 512
 
 
-def _header_with_reference_day(header: str) -> str:
+def _header_with_reference_day(header: str, updated_fact_rule: bool = False) -> str:
     """The capsule header plus one sentence naming the reader's reference day.
 
     Date arithmetic over records ("how many days ago", "how many weeks ago") needs the
@@ -257,6 +257,13 @@ def _header_with_reference_day(header: str) -> str:
     correctly for comparators that carried the date beside the question. One short sentence
     appended to the header line: the header stays one line and its first sentence, which the
     output guards key on, is unchanged. About twelve tokens per turn.
+
+    With *updated_fact_rule* (v08x, 2026-10-30) a second sentence states the answering rule
+    for changed facts. It rides ONLY when the render actually carries updated-fact markers:
+    on a marker-less capsule the sentence cost packed evidence (DEV-30 beam-100K-10
+    temporal_reasoning-0: the 3,600-word record fell out of the budget) and made the reader
+    hedge about ordering no marker asked about (beam-100K-7 knowledge_update-0). Measured
+    both directions on DEV-30 before this gate was added.
     """
     text = str(header or "")
     if not text.strip():
@@ -271,8 +278,16 @@ def _header_with_reference_day(header: str) -> str:
     # from today, but a relative phrase inside a record counts from that record's own stated date.
     # The earlier "never from a record's stated date" collapsed the two. No number or duration word
     # appears here, so the sentence can never stand as evidence for a time claim.
-    return (f"{text} Today is {today}: a question's how-long-ago counts back from this date; a relative "
+    # v08x (2026-10-30): the updated-fact answering rule rides the header only when the render
+    # carries the markers it names (see the docstring): on a marker-less capsule the sentence
+    # cost packed evidence and invited hedging, both measured on DEV-30.
+    text = (f"{text} Today is {today}: a question's how-long-ago counts back from this date; a relative "
             "phrase inside a record counts from that record's own stated date.")
+    if not updated_fact_rule:
+        return text
+    from core.updated_fact_marking import updated_fact_rule_sentence
+
+    return f"{text} {updated_fact_rule_sentence()}"
 #: Hard ceiling for coverage-driven chunk selection in the distiller
 #: fallback lane. Selection stops at query-term coverage or the char budget;
 #: the ceiling only bounds pathological queries, it is not the operative
@@ -13104,7 +13119,11 @@ def _capsule_v2_inject_retrieved(
             )
     if header and render_block:
         # re-attach the distiller's instruction header inside the block, with the
-        # reader's reference day beside the records it counts from
+        # reader's reference day beside the records it counts from. The updated-fact
+        # answering rule is NOT appended here: the marking pass runs after this
+        # attach (every lane must deliver first) and upgrades the header line only
+        # when the render actually carries markers — a marker-less capsule keeps
+        # its whole packing budget and no ordering talk it cannot use.
         header = _header_with_reference_day(header)
         render_block = render_block.replace(
             "<retrieved_context>\n", f"<retrieved_context>\n{header}\n", 1
@@ -13267,6 +13286,42 @@ def _capsule_v2_inject_retrieved(
             render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
         else:
             render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
+    # v08x (2026-10-30): updated-fact marking, after every lane has delivered.
+    # The capsule already carries a changed fact's newest value beside the older
+    # ones (DEV-30 probe: 16/20 newest present, 15/20 older dated beside it) and
+    # nothing told the reader which one is current (0/20 marked). Same-subject
+    # value chains among the DELIVERED lines get suffix markers — newest
+    # [current value], older [superseded], unorderable conflicts
+    # [conflicting records] (core.updated_fact_marking; the header instruction
+    # gained the answering rule, see _header_with_reference_day). Suffixes keep
+    # every delivered-line containment check whole; no record is added or
+    # dropped, so the forget laws and the absence gate are untouched.
+    try:
+        from core.updated_fact_marking import (
+            CONFLICT_MARKER,
+            CURRENT_MARKER,
+            SUPERSEDED_MARKER,
+            mark_updated_fact_lines,
+            updated_fact_rule_sentence,
+        )
+
+        render_block = mark_updated_fact_lines(
+            render_block,
+            receipts=[dict(r) for r in evidence_receipts if r.get("delivered")],
+            lane_records=[(occ, line) for occ, line in lane_rendered],
+        )
+        if any(m in render_block for m in (CURRENT_MARKER, SUPERSEDED_MARKER, CONFLICT_MARKER)):
+            # the answering rule rides the already-attached header line, one
+            # clause, only beside the markers it names
+            rule = updated_fact_rule_sentence()
+            lines = render_block.split("\n")
+            for i, ln in enumerate(lines):
+                if ln.startswith("Distilled local facts.") and "[current value]" not in ln:
+                    lines[i] = f"{ln} {rule}"
+                    break
+            render_block = "\n".join(lines)
+    except Exception:
+        LOGGER.debug("updated-fact marking failed", exc_info=True)
     if revoked_now and render_block:
         # the block as the reader receives it, its own headers aside: a revoked token that survives (split between two
         # adjacent records) means no memory rides this turn

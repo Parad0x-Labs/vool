@@ -1282,7 +1282,7 @@ def _compute_requirements(
     # Asking what was said earlier in this conversation is answered from the conversation and memory.
     # The live arms below read the topic of the recollection ("the latest bitcoin news", "the weather
     # at my wedding") as a lookup; an ask beside the recollection still arms them on its own reading.
-    from core.execution.constants import conversation_recall_remainder
+    from core.execution.constants import conversation_recall_remainder, records_scoped_ask
 
     recall_rest = conversation_recall_remainder(text)
     if recall_rest is not None and not any(
@@ -1301,6 +1301,14 @@ def _compute_requirements(
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )
+
+    # An ask that names the user's own notes/records/chats as its source of truth is widened by no
+    # currency word: the two "currently"-class arms below would send it to a live retrieval that can
+    # never hold its answer. Measured on the wls base (2026-10-29): a tonnage ask with "according
+    # to my notes" was widened by the present-anchored amount arm and refused as unmet current
+    # information, where the truthful contract is the records reading itself. The recall arm above
+    # answers a bare what-was-said turn first; this override disarms only the currency arms.
+    records_scoped = records_scoped_ask(text)
 
     # A live instrument reads the PRESENT. A past-anchored market/weather ask
     # ("What was the BTC price at its 2021 peak?") classified LIVE_DATA on the
@@ -1455,7 +1463,7 @@ def _compute_requirements(
         _asks_to_read_the_own_machines_files(candidate_text)
         and not _machine_files_remainder_asks_for_current(candidate_text)
     )
-    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request and not own_machine_read:
+    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request and not own_machine_read and not records_scoped:
         signal_codes = tuple(f"{SIGNAL_REASON_PREFIX}{signal.reason_code}" for signal in signals)
         if constraints.forbids_external_retrieval:
             # The user vetoed the only evidence lane: the requirement still stands
@@ -1507,7 +1515,10 @@ def _compute_requirements(
     from core.unsourced_current_claim import question_asks_for_measured_amount
 
     amount_ask = question_asks_for_measured_amount(text)
-    present_anchored = amount_ask and _scope_for_amount(text).asks_current and not past_only
+    amount_scope = _scope_for_amount(text)
+    present_anchored = (
+        amount_ask and amount_scope.asks_current and not past_only and not records_scoped
+    )
     if present_anchored and not _is_about_the_assistant_ask(text):
         return ExecutionRequirements(
             answer_mode="DIRECT",
@@ -1521,6 +1532,23 @@ def _compute_requirements(
                 [*reasons, "present_anchored_measured_amount"],
             ),
         )
+    # The records-scope override above must stay visible exactly when it CHANGED the contract:
+    # a currency widening that stood down leaves its trace on the DIRECT reading it replaced.
+    if records_scoped and (
+        (
+            amount_ask
+            and amount_scope.asks_current
+            and not past_only
+            and not _is_about_the_assistant_ask(text)
+        )
+        or (
+            signals
+            and not (past_only or current_input_only)
+            and not _is_about_the_assistant(candidate_text)
+            and not authoring_request
+        )
+    ):
+        reasons.append("records_scoped_not_current")
     return ExecutionRequirements(
         answer_mode="DIRECT",
         external_evidence_required=False,

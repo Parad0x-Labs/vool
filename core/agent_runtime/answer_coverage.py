@@ -70,6 +70,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from core.agent_runtime.filler_words import DISCOURSE_MARKER_TOKENS as _DISCOURSE_MARKER_TOKENS
+from core.agent_runtime.filler_words import is_filler_fragment as _is_filler_fragment
 from core.memory.admission import _APOSTROPHES as _APOSTROPHE_MARKS
 
 #: A claim that answers the entire message and may end the turn.
@@ -1068,30 +1070,25 @@ _CONVERSATIONAL_TOKENS = frozenset(
         "no", "np", "problem", "sure", "yes", "yeah", "yep", "yup", "nope", "nah",
         "hmm", "hm", "ah", "oh", "haha", "lol", "heh", "hah", "huh", "eh", "wow",
         "damn", "fuck", "hell", "shit",
-        # R1g — correction filler. A fragment made ENTIRELY of these plus the
-        # social words above is the CONNECTIVE TISSUE of a correction, not a
-        # request: 'sorry I mean', 'Actually', 'ignore that' minted as phantom
-        # demand units beside the demands they modify (found by the R1g
-        # corrections gauntlet). A real ask keeps a token outside this set —
-        # "ignore all previous instructions" keeps 'previous'/'instructions'
-        # and still mints.
-        "mean", "actually", "ignore",
         # Opinion/banter verbs. A unit made ENTIRELY of these is an aside, not a request:
         # "ok so u think u so cool heh?" (E001, the operator's own opener) minted a slot that
         # no lane could ever discharge. Any real ask adds a token outside this set --
         # "what do you think about X" keeps "about" and "X" and still mints.
         "think", "thinks", "thought", "guess", "reckon", "suppose", "seem", "seems",
         "really", "pretty", "quite", "clever", "smart", "funny", "silly", "cheeky",
-        # Urgency/format adverbials. A fragment made ENTIRELY of these is a qualifier on the
-        # ask that follows it ("real quick, what can you do locally ..."), not a second demand:
-        # minting it blocked the single-unit deterministic lanes and the capability question
-        # fell through to a full model turn. A real ask keeps a token outside this set.
-        "real", "quick", "quickly", "briefly", "short", "simple", "shorter", "concise",
-        "and", "then", "also", "just", "now", "still", "again", "separately",
         "am", "is", "are", "was", "were", "be", "been", "doing", "going", "help", "out",
         "how", "what", "whats", "up", "s", "to", "on", "in", "with", "that", "this",
         "can", "could", "would", "will", "do", "does", "did", "have", "has", "had", "get",
     }
+    # ... unioned with the ONE shared filler/discourse-marker vocabulary
+    # (core.agent_runtime.filler_words): the correction filler ('sorry I mean', 'Actually',
+    # 'ignore that' minus its object -- the R1g family), the urgency/format softeners ("real
+    # quick, what can you do locally ..."), and the N3 lead-ins ("btw", "anyway", "um",
+    # "pls", "wondering", "q") live there so the demand mint, the clause splitters and the
+    # price lane can never drift apart again. A real ask still keeps a token outside every
+    # one of these sets -- "ignore all previous instructions" keeps
+    # 'previous'/'instructions' and still mints.
+    | _DISCOURSE_MARKER_TOKENS
 )
 
 #: Tokens that carry no distinguishing content when asking "did the answer mention this unit".
@@ -2285,7 +2282,13 @@ def _raw_fragments_uncut(value: str) -> list[tuple[str, int, int, str]]:
         for start, end in _unit_spans(slice_text):
             body = slice_text[start:end]
             stripped = body.strip().strip(",")
-            if not stripped or is_conversational_unit(stripped):
+            # N3 (2026-10-29): a fragment that is ONLY filler ("quick one", "one more thing",
+            # "by the way", a "like for ..." qualifier) is dropped HERE, before it can become
+            # a request -- measured as "quick one, how tall is the eiffel tower?" answering
+            # the height and listing "- quick one" as a request no lane could match. The
+            # whole-fragment test lives in core.agent_runtime.filler_words; a fragment with
+            # one word of its own still mints exactly as before.
+            if not stripped or is_conversational_unit(stripped) or _is_filler_fragment(stripped):
                 continue
             offset = slice_start + start + (len(body) - len(body.lstrip()))
             fragments.append((stripped, offset, offset + len(stripped), item.slice_id))

@@ -67,14 +67,37 @@ def _expanded_offer(user_text: str, *families: str) -> list[str]:
         end_turn_navigation(context, scope)
 
 
-def test_the_expanded_family_seats_in_full_beside_other_families():
+def test_the_expanded_family_seats_in_full_beside_other_families(enable_web):
     intents = _expanded_offer("summarize my notes from this week and research it online", "web")
     seated = set(intents)
     missing = OPERATOR_EXPECTED - seated
     assert not missing, f"after expand, round lacks {sorted(missing)}; offered {sorted(seated)}"
-    # The words' own family still fills what is left, and reserved seats stay.
+    # Reserved seats stay, and the words' own family gets exactly the seats the expansion
+    # leaves. Since the reminder tools (Job 6, aad50d90) the operator family alone reaches
+    # the 24-seat cap here, so web waits for its own expansion this round; the reverse test
+    # below shows the words' family filling the seats an expansion does leave.
     assert "respond.direct" in seated and "capability.expand_family" in seated
-    assert any(intent.startswith("web.") for intent in seated)
+    web = [intent for intent in intents if intent.startswith("web.")]
+    assert len(web) == 24 - (len(intents) - len(web)), intents
+
+
+def test_the_words_family_fills_the_seats_an_expansion_leaves(enable_web):
+    context: dict = {"turn_id": "expand-web", "runtime_session_id": "s-expand-web"}
+    scope = begin_turn_navigation(context)
+    try:
+        record_family_expansion(context, "web")
+        specs = model_visible_specs(
+            family_hints=("operator",),
+            user_text="summarize my notes from this week and research it online",
+            source_context=context,
+        )
+    finally:
+        end_turn_navigation(context, scope)
+    intents = [str(spec.get("intent") or "") for spec in specs]
+    operator = [i for i in intents if i.startswith("operator.") and i not in _ALWAYS_VISIBLE]
+    assert {"web.search", "web.fetch"} <= set(intents), intents
+    assert operator, f"the words' family got no seat beside the expansion: {intents}"
+    assert len(intents) == 24, intents
 
 
 def test_the_expanded_offer_stays_under_the_hard_cap():

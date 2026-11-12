@@ -71,7 +71,7 @@ def test_no_banned_language_in_the_touched_region():
 
 
 def test_auto_fallback_is_separate_from_explicit_model_pins():
-    assert "Auto fallback" in HTML
+    assert "Auto backup" in HTML
     assert "/api/cloud/auto-model" in HTML
     assert "Best verified free" in HTML
     assert "used only by VOOL Auto; never paid" in HTML

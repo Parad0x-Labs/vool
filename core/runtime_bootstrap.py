@@ -136,9 +136,10 @@ def resolve_backend_selection(
                 backend_name="local_only_no_backend",
                 device="cpu",
                 reason=(
-                    "Local Only is on and no local model backend is reachable. The app is "
-                    "serving so this can be changed: install or start a local model, or turn "
-                    "Local Only off in Settings."
+                    "Local-only mode is on for this whole computer, and no local model is "
+                    "reachable. Install or start a local model, or ask the person who set up "
+                    "this computer to change the local-only choice — Settings has no switch "
+                    "for it."
                 ),
                 hardware=hardware,
             )

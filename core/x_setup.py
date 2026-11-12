@@ -174,7 +174,7 @@ def _send_check(path: str, authorization: str, *, secrets_in_use: tuple[str, ...
         if is_timeout_error(exc):
             failure = XSetupError("timeout", "X did not answer in time. Try again. Nothing was saved.")
         else:
-            failure = XSetupError("unreachable", "Could not reach X from this machine. Nothing was saved.")
+            failure = XSetupError("unreachable", "VOOL could not reach X from this computer. Check your internet connection and try again. Nothing was saved.")
         if never_connected:
             raise failure from None
         raise _Served(failure) from None
@@ -244,7 +244,7 @@ def _write_saved(data: dict[str, Any]) -> None:
     try:
         store_credential(SLOT, json.dumps(data, sort_keys=True), label=LABEL)
     except Exception:
-        raise XSetupError("failed", "X accepted your keys, but VOOL could not save them securely. Check local storage and try again.") from None
+        raise XSetupError("failed", "X accepted your keys, but VOOL could not save them safely on this computer. Try again, and if it keeps failing, restart VOOL.") from None
 
 
 def _saved_keys(saved: dict[str, Any]) -> OAuth1Keys | None:

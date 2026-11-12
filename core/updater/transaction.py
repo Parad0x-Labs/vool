@@ -631,7 +631,10 @@ class UpdateFlow:
             try:
                 metadata = json.loads((bundle_dir / "Contents/Resources/BUILD_MANIFEST.json").read_text())
                 expected_arch = "arm64" if self.platform == "macos-arm64" else "x86_64"
-                if metadata.get("arch") != expected_arch or metadata.get("version") != manifest.version + "-beta":
+                # A payload may carry the plain release version or the -beta form (releases
+                # are migrating off -beta); exactly these two, nothing looser.
+                expected_versions = (manifest.version, manifest.version + "-beta")
+                if metadata.get("arch") != expected_arch or metadata.get("version") not in expected_versions:
                     raise ValueError("the Mac payload's architecture/version does not match this signed offer")
                 if manifest.build_commit and metadata.get("exact_sha") != manifest.build_commit:
                     raise ValueError("the Mac payload does not match the signed build commit")
@@ -641,7 +644,8 @@ class UpdateFlow:
             try:
                 version = (bundle_dir / "VERSION").read_text(encoding="utf-8").strip()
                 commit = (bundle_dir / "SOURCE_COMMIT").read_text(encoding="utf-8").strip()
-                if version != manifest.version + "-beta":
+                # Plain release version or the -beta form, exactly (mirrors the Mac check).
+                if version not in (manifest.version, manifest.version + "-beta"):
                     raise ValueError(f"the package is {version or 'unversioned'}, the signed offer is {manifest.version}")
                 if manifest.build_commit and commit != manifest.build_commit:
                     raise ValueError("the package does not match the signed build commit")

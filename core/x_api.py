@@ -115,7 +115,8 @@ def _auth(saved: dict[str, Any], method: str, url: str, *, user_context: bool) -
     if not token:
         raise XReadError(
             "needs_credentials",
-            "X is not connected. Add your X keys in Settings > API Keys > X first. Nothing was sent to X.",
+            "X is not connected, so nothing was sent to X. Add your X keys in Settings, under API Keys for X, "
+            "then try again.",
         )
     return f"Bearer {token}", (token,)
 
@@ -295,7 +296,7 @@ def _send_read(path: str, url: str, authorization: str, outcome: dict[str, bool]
 
         if is_timeout_error(exc):
             raise XReadError("timeout", "X did not answer in time. Try again.") from None
-        raise XReadError("unreachable", "Could not reach X from this machine.") from None
+        raise XReadError("unreachable", "VOOL could not reach X from this computer. Check your internet connection and try again.") from None
     if len(raw) > MAX_RESPONSE_BYTES:
         raise XReadError("malformed_response", "X answered with more data than VOOL reads in one go.")
     try:
@@ -384,8 +385,8 @@ def _page_size(requested: Any, default: int = 25, lo: int = 10, hi: int = MAX_PA
     if left is not None:
         if left // 2 < lo:
             raise XReadError("usage_limit_reached", x_usage.refusal() or (
-                f"Only {left} reads are left under your X limit this month, fewer than one page needs. "
-                "Nothing was sent to X. You can raise the limit in Settings > API Keys > X."))
+                f"Only {left} reads are left under your X limit this month, fewer than one page needs, "
+                "so nothing was sent to X. You can raise the limit in Settings, under API Keys for X."))
         size = min(size, left // 2)
     return size
 

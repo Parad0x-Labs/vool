@@ -146,7 +146,7 @@ def test_a_semantic_request_about_an_asset_schedules_no_market_quote(agent: Vool
 
 @pytest.mark.usefixtures("enable_web")
 @pytest.mark.parametrize("text", MARKET_REQUESTS)
-def test_a_genuine_market_request_still_schedules_a_market_quote(agent: VoolAgent, text: str) -> None:
+def test_a_genuine_market_request_still_schedules_a_market_quote(enable_web, agent: VoolAgent, text: str) -> None:
     """The other half of the invariant, and the one a careless fix breaks: every market phrasing
     the brief lists must still reach the market lane."""
     scheduled, _reached_ordinary = _drive(agent, text)

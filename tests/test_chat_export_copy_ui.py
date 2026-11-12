@@ -260,7 +260,7 @@ def test_copy_failure_is_reported_not_celebrated() -> None:
         + "setTimeout(() => { process.stdout.write(btn.textContent); }, 50);\n"
     )
     out = _run_node(program)
-    assert out == "Copy failed", f"failed copy reported as {out!r}"
+    assert out == "Copy failed. Try again.", f"failed copy reported as {out!r}"
 
 
 @requires_node

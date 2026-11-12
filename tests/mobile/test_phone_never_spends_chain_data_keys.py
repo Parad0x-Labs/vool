@@ -1,19 +1,36 @@
-"""A turn from another device never spends the owner's chain-data keys.
+"""A phone turn never spends the owner's chain-data keys, whatever rights the phone holds.
 
-Red-team R1 (0.7.7, 2026-10-30): every chain-data lookup reads one of the owner's saved Helius /
-Alchemy / Solscan / Etherscan / Moralis keys (core.chain_data has no free source). The remote-turn fence
-already keeps ``web.chain_lookup`` the owner's; this pins the lookup itself, so a lane that forgets the
-fence still cannot read a key for a remote turn.
+Red-team R1 (0.7.7 train, 2026-10-30): ``web.chain_lookup`` sat in the "paid services" class, so a phone
+the owner gave "paid services" could run it, and every chain-data lookup reads one of the owner's saved
+Helius / Alchemy / Solscan / Etherscan / Moralis keys (core.chain_data has no free source). The class
+comment and the fence both said chain-data keys stay the owner's; this pins the fence and the lookup itself.
 """
 from __future__ import annotations
+
+import time
 
 import pytest
 
 from core import chain_data
 from core import request_trust as rt
+from tests.mobile.test_phone_full_vool_rights import _turn
+from tests.mobile.test_phone_full_vool_rights import phone as phone
+
+
+@pytest.mark.parametrize("rules", [
+    {"paid_services": True},
+    {"paid_services": True, "computer_tools": True},
+])
+def test_no_phone_right_opens_the_chain_lookup(phone, rules):
+    phone["rules"] = dict(rules)
+    phone["right_expiry"] = {name: time.time() + 3600 for name in rules}
+    assert rt.remote_turn_tool_refusal("web.chain_lookup", _turn()) == "owner_local_required"
+    # the same right still opens the keyless web lookups it was made for
+    assert rt.remote_turn_tool_refusal("web.search", _turn()) == ""
 
 
 @pytest.mark.parametrize("context", [
+    _turn(),                                                         # a paired phone
     {rt.HTTP_INGRESS_KEY: True, rt.OWNER_LOCAL_KEY: False},          # a chat app or other device
     {rt.HTTP_INGRESS_KEY: True},                                     # came over HTTP with no owner stamp
 ])

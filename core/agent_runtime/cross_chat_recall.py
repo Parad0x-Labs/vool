@@ -278,6 +278,20 @@ def _owned_by_another_lane(text: str) -> bool:
     return False
 
 
+def _operator_store_ask(text: str) -> bool:
+    """The person's own notes, reminders and calendar ("show me my notes", "find my notes about the
+    boiler") are the operator's stores, read by its own lane. Read on the words as typed: the
+    question form this lane builds ("what are my notes?") is not what the operator parser reads.
+    On the line merged with the full 0.7.7 train this lane answered "I don't have that saved"
+    over the person's notes, where the train listed them (audit N10)."""
+    try:
+        from core.local_operator_actions import parse_operator_action_intent
+
+        return parse_operator_action_intent(text) is not None
+    except Exception:
+        return False
+
+
 def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
     if not terms:
         return False
@@ -584,6 +598,7 @@ def cross_chat_recall(
     text = " ".join(str(question or "").split())
     if not text or len(text) > 300:
         return None
+    typed = text
     explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
     if not _chat_has_owner_statements(source_context):
@@ -597,6 +612,15 @@ def cross_chat_recall(
     # and same-chat recall exactly.
     if _MEMORY_COMMAND_RE.search(_OTHER_CHAT_RE.sub(" ", text)):
         return None
+    # "what did I ask you first" and "what was my previous question" ask to read this chat's own
+    # earlier turns, which the transcript reader quotes in order (core.agent_runtime.same_chat_recall).
+    # Searched across the other chats instead, it was answered "I don't have that saved" in the
+    # served app while the first question sat two turns up (train port real-app run, 2026-11-12).
+    if not _OTHER_CHAT_RE.search(typed):
+        from core.context_history_authority import is_same_chat_history_recall
+
+        if is_same_chat_history_recall(typed):
+            return None
     if (
         _CONVERSATION_POINTER_RE.search(_OTHER_CHAT_RE.sub(" ", text))
         and not _OTHER_CHAT_RE.search(text)
@@ -622,7 +646,7 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text):
+    if _owned_by_another_lane(text) or _operator_store_ask(typed):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them

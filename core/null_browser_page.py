@@ -9,6 +9,11 @@ panel for the compute market.
 Served at GET /web0 (and /null-browser) by the VOOL API server on whatever port it runs.
 Resolution goes to GET /api/web0/resolve?name=…; task dispatch to POST /api/null, both on the
 origin that served the page (falling back to localhost:11435 when that origin has no VOOL API).
+
+Every sentence the page shows goes through the i18n catalog (web0.* keys, 16 locales). The
+locale's bootstrap body is prepended INSIDE this single <script> (the chat-page pattern), so
+VOOLT is defined before any page statement runs and the page keeps exactly one script block —
+the node harness of tests/test_no_fake_empty_phone.py executes block 0 alone.
 """
 from __future__ import annotations
 
@@ -21,7 +26,7 @@ _PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>VOOL · .null browser</title>
+<title data-i18n="web0.title">VOOL · .null browser</title>
 <style>
 __VOOL_PALETTE_CSS__
   :root { --panel2:var(--field); --green:#4c4; --amber:#da3; --red:#f44;
@@ -60,22 +65,40 @@ __VOOL_PALETTE_CSS__
   #star.on{color:var(--amber);border-color:var(--amber);}
   #opentab:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
   #opentab:disabled{opacity:.35;cursor:default;}
+  .navbtn:focus-visible,#go:focus-visible,#star:focus-visible,#opentab:focus-visible,
+  .chip:focus-visible,.chipwrap .x:focus-visible,.adv summary:focus-visible,
+  .status summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .favbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--border);
     background:var(--panel);min-height:34px;align-items:center;}
   .favbar .lbl{font-size:12px;color:var(--muted);margin-right:4px;}
+  /* A favourite is two real buttons (navigate + remove) in one wrap span: keyboard focus,
+     Enter/Space, and a visible focus ring come with the platform button, not a span-onclick. */
+  .chipwrap{display:inline-flex;align-items:center;}
   .chip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
-    padding:3px 10px;font-size:12px;color:var(--text);cursor:pointer;transition:border-color .15s;}
+    padding:3px 10px;font-family:var(--font);font-size:12px;color:var(--text);cursor:pointer;
+    transition:border-color .15s;display:inline-flex;align-items:center;text-align:left;
+    max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .chip:hover{border-color:var(--accent);}
-  .chip .x{color:var(--muted);margin-left:6px;}
-  .status{display:flex;gap:14px;flex-wrap:wrap;padding:5px 12px;font-size:11px;color:var(--muted);
+  .chipwrap .x{background:none;border:none;color:var(--muted);margin-left:2px;font-family:var(--font);
+    font-size:12px;cursor:pointer;padding:3px 5px;border-radius:10px;}
+  .chipwrap .x:hover{color:var(--red);}
+  /* The status line is a column: the plain standing row, then the details fold under it. */
+  .status{display:flex;flex-direction:column;gap:2px;padding:5px 12px;font-size:11px;color:var(--muted);
     border-bottom:1px solid var(--border);background:var(--panel);}
+  .status .line{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
   .status b{color:var(--green);font-weight:normal;}
+  .status .k{color:var(--muted);}
+  .status details{display:inline;}
+  .status summary{cursor:pointer;list-style:none;color:var(--muted);display:inline;}
+  .status summary::-webkit-details-marker{display:none;}
+  .status .s-rows{display:flex;gap:14px;flex-wrap:wrap;padding:4px 0 2px;}
   .stage{flex:1;position:relative;background:#000;overflow:hidden;}
   #frame{width:100%;height:100%;border:0;background:#fff;}
   #placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:10px;color:var(--muted);text-align:center;padding:24px;}
-  #placeholder h2{color:var(--ink);font-size:20px;font-weight:650;}
-  #placeholder details{font-size:12px;max-width:520px;line-height:1.7;}
+  #placeholder h2{color:var(--ink);font-size:20px;font-weight:650;
+    max-width:min(88vw,640px);overflow-wrap:anywhere;}
+  #placeholder details{font-size:12px;max-width:520px;line-height:1.7;display:block;}
   #placeholder summary{cursor:pointer;color:var(--muted);}
   #placeholder .hint{font-size:12px;max-width:520px;line-height:1.7;}
   .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);
@@ -96,49 +119,65 @@ __VOOL_PALETTE_CSS__
 </head>
 <body>
 <div class="toolbar">
-  <button class="navbtn" id="back" title="Back">&#9664;</button>
-  <button class="navbtn" id="fwd" title="Forward">&#9654;</button>
-  <button class="navbtn" id="reload" title="Reload">&#8635;</button>
+  <button class="navbtn" id="back" title="Back" data-i18n-title="web0.nav.back"
+          aria-label="Back" data-i18n-aria-label="web0.nav.back">&#9664;</button>
+  <button class="navbtn" id="fwd" title="Forward" data-i18n-title="web0.nav.forward"
+          aria-label="Forward" data-i18n-aria-label="web0.nav.forward">&#9654;</button>
+  <button class="navbtn" id="reload" title="Reload" data-i18n-title="web0.nav.reload"
+          aria-label="Reload" data-i18n-aria-label="web0.nav.reload">&#8635;</button>
   <input id="addr" type="text" value="web0.null" autocomplete="off" spellcheck="false"
-         placeholder="A .null name, for example web0.null" aria-label=".null name"/>
+         placeholder="A .null name, for example web0.null" data-i18n-placeholder="web0.addr.placeholder"
+         aria-label=".null name" data-i18n-aria-label="web0.addr.label"/>
   <div class="spinner" id="spin"></div>
-  <button id="go">Go</button>
-  <button id="star" title="Add to favourites" aria-label="Add to favourites">&#9733;</button>
-  <button id="opentab" title="Open this site in a normal browser tab. Use this when the site needs your wallet: wallets cannot connect inside the preview here." aria-label="Open in a browser tab" disabled>&#8599;</button>
+  <button id="go" data-i18n="web0.go">Go</button>
+  <button id="star" title="Add to favourites" data-i18n-title="web0.star.add"
+          aria-label="Add to favourites" data-i18n-aria-label="web0.star.add">&#9733;</button>
+  <button id="opentab" title="Open this site in a normal browser tab. Use this when the site needs your wallet: wallets cannot connect inside the preview here." data-i18n-title="web0.open_tab.hint"
+          aria-label="Open in a browser tab" data-i18n-aria-label="web0.open_tab.label" disabled>&#8599;</button>
 </div>
 
-<div class="favbar" id="favbar"><span class="lbl">Favourites</span></div>
+<div class="favbar" id="favbar"><span class="lbl" data-i18n="web0.fav.label">Favourites</span></div>
 
 <div class="status" id="status" style="display:none">
-  <span>Site: <b id="s-name">-</b></span>
-  <span>Owner: <b id="s-owner">-</b></span>
-  <span>Stored copy: <b id="s-tx">-</b></span>
-  <span id="s-x402-wrap" style="display:none">Payments: <b id="s-x402">-</b></span>
+  <div class="line">
+    <!-- The standing row shows plain words only: the name the person typed, and whether the
+         site takes payments. Raw ledger values (owner prefix, tx id, endpoint URL) sit behind
+         the Details toggle; what the server records or pays is untouched. -->
+    <span><span class="k" data-i18n="web0.status.site">Site name</span> <b id="s-name">-</b></span>
+    <span id="s-pays" style="display:none" data-i18n="web0.status.pays">Takes payments</span>
+    <details id="s-details">
+      <summary data-i18n="web0.status.details">See details</summary>
+      <div class="s-rows">
+        <span><span class="k" data-i18n="web0.status.owner">Owner:</span> <b id="s-owner">-</b></span>
+        <span><span class="k" data-i18n="web0.status.tx">Stored copy:</span> <b id="s-tx">-</b></span>
+        <span id="s-x402-wrap" style="display:none"><span class="k" data-i18n="web0.status.payments">Payments:</span> <b id="s-x402">-</b></span>
+      </div>
+    </details>
+  </div>
 </div>
 
 <div class="stage">
   <iframe id="frame" sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
           referrerpolicy="no-referrer" style="display:none"></iframe>
   <div id="placeholder">
-    <h2>Open a .null site</h2>
-    <div class="hint">Type its name, for example <b>web0.null</b>, and press Go.</div>
-    <details><summary>How it works</summary>
-      A .null name is looked up on the Solana network, which points to the site's pages stored on
-      Arweave. VOOL fetches them and shows them here, in a preview that cannot touch your wallet.
-      A name with no pages yet shows a note instead.</details>
+    <h2 data-i18n="web0.open.title">Open a .null site</h2>
+    <div class="hint" data-i18n="web0.open.hint">Type its name, for example web0.null, and press Go.</div>
+    <details><summary data-i18n="web0.how.summary">How it works</summary>
+      <span data-i18n="web0.how.body">A .null name is looked up on the Solana network, which points to the site's pages stored on Arweave. VOOL fetches them and shows them here, in a preview that cannot touch your wallet. A name with no pages yet shows a note instead.</span></details>
   </div>
 </div>
 
 <details class="adv">
-  <summary>Advanced: send a task to a null:// address</summary>
+  <summary data-i18n="web0.adv.summary">Advanced: send a task to a null:// address</summary>
   <div class="body">
     <div class="row">
       <input id="uri-input" type="text" value="null://task/hello"
              placeholder="null://task/code-review?price=0.001" autocomplete="off" spellcheck="false"/>
-      <button id="dispatch-btn">Send</button>
+      <button id="dispatch-btn" data-i18n="web0.adv.send">Send</button>
     </div>
-    <textarea id="prompt-area" rows="2" placeholder="Optional: describe the task in your own words"></textarea>
-    <div id="dispatch-out">Type a null:// address and press Send.</div>
+    <textarea id="prompt-area" rows="2" placeholder="Optional: describe the task in your own words"
+              data-i18n-placeholder="web0.adv.prompt_placeholder"></textarea>
+    <div id="dispatch-out" data-i18n="web0.adv.out_idle">Type a null:// address and press Send.</div>
   </div>
 </details>
 
@@ -175,16 +214,18 @@ function renderFavs(){
   const favs = loadJSON(LS_FAV, []);
   const bar = document.getElementById("favbar");
   bar.innerHTML = "";
-  const lbl = document.createElement("span"); lbl.className="lbl"; lbl.textContent="Favourites"; bar.appendChild(lbl);
-  if(!favs.length){ const s=document.createElement("span"); s.style.cssText="font-size:12px;color:var(--muted)"; s.textContent="None yet. Press ★ to add the site you are on."; bar.appendChild(s); return; }
+  const lbl = document.createElement("span"); lbl.className="lbl"; lbl.textContent=VOOLT("web0.fav.label"); bar.appendChild(lbl);
+  if(!favs.length){ const s=document.createElement("span"); s.style.cssText="font-size:12px;color:var(--muted)"; s.textContent=VOOLT("web0.fav.none"); bar.appendChild(s); return; }
   favs.forEach(name=>{
-    const c = document.createElement("span"); c.className="chip";
+    const wrap = document.createElement("span"); wrap.className = "chipwrap";
+    const c = document.createElement("button"); c.type="button"; c.className="chip";
     c.appendChild(document.createTextNode(name + ".null"));
-    const x = document.createElement("span"); x.className="x"; x.textContent="×";
+    const x = document.createElement("button"); x.type="button"; x.className="x"; x.textContent="×";
+    x.setAttribute("aria-label", VOOLT("web0.fav.remove", {name: name+".null"}));
     x.onclick=(e)=>{ e.stopPropagation(); saveJSON(LS_FAV, loadJSON(LS_FAV,[]).filter(n=>n!==name)); renderFavs(); syncStar(); };
-    c.appendChild(x);
     c.onclick=()=>{ document.getElementById("addr").value = name+".null"; go(name); };
-    bar.appendChild(c);
+    wrap.appendChild(c); wrap.appendChild(x);
+    bar.appendChild(wrap);
   });
 }
 function isFav(name){ return loadJSON(LS_FAV,[]).includes(name); }
@@ -224,18 +265,30 @@ async function open_(name, record){
   spin.style.display="inline-block"; setNav(); syncStar();
   try{
     const resp = await voolFetch("/api/web0/resolve?name=" + encodeURIComponent(name));
-    const data = await resp.json();
-    if(!data.ok){
+    const data = await resp.json().catch(() => null);   // a body that will not parse is a failed load too
+    // A failed load must not read as "this site does not exist". Only the server's own not-found
+    // answer (404) or a real OK answer may say anything about the name; every other error status
+    // is a reach failure and gets the retry wording, same as a fetch that throws.
+    if(!data || (!resp.ok && resp.status !== 404)){
       frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
-      ph.querySelector("h2").textContent = "Couldn't open " + name + ".null";
-      ph.querySelector(".hint").textContent = "Check the name and try again. If it is right, the site may not exist yet.";
+      ph.querySelector("h2").textContent = VOOLT("web0.err.reach.title", {name:name});
+      ph.querySelector(".hint").textContent = VOOLT("web0.err.reach.hint");
       return;
     }
+    if(!data.ok){
+      frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
+      ph.querySelector("h2").textContent = VOOLT("web0.err.open.title", {name:name});
+      ph.querySelector(".hint").textContent = VOOLT("web0.err.open.hint");
+      return;
+    }
+    // Standing view stays plain (name + "takes payments"); the ledger details render inside the
+    // closed Details fold and only show when the person opens it.
     document.getElementById("s-name").textContent = data.name+".null";
     document.getElementById("s-owner").textContent = (data.owner||"").slice(0,8)+"…";
-    document.getElementById("s-tx").textContent = data.arweave_txid ? (data.arweave_txid.slice(0,10)+"…") : "(none)";
+    document.getElementById("s-tx").textContent = data.arweave_txid ? (data.arweave_txid.slice(0,10)+"…") : VOOLT("web0.status.tx.none");
     const xw=document.getElementById("s-x402-wrap");
     if(data.x402_endpoint){ xw.style.display=""; document.getElementById("s-x402").textContent=data.x402_endpoint; } else xw.style.display="none";
+    document.getElementById("s-pays").style.display = data.x402_endpoint ? "" : "none";
     status.style.display="flex";
     if(data.has_content && data.gateway_url){
       ph.style.display="none"; frame.style.display="block"; frame.src=data.gateway_url;
@@ -244,14 +297,14 @@ async function open_(name, record){
     }else{
       frame.style.display="none"; ph.style.display="flex";
       currentGatewayUrl = ""; document.getElementById("opentab").disabled = true;
-      ph.querySelector("h2").textContent = name + ".null has no pages yet";
-      ph.querySelector(".hint").textContent = "The name belongs to someone, but they have not published a site under it yet.";
+      ph.querySelector("h2").textContent = VOOLT("web0.empty.title", {name:name});
+      ph.querySelector(".hint").textContent = VOOLT("web0.empty.hint");
     }
   }catch(e){
     frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
     currentGatewayUrl = ""; document.getElementById("opentab").disabled = true;
-    ph.querySelector("h2").textContent = "Couldn't reach " + name + ".null";
-    ph.querySelector(".hint").textContent = "VOOL or the internet connection did not answer. Check that VOOL is running and you are online, then press Go again.";
+    ph.querySelector("h2").textContent = VOOLT("web0.err.reach.title", {name:name});
+    ph.querySelector(".hint").textContent = VOOLT("web0.err.reach.hint");
   }finally{ spin.style.display="none"; }
 }
 
@@ -265,12 +318,7 @@ document.getElementById("opentab").onclick=()=>{
   // hands it to the browser, where the SITE's own code (not VOOL) may prompt the wallet.
   // Warn so a scary wallet dialog from the external Arweave site is not mistaken for VOOL
   // asking to sign.
-  const ok = window.confirm(
-    "This opens the .null site directly in your browser.\n\n"+
-    "The preview above is read-only and never touches your wallet. The site itself may ask "+
-    "your wallet to connect or sign a transaction -- those prompts come from the site, not "+
-    "from VOOL. Only approve them if you trust the site.\n\nOpen the site?"
-  );
+  const ok = window.confirm(VOOLT("web0.confirm.body"));
   if(!ok) return;
   try{ window.open(currentGatewayUrl, "_blank", "noopener"); }catch(e){}
 };
@@ -283,14 +331,22 @@ async function dispatch(){
   const uri=document.getElementById("uri-input").value.trim();
   const prompt=document.getElementById("prompt-area").value.trim();
   const out=document.getElementById("dispatch-out");
-  if(!uri){ out.textContent="Type a null:// address first."; return; }
-  out.textContent="Sending…";
+  if(!uri){ out.textContent=VOOLT("web0.dispatch.no_uri"); return; }
+  out.textContent=VOOLT("web0.dispatch.sending");
   try{
     const body={uri}; if(prompt) body.prompt=prompt;
     const resp=await voolFetch("/api/null",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await resp.json();
-    out.textContent = resp.ok ? (data.result || "No answer came back.") : ("That didn't work: " + (data.message || data.error || "the task was refused."));
-  }catch(e){ out.textContent="VOOL did not answer. Check that it is running, then try again."; }
+    // One plain sentence in words; the raw answer/refusal detail belongs in the console, not
+    // pasted into the panel.
+    if(resp.ok){
+      console.info("[web0] dispatch answer", data && data.result);
+      out.textContent=VOOLT("web0.dispatch.done");
+    }else{
+      console.warn("[web0] dispatch refused", (data && (data.message || data.error)) || "");
+      out.textContent=VOOLT("web0.dispatch.failed");
+    }
+  }catch(e){ console.warn("[web0] dispatch failed", e); out.textContent=VOOLT("web0.dispatch.reach"); }
 }
 document.getElementById("dispatch-btn").onclick=dispatch;
 
@@ -305,8 +361,23 @@ go();
 """
 
 
-def render_null_browser_html() -> str:
-    return _PAGE.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+def render_null_browser_html(locale: str = "en") -> str:
+    """Render the page for one UI locale (the serving door resolves ?ui_locale= > cookie > en).
+
+    The locale's i18n bootstrap body is prepended INSIDE the page's single <script> (the
+    chat-page pattern, core/i18n/page_bundle.i18n_bootstrap_js): VOOLT exists before any
+    page statement runs, and the document keeps exactly one script block — the node harness
+    of tests/test_no_fake_empty_phone.py executes block 0 alone, so a separate <head>
+    element would change which code that harness runs.
+    """
+    from core.i18n.locales import get_locale
+    from core.i18n.page_bundle import i18n_bootstrap_js
+
+    spec = get_locale(locale)
+    tag = spec.tag if spec else "en"
+    page = _PAGE.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+    page = page.replace('<html lang="en">', f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}">')
+    return page.replace("<script>\n", "<script>\n" + i18n_bootstrap_js(tag) + "\n", 1)
 
 
 __all__ = ["render_null_browser_html"]

@@ -1398,7 +1398,7 @@ def _quantitative_run(node: ConductorNode, ctx: NodeContext) -> dict[str, Any]:
     raw_steps = payload.get("steps")
     for position, item in enumerate(raw_steps if isinstance(raw_steps, list) else [], start=1):
         if not isinstance(item, dict):
-            cannot.append(f"Step {position}: the arithmetic plan supplied an unreadable step")
+            cannot.append(f"Step {position}: this step of the calculation could not be read")
             continue
         label = " ".join(str(item.get("label") or f"step {position}").split())
         expression = str(item.get("expression") or "").strip()

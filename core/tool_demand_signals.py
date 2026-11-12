@@ -1595,220 +1595,6 @@ def _x_action_asked(cleaned: str) -> bool:
     return not _X_NOT_AN_ASK.search(words) or bool(_X_ASK_TO_ACT.search(words))
 
 
-# -- the owner's own files (read by core.execution_requirements, owner-local turns only) --------
-# Measured 2026-10-27 with the tool-seating offer probe: "where is my resume", "send day4.jpg to my
-# phone", "copy day4.jpg to my desktop" and 13 more asks no deterministic lane owns reached a pinned
-# model with NO tool list (classed as plain chat), so the model could only talk about the files.
-# The words must both ASK and name the owner's own object: a bare noun ("a pdf", "files") is prose.
-_FILE_DEMAND_ASK = re.compile(
-    r"\b(?:find|where|locate|look(?:ing)?\s+for|search|show|list|open|read|see|view|copy|move|send|fetch|"
-    r"get|give|grab|do\s+i\s+(?:still\s+)?have|is\s+there|are\s+there|how\s+many|how\s+big|which|what(?:'s|\s+is|\s+are)?|"
-    r"access|check|clean(?:\s+up)?|tidy|organi[sz]e|sort|delete|remove|rename|summari[sz]e|need|help\s+me|free\s+up|"
-    r"is\s+(?:my|the|that)|are\s+(?:my|the)|how\s+much|can'?t\s+find|cannot\s+find|lost)\b",
-    re.I,
-)
-_FILE_DEMAND_OBJECT = re.compile(
-    r"\b(?:my|our)\s+(?:[\w'\-]+\s+){0,3}?(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|"
-    r"documents?|docs|resume|cv|invoices?|receipts?|downloads|desktop|videos?|movies|music|songs?|recordings?|"
-    r"spreadsheets?|presentations?|stuff|boarding\s+pass(?:es)?|tickets?|passports?|statements?|contracts?|scans?|"
-    r"csvs?|certificates?)\b"
-    r"|\b(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract|pdf|photo|picture|screenshot|file|"
-    r"document|spreadsheet|presentation|video|recording)s?\s+(?:i\b|from\b|you\b|on\s+my\b|in\s+my\b|that\s+i\b)"
-    r"|\b(?:find|where(?:'s|\s+is|\s+are))\s+(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract)s?\b"
-    r"|\b(?:apps?|applications?|programs?)\b[^.?!]{0,20}?\binstalled\b|\binstalled\s+(?:apps?|applications?|programs?)\b"
-    r"|\b(?:photos?|pictures?|files?|videos?|documents?|pdfs?|songs?|screenshots?)\s+(?:do\s+i|i)\s+(?:still\s+)?have\b"
-    r"|\bdo\s+i\s+(?:still\s+)?have\s+(?:the|that|a|any)\s+(?:[\w\-]+\s+){0,2}?(?:photos?|pictures?|files?|videos?|"
-    r"documents?|pdfs?|songs?|screenshots?|recordings?|invoices?|receipts?)\b"
-    r"|\bfree\s+up\s+(?:some\s+)?(?:disk\s+|storage\s+)?space\b"
-    # Audit 2026-10-27: "i saved a pic of the cat on the sofa, find it?" and "i downloaded my bank thing as a
-    # csv, how much did i spend" are the owner's own files ("give me a picture of a cat" is not: no saved/took).
-    r"|\b(?:saved|took|taken|kept|have|had)\s+(?:a|the|that|some)\s+(?:pic|picture|photo|image|screenshot|video)s?\s+of\b"
-    r"|\b(?:downloaded|saved|exported)\b[^.?!]{0,40}?\b(?:csv|pdf|spreadsheet|xlsx|excel\s+file)\b"
-    r"|\b(?:in|on|from|to|into)\s+(?:the\s+|my\s+)?(?:downloads|desktop|documents|pictures)\b"
-    r"|(?<![\w/.])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
-    re.I,
-)
-# "my mac" or "this laptop" alone is the machine, not its files ("is my laptop worth upgrading",
-# "what is my mac address"): it counts only beside a file noun or a verb that works on files.
-_FILE_DEMAND_DEVICE = re.compile(
-    r"\b(?:(?:my|our)\s+(?:[\w'\-]+\s+){0,2}?|this\s+)(?:computer|mac|macbook|imac|laptop|pc|machine|disk|drive)\b(?!\s+address)",
-    re.I,
-)
-_FILE_DEMAND_FILE_WORK = re.compile(
-    r"\b(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|documents?|videos?|songs?|recordings?|"
-    r"name|version|mac\s*os|os|specs?|model|ram|chip|processor|cpu|serial|apps?|installed|"
-    r"access|space|storage|find|locate|search|copy|move|send|delete|remove|rename|clean(?:\s+up)?|tidy|organi[sz]e|saved?|stored?|downloaded)\b",
-    re.I,
-)
-_FILE_DEMAND_PROSE = re.compile(
-    r"\b(?:how\s+(?:do|can|should|would)\s+(?:i|you|one)|what\s+should|should\s+(?:i|my|we)\b|best\s+way|why\s+(?:is|does|do|are)|"
-    r"tips?\s+(?:for|on)|advice|recommend|in\s+(?:python|linux|windows|excel|bash|terminal|javascript))\b",
-    re.I,
-)
-
-
-def owner_file_intents(text: str) -> tuple[str, ...]:
-    """The machine file tools an owner file ask needs seated ahead of family ranking (at most 3).
-
-    The filesystem family's read-only-first ranking filled the round with list_directory,
-    inspect_specs, disk_usage and find_folder, so "where is my resume" had no find_file and
-    "search my documents for milk" no read_file; inside a project the workspace tools took the
-    seats, so "which apps are installed" had no inspect_specs.
-    """
-    cleaned = " ".join(str(text or "").split())
-    if re.search(r"\b(?:phone|iphone|android|mobile)\b", cleaned, re.I):
-        return ("machine.find_file", "machine.send_to_phone", "machine.list_directory")
-    if re.search(r"\b(?:free\s+up|space|big(?:gest)?|large(?:st)?|huge|heavy|taking\s+up)\b", cleaned, re.I):
-        return ("machine.find_largest", "machine.disk_usage", "machine.find_file")
-    if re.search(r"\b(?:apps?|applications?|programs?|installed|name|version|mac\s*os|specs?|model|ram|chip|processor|cpu|serial)\b", cleaned, re.I):
-        return ("machine.inspect_specs", "machine.find_file", "machine.list_directory")
-    return ("machine.find_file", "machine.read_file", "machine.list_directory")
-
-
-def owner_file_demand(text: str) -> bool:
-    """Whether the words ask for something done with or found among the owner's own files.
-
-    Pure function of the text. The caller decides whose turn it is: only the owner's own session
-    (or a phone the owner gave the computer grant) may be offered the machine file tools for it.
-    """
-    cleaned = " ".join(str(text or "").split())
-    if not cleaned or _FILE_DEMAND_PROSE.search(cleaned):
-        return False
-    if not _FILE_DEMAND_ASK.search(cleaned):
-        return False
-    if _FILE_DEMAND_OBJECT.search(cleaned):
-        return True
-    return bool(_FILE_DEMAND_DEVICE.search(cleaned) and _FILE_DEMAND_FILE_WORK.search(cleaned))
-
-
-#: What a plain database ask SEATS. The skill only teaches; the work needs the tool in the
-#: offer, or the model can only promise. Read-only tools only (their contracts declare
-#: side_effect_class read_only, approval none): `migrate.preview` mutates nothing, so a
-#: schema-change ask can be previewed and explained, while apply/restore/backup/db.create
-#: stay unseated -- a mutation still needs the user to name it (or the model to ask for
-#: the family) and then crosses approval, effect budget and the permission controller.
-_DATABASE_SEATS: dict[str, tuple[str, ...]] = {
-    "database.inspect": ("vool-database.schema", "vool-database.connect"),
-    "database.query": ("vool-database.query", "vool-database.schema", "vool-database.connect"),
-    "database.mutate": ("vool-database.migrate.preview", "vool-database.schema"),
-    "database.migrate": ("vool-database.migrate.preview", "vool-database.schema"),
-}
-
-
-_DATA_QUESTION = re.compile(
-    r"\b(?:how\s+many|how\s+much|count|list|show|which|who|whom|what|whats|what's|total|sum|average|"
-    r"oldest|newest|latest|earliest|largest|smallest|biggest|most|least|any|anything|does|do\s+i\s+have|"
-    r"find|get|give\s+me|tell\s+me|number\s+of|is\s+there|are\s+there)\b",
-    re.I,
-)
-_VOCAB_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
-# Column names that are ordinary English on their own ("what is your name", "what year is it"):
-# they never make a sentence database work by themselves.
-_GENERIC_COLUMNS = frozenset(
-    {"id", "name", "type", "date", "time", "year", "day", "status", "text", "value", "key", "data", "note",
-     "notes", "title", "code", "number", "count", "size", "state", "level", "kind", "group", "order", "end",
-     "start", "user", "item", "list", "left", "right", "total", "price", "city", "country", "person"}
-)
-
-
-def _database_vocabulary() -> frozenset[str]:
-    """Names of the disposable databases that exist and of their tables (lowercase).
-
-    A closed vocabulary read from the person's own data, like the registered plugin intents:
-    "how many books are there" names no database word, but `books` is a table here.
-    """
-    try:
-        from core.plugin_tools import plugin_scratch_dir
-
-        root = plugin_scratch_dir("vool-database") / "databases"
-        files = sorted(p for p in root.glob("*.sqlite") if p.is_file())
-    except Exception:
-        return frozenset()
-    words: set[str] = set()
-    for path in files[:20]:
-        try:
-            stamp = path.stat().st_mtime
-            key = str(path)
-            cached = _VOCAB_CACHE.get(key)
-            if cached is not None and cached[0] == stamp:
-                words |= cached[1]
-                continue
-            import sqlite3
-
-            found = {path.stem.lower()}
-            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
-            try:
-                tables = [
-                    str(r[0]).lower()
-                    for r in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'")
-                ]
-                found |= set(tables)
-                for table in tables[:20]:
-                    for row in conn.execute('pragma table_info("%s")' % table.replace('"', "")):
-                        column = str(row[1]).lower()
-                        if column not in _GENERIC_COLUMNS:
-                            found.add(column)
-            finally:
-                conn.close()
-            _VOCAB_CACHE[key] = (stamp, frozenset(found))
-            words |= found
-        except Exception:
-            continue
-    return frozenset(w for w in words if len(w) >= 3)
-
-
-def _names_the_persons_database(text: str) -> bool:
-    """A data question that uses a name from the person's own databases/tables ("how many books are there")."""
-    if not _DATA_QUESTION.search(text):
-        return False
-    vocab = _database_vocabulary()
-    if not vocab:
-        return False
-    lowered = text.lower()
-    stems: set[str] = set()
-    for word in vocab:
-        stems.add(word)
-        if word.endswith("ies") and len(word) > 4:
-            stems.add(word[:-3] + "y")
-        if word.endswith("es") and len(word) > 4:
-            stems.add(word[:-2])
-        if word.endswith("s") and len(word) > 3:
-            stems.add(word[:-1])
-    return any(re.search(r"\b%s(?:e?s)?\b" % re.escape(stem), lowered) for stem in stems)
-
-
-def _database_tool_intents(rule_intents: list[str]) -> list[str]:
-    """Registered read-only database tools a plain database ask should seat, in priority order."""
-    wanted: list[str] = []
-    for rule_intent in rule_intents:
-        for tool_intent in _DATABASE_SEATS.get(rule_intent, ()):
-            if tool_intent not in wanted:
-                wanted.append(tool_intent)
-    if not wanted:
-        return []
-    try:
-        from core.tool_registry import registered_tools
-
-        registered = {
-            str(c.intent) for c in registered_tools() if str(c.source or "").startswith("plugin:")
-        }
-    except Exception:
-        return []
-    return [t for t in wanted if t in registered]
-
-
-def asks_for_database_work(text: str) -> bool:
-    """Whether plain words ask for database work AND the database tools are registered here.
-
-    The lane gates read this beside the wallet/email/web arms so a tools-less chat lane cannot
-    keep a turn the offer would have armed (the model then only promised: "Let's connect to
-    your database... shall I proceed?"). Registered-only: a runtime without the database
-    plugin tools (the default) is unchanged.
-    """
-    try:
-        return any(i.startswith("vool-database.") for i in resolve_demand_signals(text).explicit_intents)
-    except Exception:
-        return False
 # -- operator seats (owner-local turns only) -------------------------------------------------
 # The words that ask VOOL's own note, agenda, reminder, Apple Notes and calendar tools to act.
 # The CHAT lane parses these from typed words with its own recognizers (core.operator.parser);
@@ -2383,6 +2169,222 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     except Exception:
         pass
     return tuple(intents[:MAX_EXPLICIT_INTENTS])
+
+
+# -- the owner's own files (read by core.execution_requirements, owner-local turns only) --------
+# Measured 2026-10-27 with the tool-seating offer probe: "where is my resume", "send day4.jpg to my
+# phone", "copy day4.jpg to my desktop" and 13 more asks no deterministic lane owns reached a pinned
+# model with NO tool list (classed as plain chat), so the model could only talk about the files.
+# The words must both ASK and name the owner's own object: a bare noun ("a pdf", "files") is prose.
+_FILE_DEMAND_ASK = re.compile(
+    r"\b(?:find|where|locate|look(?:ing)?\s+for|search|show|list|open|read|see|view|copy|move|send|fetch|"
+    r"get|give|grab|do\s+i\s+(?:still\s+)?have|is\s+there|are\s+there|how\s+many|how\s+big|which|what(?:'s|\s+is|\s+are)?|"
+    r"access|check|clean(?:\s+up)?|tidy|organi[sz]e|sort|delete|remove|rename|summari[sz]e|need|help\s+me|free\s+up|"
+    r"is\s+(?:my|the|that)|are\s+(?:my|the)|how\s+much|can'?t\s+find|cannot\s+find|lost)\b",
+    re.I,
+)
+_FILE_DEMAND_OBJECT = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'\-]+\s+){0,3}?(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|"
+    r"documents?|docs|resume|cv|invoices?|receipts?|downloads|desktop|videos?|movies|music|songs?|recordings?|"
+    r"spreadsheets?|presentations?|stuff|boarding\s+pass(?:es)?|tickets?|passports?|statements?|contracts?|scans?|"
+    r"csvs?|certificates?)\b"
+    r"|\b(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract|pdf|photo|picture|screenshot|file|"
+    r"document|spreadsheet|presentation|video|recording)s?\s+(?:i\b|from\b|you\b|on\s+my\b|in\s+my\b|that\s+i\b)"
+    r"|\b(?:find|where(?:'s|\s+is|\s+are))\s+(?:the|that)\s+(?:[\w\-]+\s+){0,2}?(?:invoice|receipt|resume|cv|contract)s?\b"
+    r"|\b(?:apps?|applications?|programs?)\b[^.?!]{0,20}?\binstalled\b|\binstalled\s+(?:apps?|applications?|programs?)\b"
+    r"|\b(?:photos?|pictures?|files?|videos?|documents?|pdfs?|songs?|screenshots?)\s+(?:do\s+i|i)\s+(?:still\s+)?have\b"
+    r"|\bdo\s+i\s+(?:still\s+)?have\s+(?:the|that|a|any)\s+(?:[\w\-]+\s+){0,2}?(?:photos?|pictures?|files?|videos?|"
+    r"documents?|pdfs?|songs?|screenshots?|recordings?|invoices?|receipts?)\b"
+    r"|\bfree\s+up\s+(?:some\s+)?(?:disk\s+|storage\s+)?space\b"
+    # Audit 2026-10-27: "i saved a pic of the cat on the sofa, find it?" and "i downloaded my bank thing as a
+    # csv, how much did i spend" are the owner's own files ("give me a picture of a cat" is not: no saved/took).
+    r"|\b(?:saved|took|taken|kept|have|had)\s+(?:a|the|that|some)\s+(?:pic|picture|photo|image|screenshot|video)s?\s+of\b"
+    r"|\b(?:downloaded|saved|exported)\b[^.?!]{0,40}?\b(?:csv|pdf|spreadsheet|xlsx|excel\s+file)\b"
+    r"|\b(?:in|on|from|to|into)\s+(?:the\s+|my\s+)?(?:downloads|desktop|documents|pictures)\b"
+    r"|(?<![\w/.\-])[\w\-]+\.(?:txt|md|pdf|docx?|xlsx?|pptx?|csv|jpe?g|png|heic|gif|mov|mp4|mp3|zip|dmg|pages|numbers|key)\b",
+    re.I,
+)
+# "my mac" or "this laptop" alone is the machine, not its files ("is my laptop worth upgrading",
+# "what is my mac address"): it counts only beside a file noun or a verb that works on files.
+_FILE_DEMAND_DEVICE = re.compile(
+    r"\b(?:(?:my|our)\s+(?:[\w'\-]+\s+){0,2}?|this\s+)(?:computer|mac|macbook|imac|laptop|pc|machine|disk|drive)\b(?!\s+address)",
+    re.I,
+)
+_FILE_DEMAND_FILE_WORK = re.compile(
+    r"\b(?:files?|folders?|pdfs?|photos?|pictures?|pics|images?|screenshots?|documents?|videos?|songs?|recordings?|"
+    r"name|version|mac\s*os|os|specs?|model|ram|chip|processor|cpu|serial|apps?|installed|"
+    r"access|space|storage|find|locate|search|copy|move|send|delete|remove|rename|clean(?:\s+up)?|tidy|organi[sz]e|saved?|stored?|downloaded)\b",
+    re.I,
+)
+_FILE_DEMAND_PROSE = re.compile(
+    r"\b(?:how\s+(?:do|can|should|would)\s+(?:i|you|one)|what\s+should|should\s+(?:i|my|we)\b|best\s+way|why\s+(?:is|does|do|are)|"
+    r"tips?\s+(?:for|on)|advice|recommend|in\s+(?:python|linux|windows|excel|bash|terminal|javascript))\b",
+    re.I,
+)
+
+
+def owner_file_intents(text: str) -> tuple[str, ...]:
+    """The machine file tools an owner file ask needs seated ahead of family ranking (at most 3).
+
+    The filesystem family's read-only-first ranking filled the round with list_directory,
+    inspect_specs, disk_usage and find_folder, so "where is my resume" had no find_file and
+    "search my documents for milk" no read_file; inside a project the workspace tools took the
+    seats, so "which apps are installed" had no inspect_specs.
+    """
+    cleaned = " ".join(str(text or "").split())
+    if re.search(r"\b(?:phone|iphone|android|mobile)\b", cleaned, re.I):
+        return ("machine.find_file", "machine.send_to_phone", "machine.list_directory")
+    if re.search(r"\b(?:free\s+up|space|big(?:gest)?|large(?:st)?|huge|heavy|taking\s+up)\b", cleaned, re.I):
+        return ("machine.find_largest", "machine.disk_usage", "machine.find_file")
+    if re.search(r"\b(?:apps?|applications?|programs?|installed|name|version|mac\s*os|specs?|model|ram|chip|processor|cpu|serial)\b", cleaned, re.I):
+        return ("machine.inspect_specs", "machine.find_file", "machine.list_directory")
+    return ("machine.find_file", "machine.read_file", "machine.list_directory")
+
+
+def owner_file_demand(text: str) -> bool:
+    """Whether the words ask for something done with or found among the owner's own files.
+
+    Pure function of the text. The caller decides whose turn it is: only the owner's own session
+    (or a phone the owner gave the computer grant) may be offered the machine file tools for it.
+    """
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned or _FILE_DEMAND_PROSE.search(cleaned):
+        return False
+    if not _FILE_DEMAND_ASK.search(cleaned):
+        return False
+    if _FILE_DEMAND_OBJECT.search(cleaned):
+        return True
+    return bool(_FILE_DEMAND_DEVICE.search(cleaned) and _FILE_DEMAND_FILE_WORK.search(cleaned))
+
+
+#: What a plain database ask SEATS. The skill only teaches; the work needs the tool in the
+#: offer, or the model can only promise. Read-only tools only (their contracts declare
+#: side_effect_class read_only, approval none): `migrate.preview` mutates nothing, so a
+#: schema-change ask can be previewed and explained, while apply/restore/backup/db.create
+#: stay unseated -- a mutation still needs the user to name it (or the model to ask for
+#: the family) and then crosses approval, effect budget and the permission controller.
+_DATABASE_SEATS: dict[str, tuple[str, ...]] = {
+    "database.inspect": ("vool-database.schema", "vool-database.connect"),
+    "database.query": ("vool-database.query", "vool-database.schema", "vool-database.connect"),
+    "database.mutate": ("vool-database.migrate.preview", "vool-database.schema"),
+    "database.migrate": ("vool-database.migrate.preview", "vool-database.schema"),
+}
+
+
+_DATA_QUESTION = re.compile(
+    r"\b(?:how\s+many|how\s+much|count|list|show|which|who|whom|what|whats|what's|total|sum|average|"
+    r"oldest|newest|latest|earliest|largest|smallest|biggest|most|least|any|anything|does|do\s+i\s+have|"
+    r"find|get|give\s+me|tell\s+me|number\s+of|is\s+there|are\s+there)\b",
+    re.I,
+)
+_VOCAB_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
+# Column names that are ordinary English on their own ("what is your name", "what year is it"):
+# they never make a sentence database work by themselves.
+_GENERIC_COLUMNS = frozenset(
+    {"id", "name", "type", "date", "time", "year", "day", "status", "text", "value", "key", "data", "note",
+     "notes", "title", "code", "number", "count", "size", "state", "level", "kind", "group", "order", "end",
+     "start", "user", "item", "list", "left", "right", "total", "price", "city", "country", "person"}
+)
+
+
+def _database_vocabulary() -> frozenset[str]:
+    """Names of the disposable databases that exist and of their tables (lowercase).
+
+    A closed vocabulary read from the person's own data, like the registered plugin intents:
+    "how many books are there" names no database word, but `books` is a table here.
+    """
+    try:
+        from core.plugin_tools import plugin_scratch_dir
+
+        root = plugin_scratch_dir("vool-database") / "databases"
+        files = sorted(p for p in root.glob("*.sqlite") if p.is_file())
+    except Exception:
+        return frozenset()
+    words: set[str] = set()
+    for path in files[:20]:
+        try:
+            stamp = path.stat().st_mtime
+            key = str(path)
+            cached = _VOCAB_CACHE.get(key)
+            if cached is not None and cached[0] == stamp:
+                words |= cached[1]
+                continue
+            import sqlite3
+
+            found = {path.stem.lower()}
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+            try:
+                tables = [
+                    str(r[0]).lower()
+                    for r in conn.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%'")
+                ]
+                found |= set(tables)
+                for table in tables[:20]:
+                    for row in conn.execute('pragma table_info("%s")' % table.replace('"', "")):
+                        column = str(row[1]).lower()
+                        if column not in _GENERIC_COLUMNS:
+                            found.add(column)
+            finally:
+                conn.close()
+            _VOCAB_CACHE[key] = (stamp, frozenset(found))
+            words |= found
+        except Exception:
+            continue
+    return frozenset(w for w in words if len(w) >= 3)
+
+
+def _names_the_persons_database(text: str) -> bool:
+    """A data question that uses a name from the person's own databases/tables ("how many books are there")."""
+    if not _DATA_QUESTION.search(text):
+        return False
+    vocab = _database_vocabulary()
+    if not vocab:
+        return False
+    lowered = text.lower()
+    stems: set[str] = set()
+    for word in vocab:
+        stems.add(word)
+        if word.endswith("ies") and len(word) > 4:
+            stems.add(word[:-3] + "y")
+        if word.endswith("es") and len(word) > 4:
+            stems.add(word[:-2])
+        if word.endswith("s") and len(word) > 3:
+            stems.add(word[:-1])
+    return any(re.search(r"\b%s(?:e?s)?\b" % re.escape(stem), lowered) for stem in stems)
+
+
+def _database_tool_intents(rule_intents: list[str]) -> list[str]:
+    """Registered read-only database tools a plain database ask should seat, in priority order."""
+    wanted: list[str] = []
+    for rule_intent in rule_intents:
+        for tool_intent in _DATABASE_SEATS.get(rule_intent, ()):
+            if tool_intent not in wanted:
+                wanted.append(tool_intent)
+    if not wanted:
+        return []
+    try:
+        from core.tool_registry import registered_tools
+
+        registered = {
+            str(c.intent) for c in registered_tools() if str(c.source or "").startswith("plugin:")
+        }
+    except Exception:
+        return []
+    return [t for t in wanted if t in registered]
+
+
+def asks_for_database_work(text: str) -> bool:
+    """Whether plain words ask for database work AND the database tools are registered here.
+
+    The lane gates read this beside the wallet/email/web arms so a tools-less chat lane cannot
+    keep a turn the offer would have armed (the model then only promised: "Let's connect to
+    your database... shall I proceed?"). Registered-only: a runtime without the database
+    plugin tools (the default) is unchanged.
+    """
+    try:
+        return any(i.startswith("vool-database.") for i in resolve_demand_signals(text).explicit_intents)
+    except Exception:
+        return False
 
 
 def resolve_demand_signals(text: str) -> DemandSignals:

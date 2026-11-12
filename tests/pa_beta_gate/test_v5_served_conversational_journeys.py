@@ -146,13 +146,13 @@ def test_served_apple_notes_denied_then_new_request_after_consent_creates_exactl
     monkeypatch.setattr(apple_notes, "create_apple_note", lambda **kw: real_create(**kw, runner=runner))
     text = 'save a note to Apple Notes titled "Night shift handover" with: boiler pressure steady at 1.4 bar'
     denied = _turn(harness, text, workspace)
-    assert denied.startswith("Note saved: 'Night shift handover' at "), denied
+    assert denied.startswith("Saved your note 'Night shift handover'."), denied
     assert "destination is NOT resolved (os_permission_denied)" in denied and "a new request makes one new attempt" in denied, denied
     fallback = [path for path in (workspace / "notes").glob("*.md") if "1.4 bar" in path.read_text(encoding="utf-8")]
     assert len(fallback) == 1 and len(calls) == 1
 
     created = _turn(harness, text, workspace)
-    assert "Note saved in Apple Notes: 'Night shift handover'" in created, created
+    assert "Saved your note 'Night shift handover' in Apple Notes" in created, created
     assert len(calls) == 2
     journal = json.loads((workspace / "notes" / ".apple-notes-effects.json").read_text(encoding="utf-8"))
     assert sorted(op["state"] for op in journal["operations"].values()) == ["confirmed", "refused"]
@@ -166,7 +166,7 @@ def test_served_note_body_is_persisted_in_the_users_own_words_and_its_action_sti
     body = "[action] ask u to bring the north star gauge Friday at 11:00 Europe/Athens"
 
     saved = _turn(harness, f'save a note titled "Crane lift plan" with: {body}', workspace)
-    assert saved.startswith("Note saved: 'Crane lift plan' at "), saved
+    assert saved.startswith("Saved your note 'Crane lift plan'."), saved
     notes = [path for path in (workspace / "notes").glob("*.md") if "gauge" in path.read_text(encoding="utf-8")]
     assert len(notes) == 1 and body in notes[0].read_text(encoding="utf-8"), (saved, _note_texts(workspace))
 
@@ -183,7 +183,7 @@ def test_served_withdrawn_clause_never_reaches_the_saved_note(request):
     harness, workspace = env["harness"], env["workspace"]
     answer = _turn(harness, 'save a note titled "Draft A" with: first idea for the quay. '
                             'scratch that, create a note titled "Draft B" with: second idea for the quay', workspace)
-    assert answer.startswith("Note saved: 'Draft B' at "), answer
+    assert answer.startswith("Saved your note 'Draft B'."), answer
     texts = _note_texts(workspace)
     assert len([text for text in texts if "second idea for the quay" in text]) == 1, (answer, texts)
     assert not [text for text in texts if "first idea" in text or "Draft A" in text], texts
@@ -215,7 +215,7 @@ def test_served_storage_verb_note_is_a_note_while_a_statement_about_notes_stays_
     harness, workspace = env["harness"], env["workspace"]
 
     stored = _turn(harness, 'store a note titled "Pump room" with: [check] valve {B} torque 45 Nm', workspace)
-    assert stored.startswith("Note saved: 'Pump room' at "), stored
+    assert stored.startswith("Saved your note 'Pump room'."), stored
     assert [text for text in _note_texts(workspace) if "[check] valve {B} torque 45 Nm" in text], (stored, _note_texts(workspace))
     assert "remember" not in stored.lower(), stored
 
@@ -238,6 +238,6 @@ def test_served_unaddressable_notes_app_still_answers_with_the_fallback_it_wrote
 
     monkeypatch.setattr(apple_notes, "create_apple_note", lambda **kw: real_create(**kw, runner=runner))
     answer = _turn(harness, 'save a note to Apple Notes titled "Crane roster" with: rigger shift swap on berth 7', workspace)
-    assert answer.startswith("Note saved: 'Crane roster' at "), answer
+    assert answer.startswith("Saved your note 'Crane roster'."), answer
     assert "destination is NOT resolved (notes_app_unavailable)" in answer and "I cannot verify" not in answer, answer
     assert len([text for text in _note_texts(workspace) if "rigger shift swap on berth 7" in text]) == 1 and len(calls) == 1

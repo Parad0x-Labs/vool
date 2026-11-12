@@ -109,7 +109,7 @@ def test_a_plan_with_nothing_remote_records_nothing() -> None:
     assert "web_retrieval_receipts" not in source_context
 
 
-def test_the_weather_fetch_reports_itself_to_the_remote_fetch_scope(monkeypatch) -> None:
+def test_the_weather_fetch_reports_itself_to_the_remote_fetch_scope(enable_web, monkeypatch) -> None:
     """The counter's own guarantee: every remote HTTP path reports itself before fetching.
 
     Without this, `web_calls == 0` cannot prove a negative for this lane -- which is exactly the

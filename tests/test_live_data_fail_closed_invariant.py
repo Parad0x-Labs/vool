@@ -155,7 +155,7 @@ def test_a_non_live_data_turn_is_unaffected_and_still_reaches_the_ordinary_path(
 # --- sabotage: remove the fail-closed guard, prove the original fallthrough reproduces ---
 
 
-def test_sabotage_removing_the_guard_reproduces_the_original_fallthrough(agent: VoolAgent) -> None:
+def test_sabotage_removing_the_guard_reproduces_the_original_fallthrough(enable_web, agent: VoolAgent) -> None:
     """Proves the fix is load-bearing: with `_live_data_plan_unavailable_result` forced to behave
     like the old code (returning None instead of a deterministic result), the exact same LIVE_DATA
     turn that item 2 protects now DOES fall through to the ordinary ungrounded turn path --

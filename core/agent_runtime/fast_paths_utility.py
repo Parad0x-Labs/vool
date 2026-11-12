@@ -399,6 +399,32 @@ def build_greeting_reply(phrase: str, *, addr: str = "", want_tail: bool = True)
     return opener
 
 
+def help_short_reply(agent: Any) -> str:
+    # `help` is the front door for someone who just opened the app: a short, plain,
+    # grouped pointer to real things to type and real Settings pages. The full
+    # capability manifest stays one ask away on "what can you do"; this reply never
+    # carries it. Every typed example below is a phrasing the runtime really parses,
+    # and every page named is a real Settings card or row (core/vool_settings_page.py).
+    lines = [
+        "The short version:",
+        'Chat and files: ask in your own words — "read notes.txt", "make a file called plan.md with …", or just talk it through.',
+        'Web: say "look up …" for fresh facts — needs Web lookups on, on the Privacy & Permissions page in Settings.',
+        'Reminders and notes: "remind me to … at 9am" sets a reminder; "take a note: …" saves one.',
+        'Cloud models (your own key): say "cloud ask" or "cloud auto" to use them, "cloud status" to check; the key goes on the API Keys page in Settings.',
+        "Settings: General is how I talk, Models & Providers is which brain answers, Notifications is reminders and quiet hours.",
+    ]
+    try:
+        from core.wallet.config import wallet_enabled
+
+        wallet_on = bool(wallet_enabled())
+    except Exception:
+        wallet_on = False
+    if wallet_on:
+        lines.append("Crypto: the wallet is switched on — see the Crypto page in Settings.")
+    lines.append("Ask me in your own words; you don't need exact commands.")
+    return "\n".join(lines)
+
+
 def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: str, session_id: str) -> str | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
@@ -442,7 +468,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             repeat_count = note_smalltalk_turn(session_id, key="status_check")
             if repeat_count >= 2:
                 return "Still stable. Memory online, mesh ready. Give me the task."
-        msg = "Running stable. Memory online, mesh ready."
+        msg = "Running fine, everything ready."
         if with_joke:
             msg += " Caffeine level: synthetic but dangerous."
         if character:
@@ -468,10 +494,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
                 "- keep actions explicit: I report what I did, what failed, and what needs approval",
             ]
         )
+    if phrase == "help":
+        return help_short_reply(agent)
     if phrase in {
         "what can you do",
         "what can we do",
-        "help",
     }:
         return agent._help_capabilities_text()
     if phrase in {"kill me lol", "omfg just kill me", "omfg just kill me lol", "kms lol"}:
@@ -493,7 +520,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
             return compact_capabilities_text(agent)
         return agent._help_capabilities_text()
     # "what can we/you/i do|build" wrapped in filler ("no idea tbh what can we", "so what can you do")
-    # — a SHORT friendly answer, not the full capability manifest (that's `help`), and never the
+    # — a SHORT friendly answer, not the full capability manifest (that's `what can you do`), and never the
     # slow model. "what can you tell me about the cat_on_sofa picture" asks about a THING, not about
     # VOOL (re-audit 2026-10-29, mailweb:M01), so a tell/say/find/see verb stands this down.
     if re.search(
@@ -501,11 +528,11 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
     ) or phrase in {"what now", "now what", "what next"}:
         return (
             "Plenty. The short version:\n"
-            "- answer questions and keep our context, locally and free on your machine\n"
-            "- read, search, and edit files in your workspace, and run bounded commands\n"
+            "- answer questions and remember our chat, locally and free on your machine\n"
+            "- read, search, and edit files in your folders\n"
             "- look things up on the web and turn pages into summaries\n"
-            "- bring your own cloud key for bigger models when you want (`cloud on`), off by default\n"
-            "Say `help` for the full list — or just tell me the task and I'll go."
+            "- bring your own cloud key for bigger models when you want (`cloud auto`), off by default\n"
+            "Say `what can you do` for the full list — or just tell me the task and I'll go."
         )
     # Bare confusion / filler — a plain human nudge instead of waking the local model, which
     # over-thinks a one-word message on modest hardware and can time out into a non-answer.
@@ -775,7 +802,7 @@ def _read_attached_file(item: dict[str, Any], read_request: dict[str, object]) -
         if (start_line - 1 + len(chunk)) < total_lines
         else ("\n\n…the attachment was longer than the runtime delivers; only its first part is shown." if item.get("truncated") else "")
     )
-    response_text = (rendered_body if verbatim else f"Attached file `{name}` ({size} bytes):\n" + rendered_body) + tail_note
+    response_text = (rendered_body if verbatim else f"Attached file {name} ({size} bytes):\n" + rendered_body) + tail_note
     return RuntimeExecutionResult(
         handled=True,
         ok=True,
@@ -816,7 +843,7 @@ def _record_attachment_fast_read(agent: Any, source_context: dict[str, object] |
     agent._emit_runtime_event(
         source_context,
         event_type="attachment_read",
-        message=f"{name}: read by the file lane, from the attachment",
+        message=f"{name}: read from the attachment",
         attachment_id=attachment_id,
         attachment_name=name,
         kind="text",
@@ -847,9 +874,9 @@ def _emit_workspace_tool_events(
     agent._emit_runtime_event(
         source_context,
         event_type="tool_selected",
-        message=f"Running {intent}",
+        message=f"Using {intent}",
         tool_name=intent,
-        summary=f"Running {intent}",
+        summary=f"Using {intent}",
     )
     agent._emit_runtime_event(
         source_context,
@@ -991,7 +1018,7 @@ def maybe_handle_direct_workspace_runtime_request(
         if dropped:
             response = (
                 f"{response}\n\nRead the first {_MAX_NAMED_READ_FILES} files named here. "
-                f"Not read: {', '.join(f'`{name}`' for name in dropped)} — ask again for those."
+                f"Not read: {', '.join(dropped)} — ask again for those."
             )
         return agent._fast_path_result(
             session_id=session_id,
@@ -1092,11 +1119,18 @@ def looks_like_agentic_build_request(user_input: str) -> bool:
 
     # Admission is clause-scoped: a later request to report expected versus actual
     # results does not turn an earlier imperative project build into deliberation.
+    # The verb-less want-site shape ("i want a realy simple homepage for my cake shop") names
+    # no build verb, so `object_phrase_widens` -- which reads the imperative verb -- cannot see
+    # it, and this gate was the wall between it and the builder lane (measured 2026-10-27,
+    # audit mailweb B01-B07: only clarifying questions came back). The detector carries the
+    # same opt-out guard already applied above plus per-sentence deliberation and quoted-payload
+    # vetoes of its own, so it widens nothing those guards forbid.
     # A change to a named source file ("update board.html so ...") is the same lane's work.
     return (
         looks_like_named_file_edit_request(str(user_input or ""))
         or object_phrase_widens(str(user_input or ""))
         or (strong and not build_request_intent.is_deliberation(lowered))
+        or build_request_intent.is_want_site_request(user_input)
     )
 
 
@@ -3442,10 +3476,10 @@ def ui_command_fast_path(normalized_input: str, *, source_surface: str) -> str |
         # An absolute path, not a command. Leave the turn to the lanes that can actually read it.
         return None
     if phrase in {"/new", "/new-session", "/new_session", "/clear", "/reset"}:
-        return "New session: use the `+ New` button in the chat sidebar. Slash `/new` is not a wired command in this runtime."
+        return "To start a new session, use the + New button in the chat sidebar — that slash shortcut doesn't work here."
     if phrase in {"/trace", "/rail", "/task-rail"}:
-        return "Open the live trace rail at `http://127.0.0.1:11435/trace`."
-    return "That slash command is not wired here. Use plain language, the `New session` button, or open `http://127.0.0.1:11435/trace` for the runtime rail."
+        return "That shortcut doesn't open anything by itself. Ask me what I just did and I'll tell you here in the chat."
+    return "That shortcut doesn't work here. Just write what you want in plain words, or use the New session button to start fresh."
 
 
 def startup_sequence_fast_path(user_input: str) -> str | None:

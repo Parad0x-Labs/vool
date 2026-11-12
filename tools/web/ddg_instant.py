@@ -31,7 +31,7 @@ def ddg_instant_answer(query: str, *, timeout_s: float = 10.0) -> dict[str, Any]
     # The ONE outbound door: veto is enforced and the attempt reported into the
     # owning turn's ledger BEFORE any socket opens. Refusal raises
     # RemoteFetchRefusedError rather than returning an empty answer.
-    with open_remote(request, timeout=timeout_s) as response:
+    with open_remote(request, timeout=timeout_s, lookup=True) as response:
         body = response.read().decode("utf-8")
     return json.loads(body)
 

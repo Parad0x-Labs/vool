@@ -114,7 +114,7 @@ def _run(node: Any, context: NodeContext) -> dict[str, Any]:
     explanation = []
     if node.arguments.get("explanation_requested"):
         if context.run_generation is None and context.run_structured_generation is None:
-            problems.append("The requested explanation could not be generated.")
+            problems.append("I couldn't write the explanation you asked for — the results are shown on their own.")
         else:
             try:
                 schema = {"type": "object", "required": ["explanation"], "additionalProperties": False,

@@ -264,9 +264,11 @@ def _currency_reply(
         text, chat_codes=extra["chat_codes"]
     )
     source = dict(source_context or {})
-    from core import policy_engine
+    from core.remote_fetch_policy import effective_web_available
 
-    web_runtime_enabled = policy_engine.allow_web_fallback()
+    # The switch AND Local Only: under a chat's Local Only the rate was fetched anyway, its name
+    # resolved over public DNS, and the person read a reply that never said Local Only.
+    web_runtime_enabled = effective_web_available(source)
     # ROUTE-PARITY GATE: the live FX retrieval is a public read-only network retrieval -- the same
     # action class the model route crosses `decide_tool_call` for when it fetches (web.fetch). The
     # lane now takes its permission decision from the ONE authority before opening a socket, so a
@@ -1719,6 +1721,7 @@ def handle_turn_frontdoor(
         effective_input,
         source_surface=source_surface,
         source_context=source_context,
+        session_id=session_id,
     )
     if same_chat_recall is not None:
         from core.agent_runtime.same_chat_recall import gate_transcript_recall
@@ -1796,6 +1799,22 @@ def handle_turn_frontdoor(
     )
     if web0_builder_result is not None:
         return {"result": web0_builder_result}
+
+    # A follow-up about the one-page site the build lane wrote ("can i see it", "add our opening
+    # hours ...", "put it online"). Returns the same {"result": ...} shape this door returns, and
+    # claims nothing when the chat's workspace holds no built page (A1, 2026-10-28: the handler
+    # existed and was proven lane-locally but was never wired into the turn).
+    from core.agent_runtime.builder.site_followups import maybe_handle_site_followup
+
+    site_followup_result = (
+        None
+        if (model_owns_judgement or action_forbidden)
+        else maybe_handle_site_followup(
+            agent, effective_input, source_context=source_context, session_id=session_id
+        )
+    )
+    if site_followup_result is not None:
+        return site_followup_result
 
     ui_command = agent._ui_command_fast_path(normalized_input, source_surface=source_surface)
     if ui_command:
@@ -2012,6 +2031,7 @@ def handle_turn_frontdoor(
         effective_input,
         session_id=session_id,
         source_context=source_context,
+        persona=persona,
         interpretation=interpreted,
     )
     if url_read is not None:
@@ -2437,6 +2457,8 @@ def handle_turn_frontdoor(
         from core import policy_engine as _policy_engine
         from core.remote_fetch_policy import local_only_active as _offline
 
+        # Local Only chosen for this chat blocks the same lanes: continuing sent the weather to
+        # the model, which had nothing to answer it with.
         if (
             bool(_policy_engine.local_only_mode())
             and not bool(_policy_engine.allow_web_fallback())
@@ -2646,6 +2668,13 @@ def _explicit_path_in(text: str) -> str:
     return explicit_path_in(text)
 
 
+def _drives_asked(text: str) -> dict[str, bool]:
+    """A folder search reaches the plugged-in drives only when the person names one."""
+    from core.execution.constants import machine_folder_search_wants_drives
+
+    return {"drives": True} if machine_folder_search_wants_drives(text) else {}
+
+
 _CREATE_FOLDER_RE = re.compile(
     r"\b(?:create|make|set\s+up|add|stick|put|new|mkdir|build)\b(?:\s+\S+){0,4}?\s+(?:folders?|director(?:y|ies))\b",
     re.IGNORECASE,
@@ -2775,7 +2804,7 @@ def _execute_arbitrated_family(
         # nothing unambiguous to list, and the ordinary find_folder answer is the honest one.
         from core.authorized_tool_execution import execute_authorized_runtime_tool as _execute
 
-        located = _execute("machine.find_folder", {"name": argument}, source_context=dict(source_context or {}))
+        located = _execute("machine.find_folder", {"name": argument, **_drives_asked(effective_input)}, source_context=dict(source_context or {}))
         matches = list(((located.details or {}) if located is not None else {}).get("matches") or [])
         if located is not None and located.ok and matches:
             # A common word matches widely — "budget" hit 22 directories across the machine. The
@@ -2840,7 +2869,7 @@ def _execute_arbitrated_family(
             source_context=source_context,
         )
     tool_map: dict[str, tuple[str, dict[str, str] | None]] = {
-        FAMILY_FIND_FOLDER: ("machine.find_folder", {"name": argument} if argument else None),
+        FAMILY_FIND_FOLDER: ("machine.find_folder", {"name": argument, **_drives_asked(effective_input)} if argument else None),
         FAMILY_MACHINE_SPECS: ("machine.inspect_specs", {}),
         FAMILY_DISK_USAGE: ("machine.disk_usage", {}),
         # The ranking comes from the sentence, not from the arbiter: it picked the family, and

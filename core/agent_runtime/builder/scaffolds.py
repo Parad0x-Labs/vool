@@ -60,14 +60,89 @@ def workspace_build_target(
     return {
         "platform": platform,
         "language": language,
-        "root_dir": (
-            requested_root_dir.rstrip("/")
-            if requested_root_dir
-            else f"generated/{platform}-bot"
-            if platform in {"telegram", "discord"}
-            else _unrooted_build_dir(query_text)
+        "root_dir": _site_aware_root_dir(
+            query_text=query_text,
+            platform=platform,
+            requested_root_dir=requested_root_dir,
+            unrooted_default=_unrooted_build_dir(query_text),
         ),
     }
+
+
+def _site_aware_root_dir(
+    *, query_text: str, platform: str, requested_root_dir: str, unrooted_default: str
+) -> str:
+    """The build folder, with a plain-words site request named after the business.
+
+    `_unrooted_build_dir` digests the whole sentence ("make a one page website for my bakery" ->
+    `generated/one-page-website-bakery-<digest>`), which names the ASK rather than the thing the
+    ask is about; a page the person will look for should sit in a folder they would recognize. The
+    folder comes from the extracted business name (`site_build_folder`), never from a list of
+    business nouns. Two roots are left exactly as they were: a destination the operator stated, and
+    a "called X" that the root extractor read as a folder -- that is the business NAME, not a
+    destination they chose, so it is slugified into the same name-based folder. Non-site requests
+    are untouched.
+    """
+    root_dir = (
+        requested_root_dir.rstrip("/")
+        if requested_root_dir
+        else f"generated/{platform}-bot"
+        if platform in {"telegram", "discord"}
+        else unrooted_default
+    )
+    if platform != "generic":
+        return root_dir
+    # Lazy: the site detector lives with the build lane (app_builder), and a module-level import
+    # here would drag the whole builder into every scaffold import.
+    from core.agent_runtime.builder.app_builder import _is_site_request
+
+    if not _is_site_request(query_text):
+        return root_dir
+    if requested_root_dir and not _root_is_the_business_name(query_text, requested_root_dir):
+        return root_dir
+    return site_build_folder(query_text) or root_dir
+
+
+def _root_is_the_business_name(query_text: str, requested_root_dir: str) -> bool:
+    """Whether the extracted root is a "called <name>" the request carries, not a chosen folder.
+
+    "for my dog groomer called Paws" resolves its build root to "Paws" through the name pattern,
+    while "put my site in paws" resolves to the same word through a destination pattern. Only the
+    first is the business name posing as a folder, and only that one is renamed.
+    """
+    root = str(requested_root_dir or "").strip()
+    if not root:
+        return False
+    return bool(
+        re.search(r"\b(?:called|named)\s+[`\"']?" + re.escape(root) + r"\b", str(query_text or ""), re.IGNORECASE)
+    )
+
+
+def site_build_folder(query_text: str) -> str:
+    """`generated/<business-name-slug>` for a site request, or "" when no name can be read.
+
+    The slug is the extracted name (`site_words.extract_site_words`), lower-cased with separators
+    collapsed -- "for my dog groomer called Paws" -> `generated/paws`, "for my bakery" ->
+    `generated/my-bakery`. No digest suffix: the same business re-asked lands in the same folder, so
+    a retry overwrites its own attempt, and a person looking for their page finds it under their own
+    name. Empty when the sentence carries no name, so the caller keeps its existing default.
+    """
+    from core.agent_runtime.builder.site_words import extract_site_words
+
+    name = extract_site_words(query_text).name
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return f"generated/{slug[:48]}" if slug else ""
+
+
+def site_index_html(request_text: str) -> str:
+    """The one-file page for a plain-words site request: the person's words, rendered.
+
+    A thin wrapper so callers outside the build lane (follow-up turns, previews) reach the page
+    through one name instead of re-assembling extract + render themselves.
+    """
+    from core.agent_runtime.builder.site_words import extract_site_words, render_simple_site_html
+
+    return render_simple_site_html(extract_site_words(request_text))
 
 
 _SLUG_STOP_WORDS = frozenset(

@@ -180,16 +180,29 @@ def assistant_text_is_no_answer(text: Any) -> bool:
         return False
 
 _SAME_CHAT_HISTORY_RECALL_RE = re.compile(
-    r"^\s*(?:can|could|would\s+you\s+)?(?:"
+    r"^\s*(?:(?:great|perfect|nice|cool|awesome|thanks|thank\s+you)[,!\s]+|"
+    r"can|could|would\s+you\s+)?(?:"
     r"what|which|list|show|repeat|recall|remind|summarize|tell\s+me"
     r")\b[^\n]{0,240}\b(?:"
     r"earlier|before|above|history|this\s+(?:chat|conversation)|"
-    r"(?:did|have)\s+(?:we|i|you)\s+(?:ask|answer|say|calculate)"
+    r"(?:did|have)\s+(?:we|i|you)\s+(?:ask|answer|say|calculate)|"
+    r"(?:my|our)\s+first\s+(?:question|thing|message|ask|request)|"
+    r"(?:question|thing|message|ask|request)\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)|"
+    r"what\s+(?:i|we)\s+(?:asked|said|typed|wrote|sent)\b[^.!?]{0,20}\bfirst\b"
     r")\b",
     re.IGNORECASE,
 )
+# Bare follow-ups that resolve against the reply they follow ("the one before that?",
+# "before that?"). Whole-message anchored: a sentence that merely mentions "the one
+# before the shelf" keeps its ordinary reading.
+_BARE_PREVIOUS_REFERENCE_RE = re.compile(
+    r"^\s*(?:and\s+|so\s+|then\s+|ok(?:ay)?[,.]?\s+|what\s+about\s+|how\s+about\s+)*"
+    r"(?:the\s+)?one\s+before(?:\s+(?:that|this|it))?\s*[?.]?\s*$"
+    r"|^\s*(?:and\s+|so\s+|then\s+|ok(?:ay)?[,.]?\s+)*before\s+that\s*[?.]?\s*$",
+    re.IGNORECASE,
+)
 _DIRECT_TRANSCRIPT_RECALL_HEAD_RE = re.compile(
-    r"^(?:(?:and|also|ok|okay|so|then)\s+)*(?:"
+    r"^(?:(?:and|also|ok|okay|so|then|great|perfect|nice|cool|awesome|thanks|thank\s+you)[,!\s]+)*(?:"
     r"what|which|show|list|repeat|recall|remind|tell\s+me|part\s+[a-z0-9]+|"
     r"(?:list\s+)?item\s+\d+"
     r")\b",
@@ -286,6 +299,8 @@ def is_same_chat_history_recall(text: str) -> bool:
         return False
     normalized = " ".join(raw.split())
     if _SAME_CHAT_HISTORY_RECALL_RE.search(normalized):
+        return True
+    if _BARE_PREVIOUS_REFERENCE_RE.match(normalized):
         return True
     typo_folded = " ".join(
         _DIRECT_RECALL_TYPO_WORDS.get(word.casefold(), word.casefold())

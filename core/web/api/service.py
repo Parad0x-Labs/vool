@@ -467,7 +467,7 @@ def _web0_resolve_response(query: dict[str, list[str]]) -> ApiResponse:
     except Exception as exc:
         return json_response(502, {"ok": False, "name": name, "error": f"resolver error: {exc}"})
     if record is None:
-        return json_response(404, {"ok": False, "name": name, "error": "unregistered or RPC unreachable"})
+        return json_response(404, {"ok": False, "name": name, "error": "That name is not registered, or the lookup service could not be reached. Check the name and try again."})
     txid = getattr(record, "arweave_txid", None) or ""
     gateways = _web0_gateway_urls(txid)
     return json_response(
@@ -610,7 +610,9 @@ def runtime_model_status_response(
             "deterministic": True,
             "requested_model": selected,
         }
-    default_model = str(runtime.runtime_model_tag or "").strip() or "unknown"
+    from core.local_model_readiness import model_in_use
+
+    default_model = model_in_use(str(runtime.runtime_model_tag or "").strip()) or "unknown"
     lanes = _runtime_text_model_lanes(runtime)
     largest = max(lanes, key=parameter_count_for_model) if lanes else default_model
     lane_text = ", ".join(f"`{item}`" for item in lanes) if lanes else "`none`"
@@ -731,7 +733,9 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines = [f"You're on VOOL {release}" + (f" ({channel} channel)." if channel else ".")]
     if asks_update:
         lines.append(_update_status_sentence(release))
-    model = str(runtime.runtime_model_tag or "").strip()
+    from core.local_model_readiness import model_in_use
+
+    model = model_in_use(str(runtime.runtime_model_tag or "").strip())
     if model and not asks_update:
         lines.append(f"Answers on this computer come from the local model {model}.")
     return {
@@ -1396,7 +1400,9 @@ def _dispatch_get(
         return apply_runtime_headers(
             html_response(
                 200,
-                render_null_browser_html(),
+                # The page speaks the person's UI language: same precedence as every page
+                # render (?ui_locale= > the picker's cookie > en). Display only.
+                render_null_browser_html(locale=resolve_page_locale(query, headers)),
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,
                     "X-Vool-Workstation-Surface": "web0-browser",
@@ -1531,28 +1537,35 @@ def _dispatch_get(
         # the page; both were wrong about the chats. Counts are computed over every chat and sent
         # alongside, keyed by project id with "" for unbound, and archived rows are excluded to
         # match what the sidebar groups.
-        every_session = list_conversation_sessions(limit=1_000_000)
-        counts: dict[str, int] = {}
-        for row in every_session:
-            if row.get("archived"):
-                continue
-            counts[str(row.get("project_id") or "")] = (
-                counts.get(str(row.get("project_id") or ""), 0) + 1
-            )
-        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
-        # one that would otherwise fall outside the 100-row page.
-        from core.chat_housekeeping import pinned_chat_ids_from
+        # While a restart's store read can still fail, the answer is "starting" and the page
+        # retries -- an empty "no chats" list is only ever sent over a read that happened.
+        try:
+            every_session = list_conversation_sessions(limit=1_000_000)
+            counts: dict[str, int] = {}
+            for row in every_session:
+                if row.get("archived"):
+                    continue
+                counts[str(row.get("project_id") or "")] = (
+                    counts.get(str(row.get("project_id") or ""), 0) + 1
+                )
+            # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+            # one that would otherwise fall outside the 100-row page.
+            from core.chat_housekeeping import pinned_chat_ids_from
 
-        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
-        for row in every_session:
-            sid = str(row.get("session_id") or "")
-            row["pinned"] = sid in pinned_at
-            row["pinned_at"] = pinned_at.get(sid, "")
-        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+            pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+            for row in every_session:
+                sid = str(row.get("session_id") or "")
+                row["pinned"] = sid in pinned_at
+                row["pinned_at"] = pinned_at.get(sid, "")
+            page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
+        except Exception:
+            # Fail closed with plain words: no traceback, no error text riding the body.
+            return apply_runtime_headers(json_response(503, {"ok": False, "state": "starting"}), runtime)
         return apply_runtime_headers(
             json_response(
                 200,
                 {
+                    "state": "ready",
                     "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),
@@ -3034,6 +3047,20 @@ def _dispatch_get(
             payload["turn_active_other"] = chat_slot_held_by_other(session_id, mine)
         return apply_runtime_headers(json_response(200, payload), runtime)
 
+    if normalized_path == "/api/chat/approvals":
+        # This chat's open approval prompts, so the page can offer Allow / Deny after a reload or
+        # for a turn it did not send itself. Owner-local, like the prompt it rebuilds: answering
+        # one still goes through /api/mode resolve_approval and its exact-action check.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.mode_permission_policy import pending_approvals_for_session
+
+        session_id = str((query.get("session") or [""])[0] or "").strip()
+        approvals = pending_approvals_for_session(session_id) if session_id else []
+        return apply_runtime_headers(
+            json_response(200, {"session_id": session_id, "approvals": approvals}), runtime
+        )
+
     if normalized_path == "/api/bug-report/status":
         # Bug-report draft status (owner-local read of the local store).
         from core.bug_report import get_service as _br_service
@@ -3365,6 +3392,13 @@ _CHAT_SLOT_HELD: contextvars.ContextVar[tuple[str, str] | None] = contextvars.Co
 # have ended. Set by the chat door; read by dispatch_post at the request's end.
 _CONSUMED_QUEUE_ITEM: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "vool_consumed_queue_item", default=None
+)
+# The one-line, plain-words folder notice a turn's dispatch produced by binding (or failing to
+# bind) the chat to a project folder the person named in words. Set by the chat dispatch once it
+# knows the binding; read and cleared by dispatch_post at the request's end so the streamed reply
+# says which folder VOOL is working in before the model's own answer starts.
+_WORKSPACE_WORDS_NOTICE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "vool_workspace_words_notice", default=""
 )
 
 
@@ -3811,6 +3845,14 @@ def dispatch_post(
             # transcript flush, so the queue row finishes only after the answer is recorded.
             _response.stream = _finish_consumed_queue_item_after(_consumed_queue_record, _response.stream)
             _consumed_queue_record = None
+        # The folder-naming notice the dispatch produced, if any, rides the stream's own head so
+        # the reply says once, in plain words, which folder VOOL is working in (or why none was
+        # bound) before the model's answer starts. Read-and-clear here: the contextvar is this
+        # request's, and a buffered reply has no stream to carry it.
+        _words_notice = _WORKSPACE_WORDS_NOTICE.get("")
+        _WORKSPACE_WORDS_NOTICE.set("")
+        if _words_notice and getattr(_response, "stream", None) is not None:
+            _response.stream = _prepend_workspace_notice_after(_words_notice, str(model_name or "").strip(), _response.stream)
         return _response
     finally:
         reset_turn_locale(_turn_locale_token)
@@ -4251,7 +4293,7 @@ def _release_turn_attachments(session_id: str, turn_id: str) -> None:
         _attachment_event(
             session_id,
             event_type="attachment_released",
-            message=f"Released {entry['name']}: {entry['outcome']}",
+            message=f"Finished with {entry['name']}: {entry['outcome']}",
             details={
                 "attachment_id": entry["id"],
                 "kind": entry["kind"],
@@ -4363,6 +4405,35 @@ def _release_admission_after(admission: Any, stream: Iterable[bytes]) -> Iterato
         yield from stream
     finally:
         admission.release()
+
+
+def _prepend_workspace_notice_after(notice: str, model: str, stream: Iterable[bytes]) -> Iterator[bytes]:
+    """Yield the folder-naming notice ahead of ``stream``, then the stream unchanged.
+
+    The notice is one plain-words line ("I'm working in your garden planner folder." or why
+    no folder was bound). It rides the same NDJSON chat-frame shape the streamed answer uses
+    (a non-terminal assistant chunk), plus one typed activity record, so a client that
+    concatenates content sees it once at the head of the reply and the live activity lane can
+    show it without parsing the answer. The stream itself -- including its sealed commit
+    frames -- passes through byte for byte.
+    """
+    import datetime as _dt
+
+    from core.web.api.runtime import ollama_stream_chunk, task_event_line
+
+    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    text = " ".join(str(notice or "").split())
+    if text:
+        text = text + " "
+        yield ollama_stream_chunk(model=str(model or ""), content=text, created_at=now, done=False)
+        yield task_event_line(
+            {
+                "event_type": "workspace_binding_notice",
+                "message": text.strip(),
+            },
+            created_at=now,
+        )
+    yield from stream
 
 
 def _iterate_under_ingress_context(context: Any, iterator: Iterable[bytes]) -> Iterator[bytes]:
@@ -8340,7 +8411,20 @@ def _dispatch_post_inner(
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
-        inbound_source_context["cancel_turn_id"] = str(body.get("turn_id") or "").strip()[:80]
+        # A caller that sends no turn id (a script, a bridge, a phone plug) still sends ONE turn, and
+        # its execution record, its approval prompts and this door's final honesty check must all name
+        # it the same way, so the request id this door already minted stands in. Measured on 1cbf433:
+        # with no turn id an Auto write recorded itself under the runtime's own turn id, the final
+        # check read the turn by request id, found no write, and the person got a bare HTTP 500 after
+        # the file was written; a Manual prompt stored with no task could never be allowed.
+        _client_turn = str(body.get("turn_id") or "").strip()[:80]
+        _request_turn = str(request_id or "").strip()
+        if not _client_turn and len(_request_turn) > 80:
+            # A request id may be longer than a turn id holds. Cut short, two ids sharing their
+            # first 80 characters would become ONE task: one's grants, cancel and follow-ups
+            # landing on the other. A digest keeps every distinct id distinct.
+            _request_turn = "rq-" + hashlib.sha256(_request_turn.encode("utf-8")).hexdigest()[:40]
+        inbound_source_context["cancel_turn_id"] = _client_turn or _request_turn
         # A question asked while a task runs in this chat is answered beside it, not after it. The
         # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
         # request for one is honoured only while this chat really has a live task (owner-local).
@@ -8406,11 +8490,63 @@ def _dispatch_post_inner(
                 runtime,
             )
         bound_project_id = context_namespace.project_id
+        words_status = ""
+        # A chat that names the person's own project folder in words gets bound to it here, so
+        # this turn and every later one work in that folder instead of the empty default
+        # workspace. Owner-local turns only; a remote channel turn never binds. Binding follows
+        # the project endpoints' own path and authority (core.workspace_from_words), gives the
+        # workspace only -- writes keep their approval cards -- and says once, in plain words,
+        # which folder VOOL is working in (the notice rides this request's stream).
+        if owner_local and not requested_workspace and not bound_project_id:
+            try:
+                from core.workspace_from_words import apply_workspace_words_binding
+
+                words_binding = apply_workspace_words_binding(
+                    session_id,
+                    user_text,
+                    home=str(_Path.home()),
+                    owner_local=True,
+                )
+            except Exception:
+                words_binding = None
+            if isinstance(words_binding, dict):
+                words_status = str(words_binding.get("status") or "")
+                if words_binding.get("bound"):
+                    bound_project_id = str(words_binding.get("project_id") or "").strip()
+                notice = str(words_binding.get("notice") or "").strip()
+                if notice:
+                    _WORKSPACE_WORDS_NOTICE.set(notice)
         project_workspace = (
             project_store.project_root(bound_project_id) or ""
             if bound_project_id and not requested_workspace
             else ""
         )
+        if (
+            not requested_workspace
+            and not bound_project_id
+            and owner_local
+            # The words resolver above decides first. When it refused a folder or found several,
+            # its plain notice stands and nothing is bound; only when it saw no work ask, or found
+            # no folder, may a registered project or an exactly-named project folder bind here.
+            and words_status in {"", "no_ask", "none"}
+        ):
+            # A chat bound to no project that NAMES one ("plan.py in the garden planner project")
+            # is bound to it here, so this turn and every follow-up work in that folder. Measured
+            # on 1cbf433: the turn ran in the default workspace and answered "There is no file at
+            # plan.py". A bound chat is never moved: project folders isolate chats from each other.
+            from core.named_project_binding import bind_chat_to_named_project
+
+            try:
+                named = bind_chat_to_named_project(session_id, user_text)
+            except Exception:
+                logging.getLogger("vool.api").exception("named project binding failed (session=%s)", session_id)
+                named = None
+            if named:
+                bound_project_id = str(named["project_id"])
+                project_workspace = str(named["root"])
+                if words_status == "none":
+                    # The resolver's "couldn't find a folder" line would now be wrong.
+                    _WORKSPACE_WORDS_NOTICE.set(f"I'm working in your {named['name']} folder now.")
         effective_workspace = requested_workspace or project_workspace or default_workspace
         workspace_binding = (
             "explicit"
@@ -8464,6 +8600,10 @@ def _dispatch_post_inner(
         source_context[UI_LOCALE_KEY] = request_ui_locale(headers)
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id
+        # The folder-naming notice for this turn, in plain words the reply carries once.
+        workspace_words_notice = _WORKSPACE_WORDS_NOTICE.get("")
+        if workspace_words_notice:
+            source_context["workspace_binding_notice"] = workspace_words_notice
         requested_model = str(model or "").strip()
         # Cloud-only machines: an owner-local Auto turn takes the cloud model the owner saved in
         # setup, but only while no local model is reachable (core.cloud_only_default).

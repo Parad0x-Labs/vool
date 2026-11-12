@@ -4,10 +4,10 @@ description: How to connect OpenRouter to VOOL so one API key reaches many cloud
 
 # Connect OpenRouter
 
-OpenRouter provides access to many providers behind one key. VOOL supports connecting an
-OpenRouter account.
+OpenRouter provides access to many providers behind one key. VOOL supports adding an
+OpenRouter key.
 
-## Connect
+## Add the key
 
 Create a key in your OpenRouter account, paste it under **Settings → API Keys** and press
 **Save key**. VOOL checks the key with OpenRouter once, then keeps it in an encrypted file on
@@ -22,6 +22,6 @@ usage may appear in VOOL's public aggregate OpenRouter statistics, but individua
 and identities are not published.
 {% endhint %}
 
-## Disconnect
+## Remove the key
 
 Remove the key under **Settings → API Keys**. Revoke the key in your OpenRouter account as well if you want it dead server-side.

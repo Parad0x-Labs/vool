@@ -30,7 +30,7 @@ def _search_raising(reason: str):
     return _search
 
 
-def test_an_unreachable_engine_is_cooled_and_the_next_turn_skips_it(monkeypatch) -> None:
+def test_an_unreachable_engine_is_cooled_and_the_next_turn_skips_it(monkeypatch, enable_web) -> None:
     monkeypatch.setattr(wr.SearXNGClient, "search", _search_raising("unreachable"))
     first = wr.web_research("latest python", total_budget_s=5.0)
     assert any(note.startswith("searxng_failed:unreachable") for note in first.notes), first.notes
@@ -53,7 +53,7 @@ def test_a_non_transport_failure_is_not_cooled(monkeypatch) -> None:
     assert not any("cooldown" in note for note in second.notes), second.notes
 
 
-def test_a_success_clears_the_cooldown(monkeypatch) -> None:
+def test_a_success_clears_the_cooldown(monkeypatch, enable_web) -> None:
     monkeypatch.setattr(wr.SearXNGClient, "search", _search_raising("timeout"))
     wr.web_research("latest python", total_budget_s=5.0)
     assert wr._engine_skip_reason("searxng").startswith("cooldown:")
@@ -72,7 +72,7 @@ def test_the_cooldown_expires(monkeypatch) -> None:
     assert wr._engine_skip_reason("searxng") == ""
 
 
-def test_two_empty_answers_on_distinct_queries_cool_a_scraper(monkeypatch) -> None:
+def test_two_empty_answers_on_distinct_queries_cool_a_scraper(monkeypatch, enable_web) -> None:
     """MEASURED in-process 2026-09-10: browser_search answered nothing on every query and spent
     the whole budget doing it; "empty" is not a transport failure, so only a streak can say
     "this scraper is not working here"."""
@@ -97,7 +97,7 @@ def test_an_encyclopedia_engine_is_never_cooled_for_answering_nothing() -> None:
     assert wr._engine_skip_reason("ddg_instant") == ""
 
 
-def test_the_browser_scraper_leaves_half_the_budget_to_the_engines_behind_it(monkeypatch) -> None:
+def test_the_browser_scraper_leaves_half_the_budget_to_the_engines_behind_it(monkeypatch, enable_web) -> None:
     seen = {}
     monkeypatch.setattr(wr, "_provider_order", lambda: ["browser_search", "searxng"])
     monkeypatch.setattr(wr, "_browser_search_available", lambda: True)

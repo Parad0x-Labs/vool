@@ -271,6 +271,38 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
         assert marker not in response
 
 
+def test_a_made_up_current_price_in_an_offline_answer_is_still_withheld(make_agent, context_result_factory):
+    """With Web lookups off, "explain how the bitcoin price is determined" is the model's to answer
+    (it asks for no reading). A current price the model makes up inside that answer is still a
+    value no lookup observed, and the output truth guard withholds it."""
+    agent = make_agent()
+    agent.context_loader.load = mock.Mock(return_value=context_result_factory())  # type: ignore[assignment]
+    agent.memory_router.resolve = mock.Mock(  # type: ignore[assignment]
+        return_value=ModelExecutionDecision(
+            source="provider",
+            task_hash="fresh-web-disabled-explain",
+            provider_id="ollama:qwen",
+            used_model=True,
+            output_text="The current BTC price is $67,432.18 according to CoinGecko, up 1.2% today.",
+            confidence=0.84,
+            trust_score=0.84,
+        )
+    )
+    agent.curiosity.maybe_roam = mock.Mock(  # type: ignore[assignment]
+        return_value=CuriosityResult(enabled=False, mode="off", reason="test")
+    )
+
+    with mock.patch("core.agent_runtime.agent.policy_engine.allow_web_fallback", return_value=False):
+        result = agent.run_once(
+            "explain how the bitcoin price is determined",
+            source_context={"surface": "openclaw", "platform": "openclaw"},
+        )
+
+    response = result["response"].lower()
+    assert "67,432.18" not in response and "coingecko" not in response, result["response"]
+    assert "web lookups are off" not in response, result["response"]
+
+
 def test_live_info_chat_surface_routes_model_wording_through_chat_research(make_agent, context_result_factory):
     agent = make_agent()
     agent.context_loader.load = mock.Mock(return_value=context_result_factory())  # type: ignore[assignment]
@@ -438,7 +470,10 @@ def test_help_turn_uses_deterministic_fast_path_when_no_cached_answer(make_agent
     )
 
     assert result["response_class"] == "utility_answer"
-    assert "here's what i can do on this computer" in result["response"].lower()
+    # Bare "help" is the short grouped reply (tests/test_help_is_short.py); the long
+    # "Here's what I can do on this computer" list stays on "what can you do".
+    assert result["response"].startswith("The short version:"), result["response"]
+    assert "here's what i can do on this computer" not in result["response"].lower()
     agent.memory_router.resolve.assert_not_called()
     assert result["model_execution"]["used_model"] is False
 

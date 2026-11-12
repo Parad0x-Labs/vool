@@ -14,8 +14,8 @@ VOOL keeps its settings, chats, memory and records in one runtime home:
 | Linux tarball and source installs | `~/.vool_runtime` |
 | Windows (experimental, from source) | `%LOCALAPPDATA%\VOOL` |
 
-Setting `VOOL_HOME` before starting VOOL uses that folder instead. Startup logs print the
-home in use.
+Setting `VOOL_HOME` before starting VOOL uses that folder instead. The `vool` command prints
+the home in use.
 
 Keys are **not** written into settings files or logs. They are kept encrypted in a separate
 credential file in this runtime home, readable only by your user account; keys that VOOL

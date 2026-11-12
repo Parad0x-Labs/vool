@@ -27,6 +27,7 @@ from core.execution.constants import (
     machine_file_search_intent,
     machine_folder_audit_intent,
     machine_folder_search_intent,
+    machine_folder_search_wants_drives,
     machine_folder_size_intent,
     machine_host_state_intent,
     machine_kind_listing_ask,
@@ -738,9 +739,9 @@ def _machine_tool_fast_path_result(
     agent._emit_runtime_event(
         source_context,
         event_type="tool_selected",
-        message=f"Running {intent}",
+        message=f"Using {intent}",
         tool_name=intent,
-        summary=f"Running {intent}",
+        summary=f"Using {intent}",
     )
     agent._emit_runtime_event(
         source_context,
@@ -750,14 +751,26 @@ def _machine_tool_fast_path_result(
         summary=step_summary,
         observation=observation,
     )
-    # The lane that executed records itself in the channel every guard reads, as the live-info
-    # and currency lanes do. Without it "what's using my CPU right now" ran list_processes and the
-    # live-figures guard replaced the real table with "I didn't run any live lookup on this turn".
-    if isinstance(source_context, dict):
-        recorded = {"schema": "tool_observation_v1", "intent": intent, "tool_surface": "machine", **observation,
-                    "ok": ok, "status": status or ("executed" if ok else "failed")}
-        existing = [dict(item) for item in list(source_context.get("runtime_tool_observations") or []) if isinstance(item, dict)]
-        source_context["runtime_tool_observations"] = [*existing, recorded][-12:]
+    # The read this lane just ran is this turn's observation. Recorded on the shared same-turn
+    # channel (as the live-info and currency lanes do), or the final-output backstop reads a turn
+    # that measured the process table as a turn that measured nothing and swaps the real answer for
+    # the no-live-lookup wording (re-audit 2026-10-29, files:F31). A failed run is recorded as
+    # ok=False, which counts for nothing.
+    if isinstance(source_context, dict) and observation:
+        recorded = [
+            dict(item)
+            for item in list(source_context.get("runtime_tool_observations") or [])
+            if isinstance(item, dict)
+        ]
+        recorded.append({
+            "schema": "tool_observation_v1",
+            **observation,
+            "intent": observation.get("intent") or intent,
+            "tool_surface": "machine",
+            "ok": ok,
+            "status": status or ("executed" if ok else "failed"),
+        })
+        source_context["runtime_tool_observations"] = recorded[-12:]
     approval_request = dict(details.get("approval_request") or {})
     if approval_request:
         # The event model maps task_pending_approval to permission.required and renders the
@@ -1010,8 +1023,28 @@ def maybe_handle_direct_machine_download_request(
 ) -> dict[str, Any] | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
-    download_target = _extract_machine_download_target(user_input)
+    download_target = _extract_machine_download_target(user_input, check_target=False)
     if download_target is None:
+        return None
+    # A download is a fetch from the web the person asked for, so it answers to Web lookups like
+    # every other: with the switch off nothing goes online, not even the DNS query the address
+    # check below would send.
+    from core.remote_fetch_policy import effective_web_available
+
+    if not effective_web_available(source_context):
+        from core.agent_runtime.fast_live_info_runtime_results import web_lookups_off_text
+
+        return agent._fast_path_result(
+            session_id=session_id,
+            user_input=user_input,
+            response=web_lookups_off_text(source_context=source_context),
+            confidence=0.9,
+            source_context=source_context,
+            reason="machine_download_fast_path",
+        )
+    from core.null_dial import is_ssrf_safe_url
+
+    if not is_ssrf_safe_url(download_target["url"]):
         return None
     try:
         # R-9c (H-8): the ONE outbound HTTP door (veto + reporting) — this
@@ -1023,7 +1056,7 @@ def maybe_handle_direct_machine_download_request(
             download_target["url"],
             headers={"User-Agent": "Mozilla/5.0", "Accept": "text/*"},
         )
-        with _open_remote(_request, timeout=20) as response:
+        with _open_remote(_request, timeout=20, lookup=True) as response:
             raw_bytes = response.read(1_500_001)
             content_type = str(getattr(response.headers, "get_content_type", lambda: "")() or response.headers.get("Content-Type") or "").lower()
             charset = str(getattr(response.headers, "get_content_charset", lambda _default=None: None)() or "utf-8").strip() or "utf-8"
@@ -1031,10 +1064,14 @@ def maybe_handle_direct_machine_download_request(
         return agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
-            response=f"I couldn't download that URL in this run: {exc!s}",
+            response=(
+                "I couldn't download that page just now. Check the address and try again in a "
+                "moment — nothing was saved."
+            ),
             confidence=0.82,
             source_context=source_context,
             reason="machine_download_fast_path",
+            runtime_event_details={"download_failure_detail": str(exc)},
         )
     if len(raw_bytes) > 1_500_000:
         return agent._fast_path_result(
@@ -1117,6 +1154,29 @@ def _extract_machine_transcript_export_target(user_input: str) -> str:
 _URL_SPAN_RE = re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s`\"']+", re.IGNORECASE)
 
 
+# "read notes.txt in Documents": a plain file name and the safe folder it is in. Read from that folder
+# only when the file is really there; anything else is not this lane's to guess.
+_NAMED_FOLDER_FILE_RE = re.compile(
+    r"(?<![\w/~.\-])(?P<name>[\w][\w\-]*(?:\.[\w\-]+)*\.[A-Za-z0-9]{1,8})\b"
+    r"(?:\s+\w+){0,3}?\s+(?:in|from|on|inside)\s+(?:(?:my|the)\s+)?(?P<place>desktop|documents|downloads)\b",
+    re.IGNORECASE,
+)
+
+
+def _named_safe_folder_file(text: str) -> dict[str, Any] | None:
+    match = _NAMED_FOLDER_FILE_RE.search(text)
+    if match is None:
+        return None
+    place = match.group("place").capitalize()
+    name = match.group("name")
+    try:
+        if not (Path.home() / place / name).is_file():
+            return None
+    except OSError:
+        return None
+    return {"path": f"~/{place}/{name}", "start_line": 1, "max_lines": 120, "verbatim": False}
+
+
 def _extract_machine_file_read_target(raw: str) -> dict[str, Any] | None:
     text = " ".join(str(raw or "").split()).strip()
     lowered = f" {text.lower()} "
@@ -1178,7 +1238,7 @@ def _extract_machine_file_read_target(raw: str) -> dict[str, Any] | None:
             text,
         )
         if not plain_match:
-            return None
+            return _named_safe_folder_file(text)
         path = str(plain_match.group("path") or "").strip()
     if not path:
         return None
@@ -1489,7 +1549,7 @@ def _render_plaintext_transcript(history: list[dict[str, str]], *, agent_name: s
     return "\n\n".join(blocks).strip()
 
 
-def _extract_machine_download_target(raw: str) -> dict[str, str] | None:
+def _extract_machine_download_target(raw: str, *, check_target: bool = True) -> dict[str, str] | None:
     text = " ".join(str(raw or "").split()).strip()
     lowered = f" {text.lower()} "
     if not text:
@@ -1552,26 +1612,30 @@ def _extract_machine_download_target(raw: str) -> dict[str, str] | None:
     # failing CLOSED on any doubt. It had NO callers anywhere in the runtime. This is the wiring,
     # not a second implementation.
     #
-    # Placed after the local gates because it resolves DNS: the cost is only paid on a turn that
-    # has already earned a download.
-    from core.null_dial import is_ssrf_safe_url
-
-    if not is_ssrf_safe_url(url):
-        return None
-
+    # Placed LAST because it resolves DNS: the cost is only paid on a turn that has already earned
+    # a download, and "fetch <url> and tell me what it says" (no folder, so no download) sends no
+    # DNS query. `check_target=False` leaves the check to the caller, which first asks whether the
+    # turn may go online at all.
     direct_path = _extract_machine_download_path(text)
     if direct_path:
-        return {"url": url, "path": direct_path}
-    explicit_filename = _extract_machine_download_filename(text)
-    folder = _extract_machine_folder_target(text)
-    root_label = _explicit_safe_machine_root_label(lowered)
-    root_dir = _resolve_safe_machine_root_directory(folder=folder, root_label=root_label)
-    if root_dir is None:
-        return None
-    filename = explicit_filename or _infer_machine_download_filename(url=url)
-    if not filename:
-        return None
-    return {"url": url, "path": _home_relative_safe_machine_path(root_dir / filename)}
+        target = {"url": url, "path": direct_path}
+    else:
+        explicit_filename = _extract_machine_download_filename(text)
+        folder = _extract_machine_folder_target(text)
+        root_label = _explicit_safe_machine_root_label(lowered)
+        root_dir = _resolve_safe_machine_root_directory(folder=folder, root_label=root_label)
+        if root_dir is None:
+            return None
+        filename = explicit_filename or _infer_machine_download_filename(url=url)
+        if not filename:
+            return None
+        target = {"url": url, "path": _home_relative_safe_machine_path(root_dir / filename)}
+    if check_target:
+        from core.null_dial import is_ssrf_safe_url
+
+        if not is_ssrf_safe_url(url):
+            return None
+    return target
 
 
 def _extract_machine_download_filename(raw: str) -> str:
@@ -1967,6 +2031,23 @@ def _file_preview(path: str, *, source_context: dict | None) -> str:
     if int(details.get("total_lines") or 0) > len(rows):
         more = f"\n({int(details['total_lines'])} lines in total)"
     return "First lines:\n" + "\n".join(rows) + more
+
+
+def _the_chats_folder_holds_the_named_file(user_input: str, source_context: dict | None) -> bool:
+    """Whether the turn names a file by its file name and the chat's own folder holds that file."""
+    root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
+    if not root:
+        return False
+    from core.agent_runtime.fast_paths_utility import _direct_workspace_read_request
+
+    named = _direct_workspace_read_request(user_input)
+    path = str((named or {}).get("path") or "").strip()
+    if not path:
+        return False
+    try:
+        return (Path(root).expanduser() / path).is_file()
+    except (OSError, ValueError):
+        return False
 
 
 def present_named_file(ask: Any, *, session_id: str, source_context: dict | None) -> Any:
@@ -3004,7 +3085,9 @@ def _recover_recent_machine_download_path(
         direct_match = re.search(r"(~/(?:Desktop|Downloads|Documents)/[^`\s\"']+\.[A-Za-z0-9_+-]+)", content)
         if direct_match:
             return str(direct_match.group(1) or "").strip()
-        download_target = _extract_machine_download_target(content)
+        # Only the path is wanted here; checking the address would resolve its host over DNS for
+        # a question about a file already on disk.
+        download_target = _extract_machine_download_target(content, check_target=False)
         if download_target is not None:
             return str(download_target.get("path") or "").strip()
     return ""
@@ -3528,6 +3611,12 @@ def maybe_handle_direct_machine_read_request(
         # with every notes.txt on the computer, other projects' included (chat import run 3,
         # 2026-11-12). A named place ("open notes.txt in my documents") still means that place.
         present_ask = None
+    elif present_ask is not None and _the_chats_folder_holds_the_named_file(user_input, source_context):
+        # "show me watering.py" in a chat that works in a project is a read of the project's own
+        # file: the workspace read lane answers with its text. Measured on the train port, the
+        # project chat's follow-up was answered "Here is the file I found: ~/Projects/garden-
+        # planner/watering.py" and nothing of the file.
+        present_ask = None
     if present_ask is not None:
         presented = present_named_file(present_ask, session_id=session_id, source_context=source_context)
         if presented is not None:
@@ -3564,7 +3653,7 @@ def maybe_handle_direct_machine_read_request(
     if folder_search is not None:
         execution = execute_authorized_runtime_tool(
             "machine.find_folder",
-            {"name": folder_search[1]},
+            {"name": folder_search[1], **({"drives": True} if machine_folder_search_wants_drives(user_input) else {})},
             source_context=dict(source_context or {}),
         )
         if execution is not None:

@@ -443,7 +443,7 @@ def propose(change: dict[str, Any], *, source: str, requested_by: str = "", sour
             conn.commit()
             return {"ok": True, "status": "already_pending", "operation": get_operation(existing["operation_id"]), "already_saved": already_saved}
         if conn.execute("SELECT COUNT(*) FROM contact_operations WHERE state = ?", (STATE_PENDING,)).fetchone()[0] >= MAX_PENDING:
-            raise ContactsError("too_many_pending", f"{MAX_PENDING} changes already wait in {REVIEW_PATH}; review or cancel some first. Nothing was recorded.", status=429)
+            raise ContactsError("too_many_pending", f"{MAX_PENDING} changes are already waiting for your confirmation. Review or cancel some in Pending changes under Contacts, then try again. Nothing was recorded.", status=429)
         _insert_operation(conn, operation_id, payload, digest, state=STATE_PENDING, requires=True, result=None, now=now)
         conn.commit()
         return {"ok": True, "status": "pending_authentication", "operation": get_operation(operation_id), "already_saved": already_saved}

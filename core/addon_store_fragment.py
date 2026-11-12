@@ -58,6 +58,13 @@ const tr=(key,fallback)=>{const k='addons.'+key;const v=window.VOOLT?window.VOOL
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
 let registryData=null,registryReview=null;
+// A failed read (throw, non-OK answer, or a body that is not the catalogue) is the calm error
+// row with Try again, never an empty or blank grid; the empty state belongs to a real OK answer
+// alone. The growing-delay retry heals the store by itself across a restart; one pending timer,
+// cleared the moment a real answer lands.
+let retryTimer=null,retryDelayMs=1000;const RETRY_MAX_MS=15000;
+function scheduleRetry(){if(retryTimer)return;retryTimer=setTimeout(()=>{retryTimer=null;load();},retryDelayMs);retryDelayMs=Math.min(Math.round(retryDelayMs*1.6),RETRY_MAX_MS);}
+function retryLanded(){if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}retryDelayMs=1000;}
 // The one skill whose Skill Codex check is open: {slug, data, showText}. Kept here so a re-render keeps the panel.
 let publishState=null;
 const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,'');
@@ -65,16 +72,19 @@ const slugKey=s=>String(s||'').replace(/-/g,'_');
 const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
 async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;throw err;}return j;}
-async function read(){const r=await fetch('/api/addons');if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();}
+// The catalogue reads fail with their own words -- the browser's own error text never reaches the person.
+const catalogFailed=()=>new Error(tr('catalog_failed','Could not read the add-on catalogue.'));
+const readJson=endpoint=>fetch(endpoint).then(r=>r.ok?r.json():Promise.reject()).catch(()=>{throw catalogFailed();});
+async function read(){const j=await readJson('/api/addons');if(!j||!Array.isArray(j.entries))throw catalogFailed();return j;}
 function refresh(){if(typeof renderPluginPanel==='function')renderPluginPanel(_pluginCatalog||{},document.getElementById('pluginsSearch')?.value||'');}
 async function load(){
  const epoch=++generation;data=null;refresh();
  try{
   // One hydration owns the store and installed-library snapshots. A late legacy
   // catalogue response must never rebuild a review the owner already opened.
-  const [j,plugins]=await Promise.all([read(),fetch('/api/plugins').then(r=>{if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();})]);
-  if(epoch!==generation)return;data=j;_pluginCatalog=plugins;
- }catch(e){if(epoch!==generation)return;error=e.message;}
+  const [j,plugins]=await Promise.all([read(),readJson('/api/plugins')]);
+  if(epoch!==generation)return;data=j;_pluginCatalog=plugins;retryLanded();
+ }catch(e){if(epoch!==generation)return;error=e.message;scheduleRetry();}
  refresh();
 }
 function link(label,url){const a=node('a',label);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;}

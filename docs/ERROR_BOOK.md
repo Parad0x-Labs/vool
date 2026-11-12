@@ -7,7 +7,7 @@ messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `83290d22af3092c2aee6c9a3a5fe466107140dd7d52ab2aab1e8d817dc548b64`
+- **Catalog digest:** `6dc4677377fd861ed367a90c95de493fb01d66eaba24fc2a23ea12a613338f16`
 - **Fault count:** 58
 
 Each code is stable and never reused for a different meaning. Every code has its own
@@ -190,7 +190,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 - **What happened:** That action was not permitted, so nothing was changed.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Check the permission policy or approval settings that govern this action.
+- **What to do next:** Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’ to change what governs this action.
 - **Trying again:** Do not send the same request again unchanged.
 - **Severity:** medium · **Category:** policy · **Security-relevant:** yes
 
@@ -226,7 +226,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 - **What happened:** This took too long and was stopped. Trying again may succeed.
 - **What may already have happened:** Outcome unknown — check state before retrying
-- **What to do next:** If timeouts repeat, check network latency and provider responsiveness.
+- **What to do next:** If this keeps being slow, check the internet connection or try a different model.
 - **Trying again:** Trying again now may work.
 - **Severity:** medium · **Category:** availability
 
@@ -236,9 +236,9 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Tool unavailable**
 
-- **What happened:** That tool is not available right now, so this part was not done. Enabling it is needed before you retry.
+- **What happened:** That tool is not available right now, so this part was not done. It has to be turned on before you try again.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Enable the tool for this mode in settings, or choose a different approach.
+- **What to do next:** Open Settings, choose Privacy & Permissions, and set ‘What VOOL may do alone’, or choose a different approach.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** availability
 

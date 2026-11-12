@@ -75,3 +75,27 @@ def test_repo_map_lists_real_directories_only() -> None:
     assert listed, "repo map must list directories"
     for name in listed:
         assert (REPO_ROOT / name).is_dir(), f"repo map lists missing directory {name}/"
+
+
+def test_public_docs_do_not_promise_live_facts_with_web_lookups_off() -> None:
+    # 0.7.7 gates every live-data lane (weather, prices, news, search) on the Web
+    # lookups switch: with it off, the outbound door refuses the fetch before any
+    # socket opens. A doc saying live facts are fetched "even with Web lookups
+    # off" promises the exact traffic the switch exists to stop, so the phrase
+    # and its synonyms stay out of the pages people read for privacy answers.
+    forbidden = (
+        "even with Web lookups off",
+        "even with web lookups off",
+        "can still fetch them from public web services",
+    )
+    pages = [
+        DOCS / "README.md",
+        DOCS / "INSTALL.md",
+        DOCS / "help" / "faq.md",
+        DOCS / "trust" / "data-handling.md",
+        DOCS / "concepts" / "local-and-cloud.md",
+    ]
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        for phrase in forbidden:
+            assert phrase not in text, f"{page} promises live facts past the Web lookups switch: {phrase}"

@@ -305,12 +305,21 @@ def execute_authorized_runtime_tool(
         request = dict(decision.approval_request or {})
         resources = [str(item) for item in list(request.get("affected_resources") or []) if str(item).strip()]
         resource_text = f" Affected: {', '.join(resources)}." if resources else ""
+        # The ask says what will happen in everyday words from the keyed phrase table
+        # (approval.action.<intent>), in the page's own language, and names the target by
+        # its name when it knows one ("VOOL wants to make a new folder called Receipts.") --
+        # never a dotted tool id, never the contract's developer description. A tool without
+        # a keyed phrase gets the one general sentence.
+        from core.approval_action_phrases import localized_approval_ask
+        from core.private_chat_languages import ui_locale_of
+
+        ask = localized_approval_ask(intent, ui_locale_of(context), arguments)
         return _refusal_result(
             intent,
             decision,
             status="pending_approval",
             response_text=(
-                f"`{intent}` needs your approval before it runs. {decision.reason}{resource_text} "
+                f"{ask} {decision.reason}{resource_text} "
                 "Review the details, then allow or deny this request."
             ),
             approval_request=request,

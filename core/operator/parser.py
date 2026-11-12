@@ -83,6 +83,26 @@ _CANCEL_CALENDAR_RE = re.compile(
 _MOVE_CALENDAR_RE = re.compile(
     r"\b(?:move|push|shift|reschedule|resched|change)\b[^\n!?.!]*\b(?:calendar|meeting|event|series|draft)\b", re.IGNORECASE
 )
+# A bare cancel whose words name no object, only a pointer back at the last thing: "cancel that
+# one", "actually cancel that", "call it off", "cancel the last one". The clause carries no noun,
+# so no noun-bearing lane above can own it; without this recognizer it fell through to the model,
+# which replied "the reminder is canceled" while the stored row stayed scheduled (audit R07,
+# 2026-10-29). The dispatch resolves the pointer against this chat's own rows and reports the
+# real outcome. The match is anchored to a WHOLE clause and the anaphor may be followed only by
+# politeness, so "cancel that flight" / "cancel that meeting" keep their own lanes (or none).
+_CANCEL_ANAPHOR = r"(?:that\s+one|this\s+one|the\s+last\s+one|the\s+previous\s+one|the\s+latest\s+one|that|this|it|them|those)"
+_CANCEL_LEAD = (
+    r"(?:\s*(?:hey|ok|okay|so|and|but|please|just|simply|really|actually|sorry|hmm|wait|no|nope|yeah|yes|"
+    r"never\s*mind|nevermind|on\s+second\s+thought|forget\s+it|can\s+you|could\s+you|would\s+you|will\s+you|"
+    r"i\s+want\s+to|i\s+need\s+to|i'?d\s+like\s+to|i\s+would\s+like\s+to))*\s*"
+)
+_CANCEL_TAIL = r"(?:\s*(?:please|now|then|instead|thanks|thank\s+you|will\s+you|would\s+you|could\s+you|for\s+me))*\s*[.!]?\s*$"
+_BARE_CANCEL_REFERENT_RE = re.compile(
+    (r"^" + _CANCEL_LEAD + r"(?:cancel|scrub)\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+" + _CANCEL_ANAPHOR + r"\s+off" + _CANCEL_TAIL)
+    + (r"|^" + _CANCEL_LEAD + r"call\s+off\s+" + _CANCEL_ANAPHOR + _CANCEL_TAIL),
+    re.IGNORECASE,
+)
 # The provider-backed availability lane: the request asks what is free/busy on a day or
 # calendar. Checked with the draft-calendar kinds above so "cancel the event" still wins,
 # but before the storage/process families and before _SCHEDULE_HINTS.
@@ -227,8 +247,9 @@ _RENAME_EVENT_RE = re.compile(
 # "with:", "note:", into my notes, note to self).
 _STORE_NOTE_RE = re.compile(
     r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b"
-    # "keep a note for me: the code is 5523" keeps a note; "keep the note short" is about writing one.
-    r"|\bkeep\s+(?:a\s+)?(?:quick\s+|short\s+|little\s+)?note\b(?!-)"
+    # "keep a note for me: the code is 5523" is a keep-family ask, owned by _KEEP_NOTE_RE in _NoteSaveRecognizer
+    # below, behind the ask gate that keeps statements and questions about keeping a note ("I keep a note that
+    # my insurance renews in May", "why should I keep a note that nobody reads?") from saving one.
     # "save this: buy zucchini", "save this one: ..." -- the words after the colon are the note (audit N6). A statement
     # about the owner after the colon ("save this: my bike rack is spot 12") is a fact to remember, not a note.
     r"|^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?(?:\s+for\s+me)?\s*:(?!\d)\s*"
@@ -296,6 +317,148 @@ _WRITE_NOTE_STORE_CUE_RE = re.compile(
     r"|\b(?:in|to|into|inside|on)\s+(?:my|the)\s+(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)\b|\bapple\s+notes\b",
     re.IGNORECASE,
 )
+# The keep-family verbs ("keep a note", "add a note", "put (down) a note", "stick a note in",
+# "pop/drop/jot a note", "retain a note"): their object is the INDEFINITE "a note" with at most
+# a small adjective. "the/this/that note" is a note that already exists ("keep that note, I
+# like it") and "notes" a habit ("keep notes of what you spend"); neither offers new words to
+# the notes tool. The "down" particle may sit before the object ("put down a note") or after it
+# ("put a note down for the plumber visit on friday"), where the gap check below reads it.
+_KEEP_NOTE_RE = re.compile(
+    r"\b(?P<verb>keep|add|put|stick|pop|drop|jot|retain)(?:\s+down)?\s+a\s+(?:(?:quick|short|new|little)\s+)?note\b(?!-)"
+    r"(?P<after>[^\n!?.]*)",
+    re.IGNORECASE,
+)
+# "save this one: buy zucchini and halloumi for saturdays bbq": the note is the "one" the chat is
+# holding and the colon carries its words. Under the same ask gate as the keep family, because
+# "I'll save this: ..." is a promise, not a request. A statement about the owner after the colon
+# ("save this: my bike rack is spot 12", "save this: I take the 8:10 train") is a fact to
+# remember, not a note: the same owner-word guard as the colon form in _STORE_NOTE_RE above.
+_SAVE_DEMONSTRATIVE_RE = re.compile(
+    r"\b(?:save|store)\s+(?:this|that)(?:\s+one)?\s*:(?!\d)"
+    r"(?!\s*(?:my|i|i'm|im|i've|ive|i'd|our|we|we're|we've|mine)\b)",
+    re.IGNORECASE,
+)
+# The same family holding the chat's own referent as the object ("stick this in my notes: call
+# the bank", "pop this in my notes: renew passport"): the notes store is REQUIRED as the
+# destination, because "this" offers no words of its own — "put this on the fridge" pins paper
+# somewhere and keeps nothing. "this note"/"that note" is a note that already exists ("keep
+# this note private") and stays out the same way as in the family above.
+_KEEP_DEMONSTRATIVE_RE = re.compile(
+    r"\b(?:keep|add|put|stick|pop|drop|jot|retain)(?:\s+down)?\s+(?:this|that)\b(?!\s+notes?\b)"
+    r"(?P<after>[^\n!?.]*)",
+    re.IGNORECASE,
+)
+# "note down that the meter reads 4471" / "write down the gate code 1199": the phrasal verb
+# itself stores, with no note object at all. Bare "note that ..." / "note how ..." — no "down" —
+# is information said to the chat and never matches here: the particle is what makes the verb a
+# storing one. A rest that still holds the word "note" belongs to the record lane below, whose
+# person and kind guards know it. The words after the verb are a that-clause, a non-clock
+# colon, a dash separator, or a plain object with no finite verb ("note down the gate code
+# 1199"); "write down your goals is good advice" is advice about writing, not a note to keep.
+_NOTE_DOWN_RE = re.compile(r"\b(?:note|write|jot)\s+down\b(?P<rest>[^\n!?.]*)", re.IGNORECASE)
+_NOTE_DOWN_FINITE_RE = re.compile(
+    r"\b(?:is|are|was|were|am|has|have|had|does|do|did|will|would|shall|should|could|might|must)\b"
+    r"|'s\b",
+    re.IGNORECASE,
+)
+# The only words allowed before the verb of an ask: nothing, a leading please/kindly, one
+# can/could/will/would you, and the fillers please/just/also. Measured 2026-10-28 (amendment 1,
+# SKILL MASTER thread) against the tool-seating branch (Job 4, R13): it passed its four probes
+# but saved notes from statements ("I keep a note that my insurance renews in May") and questions
+# ("why should I keep a note that nobody reads?") -- a subject or question word before the verb
+# is someone talking about keeping a note, not asking this runtime to keep one.
+_ASK_CUE_PREFIX_RE = re.compile(
+    r"\s*(?:(?:please|kindly)\s+)?(?:(?:can|could|will|would)\s+you\s+)?(?:(?:please|just|also)\s+)*",
+    re.IGNORECASE,
+)
+# What after the object makes the request carry note words: a that-clause, a colon separator
+# (read through the clock-colon guard), saying/says, an about-phrase ("add a note about the
+# boiler service"), or an of-phrase ("keep a note of my prescriptions"). A destination alone
+# ("put a note on the piano") or "keep in mind ..." names no words to keep, so it is not a
+# save. "of" carries the words only straight after the note: later in the sentence it belongs
+# to those words ("know it is out of tune"), never to the ask.
+_KEEP_NOTE_CONTENT_RE = re.compile(r"\bthat\b|\bsay(?:s|ing)\b|\babout\b", re.IGNORECASE)
+_KEEP_NOTE_OF_RE = re.compile(r"^\s*of\b", re.IGNORECASE)
+# "for ..." is a cue only when it is not the gap-filler "for me"/"for later": "put a note down
+# for the plumber visit on friday" carries the visit as the note's words, while "keep a note
+# for me: garage keypad code is 5523" waits behind the filler. A dash separator is a hyphen
+# between spaces or an en/em dash, never the hyphen inside "double-sided" or "note-taking".
+_KEEP_NOTE_FOR_RE = re.compile(r"\bfor\b(?!\s+(?:me|later)\b)", re.IGNORECASE)
+_KEEP_NOTE_DASH_RE = re.compile(r"(?<=\s)-(?=\s)|[\u2013\u2014]")
+# What the span between the note object and its first content cue may hold: nothing (the cue
+# follows the note), "for me"/"for later", or the notes store itself as the destination ("to
+# my notes app", "in my notebook", "on my workspace", "Apple Notes", "to myself"). Any other
+# thing in that span ("to the invoice", "on the piano", "in the email") is something the note
+# is added onto, and a note added onto another thing is not kept in the notes store. The
+# particle "down" may also sit there, alone ("put a note down for the plumber visit on
+# friday") or in front of the store ("put a note down in my notes: ...").
+_STORE_PLACE_WORDS = (
+    r"for\s+(?:me|later)"
+    r"|(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)"
+    r"|(?:(?:to|in|into|inside|on)\s+)?apple\s+notes"
+    r"|to\s+(?:my)?self"
+)
+_KEEP_NOTE_STORE_PLACE_RE = re.compile(_STORE_PLACE_WORDS, re.IGNORECASE)
+_KEEP_NOTE_DOWN_PLACE_RE = re.compile(r"down(?:\s+(?:" + _STORE_PLACE_WORDS + r"))?", re.IGNORECASE)
+
+
+def _note_ask_is_positioned(text: str, start: int) -> bool:
+    """True when the verb at `start` opens its own sentence, or follows only ask cues.
+
+    Only the verb's own sentence counts (split on . ! ? and newlines): "I take the 7:15 train.
+    Keep a note of it." is still an ask, while the same prefix inside one sentence is a report.
+    """
+    prefix = re.split(r"[.!?\n]", text[:start])[-1]
+    return _ASK_CUE_PREFIX_RE.fullmatch(prefix) is not None
+
+
+def _keep_note_first_cue(after: str) -> int | None:
+    """The position of the FIRST content cue in `after`, or None when no cue comes.
+
+    The cue set is the one `_KEEP_NOTE_CONTENT_RE` searches anywhere (that-clause, say/says/
+    saying, about), the first non-clock colon (`_NOTE_WORDS_COLON_RE`), "of" only straight
+    after the note (`_KEEP_NOTE_OF_RE`), "for" outside the gap-fillers "for me"/"for later"
+    (`_KEEP_NOTE_FOR_RE`), and a dash separator (`_KEEP_NOTE_DASH_RE`)."""
+    cue: int | None = None
+
+    def earlier(candidate: int) -> None:
+        nonlocal cue
+        if cue is None or candidate < cue:
+            cue = candidate
+
+    words = _KEEP_NOTE_CONTENT_RE.search(after)
+    if words:
+        earlier(words.start())
+    colon = _NOTE_WORDS_COLON_RE.match(after)
+    if colon:
+        earlier(colon.end() - 1)
+    of = _KEEP_NOTE_OF_RE.match(after)
+    if of:
+        earlier(of.start())
+    for_word = _KEEP_NOTE_FOR_RE.search(after)
+    if for_word:
+        earlier(for_word.start())
+    dash = _KEEP_NOTE_DASH_RE.search(after)
+    if dash:
+        earlier(dash.start())
+    return cue
+
+
+def _keep_note_cue_gap(after: str) -> str | None:
+    """The span between the note object and its FIRST content cue, or None when no cue comes."""
+    cue = _keep_note_first_cue(after)
+    return None if cue is None else after[:cue]
+
+
+def _keep_note_gap_may_store(gap: str) -> bool:
+    """True when the span before the content cue holds only whitespace, a store place, the
+    "down" particle, or "down" in front of a store place."""
+    place = gap.strip()
+    return (
+        not place
+        or _KEEP_NOTE_STORE_PLACE_RE.fullmatch(place) is not None
+        or _KEEP_NOTE_DOWN_PLACE_RE.fullmatch(place) is not None
+    )
 
 
 class _NoteSaveRecognizer:
@@ -310,6 +473,42 @@ class _NoteSaveRecognizer:
         stored = _STORE_NOTE_RE.search(text)
         if stored:
             return stored
+        for match in _KEEP_NOTE_RE.finditer(text):
+            after = match.group("after")
+            # The ask gate first (a statement or question about keeping is never a save), then
+            # the content cue with the place it sits behind: the words may follow the note
+            # directly, wait behind "for me"/"for later", or sit behind the notes store itself
+            # as the destination — any other thing between the note and its words ("to the
+            # invoice", "on the piano") is a place the note is added onto, not a save. Then
+            # the same person guard as the record verbs: a note TO a person is composed
+            # writing. "to my notes app" is a destination, not a person (`_NOT_A_PERSON`),
+            # so "add a note to my notes app that ..." stays a save.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            gap = _keep_note_cue_gap(after)
+            if gap is None or not _keep_note_gap_may_store(gap):
+                continue
+            if _note_is_addressed(after):
+                continue
+            return match
+        demonstrated = _SAVE_DEMONSTRATIVE_RE.search(text)
+        if demonstrated and _note_ask_is_positioned(text, demonstrated.start()):
+            return demonstrated
+        for match in _KEEP_DEMONSTRATIVE_RE.finditer(text):
+            after = match.group("after")
+            # The ask gate as the keep family, then the notes store as a REQUIRED destination:
+            # the object "this"/"that" offers no words of its own, so they must sit behind the
+            # store ("stick this in my notes: call the bank"). Then the same person guard —
+            # a referent going to a person is composed writing, not a kept note.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            place = _KEEP_NOTE_STORE_PLACE_RE.search(after)
+            cue = _keep_note_first_cue(after)
+            if place is None or cue is None or cue < place.end():
+                continue
+            if _note_is_addressed(after):
+                continue
+            return match
         for match in _RECORD_NOTE_RE.finditer(text):
             verb = match.group("verb").lower()
             between, after = match.group("between"), match.group("after")
@@ -327,6 +526,21 @@ class _NoteSaveRecognizer:
             if verb == "write" and not stores and not _NOTE_WORDS_COLON_RE.match(after):
                 continue
             return match
+        for match in _NOTE_DOWN_RE.finditer(text):
+            rest = match.group("rest")
+            if re.search(r"\bnotes?\b", rest, re.IGNORECASE):
+                continue  # a note object belongs to the record lane above, with its own guards
+            # The ask gate as everywhere above: a subject or question word before the verb is
+            # someone talking about writing down, not asking this runtime to keep it.
+            if not _note_ask_is_positioned(text, match.start()):
+                continue
+            if (
+                re.match(r"\s*that\b", rest, re.IGNORECASE)
+                or _NOTE_WORDS_COLON_RE.match(rest)
+                or _KEEP_NOTE_DASH_RE.search(rest)
+                or (rest.strip() and not _NOTE_DOWN_FINITE_RE.search(rest))
+            ):
+                return match
         return None
 
 
@@ -423,8 +637,8 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
 
     Measured 2026-10-06 on 9adff83 with pack 2 applied: it was parsed as a reminder to schedule and
-    answered "I could not read a date or time in that." A recollection that names a time is still a
-    reminder ("remind me tomorrow at 9 what I said about the rent").
+    answered "I could not read a date or time in that." A recollection that names a time is still
+    a reminder ("remind me tomorrow at 9 what I said about the rent").
     """
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
@@ -447,6 +661,35 @@ _ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
     r"|(?:any\s+|a\s+|the\s+|my\s+)?reminders?\s+(?:for|about|to|on)\b[^.!]*\?\s*$)",
     re.IGNORECASE,
 )
+
+
+# A clause that is only discourse around the pointer ("never mind", "no wait", "yes"): it
+# carries no request of its own, so it does not stop the pointer clause from owning the turn.
+_POINTER_DISCOURSE_CLAUSE = re.compile(
+    r"^(?:(?:yes|yeah|yep|no|nope|ok|okay|please|thanks|thank\s+you|sorry|hey|wait|hmm|so|and|but|"
+    r"never\s*mind|nevermind|forget\s+it|on\s+second\s+thought|i\s+changed\s+my\s+mind|actually|just)"
+    r"(?:\s+(?:yes|no|wait|ok|okay|please|actually|sorry|hmm|hey|so))*?)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _bare_cancel_referent(words: str) -> bool:
+    """Whether the request is a whole clause that only cancels the last thing it points at.
+
+    The pointer clause must be the request's ONLY content clause: a request that also carries
+    words of its own ('yes, delete my apple note "Tax receipts 2025", cancel that') keeps its
+    own lane, where the trailing pointer withholds the approval instead of eating the request.
+    Discourse clauses ("never mind", "no wait") are not content. The pointer clause itself is
+    matched anchored, so a cancel that names a thing ("cancel that meeting draft") keeps its
+    noun lane.
+    """
+    content: list[str] = []
+    for clause in re.split(r"[,;.!?\n]+", str(words or "")):
+        cleaned = clause.strip()
+        if not cleaned or _POINTER_DISCOURSE_CLAUSE.match(cleaned):
+            continue
+        content.append(cleaned)
+    return len(content) == 1 and bool(_BARE_CANCEL_REFERENT_RE.match(content[0]))
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
@@ -520,8 +763,6 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
             destination_path=_calendar_name(text),
             raw_text=text,
         )
-    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
-        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     # --- Everyday named-event reads. "when is the school play", "where is the dentist
     # appointment", "is the school play soon", "am I seeing the dentist any time soon",
     # "anything coming up with the dentist": a definite subject from the person's own life under a
@@ -529,12 +770,20 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # PUBLIC schedule (the next bus, sunrise, an episode release) or opening hours is live-info,
     # not a calendar row, and keeps its own lanes. Checked after the search/inspect recognizers so
     # a named search ("search my calendar for dentist") keeps its own kind.
-    event_subject = _named_event_subject(words)
-    if event_subject is not None and _LIVE_SCHEDULE_SUBJECT_RE.search(event_subject) is None \
-            and _HOURS_ASK_RE.search(event_subject) is None:
-        label = _clean_event_label(event_subject)
-        if label:
-            return OperatorActionIntent(kind="search_calendar_event", target_label=label, raw_text=text)
+    if not calendar_names_code:
+        event_subject = _named_event_subject(words)
+        if event_subject is not None and _LIVE_SCHEDULE_SUBJECT_RE.search(event_subject) is None \
+                and _HOURS_ASK_RE.search(event_subject) is None:
+            label = _clean_event_label(event_subject)
+            if label:
+                return OperatorActionIntent(kind="search_calendar_event", target_label=label, raw_text=text)
+    # The pointer-only cancel: no noun anywhere, so the reminder/calendar lanes above did not
+    # match. The dispatch owns what the pointer resolves to (core.local_operator_actions).
+    if _bare_cancel_referent(words):
+        return OperatorActionIntent(kind="cancel_reminder", referent="most_recent", raw_text=text)
+
+    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
+        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     if _APPLE_NOTE_LIST_RE.search(words):
         return OperatorActionIntent(kind="apple_note_list", raw_text=text)
     if _APPLE_NOTE_READ_RE.search(words):
@@ -932,7 +1181,7 @@ def _note_query(text: str) -> str | None:
     if match:
         from .notes import notes_search_topic
 
-        terms = _TITLE_TRAILER_RE.sub("", match.group(1).strip())
+        terms = _strip_title_trailer(match.group(1).strip())
         # The same reading as the model's own query argument: "notes on anything at all" names no topic.
         return notes_search_topic(terms) or None
     return None
@@ -955,16 +1204,34 @@ def _note_title(text: str) -> str | None:
 # What trails a spoken title without being part of it (audit N10: "read my note about the flat viewing in apple
 # notes?" looked for a note titled "the flat viewing in apple notes?"): the app or store it is in, a please, the
 # question mark. After "about" the words name a topic, so a leading article is not part of the title either.
-_TITLE_TRAILER_RE = re.compile(
-    r"(?:\s+(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)"
-    r"|\s+(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)"
-    r"|[\s?!.:;'\"]+)+$",
+_TITLE_TRAILER_WORDS_RE = re.compile(
+    r"\s(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)$"
+    r"|\s(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)$",
     re.IGNORECASE,
 )
+_TITLE_TRAILER_PUNCT = "?!.:;'\""
+
+
+def _strip_title_trailer(text: str) -> str:
+    """Drop the trailing store, please and punctuation from a spoken title, one piece at a time.
+
+    One trailing piece per pass, so a long run of spaces or marks costs one scan instead of the
+    backtracking a single repeated pattern needs (CodeQL: inefficient regular expression).
+    """
+    title = str(text or "")
+    while True:
+        end = len(title)
+        while end and (title[end - 1].isspace() or title[end - 1] in _TITLE_TRAILER_PUNCT):
+            end -= 1
+        title = title[:end]
+        trailer = _TITLE_TRAILER_WORDS_RE.search(title)
+        if trailer is None:
+            return title
+        title = title[: trailer.start()]
 
 
 def _spoken_note_title(match: re.Match[str]) -> str | None:
-    title = _TITLE_TRAILER_RE.sub("", match.group("title").strip())
+    title = _strip_title_trailer(match.group("title").strip())
     if match.group("how").lower() == "about":
         title = re.sub(r"^(?:the|my|a|an|that|this)\s+", "", title, flags=re.IGNORECASE)
     return title.strip() or None

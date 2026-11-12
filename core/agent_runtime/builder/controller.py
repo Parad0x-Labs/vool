@@ -1418,9 +1418,11 @@ def _run_model_build(
             # bundle's models, so this is a runtime that never ran that step). There is nothing to
             # rank and nothing the operator turned off: the runtime's own default local model
             # builds, exactly as before the ranking existed.
+            from core.local_model_readiness import local_model_for_work
             from core.runtime_provider_defaults import default_runtime_model_tag
 
-            default_tag = str(default_runtime_model_tag() or "").strip() or "qwen2.5:7b"
+            # An installed, ready local model, never a recommendation that was never pulled (train fix).
+            default_tag = local_model_for_work(str(default_runtime_model_tag() or "").strip()) or "qwen2.5:7b"
             generation_model = f"ollama-local:{default_tag}"
             generate_fn = build_ollama_generate_fn(
                 base_url=builder_ollama_base_url(os.environ),

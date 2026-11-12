@@ -1172,7 +1172,7 @@ def _action_chats_history(params: dict[str, Any], *, runtime, model_name: str, d
     try:
         payload = json.loads(response.body or b"{}")
     except (json.JSONDecodeError, TypeError):
-        return 500, {"error": "history_unreadable"}
+        return 500, {"error": "history_unreadable", "message": "Your chats could not be loaded just now. Pull to refresh and try again."}
     if response.status != 200:
         return response.status, payload
     messages = []
@@ -1207,7 +1207,7 @@ def _action_chats_send(
     if not message:
         return 400, {"error": "message is required"}
     if len(message) > 32768:
-        return 400, {"error": "message too long (32768 char ceiling)"}
+        return 400, {"error": "message too long", "message": "That message is too long. The limit is 32,768 characters; shorten it and send again."}
     chat_id = str(params.get("chat_id") or "").strip()
     attachments = [str(a) for a in params.get("attachments") or [] if str(a or "").strip()][:8]
     request_id = "mob-" + uuid.uuid4().hex
@@ -1285,7 +1285,7 @@ def _action_chats_send(
     try:
         payload = json.loads(response.body or b"{}")
     except (json.JSONDecodeError, TypeError):
-        return 500, {"error": "turn_unreadable"}
+        return 500, {"error": "turn_unreadable", "message": "Your message was sent, but the reply could not be shown just now. Open the chat again to see it."}
     if response.status == 202:
         return 202, {"chat_id": phone_chat_id, "pending": True, "turn_id": request_id}
     if response.status != 200:
@@ -1365,9 +1365,9 @@ def _action_attachments_upload(params: dict[str, Any], *, service: MobileCompani
     except (binascii.Error, ValueError):
         return 400, {"error": "content_b64 is not valid base64"}
     if not data:
-        return 400, {"error": "attachment is empty"}
+        return 400, {"error": "attachment is empty", "message": "That file is empty, so there is nothing to attach."}
     if len(data) > _MOBILE_UPLOAD_CEILING:
-        return 413, {"error": "attachment exceeds the mobile upload ceiling", "max_bytes": _MOBILE_UPLOAD_CEILING}
+        return 413, {"error": "attachment too large", "max_bytes": _MOBILE_UPLOAD_CEILING, "message": "That file is too big to send from this phone. Try a smaller file."}
     if kind_hint not in ("", "photo", "file"):
         return 400, {"error": "kind must be photo or file"}
     try:

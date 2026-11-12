@@ -92,12 +92,40 @@ function esc(text){
 
 // ---- memory section ------------------------------------------------------------------------
 var memSec = null;
+// Across a VOOL restart the entries fetch fails or answers an error while the store opens; an
+// answer that is not a real list must never render as "Nothing yet" (that reads as lost facts).
+// Until the FIRST real answer the list holds one calm row and the fetch retries on a growing
+// delay; after a first success a later failure keeps the last good rows.
+var memLoaded = false;        // false until the first real /api/memory/entries answer renders
+var memRetryTimer = null;     // at most one pending retry; cleared the moment a real answer lands
+var memRetryDelayMs = 1000;   // grows per failure, resets to 1 s after a real answer
+var MEM_RETRY_MAX_MS = 15000;
+function memUnreachableRow(){
+  return '<div class="vs-empty">' + XT('load.unreachable', 'Can\u2019t reach VOOL right now, trying again\u2026') + '</div>';
+}
+function scheduleMemRetry(){
+  clearTimeout(memRetryTimer);
+  memRetryTimer = setTimeout(renderMemory, memRetryDelayMs);
+  memRetryDelayMs = Math.min(Math.round(memRetryDelayMs * 1.6), MEM_RETRY_MAX_MS);
+}
 function renderMemory(){
   if (!memSec) return;
   var list = memSec.querySelector('.vs-mem-list');
-  list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.reading', 'Reading memory\\u2026') + '</div>';
-  fetch('/api/memory/entries?limit=50').then(function(r){ return r.json(); }).then(function(j){
-    var rows = (j && j.entries) || [];
+  if (!memLoaded) list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.reading', 'Reading memory\u2026') + '</div>';
+  fetch('/api/memory/entries?limit=50').then(function(r){
+    return r.json().catch(function(){ return null; }).then(function(j){ return { ok: r.ok, j: j }; });
+  }).then(function(res){
+    // Render only on a real answer: an HTTP error, a broken body or a payload without an
+    // entries list is a failed read, not "no facts". Retry; after a first success the last
+    // good rows simply stay.
+    var rows = (res.ok && res.j && Array.isArray(res.j.entries)) ? res.j.entries : null;
+    if (!rows){
+      if (!memLoaded) list.innerHTML = memUnreachableRow();
+      scheduleMemRetry();
+      return;
+    }
+    memLoaded = true;
+    clearTimeout(memRetryTimer); memRetryTimer = null; memRetryDelayMs = 1000;
     if (!rows.length) {
       list.innerHTML = '<div class="vs-empty">' + XE('vx.memory.empty', 'Nothing yet. Facts VOOL confirms in your chats are listed here, and you can forget any of them.') + '</div>';
       return;
@@ -106,12 +134,13 @@ function renderMemory(){
       var tag = row.scope || row.category || 'fact';
       return '<div class="vs-mem-item" data-vs-record="' + esc(row.record_id) + '">' +
         '<span class="vs-tag">' + esc(tag) + '</span>' +
-        '<span>' + esc(row.fact) + (row.source ? ' <small style="color:var(--muted,#9aa1af)">\\u00b7 ' + esc(row.source) + '</small>' : '') + '</span>' +
+        '<span>' + esc(row.fact) + (row.source ? ' <small style="color:var(--muted,#9aa1af)">\u00b7 ' + esc(row.source) + '</small>' : '') + '</span>' +
         (row.record_id ? '<button type="button" class="vs-forget" title="' + esc(XT('vx.memory.forget_title', 'Forget exactly this entry')) + '">' + esc(XT('vx.memory.forget', 'forget')) + '</button>' : '') +
         '</div>';
     }).join('');
   }).catch(function(){
-    list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.unreadable', 'Memory could not be read.') + '</div>';
+    if (!memLoaded) list.innerHTML = memUnreachableRow();
+    scheduleMemRetry();
   });
 }
 document.addEventListener('click', function(ev){

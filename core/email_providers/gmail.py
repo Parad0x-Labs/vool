@@ -32,7 +32,7 @@ from core.email_providers.base import (
     _load_oauth_handle,
     _OAuthClient,
 )
-from core.email_tools import EmailReadResult, EmailResult, MailSearch
+from core.email_tools import EmailReadResult, EmailResult, MailSearch, message_id_list, normalize_message_id
 
 GMAIL_API_BASE = "https://gmail.googleapis.com"
 GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -187,7 +187,7 @@ class GmailAdapter:
             return None
         headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
         return {
-            "message_id": str(headers.get("message-id") or message_id),
+            "message_id": normalize_message_id(headers.get("message-id")) or message_id,
             "from": str(headers.get("from") or ""),
             "to": str(headers.get("to") or ""),
             "subject": str(headers.get("subject") or ""),
@@ -231,15 +231,15 @@ class GmailAdapter:
         headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
         body = _payload_body(data.get("payload") or {})
         return {
-            "message_id": str(headers.get("message-id") or data.get("id") or ""),
+            "message_id": normalize_message_id(headers.get("message-id")) or str(data.get("id") or ""),
             "from": str(headers.get("from") or ""),
             "to": str(headers.get("to") or ""),
             "subject": str(headers.get("subject") or ""),
             "date": str(headers.get("date") or ""),
             "snippet": str(data.get("snippet") or ""),
             "body": body,
-            "in_reply_to": str(headers.get("in-reply-to") or ""),
-            "references": str(headers.get("references") or ""),
+            "in_reply_to": " ".join(message_id_list(headers.get("in-reply-to"))),
+            "references": " ".join(message_id_list(headers.get("references"))),
             "provider_id": str(data.get("id") or ""),
             "thread_id": str(data.get("threadId") or ""),
         }
@@ -312,7 +312,7 @@ class GmailAdapter:
             True, "executed",
             f"Gmail accepted the message for sending{note}.",
             details={"to": [str(parsed.get("To") or "")], "subject": str(parsed.get("Subject") or ""),
-                     "message_id": str(parsed.get("Message-ID") or ""), "provider_id": message_id,
+                     "message_id": normalize_message_id(parsed.get("Message-ID")), "provider_id": message_id,
                      # The RESOLVED thread binding — never the response echo.
                      "thread_id": resolved_thread,
                      "provider_echo_thread_id": str(body.get("threadId") or ""),
@@ -334,7 +334,7 @@ class GmailAdapter:
         from urllib.parse import quote as _quote
 
         binding = self.principal_binding(expected_identity) if expected_identity else None
-        needle = message_id.strip("<>")
+        needle = (normalize_message_id(message_id) or str(message_id or "")).strip("<>")
         query = _quote(f"in:anywhere rfc822msgid:{needle}", safe=":")
         try:
             listing = self._oauth.api_read(

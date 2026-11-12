@@ -210,7 +210,7 @@ The full contract of a tool, with every field, is in Python:
 | `machine.ensure_directory` | Create a directory inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path` | writes files | none | asks | runs |
 | `machine.event_log_errors` | **Windows only.** List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
 | `machine.find_file` | Search the safe local folders (Desktop, Downloads, Documents) for FILES whose name matches a query. | `name` | reads | none | runs | runs |
-| `machine.find_folder` | Search local drives for folders whose name matches a query. | `name` | reads | none | runs | runs |
+| `machine.find_folder` | Search the home folder (and plugged-in drives when drives is true) for folders whose name matches a query. | `name`, `drives?` | reads | none | runs | runs |
 | `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |
 | `machine.host_state` | Report this machine's live state: uptime, battery level and power source, and whether it is a laptop or a desktop. | none | reads | `read_files` | runs | runs |
 | `machine.inspect_specs` | Inspect grounded machine hardware and runtime specs for this local host. | none | reads | none | runs | runs |
