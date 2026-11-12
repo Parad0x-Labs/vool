@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -118,7 +119,7 @@ def run_matrix(served, manifest, shutdown=None):
                     shoot(page, name + '-settings-appearance')
                     assert not guard()
                     context.close()
-        output = Path(os.environ["TMPDIR"]) / (identifier + "-measurements.json")
+        output = Path(tempfile.gettempdir()) / (identifier + "-measurements.json")
         output.write_text(json.dumps({"contrast_findings": findings, "frame_budgets": budgets}, indent=2))
         # These existing semantic labels are owned by the companion renderer.
         # Report every pinned light-theme finding, without recolouring or lowering AA.

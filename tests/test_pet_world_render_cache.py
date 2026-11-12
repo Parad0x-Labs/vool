@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 from tests._toybox_v2_browser import finish_browser, network_guard
@@ -45,7 +46,7 @@ def test_edited_columns_match_fresh_render_including_in_place_mutation(served):
           }
           return results;
         }""")
-        (Path(os.environ['TMPDIR'])/'yard-cache-equivalence.json').write_text(json.dumps(results, indent=2))
+        (Path(tempfile.gettempdir())/'yard-cache-equivalence.json').write_text(json.dumps(results, indent=2))
         assert len(results) == 7
         assert all(r['different'] == 0 and r['ground'] and r['picks'] for r in results), results
         assert not outside()

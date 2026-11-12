@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -168,7 +169,7 @@ def test_native_docking_places_perch_before_current_frame_paint(served):
               });
             })''')
             records.append({'theme':theme, **sample})
-            (Path(os.environ['TMPDIR'])/'perch-native-frame-order.json').write_text(json.dumps(records,indent=2))
+            (Path(tempfile.gettempdir())/'perch-native-frame-order.json').write_text(json.dumps(records,indent=2))
             assert sample['mode']=='docked'
             assert not sample['hidden']
             assert sample['delta']<2

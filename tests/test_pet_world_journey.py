@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -10,6 +11,12 @@ from tests._toybox_v2_browser import finish_browser, network_guard, shoot
 from tests._toybox_v2_browser import served as served
 from tests.served_browser import launch_chromium
 from tests.test_pet_cosmetics import pack
+
+
+def chromium_override():
+    """The same explicit-executable seam as tests.served_browser, for this test's own launch flags."""
+    executable = os.environ.get('VOOL_TEST_CHROMIUM_EXECUTABLE', '').strip()
+    return {'executable_path': executable} if executable else {}
 
 
 def wait(page, expression):
@@ -134,7 +141,7 @@ def test_renderer_picking_path_bounds_visibility_and_reference_budget(served):
     from playwright.sync_api import sync_playwright
 
     manager = sync_playwright().start()
-    browser = manager.chromium.launch(executable_path=os.environ['VOOL_TEST_CHROMIUM_EXECUTABLE'], headless=True,
+    browser = manager.chromium.launch(**chromium_override(), headless=True,
                                       args=['--disable-gpu', '--disable-accelerated-2d-canvas'])
     try:
         context = browser.new_context(viewport={'width': 1400, 'height': 1000})
@@ -154,7 +161,7 @@ def test_renderer_picking_path_bounds_visibility_and_reference_budget(served):
         const full=[],frames=[];for(let i=0;i<8;i++){const changed=structuredClone(r.yard);changed.columns[100]=[[i%2?'stone':'grass',1]];r.setYard(changed);const moving=c.actors.map((p,j)=>({...p,x:p.x+i*.03}));r.setPets(moving);r.frame(performance.now());full.push(r.metrics.full+r.metrics.frame);for(const p of moving)p.x+=.1;r.frame(performance.now()+125);frames.push(r.metrics.frame);}
         return {picked,full,frames,bytes:r.metrics.buffer_bytes,first:VoolYardPage.diagnostics.firstPaint,background_paint:performance.getEntriesByType('paint')[0]?.startTime,navigation:performance.getEntriesByType('navigation')[0].toJSON(),
         water:c.path({x:9,y:11},{x:0,y:0}),blocked:c.path({x:9,y:11},{x:13,y:13})};}''')
-        folder = Path(os.environ['TMPDIR'])/'logs'
+        folder = Path(tempfile.gettempdir())/'logs'
         folder.mkdir(parents=True, exist_ok=True)
         (folder/'yard-render-budget.json').write_text(json.dumps(data, indent=2))
         assert data['picked'] == [{'x': 2, 'y': 2}, {'x': 8, 'y': 10}, {'x': 22, 'y': 22}, {'x': 5, 'y': 19}]
