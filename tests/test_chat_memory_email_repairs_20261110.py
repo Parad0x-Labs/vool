@@ -1549,7 +1549,7 @@ def test_a_bare_retry_redoes_the_last_request(asked, change, _refused_listing):
         assert (got.kind, got.request) == ("retry", "list the pics in my downloads")
     else:
         # a change said with the retry is kept: the message is not swallowed into a blind rerun
-        assert got.kind == "none" and change in asked
+        assert got.kind == "retry_changed" and change in got.text
         assert "list the pics in my downloads" in got.note
 
 

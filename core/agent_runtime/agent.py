@@ -2788,6 +2788,7 @@ class VoolAgent(
                 arbiter=lambda request, reason, message: arbitrate_followup(
                     request, reason, message, chat_id=str(session_id or ""), source_context=runtime_source_context
                 ),
+                source_context=runtime_source_context,
             )
             if isinstance(runtime_source_context, dict):
                 runtime_source_context["_conversation_request"] = (

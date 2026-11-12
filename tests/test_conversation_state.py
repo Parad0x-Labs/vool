@@ -8,8 +8,10 @@ from core import runtime_continuity as rc
 
 
 @pytest.fixture(autouse=True)
-def _db(tmp_path):
+def _db(tmp_path, monkeypatch):
     rc.configure_runtime_continuity_db_path(tmp_path / "state.db")
+    # The blocker probe reads live product state; tests pass `cleared=` explicitly where it matters.
+    monkeypatch.setattr(cs, "blocker_cleared", lambda pending, source_context=None: None)
     yield
     rc.configure_runtime_continuity_db_path(None)
 
@@ -56,8 +58,7 @@ def test_a_bare_go_ahead_after_other_turns_is_not_a_retry():
 
 
 @pytest.mark.parametrize("message", [
-    "thanks!", "lol ok", "great, and what is a hash map?", "retry in the Documents folder instead",
-    "try again but only the mp4s", "now list my pdfs on the desktop", "how do i try again?",
+    "thanks!", "lol ok", "great, and what is a hash map?",     "now list my pdfs on the desktop", "how do i try again?",
 ])
 def test_a_message_with_a_new_task_or_no_retry_meaning_is_not_a_retry(message):
     _seed()
@@ -187,81 +188,164 @@ def test_the_state_note_reaches_the_model_prompt():
     assert ASK in "\n".join(m.content for m in request.messages)
 
 
-# --- round 3: arbitration instead of a retry word list ----------------------------------------------------------------
-def _fake(verdict, calls=None):
+# --- round 5: state first, cue second, arbiter last ----------------------------------------------------------------
+READ = {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
+        "tool_receipts": [{"tool_name": "machine.list_directory", "execution": {"ok": False, "status": "blocked_by_mode"}}]}
+WRITE = {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
+         "tool_receipts": [{"tool_name": "operator.delete_note", "execution": {"ok": False, "status": "blocked_by_mode"}}]}
+WEB_OFF = {"deterministic": True, "success": False, "status": "web_off", "task_outcome": "failed"}
+
+
+def _arb(verdict, calls=None):
     def arbiter(request, reason, message):
         if calls is not None:
-            calls.append((request, reason, message))
+            calls.append(message)
         if isinstance(verdict, Exception):
             raise verdict
         return verdict
     return arbiter
 
 
-READ = {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
-        "tool_receipts": [{"tool_name": "machine.list_directory", "execution": {"ok": False, "status": "blocked_by_mode"}}]}
-WRITE = {"status": "blocked_by_mode", "success": False, "mode": "tool_failed",
-         "tool_receipts": [{"tool_name": "operator.delete_note", "execution": {"ok": False, "status": "blocked_by_mode"}}]}
-
-
-@pytest.mark.parametrize("message", ["k sorted, have another go", "did that", "ok now?", "hmm still nothing?", "its up", "yo, over to u"])
-def test_a_wording_no_list_covers_is_decided_by_the_arbiter(message):
+@pytest.mark.parametrize("message", ["sorted", "its on", "did that", "ok now?", "now pls", "k flipped it", "all good now", "there you go"])
+def test_with_the_blocker_cleared_a_short_message_that_is_not_a_task_or_a_dismissal_is_a_retry_with_no_model_call(message):
     _seed(READ)
     calls = []
-    assert cs.resolve("s1", message, arbiter=_fake("again", calls)).kind == "retry"
-    assert calls and calls[0][2] == message and calls[0][0] == ASK
+    assert cs.resolve("s1", message, cleared=True, arbiter=_arb("no", calls)).kind == "retry"
+    assert calls == []
 
 
-@pytest.mark.parametrize("verdict", ["neither", None, RuntimeError("model down")])
-def test_anything_but_retry_from_the_arbiter_is_not_a_retry(verdict):
+@pytest.mark.parametrize("message", ["thanks!", "never mind", "brb", "whatever", "later", "no", "does it cost anything", "forget i asked", "no need", "changed my mind", "scrap it", "dont bother", "is it safe to leave on",
+                                     "what time is it in Tokyo", "write me a haiku about rain", "now translate this to French"])
+def test_with_the_blocker_cleared_reactions_dismissals_and_tasks_are_not_a_retry(message):
     _seed(READ)
-    assert cs.resolve("s1", "hmm ok so", arbiter=_fake(verdict)).kind == "none"
+    assert cs.resolve("s1", message, cleared=True, arbiter=_arb("yes")).kind == "none"
 
 
-def test_a_write_request_is_never_retried_on_the_arbiter_say_so():
+@pytest.mark.parametrize("message", ["lol ok", "hmm", "ok cool", "nice", "k", "yes", "well?", "so?", "check pls", "all yours"])
+def test_with_the_blocker_cleared_a_reaction_or_bare_prompt_reruns_the_read(message):
+    # decision of the overseer: a redundant read costs nothing, a missed retry is the failure
+    _seed(READ)
+    calls = []
+    assert cs.resolve("s1", message, cleared=True, arbiter=_arb("no", calls)).kind == "retry"
+    assert calls == []
+
+
+@pytest.mark.parametrize("cleared", [False, None])
+@pytest.mark.parametrize("reaction", ["lol ok", "cool", "hmm", "nice"])
+def test_without_a_cleared_blocker_a_reaction_never_reruns(cleared, reaction):
+    _seed(READ)
+    assert cs.resolve("s1", reaction, cleared=cleared, arbiter=_arb("no")).kind == "none"
+
+
+def test_same_thing_for_another_folder_is_a_changed_retry():
+    _seed(READ)
+    got = cs.resolve("s1", "same thing for my desktop", cleared=None)
+    assert got.kind == "retry_changed" and got.slots.get("path")
+
+
+@pytest.mark.parametrize("cleared", [False, None])
+@pytest.mark.parametrize("message", ["did that", "over to you then", "well?"])
+def test_blocker_not_cleared_or_unknown_asks_the_arbiter_and_only_yes_counts(cleared, message):
+    _seed(READ)
+    calls = []
+    assert cs.resolve("s1", message, cleared=cleared, arbiter=_arb("yes", calls)).kind == "retry" and calls
+    for verdict in ("no", None, RuntimeError("model down")):
+        _seed(READ)
+        assert cs.resolve("s1", message, cleared=cleared, arbiter=_arb(verdict)).kind == "none"
+
+
+def test_a_bare_state_report_right_after_the_refusal_is_a_retry_without_the_model():
+    _seed(READ)
+    calls = []
+    assert cs.resolve("s1", "ok its on", cleared=False, arbiter=_arb("no", calls)).kind == "retry" and calls == []
+
+
+@pytest.mark.parametrize("message, change_has", [
+    ("go again, just the pdfs", "just the pdfs"), ("try once more, this time in documents", "documents"),
+    ("run it again sorted by size", "sorted by size"), ("redo it but the 3 oldest", "3 oldest"),
+    ("again but only the mp4s", "mp4s"), ("repeat that for my downloads folder", "downloads"),
+])
+def test_a_cue_with_content_is_a_retry_with_the_change_decided_without_a_model(message, change_has):
+    _seed(READ)
+    calls = []
+    got = cs.resolve("s1", message, cleared=False, arbiter=_arb("no", calls))
+    assert got.kind == "retry_changed" and got.request == ASK and change_has in got.change and calls == []
+    assert got.text.startswith(ASK) and "(change:" in got.text
+
+
+@pytest.mark.parametrize("message", ["retry thx", "yo try again lol", "retry, thanks a lot", "hey i changed the setting, again?", "try again, hope it works"])
+def test_a_cue_wins_over_a_thanks_or_chatter_and_stays_a_plain_retry(message):
+    _seed(READ)
+    assert cs.resolve("s1", message, cleared=False).kind == "retry"
+
+
+@pytest.mark.parametrize("message", ["retry, never mind", "forget it, run it again later"])
+def test_a_dismissal_in_the_remainder_drops_the_cue(message):
+    _seed(READ)
+    assert cs.resolve("s1", message, cleared=True).kind == "none"
+
+
+def test_a_changed_or_cleared_retry_of_a_write_is_never_made_on_state():
     _seed(WRITE, "delete my note called plans")
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again")).kind == "none"
+    assert cs.resolve("s1", "sorted", cleared=True, arbiter=_arb("yes")).kind == "none"
+    assert cs.resolve("s1", "go again but the other note", cleared=True).kind == "none"
+    assert cs.resolve("s1", "retry", cleared=True).kind == "retry"  # explicit cue: normal approval flow applies on the rerun
 
 
 def test_an_unknown_tool_counts_as_not_read_only():
     _seed(READ | {"tool_receipts": [{"tool_name": "mystery.tool", "execution": {"ok": False, "status": "blocked_by_mode"}}]})
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again")).kind == "none"
+    assert cs.resolve("s1", "sorted", cleared=True, arbiter=_arb("yes")).kind == "none"
 
 
-def test_the_arbiter_is_not_asked_for_normal_turns():
+def test_a_web_lookup_refused_by_the_web_switch_is_a_read():
+    cs.record_sealed_turn("s1", "whats the weather in porto", WEB_OFF)
+    assert cs.resolve("s1", "sorted", cleared=True).kind == "retry"
+
+
+def test_the_arbiter_is_not_asked_when_nothing_unfinished_is_fresh():
     calls = []
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # nothing recorded
+    assert cs.resolve("s1", "did that", cleared=False, arbiter=_arb("yes", calls)).kind == "none"  # nothing recorded
     _seed(LISTED)
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # finished request
+    assert cs.resolve("s1", "did that", cleared=False, arbiter=_arb("yes", calls)).kind == "none"  # finished request
     _seed(READ, small_talk=2)
-    assert cs.resolve("s1", "k sorted, have another go", arbiter=_fake("again", calls)).kind == "none"  # not fresh
+    assert cs.resolve("s1", "did that", cleared=False, arbiter=_arb("yes", calls)).kind == "none"  # not fresh
     _seed(READ)
     for closing in ["thanks anyway", "never mind", "no", "later maybe"]:
-        assert cs.resolve("s1", closing, arbiter=_fake("again", calls)).kind == "none"
+        assert cs.resolve("s1", closing, cleared=False, arbiter=_arb("yes", calls)).kind == "none"
     assert calls == []
 
 
 def test_the_arbiter_decision_is_parsed_strictly():
     from core.intent_arbiter import parse_followup_decision
 
-    assert parse_followup_decision('{"answer": "A"}') == "again"
-    assert parse_followup_decision('noise {"answer": "b"} noise') == "changed"
-    assert parse_followup_decision('{"answer": "C"}') == "neither"
-    for bad in ["A", '{"answer": "D"}', '{"answer": ["A"]}', '{"decision": "RETRY"}', "", "[]", None]:
+    assert parse_followup_decision('{"answer": "Yes"}') == "yes"
+    assert parse_followup_decision('noise {"answer": "no"} noise') == "no"
+    for bad in ["yes", '{"answer": "maybe"}', '{"answer": ["yes"]}', '{"decision": "RETRY"}', "", "[]", None]:
         assert parse_followup_decision(bad) is None
 
 
-def test_a_retry_with_a_change_reruns_the_request_with_the_change_and_updates_the_slots():
+def test_a_retry_with_a_change_updates_the_slots_where_the_change_names_one():
     _seed(READ | {"details": {"path": "/Users/x/Downloads"}}, "list the pics in my downloads")
-    got = cs.resolve("s1", "same but only the newest 5 from my desktop", arbiter=_fake("changed"))
-    assert got.kind == "retry_changed" and got.request == "list the pics in my downloads"
-    assert got.text == "list the pics in my downloads (change: same but only the newest 5 from my desktop)"
-    assert got.slots["path"] == "~/Desktop" and got.slots["limit"] == 5 and got.slots["newest_first"] is True
+    got = cs.resolve("s1", "same again but only the newest 5 from my desktop", cleared=False)
+    assert got.kind == "retry_changed" and got.slots["path"] == "~/Desktop" and got.slots["limit"] == 5 and got.slots["newest_first"] is True
 
 
-def test_a_changed_write_request_is_not_rerun_on_the_arbiter_say_so():
-    _seed(WRITE, "delete my note called plans")
-    assert cs.resolve("s1", "same but the other note", arbiter=_fake("changed")).kind == "none"
+def test_blocker_cleared_reads_live_state_per_reason(monkeypatch):
+    import core.conversation_state as real
+    from core.vool_browser import live
+
+    fn = real.__dict__["blocker_cleared"]  # the autouse fixture replaced the attribute, not the function object we need
+    monkeypatch.undo()
+    web = real.PendingRequest("weather", real.REFUSED, "web_off")
+    monkeypatch.setattr(live, "available", lambda: True)
+    assert real.blocker_cleared(web) is True
+    monkeypatch.setattr(live, "available", lambda: False)
+    assert real.blocker_cleared(web) is False
+    assert real.blocker_cleared(real.PendingRequest("x", real.REFUSED, "something_new")) is None
+    remote = real.PendingRequest("x", real.REFUSED, "owner_local_required")
+    assert real.blocker_cleared(remote, {"_owner_local": False}) is False
+    assert real.blocker_cleared(remote, {"_owner_local": True}) is True
+    assert real.blocker_cleared(remote, None) is None
 
 
 def test_the_transcript_keeps_what_the_user_typed():
@@ -269,7 +353,13 @@ def test_the_transcript_keeps_what_the_user_typed():
     from core.persistent_memory import append_conversation_event
 
     sid = "typed-row-chat"
-    ctx = {"_typed_user_text": "retry pls"}
-    append_conversation_event(session_id=sid, user_input="list the pics in my downloads", assistant_output="here", source_context=ctx, persist_now=True)
+    append_conversation_event(session_id=sid, user_input="list the pics in my downloads", assistant_output="here",
+                              source_context={"_typed_user_text": "retry pls"}, persist_now=True)
     rows = recent_conversation_events(sid, limit=2)
     assert rows and rows[-1]["user"] == "retry pls", rows
+
+
+@pytest.mark.parametrize("message", ["can you see them now", "does it work now", "can u look now"])
+def test_an_auxiliary_first_prompt_about_the_pending_thing_is_still_a_retry_when_cleared(message):
+    _seed(READ)
+    assert cs.resolve("s1", message, cleared=True, arbiter=_arb("no")).kind == "retry"
