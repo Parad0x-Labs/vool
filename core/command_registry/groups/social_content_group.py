@@ -10,6 +10,8 @@ authority, never through this group).
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 
 from core.command_registry.spec import (
@@ -153,13 +155,32 @@ class HypothesisCloseInput:
 # ---------------------------------------------------------------- handlers
 
 
+def _platform_names(value) -> tuple[str, ...]:
+    """Platforms as names. A form or the CLI hands one text ("x, linkedin"); the API hands a list.
+    A single text was iterated letter by letter before ("linkedin" -> 'l', 'i', ...)."""
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return tuple(part.strip().lower() for part in re.split(r"[,\s]+", value) if part.strip())
+    return tuple(value)
+
+
+def _text_items(value) -> tuple[str, ...]:
+    """Guardrails and ledgers: one text is ONE item (a guardrail may contain commas)."""
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,) if value.strip() else ()
+    return tuple(value)
+
+
 def _handle_campaign_create(inp, ctx):
     from storage import social_content_store as store
 
     try:
         doc = store.create_campaign(
             project_id=inp.project_id, objective=inp.objective, audience=inp.audience,
-            platforms=tuple(inp.platforms or ()), guardrails=tuple(inp.guardrails or ()),
+            platforms=_platform_names(inp.platforms), guardrails=_text_items(inp.guardrails),
         )
     except store.SecretRefusal as exc:
         return HandlerFault(
@@ -203,7 +224,7 @@ def _handle_campaign_update(inp, ctx):
         doc = store.update_campaign(
             inp.campaign_id, expected_version=int(inp.expected_version),
             objective=inp.objective, audience=inp.audience,
-            platforms=tuple(inp.platforms) if inp.platforms is not None else None,
+            platforms=_platform_names(inp.platforms) if inp.platforms is not None else None,
             status=inp.status,
         )
     except store.RevisionConflict as exc:
@@ -260,7 +281,7 @@ def _handle_draft_save(inp, ctx):
             format=inp.format,
             draft_id=str(inp.draft_id) or None,
             claim_ledger=tuple(inp.claim_ledger or ()),
-            source_ledger=tuple(inp.source_ledger or ()),
+            source_ledger=_text_items(inp.source_ledger),
         )
     except store.SecretRefusal as exc:
         return HandlerFault(

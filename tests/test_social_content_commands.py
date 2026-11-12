@@ -149,3 +149,23 @@ def test_no_publishing_command_exists_in_the_group(clean_store):
         "social.post", "campaign.send",
     ):
         assert forbidden not in ids
+
+
+def test_palette_form_text_inputs_are_read_as_names_not_letters(clean_store):
+    """The Cmd+K form sends every field as one text. Platforms "x, linkedin" are two platforms
+    and a guardrail with a comma stays one guardrail (real palette, 2026-11-12: "linkedin" was
+    refused as the platform 'l')."""
+    doc = _ok(execute_command("campaign.create", {
+        "project_id": "p-form", "objective": "Explain receipts", "audience": "builders",
+        "platforms": "X, LinkedIn", "guardrails": "no numbers, no rival names",
+    }))
+    assert sorted(doc["platforms"]) == ["linkedin", "x"]
+    assert doc["guardrails"] == ["no numbers, no rival names"]
+    single = _ok(execute_command("campaign.create", {
+        "project_id": "p-form", "objective": "Second", "audience": "builders", "platforms": "bluesky",
+    }))
+    assert single["platforms"] == ["bluesky"]
+    refused = execute_command("campaign.create", {
+        "project_id": "p-form", "objective": "Third", "audience": "builders", "platforms": "myspace",
+    })
+    assert not refused.ok and refused.fault and refused.fault.code == "usage"
