@@ -190,9 +190,42 @@ def looks_like_named_file_build_request(text: str, *, workspace_root: str = "") 
     return bool(named_build_files(body, workspace_root=workspace_root))
 
 
+#: The verbs of a change to something that already exists. "Create"/"write"/"build" make new files
+#: and are the shared build gate's; these edit one in place.
+_EDIT_HEAD_RE = re.compile(
+    r"^(?:" + build_request_intent._IMPERATIVE_LEAD + r"[\s,]+)*"
+    r"(?:add|update|modify|edit|change|fix|extend|refactor)\b"
+)
+
+
+def looks_like_named_file_edit_request(text: str) -> bool:
+    """A requested change to a named source file, including one named in a later clause.
+
+    "Add a 'Clear completed' button. Keep the existing tasks intact. Change only index.html." is one
+    edit of index.html: its first sentence carries the verb and its last names the file. It was
+    read as no build at all, so the follow-up never reached the builder. An imperative edit verb
+    must lead the message, and the shared deliberation, opt-out and analysis boundaries hold: the
+    filename alone never turns a discussion or a read into a change.
+    """
+    body = build_request_intent._normalise(text)
+    if (
+        not body
+        or build_request_intent.is_opted_out(body)
+        or build_request_intent.is_deliberation(body)
+        or build_request_intent._supplies_payload_for_analysis(text)
+    ):
+        return False
+    sentences = build_request_intent._sentences(body)
+    first = sentences[0] if sentences else body
+    if build_request_intent._is_content_generation(first, whole_text=body):
+        return False
+    return bool(_EDIT_HEAD_RE.match(body) and _NAMED_FILE_RE.search(body))
+
+
 __all__ = [
     "is_source_filename",
     "looks_like_named_file_build_request",
+    "looks_like_named_file_edit_request",
     "named_build_files",
     "named_file_build_root",
     "workspace_relative_path",

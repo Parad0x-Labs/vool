@@ -160,6 +160,14 @@ _OPT_OUT = (
     "reply with only", "respond with only", "start directly with",
 )
 _OPT_OUT_RE = re.compile(r"(?:" + "|".join(re.escape(p) for p in _OPT_OUT) + r")")
+# "add a footer to index.html, but don't change any files yet": files as the WHOLE object of a
+# negated change verb, ending the clause, says nothing may be written. Clause-final on purpose:
+# "don't change any files other than utils.py" scopes an edit, and "don't change the header" keeps
+# part of one -- neither is an opt-out.
+_OPT_OUT_CLAUSE_RE = re.compile(
+    r"\b(?:don'?t|do\s+not)\s+(?:change|modify|touch|edit)\s+(?:any\s+|the\s+)?files?"
+    r"(?:\s+yet|\s+for\s+now)?\s*(?:[.!,;]|$)"
+)
 
 # Deliberation: the operator is asking, comparing, or reporting — not instructing.
 #
@@ -529,7 +537,8 @@ def is_advice_question(text: str) -> bool:
 def is_opted_out(text: str) -> bool:
     """True when the operator explicitly said not to write anything."""
 
-    return bool(_OPT_OUT_RE.search(_normalise(text)))
+    normalised = _normalise(text)
+    return bool(_OPT_OUT_RE.search(normalised) or _OPT_OUT_CLAUSE_RE.search(normalised))
 
 
 def imperative_build_sentences(text: str) -> list[str]:
@@ -568,6 +577,22 @@ def _supplies_payload_for_analysis(text: str) -> bool:
     from core.inline_payload import turn_supplies_its_own_content
 
     return turn_supplies_its_own_content(text)
+
+
+#: "keep the tasks intact", "leave the tests as-is", "keep everything else the same": an instruction
+#: to leave current state alone. It constrains the operation it accompanies; it is not a fact to
+#: store ("keep in mind ..." is) and not an operation of its own ("keep the layout intact and delete
+#: old.txt" carries one, so it is not this).
+_PRESERVATION_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:keep|retain|preserve|leave)\s+(?!in\s+mind\b)[^!?]*"
+    r"\b(?:intact|unchanged|as[- ]is|the\s+same)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_preservation_constraint(text: str) -> bool:
+    """An instruction to leave current state alone, rather than a new fact or a new operation."""
+    return bool(_PRESERVATION_RE.match(str(text or "")))
 
 
 def is_build_instruction(text: str, *, scope: str = "artifact") -> bool:

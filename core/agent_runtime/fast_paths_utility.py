@@ -1088,11 +1088,15 @@ def looks_like_agentic_build_request(user_input: str) -> bool:
     # ("create notes.txt containing hello in this project") names where, not what, and used to
     # promote a literal one-file write into the multi-file scaffolder under an OPEN scope.
     from core.agent_runtime.builder.mutation_scope import object_phrase_widens
+    from core.agent_runtime.builder.named_file_build import looks_like_named_file_edit_request
 
     # Admission is clause-scoped: a later request to report expected versus actual
     # results does not turn an earlier imperative project build into deliberation.
-    return object_phrase_widens(str(user_input or "")) or (
-        strong and not build_request_intent.is_deliberation(lowered)
+    # A change to a named source file ("update board.html so ...") is the same lane's work.
+    return (
+        looks_like_named_file_edit_request(str(user_input or ""))
+        or object_phrase_widens(str(user_input or ""))
+        or (strong and not build_request_intent.is_deliberation(lowered))
     )
 
 

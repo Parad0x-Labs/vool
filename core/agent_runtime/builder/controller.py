@@ -371,6 +371,8 @@ def checkpointed_builder_generation(
 
     if budget is not None:
         generate.budget = budget  # type: ignore[attr-defined]
+    if getattr(generate_fn, "context_tokens", None):
+        generate.context_tokens = generate_fn.context_tokens  # type: ignore[attr-defined]
     return generate
 
 
@@ -598,6 +600,9 @@ def build_ollama_generate_fn(
         return content
 
     generate_fn.budget = budget  # type: ignore[attr-defined]
+    # The whole window one generation has, prompt and answer together. An edit sends the current
+    # file in and gets it back whole, so the build lane checks a file fits before asking.
+    generate_fn.context_tokens = _BUILDER_NUM_CTX  # type: ignore[attr-defined]
     return generate_fn
 
 
@@ -1497,6 +1502,7 @@ def _run_model_build(
             ok=bool(getattr(result, "ok", False)),
             response_text=str(getattr(result, "response_text", "") or ""),
             details=dict(getattr(result, "details", {}) or {}),
+            status=str(getattr(result, "status", "") or ""),
         )
 
     # "Prove the bug -- write the smallest failing test and run it" wants a test that FAILS. Without
