@@ -13,6 +13,15 @@ daemon's process status and redacted server log tail to a failed navigation or r
 step's OWN exception, preserving its type and traceback). The controls are deterministic:
 process state is set by direct signal, and the failing step is a loopback request.
 Nothing here classifies a failure's cause; the contract is accurate reporting.
+
+The wrapper promises that the step's OWN exception survives, and a diagnostic that fails
+must not break that promise. Before the evidence note went through ``attach_evidence_note``,
+a capture that raised (reading the process state or the log tail) or a note the exception
+refused to take escaped from the ``except`` arm and REPLACED the step's error with the
+diagnostic's own. The controls below pin the law: the original exception object, type and
+traceback always propagate; a failed capture or attachment reports itself in the note (or on
+standard error) and never replaces the step's error. Injected diagnostic faults are labeled
+CONTROL.
 """
 from __future__ import annotations
 
@@ -110,5 +119,92 @@ def test_a_transport_failure_while_the_daemon_lives_reports_it_alive(tmp_path):
             # The daemon was not the thing that failed here: it still answers.
             with urlopen(daemon.base_url + "/healthz", timeout=3) as response:
                 assert response.status == 200
+        finally:
+            daemon.stop()
+
+
+def test_a_failed_evidence_capture_never_replaces_the_step_error(tmp_path, monkeypatch):
+    """CONTROL: the capture itself fails; the step's OWN error must still survive.
+
+    ``await_failure_log_tail`` raises an injected fault while the daemon is alive.
+    The wrapper's whole value is evidence on failure, so its capture failing is the
+    worst case: the note must report the capture failure (measured state still
+    included, no fabricated log evidence), and the original exception object, type
+    and traceback must propagate unchanged.
+    """
+
+    def injected_capture_fault(*_args, **_kwargs):
+        raise RuntimeError("CONTROL injected diagnostic-capture fault")
+
+    with rig.CapturingProvider(default="ok") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
+        try:
+            daemon.start(timeout=60)
+            monkeypatch.setattr(daemon, "await_failure_log_tail", injected_capture_fault)
+            original = URLError("controlled transport failure")
+            with pytest.raises(URLError) as caught:
+                with daemon.evidence_on_failure("capture-failure control"):
+                    raise original
+            assert caught.value is original
+            assert type(caught.value) is URLError
+            note = _notes(caught.value)
+            assert "capture failed" in note, note
+            assert "RuntimeError" in note, note
+            assert "process alive" in note, note
+            assert "vool_api.log" not in note and "daemon.log" not in note, note
+            assert str(tmp_path) not in note
+            assert "/Users/" not in note
+            # No retry, no state change: the daemon was never the thing that failed.
+            with urlopen(daemon.base_url + "/healthz", timeout=3) as response:
+                assert response.status == 200
+        finally:
+            daemon.stop()
+
+
+def test_a_failed_note_attachment_never_replaces_the_step_error(tmp_path, capsys):
+    """CONTROL: the note cannot be attached; the step's OWN error must still survive.
+
+    The marker refuses ``add_note``. The evidence then rides the fallback seam
+    (standard error, redacted like every public artifact), and the marker's object
+    identity, type and traceback propagate unchanged.
+    """
+
+    class AttachmentRefused(URLError):
+        def add_note(self, *_args, **_kwargs):
+            raise AttributeError("'AttachmentRefused' object refuses add_note")
+
+    with rig.CapturingProvider(default="ok") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
+        try:
+            daemon.start(timeout=60)
+            original = AttachmentRefused("controlled attachment fault")
+            with pytest.raises(URLError) as caught:
+                with daemon.evidence_on_failure("attachment-failure control"):
+                    raise original
+            assert caught.value is original
+            assert type(caught.value) is AttachmentRefused
+            # The evidence stayed visible on the fallback seam, still redacted.
+            fallback = capsys.readouterr().err
+            assert "[served-daemon]" in fallback, fallback
+            assert "process alive" in fallback, fallback
+            assert str(tmp_path) not in fallback
+            assert "/Users/" not in fallback
+            # The attachment failure changed nothing else: the daemon still answers.
+            with urlopen(daemon.base_url + "/healthz", timeout=3) as response:
+                assert response.status == 200
+        finally:
+            daemon.stop()
+
+
+def test_a_healthy_wrapped_step_emits_no_evidence(tmp_path, capsys):
+    """The wrapper is silent on success: no exception, no note, no output."""
+    with rig.CapturingProvider(default="ok") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
+        try:
+            daemon.start(timeout=60)
+            with daemon.evidence_on_failure("healthy step control"):
+                with urlopen(daemon.base_url + "/healthz", timeout=3) as response:
+                    assert response.status == 200
+            assert capsys.readouterr().err == ""
         finally:
             daemon.stop()

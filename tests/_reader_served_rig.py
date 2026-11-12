@@ -84,6 +84,31 @@ def redact_for_public_artifact(text: str, home: Path) -> str:
     return redacted
 
 
+def attach_evidence_note(exc: BaseException, note: str) -> None:
+    """Attach ``note`` to ``exc``, raising nothing.
+
+    ``BaseException.add_note`` (PEP 678) is the seam on every Python this project runs on.
+    An exception that refuses it (a subclass overriding ``add_note``, an object that cannot
+    take attributes) gets the note under the same ``__notes__`` attribute for programmatic
+    readers, and on standard error, which a failed test's report carries. Whichever
+    mechanism fails, the note degrades to the standard-error write alone: a diagnostic must
+    never replace the step's own error with its own failure.
+    """
+    try:
+        add_note = getattr(exc, "add_note", None)
+        if callable(add_note):
+            add_note(note)
+            return
+        exc.__notes__ = [*getattr(exc, "__notes__", ()), note]
+        return
+    except Exception:
+        pass
+    try:
+        print(note, file=sys.stderr)
+    except Exception:
+        pass
+
+
 class CapturingProvider:
     """An Ollama-dialect endpoint that answers from a table and keeps every request in full."""
 
@@ -536,22 +561,32 @@ class ServedDaemon:
         """Carry this daemon's process status and redacted server evidence on a failed step.
 
         Wraps one navigation or request step. The step's OWN exception propagates unchanged
-        -- same type, same traceback -- with one note attached recording what the daemon's
-        process was at failure time (``alive`` / ``exited rc=N`` / ``never started``) plus
-        the redacted server log tail, captured before any teardown can dispose of the home.
+        -- same object, same type, same traceback -- with one note recording what the
+        daemon's process was at failure time (``alive`` / ``exited rc=N`` / ``never
+        started``) plus the redacted server log tail, captured before any teardown can
+        dispose of the home. A capture that itself fails reports the failure in the note,
+        and a note the exception refuses goes to standard error (``attach_evidence_note``):
+        neither replaces the step's error with its own.
         Evidence capture only: no retry, no swallow, no state change.
         """
         try:
             yield
         except BaseException as exc:
-            if self.process is None:
-                state = "never started"
-            else:
-                code = self.process.poll()
-                state = "alive" if code is None else f"exited rc={code}"
-            exc.add_note(
-                f"[served-daemon] {context}: process {state}; server evidence:\n"
-                f"{self.await_failure_log_tail()}"
+            try:
+                if self.process is None:
+                    state = "never started"
+                else:
+                    code = self.process.poll()
+                    state = "alive" if code is None else f"exited rc={code}"
+            except Exception as state_failure:
+                state = f"state unreadable ({type(state_failure).__name__})"
+            try:
+                tail = self.await_failure_log_tail()
+            except Exception as capture_failure:
+                tail = f"unavailable (capture failed: {type(capture_failure).__name__})"
+            attach_evidence_note(
+                exc,
+                f"[served-daemon] {context}: process {state}; server evidence:\n{tail}",
             )
             raise
 
