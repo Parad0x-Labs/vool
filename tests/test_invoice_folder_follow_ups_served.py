@@ -164,3 +164,28 @@ def test_how_to_answer_rides_the_count_and_is_not_answered_on_its_own(served):
         assert wrong not in reply, (wrong, reply)
     again = _chat(served, session, "again")
     assert "`~/Documents`" in again and "$125" not in again, again
+
+
+def test_a_private_chat_never_reaches_the_exact_read_lane_through_the_clean_loop(monkeypatch):
+    """The clean loop hands an exact folder ask to the exact lane only for a turn it admitted; a
+    private chat is never admitted, so its words reach neither the loop nor that lane from here."""
+    import core.agent_runtime.fast_paths_machine as machine
+    from core.clean_loop import hook, route
+    from core.private_chat import PRIVATE_TURN_KEY
+
+    monkeypatch.setenv(route.FLAG_ENV, "1")
+
+    def _must_not_run(*_args, **_kwargs):
+        raise AssertionError("the exact lane ran for a private turn")
+
+    monkeypatch.setattr(machine, "maybe_answer_exact_read_first", _must_not_run)
+    context = {"surface": "api", PRIVATE_TURN_KEY: True, "_conversation_slots": {"path": "~/Documents/Invoices old"}}
+
+    class _Agent:
+        memory_router = None
+
+    assert hook.maybe_answer(
+        _Agent(), text="how many files are in that folder", effective_input="how many files are in that folder",
+        session_id="private-chat", source_context=context,
+    ) is None
+    assert context.get("clean_local_loop_route") != "exact_read_lane"

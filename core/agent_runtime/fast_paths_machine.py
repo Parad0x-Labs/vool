@@ -3589,3 +3589,48 @@ def _earlier_user_turns(session_id: str, *, look_back: int = 4) -> list[str]:
     except Exception:
         return []
     return [str((row or {}).get("user") or "") for row in reversed(rows) if str((row or {}).get("user") or "").strip()]
+
+
+def maybe_answer_exact_read_first(
+    agent: Any,
+    user_input: str,
+    *,
+    session_id: str,
+    source_surface: str,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any] | None:
+    """An ask one of the exact read lanes answers in full, answered by that lane, else None.
+
+    The clean local loop admits every ask about the owner's files and answers it with a model and
+    tools. Where an exact lane exists -- a kind of file in a known folder, a count or the biggest
+    file of the folder this chat just listed, the files of a folder named by name, a typed path, or
+    the file a pick from a printed list points at -- that lane's answer is the measured one, and
+    the model in the loop was guessing it (red team round 3 on head 5, 2026-11-12: with the loop on,
+    "how many files are in that folder" and "the second one - how much was that?" never reached the
+    lanes that answer them). Anything else stays with the loop. None changes nothing.
+    """
+    from core.agent_runtime.fast_paths_pdf import maybe_handle_pdf_read, pdf_read_request
+    from core.execution.constants import machine_kind_listing_intent, points_back_at_the_folder
+
+    text = str(user_input or "")
+    slots = dict((source_context or {}).get("_conversation_slots") or {})
+    folder_hint, kind_hint = str(slots.get("path") or ""), str(slots.get("kind") or "")
+    exact = (
+        machine_kind_listing_intent(
+            text, earlier_turns=_earlier_user_turns(session_id), folder_hint=folder_hint, kind_hint=kind_hint
+        ) is not None
+        or machine_named_folder_contents_intent(text) is not None
+        or machine_folder_audit_intent(text) is not None
+        or machine_path_listing_intent(text) is not None
+        or (machine_largest_intent(text) is not None and bool(folder_hint) and points_back_at_the_folder(text))
+    )
+    picked = list(slots.get("picked") or [])
+    if picked and pdf_read_request(text) is not None:
+        answered = maybe_handle_pdf_read(agent, text, session_id=session_id, source_context=source_context)
+        if answered is not None:
+            return answered
+    if not exact:
+        return None
+    return maybe_handle_direct_machine_read_request(
+        agent, text, session_id=session_id, source_surface=source_surface, source_context=source_context
+    )
