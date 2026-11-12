@@ -3136,9 +3136,11 @@
     "phone.ui.address_away_from_home": "Dirección fuera de casa",
     "phone.ui.away_address_optional_used_by_itself": "Opcional. VOOL la usa por sí solo cuando tu red de casa no está al alcance.",
     "phone.ui.connected_from_away": "Conectado desde fuera de casa",
-    "phone.ui.connected_over_your_home_network": "Conectado por tu red de casa"
+    "phone.ui.connected_over_your_home_network": "Conectado por tu red de casa",
+    "phone.ui.looking_home_and_away": "Buscando tu ordenador, en casa y fuera. Fuera de casa puede tardar un minuto.",
+    "phone.ui.no_answer_home_or_away": "Tu ordenador no respondió ni en casa ni fuera. Comprueba que está encendido y que VOOL está abierto."
   },
-  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
+  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3136,9 +3136,11 @@
     "phone.ui.address_away_from_home": "外出时的地址",
     "phone.ui.away_address_optional_used_by_itself": "可选。连不上家里的网络时，VOOL 会自动使用它。",
     "phone.ui.connected_from_away": "已从外面连接",
-    "phone.ui.connected_over_your_home_network": "已通过家里的网络连接"
+    "phone.ui.connected_over_your_home_network": "已通过家里的网络连接",
+    "phone.ui.looking_home_and_away": "正在查找你的电脑，包括在家和外出时。外出时可能需要一分钟。",
+    "phone.ui.no_answer_home_or_away": "你的电脑在家和外出时都没有应答。请检查电脑已开机且 VOOL 已打开。"
   },
-  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
+  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

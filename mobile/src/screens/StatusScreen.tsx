@@ -30,6 +30,14 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
   const link = useLink();
   useEffect(() => {setRoute(client.route);}, [client, link, snapshot]);
   const [scanning, setScanning] = useState(false);
+  // Which way reaches the computer is asked when this page opens and after every address change.
+  const [looking, setLooking] = useState<"" | "looking" | "none">("");
+  const probe = useCallback(() => {
+    if (!client.awayUrl) {setLooking(""); return;}
+    setLooking("looking");
+    void client.findRoute().then(found => {setRoute(client.route); setLooking(found ? "" : "none");}).catch(() => setLooking("none"));
+  }, [client]);
+  useEffect(() => {probe();}, [probe]);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const guard = useCallback(
@@ -107,7 +115,8 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         const address = `http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`;
         void (async () => {
           try {const next = connectionAddress(address); await onConnection?.(next); setConnection(next); setError("");
-            if (parsed.awayAddress) {await onAwayConnection?.(parsed.awayAddress); setAway(parsed.awayAddress);}}
+            if (parsed.awayAddress) {await onAwayConnection?.(parsed.awayAddress); setAway(parsed.awayAddress);}
+            probe();}
           catch {setError(tr("Could not complete this. Check your computer."));}
         })();
       }} />
@@ -117,10 +126,12 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
     <Text style={[styles.detail, {marginTop: 0, marginBottom: 8}]}>{tr("Optional. VOOL uses it by itself when your home network is out of reach.")}</Text>
     <TextInput style={[styles.address,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Address away from home")} autoCapitalize="none" autoCorrect={false} value={away} onChangeText={setAway}/>
     <Pressable style={styles.proofButton} onPress={() => {void (async () => {
-      try {const next = away.trim() ? connectionAddress(away) : ""; await onAwayConnection?.(next); setAway(next); setError(""); void client.findRoute().then(() => setRoute(client.route)).catch(() => {});}
+      try {const next = away.trim() ? connectionAddress(away) : ""; await onAwayConnection?.(next); setAway(next); setError(""); probe();}
       catch {setError(tr("Could not complete this. Check your computer."));}
     })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
-    {client.awayUrl && link === "connected" ? <Text style={styles.detail}>{route === "away" ? tr("Connected from away") : tr("Connected over your home network")}</Text> : null}
+    {looking === "looking" ? <Text style={styles.detail}>{tr("Looking for your computer, at home and away. Away from home this can take a minute.")}</Text>
+      : looking === "none" ? <Text style={styles.detail}>{tr("Your computer did not answer at home or away. Check that it is on and VOOL is open.")}</Text>
+      : client.awayUrl && link === "connected" ? <Text style={styles.detail}>{route === "away" ? tr("Connected from away") : tr("Connected over your home network")}</Text> : null}
   </View>;
   if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
   if (!snapshot) {

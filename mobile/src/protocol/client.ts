@@ -61,6 +61,25 @@ const HIDDEN_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*\.onion\.?(?::\d*)?(?:[/?#]|$)
 let privateRoute: PrivateRoute | null = null;
 export function setPrivateRoute(route: PrivateRoute | null) {privateRoute = route;}
 
+/** Pairing from anywhere: reach the pairing address at home first; when the home network does not
+ *  answer and the pairing code carried an away address, use that. Returns the address that answered
+ *  and the challenge. A refusal from the computer is an answer and is never retried the other way. */
+export async function reachForPairing(homeUrl: string, awayUrl: string, pairingId: string, fetchImpl: FetchLike = defaultFetch): Promise<{base: string; challenge: PairingChallenge}> {
+  const home = homeUrl.replace(/\/$/, "");
+  const away = awayUrl.replace(/\/$/, "");
+  if (!away || !HIDDEN_URL.test(away)) return {base: home, challenge: await fetchPairingChallenge(home, pairingId, fetchImpl)};
+  try {
+    // With another way available, the home try is kept short.
+    const quick: FetchLike = (url, init) => fetchImpl(url, {...init, timeoutMs: ROUTE_PROBE_TIMEOUT_MS});
+    return {base: home, challenge: await fetchPairingChallenge(home, pairingId, quick)};
+  } catch (error) {
+    if (error instanceof CompanionError || !privateRoute) throw error;
+  }
+  await privateRoute.ready(AWAY_PROBE_TIMEOUT_MS);
+  const patient: FetchLike = (url, init) => fetchImpl(url, {...init, timeoutMs: AWAY_PROBE_TIMEOUT_MS});
+  return {base: away, challenge: await fetchPairingChallenge(away, pairingId, patient)};
+}
+
 export interface ClientOptions {
   fetchImpl?: FetchLike;
   now?: () => Date;
@@ -142,6 +161,8 @@ export class MobileCompanionClient {
   }
 
   protected async request<T>(action: string, params: Record<string, unknown> = {}): Promise<T> {
+    // While the app is finding out which way is open, wait for the answer instead of guessing.
+    if (this.finding) await this.finding.catch(() => null);
     try {
       const result = await this.send<T>(this.address(), action, params);
       reportLink(true);

@@ -3136,9 +3136,11 @@
     "phone.ui.address_away_from_home": "Adresas ne namuose",
     "phone.ui.away_address_optional_used_by_itself": "Neprivaloma. VOOL jį naudoja pats, kai namų tinklas nepasiekiamas.",
     "phone.ui.connected_from_away": "Prisijungta ne iš namų",
-    "phone.ui.connected_over_your_home_network": "Prisijungta per namų tinklą"
+    "phone.ui.connected_over_your_home_network": "Prisijungta per namų tinklą",
+    "phone.ui.looking_home_and_away": "Ieškoma jūsų kompiuterio namuose ir išvykus. Ne namuose tai gali užtrukti minutę.",
+    "phone.ui.no_answer_home_or_away": "Jūsų kompiuteris neatsakė nei namuose, nei išvykus. Patikrinkite, ar jis įjungtas ir ar VOOL atidaryta."
   },
-  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
+  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

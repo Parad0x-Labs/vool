@@ -7,7 +7,7 @@ import Icon from "../ui/Icon.tsx";
 import Frame from "../ui/Frame.tsx";
 
 import {
-  fetchPairingChallenge,
+  reachForPairing,
   type DeviceCredentials,
 } from "../protocol/client.ts";
 import { parsePairingUri, pairingUriIsFresh } from "../protocol/pairing.ts";
@@ -90,7 +90,9 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     try {
       // 1. Fetch the server-held challenge (also pins the desktop identity
       //    for the manual-entry path, where no QR fingerprint was scanned).
-      const challenge = await fetchPairingChallenge(base, pairingId.trim());
+      //    Away from home the pairing code's away address is used, so pairing works anywhere.
+      const reached = await reachForPairing(base, awayAddress, pairingId.trim());
+      const challenge = reached.challenge;
       // 2. The phone's identity: generated once, seed stays in the keystore.
       const keypair = generateDeviceKeypair();
       const approvalKey = await prepareApprovalKey(keypair.publicKeyHex, pairingId.trim(), challenge.challenge);
@@ -98,7 +100,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       // 3. Claim with proof of possession; the desktop verifies the
       //    signature over challenge/pid/code/public-key/expiry BEFORE any
       //    grant is issued.
-      const credentials = await claimSealedPairing(base, {
+      const credentials = await claimSealedPairing(reached.base, {
         pairingId: pairingId.trim(),
         code: code.trim(),
         deviceName: (deviceName.trim() || "VOOL companion").slice(0, 64),
@@ -109,7 +111,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         pinnedDesktopFingerprint: fingerprint.trim(),
         approvalKey,
       });
-      await onPaired({...credentials, ...(awayAddress ? {awayUrl: awayAddress} : {}), ...(approvalAlias ? {approvalKeyAlias: approvalAlias} : {})});
+      // The saved home address is always the home one, whichever way the pairing went.
+      await onPaired({...credentials, baseUrl: base, ...(awayAddress ? {awayUrl: awayAddress} : {}), ...(approvalAlias ? {approvalKeyAlias: approvalAlias} : {})});
       approvalAlias = null;
     } catch (exc) {
       if (approvalAlias) await deleteApprovalKey(approvalAlias).catch(() => {});

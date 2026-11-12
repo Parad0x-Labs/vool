@@ -3136,9 +3136,11 @@
     "phone.ui.address_away_from_home": "Địa chỉ khi xa nhà",
     "phone.ui.away_address_optional_used_by_itself": "Không bắt buộc. VOOL tự dùng địa chỉ này khi không kết nối được mạng nhà.",
     "phone.ui.connected_from_away": "Đã kết nối khi xa nhà",
-    "phone.ui.connected_over_your_home_network": "Đã kết nối qua mạng nhà"
+    "phone.ui.connected_over_your_home_network": "Đã kết nối qua mạng nhà",
+    "phone.ui.looking_home_and_away": "Đang tìm máy tính của bạn, ở nhà và khi đi xa. Khi xa nhà việc này có thể mất một phút.",
+    "phone.ui.no_answer_home_or_away": "Máy tính của bạn không trả lời, cả ở nhà lẫn khi đi xa. Hãy kiểm tra máy đang bật và VOOL đang mở."
   },
-  "source_catalog_sha256": "10c23915612b02425d867b0754bc03c9375c7243bc80b65ae9e93ee5ae27a555",
+  "source_catalog_sha256": "2dc1066a94686b416027577d5f7ebd4a249f97fdc3de7b5d2478bf12cd904d25",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

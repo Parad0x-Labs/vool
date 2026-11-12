@@ -1,4 +1,4 @@
-import {AWAY_PROBE_TIMEOUT_MS, AWAY_REQUEST_TIMEOUT_MS, MobileCompanionClient, ROUTE_PROBE_TIMEOUT_MS, defaultFetch, setPrivateRoute, type DeviceCredentials, type FetchLike} from "../../src/protocol/client";
+import {AWAY_PROBE_TIMEOUT_MS, AWAY_REQUEST_TIMEOUT_MS, MobileCompanionClient, ROUTE_PROBE_TIMEOUT_MS, CompanionError, defaultFetch, reachForPairing, setPrivateRoute, type DeviceCredentials, type FetchLike} from "../../src/protocol/client";
 
 const HIDDEN = "http://" + "a2".repeat(28) + ".onion";
 
@@ -73,5 +73,45 @@ describe("the private route rests at home", () => {
     const fetchImpl: FetchLike = async url => {urls.push(url); throw new TypeError("Network request failed");};
     expect(await new MobileCompanionClient(creds, {fetchImpl}).findRoute()).toBeNull();
     expect(urls).toEqual(["http://192.168.1.20:5000/api/mobile/companion"]);
+  });
+});
+
+describe("pairing from anywhere", () => {
+  const HOME = "http://192.168.1.20:5000";
+  const challenge = {ok: true, challenge: "c", pairing_id: "p"};
+  afterEach(() => setPrivateRoute(null));
+
+  it("pairs over the home network when it answers, without waking the private route", async () => {
+    const ready = jest.fn(async () => {});
+    setPrivateRoute({fetch: async () => {throw new Error("unused");}, ready, stop() {}});
+    const urls: string[] = [];
+    const reached = await reachForPairing(HOME, HIDDEN, "p", async url => {urls.push(url); return {status: 200, json: async () => challenge};});
+    expect(reached.base).toBe(HOME);
+    expect(urls).toEqual([HOME + "/api/mobile/pairing/challenge?pairing_id=p"]);
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it("uses the away address from the pairing code when home is out of reach", async () => {
+    const order: string[] = [];
+    setPrivateRoute({fetch: async () => {throw new Error("unused");}, ready: async () => {order.push("route ready");}, stop() {}});
+    const reached = await reachForPairing(HOME, HIDDEN, "p", async (url, init) => {
+      order.push(url.startsWith(HIDDEN) ? "away " + init.timeoutMs : "home " + init.timeoutMs);
+      if (!url.startsWith(HIDDEN)) throw new TypeError("Network request failed");
+      return {status: 200, json: async () => challenge};
+    });
+    expect(reached.base).toBe(HIDDEN);
+    expect(order).toEqual(["home " + ROUTE_PROBE_TIMEOUT_MS, "route ready", "away " + AWAY_PROBE_TIMEOUT_MS]);
+  });
+
+  it("does not go round a refusal from the computer", async () => {
+    const ready = jest.fn(async () => {});
+    setPrivateRoute({fetch: async () => {throw new Error("unused");}, ready, stop() {}});
+    await expect(reachForPairing(HOME, HIDDEN, "p", async () => ({status: 410, json: async () => ({ok: false, code: "pairing_expired"})})))
+      .rejects.toBeInstanceOf(CompanionError);
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it("fails plainly without an away address", async () => {
+    await expect(reachForPairing(HOME, "", "p", async () => {throw new TypeError("Network request failed");})).rejects.toThrow("Network request failed");
   });
 });
