@@ -228,28 +228,50 @@ def resident_models(*, base_url: str | None = None) -> list[dict]:
 
 
 def estimated_model_gb(model_name: str, *, base_url: str | None = None) -> float:
-    """Expected in-memory footprint for a model, 0.0 when unknown (unknown never gates)."""
+    """Expected in-memory footprint for a model, 0.0 when unknown (unknown never gates).
+
+    VOOL's size table first (it carries the largest build a listed tag may resolve to), then the
+    installed model's real size from Ollama, and only then a guess from the name. The name guess
+    used to come before the real size, so for any model the table does not list the installed size
+    was never read: the 14.7 GB Q3_K_M build of Qwen3-30B-A3B-Instruct-2507 pulled from Hugging
+    Face (`hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M`, 13.7 GiB on disk) reads as
+    30 x 0.75 = 22.5 GB by name, and the gate then wanted 24 GB free on a 24 GB Mac.
+    """
     target = _local_ollama_base(base_url)
     if not target:
         return 0.0
+    name = str(model_name or "").strip()
+    try:
+        from core.local_model_bundles import MODEL_STORAGE_GB
+
+        listed = float(MODEL_STORAGE_GB.get(name.lower()) or 0.0)
+    except Exception:
+        listed = 0.0
+    if listed > 0:
+        return listed
+    installed = _installed_model_gb(name, target)
+    if installed > 0:
+        return installed
     try:
         from core.local_model_bundles import model_storage_gb
 
-        known = float(model_storage_gb(model_name) or 0.0)
+        return float(model_storage_gb(name) or 0.0)
     except Exception:
-        known = 0.0
-    if known > 0:
-        return known
+        return 0.0
+
+
+def _installed_model_gb(model_name: str, target: str) -> float:
+    """The installed tag's size on disk in GiB from Ollama's /api/tags, 0.0 when not installed."""
     from core.local_model_policy import local_models_enabled
 
-    if not local_models_enabled():
-        return 0.0  # no discovery probe under a disabled policy; unknown never gates
-    with contextlib.suppress(OSError, ValueError):  # fall back to the installed-tag disk size
+    if not model_name or not local_models_enabled():
+        return 0.0  # no discovery probe under a disabled policy
+    with contextlib.suppress(OSError, ValueError):
         req = urllib.request.Request(f"{target}/api/tags", headers={"Accept": "application/json"})
         with urlopen(req, timeout=2.0) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
         for m in data.get("models") or []:
-            if str(m.get("name") or "").strip() == str(model_name).strip():
+            if str(m.get("name") or "").strip() == model_name:
                 return round(float(m.get("size") or 0) / (1024.0 ** 3), 1)
     return 0.0
 
