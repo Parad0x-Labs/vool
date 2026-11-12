@@ -15,9 +15,9 @@ Selecting one makes the indicator read Local. Setup details are in
 
 ## Cloud
 
-Add a provider key in **Settings → API Keys**. The key is stored in the macOS Keychain
-(on Linux and Windows, in an encrypted vault in your profile) and is used to make requests **from your machine directly to
-the provider**.
+Add a provider key in **Settings → API Keys**. The key is kept in an encrypted file on this
+computer (see [Security model](../trust/security.md#keys)) and is used to make requests
+**from your machine directly to the provider**.
 
 Selecting a cloud model makes the indicator show the provider's name, and it changes before
 any request is made.

@@ -30,7 +30,7 @@ Principles the code enforces:
   your ceilings.
 * **One authority per decision.** Permissions, spending and network egress each have one
   owning contract; faults classify at the boundary that owns them.
-* **Fail honestly.** Unknown outcomes are typed as unknown; refusals say what did not
+* **Say what failed.** Unknown outcomes are typed as unknown; refusals say what did not
   happen; a pinned model is never silently substituted.
 * **Everything recorded.** Tool calls, approvals, payments and updates write receipts under
   your profile.

@@ -52,9 +52,20 @@ then click **Open** again.
 
 ### Linux
 
-Download the tarball and its `.sha256` file, check it, then run the bundled installer.
-No sudo or system Python is needed. The full steps, the install locations and how to
-uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
+Download the tarball and its `.sha256` file from the release, check it, then run the
+bundled installer. No sudo or system Python is needed.
+
+```bash
+sha256sum -c vool-0.7.7-beta-linux-x86_64.tar.gz.sha256
+tar -xzf vool-0.7.7-beta-linux-x86_64.tar.gz
+bash vool-0.7.7-beta-linux-x86_64/install.sh
+~/.local/bin/vool
+```
+
+VOOL installs into `~/.local/share/vool`, puts the `vool` command in `~/.local/bin` and adds
+an application menu entry. The desktop opens the chat in your browser; closing the browser
+does not stop VOOL. To remove VOOL, run `bash ~/.local/share/vool/current/uninstall.sh`.
+Your chats and settings stay in your profile.
 
 From 0.7.5 on, the Linux download updates inside VOOL. The new version is installed next to
 the old one. If it does not start properly, VOOL switches back by itself.

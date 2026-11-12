@@ -1,0 +1,32 @@
+---
+description: Kaip prie VOOL prijungti DI modelį: vietinį modelį, veikiantį jūsų kompiuteryje, arba debesijos tiekėją su jūsų pačių API raktu.
+translation: machine
+source_sha256: fdc85c0cf7cf8399666b8dd3d49ddbfb7cbe65ca7800be4630d88bd86053987a
+---
+
+# Modelio prijungimas
+
+VOOL nepateikiamas su modeliu. Modelį pasirenkate jūs, ir šis pasirinkimas lemia, ar užklausa
+lieka jūsų kompiuteryje, ar jį palieka.
+
+## Lokaliai
+
+Jei vietinė vykdymo aplinka įdiegta ir veikia, VOOL ją aptinka ir parodo jos modelių sąrašą.
+Pasirinkus vieną iš jų, indikatorius rodo Lokaliai. Išsamiau apie parengimą rašoma skyriuje
+[Vietinio modelio paleidimas](../../../guides/local-models.md).
+
+## Debesys
+
+Tiekėjo raktą pridėkite skiltyje **Nustatymai → API raktai**. Raktas saugomas šifruotame faile šiame
+kompiuteryje (žr. [Saugumo modelis](../../../trust/security.md#keys)) ir naudojamas užklausoms siųsti
+**iš jūsų kompiuterio tiesiai tiekėjui**.
+
+Pasirinkus debesijos modelį, indikatorius rodo tiekėjo pavadinimą, ir jis pasikeičia dar prieš
+išsiunčiant bet kokią užklausą.
+
+Konkrečiai OpenRouter eiga aprašyta skyriuje [OpenRouter prijungimas](../../../guides/openrouter.md).
+
+## Perjungimas
+
+Perjungus modelį, perjungiamas ir režimas. Indikatorius yra lemiamas: jei jis rodo Lokaliai,
+kita užklausa apdorojama šiame kompiuteryje.
