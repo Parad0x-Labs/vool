@@ -2371,6 +2371,18 @@ def handle_turn_frontdoor(
                     )
                 except Exception:
                     _ask_needs_web = False
+            if not _ask_is_live_data and not _ask_needs_web:
+                # The requirement authority can hold an ask to a web lookup that none of the reads above
+                # names ("can i legally use a photo from a news site on my blog"); the publication gate
+                # then withholds any answer no lookup backs. Read the same way here, so the person gets
+                # the web-off line instead of "That is not mentioned in the records I have" (red team
+                # round 3, W2, 2026-11-12).
+                try:
+                    from core.online_asks import requirements_want_a_lookup
+
+                    _ask_needs_web = requirements_want_a_lookup(effective_input, source_context)
+                except Exception:
+                    _ask_needs_web = False
             if _ask_needs_web or _ask_is_live_data:
                 # A question about someone this chat's own records name ("When will Tim leave for
                 # Ireland?") is answered from those records, which need no web: the lookup refusal

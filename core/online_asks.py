@@ -187,8 +187,42 @@ def _names_a_place(text: str) -> bool:
     return bool(pattern is not None and pattern.search(text))
 
 
+# What a country or carrier asks of a traveller: visas, entry permits, passports, vaccinations. These
+# rules change and differ by place, and "do I need a visa for a layover in doha" says "I" about the
+# traveller, not about the person's records. Red team round 3 (W3, 2026-11-12, v0.8 head 10, Web
+# lookups off): it was answered "I don't have that saved, and I looked through your other chats".
+_ENTRY_DOC = (
+    r"(?:visas?|e-?visas?|transit\s+visas?|esta|etias|eta|entry\s+(?:permits?|requirements?|rules?)|"
+    r"(?:work|residence|travel)\s+permits?|passports?|international\s+driving\s+(?:permits?|licen[cs]es?)|"
+    r"vaccin\w*|jabs?|yellow\s+fever|malaria\s+(?:pills|tablets)|covid\s+(?:tests?|pass(?:es)?))"
+)
+_ENTRY_RULE_RE = re.compile(
+    rf"\b(?:need|needs|needed|require[sd]?|requirements?|necessary|mandatory|have\s+to\s+(?:get|have|show))\b"
+    rf"[^.?!]{{0,40}}?\b{_ENTRY_DOC}\b"
+    rf"|\b{_ENTRY_DOC}\s+(?:requirements?|rules?|regulations?|policy|needed|required|necessary|free|on\s+arrival)\b"
+    rf"|\b{_ENTRY_DOC}\s+(?:do|does|will|would|should)\s+(?:i|we|you|they|one)\s+(?:need|have\s+to\s+get)\b"
+    r"|\bentry\s+(?:requirements?|rules?|restrictions?)\s+(?:for|to|of|in|into)\b",
+    re.IGNORECASE,
+)
+# The person's own copy of a document is a file or a record: "find my passport scan", "where is the
+# pdf of my visa", "when does my passport expire".
+_OWN_DOCUMENT_RE = re.compile(
+    rf"\b(?:my|our)\s+(?:\w+\s+)?{_ENTRY_DOC}\s+(?:scans?|copy|copies|photos?|pdfs?|files?|numbers?|expir\w*)\b"
+    r"|\b(?:scans?|copy|copies|photos?|pdfs?|files?)\s+of\s+(?:my|our)\b"
+    r"|\b(?:does|did|will)\s+(?:my|our)\b[^.?!]{0,30}\bexpire\b"
+    r"|\b(?:according\s+to|based\s+on|per|going\s+by|from|in)\s+(?:my|our)\s+(?:notes|records|chats?|files?|documents?|emails?)\b",
+    re.IGNORECASE,
+)
+
+
+def _entry_rule_ask(text: str) -> bool:
+    return bool(_ENTRY_RULE_RE.search(text)) and not _OWN_DOCUMENT_RE.search(text) and not _FROM_RECORDS_RE.search(text)
+
+
 def _public_fact_shape(text: str) -> bool:
     """The words alone: a public fact that changes, or fresh information."""
+    if _entry_rule_ask(text):
+        return True
     if _OWNER_RE.search(text) or _FROM_RECORDS_RE.search(text):
         return False
     local = bool(_LOCAL_THING_RE.search(text))
@@ -284,4 +318,54 @@ def asks_about_this_computer_or_project(text: str) -> bool:
     return bool(_THIS_COMPUTER_RE.search(value))
 
 
-__all__ = ["asks_about_this_computer_or_project", "asks_for_online_facts", "release_notes_are_authored"]
+
+# The person's own plans, bookings and records, and what they asked for or did ("when is my flight to
+# Lisbon?", "remind me to call the bank when it opens tomorrow"): their records answer these, or a
+# reminder is set, whatever the requirement authority reads into the words. "my blog" in "can i
+# legally use a photo from a news site on my blog" is where the photo goes, not what is asked about.
+_OWN_RECORD_RE = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'’-]+\s+)?(?:flights?|bookings?|reservations?|appointments?|orders?|tickets?|trips?|"
+    r"holidays?|hotels?|meetings?|invoices?|payments?|bills?|subscriptions?|accounts?|plans?|deliver(?:y|ies)|"
+    r"parcels?|packages?|shifts?|classes|lessons?|budget|savings|salary|rent|lease|loan|mortgage|policy|claim)\b"
+    r"|\bremind\s+(?:me|us)\b"
+    r"|\b(?:i|we)\s+(?:paid|booked|bought|saved|ordered|spent|wrote|noted|told|said|mentioned|decided|agreed|planned)\b"
+    r"|\b(?:did|have|had|was|were)\s+(?:i|we)\b",
+    re.IGNORECASE,
+)
+
+def requirements_want_a_lookup(text: str, source_context: dict | None = None) -> bool:
+    """Whether the requirement authority holds this ask to current information from the web, so the
+    publication gate will only let an answer out that a lookup backs.
+
+    Every door before the model has to read that the same way, or the turn reaches the gate with no
+    lookup and is withheld. Red team round 3 (W2, 2026-11-12, v0.8 head 10): "can i legally use a
+    photo from a news site on my blog" is held to a lookup by the requirement authority; with Web
+    lookups off it got "That is not mentioned in the records I have" instead of the web-off line, and
+    with them on "I didn't look anything up for this ... so I'm not sending it". A question about this
+    computer or this project, or one the turn's own material answers, is never held to the web.
+    """
+    value = " ".join(str(text or "").split())
+    if not value or len(value) > 2000:
+        return False
+    if asks_for_online_facts(value):
+        return True
+    head = value[:600]
+    if _THIS_COMPUTER_RE.search(head) or _OWN_DOCUMENT_RE.search(head) or _OWN_RECORD_RE.search(head):
+        return False
+    try:
+        from core.execution_requirements import requirements_for
+
+        need = requirements_for(value, source_context=source_context or {})
+    except Exception:
+        return False
+    if need.user_material_supplied or not need.current_information_required or not need.external_evidence_required:
+        return False
+    return any(str(toolset).startswith("web") for toolset in (need.allowed_toolsets or ()))
+
+
+__all__ = [
+    "asks_about_this_computer_or_project",
+    "asks_for_online_facts",
+    "release_notes_are_authored",
+    "requirements_want_a_lookup",
+]

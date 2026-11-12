@@ -231,12 +231,24 @@ def _agent_turn(session_id: str) -> bool:
         return False
 
 
-def _owned_by_another_lane(text: str, asked: str = "") -> bool:
+def _owned_by_another_lane(text: str, asked: str = "", source_context: dict[str, Any] | None = None) -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
         return True
     if _OWN_WRITING_RE.search(_RECORDS_SOURCE_RE.sub(" ", text)):
         return True
     typed = asked or text
+    try:
+        # A question about the world ("do i need a visa for a layover in doha", "can i legally use a
+        # photo from a news site on my blog") is the web's, or the web-off line's: no saved fact or
+        # other chat answers it. Red team round 3 (W2/W3, 2026-11-12, head 10): after the clean loop
+        # handed such an ask back, this lane answered "I don't have that saved, and I looked through
+        # your other chats" before the web switch was read.
+        from core.online_asks import requirements_want_a_lookup
+
+        if requirements_want_a_lookup(typed, source_context) or requirements_want_a_lookup(text, source_context):
+            return True
+    except Exception:
+        return True
     try:
         # Read as typed, before the recall grammar's rewrite: "show me my notes" lists the notes
         # (the operator's find_notes), and "find my chat about X" is the saved-chat search. Both
@@ -684,7 +696,7 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text, " ".join(str(question or "").split())) or _operator_store_ask(typed):
+    if _owned_by_another_lane(text, " ".join(str(question or "").split()), source_context) or _operator_store_ask(typed):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them
