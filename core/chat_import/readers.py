@@ -39,6 +39,12 @@ from core.chat_import.model import ImportedChat, ImportedMessage, ReadResult
 
 #: The single-document chat-history member, and the numbered parts of a split export.
 CONVERSATIONS_MEMBER = "conversations.json"
+#: Optional project list some account exports carry next to the chats. Its layout has no
+#: published schema, so only plain string fields of the expected names are used and any other
+#: shape is reported, never guessed at.
+PROJECTS_MEMBER = "projects.json"
+#: Largest single project document text kept as reviewed context.
+_MAX_PROJECT_DOCUMENT = 100_000
 _SPLIT_MEMBER = re.compile(r"^conversations-(\d{1,6})\.json$")
 
 _WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
@@ -135,7 +141,8 @@ def _parse_document(raw: bytes, limits: Limits) -> tuple[list | None, str | None
     return parsed, None
 
 
-def _load_conversations(path: os.PathLike[str] | str | io.BytesIO, limits: Limits) -> tuple[list | None, str | None]:
+def _load_conversations(path: os.PathLike[str] | str | io.BytesIO, limits: Limits,
+                        extras: dict | None = None) -> tuple[list | None, str | None]:
     """Open the archive safely and parse every chat-history member; exactly one result is None.
 
     Reads happen in memory only (``zipfile`` member reads, never extraction to disk), and each
@@ -175,11 +182,96 @@ def _load_conversations(path: os.PathLike[str] | str | io.BytesIO, limits: Limit
                 if parsed is None:
                     return None, problem
                 conversations.extend(parsed)
+            if extras is not None and PROJECTS_MEMBER in archive.namelist():
+                extras["projects"] = _read_projects(archive, budget, limits)
     except zipfile.BadZipFile:
         return None, "not_a_zip"
     except OSError:
         return None, "file_unreadable"
     return conversations, None
+
+
+def _read_projects(archive: zipfile.ZipFile, budget: int, limits: Limits) -> list | None:
+    """The optional project list, or None when it is present but unreadable."""
+    info = archive.getinfo(PROJECTS_MEMBER)
+    cap = min(limits.max_member_bytes, budget)
+    if info.file_size > cap:
+        return None
+    try:
+        with archive.open(PROJECTS_MEMBER) as handle:
+            raw = handle.read(cap + 1)
+    except (OSError, RuntimeError, ValueError, NotImplementedError, EOFError, zipfile.BadZipFile):
+        return None
+    if len(raw) > cap:
+        return None
+    parsed, problem = _parse_document(raw, limits)
+    return None if problem else parsed
+
+
+def _attach_projects(result: ReadResult, conversations: list, projects: list | None) -> ReadResult:
+    """Give each chat the instructions, description and documents of the project it names.
+
+    A chat is linked only by a project id it carries itself (``project_uuid`` or
+    ``project.uuid``); projects no chat names are reported, not spread over every chat."""
+    from dataclasses import replace
+
+    problems = list(result.problems)
+    if projects is None:
+        problems.append("projects_unreadable")
+        return replace(result, problems=tuple(dict.fromkeys(problems)))
+    by_id: dict[str, dict] = {}
+    for project in projects:
+        if isinstance(project, dict) and isinstance(project.get("uuid"), str) and project["uuid"]:
+            by_id[project["uuid"]] = project
+    if len(by_id) != len(projects):
+        problems.append("projects_unreadable")
+    links: dict[str, str] = {}
+    for conversation in conversations:
+        if not isinstance(conversation, dict) or not isinstance(conversation.get("uuid"), str):
+            continue
+        nested = conversation.get("project")
+        link = conversation.get("project_uuid") or (nested.get("uuid") if isinstance(nested, dict) else None)
+        if isinstance(link, str) and link:
+            links[conversation["uuid"]] = link
+    used: set[str] = set()
+    chats = []
+    for chat in result.chats:
+        project = by_id.get(links.get(chat.source_chat_id, ""))
+        if project is None:
+            if chat.source_chat_id in links:
+                problems.append("projects_unlinked")
+            chats.append(chat)
+            continue
+        used.add(project["uuid"])
+        context = dict(chat.context)
+        instructions = list(context.get("instructions", []))
+        notes = list(context.get("notes", []))
+        prompt = project.get("prompt_template")
+        if isinstance(prompt, str) and prompt.strip():
+            instructions.append({"text": prompt, "source": "project_instructions", "scope": "project"})
+        name = as_text(project.get("name")).strip()
+        description = as_text(project.get("description")).strip()
+        if name or description:
+            notes.append({"text": "\n".join(part for part in (name, description) if part), "source": "project", "scope": "project"})
+        documents = project.get("docs")
+        for document in documents if isinstance(documents, list) else []:
+            if not isinstance(document, dict):
+                problems.append("projects_unreadable")
+                continue
+            filename = as_text(document.get("filename")).strip()
+            content = as_text(document.get("content"))
+            if not content.strip():
+                continue
+            if len(content) > _MAX_PROJECT_DOCUMENT:
+                content = content[:_MAX_PROJECT_DOCUMENT]
+                problems.append("project_document_cut")
+            notes.append({"text": (filename + "\n\n" if filename else "") + content, "source": "project_document",
+                          "scope": "project"})
+        context.update(instructions=instructions, notes=notes, project_name=name)
+        chats.append(replace(chat, context=context))
+    if set(by_id) - used:
+        problems.append("projects_unlinked")
+    return replace(result, chats=tuple(chats), problems=tuple(dict.fromkeys(problems)))
 
 
 def _detect_reader(conversations: list) -> FormatReader | None:
@@ -208,24 +300,33 @@ def read(path: os.PathLike[str] | str, *, limits: Limits = DEFAULT_LIMITS) -> Re
     Never raises for bad input: a refusal or a skipped conversation comes back as a problem
     code on the result instead. Nothing is written anywhere.
     """
-    conversations, problem = _load_conversations(path, limits)
+    extras: dict = {}
+    conversations, problem = _load_conversations(path, limits, extras)
     if conversations is None:
         return refusal(problem or "file_unreadable")
     reader = _detect_reader(conversations)
     if reader is None:
         return refusal("format_unknown")
-    return read_all(reader.name, conversations, limits, reader.read_chat)
+    return _with_projects(reader, conversations, limits, extras)
 
 
 def read_bytes(data: bytes, *, limits: Limits = DEFAULT_LIMITS) -> ReadResult:
     """Read a picked archive without persisting its raw or ignored members."""
-    conversations, problem = _load_conversations(io.BytesIO(data), limits)
+    extras: dict = {}
+    conversations, problem = _load_conversations(io.BytesIO(data), limits, extras)
     if conversations is None:
         return refusal(problem or "file_unreadable")
     reader = _detect_reader(conversations)
     if reader is None:
         return refusal("format_unknown")
-    return read_all(reader.name, conversations, limits, reader.read_chat)
+    return _with_projects(reader, conversations, limits, extras)
+
+
+def _with_projects(reader: FormatReader, conversations: list, limits: Limits, extras: dict) -> ReadResult:
+    result = read_all(reader.name, conversations, limits, reader.read_chat)
+    if reader.name == "anthropic_export" and "projects" in extras:
+        result = _attach_projects(result, conversations, extras["projects"])
+    return result
 
 
 def read_all(source_format: str, conversations: list, limits: Limits, read_one: Any) -> ReadResult:

@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Файл експорту даних (.zip)",
     "chatimport.source.last_used": "Востаннє використано: {date}",
     "chatimport.source.none_found": "На цьому комп’ютері не знайдено інших ШІ-застосунків. Можна перенести чати з файлу експорту даних.",
+    "chatimport.source.terminal_agent": "Агент для програмування у вашому терміналі",
+    "chatimport.source.terminal_assistant": "Помічник із програмування у вашому терміналі",
+    "chatimport.source.command_line_assistant": "ШІ-помічник для командного рядка",
     "chatimport.file.pick_aria": "Файл експорту даних",
     "chatimport.file.help": "Більшість ШІ-застосунків дозволяють завантажити ваші дані в налаштуваннях. Виберіть отриманий файл .zip.",
     "chatimport.problem.too_large": "Це завеликий обсяг, щоб безпечно його прочитати.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Деякі чати траплялися двічі й показані один раз.",
     "chatimport.problem.unreadable": "Частину даних не вдалося прочитати, і її пропущено.",
     "chatimport.problem.file": "Цей файл не вдалося прочитати як експорт чатів.",
+    "chatimport.problem.projects": "Деякі дані проєкту не вдалося прочитати або пов’язати з чатом. Додайте інструкції проєкту під час перевірки.",
+    "chatimport.problem.cut": "Деякі довгі документи проєкту скорочено, щоб вони вмістилися в ліміт імпорту.",
     "chatimport.error.busy": "Імпорт уже триває. Дочекайтеся його завершення.",
     "chatimport.error.stale": "Цей список застарів. Покажіть чати ще раз.",
     "chatimport.error.empty_file": "Цей файл порожній.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Увімкнено",
     "settings.switch.off": "Вимкнено"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

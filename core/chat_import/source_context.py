@@ -15,10 +15,18 @@ from typing import Any
 
 from core.chat_import.model import ImportedChat
 
+CODEX_FORMAT = "codex_rollout_jsonl"
+CLAUDE_CODE_FORMAT = "claude_code_jsonl"
+GEMINI_FORMAT = "gemini_cli_session"
+#: The tool's user settings file next to its folder also keeps per-project history, so it is
+#: allowed to be larger; only tool-server commands are ever decoded from it.
+MAX_USER_CONFIG = 64 << 20
+
 MAX_FILE = 1 << 20
+_STRING_SPECIAL = re.compile(rb'["\\\x00-\x1f]')
 MAX_TEXT = 20_000
 MAX_ITEMS = 100
-_SERVER = {"command": True, "args": [True], "cwd": True, "url": True}
+_SERVER = {"command": True, "args": [True], "cwd": True, "url": True, "type": True}
 _JOB = {"id": True, "name": True, "prompt": True, "next_run_at": True,
         "schedule": {"kind": True, "expr": True, "minutes": True, "run_at": True,
                      "at": True, "everyMs": True, "tz": True},
@@ -30,12 +38,14 @@ _CONFIG = {"model": {"@scalar": True, "default": True, "provider": True}, "termi
            "version": True, "jobs": [_JOB]}
 
 
-def project_json(raw: bytes, schema: Any) -> Any:
+def project_json(raw: bytes, schema: Any, limit: int = MAX_FILE) -> Any:
     """Parse structure while skipping unselected scalar values without decoding them."""
-    if len(raw) > MAX_FILE:
+    if len(raw) > limit:
         raise ValueError("context file too large")
     index = 0
     nodes = 0
+    # A larger settings file (one that also keeps the tool's history) gets a proportional budget.
+    node_limit = 20_000 if limit <= MAX_FILE else limit // 8
 
     def whitespace():
         nonlocal index
@@ -49,6 +59,12 @@ def project_json(raw: bytes, schema: Any) -> Any:
             raise ValueError("invalid configuration")
         index += 1
         while index < len(raw):
+            # Jump over plain string bytes in one step; only quotes, escapes and control
+            # characters need a closer look.
+            special = _STRING_SPECIAL.search(raw, index)
+            if special is None:
+                break
+            index = special.start()
             char = raw[index]
             index += 1
             if char == 34:
@@ -70,7 +86,7 @@ def project_json(raw: bytes, schema: Any) -> Any:
     def value(shape: Any, depth: int = 0):
         nonlocal index, nodes
         nodes += 1
-        if depth > 32 or nodes > 20_000:
+        if depth > 32 or nodes > node_limit:
             raise ValueError("configuration limit")
         whitespace()
         char = raw[index:index + 1]
@@ -131,6 +147,107 @@ def project_json(raw: bytes, schema: Any) -> Any:
     return result
 
 
+_TOML_KEY = re.compile(r'\s*((?:[A-Za-z0-9_-]+|"[^"\\\n]*")(?:\s*\.\s*(?:[A-Za-z0-9_-]+|"[^"\\\n]*"))*)\s*=\s*')
+
+
+def _toml_key(text: str) -> tuple[str, ...]:
+    return tuple(part.strip().strip('"') for part in re.findall(r'[A-Za-z0-9_-]+|"[^"\\\n]*"', text))
+
+
+def _toml_value_end(text: str, start: int) -> int:
+    """Index just past one TOML value starting at ``start`` (strings, arrays and inline tables)."""
+    index, depth = start, 0
+    while index < len(text):
+        for quote in ('"""', "'''"):
+            if text.startswith(quote, index):
+                end = text.find(quote, index + 3)
+                if end < 0:
+                    raise ValueError("invalid configuration")
+                while text.startswith(quote[0], end + 3):
+                    end += 1
+                index = end + 3
+                break
+        else:
+            char = text[index]
+            if char == '"':
+                index += 1
+                while index < len(text) and text[index] != '"':
+                    if text[index] == "\n":
+                        raise ValueError("invalid configuration")
+                    index += 2 if text[index] == "\\" else 1
+                index += 1
+            elif char == "'":
+                end = text.find("'", index + 1)
+                if end < 0 or "\n" in text[index:end]:
+                    raise ValueError("invalid configuration")
+                index = end + 1
+            elif char in "[{":
+                depth += 1
+                index += 1
+            elif char in "]}":
+                depth -= 1
+                index += 1
+            elif char == "#" and depth >= 0:
+                end = text.find("\n", index)
+                index = len(text) if end < 0 else end
+            elif char == "\n" and depth == 0:
+                return index
+            else:
+                index += 1
+            if depth < 0:
+                raise ValueError("invalid configuration")
+    if depth:
+        raise ValueError("invalid configuration")
+    return index
+
+
+def project_toml(raw: bytes) -> dict:
+    """Allowlisted agent settings from a TOML file: the model names and each tool server's
+    command, args, url and enabled flag. Every other value (env, headers, tokens, oauth) is
+    stepped over as text and never decoded. Inline-table server definitions are not projected."""
+    import tomllib
+
+    if len(raw) > MAX_FILE:
+        raise ValueError("context file too large")
+    text = raw.decode("utf-8")
+    result: dict = {}
+    table: tuple[str, ...] | None = ()
+    index = 0
+    while index < len(text):
+        line_end = text.find("\n", index)
+        line_end = len(text) if line_end < 0 else line_end
+        line = text[index:line_end].strip()
+        if not line or line.startswith("#"):
+            index = line_end + 1
+            continue
+        header = re.fullmatch(r'(\[\[?)\s*([^\[\]]+?)\s*\]\]?\s*(#.*)?', line)
+        if header:
+            table = None if header.group(1) == "[[" else _toml_key(header.group(2))
+            index = line_end + 1
+            continue
+        match = _TOML_KEY.match(text, index)
+        if not match:
+            raise ValueError("invalid configuration")
+        end = _toml_value_end(text, match.end())
+        key = _toml_key(match.group(1))
+        path = (table or ()) + key if table is not None else None
+        selected = path is not None and (
+            path in {("model",), ("model_provider",)}
+            or (len(path) == 3 and path[0] == "mcp_servers" and path[2] in {"command", "args", "url", "enabled"}))
+        if path is not None and len(path) == 2 and path[0] == "mcp_servers":
+            result.setdefault("mcp_servers", {}).setdefault(path[1], {})["@inline"] = True
+        if selected:
+            value = tomllib.loads("v = " + text[match.end():end].strip())["v"]
+            if path[0] == "mcp_servers":
+                result.setdefault("mcp_servers", {}).setdefault(path[1], {})[path[2]] = value
+            else:
+                result[path[0]] = value
+        elif path is not None and len(path) >= 2 and path[0] == "mcp_servers":
+            result.setdefault("mcp_servers", {}).setdefault(path[1], {})
+        index = end + 1
+    return result
+
+
 def _project_yaml(raw: bytes, schema: dict | None = None) -> dict:
     """Block-mapping subset used by the documented profile settings.
 
@@ -177,7 +294,7 @@ def _project_yaml(raw: bytes, schema: dict | None = None) -> dict:
     return result
 
 
-def _read(root: Path, relative: str) -> bytes | None:
+def _read(root: Path, relative: str, limit: int = MAX_FILE) -> bytes | None:
     """Read regular files through directory fds; reject links at every component."""
     parts = Path(relative).parts
     if not parts or any(part in {"", ".", ".."} for part in parts) or Path(relative).is_absolute():
@@ -193,14 +310,14 @@ def _read(root: Path, relative: str) -> bytes | None:
                              | getattr(os, "O_NONBLOCK", 0), dir_fd=directory)
         descriptors.append(descriptor)
         info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_FILE:
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
             raise ValueError("context file limit")
         chunks = []
         total = 0
-        while chunk := os.read(descriptor, min(65536, MAX_FILE + 1 - total)):
+        while chunk := os.read(descriptor, min(65536, limit + 1 - total)):
             chunks.append(chunk)
             total += len(chunk)
-            if total > MAX_FILE:
+            if total > limit:
                 raise ValueError("context file limit")
         return b"".join(chunks)
     except FileNotFoundError:
@@ -283,23 +400,32 @@ def review(chat: ImportedChat, *, root: str, additional_instructions: str = "", 
         roots.append((Path(str(profile)), "chat"))
     for source_root, scope in roots:
         instructions = ["AGENTS.md", "CLAUDE.md", "SOUL.md", ".cursorrules"]
+        first_only = chat.source_format == "hermes_state_db" and scope == "project"
         if chat.source_format == "hermes_state_db":
             # Global identity is independent of project-file precedence. Never
             # traverse parents outside the explicitly reviewed folder grant.
             instructions = ["SOUL.md"] if scope == "chat" else [
                 ".hermes.md", "HERMES.md", "AGENTS.override.md", "AGENTS.md", "CLAUDE.md", ".cursorrules"]
+        elif chat.source_format in (CLAUDE_CODE_FORMAT, GEMINI_FORMAT):
+            instructions = []  # read below in the tool's own order, with its imports
+        elif chat.source_format == CODEX_FORMAT:
+            # The agent reads one file per folder: the override when it is non-empty, else
+            # AGENTS.md, both in its own folder and in the project folder.
+            instructions, first_only = ["AGENTS.override.md", "AGENTS.md"], True
         for filename in instructions:
             try:
                 raw = _read(source_root, filename)
                 if raw is not None:
                     text_item(raw.decode("utf-8"), "instructions", filename, scope)
-                    if chat.source_format == "hermes_state_db" and scope == "project":
+                    # The agent formerly read here stops at the first file present, even an empty
+                    # one; the terminal coding agent skips an empty override.
+                    if first_only and (raw.strip() or chat.source_format != CODEX_FORMAT):
                         break
             except (OSError, UnicodeError, ValueError):
                 result["warnings"].append("context_unreadable")
                 # A higher-priority file exists but is unreadable. Do not
                 # silently substitute a contradictory lower-priority file.
-                if chat.source_format == "hermes_state_db" and scope == "project":
+                if first_only:
                     break
         for filename, category in (("MEMORY.md", "memories"),
                                    ("USER.md", "memories"), ("memories/MEMORY.md", "memories"),
@@ -311,7 +437,10 @@ def review(chat: ImportedChat, *, root: str, additional_instructions: str = "", 
             except (OSError, UnicodeError, ValueError):
                 result["warnings"].append("context_unreadable")
         _daily_memories(source_root, scope, result, text_item)
-        _editor_rules(source_root, scope, result, text_item)
+        if scope == "project" or chat.source_format not in (CODEX_FORMAT, CLAUDE_CODE_FORMAT, GEMINI_FORMAT):
+            # These tools keep thousands of session folders in their own folder; editor rules
+            # only ever live in a project.
+            _editor_rules(source_root, scope, result, text_item)
         for filename in ("config.yaml", "openclaw.json", ".cursor/mcp.json", "mcp.json"):
             try:
                 raw = _read(source_root, filename)
@@ -321,6 +450,20 @@ def review(chat: ImportedChat, *, root: str, additional_instructions: str = "", 
                 _config_items(config, result, filename)
             except (OSError, ValueError):
                 result["warnings"].append("context_unreadable")
+        if chat.source_format == CLAUDE_CODE_FORMAT:
+            _claude_code_context(chat, source_root, scope, result, text_item)
+        if chat.source_format == GEMINI_FORMAT:
+            _gemini_context(source_root, scope, result, text_item)
+        if chat.source_format == CODEX_FORMAT:
+            for filename in (".codex/config.toml",) if scope == "project" else ("config.toml",):
+                try:
+                    raw = _read(source_root, filename)
+                    if raw:
+                        _config_items(project_toml(raw), result, filename)
+                except (OSError, UnicodeError, ValueError):
+                    result["warnings"].append("context_unreadable")
+            if scope == "chat":
+                _prompt_drafts(source_root, result)
         for folder in ("skills", ".cursor/skills"):
             directory = source_root / folder
             if directory.is_dir() and not directory.is_symlink():
@@ -348,6 +491,8 @@ def review(chat: ImportedChat, *, root: str, additional_instructions: str = "", 
             result["warnings"].append("context_unreadable")
     for source_root, _scope in roots:
         _shared_schedules(source_root, result)
+    if chat.source_format == "anthropic_export":
+        _desktop_tool_servers(result)
     result["models"] = list(dict.fromkeys([*result["models"], *(clean_text(x) for x in context.get("models", []))]))
     references = [*context.get("file_references", []), *(name for message in chat.messages for name in message.attachment_names)]
     for item in [*result["instructions"], *result["memories"], *result["notes"]]:
@@ -417,16 +562,23 @@ def _config_items(config: dict, result: dict, source: str) -> None:
             if not isinstance(server, dict):
                 continue
             command, args = server.get("command"), server.get("args") or []
-            if isinstance(command, str) and isinstance(args, list) and all(isinstance(x, str) for x in args):
+            if server.get("type") not in (None, "stdio"):
+                result["warnings"].append("tool_transport_unsupported")
+            elif isinstance(command, str) and isinstance(args, list) and all(isinstance(x, str) for x in args):
                 if any(contains_secret(x) or "${" in x for x in [str(name), command, *args]):
                     result["warnings"].append("credentials_omitted")
                     continue
                 result["tools"].append({"name": clean_text(name), "command": command, "args": args, "source": source})
             elif server.get("url"):
                 result["warnings"].append("tool_transport_unsupported")
+            elif server.get("@inline"):
+                result["warnings"].append("context_unreadable")
     model = config.get("model") or {}
     if isinstance(model, str) and not contains_secret(model):
         result["models"].append(model)
+    provider = config.get("model_provider")
+    if isinstance(provider, str) and provider and not contains_secret(provider):
+        result["providers"].append(clean_text(provider))
     if isinstance(model, dict):
         if model.get("default") and not contains_secret(str(model["default"])):
             result["models"].append(clean_text(model["default"]))
@@ -582,3 +734,256 @@ def _shared_schedules(root: Path, result: dict) -> None:
                                                 "name": clean_text(job.get("name") or ""), "source": "shared_state"})
     except (OSError, sqlite3.DatabaseError, SnapshotError, ValueError):
         result["warnings"].append("schedule_store_unreadable")
+
+
+def _prompt_drafts(root: Path, result: dict) -> None:
+    """Saved prompt files (``prompts/*.md``, top level only) become inert local drafts."""
+    directory = root / "prompts"
+    if not directory.is_dir() or directory.is_symlink():
+        return
+    try:
+        names = sorted(entry.name for entry in os.scandir(directory)
+                       if entry.name.endswith(".md") and entry.is_file(follow_symlinks=False))
+    except OSError:
+        result["warnings"].append("context_unreadable")
+        return
+    if len(names) > MAX_ITEMS:
+        result["warnings"].append("context_limit")
+    for name in names[:MAX_ITEMS]:
+        if len(result["skills"]) >= MAX_ITEMS:
+            result["warnings"].append("context_limit")
+            return
+        try:
+            raw = _read(root, "prompts/" + name)
+            if raw:
+                result["skills"].append({"name": clean_text(name[:-3]), "body": clean_text(raw.decode("utf-8")),
+                                         "source": "prompts/" + name})
+        except (OSError, UnicodeError, ValueError):
+            result["warnings"].append("context_unreadable")
+
+
+def _front_matter(text: str) -> tuple[dict, str]:
+    """Simple ``---`` front matter (name, description, paths) and the body after it."""
+    if not text.startswith("---\n"):
+        return {}, text
+    front, separator, body = text[4:].partition("\n---")
+    if not separator:
+        raise ValueError("unterminated metadata")
+    return _project_yaml(front.encode(), {"name": True, "description": True, "paths": True, "globs": True}), body.lstrip("-\n")
+
+
+_IMPORT = re.compile(r"(?<![\w`@])@((?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_.\-]+)")
+
+
+def _with_imports(root: Path, relative: str, text: str, depth: int, result: dict, seen: set[str],
+                  max_depth: int = 4) -> str:
+    """Inline ``@path`` imports that stay inside ``root`` (four hops at most, as the tool does).
+
+    Imports inside code are left as written; absolute, home-relative and parent paths are never
+    followed and are reported."""
+    if depth >= max_depth:
+        return text
+    parts = text.split("```")
+    for index in range(0, len(parts), 2):
+        def replace(match):
+            target = match.group(1)
+            path = str(Path(relative).parent / target) if str(Path(relative).parent) != "." else target
+            if ".." in Path(target).parts or path in seen:
+                result["warnings"].append("context_unreadable")
+                return match.group(0)
+            try:
+                raw = _read(root, path)
+            except (OSError, ValueError):
+                raw = None
+            if raw is None:
+                return match.group(0)
+            try:
+                inner = raw.decode("utf-8")
+            except UnicodeError:
+                result["warnings"].append("context_unreadable")
+                return match.group(0)
+            return _with_imports(root, path, inner, depth + 1, result, seen | {path}, max_depth)
+        segments = parts[index].split("`")
+        for position in range(0, len(segments), 2):
+            segments[position] = _IMPORT.sub(replace, segments[position])
+        parts[index] = "`".join(segments)
+    return "```".join(parts)
+
+
+def _markdown_files(root: Path, folder: str, result: dict, *, recursive: bool = False) -> list[str]:
+    """Relative ``.md`` paths under ``root/folder`` (no links followed, bounded)."""
+    directory = root / folder
+    if not directory.is_dir() or directory.is_symlink():
+        return []
+    found: list[str] = []
+    for current, children, files in os.walk(directory, followlinks=False):
+        children[:] = sorted(name for name in children if not (Path(current) / name).is_symlink()) if recursive else []
+        for name in sorted(files):
+            if name.endswith(".md") and not (Path(current) / name).is_symlink():
+                found.append(str(Path(current, name).relative_to(root)))
+                if len(found) > MAX_ITEMS:
+                    result["warnings"].append("context_limit")
+                    return found[:MAX_ITEMS]
+    return found
+
+
+def _claude_code_context(chat: ImportedChat, root: Path, scope: str, result: dict, text_item) -> None:
+    """The terminal coding assistant's instructions, rules, memory, drafts, tool servers and model."""
+    from core.secret_redaction import contains_secret
+
+    def read_text(relative: str, limit: int = MAX_FILE) -> str | None:
+        try:
+            raw = _read(root, relative, limit)
+            return None if raw is None else raw.decode("utf-8")
+        except (OSError, UnicodeError, ValueError):
+            result["warnings"].append("context_unreadable")
+            return None
+
+    # Instructions: every present file, in the tool's order; AGENTS.md only when none exists.
+    names = ["CLAUDE.md"] if scope == "chat" else ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"]
+    present = False
+    for name in names:
+        text = read_text(name)
+        if text is not None:
+            present = True
+            text_item(_with_imports(root, name, text, 0, result, {name}), "instructions", name, scope)
+    if scope == "project" and not present:
+        text = read_text("AGENTS.md")
+        if text is not None:
+            text_item(text, "instructions", "AGENTS.md", scope)
+    # Rules: unconditional ones are instructions; ones limited to some paths become drafts.
+    for relative in _markdown_files(root, "rules" if scope == "chat" else ".claude/rules", result, recursive=True):
+        text = read_text(relative)
+        if not text:
+            continue
+        try:
+            metadata, body = _front_matter(text)
+        except ValueError:
+            result["warnings"].append("context_unreadable")
+            continue
+        if metadata.get("paths") or metadata.get("globs"):
+            result["skills"].append({"name": clean_text(relative), "body": clean_text(relative + "\n\n" + text), "source": relative})
+            result["notices"].append("conditional_rules_staged")
+        else:
+            text_item(body, "instructions", relative, scope)
+    # Agents and saved commands become inert drafts; project skills too.
+    prefix = "" if scope == "chat" else ".claude/"
+    for folder in ("agents", "commands"):
+        for relative in _markdown_files(root, prefix + folder, result):
+            text = read_text(relative)
+            if text and len(result["skills"]) < MAX_ITEMS:
+                result["skills"].append({"name": clean_text(Path(relative).stem), "body": clean_text(text), "source": relative})
+    if scope == "project":
+        directory = root / ".claude" / "skills"
+        if directory.is_dir() and not directory.is_symlink():
+            for path in sorted(directory.iterdir())[:MAX_ITEMS]:
+                if path.is_dir() and not path.is_symlink():
+                    text = read_text(f".claude/skills/{path.name}/SKILL.md")
+                    if text and len(result["skills"]) < MAX_ITEMS:
+                        result["skills"].append({"name": clean_text(path.name), "body": clean_text(text),
+                                                 "source": f".claude/skills/{path.name}/SKILL.md"})
+    # The project's automatic memory folder (an index file and topic notes).
+    memory = str(chat.context.get("project_memory") or "")
+    if scope == "chat" and re.fullmatch(r"projects/[A-Za-z0-9_-]+/memory", memory):
+        files = _markdown_files(root, memory, result)
+        for relative in sorted(files, key=lambda item: (not item.endswith("/MEMORY.md"), item)):
+            text = read_text(relative)
+            if text:
+                text_item(text, "memories", relative.split("/memory/", 1)[-1], scope)
+    # Model setting.
+    raw = read_text("settings.json" if scope == "chat" else ".claude/settings.json")
+    if raw:
+        try:
+            model = project_json(raw.encode("utf-8"), {"model": True}).get("model")
+            if isinstance(model, str) and model and not contains_secret(model):
+                result["models"].append(clean_text(model))
+        except ValueError:
+            result["warnings"].append("context_unreadable")
+    # Tool servers: the project's shared file, and the user file next to the tool's folder
+    # (its own entries and the ones saved for this working folder).
+    if scope == "project":
+        raw = read_text(".mcp.json")
+        if raw:
+            try:
+                _config_items(project_json(raw.encode("utf-8"), {"mcpServers": {"*": _SERVER}}), result, ".mcp.json")
+            except ValueError:
+                result["warnings"].append("context_unreadable")
+        return
+    if root.name != ".claude":
+        return
+    try:
+        raw_bytes = _read(root.parent, ".claude.json", MAX_USER_CONFIG)
+    except (OSError, ValueError):
+        result["warnings"].append("context_unreadable")
+        return
+    if not raw_bytes:
+        return
+    try:
+        config = project_json(raw_bytes, {"mcpServers": {"*": _SERVER}, "projects": {"*": {"mcpServers": {"*": _SERVER}}}},
+                              MAX_USER_CONFIG)
+    except ValueError:
+        result["warnings"].append("context_unreadable")
+        return
+    _config_items({"mcpServers": config.get("mcpServers") or {}}, result, ".claude.json")
+    workspace = str(chat.context.get("workspace_hint") or "")
+    project = (config.get("projects") or {}).get(workspace) if workspace else None
+    if isinstance(project, dict):
+        _config_items({"mcpServers": project.get("mcpServers") or {}}, result, ".claude.json")
+
+
+#: Where the desktop app of the same account keeps its local tool-server file (documented for
+#: macOS; the Linux location follows the same folder convention).
+DESKTOP_CONFIG_DIRS = ("Library/Application Support/Claude", ".config/Claude")
+
+
+def _desktop_tool_servers(result: dict, home: Path | None = None) -> None:
+    """Tool servers from the desktop app's local file, as disabled entries; env never decoded."""
+    base = Path.home() if home is None else home
+    for folder in DESKTOP_CONFIG_DIRS:
+        directory = base / folder
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        try:
+            raw = _read(directory, "claude_desktop_config.json")
+            if raw:
+                _config_items(project_json(raw, {"mcpServers": {"*": _SERVER}}), result, "claude_desktop_config.json")
+        except (OSError, ValueError):
+            result["warnings"].append("context_unreadable")
+        return
+
+
+_GEMINI_SERVER = {"command": True, "args": [True], "cwd": True, "url": True, "httpUrl": True}
+
+
+def _gemini_context(root: Path, scope: str, result: dict, text_item) -> None:
+    """The command-line assistant's context file (with imports, five levels), model and tool servers."""
+    from core.secret_redaction import contains_secret
+
+    name = "GEMINI.md"
+    try:
+        raw = _read(root, name)
+        if raw is not None:
+            text_item(_with_imports(root, name, raw.decode("utf-8"), 0, result, {name}, 5), "instructions", name, scope)
+    except (OSError, UnicodeError, ValueError):
+        result["warnings"].append("context_unreadable")
+    relative = "settings.json" if scope == "chat" else ".gemini/settings.json"
+    try:
+        raw = _read(root, relative)
+        if not raw:
+            return
+        settings = project_json(raw, {"model": {"name": True}, "mcpServers": {"*": _GEMINI_SERVER},
+                                      "context": {"fileName": True}})
+    except (OSError, ValueError):
+        result["warnings"].append("context_unreadable")
+        return
+    model = (settings.get("model") or {}).get("name")
+    if isinstance(model, str) and model and not contains_secret(model):
+        result["models"].append(clean_text(model))
+    if (settings.get("context") or {}).get("fileName") not in (None, name):
+        result["warnings"].append("context_unreadable")  # a renamed context file is not guessed at
+    servers = {}
+    for server_name, server in (settings.get("mcpServers") or {}).items():
+        if isinstance(server, dict) and server.get("httpUrl") and not server.get("url"):
+            server = {**server, "url": server["httpUrl"]}
+        servers[server_name] = server
+    _config_items({"mcpServers": servers}, result, relative)

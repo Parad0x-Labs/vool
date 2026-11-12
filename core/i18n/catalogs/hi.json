@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "एक डेटा एक्सपोर्ट फ़ाइल (.zip)",
     "chatimport.source.last_used": "पिछली बार उपयोग: {date}",
     "chatimport.source.none_found": "इस कंप्यूटर पर कोई दूसरा AI ऐप नहीं मिला। आप डेटा एक्सपोर्ट फ़ाइल से चैट ला सकते हैं।",
+    "chatimport.source.terminal_agent": "आपके टर्मिनल में कोडिंग एजेंट",
+    "chatimport.source.terminal_assistant": "आपके टर्मिनल में कोडिंग सहायक",
+    "chatimport.source.command_line_assistant": "कमांड लाइन के लिए AI सहायक",
     "chatimport.file.pick_aria": "डेटा एक्सपोर्ट फ़ाइल",
     "chatimport.file.help": "ज़्यादातर AI ऐप्स अपनी सेटिंग्स से आपका डेटा डाउनलोड करने देते हैं। आपको मिली .zip फ़ाइल चुनें।",
     "chatimport.problem.too_large": "यह सुरक्षित रूप से पढ़ने के लिए बहुत बड़ा है।",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "कुछ चैट दो बार थीं और एक बार दिखाई गई हैं।",
     "chatimport.problem.unreadable": "इसका कुछ हिस्सा पढ़ा नहीं जा सका और छोड़ दिया गया।",
     "chatimport.problem.file": "यह फ़ाइल चैट एक्सपोर्ट के रूप में नहीं पढ़ी जा सकी।",
+    "chatimport.problem.projects": "कुछ प्रोजेक्ट विवरण पढ़े नहीं जा सके या किसी चैट से नहीं जुड़ सके। समीक्षा के दौरान प्रोजेक्ट निर्देश जोड़ें।",
+    "chatimport.problem.cut": "कुछ लंबे प्रोजेक्ट दस्तावेज़ आयात सीमा में आने के लिए छोटे किए गए।",
     "chatimport.error.busy": "एक आयात पहले से चल रहा है। उसके पूरा होने तक रुकें।",
     "chatimport.error.stale": "यह सूची पुरानी हो गई है। अपनी चैट फिर से दिखाएँ।",
     "chatimport.error.empty_file": "यह फ़ाइल खाली है।",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "चालू",
     "settings.switch.off": "बंद"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

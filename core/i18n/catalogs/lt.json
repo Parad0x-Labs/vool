@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Duomenų eksporto failas (.zip)",
     "chatimport.source.last_used": "Paskutinį kartą naudota {date}",
     "chatimport.source.none_found": "Šiame kompiuteryje kitų DI programėlių nerasta. Pokalbius galite perkelti iš duomenų eksporto failo.",
+    "chatimport.source.terminal_agent": "Programavimo agentas jūsų terminale",
+    "chatimport.source.terminal_assistant": "Programavimo asistentas jūsų terminale",
+    "chatimport.source.command_line_assistant": "DI asistentas komandinei eilutei",
     "chatimport.file.pick_aria": "Duomenų eksporto failas",
     "chatimport.file.help": "Daugelis DI programėlių leidžia atsisiųsti jūsų duomenis per nustatymus. Pasirinkite gautą .zip failą.",
     "chatimport.problem.too_large": "Tai per didelis, kad būtų galima saugiai perskaityti.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Kai kurie pokalbiai pasikartojo ir rodomi vieną kartą.",
     "chatimport.problem.unreadable": "Dalies nepavyko perskaityti, todėl ji praleista.",
     "chatimport.problem.file": "Šio failo nepavyko perskaityti kaip pokalbių eksporto.",
+    "chatimport.problem.projects": "Kai kurių projekto duomenų nepavyko perskaityti arba susieti su pokalbiu. Projekto instrukcijas pridėkite peržiūros metu.",
+    "chatimport.problem.cut": "Kai kurie ilgi projekto dokumentai sutrumpinti, kad tilptų į importo ribą.",
     "chatimport.error.busy": "Importas jau vyksta. Palaukite, kol jis baigsis.",
     "chatimport.error.stale": "Šis sąrašas pasenęs. Parodykite pokalbius dar kartą.",
     "chatimport.error.empty_file": "Šis failas tuščias.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Įjungta",
     "settings.switch.off": "Išjungta"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

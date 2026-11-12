@@ -62,6 +62,9 @@ FAMILY_OF_FORMAT = {
     "openclaw_agent_db": "local-assistant",
     "openclaw_jsonl": "local-assistant",
     "cursor_state_vscdb": "local-code-editor",
+    "codex_rollout_jsonl": "local-terminal-agent",
+    "claude_code_jsonl": "local-terminal-assistant",
+    "gemini_cli_session": "local-command-line-assistant",
 }
 
 _TITLE_CHARS = 80

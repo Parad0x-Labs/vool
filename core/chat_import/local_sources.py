@@ -18,7 +18,14 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.chat_import import local_agent_sessions_db, local_editor_kv, local_transcript_tree
+from core.chat_import import (
+    local_agent_sessions_db,
+    local_cli_sessions,
+    local_editor_kv,
+    local_project_transcripts,
+    local_rollout_sessions,
+    local_transcript_tree,
+)
 from core.chat_import.common import DEFAULT_LIMITS, Limits
 from core.chat_import.model import ReadResult
 
@@ -67,10 +74,39 @@ def _cursor_read(home: Path, env: dict[str, str], platform: str, limits: Limits,
                                        for chat in result.chats))
 
 
+def _codex_paths(home: Path, env: dict[str, str], platform: str) -> list[Path]:
+    return local_rollout_sessions.store_paths(home, env)
+
+
+def _codex_read(home: Path, env: dict[str, str], platform: str, limits: Limits, work_dir: str | None) -> ReadResult:
+    return local_rollout_sessions.read_stores(local_rollout_sessions.store_paths(home, env), limits)
+
+
+def _claude_code_paths(home: Path, env: dict[str, str], platform: str) -> list[Path]:
+    return local_project_transcripts.store_paths(home, env)
+
+
+def _claude_code_read(home: Path, env: dict[str, str], platform: str, limits: Limits, work_dir: str | None) -> ReadResult:
+    return local_project_transcripts.read_stores(local_project_transcripts.store_paths(home, env), limits)
+
+
+def _gemini_paths(home: Path, env: dict[str, str], platform: str) -> list[Path]:
+    return local_cli_sessions.store_paths(home, env)
+
+
+def _gemini_read(home: Path, env: dict[str, str], platform: str, limits: Limits, work_dir: str | None) -> ReadResult:
+    return local_cli_sessions.read_stores(local_cli_sessions.store_paths(home, env), limits)
+
+
 SOURCES: tuple[LocalSource, ...] = (
     LocalSource(id="local_code_editor", family="cursor", kind="code_editor", paths=_cursor_paths, reader=_cursor_read),
     LocalSource(id="local_agent", family="hermes", kind="ai_agent", paths=_hermes_paths, reader=_hermes_read),
     LocalSource(id="local_assistant", family="openclaw", kind="assistant", paths=_openclaw_paths, reader=_openclaw_read),
+    LocalSource(id="local_terminal_agent", family="codex", kind="terminal_agent", paths=_codex_paths, reader=_codex_read),
+    LocalSource(id="local_terminal_assistant", family="claude-code", kind="terminal_assistant",
+                paths=_claude_code_paths, reader=_claude_code_read),
+    LocalSource(id="local_command_line_assistant", family="gemini-cli", kind="command_line_assistant",
+                paths=_gemini_paths, reader=_gemini_read),
 )
 
 _BY_ID = {source.id: source for source in SOURCES}

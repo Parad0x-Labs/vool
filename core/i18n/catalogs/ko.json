@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "데이터 내보내기 파일(.zip)",
     "chatimport.source.last_used": "마지막 사용: {date}",
     "chatimport.source.none_found": "이 컴퓨터에서 다른 AI 앱을 찾지 못했습니다. 데이터 내보내기 파일에서 채팅을 가져올 수 있습니다.",
+    "chatimport.source.terminal_agent": "터미널에서 실행되는 코딩 에이전트",
+    "chatimport.source.terminal_assistant": "터미널에서 실행되는 코딩 도우미",
+    "chatimport.source.command_line_assistant": "명령줄용 AI 도우미",
     "chatimport.file.pick_aria": "데이터 내보내기 파일",
     "chatimport.file.help": "대부분의 AI 앱은 설정에서 데이터를 내려받을 수 있습니다. 받은 .zip 파일을 선택하세요.",
     "chatimport.problem.too_large": "너무 커서 안전하게 읽을 수 없습니다.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "두 번 나타난 채팅은 한 번만 표시합니다.",
     "chatimport.problem.unreadable": "일부를 읽지 못해 제외했습니다.",
     "chatimport.problem.file": "이 파일을 채팅 내보내기로 읽을 수 없습니다.",
+    "chatimport.problem.projects": "일부 프로젝트 정보를 읽거나 채팅과 연결하지 못했습니다. 검토할 때 프로젝트 지침을 추가하세요.",
+    "chatimport.problem.cut": "일부 긴 프로젝트 문서는 가져오기 한도에 맞게 줄였습니다.",
     "chatimport.error.busy": "이미 가져오기가 진행 중입니다. 끝날 때까지 기다리세요.",
     "chatimport.error.stale": "이 목록은 오래되었습니다. 채팅을 다시 표시하세요.",
     "chatimport.error.empty_file": "이 파일은 비어 있습니다.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "켜짐",
     "settings.switch.off": "꺼짐"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

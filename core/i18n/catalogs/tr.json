@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Bir veri dışa aktarma dosyası (.zip)",
     "chatimport.source.last_used": "Son kullanım: {date}",
     "chatimport.source.none_found": "Bu bilgisayarda başka yapay zekâ uygulaması bulunamadı. Sohbetleri bir veri dışa aktarma dosyasından getirebilirsiniz.",
+    "chatimport.source.terminal_agent": "Terminalinizdeki kodlama ajanı",
+    "chatimport.source.terminal_assistant": "Terminalinizdeki kodlama asistanı",
+    "chatimport.source.command_line_assistant": "Komut satırı için yapay zekâ asistanı",
     "chatimport.file.pick_aria": "Veri dışa aktarma dosyası",
     "chatimport.file.help": "Çoğu yapay zekâ uygulaması verilerinizi ayarlarından indirmenize izin verir. Aldığınız .zip dosyasını seçin.",
     "chatimport.problem.too_large": "Bu, güvenle okunamayacak kadar büyük.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Bazı sohbetler iki kez görünüyordu ve bir kez listelendi.",
     "chatimport.problem.unreadable": "Bir kısmı okunamadı ve dışarıda bırakıldı.",
     "chatimport.problem.file": "Bu dosya bir sohbet dışa aktarımı olarak okunamadı.",
+    "chatimport.problem.projects": "Bazı proje ayrıntıları okunamadı veya bir sohbetle eşleştirilemedi. Proje talimatlarını inceleme sırasında ekleyin.",
+    "chatimport.problem.cut": "Bazı uzun proje belgeleri içe aktarma sınırına sığması için kısaltıldı.",
     "chatimport.error.busy": "Zaten bir içe aktarma sürüyor. Bitmesini bekleyin.",
     "chatimport.error.stale": "Bu liste güncel değil. Sohbetlerinizi yeniden gösterin.",
     "chatimport.error.empty_file": "Bu dosya boş.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Açık",
     "settings.switch.off": "Kapalı"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

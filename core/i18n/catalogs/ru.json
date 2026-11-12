@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Файл экспорта данных (.zip)",
     "chatimport.source.last_used": "Последнее использование: {date}",
     "chatimport.source.none_found": "На этом компьютере не найдено других ИИ-приложений. Можно перенести чаты из файла экспорта данных.",
+    "chatimport.source.terminal_agent": "Агент для программирования в вашем терминале",
+    "chatimport.source.terminal_assistant": "Помощник по программированию в вашем терминале",
+    "chatimport.source.command_line_assistant": "ИИ-помощник для командной строки",
     "chatimport.file.pick_aria": "Файл экспорта данных",
     "chatimport.file.help": "Большинство ИИ-приложений позволяют скачать ваши данные в настройках. Выберите полученный файл .zip.",
     "chatimport.problem.too_large": "Это слишком большой объём, чтобы безопасно его прочитать.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Некоторые чаты встречались дважды и показаны один раз.",
     "chatimport.problem.unreadable": "Часть данных не удалось прочитать, и она пропущена.",
     "chatimport.problem.file": "Этот файл не удалось прочитать как экспорт чатов.",
+    "chatimport.problem.projects": "Некоторые данные проекта не удалось прочитать или связать с чатом. Добавьте инструкции проекта при проверке.",
+    "chatimport.problem.cut": "Некоторые длинные документы проекта были сокращены, чтобы уложиться в лимит импорта.",
     "chatimport.error.busy": "Импорт уже идёт. Дождитесь его завершения.",
     "chatimport.error.stale": "Этот список устарел. Покажите чаты ещё раз.",
     "chatimport.error.empty_file": "Этот файл пуст.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Включено",
     "settings.switch.off": "Отключено"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "数据导出文件（.zip）",
     "chatimport.source.last_used": "上次使用：{date}",
     "chatimport.source.none_found": "这台电脑上没有找到其他 AI 应用。你可以从数据导出文件带入聊天。",
+    "chatimport.source.terminal_agent": "终端中的编程智能体",
+    "chatimport.source.terminal_assistant": "终端中的编程助手",
+    "chatimport.source.command_line_assistant": "命令行 AI 助手",
     "chatimport.file.pick_aria": "数据导出文件",
     "chatimport.file.help": "大多数 AI 应用都可以在设置里下载你的数据。选择你收到的 .zip 文件。",
     "chatimport.problem.too_large": "文件太大，无法安全读取。",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "部分聊天出现了两次，只列出一次。",
     "chatimport.problem.unreadable": "有部分内容无法读取，已略过。",
     "chatimport.problem.file": "无法把此文件作为聊天导出文件读取。",
+    "chatimport.problem.projects": "部分项目信息无法读取或无法与聊天对应。请在审核时添加项目指令。",
+    "chatimport.problem.cut": "部分较长的项目文档已被缩短，以符合导入限制。",
     "chatimport.error.busy": "已有导入正在进行。请等它完成。",
     "chatimport.error.stale": "此列表已过期。请重新显示你的聊天。",
     "chatimport.error.empty_file": "此文件是空的。",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "开启",
     "settings.switch.off": "关闭"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

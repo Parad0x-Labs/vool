@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Eine Datenexport-Datei (.zip)",
     "chatimport.source.last_used": "Zuletzt verwendet am {date}",
     "chatimport.source.none_found": "Auf diesem Computer wurden keine anderen KI-Apps gefunden. Du kannst Chats aus einer Datenexport-Datei mitbringen.",
+    "chatimport.source.terminal_agent": "Ein Coding-Agent in deinem Terminal",
+    "chatimport.source.terminal_assistant": "Ein Coding-Assistent in deinem Terminal",
+    "chatimport.source.command_line_assistant": "Ein KI-Assistent für die Kommandozeile",
     "chatimport.file.pick_aria": "Datenexport-Datei",
     "chatimport.file.help": "Bei den meisten KI-Apps kannst du deine Daten in den Einstellungen herunterladen. Wähle die .zip-Datei, die du bekommen hast.",
     "chatimport.problem.too_large": "Das ist zu groß, um es sicher zu lesen.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Einige Chats kamen doppelt vor und werden einmal angezeigt.",
     "chatimport.problem.unreadable": "Ein Teil davon konnte nicht gelesen werden und wurde ausgelassen.",
     "chatimport.problem.file": "Diese Datei konnte nicht als Chat-Export gelesen werden.",
+    "chatimport.problem.projects": "Einige Projektangaben konnten nicht gelesen oder keinem Chat zugeordnet werden. Füge Projektanweisungen bei der Prüfung hinzu.",
+    "chatimport.problem.cut": "Einige lange Projektdokumente wurden gekürzt, damit sie in das Importlimit passen.",
     "chatimport.error.busy": "Es läuft bereits ein Import. Warte, bis er fertig ist.",
     "chatimport.error.stale": "Diese Liste ist veraltet. Zeig deine Chats noch einmal an.",
     "chatimport.error.empty_file": "Diese Datei ist leer.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Ein",
     "settings.switch.off": "Aus"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

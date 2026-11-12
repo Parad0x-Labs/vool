@@ -356,6 +356,10 @@ def continuation_history(session_id: str) -> list[dict[str, str]]:
     return history if authorize_payload(history, session_id) else []
 
 
+#: Reviewed notes derived from the source transcript (summaries of compacted turns, task plans).
+TRANSCRIPT_NOTE_SOURCES = frozenset({"conversation_summary", "plan"})
+
+
 def reviewed_working_context(session_id: str) -> str:
     """Read approved working data independently of transcript continuation consent."""
     from core.context_namespace import load_chat_namespace
@@ -369,8 +373,9 @@ def reviewed_working_context(session_id: str) -> str:
         columns = {row[1] for row in connection.execute(f"PRAGMA table_info({CHATS_TABLE})")}
         if not {"context_json", "context_state"} <= columns:
             return ""
-        row = connection.execute(f"SELECT state, context_state, context_json FROM {CHATS_TABLE} WHERE session_id = ?",
-                                 (session_id,)).fetchone()
+        continuation_column = "continuation_enabled" if "continuation_enabled" in columns else "0"
+        row = connection.execute(f"SELECT state, context_state, context_json, {continuation_column} FROM {CHATS_TABLE} "
+                                 "WHERE session_id = ?", (session_id,)).fetchone()
     finally:
         connection.close()
     if row is None or row[0] != STATE_COMPLETE or row[1] != "ready":
@@ -390,6 +395,10 @@ def reviewed_working_context(session_id: str) -> str:
             continue
         projected[key] = []
         for item in items:
+            # A source's summary of earlier turns and its task plan come from the transcript, so
+            # they reach the model only when the user chose to continue with that history.
+            if key == "notes" and isinstance(item, dict) and item.get("source") in TRANSCRIPT_NOTE_SOURCES and not row[3]:
+                continue
             projected[key].append(item)
             if len(json.dumps(projected, ensure_ascii=False)) > 20_000:
                 projected[key].pop()

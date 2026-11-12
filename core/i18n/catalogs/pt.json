@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Um arquivo de exportação de dados (.zip)",
     "chatimport.source.last_used": "Último uso: {date}",
     "chatimport.source.none_found": "Nenhum outro app de IA foi encontrado neste computador. Você pode trazer conversas de um arquivo de exportação de dados.",
+    "chatimport.source.terminal_agent": "Um agente de programação no seu terminal",
+    "chatimport.source.terminal_assistant": "Um assistente de programação no seu terminal",
+    "chatimport.source.command_line_assistant": "Um assistente de IA para a linha de comando",
     "chatimport.file.pick_aria": "Arquivo de exportação de dados",
     "chatimport.file.help": "A maioria dos apps de IA permite baixar seus dados nas configurações. Escolha o arquivo .zip que você recebeu.",
     "chatimport.problem.too_large": "Isto é grande demais para ler com segurança.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Algumas conversas apareciam duas vezes e são listadas uma vez.",
     "chatimport.problem.unreadable": "Parte disso não pôde ser lida e ficou de fora.",
     "chatimport.problem.file": "Este arquivo não pôde ser lido como uma exportação de conversas.",
+    "chatimport.problem.projects": "Alguns detalhes do projeto não puderam ser lidos ou associados a uma conversa. Adicione as instruções do projeto durante a revisão.",
+    "chatimport.problem.cut": "Alguns documentos longos do projeto foram encurtados para caber no limite de importação.",
     "chatimport.error.busy": "Uma importação já está em andamento. Espere terminar.",
     "chatimport.error.stale": "Esta lista está desatualizada. Mostre suas conversas de novo.",
     "chatimport.error.empty_file": "Este arquivo está vazio.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Ativado",
     "settings.switch.off": "Desativado"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

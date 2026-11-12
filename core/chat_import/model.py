@@ -101,6 +101,9 @@ PROBLEM_TEXT: dict[str, str] = {
     "chats_without_order_skipped": "Some chats were left out because their message order is not recorded.",
     "chats_internal_skipped": "Some sessions were left out because the app ran them by itself, not you.",
     "files_skipped": "Some chat files could not be read and were left out.",
+    "projects_unreadable": "The export's project list could not be read; add project instructions during review.",
+    "projects_unlinked": "Some projects in the export could not be matched to a chat; add their instructions during review.",
+    "project_document_cut": "Some project documents were longer than the import limit and were cut.",
 }
 
 

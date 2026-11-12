@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "ملف تصدير بيانات (.zip)",
     "chatimport.source.last_used": "آخر استخدام: {date}",
     "chatimport.source.none_found": "لم يُعثر على تطبيقات ذكاء اصطناعي أخرى على هذا الحاسوب. يمكنك إحضار المحادثات من ملف تصدير بيانات.",
+    "chatimport.source.terminal_agent": "وكيل برمجة في الطرفية لديك",
+    "chatimport.source.terminal_assistant": "مساعد برمجة في الطرفية لديك",
+    "chatimport.source.command_line_assistant": "مساعد ذكاء اصطناعي لسطر الأوامر",
     "chatimport.file.pick_aria": "ملف تصدير البيانات",
     "chatimport.file.help": "تتيح معظم تطبيقات الذكاء الاصطناعي تنزيل بياناتك من إعداداتها. اختر ملف .zip الذي وصلك.",
     "chatimport.problem.too_large": "هذا أكبر من أن يُقرأ بأمان.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "ظهرت بعض المحادثات مرتين وتُعرض مرة واحدة.",
     "chatimport.problem.unreadable": "تعذّرت قراءة جزء منه فاستُبعد.",
     "chatimport.problem.file": "تعذّرت قراءة هذا الملف كتصدير محادثات.",
+    "chatimport.problem.projects": "تعذّرت قراءة بعض تفاصيل المشروع أو ربطها بمحادثة. أضف تعليمات المشروع أثناء المراجعة.",
+    "chatimport.problem.cut": "اختُصرت بعض مستندات المشروع الطويلة لتناسب حد الاستيراد.",
     "chatimport.error.busy": "هناك استيراد جارٍ بالفعل. انتظر حتى ينتهي.",
     "chatimport.error.stale": "هذه القائمة قديمة. اعرض محادثاتك مرة أخرى.",
     "chatimport.error.empty_file": "هذا الملف فارغ.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "مفعل",
     "settings.switch.off": "معطل"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

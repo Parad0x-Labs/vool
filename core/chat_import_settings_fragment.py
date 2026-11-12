@@ -76,7 +76,10 @@ function day(iso){
 var SOURCE_TEXT = {
   code_editor: ['chatimport.source.code_editor', 'A code editor on this computer'],
   ai_agent: ['chatimport.source.ai_agent', 'An AI agent on this computer'],
-  assistant: ['chatimport.source.assistant', 'A personal AI assistant on this computer']
+  assistant: ['chatimport.source.assistant', 'A personal AI assistant on this computer'],
+  terminal_agent: ['chatimport.source.terminal_agent', 'A coding agent in your terminal'],
+  terminal_assistant: ['chatimport.source.terminal_assistant', 'A coding assistant in your terminal'],
+  command_line_assistant: ['chatimport.source.command_line_assistant', 'An AI assistant for the command line']
 };
 // Reader problem codes, grouped into the lines a person can act on.
 var PROBLEM_TEXT = {
@@ -94,7 +97,10 @@ var PROBLEM_TEXT = {
   too_many_chats: ['chatimport.problem.too_many', 'Only part of the chats are listed; the rest are over the import limit.'],
   chats_internal_skipped: ['chatimport.problem.internal', 'Sessions the app ran by itself, not you, were left out.'],
   chats_without_order_skipped: ['chatimport.problem.no_order', 'Some chats were left out because the order of their messages is not saved.'],
-  chat_skipped_duplicate: ['chatimport.problem.duplicate', 'Some chats appeared twice and are listed once.']
+  chat_skipped_duplicate: ['chatimport.problem.duplicate', 'Some chats appeared twice and are listed once.'],
+  projects_unreadable: ['chatimport.problem.projects', 'Some project details could not be read or matched to a chat. Add project instructions during review.'],
+  projects_unlinked: ['chatimport.problem.projects', 'Some project details could not be read or matched to a chat. Add project instructions during review.'],
+  project_document_cut: ['chatimport.problem.cut', 'Some long project documents were shortened to fit the import limit.']
 };
 var PROBLEM_FALLBACK = ['chatimport.problem.unreadable', 'Some of it could not be read and was left out.'];
 var FILE_PROBLEMS = {file_unreadable: 1, not_a_zip: 1, zip_too_many_members: 1, zip_unsafe_path: 1, zip_symlink: 1,

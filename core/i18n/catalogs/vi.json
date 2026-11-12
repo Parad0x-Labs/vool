@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Một tệp xuất dữ liệu (.zip)",
     "chatimport.source.last_used": "Dùng lần cuối {date}",
     "chatimport.source.none_found": "Không tìm thấy ứng dụng AI nào khác trên máy tính này. Bạn có thể mang cuộc trò chuyện sang từ một tệp xuất dữ liệu.",
+    "chatimport.source.terminal_agent": "Tác tử lập trình trong terminal của bạn",
+    "chatimport.source.terminal_assistant": "Trợ lý lập trình trong terminal của bạn",
+    "chatimport.source.command_line_assistant": "Trợ lý AI cho dòng lệnh",
     "chatimport.file.pick_aria": "Tệp xuất dữ liệu",
     "chatimport.file.help": "Hầu hết ứng dụng AI cho phép tải dữ liệu của bạn trong phần cài đặt. Hãy chọn tệp .zip bạn đã nhận.",
     "chatimport.problem.too_large": "Tệp này quá lớn để đọc an toàn.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Một số cuộc trò chuyện xuất hiện hai lần và chỉ được liệt kê một lần.",
     "chatimport.problem.unreadable": "Một phần không đọc được và đã được bỏ qua.",
     "chatimport.problem.file": "Không đọc được tệp này như một bản xuất trò chuyện.",
+    "chatimport.problem.projects": "Không thể đọc hoặc ghép một số thông tin dự án với cuộc trò chuyện. Hãy thêm chỉ dẫn dự án khi xem lại.",
+    "chatimport.problem.cut": "Một số tài liệu dự án dài đã được rút gọn cho vừa giới hạn nhập.",
     "chatimport.error.busy": "Đang có một lần nhập chạy. Hãy chờ nó xong.",
     "chatimport.error.stale": "Danh sách này đã cũ. Hãy hiện lại các cuộc trò chuyện.",
     "chatimport.error.empty_file": "Tệp này trống.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Bật",
     "settings.switch.off": "Tắt"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

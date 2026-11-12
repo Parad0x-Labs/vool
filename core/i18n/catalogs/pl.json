@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Plik eksportu danych (.zip)",
     "chatimport.source.last_used": "Ostatnio używane: {date}",
     "chatimport.source.none_found": "Na tym komputerze nie znaleziono innych aplikacji AI. Możesz przenieść czaty z pliku eksportu danych.",
+    "chatimport.source.terminal_agent": "Agent programistyczny w Twoim terminalu",
+    "chatimport.source.terminal_assistant": "Asystent programistyczny w Twoim terminalu",
+    "chatimport.source.command_line_assistant": "Asystent AI do wiersza poleceń",
     "chatimport.file.pick_aria": "Plik eksportu danych",
     "chatimport.file.help": "Większość aplikacji AI pozwala pobrać Twoje dane w ustawieniach. Wybierz otrzymany plik .zip.",
     "chatimport.problem.too_large": "To jest za duże, by bezpiecznie to odczytać.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Niektóre czaty występowały dwa razy i są pokazane raz.",
     "chatimport.problem.unreadable": "Części nie udało się odczytać i została pominięta.",
     "chatimport.problem.file": "Tego pliku nie udało się odczytać jako eksportu czatów.",
+    "chatimport.problem.projects": "Niektórych danych projektu nie udało się odczytać ani przypisać do rozmowy. Dodaj instrukcje projektu podczas przeglądu.",
+    "chatimport.problem.cut": "Niektóre długie dokumenty projektu zostały skrócone, aby zmieścić się w limicie importu.",
     "chatimport.error.busy": "Import już trwa. Poczekaj, aż się zakończy.",
     "chatimport.error.stale": "Ta lista jest nieaktualna. Pokaż czaty jeszcze raz.",
     "chatimport.error.empty_file": "Ten plik jest pusty.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Włączone",
     "settings.switch.off": "Wyłączone"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "Un fichier d’export de données (.zip)",
     "chatimport.source.last_used": "Dernière utilisation : {date}",
     "chatimport.source.none_found": "Aucune autre appli d’IA n’a été trouvée sur cet ordinateur. Vous pouvez apporter des discussions depuis un fichier d’export de données.",
+    "chatimport.source.terminal_agent": "Un agent de programmation dans votre terminal",
+    "chatimport.source.terminal_assistant": "Un assistant de programmation dans votre terminal",
+    "chatimport.source.command_line_assistant": "Un assistant IA pour la ligne de commande",
     "chatimport.file.pick_aria": "Fichier d’export de données",
     "chatimport.file.help": "La plupart des applis d’IA permettent de télécharger vos données depuis leurs réglages. Choisissez le fichier .zip que vous avez reçu.",
     "chatimport.problem.too_large": "C’est trop volumineux pour être lu en toute sécurité.",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "Certaines discussions apparaissaient deux fois et ne sont listées qu’une fois.",
     "chatimport.problem.unreadable": "Une partie n’a pas pu être lue et a été laissée de côté.",
     "chatimport.problem.file": "Ce fichier n’a pas pu être lu comme un export de discussions.",
+    "chatimport.problem.projects": "Certaines informations de projet n’ont pas pu être lues ni associées à une discussion. Ajoutez les instructions du projet lors de la vérification.",
+    "chatimport.problem.cut": "Certains longs documents de projet ont été raccourcis pour respecter la limite d’importation.",
     "chatimport.error.busy": "Un import est déjà en cours. Attendez qu’il se termine.",
     "chatimport.error.stale": "Cette liste n’est plus à jour. Affichez à nouveau vos discussions.",
     "chatimport.error.empty_file": "Ce fichier est vide.",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "Activé",
     "settings.switch.off": "Désactivé"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

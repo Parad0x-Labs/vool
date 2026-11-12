@@ -2677,6 +2677,9 @@
     "chatimport.source.file": "データのエクスポートファイル（.zip）",
     "chatimport.source.last_used": "最終使用：{date}",
     "chatimport.source.none_found": "このコンピューターにはほかのAIアプリが見つかりませんでした。データのエクスポートファイルからチャットを持ってくることができます。",
+    "chatimport.source.terminal_agent": "ターミナルで動くコーディングエージェント",
+    "chatimport.source.terminal_assistant": "ターミナルで動くコーディングアシスタント",
+    "chatimport.source.command_line_assistant": "コマンドライン用のAIアシスタント",
     "chatimport.file.pick_aria": "データのエクスポートファイル",
     "chatimport.file.help": "ほとんどのAIアプリでは、設定からデータをダウンロードできます。受け取った .zip ファイルを選んでください。",
     "chatimport.problem.too_large": "大きすぎて安全に読み込めません。",
@@ -2691,6 +2694,8 @@
     "chatimport.problem.duplicate": "二重に含まれていたチャットは一度だけ表示しています。",
     "chatimport.problem.unreadable": "一部を読み込めなかったため除外しました。",
     "chatimport.problem.file": "このファイルはチャットのエクスポートとして読み込めませんでした。",
+    "chatimport.problem.projects": "一部のプロジェクト情報を読み取れないか、チャットと対応付けられませんでした。確認時にプロジェクトの指示を追加してください。",
+    "chatimport.problem.cut": "一部の長いプロジェクト文書は、取り込みの上限に収まるよう短縮されました。",
     "chatimport.error.busy": "すでに読み込みが進行中です。完了するまでお待ちください。",
     "chatimport.error.stale": "このリストは古くなっています。チャットをもう一度表示してください。",
     "chatimport.error.empty_file": "このファイルは空です。",
@@ -3657,7 +3662,7 @@
     "settings.switch.on": "オン",
     "settings.switch.off": "オフ"
   },
-  "source_catalog_sha256": "cf543edb827f9be63077364f79537ff8d713a5d1d22b533a255b1d14e09b4325",
+  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
