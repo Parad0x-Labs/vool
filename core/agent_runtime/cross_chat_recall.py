@@ -213,6 +213,23 @@ def _owned_by_another_lane(text: str) -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
         return True
     try:
+        # Files on this computer ("which pdfs are in my documents", "find my tax folder") are the
+        # machine lanes' (real-app check 2026-11-12: answered "I don't have that saved").
+        from core.execution.constants import (
+            machine_file_search_intent,
+            machine_folder_search_intent,
+            machine_kind_listing_intent,
+        )
+
+        if (
+            machine_kind_listing_intent(text)
+            or machine_file_search_intent(text)
+            or machine_folder_search_intent(text)
+        ):
+            return True
+    except Exception:
+        pass
+    try:
         from core.runtime_lane_truth import runtime_lane_question
 
         if runtime_lane_question(text):

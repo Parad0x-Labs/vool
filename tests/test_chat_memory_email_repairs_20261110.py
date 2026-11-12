@@ -1606,3 +1606,10 @@ def test_asking_what_was_said_in_a_database_chat_still_reads_the_records():
     from core import bootstrap_context
 
     assert bootstrap_context._asks_for_what_was_said("what did I say about the members table earlier?")
+
+
+@pytest.mark.parametrize("asked", ["which pdfs are in my documents", "find my tax folder", "how many photos on my desktop"])
+def test_a_files_question_is_never_a_memory_recall(asked):
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
+
+    assert _owned_by_another_lane(as_question(asked))

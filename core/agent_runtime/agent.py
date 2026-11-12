@@ -2792,6 +2792,11 @@ class VoolAgent(
                     runtime_source_context["_typed_user_text"] = raw_turn_text or effective_input
                     runtime_source_context["_routed_user_text"] = _carried
                 effective_input = _carried
+                # Every lane below routes on the rerun request, including the ones that read the raw
+                # turn text (the live-data lane): "ok its on now, one more time pls" after a refused
+                # weather ask reran as a web search snippet instead of a weather reading (real-app
+                # check 2026-11-12). What the person typed is kept above for the transcript.
+                raw_turn_text = _carried
                 interpreted = adapt_user_input(
                     effective_input,
                     session_id=session_id,
