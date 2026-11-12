@@ -815,7 +815,7 @@ rows:
     tests: [tests/test_native_skill_library.py]
     label: TESTED
     target_release: 0.7.0
-    note: All 26 on; the enable route has no caller in the app.
+    note: All 22 on; the enable route has no caller in the app.
   - id: agent-skills
     title: Skills the agent writes, installs and shares
     area: tools

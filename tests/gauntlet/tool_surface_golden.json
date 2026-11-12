@@ -1,5 +1,5 @@
 {
-  "intent_count": 152,
+  "intent_count": 154,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -50,6 +50,7 @@
     "media.undo",
     "operator.apple_note_list",
     "operator.apple_note_read",
+    "operator.cancel_reminder",
     "operator.check_availability",
     "operator.cleanup_temp_files",
     "operator.find_notes",
@@ -64,6 +65,7 @@
     "operator.propose_calendar_event",
     "operator.save_note",
     "operator.schedule_calendar_event",
+    "operator.schedule_reminder",
     "operator.search_calendar_event",
     "operator.show_agenda",
     "operator.show_note",
@@ -154,7 +156,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 152,
+  "native_definition_count": 154,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -2875,6 +2877,7 @@
     },
     "machine.find_largest": {
       "arguments": [
+        "cleanup_context",
         "drive",
         "kind",
         "top"
@@ -2884,6 +2887,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "cleanup_context": {
+            "description": "boolean optional \u2014 true when the ask is about freeing space or deleting; adds the delete-safety notes to the rows",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "drive": {
             "description": "string optional",
             "type": [
@@ -2909,7 +2919,8 @@
         "required": [
           "drive",
           "top",
-          "kind"
+          "kind",
+          "cleanup_context"
         ],
         "type": "object"
       },
@@ -3129,8 +3140,11 @@
       "arguments": [
         "count_only",
         "directories_only",
+        "kind",
         "limit",
-        "path"
+        "newest_first",
+        "path",
+        "size_order"
       ],
       "description": "List visible entries inside a safe local directory such as Desktop, Downloads, or Documents.",
       "native_name": "machine__list_directory",
@@ -3151,6 +3165,13 @@
               "null"
             ]
           },
+          "kind": {
+            "description": "string optional (image|screenshot|video|audio|pdf|document|spreadsheet)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "limit": {
             "description": "integer optional",
             "type": [
@@ -3158,8 +3179,22 @@
               "null"
             ]
           },
+          "newest_first": {
+            "description": "boolean optional",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "path": {
             "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_order": {
+            "description": "string optional (largest|smallest: files only, by size)",
             "type": [
               "string",
               "null"
@@ -3170,7 +3205,10 @@
           "path",
           "directories_only",
           "limit",
-          "count_only"
+          "count_only",
+          "kind",
+          "newest_first",
+          "size_order"
         ],
         "type": "object"
       },
@@ -3623,6 +3661,7 @@
     "machine.write_file": {
       "arguments": [
         "content",
+        "create_only",
         "path"
       ],
       "description": "Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents.",
@@ -3634,6 +3673,13 @@
             "description": "string",
             "type": "string"
           },
+          "create_only": {
+            "description": "boolean optional (true: only create a new file; refuse with status=already_exists if the path exists)",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "path": {
             "description": "string",
             "type": "string"
@@ -3641,7 +3687,8 @@
         },
         "required": [
           "path",
-          "content"
+          "content",
+          "create_only"
         ],
         "type": "object"
       },
@@ -4996,6 +5043,8 @@
     },
     "operator.apple_note_read": {
       "arguments": [
+        "account",
+        "folder",
         "title"
       ],
       "description": "Read one Apple Notes note by title, narrowed by the folder or account the request names; reports the note's body without changing anything.",
@@ -5003,13 +5052,29 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "account": {
+            "description": "string (optional)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "folder": {
+            "description": "string (optional)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "title": {
             "description": "string",
             "type": "string"
           }
         },
         "required": [
-          "title"
+          "title",
+          "folder",
+          "account"
         ],
         "type": "object"
       },
@@ -5076,6 +5141,89 @@
         }
       },
       "read_only": true
+    },
+    "operator.cancel_reminder": {
+      "arguments": [
+        "text"
+      ],
+      "description": "Cancel one of this runtime's own pending reminders from the request as written. The reminder it means is resolved exactly as the chat lane resolves it: a reminder id in the words, or the one pending reminder; anything else is an unambiguous refusal.",
+      "native_name": "operator__cancel_reminder",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "string (the request as written)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "delete_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
     },
     "operator.check_availability": {
       "arguments": [
@@ -6224,6 +6372,89 @@
       },
       "read_only": false
     },
+    "operator.schedule_reminder": {
+      "arguments": [
+        "text"
+      ],
+      "description": "Schedule one of this runtime's own reminders from the request as written. The words go through the same when-reading and subject parsing as the chat lane, and a due time in the past is refused.",
+      "native_name": "operator__schedule_reminder",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "description": "string (the request as written)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "operator.search_calendar_event": {
       "arguments": [
         "query"
@@ -6765,7 +6996,8 @@
     "pdf.extract_text": {
       "arguments": [
         "max_pages",
-        "path"
+        "path",
+        "start_page"
       ],
       "description": "Read the text a PDF already carries, page by page. Exact and instant. Returns no_text_layer for a scanned PDF, which pdf.ocr can read instead.",
       "native_name": "pdf__extract_text",
@@ -6782,10 +7014,18 @@
           "path": {
             "description": "string",
             "type": "string"
+          },
+          "start_page": {
+            "description": "integer optional",
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
           "path",
+          "start_page",
           "max_pages"
         ],
         "type": "object"
@@ -12185,7 +12425,7 @@
         "timeout_s",
         "url"
       ],
-      "description": "Fetch a public web page over HTTP(S) and return bounded text plus honest fetch status.",
+      "description": "Fetch a public web page over HTTP(S) and return bounded text plus the fetch status.",
       "native_name": "web__fetch",
       "native_parameters": {
         "additionalProperties": false,

@@ -1,6 +1,7 @@
 ---
 name: x-editorial-studio
 description: VOOL X Editorial Studio — draft, edit, criticize and convert X writing (standard posts, Premium long posts, threads, X Articles) into exact copy-ready text under the typed XDraft contract. Owns X editorial judgment only; generic presentation stays with the presentation authority; never publishes.
+summary: "Drafts and edits posts, threads and articles for X, ready to copy. It never posts for you."
 version: 1.0.0
 license: MIT
 author: sls_0x

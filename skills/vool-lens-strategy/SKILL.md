@@ -1,6 +1,7 @@
 ---
 name: vool-lens-strategy
 description: "Automatic strategy expert lens: when a turn weighs what to do next — priorities, trade-offs, sequenced plans — apply the strategy lens: the actual goal, the binding constraint, the cost of being wrong, and the smallest reversible next step — bounded to five checks on the material already present. Use automatically on decision-shaped turns; never a substitute for the operator's judgment."
+summary: "When you weigh what to do next, VOOL looks at the real goal, the main limit and the smallest next step."
 version: 1.0.0
 license: MIT
 author: sls_0x
@@ -9,6 +10,7 @@ type: expert_lens
 id: lens-strategy
 risk-class: read_only
 task-families: [business_advisory, general_advisory]
+triggers: [strategy, strategic, decide, decision, choose between, trade-off, trade-offs, tradeoff, prioritise, prioritize, priorities, pros and cons, next step, long term, worth it, weigh up, weigh the options, roadmap, good idea, bad idea, smart move, career move, alternatives, opportunity cost, risk it, plan ahead, quit my job, start a business, start my own, change careers, career change, job offer, go freelance, invest, investing]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each tied to a stated goal, constraint, or option in the turn, or states that the material contains no decision to advise on"]

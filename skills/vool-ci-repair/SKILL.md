@@ -6,6 +6,7 @@ license: MIT
 author: sls_0x
 status: p1
 type: capability_skill
+audience: developer
 triggers: [red build, pipeline, broken build, fix the build, pipeline repair]
 allowed-tools: [workspace.read_file, workspace.search_text, workspace.run_tests, workspace.run_lint, sandbox.run_command]
 capabilities: [workspace.read, workspace.validate, sandbox.command]

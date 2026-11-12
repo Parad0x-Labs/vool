@@ -86,11 +86,31 @@ def test_instruction_change_changes_effective_digest():
 def test_install_refuses_identity_collision(tmp_path, monkeypatch):
     first = _install(tmp_path, monkeypatch, "weather-brief", SKILL_A)
     assert first.get("status") == "ok", first
-    # Same instructions (even repackaged with a comment), different name.
-    second = _install(tmp_path, monkeypatch, "weather-relay", SKILL_A_REPACKAGED.replace("weather-brief", "weather-relay"))
+    # Same instructions under a different name and description: one instruction set, one name.
+    renamed = SKILL_A.replace("weather-brief", "weather-relay").replace(
+        "Brief the operator on weather with units they use.", "Relay the weather in the operator's units.")
+    second = _install(tmp_path, monkeypatch, "weather-relay", renamed)
     assert second.get("status") == "refused", second
     assert second.get("collision_with") == "weather-brief"
-    assert "identity collision" in second.get("reason", "")
+    # The reason is for a person (audit L1); the exact check stays in problems.
+    assert 'same instructions as your skill "Weather brief"' in second.get("reason", "")
+    assert any("identity collision" in item for item in second.get("problems", ()))
+
+
+def test_a_copy_repackaged_with_a_hidden_comment_is_refused_before_it_can_collide(tmp_path, monkeypatch):
+    """A hidden HTML comment is a tamper channel, so the repackaged copy is now refused by the
+    safety check itself, naming the line, why, and what to write instead."""
+    first = _install(tmp_path, monkeypatch, "weather-brief", SKILL_A)
+    assert first.get("status") == "ok", first
+    second = _install(tmp_path, monkeypatch, "weather-relay",
+                      SKILL_A_REPACKAGED.replace("weather-brief", "weather-relay"))
+    assert second.get("status") == "refused", second
+    reason = second.get("reason", "")
+    assert reason.startswith("This skill did not pass VOOL's safety check, so it was not installed.")
+    assert 'Line 8 ("<!--' in reason
+    assert "VOOL skills can't carry hidden comments" in reason
+    assert "Write everything as plain visible text." in reason
+    assert not (tmp_path / "plugins-root" / "plugins" / "local-skills" / "skills" / "weather-relay").exists()
 
 
 def test_distinct_skill_installs_cleanly(tmp_path, monkeypatch):

@@ -114,18 +114,14 @@ def _write_atomic(path: Path, data: bytes) -> None:
 
 
 def _frontmatter(text: str) -> dict[str, Any]:
-    from core.plugin_skills import _FRONTMATTER_RE
+    """The header as a dict; {} when there is none or it cannot be read safely (core.skill_frontmatter)."""
+    from core.skill_frontmatter import FrontmatterRefused, parse
 
-    match = _FRONTMATTER_RE.match(text)
-    if not match:
-        return {}
     try:
-        import yaml
-
-        loaded = yaml.safe_load(match.group(1))
-    except Exception:
+        parsed = parse(text)
+    except FrontmatterRefused:
         return {}
-    return loaded if isinstance(loaded, dict) else {}
+    return parsed[0] if parsed else {}
 
 
 def _is_local_only(skill_md: bytes) -> bool:
@@ -433,9 +429,15 @@ def _decode_skill(data: bytes, label: str) -> str:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise PackageRefused("invalid_skill", f"{label} is not UTF-8 text") from exc
-    from core.plugin_skills import _FRONTMATTER_RE
+    from core.skill_frontmatter import FrontmatterRefused, parse
 
-    if not _FRONTMATTER_RE.match(text):
+    try:
+        parsed = parse(text)
+    except FrontmatterRefused as refused:
+        # Refused before anything is staged or shown: the header is read once, here, bounded.
+        raise PackageRefused("unsafe_frontmatter" if refused.unsafe else "invalid_skill",
+                             f"{label}: {refused.message}") from None
+    if parsed is None:
         raise PackageRefused("invalid_skill", f"{label} has no frontmatter block naming the skill")
     return text
 
@@ -469,7 +471,9 @@ def read_package(raw: bytes) -> dict[str, Any]:
     if extra:
         raise PackageRefused(
             "runnable_code" if any(_looks_runnable(name) for name in extra) else "unsupported_files",
-            "VOOL imports instruction-only skills; this zip also carries: " + ", ".join(sorted(extra)[:12]),
+            "VOOL imports instruction-only skills; this zip also carries: " + ", ".join(sorted(extra)[:12])
+            + ". A skill zip may hold only SKILL.md and, if you like, a LICENSE or README file. Take the "
+            "other files out of the zip, and try again.",
         )
     data = inner["SKILL.md"]
     _decode_skill(data, "SKILL.md")
@@ -630,42 +634,63 @@ def import_package(
 
     if package["kind"] == "skill":
         skill = package["skills"][0]
-        parsed_name = ""
-        try:
-            from core.plugin_skills import parse_skill_content
-
-            parsed = parse_skill_content(skill["bytes"].decode("utf-8"), path=Path(skill["slug"] or "skill") / "SKILL.md")
-            front_name = str(_frontmatter(skill["bytes"].decode("utf-8")).get("name") or "")
-            parsed_name = front_name or str(getattr(parsed, "name", "") or "")
-        except Exception:
-            parsed_name = ""
+        text = skill["bytes"].decode("utf-8")  # read_package already refused anything else
+        front_name = _frontmatter(text).get("name")
+        parsed_name = front_name.strip() if isinstance(front_name, str) else ""
         slug = skill_tools._slug(parsed_name or skill["slug"] or Path(source_name).stem)
         if not slug:
-            return {"status": "refused", "code": "invalid_skill", "reason": "the skill has no name"}
+            return {"status": "refused", "code": "invalid_skill",
+                    "reason": "This skill has no name. Add a line \"name: ...\" at the top of its SKILL.md, "
+                              "and try again."}
+        refusal = _content_refusal(slug, text)
+        if refusal:
+            return refusal
         scope = str(scope or "global").strip().lower()
-        if scope == "global":
-            staged_dir = skill_tools.staging_root() / slug
-        else:
+        if scope not in ("chat", "project", "global"):
+            return {"status": "invalid_arguments", "reason": f"unknown scope {scope!r}; use chat, project or global"}
+        if scope != "global" and skill_tools._scoped_dirs(scope, keys) is None:
             from core.skill_scopes import scope_unavailable_reason
 
-            dirs = skill_tools._scoped_dirs(scope, keys)
-            if dirs is None:
-                return {
-                    "status": "scope_unavailable",
-                    "reason": scope_unavailable_reason(scope, keys) or f"no {scope} to keep the skill in",
-                }
-            staged_dir = dirs[0] / slug
+            return {
+                "status": "scope_unavailable",
+                "reason": scope_unavailable_reason(scope, keys) or f"no {scope} to keep the skill in",
+            }
+        # Staged in THIS chat's own imports folder, whatever scope it will be turned on for, so no
+        # other chat's import of the same name can replace it between the showing and the turning
+        # on. A turn that names no chat (no one to show it to) keeps the old shared draft folder.
+        imports = skill_tools.import_staging_dir(keys)
+        if imports is not None:
+            staged_dir = imports / slug
+        elif scope == "global":
+            staged_dir = skill_tools.staging_root() / slug
+        else:
+            staged_dir = skill_tools._scoped_dirs(scope, keys)[0] / slug
         try:
             _write_atomic(staged_dir / "SKILL.md", skill["bytes"])
-            # Someone else's file: whatever is installed from this draft is recorded as imported.
+            # Someone else's file: whatever is installed from this draft is recorded as imported,
+            # and can only be turned on bound to this digest (core.skill_tools.install_skill).
             _write_atomic(staged_dir / skill_tools.IMPORTED_MARK,
-                          (json.dumps({"sha256": skill["sha256"]}) + "\n").encode("utf-8"))
+                          (json.dumps({"sha256": skill["sha256"], "scope": scope}) + "\n").encode("utf-8"))
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not stage the skill"}
         verdict = skill_tools.validate_skill(str(staged_dir / "SKILL.md"))
+        if verdict.get("sha256") and verdict.get("sha256") != skill["sha256"]:
+            # What the preview shows is what was read back from the staged file; it must be the
+            # bytes whose digest the turn-on is bound to, or the showing proves nothing.
+            return {"status": "refused", "code": "staging_changed",
+                    "reason": "The skill changed while it was being saved, so I did not keep it. Import it again."}
+        if scope == "global":
+            existing = skill_tools.plugins_root() / "plugins" / "local-skills" / "skills" / slug / "SKILL.md"
+        else:
+            existing = skill_tools._scoped_dirs(scope, keys)[1] / slug / "SKILL.md"
+        replaces = existing.is_file()
         return {
             "status": "ok" if verdict.get("status") == "ok" else "invalid",
             "kind": "skill",
+            # Said up front, never discovered afterwards: turning this on would replace the
+            # person's own skill of the same name (the chat offer says so in words).
+            "replaces_existing": replaces,
+            **({"replaces_note": "Turning this on would replace your own skill of the same name."} if replaces else {}),
             "name": verdict.get("name") or slug,
             "slug": slug,
             "scope": scope,
@@ -674,14 +699,53 @@ def import_package(
             "description": verdict.get("description") or "",
             "problems": list(verdict.get("problems") or []),
             "preview_markdown": verdict.get("preview_markdown") or "",
+            "allowed_tools": list(verdict.get("allowed_tools") or []),
+            "frontmatter_keys": list(verdict.get("frontmatter_keys") or []),
             "staged": True,
         }
 
     # A plugin pack is global by nature: the plugin catalog is one tree.
     name = skill_tools._slug(package["name"]) or skill_tools._slug(Path(source_name).stem)
     if not name:
-        return {"status": "refused", "code": "invalid_manifest", "reason": "the plugin has no name"}
+        return {"status": "refused", "code": "invalid_manifest",
+                "reason": "This plugin has no name. Add a \"name\" to its .codex-plugin/plugin.json, and try again."}
+    reserved = skill_tools.pack_name_problem(name)
+    if reserved:
+        return {"status": "refused", "code": "reserved_name", "reason": reserved, "problems": [reserved]}
+    for item in package["skills"]:
+        text = item["bytes"].decode("utf-8")
+        front_name = _frontmatter(text).get("name")
+        refusal = _content_refusal(skill_tools._slug(front_name if isinstance(front_name, str) else "") or
+                                   skill_tools._slug(item["slug"]), text, label=item["slug"])
+        if refusal:
+            return refusal
     return _stage_pack(name, package["manifest"], [(s["slug"], s["bytes"]) for s in package["skills"]], origin="import")
+
+
+def _content_refusal(slug: str, text: str, *, label: str = "") -> dict[str, Any] | None:
+    """The refusal for an imported skill VOOL will not keep, in plain words, or None.
+
+    Checked before anything is written: a built-in's name, then the Skill Codex's own text checks
+    (core.skill_tools.content_problem), the same ones a published skill passes.
+    """
+    from core import skill_tools
+
+    prefix = f"In {label}: " if label else ""
+    header = _frontmatter(text)
+    for problem in (skill_tools.name_problem(header.get("name")) if "name" in header else "",
+                    skill_tools.typed_keys_problem(header)):
+        if problem:
+            return {"status": "refused", "code": "invalid_skill", "reason": prefix + problem,
+                    "problems": [prefix + problem]}
+    reserved = skill_tools.reserved_name_reason(slug)
+    if reserved:
+        return {"status": "refused", "code": "reserved_name", "reason": prefix + reserved,
+                "problems": [prefix + reserved]}
+    problem = skill_tools.content_problem(text)
+    if problem:
+        return {"status": "refused", "code": "failed_safety_check", "reason": prefix + problem,
+                "problems": [prefix + problem]}
+    return None
 
 
 def _stage_pack(name: str, manifest: dict[str, Any], skills: list[tuple[str, bytes]], *, origin: str) -> dict[str, Any]:
@@ -743,6 +807,9 @@ def create_plugin(
     slug = skill_tools._slug(name)
     if not slug:
         return {"status": "invalid_arguments", "reason": "name the plugin"}
+    reserved = skill_tools.pack_name_problem(slug)
+    if reserved:
+        return {"status": "refused", "reason": reserved}
     wanted = [str(item).strip() for item in (skill_names or ()) if str(item).strip()]
     if not wanted:
         return {"status": "invalid_arguments", "reason": "name at least one of your skills to put in the plugin"}
@@ -783,13 +850,29 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
     staged = _staged_plugins_root() / slug
     if not slug or not (staged / ".codex-plugin" / "plugin.json").is_file():
         return {"status": "not_found", "reason": f"no staged plugin named {name!r}; create or import it first"}
+    reserved = skill_tools.pack_name_problem(slug)
+    if reserved:
+        return {"status": "refused", "reason": reserved}
     destination = skill_tools.plugins_root() / "plugins" / slug
     with skill_tools._ACTIVATION_LOCK:
         digest = pack_digest(staged)
+        try:
+            staged_manifest = json.loads((staged / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            staged_manifest = {}
+        staged_by = str(dict(dict(staged_manifest).get("vool") or {}).get("staged_by") or "") if isinstance(
+            staged_manifest, dict) else "import"
+        if staged_by == "import" and not str(expected_sha256 or "").strip():
+            # Someone else's pack turns on only as the version the person was shown.
+            return {
+                "status": "refused",
+                "reason": "This plugin came from a file, so I can only turn it on as the exact version you were "
+                          "shown, and I no longer know which version that was. Import it again, then say turn it on.",
+            }
         if expected_sha256 and digest != str(expected_sha256).strip().lower():
             return {
                 "status": "refused",
-                "reason": "the staged plugin changed after it was shown, so it was not activated; review it again",
+                "reason": "The plugin changed after I showed it to you, so I did not turn it on. Import it again.",
             }
         problems: list[str] = []
         for skill_md in sorted((staged / "skills").glob("*/SKILL.md")):
@@ -813,6 +896,20 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
             for skill_dir in sorted((destination / "skills").iterdir()):
                 if (skill_dir / "SKILL.md").is_file():
                     skill_tools._record_version(skill_dir, source="plugin")
+                    # A pack's skills are the person's own only where skill.create wrote the bytes.
+                    try:
+                        from core.skill_origin import (
+                            ORIGIN_IMPORTED,
+                            ORIGIN_PACK,
+                            decide_install_origin,
+                            record_install,
+                        )
+
+                        installed = hashlib.sha256((skill_dir / "SKILL.md").read_bytes()).hexdigest()
+                        record_install(skill_dir / "SKILL.md", sha256=installed, origin=decide_install_origin(
+                            installed, default=ORIGIN_IMPORTED if staged_by == "import" else ORIGIN_PACK))
+                    except Exception:
+                        pass
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not activate the plugin"}
     try:

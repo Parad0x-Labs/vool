@@ -38,6 +38,7 @@ this one module -- and gate their own effect on it.
 """
 from __future__ import annotations
 
+import contextvars
 from typing import Any
 
 from core.mode_permission_policy import (
@@ -63,6 +64,20 @@ def _runtime_execution_tools():
     from core import runtime_execution_tools
 
     return runtime_execution_tools
+
+
+# The decision that stands behind the dispatch running right now, for a handler that must know HOW it
+# was allowed (core.runtime_execution_tools._skill_install: only the person's approval of the exact
+# call, never a mode's blanket allow, confirms the tools a skill asks for). Set only here, around the
+# one dispatch, so nothing carried in a context dict or a tool argument can stand in for it.
+_CURRENT_DECISION: contextvars.ContextVar[PermissionDecision | None] = contextvars.ContextVar(
+    "vool_current_permission_decision", default=None
+)
+
+
+def current_permission_decision() -> PermissionDecision | None:
+    """The decision behind the tool call being executed in this context, or None outside one."""
+    return _CURRENT_DECISION.get()
 
 
 def permission_payload(decision: PermissionDecision | None) -> dict[str, Any]:
@@ -315,6 +330,7 @@ def execute_authorized_runtime_tool(
     # The sandbox gate below cannot see this decision on its own; for this one dispatch it may
     # honour it, for exactly the command texts this call runs (`commands_for_call`), and no longer.
     authorization = publish_command_authorization(intent, decision, commands_for_call(intent, arguments))
+    decision_token = _CURRENT_DECISION.set(decision)
     try:
         execution = runtime.execute_runtime_tool(
             intent,
@@ -323,6 +339,7 @@ def execute_authorized_runtime_tool(
             trusted_local_only=trusted_local_only,
         )
     finally:
+        _CURRENT_DECISION.reset(decision_token)
         withdraw_command_authorization(authorization)
     if execution is None:
         return None
@@ -342,5 +359,6 @@ __all__ = [
     "REFUSAL_STATUSES",
     "authorize_runtime_tool",
     "commands_for_call",
+    "current_permission_decision",
     "execute_authorized_runtime_tool",
 ]

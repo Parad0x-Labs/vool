@@ -1,6 +1,7 @@
 ---
 name: vool-lens-architecture
 description: "Automatic architecture expert lens: when a turn designs, integrates, or trades off structure, apply the architecture lens — boundaries, coupling, blast radius, failure modes — bounded to five checks, grounded in the material already present. Use automatically on design-shaped turns; never a substitute for real repo inspection."
+summary: "When you plan how something fits together, VOOL points out the weak spots and what could break."
 version: 1.0.0
 license: MIT
 author: sls_0x
@@ -9,6 +10,7 @@ type: expert_lens
 id: lens-architecture
 risk-class: read_only
 task-families: [system_design, integration_orchestration]
+triggers: [architecture, system design, design the system, boundaries, coupling, components, microservices, monolith, scalability, data flow, failure modes, single point of failure, services, separate services, split into services, one server, backend, database per, shared database, one database, separate databases, event-driven, api design, data model, how to structure the system, tightly coupled]
 expected-outputs: [lens_assessment]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five structural observations with their referents, or states that the material shown carries no structural decision to assess"]

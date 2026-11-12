@@ -735,6 +735,35 @@ def largest_kind(text: str) -> str:
     return "both"
 
 
+#: An analysis-shaped disk ask: it wants the breakdown (largest folders/files, what grew),
+#: which a capacity read cannot serve. Read-only shapes only -- "free up"/"clean" are already
+#: write-suppressed below and stay on their own lane.
+#:
+#: R12 (round 2): no phrase lifted from a visible case sits here as a trigger. The
+#: "where did the space go" shape is read as a SUBJECT-GATED interrogative instead
+#: (``_DISK_WHERE_WENT_RE`` + a disk subject in the same ask), so everyday wordings of the
+#: same disk question keep standing down while "where did the space go in my sentence"
+#: (no disk subject) never did.
+_DISK_ANALYSIS_ASK_RE = re.compile(
+    r"\bwhat(?:'s| is|s)\s+(?:taking|using|eating|occupying|filling)\s+up\b"
+    r"|\bwhat(?:'s| is)?\s+(?:the\s+)?(?:biggest|largest|heaviest)\s+"
+    r"(?:files?|folders?|directories|dirs?|things|items?|space|hogs|culprits?)\b"
+    r"|\b(?:biggest|largest|heaviest)\s+(?:files?|folders?)\s+(?:on|in)\b"
+    r"|\bfind\s+(?:the\s+)?(?:large|biggest|largest|heaviest)\s+(?:files?|folders?|items?)\b"
+    r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
+    r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
+    re.IGNORECASE,
+)
+_DISK_WHERE_WENT_RE = re.compile(
+    r"\bwhere\s+did\s+(?:the\s+|all\s+(?:the\s+)?)?[\w\s]{0,12}\s?go\b", re.IGNORECASE
+)
+_DISK_SUBJECT_RE = re.compile(
+    r"\b(?:disk|disks|drive|drives|storage|startup\s+disk|hard\s+drive|ssd|mac|computer|laptop|machine)\b"
+    r"|\b(?:nearly\s+|almost\s+|completely\s+)?full\b",
+    re.IGNORECASE,
+)
+
+
 def machine_diagnostics_intent(text: str) -> str | None:
     """Map a read-only disk/drive question to the ``machine.disk_usage`` tool intent, else ``None``.
 
@@ -748,6 +777,16 @@ def machine_diagnostics_intent(text: str) -> str | None:
     """
     lowered = " ".join(str(text or "").strip().lower().split())
     if not lowered:
+        return None
+    # An ANALYSIS ask ("where did the space go?", "what's taking up my storage?", "biggest
+    # files") is not a capacity read: this lane answers only totals, and answering totals
+    # pre-empted the deeper tools (find the largest folders/files) the ask actually wanted --
+    # the disk-space-advisor skill never ran at all (measured on the served rig). Those asks
+    # stand down here for the lane that can reason about them (the model, with the
+    # operator/machine tools the demand rules seat).
+    if _DISK_ANALYSIS_ASK_RE.search(lowered):
+        return None
+    if _DISK_WHERE_WENT_RE.search(lowered) and _DISK_SUBJECT_RE.search(lowered):
         return None
     if _MACHINE_DIAG_WRITE_RE.search(lowered):
         return None
@@ -1372,6 +1411,18 @@ _PRESENT_STORAGE_WORDS = frozenset({
     "disk", "disks", "drive", "drives", "ssd", "storage", "space", "bloat", "junk", "clutter", "temp", "cache",
 })
 
+# "find the root cause", "find the bug", "find out why": the object names a cause or a fault the
+# person wants worked out, not words a file's name carries. Measured on the skills merge
+# (2026-11-12): "the invoice total test started failing after my last change, find the root cause"
+# was answered with a disk search for files named "root cause" instead of reaching the model and
+# the root-cause-repair skill. Only an object made of these words alone stands down, so
+# "pull up the bug report" is still a file.
+_PRESENT_FAULT_WORDS = frozenset({
+    "root", "cause", "causes", "bug", "bugs", "problem", "problems", "issue", "issues", "reason",
+    "reasons", "culprit", "regression", "fault", "faults", "error", "errors", "mistake", "mistakes",
+    "out", "why", "fix", "solution", "answer",
+})
+
 
 class PresentFileAsk(NamedTuple):
     """A file asked for by the words of its name: "pull up the plumber invoice"."""
@@ -1405,6 +1456,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         offset = raw.find(token, offset) + len(token)
     if not kept:
         return None  # "show me what you found" names nothing to search for
+    if all(word in _PRESENT_FAULT_WORDS for word in kept):
+        return None  # "find the root cause" asks for a diagnosis, not a file
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS for word in kept):
         return None
@@ -2864,9 +2917,10 @@ _BARE_RUNNING_PROCESSES_RE = re.compile(
     r"\b(?:what(?:'s|s|\s+is)|everything(?:\s+that(?:'s|s)?)?|anything(?:\s+that(?:'s|s)?)?"
     r"|everything\s+thats|anything\s+thats|all(?:\s+that(?:'s|s)?)?)"
     r"\s+(?:all\s+|currently\s+|actually\s+|even\s+|is\s+)?running\b"
+    # Up to two tails, so a place AND a time ("on my computer right now", files:F30) still match.
     r"(?:\s+(?:right\s+now|now|currently|at\s+the\s+moment|at\s+present"
     r"|on\s+(?:this|my)\s+(?:machine|mac|computer|laptop|pc|system|box|host)"
-    r"|on\s+here|here))?"
+    r"|on\s+here|here)){0,2}"
     r"\s*[?.!]*$",
     re.IGNORECASE,
 )
@@ -3578,10 +3632,49 @@ _IMAGE_FETCH_VERB_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Editing a picture that already exists is not generating one (audit N5: "make the cat picture half the size" and
+# "make it black and white" were sent to image generation, "save that as a jpg onto my desktop" to memory). The
+# object is definite -- "the cat picture", "my photo", "it" -- where a generation asks for "a picture" or "me a ...".
+_PICTURE_NOUN = r"(?:image|picture|pic|photo|photograph|screenshot|wallpaper|selfie|jpe?g|png)s?"
+_PICTURE_FORMAT = r"(?:jpe?g|png|gif|webp|heic|tiff?|bmp)"
+_DEFINITE_PICTURE = (
+    r"(?:(?:the|my|that|this|those|these|your|our)\s+(?:[\w'-]+\s+){0,3}?" + _PICTURE_NOUN + r"(?:\s+(?:of|from|in)\s+[^.?!,\n]{1,40}?)?)"
+)
+_PICTURE_EDIT_RESULT = (
+    r"(?:half|double|twice|smaller|bigger|larger|tiny|the\s+same\s+size|(?:a\s+)?(?:quarter|third)|black\s+and\s+white|b\s*&\s*w"
+    r"|gr[ae]yscale|monochrome|sepia|brighter|darker|sharper|square|landscape|portrait|smaller\s+file|lower\s+resolution"
+    r"|\d+\s*(?:px|pixels?|%|percent)|(?:an?\s+)?" + _PICTURE_FORMAT + r")\b"
+)
+_PICTURE_EDIT_RE = re.compile(
+    # make/turn/change/convert the picture <result>: "make the cat picture half the size", "turn it black and white"
+    r"\b(?:make|turn|change|convert|get)\s+(?:" + _DEFINITE_PICTURE + r"|it|that|them)\s+(?:into\s+|to\s+|in\s+)?(?:be\s+)?"
+    + _PICTURE_EDIT_RESULT
+    # a picture-editing verb on a definite picture: "resize my photo", "crop the cat picture into a square"
+    + r"|\b(?:resize|shrink|downsize|upscale|enlarge|scale(?:\s+down|\s+up)?|crop|rotate|flip|mirror|compress|desaturate)\s+"
+    + _DEFINITE_PICTURE
+    # save/export/convert it AS a picture format: "save that as a jpg onto my desktop"
+    + r"|\b(?:save|export|convert|turn|store)\s+(?:it|that|this|them|" + _DEFINITE_PICTURE + r")\s+(?:as|to|into|in)\s+(?:an?\s+)?"
+    + _PICTURE_FORMAT + r"\b",
+    re.IGNORECASE,
+)
+
+PICTURE_EDIT_UNSUPPORTED_REPLY = (
+    "I can't edit pictures yet: resizing, black and white, cropping, rotating and saving a picture in another format "
+    "aren't tools I have. Nothing was changed, generated or saved."
+)
+
+
+def picture_edit_request(text: str) -> bool:
+    """Whether the text asks to change or re-save a picture that already exists, which no VOOL tool does today."""
+    return bool(_PICTURE_EDIT_RE.search(" ".join(str(text or "").split())))
+
 
 def image_generation_intent(text: str) -> str | None:
     """Return a requested image prompt; mentions of creating images are information."""
     from core.instructional_request import requested_action_clauses
+
+    if picture_edit_request(text):
+        return None
 
     for clause in requested_action_clauses(text, _IMAGE_REQUEST_VERB_RE):
         raw = " ".join(clause.split())
@@ -3904,8 +3997,11 @@ _MUTATING_OPERATOR_INTENTS = {
     "operator.move_path",
     "operator.schedule_calendar_event",
     # A note write mutates workspace content; provider proposals/updates stage an
-    # outward-facing effect that always waits for the explicit approval turn.
+    # outward-facing effect that always waits for the explicit approval turn. A reminder
+    # changes this runtime's own store, the same write the chat lane makes.
     "operator.save_note",
+    "operator.schedule_reminder",
+    "operator.cancel_reminder",
     "operator.propose_calendar_event",
     "operator.update_calendar_event",
 }

@@ -381,6 +381,7 @@ def test_a_present_file_ask_parses(text, expected):
 
 @pytest.mark.parametrize("text", [
     "pull up my meeting notes", "show me the booking confirmation pdf", "open the dentist appointment invoice",
+    "pull up the bug report",
 ])
 def test_a_document_about_an_event_is_still_a_file(text):
     from core.execution.constants import machine_present_file_intent
@@ -395,6 +396,9 @@ def test_a_document_about_an_event_is_still_a_file(text):
     # Calendar and list items keep their own lanes (test_calendar_reads_person_path: the event row).
     "show me the event called School play", "pull up my dentist appointment", "open the meeting called standup",
     "show me the reminder about the bins",
+    # A cause or a fault to work out is not a file name (the skills merge, 2026-11-12).
+    "the invoice total test started failing after my last change, find the root cause",
+    "find the bug", "find out why the build broke",
 ])
 def test_not_a_present_file_ask(text):
     from core.execution.constants import machine_present_file_intent

@@ -82,6 +82,51 @@ def register_media_capabilities(*, available: bool | None = None) -> dict[str, A
             "available": bool(available), "reason": reason}
 
 
+#: The binaries the worker's operations shell out to (nebula/media_ops.py resolves them on PATH).
+_MEDIA_BINARIES = ("ffmpeg", "ffprobe")
+
+
+def media_tools_present() -> tuple[bool, str]:
+    """Whether this machine has the media tools: the nebula-media worker module
+    (``nebula/worker.py`` under NEBULA_MEDIA_HOME, else under the vendored
+    ``vendor/nebula-media``, else an importable ``nebula`` package) AND the ffmpeg and ffprobe
+    binaries on PATH. (present, plain reason). Reads the disk only; starts nothing."""
+    import importlib.util
+    import shutil
+    from pathlib import Path
+
+    from core.media_worker_client import default_nebula_home
+
+    home = default_nebula_home()
+    if home:
+        worker = (Path(home) / "nebula" / "worker.py").is_file()
+        where = f"{home}/nebula/worker.py"
+    else:
+        worker = importlib.util.find_spec("nebula") is not None
+        where = "an importable nebula package"
+    if not worker:
+        return False, f"no nebula-media worker ({where} not found)"
+    missing = [name for name in _MEDIA_BINARIES if not shutil.which(name)]
+    if missing:
+        return False, f"not on PATH: {', '.join(missing)}"
+    return True, f"worker at {where}; {', '.join(_MEDIA_BINARIES)} on PATH"
+
+
+def register_media_capabilities_if_present() -> dict[str, Any]:
+    """Boot hook: register the media family only on a machine that has the media tools.
+
+    Without them nothing is registered: the media ids stay unknown to the graph and the
+    media-studio skill is refused by name, as before. With them the family is registered and
+    each implementation's availability is the worker's live answer (``register_media_capabilities``
+    probes it), so a worker that will not start is recorded as unavailable, never as ready.
+    """
+    present, reason = media_tools_present()
+    if not present:
+        return {"family": "media", "registered": False, "reason": reason}
+    result = register_media_capabilities()
+    return {**result, "registered": True, "tools": reason}
+
+
 def _tool_intent_for(cap_id: str) -> str:
     mapping = {
         "media.inspect": "media.inspect",
@@ -120,4 +165,9 @@ def media_capability_snapshot() -> dict[str, Any]:
     return {"implementations": out}
 
 
-__all__ = ["media_capability_snapshot", "register_media_capabilities"]
+__all__ = [
+    "media_capability_snapshot",
+    "media_tools_present",
+    "register_media_capabilities",
+    "register_media_capabilities_if_present",
+]

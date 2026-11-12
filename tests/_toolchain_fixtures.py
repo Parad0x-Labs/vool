@@ -325,3 +325,48 @@ __all__ = [
     "widget_skill",
     "write_mcp_config",
 ]
+
+
+def person_writes_skill(markdown: str, *, source_context: dict | None = None) -> dict:
+    """The person's own route for a skill: ``skill.create``, then turning it on with ``skill.install``
+    by clicking Allow on the card that shows its check code and lists its tools.
+
+    Only a skill made this way may ADD tools to a turn (core.skill_origin): ``skill.create`` records
+    that VOOL drafted these bytes, and the person's approval of the install of exactly them confirms
+    the tools (audit H1: a ``skill.create`` call alone is not the person's word). ``markdown`` is read
+    for its fields only; ``skill.create`` renders the file itself.
+    """
+    import uuid
+
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.mode_permission_policy import reset_mode_permission_state, resolve_approval
+    from core.plugin_skills import parse_skill_content
+    from core.runtime_execution_tools import _skill_create
+
+    skill = parse_skill_content(markdown, path=Path("draft") / "SKILL.md")
+    assert skill is not None, "the fixture markdown has no frontmatter"
+    context = dict(source_context or {"_owner_local": True})
+    created = _skill_create(
+        {
+            "name": skill.name,
+            "description": skill.description,
+            "body": skill.body,
+            "allowed_tools": list(skill.allowed_tools),
+            "triggers": list(skill.triggers),
+        },
+        context,
+    )
+    assert created.ok, created.details
+    arguments = {"path": created.details["slug"], "sha256": created.details["sha256"]}
+    session = str(context.get("runtime_session_id") or context.get("session_id") or "s-person-writes")
+    asking = dict(context, operating_mode="manual", session_id=session,
+                  cancel_turn_id=f"t-person-writes-{uuid.uuid4().hex[:8]}")
+    reset_mode_permission_state()
+    asked = execute_authorized_runtime_tool("skill.install", dict(arguments), source_context=dict(asking))
+    assert asked.status == "pending_approval", asked.response_text
+    token = str(dict(asked.details["approval_request"])["approval_id"])
+    assert resolve_approval(token, decision="allow") is not None
+    installed = execute_authorized_runtime_tool(
+        "skill.install", dict(arguments), source_context=dict(asking, mode_approval_token=token))
+    assert installed.ok, installed.details
+    return dict(installed.details)
