@@ -2927,6 +2927,19 @@ class VoolAgent(
                     runtime_source_context["unresolved_referent"] = True
                 if _resolution.kind == "retry_changed":
                     runtime_source_context["_conversation_changed"] = True
+            if _resolution.kind == "referent_unresolved" and _resolution.answer:
+                # A pointer outside the list this chat printed ("the second one" of a one-item list): the record
+                # holds the list, so the reply names it. No lane or model gets to invent the missing item.
+                return _guard_final_result(
+                    self._fast_path_result(
+                        session_id=session_id,
+                        user_input=effective_input,
+                        response=_resolution.answer,
+                        confidence=0.9,
+                        source_context=runtime_source_context,
+                        reason="conversation_pick_outside_list",
+                    )
+                )
             _carried = _resolution.text if _resolution.kind in {"retry", "retry_changed", "pick"} else compose_continuation(
                 effective_input, last_task_request(session_id)
             )

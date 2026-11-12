@@ -278,6 +278,11 @@ def maybe_answer(
     _LOG.info("clean loop route: %s", decision.reason)
     if not decision.admit:
         return None
+    if context.get("unresolved_referent"):
+        # The chat's record cannot supply what the message points at ("that folder", "the third one" of a list this
+        # chat never printed). The loop would pick something from the folders it can see; the turn's model asks.
+        context["clean_local_loop_route"] = "unresolved_referent"
+        return None
     # A short follow-up to a loop turn that left evidence stays with the loop: its answer may come from that
     # evidence alone, so "no new read" is not a reason to decline it.
     needs_web = front_door_needs_web(effective_input or text, context)

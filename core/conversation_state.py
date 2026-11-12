@@ -57,6 +57,8 @@ class Resolution:
     slots: dict[str, Any] = field(default_factory=dict)
     note: str = ""
     change: str = ""
+    #: A reply the resolver can give itself (a pointer outside the printed list): the turn publishes it, no lane guesses.
+    answer: str = ""
 
     @property
     def text(self) -> str:
@@ -382,6 +384,24 @@ def is_social_only(text: str) -> bool:
     return any(t in core for t in toks)
 
 
+#: What the model is told about a closing remark, so it does not read the chat's last task as still open.
+CLOSING_NOTE = ("The person's message is a closing remark (thanks, a dismissal or a reaction). It asks for nothing. "
+                "Reply in one short, friendly line. Do not look anything up, run anything, redo or continue the earlier "
+                "request, or report on it.")
+#: Words that make a short reaction an acceptance of an offer rather than a closing ("yes thanks").
+_ACCEPT_WORDS = frozenset({"yes", "yep", "yeah", "yup", "y", "sure", "please", "pls", "plz", "proceed", "confirm", "approve", "go", "ahead", "do"})
+
+
+def is_closing(text: str) -> bool:
+    """A social-only message with a thanks word, a filler or a dismissal in it, and no acceptance word."""
+    if not is_social_only(text):
+        return False
+    toks = _tokens(text)
+    if any(t in _ACCEPT_WORDS for t in toks):
+        return False
+    return any(t in _THANKS_WORDS or t in _FILLER_WORDS or t in _DISMISS_TOKENS for t in toks)
+
+
 def _cleared_exit(compact: str, pending: PendingRequest | None = None) -> bool:
     """The closed set of messages that are NOT a retry although the blocker is cleared: a dismissal or postponement, thanks
     alone, a question or task with content of its own."""
@@ -640,7 +660,15 @@ def _pick(compact: str, pending: PendingRequest | None) -> Resolution | None:
     else:
         return None  # "both" / "all of them" only points when the printed list has exactly two items
     if not picked:
-        return Resolution("referent_unresolved", note=f"The list printed earlier has {n} item(s); the pointer is outside it. Ask which one.")
+        shown = ", ".join(f"`{item['path']}`" for item in listed[:5]) + (" and more" if n > 5 else "")
+        asked = k if m.group("ord") else (int(m.group("num") or m.group("num2")) if (m.group("num") or m.group("num2")) else 0)
+        reply = (f"That list has only {n} item{'s' if n != 1 else ''} ({shown})"
+                 + (f", so there is no item {asked}." if asked else "."))
+        return Resolution(
+            "referent_unresolved",
+            note=f"The list printed earlier has {n} item(s); the pointer is outside it. Ask which one.",
+            answer=reply,
+        )
     names = ", ".join(f"“{i['path']}”" for i in picked)
     a, b = m.span("nm") if m.group("nm") else m.span()
     rewritten = (compact[:a] + names + compact[b:]).strip()
@@ -694,9 +722,9 @@ def resolve(
             if _DISMISS_RE.search(rest) or _DISMISS_WHOLE_RE.match(rest):
                 pass
             elif _is_plain_remainder(rest, pending.slots):
-                return Resolution("retry", pending.request, dict(pending.slots), _note(pending))
+                return Resolution("retry", pending.request, dict(pending.slots), _retry_note(pending))
             elif _read_only(pending):
-                return Resolution("retry_changed", pending.request, apply_change(pending.slots, rest), _note(pending), change=rest)
+                return Resolution("retry_changed", pending.request, apply_change(pending.slots, rest), _retry_note(pending), change=rest)
         elif not has_cue and unfinished and pending.turns_since <= _ARBITRATE_MAX_AGE:
             state = blocker_cleared(pending, source_context) if cleared == "probe" else cleared
             if state is True:
@@ -722,6 +750,9 @@ def resolve(
         _NAMES_A_FOLDER_RE.search(folder_pointer.group(0)) or _record_is_about_files(pending)
     ):
         return Resolution("referent_unresolved", note=("The message points at a folder this chat has not resolved; ask which folder. " + (_note(pending) if pending else "")).strip())
+    if is_closing(compact):
+        # A thanks or a dismissal is never the previous task again: the record's slots and request stay out of the turn.
+        return Resolution("none", note=CLOSING_NOTE)
     note = _note(pending) if pending and _looks_back_at_the_record(compact, pending) else ""
     return Resolution("none", slots=dict(pending.slots) if pending else {}, note=note)
 
@@ -782,10 +813,19 @@ def apply_change(slots: dict[str, Any], change: str) -> dict[str, Any]:
     return out
 
 
+def _retry_note(pending: PendingRequest) -> str:
+    """The note a RERUN carries. An answered ask has nothing to report about how it ended: told "it ended answered" next
+    to the same question, a model describes the request or the earlier answer instead of answering it."""
+    if pending.outcome != ANSWERED:
+        return _note(pending)
+    return ("The person asked this again and wants the answer itself, in full, written to them now. "
+            "Answer the question directly; do not describe the request, say it was asked before, or refer to the earlier reply.")
+
+
 def _note(pending: PendingRequest) -> str:
     where = f" Folder: {pending.slots['path']}." if pending.slots.get("path") else ""
     why = f" ({pending.reason})" if pending.reason else ""
     return f"Earlier in this chat the user asked: “{pending.request}”. It ended {pending.outcome}{why}.{where}"
 
 
-__all__ = ["PendingRequest", "Resolution", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]
+__all__ = ["CLOSING_NOTE", "PendingRequest", "Resolution", "is_closing", "is_social_only", "load", "outcome_of", "record_sealed_turn", "resolve", "slots_of"]

@@ -40,6 +40,15 @@ CONTENT_SEARCH_NUDGE = (
 )
 REPEAT_NOTICE = "You already tried exactly that and it failed. Try a different word or folder, or answer with what you found."
 
+SEARCH_FIRST_NUDGE = (
+    "You asked a question without looking. Call find now with two or three words from the owner's ask, "
+    "then answer from what it returns."
+)
+NOTHING_FOUND_NUDGE = (
+    "Your search found nothing. Tell the owner plainly that you found nothing for what they asked. "
+    "Do not ask which file or folder they mean in place of saying so; one short question may follow the statement."
+)
+
 GAVE_UP_TEXT = "I couldn't finish looking that up. Could you tell me a bit more about where it might be?"
 NO_REPLY_TEXT = "I couldn't put an answer together just now. Please try asking again."
 
@@ -95,6 +104,21 @@ def parse_action(text: str) -> dict[str, Any]:
             return {"answer": str(value.get("answer") or "").strip()}
     prose = re.sub(r"```\w*", "", raw).strip()
     return {"answer": prose}
+
+
+def is_bare_question(text: str) -> bool:
+    """Whether the text is only questions: every sentence ends in a question mark, none states anything."""
+    parts = [p.strip() for p in re.findall(r"[^.!?]+[.!?]*", str(text or "")) if p.strip(" .!?")]
+    return bool(parts) and all(p.endswith("?") for p in parts)
+
+
+def _read_something(steps: Sequence[dict[str, Any]]) -> bool:
+    """A tool step that returned content: ok, not an empty search, not an unfinished one."""
+    return any(
+        step.get("tool") and step.get("tool") != "propose_change" and step.get("ok") and not step.get("empty")
+        and step.get("status") != "content_search_incomplete" and int(step.get("result_chars") or 0) > 0
+        for step in steps
+    )
 
 
 @dataclass
@@ -176,6 +200,8 @@ def run_loop(
     if staged:
         result.seen.append(staged)
     nudged = False
+    question_nudged = False
+    own_search_done = False
     absence_search_nudged = False
     failed: set[str] = set()
     for step in range(max_steps):
@@ -223,7 +249,37 @@ def run_loop(
                 result.steps.append({"step": step, "nudge": "look_first", "think_ms": think_ms})
                 messages.append({"role": "user", "content": LOOK_FIRST_NUDGE})
                 continue
-            result.answer = str(action.get("answer") or "").strip()
+            candidate = str(action.get("answer") or "").strip()
+            if is_bare_question(candidate) and not _read_something(result.steps) and not last and registry.tools():
+                # A question is not an answer to an ask about the owner's files when nothing was read for it: either
+                # nothing was searched, or the search found nothing and the model asked instead of saying so.
+                looked = any(item.get("tool") for item in result.steps)
+                unfinished = any(i.get("tool") == "find" and i.get("status") == "content_search_incomplete" for i in result.steps[-1:])
+                if not question_nudged and not (nudged and not looked):
+                    question_nudged = True
+                    result.steps.append({"step": step, "nudge": "question_without_evidence", "think_ms": think_ms})
+                    messages.append({
+                        "role": "user",
+                        "content": CONTENT_SEARCH_NUDGE if unfinished else (NOTHING_FOUND_NUDGE if looked else SEARCH_FIRST_NUDGE),
+                    })
+                    continue
+                if not looked and not own_search_done and registry.tool("find") is not None:
+                    # Told to look, still only a question: the loop runs the search itself, once.
+                    own_search_done = True
+                    outcome = _run_tool(registry, {"tool": "find", "query": ask}, ctx)
+                    result.steps.append({
+                        "step": step, "tool": "find", "args": {"query": ask}, "ok": outcome.ok, "status": outcome.status,
+                        "empty": bool(getattr(outcome, "empty", False)), "intents": list(outcome.intents),
+                        "result_chars": len(outcome.text), "think_ms": think_ms, "tool_ms": 0, "by": "loop",
+                    })
+                    result.seen.append(outcome.text[:_TOOL_RESULT_CHARS])
+                    messages.append({"role": "user", "content": f"{TOOL_RESULT_HEADING}\n" + outcome.text[:_TOOL_RESULT_CHARS]})
+                    continue
+                from core.clean_loop.tools import NOT_FOUND_TEXT, UNSEARCHED_TEXT
+
+                searched = any(i.get("tool") == "find" and i.get("status") == "content_search_complete" for i in result.steps)
+                candidate = NOT_FOUND_TEXT if searched else UNSEARCHED_TEXT
+            result.answer = candidate
             break
         if last:
             result.stopped = "max_steps"
