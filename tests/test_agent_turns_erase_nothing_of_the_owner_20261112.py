@@ -19,7 +19,7 @@ import json
 
 import pytest
 
-from tests.test_agent_turns_teach_the_owner_nothing_20261112 import (  # noqa: F401 (fixtures)
+from tests.test_agent_turns_teach_the_owner_nothing_20261112 import (  # fixtures
     AGENT_CHAT,
     OWNER_CHAT,
     _context,
@@ -27,7 +27,7 @@ from tests.test_agent_turns_teach_the_owner_nothing_20261112 import (  # noqa: F
     agent_mode,
     env,
 )
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401 (fixture)
+from tests.test_question_date_time_leg_20261002 import _hash_backend  # fixture
 
 pytestmark = pytest.mark.usefixtures("_hash_backend")
 
@@ -78,9 +78,8 @@ def test_the_memory_lane_refuses_an_agents_forget_and_keeps_the_owners_entry(env
 
 
 def test_an_agents_forget_is_refused_before_any_admission_begins(env, agent_mode):
-    from core.persistent_memory import _forget_outcomes, _preadmit_forget_turn
-
     from core.memory.command_result import verified_forget_outcome
+    from core.persistent_memory import _forget_outcomes, _preadmit_forget_turn
 
     _remember_as_owner()
     context = {**_context(AGENT_CHAT, agent=agent_mode), "turn_id": "turn-agent-forget"}

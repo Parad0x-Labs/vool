@@ -58,13 +58,13 @@ def test_a_delete_with_another_chats_forget_landing_mid_delete_succeeds(tmp_path
     def delete():
         try:
             out["delete"] = entries.delete_conversation_session(doomed)
-        except BaseException as exc:  # noqa: BLE001 -- asserted below
+        except BaseException as exc:  # asserted below
             out["delete_error"] = exc
 
     def forget():
         try:
             out["forget"] = _forget_command(profile, forgetting, f"Forget {value}")[1]
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             out["forget_error"] = exc
 
     deleter = threading.Thread(target=delete, name="deleter", daemon=True)

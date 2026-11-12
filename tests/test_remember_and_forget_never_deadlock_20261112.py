@@ -32,7 +32,7 @@ import pytest
 from core.memory import entries, revocation
 from core.memory.entries import add_memory_fact, forget_memory, list_memory_entries
 from core.persistent_memory import maybe_handle_memory_command
-from tests.test_memory_forget_resurrection_p0 import (  # noqa: F401 (isolated_home is a fixture)
+from tests.test_memory_forget_resurrection_p0 import (  # isolated_home is a fixture
     CANARY,
     CHAT,
     FACT_TEXT,
@@ -100,7 +100,7 @@ def test_a_remember_during_a_forget_never_deadlocks(isolated_home, monkeypatch, 
     def run_forget():
         try:
             out["forget"] = forget_memory(CANARY, access_policy=policy)
-        except BaseException as exc:  # noqa: BLE001 -- reported below
+        except BaseException as exc:  # reported below
             errors["forget"] = exc
         forget_has_entry_lock.set()
 
@@ -108,7 +108,7 @@ def test_a_remember_during_a_forget_never_deadlocks(isolated_home, monkeypatch, 
         try:
             forget_has_entry_lock.wait(DEADLINE_S)
             out["remember"] = write(chat)
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             errors["remember"] = exc
 
     threads = [threading.Thread(target=run_forget, name="forget", daemon=True),

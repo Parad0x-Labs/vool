@@ -110,7 +110,7 @@ def test_an_entry_lock_holder_and_a_forget_in_another_chat_never_deadlock(tmp_pa
     def hold():
         try:
             out["holder"] = operation(other)
-        except BaseException as exc:  # noqa: BLE001 -- reported below
+        except BaseException as exc:  # reported below
             out["holder_error"] = exc
         started.set()
 
@@ -118,7 +118,7 @@ def test_an_entry_lock_holder_and_a_forget_in_another_chat_never_deadlock(tmp_pa
         try:
             started.wait(DEADLINE_S)
             out["forget"] = _forget_command(profile, chat, f"Forget {value}")[1]
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             out["forget_error"] = exc
 
     threads = [threading.Thread(target=hold, name="holder", daemon=True),

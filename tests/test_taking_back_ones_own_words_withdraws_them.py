@@ -41,7 +41,7 @@ from core.temporal_selection import (
     carries_undo_marker,
     retraction_marker,
 )
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401 (fixture)
+from tests.test_question_date_time_leg_20261002 import _hash_backend  # fixture
 from tests.test_retraction_grammar_20261003 import _ordinary_chat_capsule
 
 UTC = timezone.utc

@@ -182,10 +182,9 @@ def fence_first(runtime_home=None):
     is held even when the ledger's file lock cannot be taken: the fenced read or write inside then
     raises as it always did (fail closed), and the order still holds."""
     with _LOCK, contextlib.ExitStack() as fence:
-        try:
+        # The fenced read or write inside reports a fence that could not be taken, typed.
+        with contextlib.suppress(Exception):
             fence.enter_context(serialized(runtime_home))
-        except Exception:  # noqa: BLE001 -- the fenced read or write inside reports it, typed
-            pass
         yield
 
 

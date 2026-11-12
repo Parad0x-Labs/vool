@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from core.clean_loop import route
-from tests.test_memory_forget_served_p0 import _reply_text, served  # noqa: F401 (served is a fixture)
+from tests.test_memory_forget_served_p0 import _reply_text, served  # served is a fixture
 
 OWNED = (
     "Forget my name. Forget storage label MINT-84.",

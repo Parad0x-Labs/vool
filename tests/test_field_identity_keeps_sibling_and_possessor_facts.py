@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 import pytest
 
 from core.temporal_selection import AsOfIntent, _names_another_field, apply_temporal_selection
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401 (fixture)
+from tests.test_question_date_time_leg_20261002 import _hash_backend  # fixture
 
 UTC = timezone.utc
 NOW = datetime(2026, 11, 1, tzinfo=UTC)
@@ -129,7 +129,8 @@ def test_one_field_still_supersedes_as_before(earlier, later):
 # ── end to end: the distilled lane of an ordinary chat capsule ───────────────────────────────
 
 def _capsule(tmp_path, turns: list[tuple[str, str]], question: str) -> str:
-    from tests.test_question_date_time_leg_20261002 import _capsule as build, _ingest, _profile
+    from tests.test_question_date_time_leg_20261002 import _capsule as build
+    from tests.test_question_date_time_leg_20261002 import _ingest, _profile
 
     profile = _profile(tmp_path)
     _ingest(profile, "fieldchat", [(_ts(at), text) for at, text in turns])

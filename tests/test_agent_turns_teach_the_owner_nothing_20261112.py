@@ -38,7 +38,7 @@ from tests.operator_profile_rig import (
     served_get,
     served_post,
 )
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401 (fixture)
+from tests.test_question_date_time_leg_20261002 import _hash_backend  # fixture
 
 pytestmark = pytest.mark.usefixtures("_hash_backend")
 

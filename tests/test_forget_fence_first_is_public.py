@@ -25,7 +25,7 @@ def _blocked_while(context, contender) -> bool:
     def run():
         try:
             contender()
-        except BaseException as exc:  # noqa: BLE001 -- an unopenable ledger raises once let through
+        except BaseException as exc:  # an unopenable ledger raises once let through
             errors.append(exc)
         done.set()
 

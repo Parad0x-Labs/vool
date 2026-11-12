@@ -51,13 +51,13 @@ def test_a_turn_appended_by_another_chat_during_a_delete_is_kept(tmp_path, monke
     def delete():
         try:
             out["delete"] = entries.delete_conversation_session(doomed)
-        except BaseException as exc:  # noqa: BLE001 -- asserted below
+        except BaseException as exc:  # asserted below
             out["delete_error"] = exc
 
     def append():
         try:
             _ingest(profile, other, [(_ts("2026-03-04T10:00:00"), "The boiler code is on the fridge.")])
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             out["append_error"] = exc
 
     deleter = threading.Thread(target=delete, name="deleter", daemon=True)

@@ -93,7 +93,7 @@ def test_a_forget_and_a_memory_erase_in_another_chat_never_deadlock(tmp_path, mo
     def run_erase():
         try:
             out["erase"] = ERASES[erase](other, record_id, request_id)
-        except BaseException as exc:  # noqa: BLE001 -- reported below
+        except BaseException as exc:  # reported below
             errors["erase"] = exc
         eraser_has_entry_lock.set()
 
@@ -101,7 +101,7 @@ def test_a_forget_and_a_memory_erase_in_another_chat_never_deadlock(tmp_path, mo
         try:
             eraser_has_entry_lock.wait(DEADLINE_S)
             out["forget"] = _forget_command(profile, chat, f"Forget {value}")[1]
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             errors["forget"] = exc
 
     threads = [threading.Thread(target=run_erase, name="eraser", daemon=True),

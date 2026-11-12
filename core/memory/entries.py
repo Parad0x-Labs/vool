@@ -182,7 +182,7 @@ def _entry_lock():
 
     try:
         home = _store_home(memory_entries_path())
-    except Exception:  # noqa: BLE001 -- the fenced write inside reports it; the order still holds
+    except Exception:  # the fenced write inside reports it; the order still holds
         home = None
     with fence_first(home), _MEMORY_ENTRY_LOCK:
         yield
@@ -2484,7 +2484,7 @@ def _rewrite_without_session(path: Path, sid: str) -> bool:
 
     try:
         home = _store_home(path)
-    except Exception:  # noqa: BLE001 -- the fenced rewrite reports it; the order still holds
+    except Exception:  # the fenced rewrite reports it; the order still holds
         home = None
     with fence_first(home), _JSONL_LOCK:
         rows = _load_jsonl(path)

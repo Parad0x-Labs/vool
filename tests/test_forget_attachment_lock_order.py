@@ -73,7 +73,7 @@ def _race(workers: dict, *, deadline_s: float, label: str) -> dict[str, BaseExce
         try:
             barrier.wait(timeout=deadline_s)
             fn()
-        except BaseException as exc:  # noqa: BLE001 -- reported below, by worker
+        except BaseException as exc:  # reported below, by worker
             errors[name] = exc
 
     threads = [threading.Thread(target=run, args=(name, fn), name=f"lock-order-{name}", daemon=True)
@@ -120,11 +120,11 @@ def test_a_forget_racing_uploads_and_attachment_turns_never_deadlocks_and_keeps_
         refused: list[str] = []
         served: list[str] = []
 
-        def forget(chat=chat, value=value):
+        def forget(chat=chat, value=value, replies=replies):
             handled, reply = _forget_command(profile, chat, f"Forget {value}")
             replies.append(reply)
 
-        def upload(chat=chat, value=value):
+        def upload(chat=chat, value=value, refused=refused):
             for i in range(REPEATS):
                 try:
                     ca.stage_document(session_id=chat, data=f"Upload {i}.\nThe code is {value}.\n".encode(),
@@ -132,23 +132,24 @@ def test_a_forget_racing_uploads_and_attachment_turns_never_deadlocks_and_keeps_
                 except ca.AttachmentRefused as exc:
                     refused.append(exc.code)
 
-        def image_turn(chat=chat):
+        def image_turn(chat=chat, served=served):
             for i in range(REPEATS):
                 served.extend(e.get("name", "") for e in _turn(chat, f"img-{i}", data=png, name=f"shot-{i}.png",
                                                               media_type="image/png"))
 
-        def picked_turn(chat=chat):
+        def picked_turn(chat=chat, served=served):
             for i in range(REPEATS):
                 served.extend(e.get("name", "") for e in _turn(chat, f"file-{i}", data=f"Plain notes {i}.\n".encode(),
                                                               name=f"notes-{i}.txt", media_type="text/plain"))
 
-        def serve_other_chat():
+        served_other: list[str] = []
+
+        def serve_other_chat(served_other=served_other):
             for _ in range(REPEATS):
                 served_other.extend(e.get("name", "") for e in ca.evidence_items_for_turn(session_id=other, turn_id="turn-0"))
                 ca.model_attachments_for_turn(session_id=other, turn_id="turn-0", question="notes?")
                 ca.carried_documents_for_turn(session_id=other, exclude_turn_id="turn-x")
 
-        served_other: list[str] = []
         errors = _race({"forget": forget, "upload": upload, "image_turn": image_turn, "picked_turn": picked_turn,
                         "serve_other_chat": serve_other_chat},
                        deadline_s=ROUND_DEADLINE_S, label=f"round {round_no}")
@@ -156,6 +157,6 @@ def test_a_forget_racing_uploads_and_attachment_turns_never_deadlocks_and_keeps_
         assert len(replies) == 1 and replies[0].startswith("Forget applied"), (round_no, replies)
         # A paste staged after the forget committed saw it and was refused; one staged before was erased.
         assert set(refused) <= {"forgotten_content"}, (round_no, refused)
-        assert not ca.documents_still_carrying(session_id=chat, carries=lambda words: carries(words, value)), round_no
+        assert not ca.documents_still_carrying(session_id=chat, carries=lambda words, value=value: carries(words, value)), round_no
         assert not any(value in name for name in served), (round_no, served)
         assert served_other and set(served_other) == {"other.txt"}, (round_no, served_other)

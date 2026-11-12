@@ -35,7 +35,7 @@ import pytest
 from core.context_retrieval import text_carries_revoked_token
 from core.input_normalizer import normalize_user_text
 from core.memory.carriers import carries, forget_needle_in
-from tests.test_forget_scrubs_run_history import (  # noqa: F401 (isolated_pages is a fixture)
+from tests.test_forget_scrubs_run_history import (  # isolated_pages is a fixture
     _db_carriers,
     _remember,
     _session_words,
@@ -43,8 +43,8 @@ from tests.test_forget_scrubs_run_history import (  # noqa: F401 (isolated_pages
     command,
     isolated_pages,
 )
-from tests.test_memory_forget_served_p0 import _reply_text, served  # noqa: F401 (served is a fixture)
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401 (fixture)
+from tests.test_memory_forget_served_p0 import _reply_text, served  # served is a fixture
+from tests.test_question_date_time_leg_20261002 import _hash_backend  # fixture
 
 pytestmark = pytest.mark.usefixtures("_hash_backend")
 
