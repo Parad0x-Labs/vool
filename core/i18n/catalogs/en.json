@@ -593,6 +593,10 @@
     "approval.action.x.trending": "see what is trending on X",
     "approval.action.x.user": "look up an X account",
     "approval.action.x.user_posts": "read an account's posts on X",
+    "approval.action.x.api.request": "use a part of X's own service for you",
+    "approval.action.x.feedback.save": "save what you said about an X post",
+    "approval.action.x.replies.unanswered": "read the comments on your X post that have no reply yet",
+    "approval.action.x.results": "check how your recent X posts are doing",
     "approval.ask_wants": "VOOL wants to {action}.",
     "approval.ask_wants_named": "VOOL wants to {action} {target}.",
     "approval.general": "This request needs your approval first.",
@@ -1517,7 +1521,6 @@
     "pay.row_reasoning": "Reasoning",
     "pay.saved_bound": "saved maximum from the approved route · ",
     "pay.scope_standard": "Accepting the price for this chat lasts 24 hours for this model only, and survives reloading the app. Your existing spending limits still apply; a price above the accepted bound requires a new decision.",
-    "pay.scope_usepod": "Accepting the price covers <b>price only</b>: this chat, this model, for 24 hours. Each paid UsePod request stays within your approved UsePod budget (Settings → UsePod spending); accepting a price never widens that approval. Your existing spending limits still apply; higher prices require a new decision.",
     "pay.stale_mark": "STALE",
     "pay.title_above_accepted": "MODEL PRICE ABOVE YOUR ACCEPTED CEILING",
     "pay.title_confirm_spend": "PAID MODEL — CONFIRM SPEND",
@@ -3690,7 +3693,7 @@
     "addons.plugin_message_033f0bddbe04": "This plugin has a setup mistake its maker needs to fix: it may not offer money tools. It was not installed.",
     "addons.plugin_message_8d09b8409257": "A plugin can't hold credentials that belong to you or to another plugin.",
     "addons.plugin_message_84ac804abfbf": "Each service key needs its own name. It was not installed.",
-    "addons.plugin_message_9ca0e140c639": "This plugin gets its key in a way this Mac cannot keep private from other programs, so it stays off here. Plugins that need no key still work.",
+    "addons.plugin_message_1c4651e6f875": "This plugin gets its key in a way this computer cannot keep private from other programs, so it stays off here. Plugins that need no key still work.",
     "addons.plugin_message_aef2b358bc3a": "Network access is off right now. The plugin was not connected.",
     "addons.plugin_message_7806f758ad74": "The service sent a model list VOOL can't use. Nothing was added.",
     "addons.plugin_message_c63966f977e8": "The plugin tried to use a service address it didn't list. The call was stopped.",
@@ -4472,7 +4475,7 @@
     "wallet.home.saved_contact": "Saved contact",
     "wallet.home.contact_other_network": "{name}'s address is saved for {saved}, not {network}. Sending on {network} needs an address on this network.",
     "wallet.home.contact_paying": "Paying the saved contact {name} — the exact destination is the address shown in the field.",
-    "wallet.home.no_contacts": "No saved wallet addresses yet. Settings → Contacts saves them; typing an address directly always works.",
+    "wallet.home.no_contacts": "No saved wallet addresses yet. Typing an address directly always works.",
     "wallet.home.contacts_unreadable": "Contacts could not be read; type the address directly.",
     "wallet.home.what_to_send": "What to send",
     "wallet.home.amount_label": "Amount ({symbol})",
@@ -4775,7 +4778,6 @@
     "settings.search_heading",
     "settings.search_help",
     "settings.usage_heading",
-    "settings.usage_help",
-    "pay.scope_usepod"
+    "settings.usage_help"
   ]
 }

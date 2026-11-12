@@ -3649,9 +3649,13 @@ function widgetXActivity(host) {
           ? T('xact.lost_answer', 'VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.')
           : T('xact.failed', 'That did not work. Nothing was sent.');
         try { out = await xActivityCall(payload); } catch (e) { out = { ok: false, j: { message: lost } }; }
-        await draw(a.kind === 'api' ? xApiActionMessage(out, a)
-          : out.j.state === 'needs_account' && a.kind.startsWith('bookmark_') ? T('xbook.off', 'Bookmarks are off until you sign in.')
-          : (out.j.message || (out.ok ? '' : lost)));
+        if (a.kind === 'api') { await draw(xApiActionMessage(out, a)); return; }
+        if (out.j && out.j.state === 'needs_account' && a.kind.startsWith('bookmark_')) {
+          await draw(T('xbook.off', 'Bookmarks are off until you sign in.')); return;
+        }
+        /* A refusal's server message is diagnosis: the person reads the keyed sentence. */
+        if (!out.ok) console.warn('x action refused:', (out.j && out.j.message) || '');
+        await draw(out.ok ? String((out.j && out.j.message) || '') : lost);
       };
       yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
       no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));

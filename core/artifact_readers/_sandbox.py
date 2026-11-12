@@ -855,7 +855,7 @@ def run_confined(
         # pipe says so: a decoder that prints the same words and exits 125 is a decoder that failed.
         _LANDLOCK_WORKS.clear()
         raise ReaderFailed(
-            f"The {fmt or 'file'} decoder could not be started inside its sandbox; the file was not read.",
+            f"VOOL could not start reading this {fmt or 'file'} safely, so it was not read.",
             code="sandbox_start_failed",
             remediation="Try again; if it keeps failing, paste the text instead.",
             fmt=fmt,

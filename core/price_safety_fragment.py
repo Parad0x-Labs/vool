@@ -217,13 +217,8 @@ function ratesHtml(row, provider){
   if (!lines) return '<div class="vg-note">This row publishes no per-token rates.</div>';
   return '<table class="vg-rates">' + lines + '</table>';
 }
-// What accepting a price here DOES and does not do. A UsePod one-call spending approval is a
-// separate, narrower authority (Settings \\u2192 UsePod spending): accepting a price for a chat
-// never widens it, so this review must not read as "permission for this conversation".
+// What accepting a price here does and does not do.
 function scopeHtml(provider){
-  if (provider === 'usepod') {
-    return '<p class="vg-note">' + T('pay.scope_usepod', 'Accepting the price covers <b>price only</b>: this chat, this model, for 24 hours. Each paid UsePod request stays within your approved UsePod budget (Settings \u2192 UsePod spending); accepting a price never widens that approval. Your existing spending limits still apply; higher prices require a new decision.') + '</p>';
-  }
   return '<p class="vg-note">' + T('pay.scope_standard', 'Accepting the price for this chat lasts 24 hours for this model only, and survives reloading the app. Your existing spending limits still apply; a price above the accepted bound requires a new decision.') + '</p>';
 }
 function freshHtml(age){
