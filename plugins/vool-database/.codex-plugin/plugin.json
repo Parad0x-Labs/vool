@@ -10,7 +10,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "VOOL Database",
-    "shortDescription": "Typed database tools over disposable SQLite files.",
+    "shortDescription": "Lets VOOL keep small databases of its own on this computer, look things up in them, and change them with a backup first.",
     "category": "Data",
     "developerName": "sls_0x"
   },

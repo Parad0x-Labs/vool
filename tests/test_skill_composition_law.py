@@ -119,10 +119,10 @@ def test_the_presentation_doctrine_no_longer_evicts_the_task_skill() -> None:
 def test_the_recon_skill_no_longer_evicts_the_repair_doctrine() -> None:
     """The measured CP6 failure: archaeology and the repair skills compose."""
     _, rows = _rows("debugging", DEBUGGING_TURN)
-    assert {"project-archaeology", "root-cause-repair", "bug-reproduction"} <= set(rows), sorted(rows)
+    assert {"project-archaeology", "root-cause-repair"} <= set(rows), sorted(rows)
     assert all(
         rows[n]["complete"]
-        for n in ("project-archaeology", "root-cause-repair", "bug-reproduction")
+        for n in ("project-archaeology", "root-cause-repair")
     ), rows
 
 

@@ -41,14 +41,11 @@ def _isolated_permission_registry():
 REQUIRED_PACKAGE_IDS = (
     "repo-onboarding",
     "root-cause-repair",
-    "bug-reproduction",
     "feature-build",
     "cumulative-testing",
     "code-review",
     "security-audit",
-    "git-worktrees",
     "ci-repair",
-    "browser-qa",
     "performance",
     "migration",
     "release-gate",
@@ -128,12 +125,22 @@ def test_words_no_package_declares_select_nothing(library_world) -> None:
 
 
 def test_explicit_invocation_through_the_real_skill_validate_tool(library_world) -> None:
+    """Naming a built-in to skill.validate is narrowed: VOOL's own skills are part of VOOL, so
+    there is no file to check or install. The person is told so plainly, and the built-in is
+    still reachable through the real skill.list door."""
     from core.runtime_execution_tools import execute_runtime_tool
 
     result = execute_runtime_tool("skill.validate", {"path": "vool-repo-onboarding"})
-    assert result is not None and result.ok is True
-    assert "vool-repo-onboarding" in result.response_text
-    assert "invalid" not in result.response_text
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+
+    listed = execute_runtime_tool("skill.list", {})
+    assert listed is not None and listed.ok is True
+    names = {entry.get("name") for entry in listed.details.get("native_skills") or []}
+    assert "repo-onboarding" in names
 
 
 def test_explicit_invocation_through_the_real_skill_list_tool(library_world) -> None:
@@ -285,24 +292,48 @@ def plugin_tree(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_a_native_package_and_an_installed_plugin_package_converge_to_one_contract(
-    library_world, plugin_tree
-) -> None:
-    """Same bytes, installed the plugin way, must validate to the SAME contract fields through
-    the ONE authority — source differs, nothing else does."""
-    from core.native_skill_library import (
-        load_native_library,
-        load_plugin_typed_contracts,
-        native_skills_root,
+def _pack_with(root, pack_id: str, folder: str, text: str):
+    """A pack directory carrying one SKILL.md, the way both bundled and installed packs look."""
+    import json
+
+    pack = root / pack_id
+    (pack / ".codex-plugin").mkdir(parents=True, exist_ok=True)
+    (pack / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": pack_id, "version": "1.0.0", "description": "parity pack",
+                    "skills": "./skills/", "runtime": {"contract_version": 1}, "tools": []}),
+        encoding="utf-8",
     )
+    skill_dir = pack / "skills" / folder
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
+    return pack
 
-    source = native_skills_root() / "vool-code-review" / "SKILL.md"
-    text = source.read_text(encoding="utf-8")
 
-    plugin_dir = plugin_tree / "plugins" / "parity-plugin"
-    installed_skill_dir = plugin_dir / "skills" / "vool-code-review"
-    installed_skill_dir.mkdir(parents=True)
-    (installed_skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
+def _bundled(tmp_path, monkeypatch, folder: str, text: str):
+    """The same bytes shipped as a pack VOOL bundles (a typed-contract source VOOL trusts)."""
+    from core.plugin_catalog import invalidate_storage_listing
+
+    root = tmp_path / "bundled"
+    pack = _pack_with(root, "parity-plugin", folder, text)
+    monkeypatch.setenv("VOOL_BUNDLED_PLUGINS_DIR", str(root))
+    invalidate_storage_listing()
+    return pack
+
+
+def _native_code_review_text() -> str:
+    from core.native_skill_library import native_skills_root
+
+    return (native_skills_root() / "vool-code-review" / "SKILL.md").read_text(encoding="utf-8")
+
+
+def test_a_native_package_and_a_bundled_plugin_package_converge_to_one_contract(
+    library_world, plugin_tree, tmp_path, monkeypatch
+) -> None:
+    """Same bytes, shipped the plugin way by VOOL, must validate to the SAME contract fields
+    through the ONE authority — source differs, nothing else does."""
+    from core.native_skill_library import load_native_library, load_plugin_typed_contracts
+
+    _bundled(tmp_path, monkeypatch, "vool-code-review", _native_code_review_text())
 
     native = next(c for c in load_native_library().contracts if c.id == "code-review")
     plugin_contracts = [c for c in load_plugin_typed_contracts().contracts if c.id == "code-review"]
@@ -317,21 +348,33 @@ def test_a_native_package_and_an_installed_plugin_package_converge_to_one_contra
     assert native.source == "native"
 
 
-def test_duplicate_ids_across_sources_are_reported_not_shadowed(library_world, plugin_tree) -> None:
-    from core.native_skill_library import (
-        load_skill_contracts,
-        native_skills_root,
-        select_native_skills,
-    )
+def test_the_same_bytes_in_an_installed_pack_are_not_a_typed_contract(library_world, plugin_tree) -> None:
+    """Negative twin: an installed pack is not VOOL's, so the same typed frontmatter is reported
+    as ignored and never selected by task class (red team f109f118 #1)."""
+    from core.native_skill_library import load_plugin_typed_contracts, skill_inventory
 
-    source = native_skills_root() / "vool-code-review" / "SKILL.md"
-    skill_dir = plugin_tree / "plugins" / "parity-plugin" / "skills" / "vool-code-review"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    _pack_with(plugin_tree / "plugins", "parity-plugin", "vool-code-review", _native_code_review_text())
+
+    load = load_plugin_typed_contracts()
+    assert not [c for c in load.contracts if c.id == "code-review"]
+    refused = [e for e in load.invalid if e.id == "code-review"]
+    assert refused and "typed keys ignored" in refused[0].violations[0], refused
+    assert "plugin:parity-plugin" in refused[0].violations[0]
+    native_row = next(r for r in skill_inventory() if r["id"] == "code-review")
+    assert native_row["source"] == "native", "the native original keeps its own row"
+
+
+def test_duplicate_ids_across_sources_are_reported_not_shadowed(
+    library_world, plugin_tree, tmp_path, monkeypatch
+) -> None:
+    from core.native_skill_library import load_skill_contracts, select_native_skills
+
+    _bundled(tmp_path, monkeypatch, "vool-code-review", _native_code_review_text())
 
     combined = load_skill_contracts()
     assert len([c for c in combined.contracts if c.id == "code-review"]) == 1, \
         "one id, one contract — the native original wins"
+    assert next(c for c in combined.contracts if c.id == "code-review").source == "native"
     assert any(
         e.id == "code-review" and "duplicate" in " ".join(e.violations)
         for e in combined.invalid
@@ -340,9 +383,29 @@ def test_duplicate_ids_across_sources_are_reported_not_shadowed(library_world, p
     assert any(c.id == "code-review" for c in selection.selected)
 
 
+def test_an_installed_twin_of_a_native_id_is_reported_and_the_original_keeps_serving(
+    library_world, plugin_tree
+) -> None:
+    """Negative twin: the copy is not a typed source at all, so it is reported for THAT reason
+    and the native contract is the only one selected."""
+    from core.native_skill_library import load_skill_contracts, select_native_skills
+
+    _pack_with(plugin_tree / "plugins", "parity-plugin", "vool-code-review", _native_code_review_text())
+
+    combined = load_skill_contracts()
+    kept = [c for c in combined.contracts if c.id == "code-review"]
+    assert len(kept) == 1 and kept[0].source == "native"
+    assert any(
+        e.id == "code-review" and "typed keys ignored" in " ".join(e.violations) for e in combined.invalid
+    )
+    selection = select_native_skills(task_class="workspace_audit", user_text="review this")
+    assert [c.source for c in selection.selected if c.id == "code-review"] == ["native"]
+
+
 def test_a_native_package_survives_the_full_install_lifecycle(library_world, plugin_tree) -> None:
-    """create→validate→install is the plugin lifecycle; a native package walks it unchanged and
-    stays selectable (the twin is reported, the original keeps serving)."""
+    """Copying a built-in into a plugin is refused (it would make a second, unreviewed twin of a
+    VOOL skill). The person is told plainly why and what to do instead; nothing is written, and
+    the original keeps serving."""
     from core.native_skill_library import select_native_skills
     from core.runtime_execution_tools import execute_runtime_tool
 
@@ -350,13 +413,18 @@ def test_a_native_package_survives_the_full_install_lifecycle(library_world, plu
         "skill.install", {"path": "vool-cumulative-testing", "plugin_id": "parity-plugin",
                           "overwrite": True}
     )
-    assert result is not None and result.ok is True, result.response_text
+    assert result is not None and result.ok is False
+    text = result.response_text
+    assert "is one of VOOL's own skills" in text
+    assert "nothing here to check or install" in text
+    assert "turn it on or off in Skills" in text
+    assert not [p for p in plugin_tree.rglob("SKILL.md") if "parity-plugin" in p.parts]
 
     selection = select_native_skills(
         task_class="debugging",
         user_text="run the lint and formatter over the suite and attribute the findings",
     )
-    assert any(c.id == "cumulative-testing" for c in selection.selected)
+    assert any(c.id == "cumulative-testing" and c.source == "native" for c in selection.selected)
 
 
 # ---------------------------------------------------------------- permission guards

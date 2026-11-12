@@ -164,24 +164,69 @@ Read the pack manifest and report defects with file:line evidence.
 """
 
 
-def test_a_plugin_skill_with_a_typed_contract_joins_the_same_selection(
-    skill_world, tmp_path, monkeypatch
-) -> None:
-    from core.native_skill_library import select_native_skills, skill_inventory
+def _typed_pack(root, pack_id: str = "pack"):
+    import json
 
-    plugin_dir = tmp_path / "plugins" / "pack"
+    plugin_dir = root / pack_id
     skills = plugin_dir / "skills" / "pack-auditor"
     skills.mkdir(parents=True)
+    (plugin_dir / ".codex-plugin").mkdir(parents=True)
+    (plugin_dir / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": pack_id, "version": "1.0.0", "description": "typed pack",
+                    "skills": "./skills/", "runtime": {"contract_version": 1}, "tools": []}),
+        encoding="utf-8",
+    )
     (skills / "SKILL.md").write_text(TYPED_PLUGIN_SKILL, encoding="utf-8")
-    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
+    return plugin_dir
+
+
+def test_a_bundled_plugin_skill_with_a_typed_contract_joins_the_same_selection(
+    skill_world, tmp_path, monkeypatch
+) -> None:
+    """A pack VOOL ships is a trusted typed source: its contract joins the ONE selection."""
+    from core.native_skill_library import select_native_skills, skill_inventory
+    from core.plugin_catalog import invalidate_storage_listing
+
+    _typed_pack(tmp_path / "bundled")
+    monkeypatch.setenv("VOOL_BUNDLED_PLUGINS_DIR", str(tmp_path / "bundled"))
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "installed-root"))
+    invalidate_storage_listing()
 
     inventory = {row["id"]: row for row in skill_inventory()}
     assert "pack-auditor" in inventory
-    assert inventory["pack-auditor"]["source"].startswith("plugin:")
+    assert inventory["pack-auditor"]["source"] == "plugin:pack"
+    assert inventory["pack-auditor"]["available"] is True
 
     selection = select_native_skills(task_class="workspace_audit", user_text="audit the plugin pack")
     assert any(c.id == "pack-auditor" for c in selection.selected)
     assert selection.selected[0].source.startswith("plugin:")
+
+
+def test_an_installed_plugin_skill_with_a_typed_contract_is_ignored_and_says_why(
+    skill_world, tmp_path, monkeypatch
+) -> None:
+    """Negative twin (red team f109f118 #1): an installed pack is not VOOL's, so its typed
+    keys are ignored -- reported on the inventory row VOOL lists -- and it is never selected
+    by task class. It stays a plain skill the person's own words can still pick."""
+    from core.native_skill_library import select_native_skills, skill_inventory
+    from core.tool_offer_assembly import skill_guidance_for
+
+    _typed_pack(tmp_path / "plugins")
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
+
+    inventory = {row["id"]: row for row in skill_inventory()}
+    assert inventory["pack-auditor"]["available"] is False
+    assert "typed keys ignored" in inventory["pack-auditor"]["reason"], inventory["pack-auditor"]
+    selection = select_native_skills(task_class="workspace_audit", user_text="audit the plugin pack")
+    assert all(c.id != "pack-auditor" for c in selection.selected)
+    record = next(r for r in selection.records if r.id == "pack-auditor")
+    assert record.state == "contract_invalid" and "typed keys ignored" in record.reason
+
+    unrelated = skill_guidance_for("tidy up my notes folder", task_class="workspace_audit")
+    assert all(row.get("name") != "pack-auditor" for row in unrelated.skills)
+    asked = skill_guidance_for("please audit this plugin pack manifest for defects", task_class="workspace_audit")
+    assert any(row.get("name") == "pack-auditor" for row in asked.skills), asked.skills
+    assert "UNTRUSTED third-party text" in asked.text
 
 
 def test_an_invalid_plugin_typed_contract_is_refused_by_the_same_law(
@@ -251,22 +296,39 @@ def _mcp_world(tmp_path, monkeypatch, *, invalid: bool = False):
     monkeypatch.setenv("VOOL_MCP_CONFIG", str(cfg))
 
 
-def test_an_mcp_server_can_ship_a_skill_through_the_same_contract(skill_world, tmp_path, monkeypatch) -> None:
+MCP_ASK = "probe this installed pack's manifest for pack audits please"
+
+
+def test_an_mcp_server_skill_is_a_plain_skill_picked_by_the_persons_words(
+    skill_world, tmp_path, monkeypatch
+) -> None:
+    """An MCP server's skill:// text is not a typed source: discovered, validated by the same
+    law, reported with the reason, never selected by task class -- and used as a plain skill
+    when the person's own words ask for it, labelled as third-party text."""
     _mcp_world(tmp_path, monkeypatch)
     from core.native_skill_library import select_native_skills, skill_inventory
+    from core.tool_offer_assembly import loaded_skills, skill_guidance_for
 
     rows = {row["id"]: row for row in skill_inventory()}
     assert "mcp-pack-probe" in rows, "the MCP-shipped skill must be discovered"
-    assert rows["mcp-pack-probe"]["source"] == "mcp:stub"
-    assert rows["mcp-pack-probe"]["available"] is True
+    assert rows["mcp-pack-probe"]["available"] is False
+    assert "typed keys ignored" in rows["mcp-pack-probe"]["reason"]
+    assert "mcp:stub" in rows["mcp-pack-probe"]["reason"]
 
     selection = select_native_skills(task_class="workspace_audit", user_text="audit the workspace")
-    assert any(c.id == "mcp-pack-probe" for c in selection.selected)
+    assert all(c.id != "mcp-pack-probe" for c in selection.selected)
+    assert any(s.plugin_id == "mcp:stub" and s.name == "mcp-pack-probe" for s in loaded_skills())
+    assert all(r.get("name") != "mcp-pack-probe" for r in
+               skill_guidance_for("audit the workspace", task_class="workspace_audit").skills)
+    asked = skill_guidance_for(MCP_ASK, task_class="workspace_audit")
+    assert any(r.get("name") == "mcp-pack-probe" for r in asked.skills), asked.skills
+    assert "UNTRUSTED third-party text" in asked.text
 
 
 def test_an_invalid_mcp_skill_is_refused_with_typed_violations(skill_world, tmp_path, monkeypatch) -> None:
     _mcp_world(tmp_path, monkeypatch, invalid=True)
     from core.native_skill_library import select_native_skills, skill_inventory
+    from core.tool_offer_assembly import loaded_skills, skill_guidance_for
 
     rows = {row["id"]: row for row in skill_inventory()}
     assert rows["mcp-pack-probe"]["available"] is False
@@ -274,17 +336,23 @@ def test_an_invalid_mcp_skill_is_refused_with_typed_violations(skill_world, tmp_
     selection = select_native_skills(task_class="workspace_audit", user_text="audit the workspace")
     record = next((r for r in selection.records if r.id == "mcp-pack-probe"), None)
     assert record is not None and record.state == "contract_invalid"
+    # Refused means refused in the plain lane too: not even the person's words bring it in.
+    assert all(s.plugin_id != "mcp:stub" for s in loaded_skills())
+    assert all(r.get("name") != "mcp-pack-probe" for r in
+               skill_guidance_for(MCP_ASK, task_class="workspace_audit").skills)
 
 
 def test_mcp_skills_obey_the_same_disable_store(skill_world, tmp_path, monkeypatch) -> None:
     _mcp_world(tmp_path, monkeypatch)
-    from core.native_skill_library import select_native_skills, set_skill_enabled
+    from core.native_skill_library import set_skill_enabled
+    from core.tool_offer_assembly import skill_guidance_for
 
     assert set_skill_enabled("mcp-pack-probe", False)["status"] == "ok"
-    selection = select_native_skills(task_class="workspace_audit", user_text="audit the workspace")
-    assert all(c.id != "mcp-pack-probe" for c in selection.selected)
-    record = next((r for r in selection.records if r.id == "mcp-pack-probe"), None)
-    assert record is not None and record.state == "disabled"
+    assert all(r.get("name") != "mcp-pack-probe" for r in
+               skill_guidance_for(MCP_ASK, task_class="workspace_audit").skills)
+    assert set_skill_enabled("mcp-pack-probe", True)["status"] == "ok"
+    assert any(r.get("name") == "mcp-pack-probe" for r in
+               skill_guidance_for(MCP_ASK, task_class="workspace_audit").skills)
 
 
 # ---------------------------------------------------------------------------

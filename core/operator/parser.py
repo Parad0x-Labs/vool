@@ -95,6 +95,14 @@ _AVAILABILITY_RE = re.compile(
     r"|\b(?:check|show|what|find|look)\b[^\n!?.]*\b(?:my|the)\s+(?:calendar|schedule)\b",
     re.IGNORECASE,
 )
+# "calendar" used as the name of a piece of code ("what does the calendar script print", "open
+# calendar.py") is a project file, not the user's calendar. Measured 2026-10-29 (re-audit coding:S2):
+# that question was read as an availability check and answered "no calendar provider is configured".
+_CALENDAR_AS_CODE_RE = re.compile(
+    r"\b(?:calendar|schedule|scheduler)(?:[\s_-]+|\.)"
+    r"(?:script|scripts|file|module|code|program|function|class|component|py|js|ts|sh)\b",
+    re.IGNORECASE,
+)
 # The agenda lane: the request asks WHAT IS ON the chosen calendars on a day/range. It must
 # be checked before _AVAILABILITY_RE, whose broad "(show|what) ... my calendar" would otherwise
 # claim every agenda question for the free-slot lane.
@@ -218,7 +226,14 @@ _RENAME_EVENT_RE = re.compile(
 # 2026-10-19 on 153148eb). "write" alone composes; it saves only with a storing cue (write down, titled,
 # "with:", "note:", into my notes, note to self).
 _STORE_NOTE_RE = re.compile(
-    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b", re.IGNORECASE
+    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b"
+    # "keep a note for me: the code is 5523" keeps a note; "keep the note short" is about writing one.
+    r"|\bkeep\s+(?:a\s+)?(?:quick\s+|short\s+|little\s+)?note\b(?!-)"
+    # "save this: buy zucchini", "save this one: ..." -- the words after the colon are the note (audit N6). A statement
+    # about the owner after the colon ("save this: my bike rack is spot 12") is a fact to remember, not a note.
+    r"|^\W*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:save|keep|jot\s+down)\s+(?:this|that)(?:\s+one)?(?:\s+for\s+me)?\s*:(?!\d)\s*"
+    r"(?!(?:my|i|i'm|im|i've|ive|i'd|our|we|we're|we've|mine)\b)\S",
+    re.IGNORECASE,
 )
 _RECORD_NOTE_RE = re.compile(
     r"\b(?P<verb>write|create|jot|take|make)\b(?P<between>[^\n!?.]*?)\bnote\b(?!-)(?P<after>[^\n!?.]*)", re.IGNORECASE
@@ -328,6 +343,12 @@ _RESTORE_NOTE_RE = re.compile(
     r"\b(?:restore|bring back|unarchive)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE,
 )
 _APPLE_NOTE_LIST_RE = re.compile(r"\b(?:list|show)\b[^\n!?.]*\bapple\s+notes\b", re.IGNORECASE)
+# One note, named, read from the Apple Notes app: "read my note about the flat viewing in apple notes".
+# Checked before the list form above, which "show my note about X in apple notes" would otherwise match.
+_APPLE_NOTE_READ_IN_APP_RE = re.compile(
+    r"\b(?:read|show|open|display)\b(?:\s+me)?\s+(?:my|the|that)\s+note\b[^\n!?.]*\b(?:in|from)\s+(?:my\s+)?apple\s+notes\b",
+    re.IGNORECASE,
+)
 _APPLE_NOTE_READ_RE = re.compile(r"\b(?:read|show|open|display)\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_APPEND_RE = re.compile(r"\bappend\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
 _APPLE_NOTE_RENAME_RE = re.compile(r"\brename\b[^\n!?.]*\bapple\s+note\b", re.IGNORECASE)
@@ -365,10 +386,11 @@ _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
 _SPACE_WORD_RE = re.compile(r"\bspace\b")
 # "delete temp files", and the everyday forms (audit 2026-10-27: "my laptop is slow, can you clear out my
-# temp files?" got the memory report instead of the cleanup preview).
+# temp files?" got the memory report instead of the cleanup preview; re-audit 2026-10-29, files:F57:
+# "clean up the temporary files", "tmp files").
 _DELETE_TEMP_FILES_RE = re.compile(
     r"\b(?:delete|remove|clear|clean|wipe|empty|get\s+rid\s+of)\s+(?:out\s+|up\s+)?(?:all\s+)?(?:of\s+)?"
-    r"(?:my\s+|the\s+|those\s+)?temp(?:orary)?\s+files?\b",
+    r"(?:my\s+|the\s+|those\s+)?(?:temp(?:orary)?|tmp)\s+files?\b",
     re.IGNORECASE,
 )
 
@@ -470,32 +492,36 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
         return OperatorActionIntent(kind="edit_reminder", action_id=reminder_id, target_label=_reminder_edit_text(text), raw_text=text)
     if _LIST_REMINDERS_RE.search(words):
         return OperatorActionIntent(kind="list_reminders", raw_text=text)
-    if _CANCEL_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
-    if _MOVE_CALENDAR_RE.search(words):
-        calendar_id, title = _calendar_target(text)
-        return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+    calendar_names_code = bool(_CALENDAR_AS_CODE_RE.search(words))
+    if not calendar_names_code:
+        if _CANCEL_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="cancel_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
+        if _MOVE_CALENDAR_RE.search(words):
+            calendar_id, title = _calendar_target(text)
+            return OperatorActionIntent(kind="move_calendar_event", action_id=calendar_id, target_label=title, raw_text=text)
 
-    # --- Provider-backed calendar reads and proposals. Availability first: "check
-    # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
-    # with the scheduling family so "remind me to take notes" is still a reminder (the
-    # reminder regex above already claimed it).
-    if _AGENDA_RE.search(words):
-        return OperatorActionIntent(kind="show_agenda", raw_text=text)
-    if _SEARCH_CALENDAR_RE.search(words):
-        return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
-    if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
-        return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
-    if _LIST_CALENDARS_RE.search(words):
+        # --- Provider-backed calendar reads and proposals. Availability first: "check
+        # Tuesday afternoon for a free slot" is a read, never a mutation. Notes intents sit
+        # with the scheduling family so "remind me to take notes" is still a reminder (the
+        # reminder regex above already claimed it).
+        if _AGENDA_RE.search(words):
+            return OperatorActionIntent(kind="show_agenda", raw_text=text)
+        if _SEARCH_CALENDAR_RE.search(words):
+            return OperatorActionIntent(kind="search_calendar_event", target_label=_event_label(text) or _calendar_name(text), raw_text=text)
+        if _FREE_SLOT_RE.search(words) or _AVAILABILITY_RE.search(words):
+            return OperatorActionIntent(kind="check_availability", target_label=_calendar_name(text), raw_text=text)
+    if not calendar_names_code and _LIST_CALENDARS_RE.search(words):
         return OperatorActionIntent(kind="list_calendars", raw_text=text)
-    if _INSPECT_EVENT_RE.search(words):
+    if not calendar_names_code and _INSPECT_EVENT_RE.search(words):
         return OperatorActionIntent(
             kind="inspect_calendar_event",
             target_label=_event_label(text),
             destination_path=_calendar_name(text),
             raw_text=text,
         )
+    if _APPLE_NOTE_READ_IN_APP_RE.search(words):
+        return OperatorActionIntent(kind="apple_note_read", target_label=_apple_note_title(text), raw_text=text)
     # --- Everyday named-event reads. "when is the school play", "where is the dentist
     # appointment", "is the school play soon", "am I seeing the dentist any time soon",
     # "anything coming up with the dentist": a definite subject from the person's own life under a
@@ -749,8 +775,8 @@ def _apple_note_title(text: str) -> str | None:
     values = quoted_note_values(text)
     if values:
         return values[0]
-    match = re.search(r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)", str(text or ""), re.IGNORECASE)
-    return (match.group(1).strip() or None) if match else None
+    match = re.search(r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)", str(text or ""), re.IGNORECASE)
+    return _spoken_note_title(match) if match else None
 
 
 def _apple_note_append_text(text: str) -> str | None:
@@ -904,7 +930,8 @@ def _note_query(text: str) -> str | None:
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip(" .?!") or None
+        terms = _TITLE_TRAILER_RE.sub("", match.group(1).strip())
+        return re.sub(r"^(?:the|my|a|an)\s+", "", terms, flags=re.IGNORECASE).strip() or None
     return None
 
 
@@ -914,9 +941,27 @@ def _note_title(text: str) -> str | None:
     if quoted:
         return quoted[0]
     match = re.search(
-        r"\bnotes?\s+(?:titled|called|named|about)\s+([^\n,.]+)",
+        r"\bnotes?\s+(?P<how>titled|called|named|about)\s+(?P<title>[^\n,.]+)",
         str(text or ""), re.IGNORECASE,
     )
     if match:
-        return match.group(1).strip() or None
+        return _spoken_note_title(match)
     return None
+
+
+# What trails a spoken title without being part of it (audit N10: "read my note about the flat viewing in apple
+# notes?" looked for a note titled "the flat viewing in apple notes?"): the app or store it is in, a please, the
+# question mark. After "about" the words name a topic, so a leading article is not part of the title either.
+_TITLE_TRAILER_RE = re.compile(
+    r"(?:\s+(?:in|from|on)\s+(?:my\s+|the\s+)?(?:apple\s+notes(?:\s+app)?|notes\s+app|notes|workspace)"
+    r"|\s+(?:please|pls|plz|thanks|thank\s+you|for\s+me|now)"
+    r"|[\s?!.:;'\"]+)+$",
+    re.IGNORECASE,
+)
+
+
+def _spoken_note_title(match: re.Match[str]) -> str | None:
+    title = _TITLE_TRAILER_RE.sub("", match.group("title").strip())
+    if match.group("how").lower() == "about":
+        title = re.sub(r"^(?:the|my|a|an|that|this)\s+", "", title, flags=re.IGNORECASE)
+    return title.strip() or None

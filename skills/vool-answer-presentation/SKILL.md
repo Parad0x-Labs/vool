@@ -1,6 +1,7 @@
 ---
 name: vool-answer-presentation
 description: "Answer presentation doctrine: choose prose, bullets, a comparison table, a timeline, a tree, or a numeric chart only when the content has that shape — prose stays the default; an explicit user format request always wins; values, citations and receipts are preserved verbatim; unsupported renderings fall back to text or a table. Use automatically on advisory, research and creative turns; never on turns whose answer is a single fact."
+summary: "Picks the clearest shape for an answer: plain text, a list, a table or a chart. If you ask for a format, yours wins."
 version: 1.0.0
 license: MIT
 author: sls_0x

@@ -31,11 +31,55 @@ Two rules hold for both sources:
 
 ## Finding skills
 
-Skills & Plugins lists VOOL's own skills first. **Browse** comes with 53 ready VOOL
+Skills & Plugins lists VOOL's own skills first. **Browse** comes with 51 ready VOOL
 skills. They are text-only: each one is a set of instructions, bundled with the app, so
 Browse lists them without a lookup online. VOOL skills that use VOOL tools are listed in
 the **Skill Codex** tab, where VOOL team skills come first. Review a skill before you
 enable it.
+
+How a skill from Browse is added depends on who made it:
+
+* **Skills made by VOOL** (the 51 above): press **Add this skill**. VOOL checks on your
+  computer that the file is the exact one it shipped with and reads it for risky
+  instructions, then shows you the result. No key is needed and nothing is sent anywhere.
+  If the file does not match, VOOL refuses it and says so. A scan with **Eyebrow** stays
+  available as an optional extra when you have a key. Planned for VOOL 0.7.8, not released
+  yet; in VOOL 0.7.7 every Browse skill needs an Eyebrow scan.
+* **Skills from other makers** (other publishers, or a GitHub link you paste): VOOL first
+  scans the skill with **Eyebrow**, a security checker. That scan needs an Eyebrow key, which
+  you add under **Settings → API Keys**. Without a key, the skill's page says so and offers
+  the options: add a key, run VOOL's free local check for a report (it cannot add the skill on
+  its own), or pick a skill made by VOOL.
+
+You can also make your own skill in chat with no key at all: see
+[Make your own skill](make-your-own-skill.md).
+
+You can also ask in any chat: *which skills do I have?* lists them, and *how do I add a
+skill?* explains both ways. (The second answer is planned for VOOL 0.7.8, not released yet.)
+
+## Turning a skill on or off
+
+Open **Skills & Plugins**, then **My add-ons**, then **Skills**. Each skill shows **On** or
+**Off** with an **Enable** or **Disable** button. A skill you turn off is not used in any chat
+until you turn it on again. Its files are kept. (The per-skill buttons are planned for VOOL
+0.7.8, not released yet.)
+
+The **Built-in skills** card under **Plugins** has no button of its own: turn its skills on or
+off one by one under **Skills**.
+
+## Seeing which skill shaped an answer
+
+When a skill's instructions were part of how VOOL wrote an answer, a short line under the
+answer says so, for example **Skill used: Browser**. It appears right after the answer, while
+the chat is open; answers loaded later from your history do not show it yet. Answer-style rules
+that ride along on most answers are not named there. Planned for VOOL 0.7.8, not released yet.
+
+## Skills for building VOOL
+
+The library also holds the skills the VOOL team builds VOOL with: code review, test runs,
+release checks, pipeline repair and similar. They are not listed in chat or on the Skills page,
+and they do not steer everyday answers (planned for VOOL 0.7.8, not released yet). Developers can show and use them by starting VOOL with
+`VOOL_DEVELOPER_SKILLS=1`.
 
 ## Availability states
 
@@ -108,15 +152,5 @@ distribution, broker every internal effect or replace native wallet approval.
 
 ## Writing a skill
 
-A skill is a folder with an instruction file and any files it references:
-
-```text
-my-skill/
-├── SKILL.md
-└── templates/
-```
-
-Draft in-app (`skill.create` stages it without activating anything), validate it, then
-install to activate — three separate steps on purpose, so authoring is never an implicit
-behaviour change. The catalogue and authoring format are still being finalised for public
-release.
+* To make a skill by asking in chat, see [Make your own skill](make-your-own-skill.md).
+* To write, lint, install and test a SKILL.md file yourself, see [Build and test a skill](build-and-test-a-skill.md).

@@ -330,17 +330,30 @@ def _approval_context() -> dict:
     return {"session_id": "lifecycle-approval-session", "cancel_turn_id": "turn-activation-1"}
 
 
+def _draft_in_staging(text: str, slug: str = "version-proof-skill") -> Path:
+    """A draft where VOOL keeps drafts (``skill.create`` writes here), so skill.install may read it."""
+    from core.skill_tools import staging_root
+
+    folder = staging_root() / slug
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "SKILL.md").write_text(text, encoding="utf-8")
+    return folder / "SKILL.md"
+
+
 def test_install_activation_is_pending_then_executes_only_on_the_resolved_token(
     plugin_root: Path, tmp_path
 ) -> None:
     """The joined flow no test had driven: skill.install consults THE authority in a chat mode,
     lands as pending_approval, the operator resolves it, and the SAME exact call — replayed with
-    the resolved token — is the one that executes."""
+    the resolved token — is the one that executes.
+
+    The draft sits in VOOL's drafts folder. A file anywhere else on the computer is refused even
+    with the person's approval, and the person is told why and what to do instead (red team t17)."""
     from core.authorized_tool_execution import execute_authorized_runtime_tool
     from core.mode_permission_policy import reset_mode_permission_state, resolve_approval
 
     reset_mode_permission_state()
-    staged = _stage(tmp_path, _SKILL_V1)
+    staged = _draft_in_staging(_SKILL_V1)
     context = _approval_context()
 
     first = execute_authorized_runtime_tool(
@@ -365,6 +378,22 @@ def test_install_activation_is_pending_then_executes_only_on_the_resolved_token(
     assert second.status == "ok", second.response_text
     assert (_installed_skill_dir(plugin_root) / "SKILL.md").is_file()
     assert second.details.get("version") == 1
+
+    # The old scenario: the same skill as a loose file outside VOOL's skill folders.
+    loose = _stage(tmp_path, _SKILL_V2, name="loose")
+    ask = execute_authorized_runtime_tool("skill.install", {"path": str(loose)}, source_context=dict(context))
+    assert ask.status == "pending_approval", ask.response_text
+    request = dict(ask.details.get("approval_request") or {})
+    assert resolve_approval(str(request["approval_id"]), decision="allow") is not None
+    refused = execute_authorized_runtime_tool(
+        "skill.install", {"path": str(loose)},
+        source_context=dict(context, mode_approval_token=str(request["approval_id"])),
+    )
+    assert refused.status == "not_allowed", refused.response_text
+    assert refused.response_text.startswith("I did not open that file: I only check or turn on skills kept in "
+                                            "VOOL's own skill folders")
+    assert "attach its zip and say import this skill" in refused.response_text
+    assert _history(plugin_root)["head_version"] == 1, "the loose file changed nothing"
 
 
 def test_the_resolved_token_cannot_activate_a_different_install(plugin_root: Path, tmp_path) -> None:
