@@ -32,17 +32,17 @@ Bu komut hiçbir şey döndürmezse çalışma ortamı çalışmıyordur.
 ## Yanıtlar yavaş
 
 Genellikle sebep, kullanılabilir belleğe göre modelin boyutudur. Bkz.
-[Yerel model çalıştırma](../../../guides/local-models.md).
+[Yerel model çalıştırma](../guides/local-models.md).
 
 ## Bir hata kod gösteriyor
 
-Her hatanın sabit bir kodu vardır. [Hatalar ve hata kodları](../../../reference/errors.md) bir kodun nasıl
-okunacağını açıklar; [Hata Kitabı](../../../ERROR_BOOK.md) ise her kod için ne olduğunu, neyin zaten olmuş
+Her hatanın sabit bir kodu vardır. [Hatalar ve hata kodları](../reference/errors.md) bir kodun nasıl
+okunacağını açıklar; [Hata Kitabı](../ERROR_BOOK.md) ise her kod için ne olduğunu, neyin zaten olmuş
 olabileceğini ve sonra ne yapılacağını söyler.
 
 ## Temiz bir başlangıç
 
-VOOL'dan çıkın ve [Yapılandırma](../../../reference/configuration.md) sayfasında belirtilen "runtime home"
+VOOL'dan çıkın ve [Yapılandırma](../reference/configuration.md) sayfasında belirtilen "runtime home"
 klasörünü kaldırın. Bu, sohbetlerinizi, hafızanızı, ayarlarınızı, kayıtlı anahtarlarınızı ve VOOL'un
 bu bilgisayarda tuttuğu her cüzdanı siler; bu yüzden önce ihtiyacınız olanı kaydedin: bkz.
-[Yedekleme ve kurtarma](../../../help/backup-and-recovery.md). Çalışma alanındaki dosyalara dokunulmaz.
+[Yedekleme ve kurtarma](backup-and-recovery.md). Çalışma alanındaki dosyalara dokunulmaz.

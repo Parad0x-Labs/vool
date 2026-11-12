@@ -9,7 +9,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 VOOL 0.7.7-beta'nın Apple Silicon Mac'ler, Intel Mac'ler ve Linux x86_64 için uygulama indirmeleri
 [v0.7.7-beta sürümünde](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta) yer alır.
 macOS, Linux veya Windows'ta önyükleme betiğiyle kaynak koddan da kurabilirsiniz.
-İmzalama ve güncelleme ayrıntıları için [Sürüm durumu](../../../trust/release-status.md) sayfasına bakın.
+İmzalama ve güncelleme ayrıntıları için [Sürüm durumu](../trust/release-status.md) sayfasına bakın.
 
 ## Gereksinimler
 
@@ -22,7 +22,7 @@ macOS, Linux veya Windows'ta önyükleme betiğiyle kaynak koddan da kurabilirsi
 | Linux | glibc 2.31 | Ubuntu 22.04 veya daha yenisi |
 
 Yerel modeller, uygulamanın kendisinden çok daha fazla bellek gerektirir. Boyut önerileri
-[Yerel model çalıştırma](../../../guides/local-models.md) sayfasındadır.
+[Yerel model çalıştırma](../guides/local-models.md) sayfasındadır.
 
 ## Uygulamayı indirin
 

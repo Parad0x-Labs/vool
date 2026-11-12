@@ -38,8 +38,8 @@ VOOL הוא עוזר בינה מלאכותית למחשב. הוא מותקן כ�
 | להפעיל את VOOL | [התקנה](getting-started/install.md) |
 | להבין את המסך הראשון | [הפעלה ראשונה](getting-started/first-run.md) |
 | לחבר אותו למודל | [חיבור מודל](getting-started/connect-a-model.md) |
-| לשלוט באילו הוצאות יכולות לקרות | [מגבלות הוצאה](../../guides/spending-limits.md) |
-| לדעת מה יוצא מהמחשב שלכם | [מקומי וענן](../../concepts/local-and-cloud.md) |
+| לשלוט באילו הוצאות יכולות לקרות | [מגבלות הוצאה](guides/spending-limits.md) |
+| לדעת מה יוצא מהמחשב שלכם | [מקומי וענן](concepts/local-and-cloud.md) |
 
 ## מה זה VOOL
 
@@ -57,7 +57,7 @@ VOOL הוא עוזר בינה מלאכותית למחשב. הוא מותקן כ�
 VOOL נמצא בגרסת בטא למחשבי Mac עם Apple Silicon, למחשבי Mac עם Intel ול-Linux x86_64. יישומי
 ה-Mac עדיין לא עברו אישור נוטריוני של Apple, ולכן macOS מבקש מכם לאשר בפעם הראשונה שאתם
 פותחים אחד מהם; הדף [התקנה](getting-started/install.md#פתיחה-ראשונה-ב-mac) מראה איך. לפני
-ההתקנה, עיינו בדף [מצב הגרסה](../../trust/release-status.md).
+ההתקנה, עיינו בדף [מצב הגרסה](trust/release-status.md).
 {% endhint %}
 
 ## שני מצבים, במילים פשוטות
@@ -73,6 +73,6 @@ VOOL מבחין בין שני מצבים בדיוק, והממשק תמיד מר�
 
 ## קבלת עזרה
 
-* [שאלות נפוצות](../../help/faq.md) — השאלות שעולות הכי הרבה
+* [שאלות נפוצות](help/faq.md) — השאלות שעולות הכי הרבה
 * [פתרון בעיות](help/troubleshooting.md) — כשמשהו לא עולה
 * [Discord](https://discord.gg/V9NkjP3Fzz) — שאלו את הצוות

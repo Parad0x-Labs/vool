@@ -1,0 +1,2222 @@
+{
+ "about": "The Error Book's own words in each docs language, for tools/docs/translate_error_book.py. The message and next step of each code are not here: they are the app's own texts, taken from core/i18n/catalogs. 'en' is the English book's words; the tool checks that they reproduce docs/ERROR_BOOK.md, so the layouts cannot drift apart. Titles are keyed by fault code; every code needs a title in every language.",
+ "en": {
+  "title": "VOOL Error Book",
+  "intro": [
+   "Every error VOOL can show you, generated from the app's own error catalog: the codes,",
+   "messages and next steps below are exactly what the app shows."
+  ],
+  "stamp": {
+   "schema": "Schema:",
+   "version": "Catalog version:",
+   "digest": "Catalog digest:",
+   "count": "Fault count:"
+  },
+  "how_to_read": [
+   "Each code is stable and never reused for a different meaning. Every code has its own",
+   "section below whose heading is the code itself, so searching this page for the code as",
+   "you were given it finds its section, and a link to the section is this page's address",
+   "followed by `#` and the code with underscores as hyphens. Each section says what",
+   "happened, what may already have happened, what to do next, and whether trying again",
+   "can help. If a code you were given is not in this book, it is not from this version of",
+   "VOOL: check which version showed it, or report it with the code as written."
+  ],
+  "table_head": [
+   "Code",
+   "Title",
+   "Severity",
+   "What may already have happened"
+  ],
+  "category_heading": {
+   "security": "Security",
+   "integrity": "Integrity",
+   "policy": "Policy",
+   "availability": "Availability",
+   "cancellation": "Cancellation",
+   "internal": "Internal"
+  },
+  "category": {
+   "security": "security",
+   "integrity": "integrity",
+   "policy": "policy",
+   "availability": "availability",
+   "cancellation": "cancellation",
+   "internal": "internal"
+  },
+  "severity": {
+   "info": "info",
+   "low": "low",
+   "medium": "medium",
+   "high": "high",
+   "critical": "critical"
+  },
+  "effect": {
+   "none": "Nothing was sent, signed or changed",
+   "contacted": "A request reached an external service; no payment moved",
+   "uncertain": "Outcome unknown — check state before retrying",
+   "local": "A local record/change happened"
+  },
+  "retry": {
+   "retry_now": "Trying again now may work.",
+   "retry_later": "Try again later: what stopped this clears with time.",
+   "retry_after_change": "Try again after making the change this entry names.",
+   "never": "Do not send the same request again unchanged."
+  },
+  "reference_heading": "Reference by code",
+  "reference_intro": [
+   "Every code, in alphabetical order. The section heading is the code's stable anchor."
+  ],
+  "fields": {
+   "happened": "What happened:",
+   "already": "What may already have happened:",
+   "next": "What to do next:",
+   "retry": "Trying again:",
+   "severity": "Severity:",
+   "category": "Category:",
+   "security_relevant": "Security-relevant:",
+   "yes": "yes"
+  },
+  "titles": {
+   "cancelled": "Cancelled",
+   "confinement_refusal": "Change outside the allowed scope",
+   "credential_failure": "Stored credential could not be read",
+   "evidence_corruption": "Answer records failed a consistency check",
+   "evm_pocket_custody_unavailable": "Legacy pocket is Solana only",
+   "integrity_verification_failure": "Record failed its tamper check",
+   "permission_denied": "Permission denied",
+   "provider_exhausted": "Provider limit reached",
+   "provider_unavailable": "Provider unreachable",
+   "timeout": "Timed out",
+   "tool_unavailable": "Tool unavailable",
+   "unknown": "Unexpected error",
+   "unsupported_claim": "Unsupported statements withheld",
+   "wallet_acknowledgement_required": "Acknowledgement required",
+   "wallet_amount_invalid": "Amount not exact for this coin",
+   "wallet_approval_rejected": "Approval not accepted",
+   "wallet_backup_unavailable": "Backup already shown once",
+   "wallet_broadcast_failed": "Payment could not be broadcast",
+   "wallet_caller_refused": "Not started from VOOL's own window",
+   "wallet_card_data_refused": "Card data refused",
+   "wallet_chain_identity_mismatch": "Chain endpoint identity unproven",
+   "wallet_confirmation_required": "Typed confirmation required",
+   "wallet_credential_mismatch": "Entries did not match",
+   "wallet_dependency_unavailable": "EVM libraries not installed",
+   "wallet_device_auth_denied": "Device unlock declined",
+   "wallet_device_auth_unavailable": "Device unlock unavailable",
+   "wallet_disabled": "Wallet is switched off",
+   "wallet_duplicate_payment": "Payment already proposed or sent",
+   "wallet_environment_inactive": "Wrong network environment",
+   "wallet_export_pin_not_accepted": "Export unlocks only by device authentication",
+   "wallet_export_refused": "Old export path retired",
+   "wallet_export_unavailable": "Export unavailable for this wallet",
+   "wallet_insufficient_funds": "Balance does not cover amount and fee",
+   "wallet_legacy_surface_retired": "Legacy money path retired",
+   "wallet_limit_exceeded": "Spending limit exceeded",
+   "wallet_network_disabled": "Network not declared for this wallet",
+   "wallet_not_found": "Wallet, proposal or destination not recognised",
+   "wallet_outbound_refused": "Request outside approved endpoints",
+   "wallet_password_invalid": "Wallet password invalid",
+   "wallet_paykit_unavailable": "Solana pay extra not installed",
+   "wallet_payment_channel_off": "Payment channel turned off",
+   "wallet_pin_invalid": "PIN invalid",
+   "wallet_quote_expired": "Preview expired or was replaced",
+   "wallet_quote_mismatch": "Approval no longer matches the preview",
+   "wallet_quote_unavailable": "Balance or fee unknown",
+   "wallet_recipient_refused": "Recipient cannot safely receive this",
+   "wallet_recovery_refused": "Recovery proof does not fit this wallet",
+   "wallet_request_ambiguous": "More than one account or network fits",
+   "wallet_send_needs_vool_wallet": "Sending needs a VOOL Wallet",
+   "wallet_setup_state_invalid": "Setup step does not apply now",
+   "wallet_signature_invalid": "Signature did not match the wallet's key",
+   "wallet_signing_unavailable": "Wallet cannot sign from here",
+   "wallet_simulation_failed": "Payment failed simulation",
+   "wallet_storage_class_refused": "Key storage is memory-only",
+   "wallet_unlock_throttled": "Wallet locked after failed unlocks",
+   "wallet_x402_cap_exceeded": "Paid resource above the automatic cap",
+   "wallet_x402_sdk_unavailable": "x402 extra not installed",
+   "x402_scheme_unavailable": "Payment scheme unsupported"
+  }
+ },
+ "languages": {
+  "ar": {
+   "title": "دليل أخطاء VOOL",
+   "intro": [
+    "يضم هذا الدليل كل خطأ يمكن أن يعرضه لك VOOL، وهو مولَّد من كتالوج الأخطاء الخاص بالتطبيق نفسه: الرموز والرسائل والخطوات التالية أدناه هي ما يعرضه التطبيق بالضبط."
+   ],
+   "stamp": {
+    "schema": "المخطط:",
+    "version": "إصدار الكتالوج:",
+    "digest": "بصمة الكتالوج:",
+    "count": "عدد الأعطال:"
+   },
+   "how_to_read": [
+    "كل رمز ثابت ولا يُعاد استخدامه أبدًا بمعنى مختلف. لكل رمز قسم خاص به أدناه، عنوانه هو الرمز نفسه، لذا فإن البحث في هذه الصفحة عن الرمز كما وصلك يجد قسمه، ورابط القسم هو رابط هذه الصفحة متبوعًا بـ `#` ثم الرمز بعد كتابة الشرطات السفلية شرطات عادية. يذكر كل قسم ما الذي حدث، وما الذي ربما حدث بالفعل، وما الذي ينبغي فعله بعد ذلك، وهل يمكن أن تفيد إعادة المحاولة. إذا لم يكن رمز وصلك موجودًا في هذا الدليل، فهو ليس من هذا الإصدار من VOOL: تحقّق من الإصدار الذي عرضه، أو أبلغ عنه مع الرمز كما هو مكتوب."
+   ],
+   "table_head": [
+    "الرمز",
+    "العنوان",
+    "الشدة",
+    "ما الذي ربما حدث بالفعل"
+   ],
+   "category_heading": {
+    "security": "الأمان",
+    "integrity": "السلامة",
+    "policy": "السياسة",
+    "availability": "التوافر",
+    "cancellation": "الإلغاء",
+    "internal": "داخلي"
+   },
+   "category": {
+    "security": "الأمان",
+    "integrity": "السلامة",
+    "policy": "السياسة",
+    "availability": "التوافر",
+    "cancellation": "الإلغاء",
+    "internal": "داخلي"
+   },
+   "severity": {
+    "info": "معلوماتية",
+    "low": "منخفضة",
+    "medium": "متوسطة",
+    "high": "عالية",
+    "critical": "حرجة"
+   },
+   "effect": {
+    "none": "لم يُرسَل أو يوقَّع أو يُغيَّر شيء",
+    "contacted": "وصل طلب إلى خدمة خارجية؛ لم تُنقَل أي دفعة",
+    "uncertain": "النتيجة غير معروفة — تحقّق من الحالة قبل إعادة المحاولة",
+    "local": "حدث تسجيل أو تغيير محلي"
+   },
+   "retry": {
+    "retry_now": "قد تنجح إعادة المحاولة الآن.",
+    "retry_later": "أعد المحاولة لاحقًا: ما أوقف هذا يزول مع الوقت.",
+    "retry_after_change": "أعد المحاولة بعد إجراء التغيير الذي يذكره هذا المدخل.",
+    "never": "لا ترسل الطلب نفسه مرة أخرى دون تغيير."
+   },
+   "reference_heading": "المرجع حسب الرمز",
+   "reference_intro": [
+    "كل الرموز، بالترتيب الأبجدي. عنوان القسم هو المرساة الثابتة للرمز."
+   ],
+   "fields": {
+    "happened": "ما الذي حدث:",
+    "already": "ما الذي ربما حدث بالفعل:",
+    "next": "ما الذي ينبغي فعله بعد ذلك:",
+    "retry": "إعادة المحاولة:",
+    "severity": "الشدة:",
+    "category": "الفئة:",
+    "security_relevant": "متعلق بالأمان:",
+    "yes": "نعم"
+   },
+   "titles": {
+    "cancelled": "أُلغي",
+    "confinement_refusal": "تغيير خارج النطاق المسموح",
+    "credential_failure": "تعذّرت قراءة بيانات الاعتماد المخزّنة",
+    "evidence_corruption": "لم تجتز سجلات الإجابة فحص الاتساق",
+    "evm_pocket_custody_unavailable": "الجيب القديم لـ Solana فقط",
+    "integrity_verification_failure": "لم يجتز السجل فحص مقاومة التلاعب",
+    "permission_denied": "تم رفض الإذن",
+    "provider_exhausted": "بلغ المزوّد حد الاستخدام",
+    "provider_unavailable": "تعذّر الوصول إلى المزوّد",
+    "timeout": "انتهت المهلة",
+    "tool_unavailable": "الأداة غير متاحة",
+    "unknown": "خطأ غير متوقع",
+    "unsupported_claim": "احتُجزت عبارات غير مدعومة",
+    "wallet_acknowledgement_required": "الإقرار مطلوب",
+    "wallet_amount_invalid": "المبلغ غير دقيق لهذه العملة",
+    "wallet_approval_rejected": "لم تُقبل الموافقة",
+    "wallet_backup_unavailable": "أُظهرت النسخة الاحتياطية مرة واحدة بالفعل",
+    "wallet_broadcast_failed": "تعذّر بث الدفعة",
+    "wallet_caller_refused": "لم يبدأ من نافذة VOOL نفسها",
+    "wallet_card_data_refused": "رُفضت بيانات البطاقة",
+    "wallet_chain_identity_mismatch": "هوية طرف السلسلة غير مثبتة",
+    "wallet_confirmation_required": "التأكيد المكتوب مطلوب",
+    "wallet_credential_mismatch": "لم يتطابق الإدخالان",
+    "wallet_dependency_unavailable": "مكتبات EVM غير مثبتة",
+    "wallet_device_auth_denied": "رُفض فتح القفل عبر الجهاز",
+    "wallet_device_auth_unavailable": "فتح القفل عبر الجهاز غير متاح",
+    "wallet_disabled": "المحفظة مطفأة",
+    "wallet_duplicate_payment": "الدفعة مقترحة أو مرسلة بالفعل",
+    "wallet_environment_inactive": "بيئة شبكة خاطئة",
+    "wallet_export_pin_not_accepted": "لا يُفتح التصدير إلا بمصادقة الجهاز",
+    "wallet_export_refused": "طريقة التصدير القديمة لم تعد متاحة",
+    "wallet_export_unavailable": "التصدير غير متاح لهذه المحفظة",
+    "wallet_insufficient_funds": "الرصيد لا يغطي المبلغ والرسوم",
+    "wallet_legacy_surface_retired": "مسار الأموال القديم لم يعد متاحًا",
+    "wallet_limit_exceeded": "تم تجاوز حد الإنفاق",
+    "wallet_network_disabled": "شبكة غير معلنة لهذه المحفظة",
+    "wallet_not_found": "لم يُتعرَّف على المحفظة أو المقترح أو الوجهة",
+    "wallet_outbound_refused": "طلب خارج الأطراف المعتمدة",
+    "wallet_password_invalid": "كلمة مرور المحفظة غير صالحة",
+    "wallet_paykit_unavailable": "إضافة pay لـ Solana غير مثبتة",
+    "wallet_payment_channel_off": "قناة الدفع متوقفة",
+    "wallet_pin_invalid": "رمز PIN غير صالح",
+    "wallet_quote_expired": "انتهت المعاينة أو استُبدلت",
+    "wallet_quote_mismatch": "لم تعد الموافقة تطابق المعاينة",
+    "wallet_quote_unavailable": "الرصيد أو الرسوم غير معروفة",
+    "wallet_recipient_refused": "لا تستطيع الوجهة استلام هذا بأمان",
+    "wallet_recovery_refused": "إثبات الاسترداد لا يناسب هذه المحفظة",
+    "wallet_request_ambiguous": "أكثر من حساب أو شبكة مطابقة",
+    "wallet_send_needs_vool_wallet": "الإرسال يتطلب VOOL Wallet",
+    "wallet_setup_state_invalid": "خطوة الإعداد لا تنطبق الآن",
+    "wallet_signature_invalid": "لم يطابق التوقيع مفتاح المحفظة",
+    "wallet_signing_unavailable": "لا تستطيع المحفظة التوقيع من هنا",
+    "wallet_simulation_failed": "لم يجتز الدفع المحاكاة",
+    "wallet_storage_class_refused": "تخزين المفاتيح في الذاكرة فقط",
+    "wallet_unlock_throttled": "قُفلت المحفظة بعد محاولات فتح فاشلة",
+    "wallet_x402_cap_exceeded": "مورد مدفوع فوق سقف الدفع التلقائي",
+    "wallet_x402_sdk_unavailable": "إضافة x402 غير مثبتة",
+    "x402_scheme_unavailable": "مخطط الدفع غير مدعوم"
+   }
+  },
+  "de": {
+   "title": "VOOL-Fehlerbuch",
+   "intro": [
+    "Alle Fehler, die VOOL dir zeigen kann, erzeugt aus dem eigenen Fehlerkatalog der App: Die Codes, Meldungen und nächsten Schritte weiter unten sind genau das, was die App anzeigt."
+   ],
+   "stamp": {
+    "schema": "Schema:",
+    "version": "Katalogversion:",
+    "digest": "Katalog-Prüfsumme:",
+    "count": "Anzahl der Fehler:"
+   },
+   "how_to_read": [
+    "Jeder Code ist fest und wird nie für eine andere Bedeutung wiederverwendet. Jeder Code hat weiter unten einen eigenen Abschnitt, dessen Überschrift der Code selbst ist. Wenn du diese Seite also nach dem Code durchsuchst, so wie du ihn bekommen hast, findest du seinen Abschnitt, und ein Link auf den Abschnitt ist die Adresse dieser Seite, gefolgt von `#` und dem Code mit Bindestrichen statt Unterstrichen. Jeder Abschnitt sagt, was passiert ist, was womöglich schon passiert ist, was als Nächstes zu tun ist und ob ein erneuter Versuch helfen kann. Steht ein Code, den du bekommen hast, nicht in diesem Buch, stammt er nicht aus dieser Version von VOOL: Prüfe, welche Version ihn angezeigt hat, oder melde ihn mit dem Code, so wie er geschrieben ist."
+   ],
+   "table_head": [
+    "Code",
+    "Titel",
+    "Schweregrad",
+    "Was womöglich schon passiert ist"
+   ],
+   "category_heading": {
+    "security": "Sicherheit",
+    "integrity": "Integrität",
+    "policy": "Richtlinie",
+    "availability": "Verfügbarkeit",
+    "cancellation": "Abbruch",
+    "internal": "Intern"
+   },
+   "category": {
+    "security": "Sicherheit",
+    "integrity": "Integrität",
+    "policy": "Richtlinie",
+    "availability": "Verfügbarkeit",
+    "cancellation": "Abbruch",
+    "internal": "intern"
+   },
+   "severity": {
+    "info": "Info",
+    "low": "niedrig",
+    "medium": "mittel",
+    "high": "hoch",
+    "critical": "kritisch"
+   },
+   "effect": {
+    "none": "Nichts wurde gesendet, signiert oder geändert",
+    "contacted": "Eine Anfrage hat einen externen Dienst erreicht; es wurde keine Zahlung ausgeführt",
+    "uncertain": "Ergebnis unbekannt — prüfe den Zustand, bevor du es erneut versuchst",
+    "local": "Ein lokaler Eintrag oder eine lokale Änderung ist erfolgt"
+   },
+   "retry": {
+    "retry_now": "Ein erneuter Versuch kann jetzt gelingen.",
+    "retry_later": "Versuche es später erneut: Was das verhindert hat, legt sich mit der Zeit.",
+    "retry_after_change": "Versuche es erneut, nachdem du die Änderung vorgenommen hast, die dieser Eintrag nennt.",
+    "never": "Sende dieselbe Anfrage nicht unverändert erneut."
+   },
+   "reference_heading": "Referenz nach Code",
+   "reference_intro": [
+    "Alle Codes in alphabetischer Reihenfolge. Die Überschrift des Abschnitts ist der feste Anker des Codes."
+   ],
+   "fields": {
+    "happened": "Was passiert ist:",
+    "already": "Was womöglich schon passiert ist:",
+    "next": "Was als Nächstes zu tun ist:",
+    "retry": "Erneuter Versuch:",
+    "severity": "Schweregrad:",
+    "category": "Kategorie:",
+    "security_relevant": "Sicherheitsrelevant:",
+    "yes": "ja"
+   },
+   "titles": {
+    "cancelled": "Abgebrochen",
+    "confinement_refusal": "Änderung außerhalb des erlaubten Bereichs",
+    "credential_failure": "Gespeicherter Schlüssel ließ sich nicht lesen",
+    "evidence_corruption": "Antwortbelege bestanden die Konsistenzprüfung nicht",
+    "evm_pocket_custody_unavailable": "Alte Tasche nur für Solana",
+    "integrity_verification_failure": "Eintrag bestand seine Manipulationsprüfung nicht",
+    "permission_denied": "Berechtigung verweigert",
+    "provider_exhausted": "Limit des Anbieters erreicht",
+    "provider_unavailable": "Anbieter nicht erreichbar",
+    "timeout": "Zeitüberschreitung",
+    "tool_unavailable": "Werkzeug nicht verfügbar",
+    "unknown": "Unerwarteter Fehler",
+    "unsupported_claim": "Nicht gestützte Aussagen zurückgehalten",
+    "wallet_acknowledgement_required": "Bestätigung erforderlich",
+    "wallet_amount_invalid": "Betrag für diese Münze nicht exakt",
+    "wallet_approval_rejected": "Freigabe nicht angenommen",
+    "wallet_backup_unavailable": "Sicherung bereits einmal angezeigt",
+    "wallet_broadcast_failed": "Zahlung konnte nicht übertragen werden",
+    "wallet_caller_refused": "Nicht aus VOOLs eigenem Fenster gestartet",
+    "wallet_card_data_refused": "Kartendaten abgelehnt",
+    "wallet_chain_identity_mismatch": "Identität des Ketten-Endpunkts nicht bewiesen",
+    "wallet_confirmation_required": "Getippte Bestätigung erforderlich",
+    "wallet_credential_mismatch": "Eingaben stimmten nicht überein",
+    "wallet_dependency_unavailable": "EVM-Bibliotheken nicht installiert",
+    "wallet_device_auth_denied": "Entsperrung per Gerät abgelehnt",
+    "wallet_device_auth_unavailable": "Entsperrung per Gerät nicht verfügbar",
+    "wallet_disabled": "Wallet ist ausgeschaltet",
+    "wallet_duplicate_payment": "Zahlung bereits vorgeschlagen oder gesendet",
+    "wallet_environment_inactive": "Falsche Netzwerkumgebung",
+    "wallet_export_pin_not_accepted": "Export wird nur per Geräte-Authentifizierung entsperrt",
+    "wallet_export_refused": "Alter Exportweg eingestellt",
+    "wallet_export_unavailable": "Export für dieses Wallet nicht verfügbar",
+    "wallet_insufficient_funds": "Guthaben deckt Betrag und Gebühr nicht",
+    "wallet_legacy_surface_retired": "Alter Geldweg eingestellt",
+    "wallet_limit_exceeded": "Ausgabengrenze überschritten",
+    "wallet_network_disabled": "Netzwerk für dieses Wallet nicht deklariert",
+    "wallet_not_found": "Wallet, Vorschlag oder Empfänger nicht erkannt",
+    "wallet_outbound_refused": "Anfrage außerhalb der genehmigten Endpunkte",
+    "wallet_password_invalid": "Wallet-Passwort ungültig",
+    "wallet_paykit_unavailable": "Erweiterung pay für Solana nicht installiert",
+    "wallet_payment_channel_off": "Zahlungskanal ausgeschaltet",
+    "wallet_pin_invalid": "PIN ungültig",
+    "wallet_quote_expired": "Vorschau abgelaufen oder ersetzt",
+    "wallet_quote_mismatch": "Freigabe passt nicht mehr zur Vorschau",
+    "wallet_quote_unavailable": "Guthaben oder Gebühr unbekannt",
+    "wallet_recipient_refused": "Empfänger kann dies nicht sicher empfangen",
+    "wallet_recovery_refused": "Wiederherstellungsnachweis passt nicht zu diesem Wallet",
+    "wallet_request_ambiguous": "Mehrere Konten oder Netzwerke passen",
+    "wallet_send_needs_vool_wallet": "Zum Senden ist ein VOOL Wallet nötig",
+    "wallet_setup_state_invalid": "Einrichtungsschritt passt gerade nicht",
+    "wallet_signature_invalid": "Signatur passte nicht zum Schlüssel des Wallets",
+    "wallet_signing_unavailable": "Wallet kann von hier nicht signieren",
+    "wallet_simulation_failed": "Zahlung bestand die Simulation nicht",
+    "wallet_storage_class_refused": "Schlüsselspeicher nur im Arbeitsspeicher",
+    "wallet_unlock_throttled": "Wallet nach fehlgeschlagenen Entsperrungen gesperrt",
+    "wallet_x402_cap_exceeded": "Bezahlte Ressource über der automatischen Obergrenze",
+    "wallet_x402_sdk_unavailable": "Erweiterung x402 nicht installiert",
+    "x402_scheme_unavailable": "Zahlungsschema nicht unterstützt"
+   }
+  },
+  "es": {
+   "title": "Libro de errores de VOOL",
+   "intro": [
+    "Todos los errores que VOOL puede mostrarte, generados a partir del propio catálogo de errores de la app: los códigos, mensajes y pasos siguientes que aparecen abajo son exactamente lo que muestra la app."
+   ],
+   "stamp": {
+    "schema": "Esquema:",
+    "version": "Versión del catálogo:",
+    "digest": "Resumen del catálogo:",
+    "count": "Número de fallos:"
+   },
+   "how_to_read": [
+    "Cada código es fijo y nunca se reutiliza con otro significado. Cada código tiene su propia sección más abajo, cuyo encabezado es el propio código, así que, si buscas en esta página el código tal como te lo dieron, encuentras su sección, y un enlace a la sección es la dirección de esta página seguida de `#` y del código con guiones en lugar de guiones bajos. Cada sección dice qué pasó, qué puede haber pasado ya, qué hacer a continuación y si volver a intentarlo puede ayudar. Si un código que te dieron no está en este libro, no es de esta versión de VOOL: comprueba qué versión lo mostró o notifícalo con el código tal como está escrito."
+   ],
+   "table_head": [
+    "Código",
+    "Título",
+    "Gravedad",
+    "Qué puede haber pasado ya"
+   ],
+   "category_heading": {
+    "security": "Seguridad",
+    "integrity": "Integridad",
+    "policy": "Política",
+    "availability": "Disponibilidad",
+    "cancellation": "Cancelación",
+    "internal": "Internos"
+   },
+   "category": {
+    "security": "seguridad",
+    "integrity": "integridad",
+    "policy": "política",
+    "availability": "disponibilidad",
+    "cancellation": "cancelación",
+    "internal": "interna"
+   },
+   "severity": {
+    "info": "informativa",
+    "low": "baja",
+    "medium": "media",
+    "high": "alta",
+    "critical": "crítica"
+   },
+   "effect": {
+    "none": "No se envió, firmó ni cambió nada",
+    "contacted": "Una solicitud llegó a un servicio externo; no se realizó ningún pago",
+    "uncertain": "Resultado desconocido: comprueba el estado antes de reintentar",
+    "local": "Se produjo un registro o un cambio local"
+   },
+   "retry": {
+    "retry_now": "Reintentarlo ahora puede funcionar.",
+    "retry_later": "Reinténtalo más tarde: lo que lo impidió desaparece con el tiempo.",
+    "retry_after_change": "Reinténtalo después de hacer el cambio que indica esta entrada.",
+    "never": "No vuelvas a enviar la misma solicitud sin cambios."
+   },
+   "reference_heading": "Referencia por código",
+   "reference_intro": [
+    "Todos los códigos, en orden alfabético. El encabezado de la sección es el ancla fija del código."
+   ],
+   "fields": {
+    "happened": "Qué pasó:",
+    "already": "Qué puede haber pasado ya:",
+    "next": "Qué hacer a continuación:",
+    "retry": "Volver a intentarlo:",
+    "severity": "Gravedad:",
+    "category": "Categoría:",
+    "security_relevant": "Relevante para la seguridad:",
+    "yes": "sí"
+   },
+   "titles": {
+    "cancelled": "Cancelado",
+    "confinement_refusal": "Cambio fuera del alcance permitido",
+    "credential_failure": "No se pudo leer una credencial guardada",
+    "evidence_corruption": "Los registros de la respuesta fallaron una comprobación de consistencia",
+    "evm_pocket_custody_unavailable": "Bolsillo heredado solo para Solana",
+    "integrity_verification_failure": "Un registro falló su comprobación de integridad",
+    "permission_denied": "Permiso denegado",
+    "provider_exhausted": "Límite del proveedor alcanzado",
+    "provider_unavailable": "Proveedor inaccesible",
+    "timeout": "Tiempo de espera agotado",
+    "tool_unavailable": "Herramienta no disponible",
+    "unknown": "Error inesperado",
+    "unsupported_claim": "Afirmaciones sin respaldo retenidas",
+    "wallet_acknowledgement_required": "Confirmación requerida",
+    "wallet_amount_invalid": "Importe no exacto para esta moneda",
+    "wallet_approval_rejected": "Aprobación no aceptada",
+    "wallet_backup_unavailable": "Copia de respaldo ya mostrada una vez",
+    "wallet_broadcast_failed": "No se pudo difundir el pago",
+    "wallet_caller_refused": "No se inició desde la propia ventana de VOOL",
+    "wallet_card_data_refused": "Datos de tarjeta rechazados",
+    "wallet_chain_identity_mismatch": "Identidad del punto de la cadena no probada",
+    "wallet_confirmation_required": "Confirmación escrita requerida",
+    "wallet_credential_mismatch": "Las entradas no coincidían",
+    "wallet_dependency_unavailable": "Bibliotecas EVM no instaladas",
+    "wallet_device_auth_denied": "Desbloqueo con el dispositivo rechazado",
+    "wallet_device_auth_unavailable": "Desbloqueo con el dispositivo no disponible",
+    "wallet_disabled": "El monedero está apagado",
+    "wallet_duplicate_payment": "Pago ya propuesto o enviado",
+    "wallet_environment_inactive": "Entorno de redes incorrecto",
+    "wallet_export_pin_not_accepted": "La exportación solo se desbloquea con la autenticación del dispositivo",
+    "wallet_export_refused": "Antigua forma de exportar retirada",
+    "wallet_export_unavailable": "Exportación no disponible para este monedero",
+    "wallet_insufficient_funds": "El saldo no cubre el importe y la comisión",
+    "wallet_legacy_surface_retired": "Camino de dinero heredado retirado",
+    "wallet_limit_exceeded": "Límite de gasto superado",
+    "wallet_network_disabled": "Red no declarada para este monedero",
+    "wallet_not_found": "Monedero, propuesta o destino no reconocido",
+    "wallet_outbound_refused": "Solicitud fuera de los destinos aprobados",
+    "wallet_password_invalid": "Contraseña del monedero no válida",
+    "wallet_paykit_unavailable": "Extra pay de Solana no instalado",
+    "wallet_payment_channel_off": "Canal de pago desactivado",
+    "wallet_pin_invalid": "PIN no válido",
+    "wallet_quote_expired": "La vista previa caducó o fue sustituida",
+    "wallet_quote_mismatch": "La aprobación ya no coincide con la vista previa",
+    "wallet_quote_unavailable": "Saldo o comisión desconocidos",
+    "wallet_recipient_refused": "El destinatario no puede recibir esto con seguridad",
+    "wallet_recovery_refused": "La prueba de recuperación no encaja con este monedero",
+    "wallet_request_ambiguous": "Encaja más de una cuenta o red",
+    "wallet_send_needs_vool_wallet": "Para enviar hace falta un VOOL Wallet",
+    "wallet_setup_state_invalid": "El paso de configuración no se aplica ahora",
+    "wallet_signature_invalid": "La firma no coincidía con la clave del monedero",
+    "wallet_signing_unavailable": "El monedero no puede firmar desde aquí",
+    "wallet_simulation_failed": "El pago no pasó la simulación",
+    "wallet_storage_class_refused": "Almacenamiento de claves solo en memoria",
+    "wallet_unlock_throttled": "Monedero bloqueado tras desbloqueos fallidos",
+    "wallet_x402_cap_exceeded": "Recurso de pago por encima del tope automático",
+    "wallet_x402_sdk_unavailable": "Extra x402 no instalado",
+    "x402_scheme_unavailable": "Esquema de pago no admitido"
+   }
+  },
+  "fr": {
+   "title": "Livre des erreurs de VOOL",
+   "intro": [
+    "Toutes les erreurs que VOOL peut vous afficher, générées à partir du catalogue d’erreurs de l’app elle-même : les codes, messages et étapes suivantes ci-dessous sont exactement ce que l’app affiche."
+   ],
+   "stamp": {
+    "schema": "Schéma :",
+    "version": "Version du catalogue :",
+    "digest": "Condensé du catalogue :",
+    "count": "Nombre de défauts :"
+   },
+   "how_to_read": [
+    "Chaque code est stable et n’est jamais réutilisé avec un autre sens. Chaque code a sa propre section ci-dessous, dont le titre est le code lui-même ; en cherchant sur cette page le code tel qu’on vous l’a donné, vous trouvez donc sa section, et un lien vers la section est l’adresse de cette page suivie de `#` et du code avec des traits d’union à la place des traits de soulignement. Chaque section indique ce qui s’est passé, ce qui a peut-être déjà eu lieu, ce qu’il faut faire ensuite et si un nouvel essai peut aider. Si un code qu’on vous a donné ne figure pas dans ce livre, il ne vient pas de cette version de VOOL : vérifiez quelle version l’a affiché, ou signalez-le avec le code tel qu’il est écrit."
+   ],
+   "table_head": [
+    "Code",
+    "Titre",
+    "Gravité",
+    "Ce qui a peut-être déjà eu lieu"
+   ],
+   "category_heading": {
+    "security": "Sécurité",
+    "integrity": "Intégrité",
+    "policy": "Politique",
+    "availability": "Disponibilité",
+    "cancellation": "Annulation",
+    "internal": "Interne"
+   },
+   "category": {
+    "security": "sécurité",
+    "integrity": "intégrité",
+    "policy": "politique",
+    "availability": "disponibilité",
+    "cancellation": "annulation",
+    "internal": "interne"
+   },
+   "severity": {
+    "info": "informative",
+    "low": "faible",
+    "medium": "moyenne",
+    "high": "élevée",
+    "critical": "critique"
+   },
+   "effect": {
+    "none": "Rien n’a été envoyé, signé ni modifié",
+    "contacted": "Une requête a atteint un service externe ; aucun paiement n’a été effectué",
+    "uncertain": "Résultat inconnu — vérifiez l’état avant de réessayer",
+    "local": "Un enregistrement ou un changement local a eu lieu"
+   },
+   "retry": {
+    "retry_now": "Réessayer maintenant peut réussir.",
+    "retry_later": "Réessayez plus tard : ce qui l’a empêché se résout avec le temps.",
+    "retry_after_change": "Réessayez après avoir fait la modification indiquée par cette entrée.",
+    "never": "Ne renvoyez pas la même requête sans changement."
+   },
+   "reference_heading": "Référence par code",
+   "reference_intro": [
+    "Tous les codes, par ordre alphabétique. Le titre de la section est l’ancre stable du code."
+   ],
+   "fields": {
+    "happened": "Ce qui s’est passé :",
+    "already": "Ce qui a peut-être déjà eu lieu :",
+    "next": "Ce qu’il faut faire ensuite :",
+    "retry": "Nouvel essai :",
+    "severity": "Gravité :",
+    "category": "Catégorie :",
+    "security_relevant": "Pertinent pour la sécurité :",
+    "yes": "oui"
+   },
+   "titles": {
+    "cancelled": "Annulé",
+    "confinement_refusal": "Modification hors du périmètre autorisé",
+    "credential_failure": "L’identifiant stocké n’a pas pu être lu",
+    "evidence_corruption": "Les enregistrements de la réponse ont échoué à un contrôle de cohérence",
+    "evm_pocket_custody_unavailable": "Poche héritée uniquement pour Solana",
+    "integrity_verification_failure": "Un enregistrement a échoué à son contrôle anti-falsification",
+    "permission_denied": "Permission refusée",
+    "provider_exhausted": "Limite du fournisseur atteinte",
+    "provider_unavailable": "Fournisseur injoignable",
+    "timeout": "Délai dépassé",
+    "tool_unavailable": "Outil indisponible",
+    "unknown": "Erreur inattendue",
+    "unsupported_claim": "Affirmations non étayées retenues",
+    "wallet_acknowledgement_required": "Confirmation requise",
+    "wallet_amount_invalid": "Montant non exact pour cette pièce",
+    "wallet_approval_rejected": "Approbation non acceptée",
+    "wallet_backup_unavailable": "Sauvegarde déjà montrée une fois",
+    "wallet_broadcast_failed": "Le paiement n’a pas pu être diffusé",
+    "wallet_caller_refused": "Non lancé depuis la fenêtre propre à VOOL",
+    "wallet_card_data_refused": "Données de carte refusées",
+    "wallet_chain_identity_mismatch": "Identité du point de terminaison de la chaîne non prouvée",
+    "wallet_confirmation_required": "Confirmation tapée requise",
+    "wallet_credential_mismatch": "Les saisies ne correspondaient pas",
+    "wallet_dependency_unavailable": "Bibliothèques EVM non installées",
+    "wallet_device_auth_denied": "Déverrouillage par l’appareil refusé",
+    "wallet_device_auth_unavailable": "Déverrouillage par l’appareil indisponible",
+    "wallet_disabled": "Le portefeuille est désactivé",
+    "wallet_duplicate_payment": "Paiement déjà proposé ou envoyé",
+    "wallet_environment_inactive": "Mauvais environnement réseau",
+    "wallet_export_pin_not_accepted": "L’export ne se déverrouille que par l’authentification de l’appareil",
+    "wallet_export_refused": "Ancienne façon d’exporter retirée",
+    "wallet_export_unavailable": "Export indisponible pour ce portefeuille",
+    "wallet_insufficient_funds": "Le solde ne couvre pas le montant et les frais",
+    "wallet_legacy_surface_retired": "Chemin d’argent hérité retiré",
+    "wallet_limit_exceeded": "Limite de dépense dépassée",
+    "wallet_network_disabled": "Réseau non déclaré pour ce portefeuille",
+    "wallet_not_found": "Portefeuille, proposition ou destination non reconnus",
+    "wallet_outbound_refused": "Requête hors des points de terminaison approuvés",
+    "wallet_password_invalid": "Mot de passe du portefeuille non valide",
+    "wallet_paykit_unavailable": "Extra pay pour Solana non installé",
+    "wallet_payment_channel_off": "Canal de paiement désactivé",
+    "wallet_pin_invalid": "Code PIN non valide",
+    "wallet_quote_expired": "Aperçu expiré ou remplacé",
+    "wallet_quote_mismatch": "L’approbation ne correspond plus à l’aperçu",
+    "wallet_quote_unavailable": "Solde ou frais inconnus",
+    "wallet_recipient_refused": "Le destinataire ne peut pas recevoir ceci en sécurité",
+    "wallet_recovery_refused": "La preuve de récupération ne correspond pas à ce portefeuille",
+    "wallet_request_ambiguous": "Plus d’un compte ou réseau correspond",
+    "wallet_send_needs_vool_wallet": "L’envoi nécessite un VOOL Wallet",
+    "wallet_setup_state_invalid": "L’étape de configuration ne s’applique pas maintenant",
+    "wallet_signature_invalid": "La signature ne correspondait pas à la clé du portefeuille",
+    "wallet_signing_unavailable": "Le portefeuille ne peut pas signer d’ici",
+    "wallet_simulation_failed": "Le paiement a échoué à la simulation",
+    "wallet_storage_class_refused": "Stockage des clés uniquement en mémoire",
+    "wallet_unlock_throttled": "Portefeuille verrouillé après des déverrouillages échoués",
+    "wallet_x402_cap_exceeded": "Ressource payante au-dessus du plafond automatique",
+    "wallet_x402_sdk_unavailable": "Extra x402 non installé",
+    "x402_scheme_unavailable": "Schéma de paiement non pris en charge"
+   }
+  },
+  "he": {
+   "title": "ספר השגיאות של VOOL",
+   "intro": [
+    "הספר הזה מכיל כל שגיאה ש-VOOL יכול להציג לכם, והוא מופק מקטלוג השגיאות של היישום עצמו: הקודים, ההודעות והצעדים הבאים שלהלן הם בדיוק מה שהיישום מציג."
+   ],
+   "stamp": {
+    "schema": "סכמה:",
+    "version": "גרסת הקטלוג:",
+    "digest": "תמצית הקטלוג:",
+    "count": "מספר הכשלים:"
+   },
+   "how_to_read": [
+    "כל קוד הוא קבוע ולעולם אינו משמש שוב למשמעות אחרת. לכל קוד יש למטה סעיף משלו, שהכותרת שלו היא הקוד עצמו, כך שחיפוש הקוד בדף הזה כפי שקיבלתם אותו מוצא את הסעיף שלו, וקישור לסעיף הוא הכתובת של הדף הזה ואחריה `#` והקוד כשהקווים התחתונים כתובים כמקפים. כל סעיף מפרט מה קרה, מה אולי כבר קרה, מה לעשות הלאה והאם ניסיון חוזר יכול לעזור. אם קוד שקיבלתם אינו מופיע בספר הזה, הוא אינו מהגרסה הזו של VOOL: בדקו איזו גרסה הציגה אותו, או דווחו עליו עם הקוד כפי שהוא כתוב."
+   ],
+   "table_head": [
+    "קוד",
+    "כותרת",
+    "חומרה",
+    "מה אולי כבר קרה"
+   ],
+   "category_heading": {
+    "security": "אבטחה",
+    "integrity": "שלמות",
+    "policy": "מדיניות",
+    "availability": "זמינות",
+    "cancellation": "ביטול",
+    "internal": "פנימי"
+   },
+   "category": {
+    "security": "אבטחה",
+    "integrity": "שלמות",
+    "policy": "מדיניות",
+    "availability": "זמינות",
+    "cancellation": "ביטול",
+    "internal": "פנימי"
+   },
+   "severity": {
+    "info": "מידע",
+    "low": "נמוכה",
+    "medium": "בינונית",
+    "high": "גבוהה",
+    "critical": "קריטית"
+   },
+   "effect": {
+    "none": "לא נשלח, לא נחתם ולא שונה דבר",
+    "contacted": "בקשה הגיעה לשירות חיצוני; שום תשלום לא הועבר",
+    "uncertain": "התוצאה לא ידועה — בדקו את המצב לפני ניסיון חוזר",
+    "local": "התרחש רישום או שינוי מקומי"
+   },
+   "retry": {
+    "retry_now": "ניסיון חוזר עכשיו עשוי להצליח.",
+    "retry_later": "נסו שוב מאוחר יותר: מה שעצר את זה חולף עם הזמן.",
+    "retry_after_change": "נסו שוב אחרי שתבצעו את השינוי שהערך הזה מציין.",
+    "never": "אל תשלחו שוב את אותה בקשה בלי לשנות אותה."
+   },
+   "reference_heading": "עיון לפי קוד",
+   "reference_intro": [
+    "כל הקודים, בסדר אלפביתי. כותרת הסעיף היא העוגן הקבוע של הקוד."
+   ],
+   "fields": {
+    "happened": "מה קרה:",
+    "already": "מה אולי כבר קרה:",
+    "next": "מה לעשות הלאה:",
+    "retry": "ניסיון חוזר:",
+    "severity": "חומרה:",
+    "category": "קטגוריה:",
+    "security_relevant": "רלוונטי לאבטחה:",
+    "yes": "כן"
+   },
+   "titles": {
+    "cancelled": "בוטל",
+    "confinement_refusal": "שינוי מחוץ להיקף המותר",
+    "credential_failure": "לא ניתן היה לקרוא פרטי גישה שמורים",
+    "evidence_corruption": "רשומות התשובה לא עברו בדיקת עקביות",
+    "evm_pocket_custody_unavailable": "הכיס הישן מיועד ל-Solana בלבד",
+    "integrity_verification_failure": "רשומה לא עברה את הבדיקה מפני חבלה",
+    "permission_denied": "ההרשאה נדחתה",
+    "provider_exhausted": "הגעה למגבלת הספק",
+    "provider_unavailable": "הספק אינו נגיש",
+    "timeout": "הזמן הקצוב תם",
+    "tool_unavailable": "הכלי אינו זמין",
+    "unknown": "שגיאה לא צפויה",
+    "unsupported_claim": "הצהרות לא נתמכות הושמטו",
+    "wallet_acknowledgement_required": "נדרש אישור",
+    "wallet_amount_invalid": "הסכום אינו מדויק למטבע הזה",
+    "wallet_approval_rejected": "האישור לא התקבל",
+    "wallet_backup_unavailable": "הגיבוי כבר הוצג פעם אחת",
+    "wallet_broadcast_failed": "לא ניתן היה לשדר את התשלום",
+    "wallet_caller_refused": "לא הופעל מהחלון של VOOL עצמו",
+    "wallet_card_data_refused": "נתוני הכרטיס נדחו",
+    "wallet_chain_identity_mismatch": "זהות נקודת הקצה של השרשרת לא הוכחה",
+    "wallet_confirmation_required": "נדרש אישור מוקלד",
+    "wallet_credential_mismatch": "ההזנות לא התאימו",
+    "wallet_dependency_unavailable": "ספריות EVM אינן מותקנות",
+    "wallet_device_auth_denied": "פתיחה באמצעות המכשיר נדחתה",
+    "wallet_device_auth_unavailable": "פתיחה באמצעות המכשיר אינה זמינה",
+    "wallet_disabled": "הארנק כבוי",
+    "wallet_duplicate_payment": "התשלום כבר הוצע או נשלח",
+    "wallet_environment_inactive": "סביבת רשת שגויה",
+    "wallet_export_pin_not_accepted": "ייצוא נפתח רק באימות המכשיר",
+    "wallet_export_refused": "דרך הייצוא הישנה הוצאה משימוש",
+    "wallet_export_unavailable": "ייצוא אינו זמין לארנק הזה",
+    "wallet_insufficient_funds": "היתרה אינה מכסה את הסכום ואת דמי הרשת",
+    "wallet_legacy_surface_retired": "נתיב הכספים הישן הוצא משימוש",
+    "wallet_limit_exceeded": "חריגה ממגבלת ההוצאה",
+    "wallet_network_disabled": "הרשת אינה מוצהרת לארנק הזה",
+    "wallet_not_found": "הארנק, ההצעה או היעד לא זוהו",
+    "wallet_outbound_refused": "בקשה מחוץ לנקודות הקצה המאושרות",
+    "wallet_password_invalid": "סיסמת הארנק אינה תקינה",
+    "wallet_paykit_unavailable": "התוספת pay של Solana אינה מותקנת",
+    "wallet_payment_channel_off": "ערוץ התשלום כבוי",
+    "wallet_pin_invalid": "ה-PIN אינו תקין",
+    "wallet_quote_expired": "התצוגה המקדימה פגה או הוחלפה",
+    "wallet_quote_mismatch": "האישור כבר אינו תואם לתצוגה המקדימה",
+    "wallet_quote_unavailable": "היתרה או דמי הרשת אינם ידועים",
+    "wallet_recipient_refused": "הנמען אינו יכול לקבל זאת בבטחה",
+    "wallet_recovery_refused": "הוכחת השחזור אינה מתאימה לארנק הזה",
+    "wallet_request_ambiguous": "יותר מחשבון או רשת אחת מתאימים",
+    "wallet_send_needs_vool_wallet": "שליחה דורשת VOOL Wallet",
+    "wallet_setup_state_invalid": "שלב ההגדרה אינו חל כרגע",
+    "wallet_signature_invalid": "החתימה לא התאימה למפתח הארנק",
+    "wallet_signing_unavailable": "הארנק אינו יכול לחתום מכאן",
+    "wallet_simulation_failed": "התשלום לא עבר הדמיה",
+    "wallet_storage_class_refused": "אחסון המפתחות בזיכרון בלבד",
+    "wallet_unlock_throttled": "הארנק ננעל אחרי ניסיונות פתיחה כושלים",
+    "wallet_x402_cap_exceeded": "משאב בתשלום מעל תקרת התשלום האוטומטית",
+    "wallet_x402_sdk_unavailable": "התוספת x402 אינה מותקנת",
+    "x402_scheme_unavailable": "סכימת התשלום אינה נתמכת"
+   }
+  },
+  "hi": {
+   "title": "VOOL त्रुटि पुस्तिका",
+   "intro": [
+    "इसमें वे सभी त्रुटियाँ हैं जो VOOL आपको दिखा सकता है, ऐप के अपने त्रुटि कैटलॉग से बनाई गईं: नीचे दिए गए कोड, संदेश और अगले कदम ठीक वही हैं जो ऐप दिखाता है।"
+   ],
+   "stamp": {
+    "schema": "स्कीमा:",
+    "version": "कैटलॉग संस्करण:",
+    "digest": "कैटलॉग डाइजेस्ट:",
+    "count": "दोषों की संख्या:"
+   },
+   "how_to_read": [
+    "हर कोड स्थायी है और कभी किसी दूसरे अर्थ के लिए दोबारा इस्तेमाल नहीं होता। हर कोड का नीचे अपना खंड है, जिसका शीर्षक खुद कोड है, इसलिए इस पेज पर कोड को ठीक वैसे खोजने पर जैसा वह आपको मिला था, उसका खंड मिल जाता है, और खंड का लिंक इस पेज का पता है, जिसके बाद `#` और अंडरस्कोर की जगह हाइफ़न वाला कोड आता है। हर खंड बताता है कि क्या हुआ, क्या पहले ही हो चुका हो सकता है, आगे क्या करना है, और दोबारा कोशिश करने से मदद मिल सकती है या नहीं। अगर आपको मिला कोई कोड इस पुस्तिका में नहीं है, तो वह VOOL के इस संस्करण का नहीं है: जाँचें कि उसे किस संस्करण ने दिखाया था, या कोड को ठीक वैसा ही लिखकर उसकी रिपोर्ट करें।"
+   ],
+   "table_head": [
+    "कोड",
+    "शीर्षक",
+    "गंभीरता",
+    "क्या पहले ही हो चुका हो सकता है"
+   ],
+   "category_heading": {
+    "security": "सुरक्षा",
+    "integrity": "अखंडता",
+    "policy": "नीति",
+    "availability": "उपलब्धता",
+    "cancellation": "रद्दीकरण",
+    "internal": "आंतरिक"
+   },
+   "category": {
+    "security": "सुरक्षा",
+    "integrity": "अखंडता",
+    "policy": "नीति",
+    "availability": "उपलब्धता",
+    "cancellation": "रद्दीकरण",
+    "internal": "आंतरिक"
+   },
+   "severity": {
+    "info": "सूचना",
+    "low": "निम्न",
+    "medium": "मध्यम",
+    "high": "उच्च",
+    "critical": "गंभीर"
+   },
+   "effect": {
+    "none": "कुछ भी भेजा, हस्ताक्षरित या बदला नहीं गया",
+    "contacted": "एक अनुरोध किसी बाहरी सेवा तक पहुँचा; कोई भुगतान नहीं हुआ",
+    "uncertain": "नतीजा अज्ञात — दोबारा कोशिश से पहले स्थिति जाँचें",
+    "local": "कोई स्थानीय रिकॉर्ड या बदलाव हुआ"
+   },
+   "retry": {
+    "retry_now": "अभी दोबारा कोशिश सफल हो सकती है।",
+    "retry_later": "बाद में दोबारा कोशिश करें: जिस वजह से यह रुका, वह समय के साथ दूर हो जाती है।",
+    "retry_after_change": "यह प्रविष्टि जो बदलाव बताती है, उसे करने के बाद दोबारा कोशिश करें।",
+    "never": "वही अनुरोध बिना बदले दोबारा न भेजें।"
+   },
+   "reference_heading": "कोड के अनुसार संदर्भ",
+   "reference_intro": [
+    "हर कोड, वर्णक्रम में। खंड का शीर्षक कोड का स्थायी एंकर है।"
+   ],
+   "fields": {
+    "happened": "क्या हुआ:",
+    "already": "क्या पहले ही हो चुका हो सकता है:",
+    "next": "आगे क्या करना है:",
+    "retry": "दोबारा कोशिश:",
+    "severity": "गंभीरता:",
+    "category": "श्रेणी:",
+    "security_relevant": "सुरक्षा से संबंधित:",
+    "yes": "हाँ"
+   },
+   "titles": {
+    "cancelled": "रद्द",
+    "confinement_refusal": "अनुमत दायरे के बाहर का बदलाव",
+    "credential_failure": "सहेजा गया क्रेडेंशियल पढ़ा नहीं जा सका",
+    "evidence_corruption": "जवाब के रिकॉर्ड निरंतरता-जाँच में विफल",
+    "evm_pocket_custody_unavailable": "पुरानी जेब केवल Solana के लिए",
+    "integrity_verification_failure": "रिकॉर्ड छेड़छाड़-जाँच में विफल",
+    "permission_denied": "अनुमति अस्वीकृत",
+    "provider_exhausted": "प्रदाता की सीमा पूरी हुई",
+    "provider_unavailable": "प्रदाता अप्राप्य",
+    "timeout": "समय समाप्त",
+    "tool_unavailable": "टूल उपलब्ध नहीं",
+    "unknown": "अप्रत्याशित त्रुटि",
+    "unsupported_claim": "असमर्थित कथन रोके गए",
+    "wallet_acknowledgement_required": "स्वीकृति ज़रूरी",
+    "wallet_amount_invalid": "राशि इस सिक्के के लिए सटीक नहीं",
+    "wallet_approval_rejected": "स्वीकृति स्वीकार नहीं हुई",
+    "wallet_backup_unavailable": "बैकअप एक बार दिख चुका है",
+    "wallet_broadcast_failed": "भुगतान प्रसारित नहीं हो सका",
+    "wallet_caller_refused": "VOOL की अपनी खिड़की से शुरू नहीं हुआ",
+    "wallet_card_data_refused": "कार्ड डेटा अस्वीकृत",
+    "wallet_chain_identity_mismatch": "चेन सीमाबिंदु की पहचान साबित नहीं",
+    "wallet_confirmation_required": "टाइप-पुष्टि ज़रूरी",
+    "wallet_credential_mismatch": "प्रविष्टियाँ मेल नहीं खाईं",
+    "wallet_dependency_unavailable": "EVM लाइब्रेरियाँ इंस्टॉल नहीं हैं",
+    "wallet_device_auth_denied": "डिवाइस अनलॉक अस्वीकार हुआ",
+    "wallet_device_auth_unavailable": "डिवाइस अनलॉक उपलब्ध नहीं",
+    "wallet_disabled": "वॉलेट बंद है",
+    "wallet_duplicate_payment": "भुगतान पहले ही प्रस्तावित या भेजा जा चुका है",
+    "wallet_environment_inactive": "गलत नेटवर्क वातावरण",
+    "wallet_export_pin_not_accepted": "निर्यात केवल डिवाइस प्रमाणीकरण से खुलता है",
+    "wallet_export_refused": "निर्यात का पुराना तरीका बंद",
+    "wallet_export_unavailable": "इस वॉलेट के लिए निर्यात उपलब्ध नहीं",
+    "wallet_insufficient_funds": "राशि और फ़ीस के लिए शेष काफ़ी नहीं",
+    "wallet_legacy_surface_retired": "पुराना पैसा-रास्ता बंद",
+    "wallet_limit_exceeded": "खर्च सीमा पार हुई",
+    "wallet_network_disabled": "नेटवर्क इस वॉलेट के लिए घोषित नहीं",
+    "wallet_not_found": "वॉलेट, प्रस्ताव या प्राप्तकर्ता पहचाना नहीं गया",
+    "wallet_outbound_refused": "अनुरोध स्वीकृत सीमाबिंदुओं से बाहर",
+    "wallet_password_invalid": "वॉलेट पासवर्ड अमान्य",
+    "wallet_paykit_unavailable": "Solana pay ऐड-ऑन इंस्टॉल नहीं है",
+    "wallet_payment_channel_off": "भुगतान चैनल बंद है",
+    "wallet_pin_invalid": "PIN अमान्य",
+    "wallet_quote_expired": "पूर्वावलोकन समाप्त हुआ या बदला गया",
+    "wallet_quote_mismatch": "स्वीकृति अब पूर्वावलोकन से मेल नहीं खाती",
+    "wallet_quote_unavailable": "शेष या फ़ीस अज्ञात",
+    "wallet_recipient_refused": "प्राप्तकर्ता इसे सुरक्षित रूप से नहीं ले सकता",
+    "wallet_recovery_refused": "रिकवरी प्रमाण इस वॉलेट पर फिट नहीं बैठता",
+    "wallet_request_ambiguous": "एक से अधिक खाते या नेटवर्क फिट बैठते हैं",
+    "wallet_send_needs_vool_wallet": "भेजने के लिए VOOL Wallet चाहिए",
+    "wallet_setup_state_invalid": "सेटअप कदम अभी लागू नहीं होता",
+    "wallet_signature_invalid": "हस्ताक्षर वॉलेट की कुंजी से मेल नहीं खाया",
+    "wallet_signing_unavailable": "वॉलेट यहाँ से हस्ताक्षर नहीं कर सकता",
+    "wallet_simulation_failed": "भुगतान सिमुलेशन में नहीं गुज़रा",
+    "wallet_storage_class_refused": "कुंजी भंडारण केवल मेमोरी में",
+    "wallet_unlock_throttled": "विफल अनलॉक प्रयासों के बाद वॉलेट लॉक हुआ",
+    "wallet_x402_cap_exceeded": "सशुल्क संसाधन स्वचालित भुगतान सीमा से ऊपर",
+    "wallet_x402_sdk_unavailable": "x402 ऐड-ऑन इंस्टॉल नहीं है",
+    "x402_scheme_unavailable": "भुगतान योजना समर्थित नहीं"
+   }
+  },
+  "ja": {
+   "title": "VOOLエラーブック",
+   "intro": [
+    "VOOLが表示しうるすべてのエラーを、アプリ自身のエラーカタログから生成しています：以下のコード、メッセージ、次の手順は、アプリが表示するものとまったく同じです。"
+   ],
+   "stamp": {
+    "schema": "スキーマ：",
+    "version": "カタログのバージョン：",
+    "digest": "カタログのダイジェスト：",
+    "count": "障害の件数："
+   },
+   "how_to_read": [
+    "各コードは固定されており、別の意味に再利用されることは決してありません。どのコードにも以下に専用のセクションがあり、その見出しはコードそのものです。そのため、受け取ったとおりのコードでこのページを検索すればそのセクションが見つかり、セクションへのリンクは、このページのアドレスの後に `#` と、アンダースコアをハイフンに置き換えたコードを続けたものになります。各セクションでは、何が起きたか、すでに何が起きた可能性があるか、次に何をすべきか、再試行が役に立つかどうかを説明しています。受け取ったコードがこのエラーブックにない場合、そのコードはこのバージョンのVOOLのものではありません。どのバージョンで表示されたかを確認するか、書かれたとおりのコードを添えて報告してください。"
+   ],
+   "table_head": [
+    "コード",
+    "タイトル",
+    "重要度",
+    "すでに何が起きた可能性があるか"
+   ],
+   "category_heading": {
+    "security": "セキュリティ",
+    "integrity": "完全性",
+    "policy": "ポリシー",
+    "availability": "可用性",
+    "cancellation": "キャンセル",
+    "internal": "内部"
+   },
+   "category": {
+    "security": "セキュリティ",
+    "integrity": "完全性",
+    "policy": "ポリシー",
+    "availability": "可用性",
+    "cancellation": "キャンセル",
+    "internal": "内部"
+   },
+   "severity": {
+    "info": "情報",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "critical": "重大"
+   },
+   "effect": {
+    "none": "何も送信・署名・変更されていません",
+    "contacted": "リクエストは外部サービスに届きましたが、支払いは行われていません",
+    "uncertain": "結果は不明です — 再試行する前に状態を確認してください",
+    "local": "ローカルで記録または変更が行われました"
+   },
+   "retry": {
+    "retry_now": "今すぐ再試行すれば成功する場合があります。",
+    "retry_later": "後でもう一度お試しください。これを止めた原因は時間とともに解消します。",
+    "retry_after_change": "この項目に示された変更を行ってから、もう一度お試しください。",
+    "never": "同じリクエストを何も変えずにもう一度送らないでください。"
+   },
+   "reference_heading": "コード別リファレンス",
+   "reference_intro": [
+    "すべてのコードをアルファベット順に並べています。セクションの見出しは、そのコードの固定のアンカーです。"
+   ],
+   "fields": {
+    "happened": "何が起きたか：",
+    "already": "すでに何が起きた可能性があるか：",
+    "next": "次に何をすべきか：",
+    "retry": "再試行：",
+    "severity": "重要度：",
+    "category": "カテゴリ：",
+    "security_relevant": "セキュリティ関連：",
+    "yes": "はい"
+   },
+   "titles": {
+    "cancelled": "キャンセル済み",
+    "confinement_refusal": "許可された範囲外の変更",
+    "credential_failure": "保存された資格情報を読み込めませんでした",
+    "evidence_corruption": "回答の記録が整合性検査に合格しませんでした",
+    "evm_pocket_custody_unavailable": "旧ポケットはSolana専用です",
+    "integrity_verification_failure": "記録が改ざん検査に合格しませんでした",
+    "permission_denied": "権限が拒否されました",
+    "provider_exhausted": "プロバイダの上限に達しました",
+    "provider_unavailable": "プロバイダに接続できません",
+    "timeout": "タイムアウト",
+    "tool_unavailable": "ツールを利用できません",
+    "unknown": "予期しないエラー",
+    "unsupported_claim": "裏付けのない記述が保留されました",
+    "wallet_acknowledgement_required": "確認が必要です",
+    "wallet_amount_invalid": "金額がこのコインでは正確ではありません",
+    "wallet_approval_rejected": "承認が受け入れられませんでした",
+    "wallet_backup_unavailable": "バックアップはすでに一度表示されています",
+    "wallet_broadcast_failed": "支払いをブロードキャストできませんでした",
+    "wallet_caller_refused": "VOOL自身のウィンドウから開始されていません",
+    "wallet_card_data_refused": "カードデータが拒否されました",
+    "wallet_chain_identity_mismatch": "チェーンエンドポイントの同一性が証明されていません",
+    "wallet_confirmation_required": "入力による確認が必要です",
+    "wallet_credential_mismatch": "入力が一致しませんでした",
+    "wallet_dependency_unavailable": "EVMライブラリがインストールされていません",
+    "wallet_device_auth_denied": "デバイスでのロック解除が拒否されました",
+    "wallet_device_auth_unavailable": "デバイスでのロック解除を使えません",
+    "wallet_disabled": "ウォレットがオフになっています",
+    "wallet_duplicate_payment": "支払いはすでに提案済みまたは送信済みです",
+    "wallet_environment_inactive": "ネットワーク環境が違います",
+    "wallet_export_pin_not_accepted": "エクスポートはデバイス認証でのみロック解除されます",
+    "wallet_export_refused": "古いエクスポート方法は廃止されました",
+    "wallet_export_unavailable": "このウォレットはエクスポートできません",
+    "wallet_insufficient_funds": "残高が金額と手数料に足りません",
+    "wallet_legacy_surface_retired": "旧来の資金経路は廃止されました",
+    "wallet_limit_exceeded": "支出上限を超えています",
+    "wallet_network_disabled": "ネットワークがこのウォレットで宣言されていません",
+    "wallet_not_found": "ウォレット・提案・宛先が認識されませんでした",
+    "wallet_outbound_refused": "承認済みエンドポイント外へのリクエスト",
+    "wallet_password_invalid": "ウォレットのパスワードが無効です",
+    "wallet_paykit_unavailable": "Solanaのpay拡張がインストールされていません",
+    "wallet_payment_channel_off": "支払いチャネルがオフになっています",
+    "wallet_pin_invalid": "PINが無効です",
+    "wallet_quote_expired": "プレビューが期限切れか、置き換えられました",
+    "wallet_quote_mismatch": "承認がプレビューと一致しなくなりました",
+    "wallet_quote_unavailable": "残高または手数料が不明です",
+    "wallet_recipient_refused": "受取人がこれを安全に受け取れません",
+    "wallet_recovery_refused": "リカバリ証明がこのウォレットに合いません",
+    "wallet_request_ambiguous": "複数のアカウントまたはネットワークが当てはまります",
+    "wallet_send_needs_vool_wallet": "送金にはVOOL Walletが必要です",
+    "wallet_setup_state_invalid": "セットアップステップは現在当てはまりません",
+    "wallet_signature_invalid": "署名がウォレットのキーと一致しませんでした",
+    "wallet_signing_unavailable": "ウォレットはここから署名できません",
+    "wallet_simulation_failed": "支払いがシミュレーションを通りませんでした",
+    "wallet_storage_class_refused": "キーの保存はメモリ内のみです",
+    "wallet_unlock_throttled": "ロック解除の失敗後、ウォレットがロックされました",
+    "wallet_x402_cap_exceeded": "有料リソースが自動支払い上限を超えています",
+    "wallet_x402_sdk_unavailable": "x402拡張がインストールされていません",
+    "x402_scheme_unavailable": "支払いスキームに対応していません"
+   }
+  },
+  "ko": {
+   "title": "VOOL 오류 사전",
+   "intro": [
+    "VOOL이 표시할 수 있는 모든 오류를 앱 자체의 오류 카탈로그에서 생성했습니다. 아래의 코드, 메시지, 다음 단계는 앱이 표시하는 그대로입니다."
+   ],
+   "stamp": {
+    "schema": "스키마:",
+    "version": "카탈로그 버전:",
+    "digest": "카탈로그 다이제스트:",
+    "count": "결함 수:"
+   },
+   "how_to_read": [
+    "각 코드는 고정되어 있으며 절대 다른 의미로 다시 쓰이지 않습니다. 모든 코드는 아래에 코드 자체를 제목으로 하는 자기만의 섹션이 있으므로, 받은 그대로의 코드로 이 페이지를 검색하면 그 섹션을 찾을 수 있고, 섹션 링크는 이 페이지 주소 뒤에 `#` 기호와, 밑줄을 하이픈으로 바꾼 코드를 붙인 것입니다. 각 섹션은 무슨 일이 있었는지, 이미 무슨 일이 일어났을 수 있는지, 다음에 무엇을 해야 하는지, 다시 시도하면 도움이 되는지를 알려 줍니다. 받은 코드가 이 사전에 없다면 이 버전의 VOOL에서 나온 코드가 아닙니다. 어느 버전에서 표시되었는지 확인하거나, 코드를 적힌 그대로 담아 보고하세요."
+   ],
+   "table_head": [
+    "코드",
+    "제목",
+    "심각도",
+    "이미 일어났을 수 있는 일"
+   ],
+   "category_heading": {
+    "security": "보안",
+    "integrity": "무결성",
+    "policy": "정책",
+    "availability": "가용성",
+    "cancellation": "취소",
+    "internal": "내부"
+   },
+   "category": {
+    "security": "보안",
+    "integrity": "무결성",
+    "policy": "정책",
+    "availability": "가용성",
+    "cancellation": "취소",
+    "internal": "내부"
+   },
+   "severity": {
+    "info": "정보",
+    "low": "낮음",
+    "medium": "중간",
+    "high": "높음",
+    "critical": "심각"
+   },
+   "effect": {
+    "none": "아무것도 전송·서명·변경되지 않았습니다",
+    "contacted": "요청이 외부 서비스에 도달했지만 결제는 이루어지지 않았습니다",
+    "uncertain": "결과를 알 수 없습니다 — 다시 시도하기 전에 상태를 확인하세요",
+    "local": "로컬 기록 또는 변경이 발생했습니다"
+   },
+   "retry": {
+    "retry_now": "지금 다시 시도하면 성공할 수 있습니다.",
+    "retry_later": "나중에 다시 시도하세요. 이것을 막은 원인은 시간이 지나면 풀립니다.",
+    "retry_after_change": "이 항목이 알려 주는 변경을 한 뒤 다시 시도하세요.",
+    "never": "같은 요청을 바꾸지 않은 채 다시 보내지 마세요."
+   },
+   "reference_heading": "코드별 참조",
+   "reference_intro": [
+    "모든 코드를 알파벳순으로 실었습니다. 섹션 제목은 그 코드의 고정된 앵커입니다."
+   ],
+   "fields": {
+    "happened": "발생한 일:",
+    "already": "이미 일어났을 수 있는 일:",
+    "next": "다음에 할 일:",
+    "retry": "다시 시도:",
+    "severity": "심각도:",
+    "category": "카테고리:",
+    "security_relevant": "보안 관련:",
+    "yes": "예"
+   },
+   "titles": {
+    "cancelled": "취소됨",
+    "confinement_refusal": "허용된 범위 밖의 변경",
+    "credential_failure": "저장된 자격 증명을 읽을 수 없음",
+    "evidence_corruption": "답변 기록이 일관성 검사를 통과하지 못함",
+    "evm_pocket_custody_unavailable": "옛 주머니는 Solana 전용",
+    "integrity_verification_failure": "기록이 변조 방지 검사를 통과하지 못함",
+    "permission_denied": "권한 거부됨",
+    "provider_exhausted": "공급자 한도 도달",
+    "provider_unavailable": "공급자에 연결할 수 없음",
+    "timeout": "시간 초과",
+    "tool_unavailable": "도구를 사용할 수 없음",
+    "unknown": "예기치 않은 오류",
+    "unsupported_claim": "뒷받침되지 않은 진술을 보류함",
+    "wallet_acknowledgement_required": "확인 필요",
+    "wallet_amount_invalid": "이 코인에서 정확하지 않은 금액",
+    "wallet_approval_rejected": "승인이 받아들여지지 않음",
+    "wallet_backup_unavailable": "백업은 이미 한 번 표시됨",
+    "wallet_broadcast_failed": "결제를 전파할 수 없음",
+    "wallet_caller_refused": "VOOL 자체 창에서 시작되지 않음",
+    "wallet_card_data_refused": "카드 데이터 거부됨",
+    "wallet_chain_identity_mismatch": "체인 엔드포인트의 신원이 증명되지 않음",
+    "wallet_confirmation_required": "입력 확인 필요",
+    "wallet_credential_mismatch": "입력이 일치하지 않음",
+    "wallet_dependency_unavailable": "EVM 라이브러리가 설치되지 않음",
+    "wallet_device_auth_denied": "기기 잠금 해제 거부됨",
+    "wallet_device_auth_unavailable": "기기 잠금 해제를 사용할 수 없음",
+    "wallet_disabled": "지갑이 꺼져 있음",
+    "wallet_duplicate_payment": "이미 제안되었거나 보낸 결제",
+    "wallet_environment_inactive": "잘못된 네트워크 환경",
+    "wallet_export_pin_not_accepted": "내보내기는 기기 인증으로만 잠금 해제됨",
+    "wallet_export_refused": "옛 내보내기 방식은 중단됨",
+    "wallet_export_unavailable": "이 지갑은 내보낼 수 없음",
+    "wallet_insufficient_funds": "잔액이 금액과 수수료에 모자람",
+    "wallet_legacy_surface_retired": "옛 돈 경로는 중단됨",
+    "wallet_limit_exceeded": "지출 한도 초과",
+    "wallet_network_disabled": "이 지갑에 선언되지 않은 네트워크",
+    "wallet_not_found": "지갑, 제안 또는 수신자가 인식되지 않음",
+    "wallet_outbound_refused": "승인된 엔드포인트 밖으로 향한 요청",
+    "wallet_password_invalid": "지갑 암호가 유효하지 않음",
+    "wallet_paykit_unavailable": "Solana pay 추가 요소가 설치되지 않음",
+    "wallet_payment_channel_off": "결제 채널이 꺼져 있음",
+    "wallet_pin_invalid": "PIN이 유효하지 않음",
+    "wallet_quote_expired": "미리보기가 만료되었거나 대체됨",
+    "wallet_quote_mismatch": "승인이 더 이상 미리보기와 일치하지 않음",
+    "wallet_quote_unavailable": "잔액 또는 수수료를 알 수 없음",
+    "wallet_recipient_refused": "수신자가 이것을 안전하게 받을 수 없음",
+    "wallet_recovery_refused": "복구 증명이 이 지갑에 맞지 않음",
+    "wallet_request_ambiguous": "두 개 이상의 계정이나 네트워크가 해당됨",
+    "wallet_send_needs_vool_wallet": "보내려면 VOOL Wallet이 필요함",
+    "wallet_setup_state_invalid": "지금은 적용되지 않는 설정 단계",
+    "wallet_signature_invalid": "서명이 지갑의 키와 일치하지 않음",
+    "wallet_signing_unavailable": "지갑이 여기서 서명할 수 없음",
+    "wallet_simulation_failed": "결제가 시뮬레이션을 통과하지 못함",
+    "wallet_storage_class_refused": "키 보관이 메모리 전용임",
+    "wallet_unlock_throttled": "잠금 해제 실패 후 지갑이 잠김",
+    "wallet_x402_cap_exceeded": "유료 리소스가 자동 결제 상한을 넘음",
+    "wallet_x402_sdk_unavailable": "x402 추가 요소가 설치되지 않음",
+    "x402_scheme_unavailable": "지원되지 않는 결제 방식"
+   }
+  },
+  "lt": {
+   "title": "VOOL klaidų knyga",
+   "intro": [
+    "Visos klaidos, kurias VOOL gali jums parodyti, sugeneruotos iš pačios programos klaidų katalogo: toliau pateikti kodai, pranešimai ir tolesni žingsniai yra būtent tai, ką rodo programa."
+   ],
+   "stamp": {
+    "schema": "Schema:",
+    "version": "Katalogo versija:",
+    "digest": "Katalogo kontrolinė suma:",
+    "count": "Gedžių skaičius:"
+   },
+   "how_to_read": [
+    "Kiekvienas kodas yra pastovus ir niekada nenaudojamas iš naujo kita reikšme. Kiekvienas kodas turi savo skyrių toliau, kurio antraštė yra pats kodas, todėl ieškodami šiame puslapyje kodo taip, kaip jį gavote, rasite jo skyrių, o nuoroda į skyrių yra šio puslapio adresas, po kurio eina `#` ir kodas, kuriame apatiniai brūkšniai pakeisti brūkšneliais. Kiekviename skyriuje nurodyta, kas nutiko, kas galbūt jau įvyko, ką daryti toliau ir ar gali padėti bandymas dar kartą. Jei jūsų gauto kodo šioje knygoje nėra, jis ne iš šios VOOL versijos: patikrinkite, kuri versija jį parodė, arba praneškite apie jį, nurodydami kodą taip, kaip jis parašytas."
+   ],
+   "table_head": [
+    "Kodas",
+    "Pavadinimas",
+    "Rimtumas",
+    "Kas galbūt jau įvyko"
+   ],
+   "category_heading": {
+    "security": "Saugumas",
+    "integrity": "Vientisumas",
+    "policy": "Politika",
+    "availability": "Prieinamumas",
+    "cancellation": "Atšaukimas",
+    "internal": "Vidinės"
+   },
+   "category": {
+    "security": "saugumas",
+    "integrity": "vientisumas",
+    "policy": "politika",
+    "availability": "prieinamumas",
+    "cancellation": "atšaukimas",
+    "internal": "vidinė"
+   },
+   "severity": {
+    "info": "informacinis",
+    "low": "mažas",
+    "medium": "vidutinis",
+    "high": "didelis",
+    "critical": "kritinis"
+   },
+   "effect": {
+    "none": "Niekas nebuvo išsiųsta, pasirašyta ar pakeista",
+    "contacted": "Užklausa pasiekė išorinę paslaugą; joks mokėjimas nebuvo atliktas",
+    "uncertain": "Rezultatas nežinomas — prieš bandydami dar kartą patikrinkite būseną",
+    "local": "Įvyko vietinis įrašas ar pakeitimas"
+   },
+   "retry": {
+    "retry_now": "Pakartojimas dabar gali pavykti.",
+    "retry_later": "Bandykite dar kartą vėliau: tai, kas sustabdė, laikui bėgant praeina.",
+    "retry_after_change": "Bandykite dar kartą, kai atliksite šiame skyriuje nurodytą pakeitimą.",
+    "never": "Nesiųskite tos pačios užklausos dar kartą nepakeistos."
+   },
+   "reference_heading": "Žinynas pagal kodą",
+   "reference_intro": [
+    "Visi kodai abėcėlės tvarka. Skyriaus antraštė yra pastovus kodo inkaras."
+   ],
+   "fields": {
+    "happened": "Kas nutiko:",
+    "already": "Kas galbūt jau įvyko:",
+    "next": "Ką daryti toliau:",
+    "retry": "Bandymas dar kartą:",
+    "severity": "Rimtumas:",
+    "category": "Kategorija:",
+    "security_relevant": "Svarbu saugumui:",
+    "yes": "taip"
+   },
+   "titles": {
+    "cancelled": "Atšaukta",
+    "confinement_refusal": "Pakeitimas už leistinos apimties ribų",
+    "credential_failure": "Įrašyto rakto nepavyko perskaityti",
+    "evidence_corruption": "Atsakymo įrašai nepraėjo vientisumo patikros",
+    "evm_pocket_custody_unavailable": "Senoji kišenė skirta tik Solanai",
+    "integrity_verification_failure": "Įrašas nepraėjo apsaugos nuo klastojimo patikros",
+    "permission_denied": "Leidimas nesuteiktas",
+    "provider_exhausted": "Pasiektas tiekėjo limitas",
+    "provider_unavailable": "Tiekėjas nepasiekiamas",
+    "timeout": "Baigėsi laukimo laikas",
+    "tool_unavailable": "Įrankis neprieinamas",
+    "unknown": "Netikėta klaida",
+    "unsupported_claim": "Nepagrįsti teiginiai sulaikyti",
+    "wallet_acknowledgement_required": "Reikia patvirtinimo",
+    "wallet_amount_invalid": "Suma netiksli šiai monetai",
+    "wallet_approval_rejected": "Patvirtinimas nepriimtas",
+    "wallet_backup_unavailable": "Atsarginė kopija jau parodyta vieną kartą",
+    "wallet_broadcast_failed": "Mokėjimo paskelbti nepavyko",
+    "wallet_caller_refused": "Pradėta ne iš paties VOOL lango",
+    "wallet_card_data_refused": "Kortelės duomenys atmesti",
+    "wallet_chain_identity_mismatch": "Tinklo galutinio taško tapatybė neįrodyta",
+    "wallet_confirmation_required": "Reikia įrašyto patvirtinimo",
+    "wallet_credential_mismatch": "Įrašai nesutapo",
+    "wallet_dependency_unavailable": "EVM bibliotekos neįdiegtos",
+    "wallet_device_auth_denied": "Atrakinimas įrenginiu atmestas",
+    "wallet_device_auth_unavailable": "Atrakinimas įrenginiu nepasiekiamas",
+    "wallet_disabled": "Piniginė išjungta",
+    "wallet_duplicate_payment": "Mokėjimas jau pasiūlytas ar išsiųstas",
+    "wallet_environment_inactive": "Netinkama tinklo aplinka",
+    "wallet_export_pin_not_accepted": "Eksportas atrakinamas tik įrenginio autentifikavimu",
+    "wallet_export_refused": "Senasis eksportavimo būdas nebenaudojamas",
+    "wallet_export_unavailable": "Eksportas šiai piniginei neprieinamas",
+    "wallet_insufficient_funds": "Balansas nepadengia sumos ir komisinių",
+    "wallet_legacy_surface_retired": "Senasis pinigų kelias nebenaudojamas",
+    "wallet_limit_exceeded": "Viršytas išlaidų limitas",
+    "wallet_network_disabled": "Tinklas nedeklaruotas šiai piniginei",
+    "wallet_not_found": "Piniginė, pasiūlymas ar gavėjas neatpažintas",
+    "wallet_outbound_refused": "Užklausa už patvirtintų galutinių taškų ribų",
+    "wallet_password_invalid": "Netinkamas piniginės slaptažodis",
+    "wallet_paykit_unavailable": "Solana papildinys pay neįdiegtas",
+    "wallet_payment_channel_off": "Mokėjimo kanalas išjungtas",
+    "wallet_pin_invalid": "Netinkamas PIN",
+    "wallet_quote_expired": "Numatymas baigė galioti arba buvo pakeistas",
+    "wallet_quote_mismatch": "Patvirtinimas nebeatitinka peržiūros",
+    "wallet_quote_unavailable": "Balansas ar komisiniai nežinomi",
+    "wallet_recipient_refused": "Gavėjas negali to saugiai priimti",
+    "wallet_recovery_refused": "Atkūrimo įrodymas netinka šiai piniginei",
+    "wallet_request_ambiguous": "Tinka daugiau nei viena paskyra ar tinklas",
+    "wallet_send_needs_vool_wallet": "Siuntimui reikia VOOL Wallet",
+    "wallet_setup_state_invalid": "Sąrankos žingsnis dabar netaikomas",
+    "wallet_signature_invalid": "Parašas neatitiko piniginės rakto",
+    "wallet_signing_unavailable": "Piniginė negali iš čia pasirašyti",
+    "wallet_simulation_failed": "Mokėjimas nepraėjo modeliavimo",
+    "wallet_storage_class_refused": "Raktų saugojimas tik atmintyje",
+    "wallet_unlock_throttled": "Piniginė užrakinta po nepavykusių atrakinimų",
+    "wallet_x402_cap_exceeded": "Apmokamas išteklius virš automatinės ribos",
+    "wallet_x402_sdk_unavailable": "Papildinys x402 neįdiegtas",
+    "x402_scheme_unavailable": "Mokėjimo schema nepalaikoma"
+   }
+  },
+  "pl": {
+   "title": "Księga błędów VOOL",
+   "intro": [
+    "Wszystkie błędy, które VOOL może ci pokazać, wygenerowane z własnego katalogu błędów aplikacji: kody, komunikaty i dalsze kroki poniżej są dokładnie tym, co pokazuje aplikacja."
+   ],
+   "stamp": {
+    "schema": "Schemat:",
+    "version": "Wersja katalogu:",
+    "digest": "Skrót katalogu:",
+    "count": "Liczba błędów:"
+   },
+   "how_to_read": [
+    "Każdy kod jest stały i nigdy nie jest używany ponownie w innym znaczeniu. Każdy kod ma poniżej własną sekcję, której nagłówkiem jest sam kod, więc wyszukując na tej stronie kod w podanej ci postaci, znajdziesz jego sekcję, a link do sekcji to adres tej strony, po którym następują `#` i kod z łącznikami zamiast znaków podkreślenia. Każda sekcja mówi, co się stało, co mogło się już stać, co zrobić dalej i czy ponowna próba może pomóc. Jeśli podanego ci kodu nie ma w tej księdze, nie pochodzi on z tej wersji VOOL: sprawdź, która wersja go pokazała, albo zgłoś go, podając kod tak, jak został zapisany."
+   ],
+   "table_head": [
+    "Kod",
+    "Tytuł",
+    "Waga",
+    "Co mogło się już stać"
+   ],
+   "category_heading": {
+    "security": "Bezpieczeństwo",
+    "integrity": "Integralność",
+    "policy": "Zasady",
+    "availability": "Dostępność",
+    "cancellation": "Anulowanie",
+    "internal": "Wewnętrzne"
+   },
+   "category": {
+    "security": "bezpieczeństwo",
+    "integrity": "integralność",
+    "policy": "zasady",
+    "availability": "dostępność",
+    "cancellation": "anulowanie",
+    "internal": "wewnętrzna"
+   },
+   "severity": {
+    "info": "informacyjna",
+    "low": "niska",
+    "medium": "średnia",
+    "high": "wysoka",
+    "critical": "krytyczna"
+   },
+   "effect": {
+    "none": "Nic nie wysłano, nie podpisano ani nie zmieniono",
+    "contacted": "Żądanie dotarło do usługi zewnętrznej; nie wykonano żadnej płatności",
+    "uncertain": "Wynik nieznany — sprawdź stan przed ponowną próbą",
+    "local": "Nastąpił lokalny zapis lub zmiana"
+   },
+   "retry": {
+    "retry_now": "Ponowna próba teraz może się udać.",
+    "retry_later": "Spróbuj ponownie później: to, co to zatrzymało, z czasem ustępuje.",
+    "retry_after_change": "Spróbuj ponownie po wprowadzeniu zmiany, którą wskazuje ten wpis.",
+    "never": "Nie wysyłaj ponownie tego samego żądania bez zmian."
+   },
+   "reference_heading": "Szczegóły według kodu",
+   "reference_intro": [
+    "Wszystkie kody w kolejności alfabetycznej. Nagłówek sekcji jest stałą kotwicą kodu."
+   ],
+   "fields": {
+    "happened": "Co się stało:",
+    "already": "Co mogło się już stać:",
+    "next": "Co zrobić dalej:",
+    "retry": "Ponowna próba:",
+    "severity": "Waga:",
+    "category": "Kategoria:",
+    "security_relevant": "Istotne dla bezpieczeństwa:",
+    "yes": "tak"
+   },
+   "titles": {
+    "cancelled": "Anulowano",
+    "confinement_refusal": "Zmiana poza dozwolonym zakresem",
+    "credential_failure": "Nie udało się odczytać zapisanego poświadczenia",
+    "evidence_corruption": "Zapisy odpowiedzi nie przeszły sprawdzenia spójności",
+    "evm_pocket_custody_unavailable": "Starsza kieszeń tylko dla Solany",
+    "integrity_verification_failure": "Zapis nie przeszedł sprawdzenia nienaruszalności",
+    "permission_denied": "Brak uprawnień",
+    "provider_exhausted": "Osiągnięto limit dostawcy",
+    "provider_unavailable": "Dostawca nieosiągalny",
+    "timeout": "Przekroczono limit czasu",
+    "tool_unavailable": "Narzędzie niedostępne",
+    "unknown": "Nieoczekiwany błąd",
+    "unsupported_claim": "Wstrzymano niepotwierdzone stwierdzenia",
+    "wallet_acknowledgement_required": "Wymagane potwierdzenie",
+    "wallet_amount_invalid": "Niedokładna kwota dla tej monety",
+    "wallet_approval_rejected": "Zgoda nie została przyjęta",
+    "wallet_backup_unavailable": "Kopia zapasowa była już raz pokazana",
+    "wallet_broadcast_failed": "Nie udało się nadać płatności",
+    "wallet_caller_refused": "Nie uruchomiono z własnego okna VOOL",
+    "wallet_card_data_refused": "Odrzucono dane karty",
+    "wallet_chain_identity_mismatch": "Nieudowodniona tożsamość punktu końcowego sieci",
+    "wallet_confirmation_required": "Wymagane wpisane potwierdzenie",
+    "wallet_credential_mismatch": "Wpisy nie pasowały do siebie",
+    "wallet_dependency_unavailable": "Biblioteki EVM nie są zainstalowane",
+    "wallet_device_auth_denied": "Odrzucono odblokowanie urządzeniem",
+    "wallet_device_auth_unavailable": "Odblokowanie urządzeniem niedostępne",
+    "wallet_disabled": "Portfel jest wyłączony",
+    "wallet_duplicate_payment": "Płatność już zaproponowana lub wysłana",
+    "wallet_environment_inactive": "Niewłaściwe środowisko sieci",
+    "wallet_export_pin_not_accepted": "Eksport odblokowuje tylko uwierzytelnianie urządzeniem",
+    "wallet_export_refused": "Stary sposób eksportu wycofany",
+    "wallet_export_unavailable": "Eksport niedostępny dla tego portfela",
+    "wallet_insufficient_funds": "Saldo nie pokrywa kwoty i opłaty",
+    "wallet_legacy_surface_retired": "Starsza ścieżka pieniężna wycofana",
+    "wallet_limit_exceeded": "Przekroczono limit wydatków",
+    "wallet_network_disabled": "Sieć niezadeklarowana dla tego portfela",
+    "wallet_not_found": "Nie rozpoznano portfela, propozycji ani odbiorcy",
+    "wallet_outbound_refused": "Żądanie poza zatwierdzonymi punktami końcowymi",
+    "wallet_password_invalid": "Nieprawidłowe hasło portfela",
+    "wallet_paykit_unavailable": "Dodatek pay dla Solany nie jest zainstalowany",
+    "wallet_payment_channel_off": "Kanał płatności wyłączony",
+    "wallet_pin_invalid": "Nieprawidłowy PIN",
+    "wallet_quote_expired": "Podgląd wygasł lub został zastąpiony",
+    "wallet_quote_mismatch": "Zatwierdzenie nie pasuje już do podglądu",
+    "wallet_quote_unavailable": "Nieznane saldo lub opłata",
+    "wallet_recipient_refused": "Odbiorca nie może bezpiecznie tego przyjąć",
+    "wallet_recovery_refused": "Dowód odzyskiwania nie pasuje do tego portfela",
+    "wallet_request_ambiguous": "Pasuje więcej niż jedno konto lub sieć",
+    "wallet_send_needs_vool_wallet": "Do wysyłania potrzebny jest VOOL Wallet",
+    "wallet_setup_state_invalid": "Krok konfiguracji nie ma teraz zastosowania",
+    "wallet_signature_invalid": "Podpis nie pasował do klucza portfela",
+    "wallet_signing_unavailable": "Portfel nie może stąd podpisywać",
+    "wallet_simulation_failed": "Płatność nie przeszła symulacji",
+    "wallet_storage_class_refused": "Przechowywanie kluczy tylko w pamięci",
+    "wallet_unlock_throttled": "Portfel zablokowany po nieudanych odblokowaniach",
+    "wallet_x402_cap_exceeded": "Płatny zasób powyżej automatycznego limitu",
+    "wallet_x402_sdk_unavailable": "Dodatek x402 nie jest zainstalowany",
+    "x402_scheme_unavailable": "Nieobsługiwany schemat płatności"
+   }
+  },
+  "pt": {
+   "title": "Livro de erros do VOOL",
+   "intro": [
+    "Todos os erros que o VOOL pode mostrar a você, gerados a partir do próprio catálogo de erros do app: os códigos, as mensagens e os próximos passos abaixo são exatamente o que o app mostra."
+   ],
+   "stamp": {
+    "schema": "Esquema:",
+    "version": "Versão do catálogo:",
+    "digest": "Resumo do catálogo:",
+    "count": "Número de falhas:"
+   },
+   "how_to_read": [
+    "Cada código é fixo e nunca é reutilizado com outro significado. Cada código tem a sua própria seção abaixo, cujo título é o próprio código; assim, ao buscar nesta página o código como você o recebeu, você encontra a seção dele, e um link para a seção é o endereço desta página seguido de `#` e do código com hifens no lugar dos sublinhados. Cada seção diz o que aconteceu, o que pode já ter acontecido, o que fazer em seguida e se tentar de novo pode ajudar. Se um código que você recebeu não está neste livro, ele não é desta versão do VOOL: confira qual versão o mostrou, ou informe-o com o código como está escrito."
+   ],
+   "table_head": [
+    "Código",
+    "Título",
+    "Gravidade",
+    "O que pode já ter acontecido"
+   ],
+   "category_heading": {
+    "security": "Segurança",
+    "integrity": "Integridade",
+    "policy": "Política",
+    "availability": "Disponibilidade",
+    "cancellation": "Cancelamento",
+    "internal": "Internos"
+   },
+   "category": {
+    "security": "segurança",
+    "integrity": "integridade",
+    "policy": "política",
+    "availability": "disponibilidade",
+    "cancellation": "cancelamento",
+    "internal": "interna"
+   },
+   "severity": {
+    "info": "informativa",
+    "low": "baixa",
+    "medium": "média",
+    "high": "alta",
+    "critical": "crítica"
+   },
+   "effect": {
+    "none": "Nada foi enviado, assinado ou alterado",
+    "contacted": "Uma solicitação chegou a um serviço externo; nenhum pagamento foi feito",
+    "uncertain": "Resultado desconhecido — confira o estado antes de tentar de novo",
+    "local": "Houve um registro ou uma alteração local"
+   },
+   "retry": {
+    "retry_now": "Tentar de novo agora pode dar certo.",
+    "retry_later": "Tente de novo mais tarde: o que impediu isto se resolve com o tempo.",
+    "retry_after_change": "Tente de novo depois de fazer a mudança que esta entrada indica.",
+    "never": "Não envie a mesma solicitação de novo sem alterações."
+   },
+   "reference_heading": "Referência por código",
+   "reference_intro": [
+    "Todos os códigos, em ordem alfabética. O título da seção é a âncora fixa do código."
+   ],
+   "fields": {
+    "happened": "O que aconteceu:",
+    "already": "O que pode já ter acontecido:",
+    "next": "O que fazer em seguida:",
+    "retry": "Tentar de novo:",
+    "severity": "Gravidade:",
+    "category": "Categoria:",
+    "security_relevant": "Relevante para a segurança:",
+    "yes": "sim"
+   },
+   "titles": {
+    "cancelled": "Cancelado",
+    "confinement_refusal": "Mudança fora do escopo permitido",
+    "credential_failure": "Não foi possível ler uma credencial armazenada",
+    "evidence_corruption": "Os registros da resposta falharam numa verificação de consistência",
+    "evm_pocket_custody_unavailable": "Bolso legado só para Solana",
+    "integrity_verification_failure": "Um registro falhou na verificação à prova de adulteração",
+    "permission_denied": "Permissão negada",
+    "provider_exhausted": "Limite do provedor atingido",
+    "provider_unavailable": "Provedor inacessível",
+    "timeout": "Tempo esgotado",
+    "tool_unavailable": "Ferramenta indisponível",
+    "unknown": "Erro inesperado",
+    "unsupported_claim": "Afirmações sem apoio retidas",
+    "wallet_acknowledgement_required": "Confirmação necessária",
+    "wallet_amount_invalid": "Valor não exato para esta moeda",
+    "wallet_approval_rejected": "Aprovação não aceita",
+    "wallet_backup_unavailable": "Backup já mostrado uma vez",
+    "wallet_broadcast_failed": "Não foi possível transmitir o pagamento",
+    "wallet_caller_refused": "Não iniciado a partir da própria janela do VOOL",
+    "wallet_card_data_refused": "Dados de cartão recusados",
+    "wallet_chain_identity_mismatch": "Identidade do ponto da cadeia não provada",
+    "wallet_confirmation_required": "Confirmação digitada necessária",
+    "wallet_credential_mismatch": "As entradas não conferiram",
+    "wallet_dependency_unavailable": "Bibliotecas EVM não instaladas",
+    "wallet_device_auth_denied": "Destravamento pelo dispositivo recusado",
+    "wallet_device_auth_unavailable": "Destravamento pelo dispositivo indisponível",
+    "wallet_disabled": "A carteira está desligada",
+    "wallet_duplicate_payment": "Pagamento já proposto ou enviado",
+    "wallet_environment_inactive": "Ambiente de rede errado",
+    "wallet_export_pin_not_accepted": "A exportação só é destravada pela autenticação do dispositivo",
+    "wallet_export_refused": "Forma antiga de exportar aposentada",
+    "wallet_export_unavailable": "Exportação indisponível para esta carteira",
+    "wallet_insufficient_funds": "O saldo não cobre o valor e a taxa",
+    "wallet_legacy_surface_retired": "Caminho de dinheiro legado aposentado",
+    "wallet_limit_exceeded": "Limite de gasto excedido",
+    "wallet_network_disabled": "Rede não declarada para esta carteira",
+    "wallet_not_found": "Carteira, proposta ou destino não reconhecido",
+    "wallet_outbound_refused": "Pedido fora dos pontos aprovados",
+    "wallet_password_invalid": "Senha da carteira inválida",
+    "wallet_paykit_unavailable": "Extra pay da Solana não instalado",
+    "wallet_payment_channel_off": "Canal de pagamento desligado",
+    "wallet_pin_invalid": "PIN inválido",
+    "wallet_quote_expired": "A prévia expirou ou foi substituída",
+    "wallet_quote_mismatch": "A aprovação não corresponde mais à prévia",
+    "wallet_quote_unavailable": "Saldo ou taxa desconhecidos",
+    "wallet_recipient_refused": "O destinatário não pode receber isto em segurança",
+    "wallet_recovery_refused": "A prova de recuperação não serve para esta carteira",
+    "wallet_request_ambiguous": "Mais de uma conta ou rede serve",
+    "wallet_send_needs_vool_wallet": "Para enviar, é preciso um VOOL Wallet",
+    "wallet_setup_state_invalid": "O passo de configuração não se aplica agora",
+    "wallet_signature_invalid": "A assinatura não correspondeu à chave da carteira",
+    "wallet_signing_unavailable": "A carteira não pode assinar daqui",
+    "wallet_simulation_failed": "O pagamento não passou na simulação",
+    "wallet_storage_class_refused": "Armazenamento de chaves só em memória",
+    "wallet_unlock_throttled": "Carteira trancada após destravamentos malsucedidos",
+    "wallet_x402_cap_exceeded": "Recurso pago acima do teto automático",
+    "wallet_x402_sdk_unavailable": "Extra x402 não instalado",
+    "x402_scheme_unavailable": "Esquema de pagamento não suportado"
+   }
+  },
+  "ru": {
+   "title": "Книга ошибок VOOL",
+   "intro": [
+    "Все ошибки, которые VOOL может вам показать, сгенерированные из собственного каталога ошибок приложения: коды, сообщения и следующие шаги ниже — это ровно то, что показывает приложение."
+   ],
+   "stamp": {
+    "schema": "Схема:",
+    "version": "Версия каталога:",
+    "digest": "Дайджест каталога:",
+    "count": "Количество сбоев:"
+   },
+   "how_to_read": [
+    "Каждый код постоянен и никогда не используется повторно в другом значении. У каждого кода есть свой раздел ниже, заголовок которого — сам код, поэтому, если искать на этой странице код в том виде, в каком вы его получили, вы найдёте его раздел, а ссылка на раздел — это адрес этой страницы, за которым следуют `#` и код, где подчёркивания заменены дефисами. В каждом разделе сказано, что произошло, что могло уже произойти, что делать дальше и может ли помочь повторная попытка. Если полученного вами кода нет в этой книге, он не из этой версии VOOL: проверьте, какая версия его показала, или сообщите о нём, указав код так, как он написан."
+   ],
+   "table_head": [
+    "Код",
+    "Название",
+    "Серьёзность",
+    "Что могло уже произойти"
+   ],
+   "category_heading": {
+    "security": "Безопасность",
+    "integrity": "Целостность",
+    "policy": "Политика",
+    "availability": "Доступность",
+    "cancellation": "Отмена",
+    "internal": "Внутренние"
+   },
+   "category": {
+    "security": "безопасность",
+    "integrity": "целостность",
+    "policy": "политика",
+    "availability": "доступность",
+    "cancellation": "отмена",
+    "internal": "внутренняя"
+   },
+   "severity": {
+    "info": "информационная",
+    "low": "низкая",
+    "medium": "средняя",
+    "high": "высокая",
+    "critical": "критическая"
+   },
+   "effect": {
+    "none": "Ничего не отправлено, не подписано и не изменено",
+    "contacted": "Запрос дошёл до внешнего сервиса; платёж не проводился",
+    "uncertain": "Результат неизвестен — проверьте состояние перед повтором",
+    "local": "Произошла локальная запись или изменение"
+   },
+   "retry": {
+    "retry_now": "Повторная попытка сейчас может удаться.",
+    "retry_later": "Повторите позже: то, что помешало, со временем проходит.",
+    "retry_after_change": "Повторите после того, как внесёте изменение, указанное в этом разделе.",
+    "never": "Не отправляйте тот же запрос повторно без изменений."
+   },
+   "reference_heading": "Справочник по кодам",
+   "reference_intro": [
+    "Все коды в алфавитном порядке. Заголовок раздела — постоянный якорь кода."
+   ],
+   "fields": {
+    "happened": "Что произошло:",
+    "already": "Что могло уже произойти:",
+    "next": "Что делать дальше:",
+    "retry": "Повторная попытка:",
+    "severity": "Серьёзность:",
+    "category": "Категория:",
+    "security_relevant": "Важно для безопасности:",
+    "yes": "да"
+   },
+   "titles": {
+    "cancelled": "Отменено",
+    "confinement_refusal": "Изменение за пределами разрешённой области",
+    "credential_failure": "Не удалось прочитать сохранённые учётные данные",
+    "evidence_corruption": "Записи ответа не прошли проверку согласованности",
+    "evm_pocket_custody_unavailable": "Старый карман только для Solana",
+    "integrity_verification_failure": "Запись не прошла проверку защиты от подделки",
+    "permission_denied": "Доступ запрещён",
+    "provider_exhausted": "Исчерпан лимит провайдера",
+    "provider_unavailable": "Провайдер недоступен",
+    "timeout": "Время ожидания истекло",
+    "tool_unavailable": "Инструмент недоступен",
+    "unknown": "Непредвиденная ошибка",
+    "unsupported_claim": "Неподтверждённые утверждения удержаны",
+    "wallet_acknowledgement_required": "Требуется подтверждение",
+    "wallet_amount_invalid": "Неточная сумма для этой монеты",
+    "wallet_approval_rejected": "Подтверждение не принято",
+    "wallet_backup_unavailable": "Резервная копия уже показывалась один раз",
+    "wallet_broadcast_failed": "Не удалось передать платёж в сеть",
+    "wallet_caller_refused": "Запущено не из собственного окна VOOL",
+    "wallet_card_data_refused": "Данные карты отклонены",
+    "wallet_chain_identity_mismatch": "Идентичность узла цепочки не доказана",
+    "wallet_confirmation_required": "Требуется печатное подтверждение",
+    "wallet_credential_mismatch": "Записи не совпали",
+    "wallet_dependency_unavailable": "Библиотеки EVM не установлены",
+    "wallet_device_auth_denied": "Разблокировка через устройство отклонена",
+    "wallet_device_auth_unavailable": "Разблокировка через устройство недоступна",
+    "wallet_disabled": "Кошелёк выключен",
+    "wallet_duplicate_payment": "Платёж уже предложен или отправлен",
+    "wallet_environment_inactive": "Неверное сетевое окружение",
+    "wallet_export_pin_not_accepted": "Экспорт разблокируется только аутентификацией устройства",
+    "wallet_export_refused": "Старый способ экспорта выведен из употребления",
+    "wallet_export_unavailable": "Экспорт недоступен для этого кошелька",
+    "wallet_insufficient_funds": "Баланс не покрывает сумму и комиссию",
+    "wallet_legacy_surface_retired": "Старый денежный путь выведен из эксплуатации",
+    "wallet_limit_exceeded": "Превышен лимит трат",
+    "wallet_network_disabled": "Сеть не объявлена для этого кошелька",
+    "wallet_not_found": "Кошелёк, предложение или получатель не распознаны",
+    "wallet_outbound_refused": "Запрос за пределами одобренных точек",
+    "wallet_password_invalid": "Неверный пароль кошелька",
+    "wallet_paykit_unavailable": "Дополнение pay для Solana не установлено",
+    "wallet_payment_channel_off": "Платёжный канал выключен",
+    "wallet_pin_invalid": "Неверный PIN",
+    "wallet_quote_expired": "Предпросмотр истёк или заменён",
+    "wallet_quote_mismatch": "Подтверждение больше не совпадает с предпросмотром",
+    "wallet_quote_unavailable": "Баланс или комиссия неизвестны",
+    "wallet_recipient_refused": "Получатель не может безопасно это принять",
+    "wallet_recovery_refused": "Доказательство восстановления не подходит этому кошельку",
+    "wallet_request_ambiguous": "Подходит более одной учётной записи или сети",
+    "wallet_send_needs_vool_wallet": "Для отправки нужен VOOL Wallet",
+    "wallet_setup_state_invalid": "Шаг настройки сейчас неприменим",
+    "wallet_signature_invalid": "Подпись не совпала с ключом кошелька",
+    "wallet_signing_unavailable": "Кошелёк не может подписать отсюда",
+    "wallet_simulation_failed": "Платёж не прошёл симуляцию",
+    "wallet_storage_class_refused": "Хранение ключей только в памяти",
+    "wallet_unlock_throttled": "Кошелёк заблокирован после неудачных разблокировок",
+    "wallet_x402_cap_exceeded": "Платный ресурс выше автоматического лимита",
+    "wallet_x402_sdk_unavailable": "Дополнение x402 не установлено",
+    "x402_scheme_unavailable": "Платёжная схема не поддерживается"
+   }
+  },
+  "tr": {
+   "title": "VOOL Hata Kitabı",
+   "intro": [
+    "VOOL'un size gösterebileceği her hata, uygulamanın kendi hata kataloğundan üretilmiştir: aşağıdaki kodlar, mesajlar ve sonraki adımlar tam olarak uygulamanın gösterdikleridir."
+   ],
+   "stamp": {
+    "schema": "Şema:",
+    "version": "Katalog sürümü:",
+    "digest": "Katalog özeti:",
+    "count": "Hata sayısı:"
+   },
+   "how_to_read": [
+    "Her kod sabittir ve asla farklı bir anlam için yeniden kullanılmaz. Her kodun aşağıda, başlığı kodun kendisi olan ayrı bir bölümü vardır; bu yüzden bu sayfada kodu size verildiği gibi aradığınızda bölümünü bulursunuz, bölüme bağlantı da bu sayfanın adresinin ardından `#` ve alt çizgileri kısa çizgiye çevrilmiş koddan oluşur. Her bölüm ne olduğunu, neyin zaten olmuş olabileceğini, sonra ne yapılacağını ve tekrar denemenin işe yarayıp yaramayacağını söyler. Size verilen bir kod bu kitapta yoksa VOOL'un bu sürümünden değildir: onu hangi sürümün gösterdiğini kontrol edin ya da kodu yazıldığı gibi belirterek bildirin."
+   ],
+   "table_head": [
+    "Kod",
+    "Başlık",
+    "Önem derecesi",
+    "Zaten ne olmuş olabilir"
+   ],
+   "category_heading": {
+    "security": "Güvenlik",
+    "integrity": "Bütünlük",
+    "policy": "İlke",
+    "availability": "Erişilebilirlik",
+    "cancellation": "İptal",
+    "internal": "Dahili"
+   },
+   "category": {
+    "security": "güvenlik",
+    "integrity": "bütünlük",
+    "policy": "ilke",
+    "availability": "erişilebilirlik",
+    "cancellation": "iptal",
+    "internal": "dahili"
+   },
+   "severity": {
+    "info": "bilgi",
+    "low": "düşük",
+    "medium": "orta",
+    "high": "yüksek",
+    "critical": "kritik"
+   },
+   "effect": {
+    "none": "Hiçbir şey gönderilmedi, imzalanmadı veya değiştirilmedi",
+    "contacted": "Bir istek harici bir hizmete ulaştı; hiçbir ödeme yapılmadı",
+    "uncertain": "Sonuç bilinmiyor — tekrar denemeden önce durumu kontrol edin",
+    "local": "Yerel bir kayıt veya değişiklik yapıldı"
+   },
+   "retry": {
+    "retry_now": "Şimdi tekrar denemek işe yarayabilir.",
+    "retry_later": "Daha sonra tekrar deneyin: bunu durduran şey zamanla ortadan kalkar.",
+    "retry_after_change": "Bu girdinin belirttiği değişikliği yaptıktan sonra tekrar deneyin.",
+    "never": "Aynı isteği değiştirmeden yeniden göndermeyin."
+   },
+   "reference_heading": "Koda göre başvuru",
+   "reference_intro": [
+    "Tüm kodlar, alfabetik sırayla. Bölüm başlığı, kodun sabit çapasıdır."
+   ],
+   "fields": {
+    "happened": "Ne oldu:",
+    "already": "Zaten ne olmuş olabilir:",
+    "next": "Sonra ne yapılmalı:",
+    "retry": "Tekrar denemek:",
+    "severity": "Önem derecesi:",
+    "category": "Kategori:",
+    "security_relevant": "Güvenlikle ilgili:",
+    "yes": "evet"
+   },
+   "titles": {
+    "cancelled": "İptal edildi",
+    "confinement_refusal": "İzin verilen kapsam dışında değişiklik",
+    "credential_failure": "Saklı kimlik bilgisi okunamadı",
+    "evidence_corruption": "Yanıt kayıtları tutarlılık denetiminden geçemedi",
+    "evm_pocket_custody_unavailable": "Eski cep yalnızca Solana için",
+    "integrity_verification_failure": "Kayıt bütünlük denetiminden geçemedi",
+    "permission_denied": "İzin reddedildi",
+    "provider_exhausted": "Sağlayıcı sınırına ulaşıldı",
+    "provider_unavailable": "Sağlayıcıya ulaşılamıyor",
+    "timeout": "Zaman aşımı",
+    "tool_unavailable": "Araç kullanılamıyor",
+    "unknown": "Beklenmeyen hata",
+    "unsupported_claim": "Desteklenmeyen ifadeler tutuldu",
+    "wallet_acknowledgement_required": "Onay gerekli",
+    "wallet_amount_invalid": "Miktar bu coin için kesin değil",
+    "wallet_approval_rejected": "Onay kabul edilmedi",
+    "wallet_backup_unavailable": "Yedek zaten bir kez gösterildi",
+    "wallet_broadcast_failed": "Ödeme yayınlanamadı",
+    "wallet_caller_refused": "VOOL'un kendi penceresinden başlatılmadı",
+    "wallet_card_data_refused": "Kart verisi reddedildi",
+    "wallet_chain_identity_mismatch": "Zincir ucunun kimliği kanıtlanmadı",
+    "wallet_confirmation_required": "Yazılı onay gerekli",
+    "wallet_credential_mismatch": "Girişler birbirini tutmadı",
+    "wallet_dependency_unavailable": "EVM kitaplıkları kurulu değil",
+    "wallet_device_auth_denied": "Cihazla kilit açma reddedildi",
+    "wallet_device_auth_unavailable": "Cihazla kilit açma kullanılamıyor",
+    "wallet_disabled": "Cüzdan kapalı",
+    "wallet_duplicate_payment": "Ödeme zaten önerildi veya gönderildi",
+    "wallet_environment_inactive": "Yanlış ağ ortamı",
+    "wallet_export_pin_not_accepted": "Dışa aktarma yalnızca cihaz kimlik doğrulamasıyla açılır",
+    "wallet_export_refused": "Eski dışa aktarma yolu kullanımdan kaldırıldı",
+    "wallet_export_unavailable": "Bu cüzdan için dışa aktarma kullanılamıyor",
+    "wallet_insufficient_funds": "Bakiye miktarı ve ücreti karşılamıyor",
+    "wallet_legacy_surface_retired": "Eski para yolu kullanımdan kaldırıldı",
+    "wallet_limit_exceeded": "Harcama sınırı aşıldı",
+    "wallet_network_disabled": "Ağ bu cüzdan için bildirilmemiş",
+    "wallet_not_found": "Cüzdan, öneri veya alıcı tanınmadı",
+    "wallet_outbound_refused": "İstek onaylı uçların dışında",
+    "wallet_password_invalid": "Cüzdan parolası geçersiz",
+    "wallet_paykit_unavailable": "Solana pay eki kurulu değil",
+    "wallet_payment_channel_off": "Ödeme kanalı kapalı",
+    "wallet_pin_invalid": "PIN geçersiz",
+    "wallet_quote_expired": "Önizlemenin süresi doldu veya değiştirildi",
+    "wallet_quote_mismatch": "Onay artık önizlemeyle uyuşmuyor",
+    "wallet_quote_unavailable": "Bakiye veya ücret bilinmiyor",
+    "wallet_recipient_refused": "Alıcı bunu güvenle alamaz",
+    "wallet_recovery_refused": "Kurtarma kanıtı bu cüzdana uymuyor",
+    "wallet_request_ambiguous": "Birden fazla hesap veya ağ uyuyor",
+    "wallet_send_needs_vool_wallet": "Göndermek için bir VOOL Wallet gerekir",
+    "wallet_setup_state_invalid": "Kurulum adımı şu anda uygulanamaz",
+    "wallet_signature_invalid": "İmza cüzdanın anahtarıyla uyuşmadı",
+    "wallet_signing_unavailable": "Cüzdan buradan imzalayamaz",
+    "wallet_simulation_failed": "Ödeme simülasyondan geçemedi",
+    "wallet_storage_class_refused": "Anahtar saklama yalnızca bellekte",
+    "wallet_unlock_throttled": "Başarısız kilit açma denemelerinden sonra cüzdan kilitlendi",
+    "wallet_x402_cap_exceeded": "Ücretli kaynak otomatik ödeme tavanının üzerinde",
+    "wallet_x402_sdk_unavailable": "x402 eki kurulu değil",
+    "x402_scheme_unavailable": "Ödeme şeması desteklenmiyor"
+   }
+  },
+  "uk": {
+   "title": "Книга помилок VOOL",
+   "intro": [
+    "Усі помилки, які VOOL може вам показати, згенеровані з власного каталогу помилок застосунку: коди, повідомлення й наступні кроки нижче — це саме те, що показує застосунок."
+   ],
+   "stamp": {
+    "schema": "Схема:",
+    "version": "Версія каталогу:",
+    "digest": "Відбиток каталогу:",
+    "count": "Кількість збоїв:"
+   },
+   "how_to_read": [
+    "Кожен код постійний і ніколи не використовується повторно в іншому значенні. Кожен код має власний розділ нижче, заголовок якого — сам код, тож, шукаючи на цій сторінці код у тому вигляді, у якому ви його отримали, ви знайдете його розділ, а посилання на розділ — це адреса цієї сторінки, після якої йдуть `#` і код, де підкреслення замінено дефісами. У кожному розділі сказано, що сталося, що могло вже статися, що робити далі і чи може допомогти повторна спроба. Якщо отриманого вами коду немає в цій книзі, він не з цієї версії VOOL: перевірте, яка версія його показала, або повідомте про нього, вказавши код так, як його написано."
+   ],
+   "table_head": [
+    "Код",
+    "Назва",
+    "Серйозність",
+    "Що могло вже статися"
+   ],
+   "category_heading": {
+    "security": "Безпека",
+    "integrity": "Цілісність",
+    "policy": "Політика",
+    "availability": "Доступність",
+    "cancellation": "Скасування",
+    "internal": "Внутрішні"
+   },
+   "category": {
+    "security": "безпека",
+    "integrity": "цілісність",
+    "policy": "політика",
+    "availability": "доступність",
+    "cancellation": "скасування",
+    "internal": "внутрішня"
+   },
+   "severity": {
+    "info": "інформаційна",
+    "low": "низька",
+    "medium": "середня",
+    "high": "висока",
+    "critical": "критична"
+   },
+   "effect": {
+    "none": "Нічого не надіслано, не підписано й не змінено",
+    "contacted": "Запит дійшов до зовнішнього сервісу; платіж не проводився",
+    "uncertain": "Результат невідомий — перевірте стан перед повтором",
+    "local": "Відбувся локальний запис або зміна"
+   },
+   "retry": {
+    "retry_now": "Повторна спроба зараз може вдатися.",
+    "retry_later": "Повторіть пізніше: те, що завадило, з часом минає.",
+    "retry_after_change": "Повторіть після того, як внесете зміну, указану в цьому розділі.",
+    "never": "Не надсилайте той самий запит повторно без змін."
+   },
+   "reference_heading": "Довідник за кодами",
+   "reference_intro": [
+    "Усі коди в алфавітному порядку. Заголовок розділу — постійний якір коду."
+   ],
+   "fields": {
+    "happened": "Що сталося:",
+    "already": "Що могло вже статися:",
+    "next": "Що робити далі:",
+    "retry": "Повторна спроба:",
+    "severity": "Серйозність:",
+    "category": "Категорія:",
+    "security_relevant": "Важливо для безпеки:",
+    "yes": "так"
+   },
+   "titles": {
+    "cancelled": "Скасовано",
+    "confinement_refusal": "Зміна за межами дозволеного кола",
+    "credential_failure": "Не вдалося прочитати збережені облікові дані",
+    "evidence_corruption": "Записи відповіді не пройшли перевірки узгодженості",
+    "evm_pocket_custody_unavailable": "Стара кишеня лише для Solana",
+    "integrity_verification_failure": "Запис не пройшов перевірки захисту від підробки",
+    "permission_denied": "Доступ заборонено",
+    "provider_exhausted": "Досягнуто ліміту провайдера",
+    "provider_unavailable": "Провайдер недосяжний",
+    "timeout": "Час очікування вичерпано",
+    "tool_unavailable": "Інструмент недоступний",
+    "unknown": "Неочікувана помилка",
+    "unsupported_claim": "Непідтверджені твердження затримано",
+    "wallet_acknowledgement_required": "Потрібне підтвердження",
+    "wallet_amount_invalid": "Неточна сума для цієї монети",
+    "wallet_approval_rejected": "Підтвердження не прийнято",
+    "wallet_backup_unavailable": "Резервну копію вже показували один раз",
+    "wallet_broadcast_failed": "Не вдалося передати платіж у мережу",
+    "wallet_caller_refused": "Запущено не з власного вікна VOOL",
+    "wallet_card_data_refused": "Дані картки відхилено",
+    "wallet_chain_identity_mismatch": "Тотожність вузла ланцюга не доведено",
+    "wallet_confirmation_required": "Потрібне набране підтвердження",
+    "wallet_credential_mismatch": "Записи не збіглися",
+    "wallet_dependency_unavailable": "Бібліотеки EVM не встановлено",
+    "wallet_device_auth_denied": "Розблокування через пристрій відхилено",
+    "wallet_device_auth_unavailable": "Розблокування через пристрій недоступне",
+    "wallet_disabled": "Гаманець вимкнено",
+    "wallet_duplicate_payment": "Платіж уже запропоновано або надіслано",
+    "wallet_environment_inactive": "Неправильне мережеве середовище",
+    "wallet_export_pin_not_accepted": "Експорт розблоковується лише автентифікацією пристрою",
+    "wallet_export_refused": "Старий спосіб експорту виведено з ужитку",
+    "wallet_export_unavailable": "Експорт недоступний для цього гаманця",
+    "wallet_insufficient_funds": "Баланс не покриває суму й комісію",
+    "wallet_legacy_surface_retired": "Старий грошовий шлях виведено з експлуатації",
+    "wallet_limit_exceeded": "Перевищено ліміт витрат",
+    "wallet_network_disabled": "Мережу не оголошено для цього гаманця",
+    "wallet_not_found": "Гаманець, пропозицію або отримувача не розпізнано",
+    "wallet_outbound_refused": "Запит поза ухваленими точками",
+    "wallet_password_invalid": "Неправильний пароль гаманця",
+    "wallet_paykit_unavailable": "Додаток pay для Solana не встановлено",
+    "wallet_payment_channel_off": "Платіжний канал вимкнено",
+    "wallet_pin_invalid": "Неправильний PIN",
+    "wallet_quote_expired": "Попередній перегляд сплив або замінений",
+    "wallet_quote_mismatch": "Підтвердження більше не збігається з попереднім переглядом",
+    "wallet_quote_unavailable": "Баланс або комісія невідомі",
+    "wallet_recipient_refused": "Отримувач не може безпечно це прийняти",
+    "wallet_recovery_refused": "Доказ відновлення не пасує цьому гаманцю",
+    "wallet_request_ambiguous": "Підходить понад один рахунок або мережа",
+    "wallet_send_needs_vool_wallet": "Для надсилання потрібен VOOL Wallet",
+    "wallet_setup_state_invalid": "Крок налаштування зараз не застосовний",
+    "wallet_signature_invalid": "Підпис не збігся з ключем гаманця",
+    "wallet_signing_unavailable": "Гаманець не може підписати звідси",
+    "wallet_simulation_failed": "Платіж не пройшов симуляцію",
+    "wallet_storage_class_refused": "Зберігання ключів лише в памʼяті",
+    "wallet_unlock_throttled": "Гаманець замкнено після невдалих спроб розблокування",
+    "wallet_x402_cap_exceeded": "Платний ресурс понад автоматичну межу",
+    "wallet_x402_sdk_unavailable": "Додаток x402 не встановлено",
+    "x402_scheme_unavailable": "Платіжна схема не підтримується"
+   }
+  },
+  "vi": {
+   "title": "Sổ tay lỗi VOOL",
+   "intro": [
+    "Mọi lỗi mà VOOL có thể hiển thị cho bạn, được tạo từ chính danh mục lỗi của ứng dụng: các mã, thông báo và bước tiếp theo bên dưới đúng y như những gì ứng dụng hiển thị."
+   ],
+   "stamp": {
+    "schema": "Lược đồ:",
+    "version": "Phiên bản danh mục:",
+    "digest": "Mã băm danh mục:",
+    "count": "Số lỗi:"
+   },
+   "how_to_read": [
+    "Mỗi mã đều cố định và không bao giờ được dùng lại với một nghĩa khác. Mỗi mã có một mục riêng ở bên dưới, với tiêu đề chính là mã đó, nên khi tìm trên trang này đúng mã như bạn nhận được, bạn sẽ thấy mục của nó, và liên kết đến mục đó là địa chỉ của trang này, theo sau là `#` và mã với dấu gạch dưới viết thành dấu gạch ngang. Mỗi mục cho biết chuyện gì đã xảy ra, điều gì có thể đã xảy ra rồi, cần làm gì tiếp theo và thử lại có giúp được không. Nếu một mã bạn nhận được không có trong sổ tay này, mã đó không đến từ phiên bản VOOL này: hãy kiểm tra phiên bản nào đã hiển thị nó, hoặc báo cáo kèm theo mã đúng như đã viết."
+   ],
+   "table_head": [
+    "Mã",
+    "Tiêu đề",
+    "Mức nghiêm trọng",
+    "Điều gì có thể đã xảy ra rồi"
+   ],
+   "category_heading": {
+    "security": "Bảo mật",
+    "integrity": "Tính toàn vẹn",
+    "policy": "Chính sách",
+    "availability": "Tính khả dụng",
+    "cancellation": "Hủy",
+    "internal": "Nội bộ"
+   },
+   "category": {
+    "security": "bảo mật",
+    "integrity": "tính toàn vẹn",
+    "policy": "chính sách",
+    "availability": "tính khả dụng",
+    "cancellation": "hủy",
+    "internal": "nội bộ"
+   },
+   "severity": {
+    "info": "thông tin",
+    "low": "thấp",
+    "medium": "trung bình",
+    "high": "cao",
+    "critical": "nghiêm trọng"
+   },
+   "effect": {
+    "none": "Chưa gửi, ký hay thay đổi gì",
+    "contacted": "Một yêu cầu đã đến dịch vụ bên ngoài; không có khoản thanh toán nào được chuyển",
+    "uncertain": "Không rõ kết quả — hãy kiểm tra trạng thái trước khi thử lại",
+    "local": "Đã có một bản ghi hoặc thay đổi cục bộ"
+   },
+   "retry": {
+    "retry_now": "Thử lại ngay bây giờ có thể thành công.",
+    "retry_later": "Hãy thử lại sau: điều đã chặn việc này sẽ tự hết theo thời gian.",
+    "retry_after_change": "Hãy thử lại sau khi thực hiện thay đổi mà mục này nêu.",
+    "never": "Đừng gửi lại cùng một yêu cầu mà không thay đổi gì."
+   },
+   "reference_heading": "Tra cứu theo mã",
+   "reference_intro": [
+    "Mọi mã, theo thứ tự bảng chữ cái. Tiêu đề của mục là neo cố định của mã."
+   ],
+   "fields": {
+    "happened": "Chuyện gì đã xảy ra:",
+    "already": "Điều gì có thể đã xảy ra rồi:",
+    "next": "Cần làm gì tiếp theo:",
+    "retry": "Thử lại:",
+    "severity": "Mức nghiêm trọng:",
+    "category": "Danh mục:",
+    "security_relevant": "Liên quan đến bảo mật:",
+    "yes": "có"
+   },
+   "titles": {
+    "cancelled": "Đã hủy",
+    "confinement_refusal": "Thay đổi ngoài phạm vi được phép",
+    "credential_failure": "Không thể đọc thông tin xác thực đã lưu",
+    "evidence_corruption": "Bản ghi của câu trả lời không qua được kiểm tra nhất quán",
+    "evm_pocket_custody_unavailable": "Túi cũ chỉ dùng cho Solana",
+    "integrity_verification_failure": "Bản ghi không qua được kiểm tra chống giả mạo",
+    "permission_denied": "Bị từ chối quyền",
+    "provider_exhausted": "Đã đạt giới hạn của nhà cung cấp",
+    "provider_unavailable": "Không thể kết nối nhà cung cấp",
+    "timeout": "Hết thời gian chờ",
+    "tool_unavailable": "Công cụ không khả dụng",
+    "unknown": "Lỗi không mong đợi",
+    "unsupported_claim": "Các phát biểu không được ủng hộ đã bị giữ lại",
+    "wallet_acknowledgement_required": "Cần xác nhận",
+    "wallet_amount_invalid": "Số tiền không chính xác với đồng này",
+    "wallet_approval_rejected": "Phê duyệt không được chấp nhận",
+    "wallet_backup_unavailable": "Bản dự phòng đã được hiển thị một lần",
+    "wallet_broadcast_failed": "Không thể phát đi khoản thanh toán",
+    "wallet_caller_refused": "Không bắt đầu từ cửa sổ của chính VOOL",
+    "wallet_card_data_refused": "Dữ liệu thẻ bị từ chối",
+    "wallet_chain_identity_mismatch": "Danh tính điểm cuối chuỗi chưa được chứng minh",
+    "wallet_confirmation_required": "Cần xác nhận đã gõ",
+    "wallet_credential_mismatch": "Các mục nhập không khớp",
+    "wallet_dependency_unavailable": "Chưa cài thư viện EVM",
+    "wallet_device_auth_denied": "Mở khóa bằng thiết bị bị từ chối",
+    "wallet_device_auth_unavailable": "Không dùng được mở khóa bằng thiết bị",
+    "wallet_disabled": "Ví đang tắt",
+    "wallet_duplicate_payment": "Khoản thanh toán đã được đề xuất hoặc gửi",
+    "wallet_environment_inactive": "Sai môi trường mạng",
+    "wallet_export_pin_not_accepted": "Việc xuất chỉ mở bằng xác thực thiết bị",
+    "wallet_export_refused": "Cách xuất cũ đã bị ngừng",
+    "wallet_export_unavailable": "Không thể xuất ví này",
+    "wallet_insufficient_funds": "Số dư không đủ cho số tiền và phí",
+    "wallet_legacy_surface_retired": "Con đường tiền cũ đã bị ngừng",
+    "wallet_limit_exceeded": "Vượt giới hạn chi tiêu",
+    "wallet_network_disabled": "Mạng chưa được tuyên bố cho ví này",
+    "wallet_not_found": "Không nhận diện được ví, đề xuất hoặc đích đến",
+    "wallet_outbound_refused": "Yêu cầu ngoài các điểm cuối đã phê duyệt",
+    "wallet_password_invalid": "Mật khẩu ví không hợp lệ",
+    "wallet_paykit_unavailable": "Chưa cài phần bổ sung pay cho Solana",
+    "wallet_payment_channel_off": "Kênh thanh toán đang tắt",
+    "wallet_pin_invalid": "PIN không hợp lệ",
+    "wallet_quote_expired": "Bản xem trước đã hết hạn hoặc bị thay thế",
+    "wallet_quote_mismatch": "Phê duyệt không còn khớp với bản xem trước",
+    "wallet_quote_unavailable": "Không rõ số dư hoặc phí",
+    "wallet_recipient_refused": "Người nhận không thể an toàn nhận khoản này",
+    "wallet_recovery_refused": "Bằng chứng khôi phục không khớp ví này",
+    "wallet_request_ambiguous": "Có nhiều hơn một tài khoản hoặc mạng khớp",
+    "wallet_send_needs_vool_wallet": "Cần VOOL Wallet để gửi",
+    "wallet_setup_state_invalid": "Bước thiết lập hiện không áp dụng",
+    "wallet_signature_invalid": "Chữ ký không khớp khóa của ví",
+    "wallet_signing_unavailable": "Ví không thể ký từ đây",
+    "wallet_simulation_failed": "Khoản thanh toán không qua mô phỏng",
+    "wallet_storage_class_refused": "Lưu khóa chỉ trong bộ nhớ",
+    "wallet_unlock_throttled": "Ví bị khóa sau các lần mở khóa thất bại",
+    "wallet_x402_cap_exceeded": "Tài nguyên trả phí vượt mức trần thanh toán tự động",
+    "wallet_x402_sdk_unavailable": "Chưa cài phần bổ sung x402",
+    "x402_scheme_unavailable": "Lược đồ thanh toán không được hỗ trợ"
+   }
+  },
+  "zh": {
+   "title": "VOOL 错误手册",
+   "intro": [
+    "VOOL 可能向你显示的每一个错误，都生成自应用自身的错误目录：下方的代码、消息和下一步与应用显示的内容完全一致。"
+   ],
+   "stamp": {
+    "schema": "架构：",
+    "version": "目录版本：",
+    "digest": "目录摘要：",
+    "count": "故障数量："
+   },
+   "how_to_read": [
+    "每个代码都是固定的，绝不会被重新用于其他含义。每个代码在下方都有自己的章节，章节标题就是代码本身，因此在本页按你收到的原样搜索代码，就能找到它的章节；指向该章节的链接是本页地址后接 `#`，再接把下划线写成连字符的代码。每个章节都说明发生了什么、可能已经发生了什么、下一步该怎么做，以及重试是否有帮助。如果你收到的代码不在本手册中，它就不是来自此版本的 VOOL：请检查是哪个版本显示了它，或附上原样的代码报告它。"
+   ],
+   "table_head": [
+    "代码",
+    "标题",
+    "严重性",
+    "可能已经发生了什么"
+   ],
+   "category_heading": {
+    "security": "安全",
+    "integrity": "完整性",
+    "policy": "策略",
+    "availability": "可用性",
+    "cancellation": "取消",
+    "internal": "内部"
+   },
+   "category": {
+    "security": "安全",
+    "integrity": "完整性",
+    "policy": "策略",
+    "availability": "可用性",
+    "cancellation": "取消",
+    "internal": "内部"
+   },
+   "severity": {
+    "info": "信息",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "critical": "严重"
+   },
+   "effect": {
+    "none": "没有发送、签名或更改任何内容",
+    "contacted": "请求已到达外部服务；没有发生任何付款",
+    "uncertain": "结果未知 — 重试前请先检查状态",
+    "local": "发生了本地记录或更改"
+   },
+   "retry": {
+    "retry_now": "现在重试可能会成功。",
+    "retry_later": "请稍后重试：阻止此操作的原因会随时间消除。",
+    "retry_after_change": "请先完成本条目所述的更改，然后重试。",
+    "never": "不要原封不动地再次发送同一请求。"
+   },
+   "reference_heading": "按代码查阅",
+   "reference_intro": [
+    "所有代码按字母顺序排列。章节标题是该代码的固定锚点。"
+   ],
+   "fields": {
+    "happened": "发生了什么：",
+    "already": "可能已经发生了什么：",
+    "next": "下一步该怎么做：",
+    "retry": "重试：",
+    "severity": "严重性：",
+    "category": "类别：",
+    "security_relevant": "与安全相关：",
+    "yes": "是"
+   },
+   "titles": {
+    "cancelled": "已取消",
+    "confinement_refusal": "允许范围之外的更改",
+    "credential_failure": "无法读取已存储的凭据",
+    "evidence_corruption": "回答记录未通过一致性检查",
+    "evm_pocket_custody_unavailable": "旧口袋仅支持 Solana",
+    "integrity_verification_failure": "记录未通过防篡改检查",
+    "permission_denied": "权限被拒绝",
+    "provider_exhausted": "已达到提供方上限",
+    "provider_unavailable": "无法连接提供方",
+    "timeout": "已超时",
+    "tool_unavailable": "工具不可用",
+    "unknown": "意外错误",
+    "unsupported_claim": "未获支持的陈述已被扣留",
+    "wallet_acknowledgement_required": "需要确认",
+    "wallet_amount_invalid": "金额对此币种不精确",
+    "wallet_approval_rejected": "批准未获接受",
+    "wallet_backup_unavailable": "备份已显示过一次",
+    "wallet_broadcast_failed": "无法广播付款",
+    "wallet_caller_refused": "并非从 VOOL 自己的窗口发起",
+    "wallet_card_data_refused": "卡片数据被拒绝",
+    "wallet_chain_identity_mismatch": "链端点身份未经证明",
+    "wallet_confirmation_required": "需要键入确认",
+    "wallet_credential_mismatch": "两次输入不一致",
+    "wallet_dependency_unavailable": "未安装 EVM 库",
+    "wallet_device_auth_denied": "设备解锁被拒绝",
+    "wallet_device_auth_unavailable": "设备解锁不可用",
+    "wallet_disabled": "钱包已关闭",
+    "wallet_duplicate_payment": "付款已提出或已发送",
+    "wallet_environment_inactive": "网络环境错误",
+    "wallet_export_pin_not_accepted": "导出只能通过设备验证解锁",
+    "wallet_export_refused": "旧的导出方式已停用",
+    "wallet_export_unavailable": "此钱包无法导出",
+    "wallet_insufficient_funds": "余额不足以覆盖金额和费用",
+    "wallet_legacy_surface_retired": "旧资金通路已退役",
+    "wallet_limit_exceeded": "超出支出限制",
+    "wallet_network_disabled": "此钱包未声明该网络",
+    "wallet_not_found": "未识别出钱包、提案或收款方",
+    "wallet_outbound_refused": "请求超出已批准的端点",
+    "wallet_password_invalid": "钱包密码无效",
+    "wallet_paykit_unavailable": "未安装 Solana pay 扩展",
+    "wallet_payment_channel_off": "支付通道已关闭",
+    "wallet_pin_invalid": "PIN 无效",
+    "wallet_quote_expired": "预览已过期或已被替换",
+    "wallet_quote_mismatch": "批准与预览不再匹配",
+    "wallet_quote_unavailable": "余额或费用未知",
+    "wallet_recipient_refused": "收款方无法安全接收此转账",
+    "wallet_recovery_refused": "恢复证明与此钱包不符",
+    "wallet_request_ambiguous": "有多个账户或网络符合",
+    "wallet_send_needs_vool_wallet": "发送需要 VOOL Wallet",
+    "wallet_setup_state_invalid": "该设置步骤现在不适用",
+    "wallet_signature_invalid": "签名与钱包密钥不匹配",
+    "wallet_signing_unavailable": "钱包无法从这里签名",
+    "wallet_simulation_failed": "付款未通过模拟",
+    "wallet_storage_class_refused": "密钥存储仅限内存",
+    "wallet_unlock_throttled": "解锁失败后钱包已锁定",
+    "wallet_x402_cap_exceeded": "付费资源超出自动付款上限",
+    "wallet_x402_sdk_unavailable": "未安装 x402 扩展",
+    "x402_scheme_unavailable": "付款方案不受支持"
+   }
+  }
+ }
+}

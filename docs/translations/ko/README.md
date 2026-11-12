@@ -38,8 +38,8 @@ VOOL 0.7에 들어 있던 메모리는 같은 문항에서 150개 중 123개를 
 | VOOL 실행하기 | [설치](getting-started/install.md) |
 | 첫 화면 이해하기 | [처음 실행](getting-started/first-run.md) |
 | 모델 지정하기 | [모델 연결](getting-started/connect-a-model.md) |
-| 일어날 수 있는 지출 관리하기 | [지출 한도](../../guides/spending-limits.md) |
-| 내 컴퓨터 밖으로 나가는 것 알기 | [로컬과 클라우드](../../concepts/local-and-cloud.md) |
+| 일어날 수 있는 지출 관리하기 | [지출 한도](guides/spending-limits.md) |
+| 내 컴퓨터 밖으로 나가는 것 알기 | [로컬과 클라우드](concepts/local-and-cloud.md) |
 
 ## VOOL은 이런 앱입니다
 
@@ -57,7 +57,7 @@ VOOL 0.7에 들어 있던 메모리는 같은 문항에서 150개 중 123개를 
 VOOL은 Apple Silicon Mac, Intel Mac, Linux x86_64용 베타입니다. Mac 앱은
 아직 Apple 공증을 받지 않아서, 처음 열 때 macOS가 확인을 요청합니다.
 [설치](getting-started/install.md#mac에서-처음-열기) 페이지에서 방법을 볼 수 있습니다. 설치하기 전에
-[릴리스 상태](../../trust/release-status.md)를 확인하세요.
+[릴리스 상태](trust/release-status.md)를 확인하세요.
 {% endhint %}
 
 ## 두 가지 모드, 분명하게
@@ -73,6 +73,6 @@ VOOL이 구분하는 상태는 정확히 두 가지이며, 어느 쪽이 활성 
 
 ## 도움 받기
 
-* [FAQ](../../help/faq.md) — 자주 묻는 질문
+* [FAQ](help/faq.md) — 자주 묻는 질문
 * [문제 해결](help/troubleshooting.md) — 무언가가 시작되지 않을 때
 * [Discord](https://discord.gg/V9NkjP3Fzz) — 팀에 질문하기

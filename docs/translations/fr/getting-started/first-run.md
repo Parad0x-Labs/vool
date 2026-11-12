@@ -15,9 +15,9 @@ auprès de son fournisseur si vous en ajoutez une.
 1. **Où doit-il penser ?** Sur cet ordinateur avec un modèle local, ou en ligne avec une clé d’un
    fournisseur que vous payez. Voir [Connecter un modèle](connect-a-model.md).
 2. **Choisissez un dossier.** Le dossier de projet dans lequel VOOL travaille. Voir
-   [Espaces de travail](../../../concepts/workspaces.md).
+   [Espaces de travail](../concepts/workspaces.md).
 3. **Que peut-il faire seul ?** À quelle fréquence VOOL s’arrête pour vous demander avant de modifier quoi que
-   ce soit. Voir [Outils](../../../concepts/tools.md).
+   ce soit. Voir [Outils](../concepts/tools.md).
 4. **Comment doit-il vous appeler ?** Facultatif. Un prénom ou un surnom suffit, et il reste sur
    cet ordinateur.
 
@@ -33,7 +33,7 @@ une courte vérification sur votre machine.
 * Il ne crée pas de compte.
 * Il n’exige pas de clé cloud. Un modèle local suffit pour utiliser l’app.
 * Il n’indexe pas votre disque. Il ne lit des fichiers que lorsqu’une demande en a besoin ; voir
-  [Espaces de travail](../../../concepts/workspaces.md) pour les dossiers auxquels il peut accéder.
+  [Espaces de travail](../concepts/workspaces.md) pour les dossiers auxquels il peut accéder.
 
 {% hint style="info" %}
 Vous pouvez choisir un autre dossier de projet à tout moment avec **+ Projet** dans la barre latérale de discussion.

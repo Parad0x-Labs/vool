@@ -8,7 +8,7 @@ source_sha256: e0025d89fc56caca91923de6f1e6afe25ba6f6383a300ec3df5a7f7e3f401e55
 
 VOOL 0.7.7-betaには、Apple Silicon搭載Mac、Intel搭載Mac、Linux x86_64向けのアプリのダウンロードが
 [v0.7.7-betaリリース](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.7-beta)にあります。
-macOS、Linux、Windowsでは、ブートストラップスクリプトを使ってソースからインストールすることもできます。署名とアップデートの詳細は[リリース状況](../../../trust/release-status.md)をご覧ください。
+macOS、Linux、Windowsでは、ブートストラップスクリプトを使ってソースからインストールすることもできます。署名とアップデートの詳細は[リリース状況](../trust/release-status.md)をご覧ください。
 
 ## 動作環境
 
@@ -20,7 +20,7 @@ macOS、Linux、Windowsでは、ブートストラップスクリプトを使っ
 | Windows | 10（64ビット） | 11 |
 | Linux | glibc 2.31 | Ubuntu 22.04以降 |
 
-ローカルモデルは、アプリ本体よりかなり多くのメモリを必要とします。サイズの目安は[ローカルモデルを実行する](../../../guides/local-models.md)にあります。
+ローカルモデルは、アプリ本体よりかなり多くのメモリを必要とします。サイズの目安は[ローカルモデルを実行する](../guides/local-models.md)にあります。
 
 ## アプリをダウンロードする
 

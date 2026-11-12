@@ -15,9 +15,9 @@ provedor dela, se você adicionar uma.
 1. **Onde ele deve pensar?** Neste computador com um modelo local, ou online com uma chave de um
    provedor que você paga. Veja [Conectar um modelo](connect-a-model.md).
 2. **Escolha uma pasta.** A pasta do projeto em que o VOOL trabalha. Veja
-   [Espaços de trabalho](../../../concepts/workspaces.md).
+   [Espaços de trabalho](../concepts/workspaces.md).
 3. **O que ele pode fazer sozinho?** Com que frequência o VOOL para e pergunta a você antes de mudar qualquer
-   coisa. Veja [Ferramentas](../../../concepts/tools.md).
+   coisa. Veja [Ferramentas](../concepts/tools.md).
 4. **Como ele deve chamar você?** Opcional. Um nome ou apelido basta, e ele fica neste
    computador.
 
@@ -33,7 +33,7 @@ verificação rápida na sua máquina.
 * Ele não cria uma conta.
 * Ele não exige uma chave da nuvem. Um modelo local basta para usar o app.
 * Ele não indexa o seu disco. Ele só lê arquivos quando um pedido precisa deles; veja
-  [Espaços de trabalho](../../../concepts/workspaces.md) para saber quais pastas ele pode acessar.
+  [Espaços de trabalho](../concepts/workspaces.md) para saber quais pastas ele pode acessar.
 
 {% hint style="info" %}
 Você pode escolher outra pasta de projeto a qualquer momento com **+ Projeto** na barra lateral do chat.

@@ -30,7 +30,7 @@ et les identités ne sont pas publiés.
 ## Télémétrie
 
 VOOL n’envoie aucune télémétrie produit. Un rapport de bug ne quitte votre machine que lorsque vous l’avez
-prévisualisé et que vous choisissez de l’envoyer ; voir [Signalement de bugs et confidentialité](../../../trust/bug-reporting.md).
+prévisualisé et que vous choisissez de l’envoyer ; voir [Signalement de bugs et confidentialité](bug-reporting.md).
 
 ## Les conditions de votre fournisseur s’appliquent
 

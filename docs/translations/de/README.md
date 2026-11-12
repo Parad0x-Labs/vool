@@ -38,8 +38,8 @@ Jeder Lauf, der Aufbau und die Schwachstellen sind veröffentlicht: [Gedächtnis
 | VOOL zum Laufen bringen | [Installation](getting-started/install.md) |
 | Den ersten Bildschirm verstehen | [Erster Start](getting-started/first-run.md) |
 | Ein Modell anbinden | [Ein Modell verbinden](getting-started/connect-a-model.md) |
-| Steuern, welche Ausgaben möglich sind | [Ausgabenlimits](../../guides/spending-limits.md) |
-| Wissen, was deinen Rechner verlässt | [Lokal und Cloud](../../concepts/local-and-cloud.md) |
+| Steuern, welche Ausgaben möglich sind | [Ausgabenlimits](guides/spending-limits.md) |
+| Wissen, was deinen Rechner verlässt | [Lokal und Cloud](concepts/local-and-cloud.md) |
 
 ## Was VOOL ist
 
@@ -57,7 +57,7 @@ Jeder Lauf, der Aufbau und die Schwachstellen sind veröffentlicht: [Gedächtnis
 VOOL ist in der Beta für Macs mit Apple Silicon, Intel-Macs und Linux x86_64. Die Mac-Apps
 sind noch nicht von Apple notariell beglaubigt, daher bittet macOS dich beim ersten Öffnen um eine
 Bestätigung; die Seite [Installation](getting-started/install.md#erstes-öffnen-auf-dem-mac) zeigt, wie das geht.
-Lies vor der Installation den [Release-Status](../../trust/release-status.md).
+Lies vor der Installation den [Release-Status](trust/release-status.md).
 {% endhint %}
 
 ## Zwei Modi, klar benannt
@@ -73,6 +73,6 @@ stehen unter [Umgang mit Daten](trust/data-handling.md).
 
 ## Hilfe bekommen
 
-* [FAQ](../../help/faq.md) — die häufigsten Fragen
+* [FAQ](help/faq.md) — die häufigsten Fragen
 * [Fehlerbehebung](help/troubleshooting.md) — wenn etwas nicht startet
 * [Discord](https://discord.gg/V9NkjP3Fzz) — frag das Team

@@ -15,9 +15,9 @@ tiekėją, jei tokį raktą pridedate.
 1. **Kur jam galvoti?** Šiame kompiuteryje su vietiniu modeliu arba internetu su raktu iš
    tiekėjo, kuriam mokate. Žr. [Modelio prijungimas](connect-a-model.md).
 2. **Pasirinkite aplanką.** Projekto aplankas, kuriame dirba VOOL. Žr.
-   [Darbo sritys](../../../concepts/workspaces.md).
+   [Darbo sritys](../concepts/workspaces.md).
 3. **Ką jam galima daryti pačiam?** Kaip dažnai VOOL sustoja ir paklausia jūsų prieš ką nors keisdamas. Žr.
-   [Įrankiai](../../../concepts/tools.md).
+   [Įrankiai](../concepts/tools.md).
 4. **Kaip jis turėtų jus vadinti?** Neprivaloma. Užtenka vardo ar slapyvardžio, ir jis lieka
    šiame kompiuteryje.
 
@@ -33,7 +33,7 @@ paleidžiamas trumpas patikrinimas.
 * Nekuria paskyros.
 * Nereikalauja debesijos rakto. Programai naudoti pakanka vietinio modelio.
 * Neindeksuoja jūsų disko. Failus skaito tik tada, kai jų reikia užklausai; apie aplankus, kuriuos jis
-  gali pasiekti, žr. [Darbo sritys](../../../concepts/workspaces.md).
+  gali pasiekti, žr. [Darbo sritys](../concepts/workspaces.md).
 
 {% hint style="info" %}
 Bet kada galite pasirinkti kitą projekto aplanką mygtuku **+ Projektas** pokalbių šoninėje juostoje.

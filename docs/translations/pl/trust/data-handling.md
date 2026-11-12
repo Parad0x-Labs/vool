@@ -30,7 +30,7 @@ i tożsamości nie są publikowane.
 ## Telemetria
 
 VOOL nie wysyła telemetrii produktu. Raport o błędzie opuszcza twój komputer tylko wtedy, gdy go przejrzysz
-i zdecydujesz się go wysłać; zobacz [Zgłaszanie błędów i prywatność](../../../trust/bug-reporting.md).
+i zdecydujesz się go wysłać; zobacz [Zgłaszanie błędów i prywatność](bug-reporting.md).
 
 ## Obowiązują warunki twojego dostawcy
 

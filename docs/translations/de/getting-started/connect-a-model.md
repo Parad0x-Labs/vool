@@ -13,18 +13,18 @@ auf deinem Rechner bleibt oder ihn verlässt.
 
 Wenn eine lokale Laufzeitumgebung installiert ist und läuft, erkennt VOOL sie und listet ihre Modelle auf.
 Wählst du eins davon aus, zeigt die Anzeige Lokal. Details zur Einrichtung findest du unter
-[Ein lokales Modell ausführen](../../../guides/local-models.md).
+[Ein lokales Modell ausführen](../guides/local-models.md).
 
 ## Cloud
 
 Füge unter **Einstellungen → API-Schlüssel** einen Anbieterschlüssel hinzu. Der Schlüssel wird in einer
-verschlüsselten Datei auf diesem Computer aufbewahrt (siehe [Sicherheitsmodell](../../../trust/security.md#keys))
+verschlüsselten Datei auf diesem Computer aufbewahrt (siehe [Sicherheitsmodell](../trust/security.md#schlüssel))
 und wird verwendet, um Anfragen **von deinem Rechner direkt an den Anbieter** zu senden.
 
 Wählst du ein Cloud-Modell aus, zeigt die Anzeige den Namen des Anbieters, und sie wechselt, bevor
 eine Anfrage gestellt wird.
 
-Den Ablauf speziell für OpenRouter beschreibt [OpenRouter verbinden](../../../guides/openrouter.md).
+Den Ablauf speziell für OpenRouter beschreibt [OpenRouter verbinden](../guides/openrouter.md).
 
 ## Wechseln
 

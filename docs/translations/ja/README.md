@@ -33,8 +33,8 @@ VOOL 0.7に搭載されていたメモリーは、同じ問題で150問中123問
 | VOOLを動かす | [インストール](getting-started/install.md) |
 | 最初の画面を理解する | [初回起動](getting-started/first-run.md) |
 | モデルを指定する | [モデルを接続する](getting-started/connect-a-model.md) |
-| 起こりうる支出を管理する | [支出の上限](../../guides/spending-limits.md) |
-| マシンの外に出るものを知る | [ローカルとクラウド](../../concepts/local-and-cloud.md) |
+| 起こりうる支出を管理する | [支出の上限](guides/spending-limits.md) |
+| マシンの外に出るものを知る | [ローカルとクラウド](concepts/local-and-cloud.md) |
 
 ## VOOLとは
 
@@ -45,7 +45,7 @@ VOOL 0.7に搭載されていたメモリーは、同じ問題で150問中123問
 * **検証できる。** すべてのツール呼び出しが入力と結果とともに記録されるため、実行内容をあとから読み返せます。
 
 {% hint style="warning" %}
-VOOLはApple Silicon搭載Mac、Intel搭載Mac、Linux x86_64向けのベータ版です。MacアプリはまだAppleの公証を受けていないため、初めて開くときにmacOSが確認を求めます。手順は[インストール](getting-started/install.md#macで初めて開くとき)のページにあります。インストールの前に[リリース状況](../../trust/release-status.md)をご確認ください。
+VOOLはApple Silicon搭載Mac、Intel搭載Mac、Linux x86_64向けのベータ版です。MacアプリはまだAppleの公証を受けていないため、初めて開くときにmacOSが確認を求めます。手順は[インストール](getting-started/install.md#macで初めて開くとき)のページにあります。インストールの前に[リリース状況](trust/release-status.md)をご確認ください。
 {% endhint %}
 
 ## 二つのモード、はっきりと
@@ -59,6 +59,6 @@ VOOLが区別する状態はちょうど二つで、どちらが有効かは常�
 
 ## サポート
 
-* [FAQ](../../help/faq.md) — よくある質問
+* [FAQ](help/faq.md) — よくある質問
 * [トラブルシューティング](help/troubleshooting.md) — 何かが起動しないとき
 * [Discord](https://discord.gg/V9NkjP3Fzz) — チームに質問する

@@ -38,8 +38,8 @@ Każdy przebieg, konfiguracja i słabe punkty są opublikowane: [testy porównaw
 | Uruchomić VOOL | [Instalacja](getting-started/install.md) |
 | Zrozumieć pierwszy ekran | [Pierwsze uruchomienie](getting-started/first-run.md) |
 | Wskazać mu model | [Podłączanie modelu](getting-started/connect-a-model.md) |
-| Kontrolować, jakie wydatki mogą wystąpić | [Limity wydatków](../../guides/spending-limits.md) |
-| Wiedzieć, co opuszcza twój komputer | [Lokalnie i w chmurze](../../concepts/local-and-cloud.md) |
+| Kontrolować, jakie wydatki mogą wystąpić | [Limity wydatków](guides/spending-limits.md) |
+| Wiedzieć, co opuszcza twój komputer | [Lokalnie i w chmurze](concepts/local-and-cloud.md) |
 
 ## Czym jest VOOL
 
@@ -57,7 +57,7 @@ Każdy przebieg, konfiguracja i słabe punkty są opublikowane: [testy porównaw
 VOOL jest w wersji beta dla Maców z Apple Silicon, Maców z procesorem Intel i Linuksa x86_64. Aplikacje
 na Maca nie są jeszcze poświadczone notarialnie przez Apple, więc przy pierwszym otwarciu macOS prosi o potwierdzenie;
 strona [Instalacja](getting-started/install.md#pierwsze-otwarcie-na-macu) pokazuje, jak to zrobić. Przed instalacją
-przeczytaj [Stan wydań](../../trust/release-status.md).
+przeczytaj [Stan wydań](trust/release-status.md).
 {% endhint %}
 
 ## Dwa tryby, bez niedomówień
@@ -73,6 +73,6 @@ są w sekcji [Przetwarzanie danych](trust/data-handling.md).
 
 ## Pomoc
 
-* [FAQ](../../help/faq.md) — najczęstsze pytania
+* [FAQ](help/faq.md) — najczęstsze pytania
 * [Rozwiązywanie problemów](help/troubleshooting.md) — gdy coś się nie uruchamia
 * [Discord](https://discord.gg/V9NkjP3Fzz) — zapytaj zespół

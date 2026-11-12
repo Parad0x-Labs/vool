@@ -30,7 +30,7 @@ aber einzelne Prompts und Identitäten werden nicht veröffentlicht.
 ## Telemetrie
 
 VOOL sendet keine Produkttelemetrie. Ein Fehlerbericht verlässt deinen Rechner nur, wenn du ihn dir
-in der Vorschau ansiehst und dich entscheidest, ihn zu senden; siehe [Fehlerberichte und Datenschutz](../../../trust/bug-reporting.md).
+in der Vorschau ansiehst und dich entscheidest, ihn zu senden; siehe [Fehlerberichte und Datenschutz](bug-reporting.md).
 
 ## Es gelten die Bedingungen deines Anbieters
 

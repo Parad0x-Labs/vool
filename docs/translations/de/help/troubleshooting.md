@@ -32,19 +32,19 @@ Wenn das nichts zurückgibt, läuft die Laufzeitumgebung nicht.
 ## Antworten sind langsam
 
 Meist liegt es an der Modellgröße im Verhältnis zum verfügbaren Arbeitsspeicher. Siehe
-[Ein lokales Modell ausführen](../../../guides/local-models.md).
+[Ein lokales Modell ausführen](../guides/local-models.md).
 
 ## Ein Fehler zeigt einen Code
 
-Jeder Fehler hat einen festen Code. [Fehler und Fehlercodes](../../../reference/errors.md) erklärt, wie
-man ihn liest, und das [Fehlerbuch](../../../ERROR_BOOK.md) sagt zu jedem Code, was passiert ist, was
+Jeder Fehler hat einen festen Code. [Fehler und Fehlercodes](../reference/errors.md) erklärt, wie
+man ihn liest, und das [Fehlerbuch](../ERROR_BOOK.md) sagt zu jedem Code, was passiert ist, was
 womöglich schon passiert ist und was als Nächstes zu tun ist.
 
 ## Sauber neu anfangen
 
 Beende VOOL und entferne den Ordner „runtime home“, der unter
-[Konfiguration](../../../reference/configuration.md) aufgeführt ist. Das löscht deine Chats, dein
+[Konfiguration](../reference/configuration.md) aufgeführt ist. Das löscht deine Chats, dein
 Gedächtnis, deine Einstellungen, deine gespeicherten Schlüssel und jede Wallet, die VOOL auf diesem
 Computer aufbewahrt. Sichere also zuerst, was du brauchst: siehe
-[Sicherung und Wiederherstellung](../../../help/backup-and-recovery.md). Dateien im Arbeitsbereich werden nicht
+[Sicherung und Wiederherstellung](backup-and-recovery.md). Dateien im Arbeitsbereich werden nicht
 angerührt.

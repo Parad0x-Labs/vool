@@ -32,17 +32,17 @@ Nếu lệnh trên không trả về gì, môi trường chạy chưa hoạt đ�
 ## Phản hồi chậm
 
 Thường là do kích thước mô hình so với bộ nhớ RAM còn trống. Xem
-[Chạy mô hình cục bộ](../../../guides/local-models.md).
+[Chạy mô hình cục bộ](../guides/local-models.md).
 
 ## Lỗi hiển thị một mã
 
-Mỗi sự cố đều có một mã cố định. [Lỗi và mã lỗi](../../../reference/errors.md) giải thích cách đọc mã, còn
-[Sổ tay lỗi](../../../ERROR_BOOK.md) cho biết với từng mã: chuyện gì đã xảy ra, điều gì có thể đã xảy ra
+Mỗi sự cố đều có một mã cố định. [Lỗi và mã lỗi](../reference/errors.md) giải thích cách đọc mã, còn
+[Sổ tay lỗi](../ERROR_BOOK.md) cho biết với từng mã: chuyện gì đã xảy ra, điều gì có thể đã xảy ra
 rồi và cần làm gì tiếp theo.
 
 ## Bắt đầu lại từ đầu
 
 Thoát VOOL và xóa thư mục "runtime home" được liệt kê trong
-[Cấu hình](../../../reference/configuration.md). Việc này sẽ xóa các cuộc trò chuyện, bộ nhớ, cài đặt, các
+[Cấu hình](../reference/configuration.md). Việc này sẽ xóa các cuộc trò chuyện, bộ nhớ, cài đặt, các
 khóa đã lưu và mọi ví mà VOOL giữ trên máy tính này, vì vậy hãy lưu những gì bạn cần trước: xem
-[Sao lưu và khôi phục](../../../help/backup-and-recovery.md). Các tệp trong không gian làm việc không bị động đến.
+[Sao lưu và khôi phục](backup-and-recovery.md). Các tệp trong không gian làm việc không bị động đến.

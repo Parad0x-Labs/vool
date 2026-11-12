@@ -32,18 +32,18 @@ Se isso não retornar nada, o ambiente de execução não está ativo.
 ## As respostas estão lentas
 
 Geralmente é o tamanho do modelo em relação à memória RAM disponível. Veja
-[Executar um modelo local](../../../guides/local-models.md).
+[Executar um modelo local](../guides/local-models.md).
 
 ## Um erro mostra um código
 
-Toda falha tem um código fixo. [Erros e códigos de erro](../../../reference/errors.md) explica como lê-lo,
-e o [Livro de erros](../../../ERROR_BOOK.md) diz, para cada código, o que aconteceu, o que pode já ter
+Toda falha tem um código fixo. [Erros e códigos de erro](../reference/errors.md) explica como lê-lo,
+e o [Livro de erros](../ERROR_BOOK.md) diz, para cada código, o que aconteceu, o que pode já ter
 acontecido e o que fazer em seguida.
 
 ## Começar do zero
 
 Encerre o VOOL e remova a pasta “runtime home” indicada em
-[Configuração](../../../reference/configuration.md). Isso apaga suas conversas, sua memória, suas
+[Configuração](../reference/configuration.md). Isso apaga suas conversas, sua memória, suas
 configurações, suas chaves salvas e qualquer carteira que o VOOL guarde neste computador; por isso,
-salve primeiro o que você precisa: veja [Backup e recuperação](../../../help/backup-and-recovery.md). Os arquivos
+salve primeiro o que você precisa: veja [Backup e recuperação](backup-and-recovery.md). Os arquivos
 do espaço de trabalho não são alterados.

@@ -49,7 +49,9 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
 3. **Same numbers.** Every number the English page has, and no others, in Western digits
    (0-9). Write "a third", not a fraction the English does not have. A language that writes
    a decimal comma may use it for measured values such as 82,7 %, never in a version
-   number. Digits that are part of an app label do not count.
+   number. Group thousands the way the language does: 120 000 (with a no-break space),
+   120.000 and 120,000 are the same number to the checker. Digits that are part of an app
+   label do not count.
 4. **Links go where the English links go.** A page translated in this language is linked in
    this language. Any other page is linked to the English file by climbing out of the
    translation folder (from `getting-started/` that is `../../../guides/local-models.md`);
@@ -95,6 +97,12 @@ If you change `tools/docs/translation_glossary.json` or an app catalog, run
   name next to brackets or punctuation shows in the wrong order, put a right-to-left mark
   (U+200F) before the bracket, or a left-to-right mark (U+200E) after the Latin
   punctuation, and look at the page in a browser.
+* **The Error Book is made, not translated.** `tools/docs/translate_error_book.py` builds
+  `ERROR_BOOK.md` in each language: every code's message and next step are the app's own text
+  in that language (`fault.<code>.message` and `.action` in the app catalog), and the book's
+  other words (title, headings, field names, code titles) are in
+  `tools/docs/error_book_words.json`. Never edit the page by hand: fix a message in the app
+  catalog, a title or heading in the words file, then run the tool again.
 
 ## Reviewing
 

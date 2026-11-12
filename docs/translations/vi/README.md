@@ -38,8 +38,8 @@ Mọi lần chạy, cách thiết lập và các điểm yếu đều được c
 | Cho VOOL chạy | [Cài đặt VOOL](getting-started/install.md) |
 | Hiểu màn hình đầu tiên | [Lần chạy đầu tiên](getting-started/first-run.md) |
 | Trỏ nó tới một mô hình | [Kết nối mô hình](getting-started/connect-a-model.md) |
-| Kiểm soát những khoản chi có thể xảy ra | [Giới hạn chi tiêu](../../guides/spending-limits.md) |
-| Biết những gì rời khỏi máy của bạn | [Cục bộ và đám mây](../../concepts/local-and-cloud.md) |
+| Kiểm soát những khoản chi có thể xảy ra | [Giới hạn chi tiêu](guides/spending-limits.md) |
+| Biết những gì rời khỏi máy của bạn | [Cục bộ và đám mây](concepts/local-and-cloud.md) |
 
 ## VOOL là gì
 
@@ -57,7 +57,7 @@ Mọi lần chạy, cách thiết lập và các điểm yếu đều được c
 VOOL đang ở giai đoạn beta cho Mac dùng Apple Silicon, Mac dùng Intel và Linux x86_64. Các ứng dụng Mac
 chưa được Apple công chứng, nên macOS sẽ yêu cầu bạn xác nhận vào lần đầu mở; trang
 [Cài đặt VOOL](getting-started/install.md#mở-lần-đầu-trên-mac) hướng dẫn cách làm. Hãy xem
-[Trạng thái phát hành](../../trust/release-status.md) trước khi cài.
+[Trạng thái phát hành](trust/release-status.md) trước khi cài.
 {% endhint %}
 
 ## Hai chế độ, nói rõ ràng
@@ -73,6 +73,6 @@ có trong [Xử lý dữ liệu](trust/data-handling.md).
 
 ## Nhận trợ giúp
 
-* [Câu hỏi thường gặp](../../help/faq.md) — những câu hỏi hay gặp nhất
+* [Câu hỏi thường gặp](help/faq.md) — những câu hỏi hay gặp nhất
 * [Khắc phục sự cố](help/troubleshooting.md) — khi có gì đó không khởi động
 * [Discord](https://discord.gg/V9NkjP3Fzz) — hỏi đội ngũ phát triển

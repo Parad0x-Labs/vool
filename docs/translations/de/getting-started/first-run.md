@@ -15,9 +15,9 @@ Cloud-Schlüssels bei seinem Anbieter, falls du einen hinzufügst.
 1. **Wo soll er denken?** Auf diesem Computer mit einem lokalen Modell oder online mit einem Schlüssel
    von einem Anbieter, den du bezahlst. Siehe [Ein Modell verbinden](connect-a-model.md).
 2. **Ordner wählen.** Der Projektordner, in dem VOOL arbeitet. Siehe
-   [Arbeitsbereiche](../../../concepts/workspaces.md).
+   [Arbeitsbereiche](../concepts/workspaces.md).
 3. **Was darf er allein?** Wie oft VOOL anhält und dich fragt, bevor er etwas ändert. Siehe
-   [Werkzeuge](../../../concepts/tools.md).
+   [Werkzeuge](../concepts/tools.md).
 4. **Wie soll er dich nennen?** Optional. Ein Vorname oder Spitzname reicht, und er bleibt auf
    diesem Computer.
 
@@ -33,7 +33,7 @@ kurze Prüfung auf deinem Rechner aus.
 * Er legt kein Konto an.
 * Er verlangt keinen Cloud-Schlüssel. Ein lokales Modell reicht, um die App zu nutzen.
 * Er indiziert nicht dein Laufwerk. Er liest Dateien nur, wenn eine Anfrage sie braucht; siehe
-  [Arbeitsbereiche](../../../concepts/workspaces.md) für die Ordner, die er erreichen kann.
+  [Arbeitsbereiche](../concepts/workspaces.md) für die Ordner, die er erreichen kann.
 
 {% hint style="info" %}
 Du kannst jederzeit mit **+ Projekt** in der Chat-Seitenleiste einen anderen Projektordner wählen.

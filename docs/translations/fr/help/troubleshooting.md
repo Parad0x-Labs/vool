@@ -32,19 +32,19 @@ Si cette commande ne renvoie rien, le moteur local n’est pas démarré.
 ## Les réponses sont lentes
 
 En général, c’est la taille du modèle par rapport à la mémoire vive disponible. Voir
-[Exécuter un modèle local](../../../guides/local-models.md).
+[Exécuter un modèle local](../guides/local-models.md).
 
 ## Une erreur affiche un code
 
-Chaque échec a un code stable. [Erreurs et codes d’erreur](../../../reference/errors.md) explique comment
-le lire, et le [Livre des erreurs](../../../ERROR_BOOK.md) indique pour chaque code ce qui s’est passé, ce
+Chaque échec a un code stable. [Erreurs et codes d’erreur](../reference/errors.md) explique comment
+le lire, et le [Livre des erreurs](../ERROR_BOOK.md) indique pour chaque code ce qui s’est passé, ce
 qui a peut-être déjà eu lieu et ce qu’il faut faire ensuite.
 
 ## Repartir de zéro
 
 Quittez VOOL et supprimez le dossier « runtime home » indiqué dans
-[Configuration](../../../reference/configuration.md). Cela efface vos discussions, votre mémoire, vos
+[Configuration](../reference/configuration.md). Cela efface vos discussions, votre mémoire, vos
 réglages, vos clés enregistrées et tout portefeuille que VOOL conserve sur cet ordinateur.
 Sauvegardez donc d’abord ce dont vous avez besoin (voir
-[Sauvegarde et restauration](../../../help/backup-and-recovery.md)). Les fichiers de l’espace de travail ne sont
+[Sauvegarde et restauration](backup-and-recovery.md)). Les fichiers de l’espace de travail ne sont
 pas touchés.
