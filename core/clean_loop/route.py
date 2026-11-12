@@ -86,7 +86,7 @@ _ONLINE_RE = re.compile(
 _TOPIC_RE = re.compile(
     r"\b(?:files?|folders?|pdfs?|csv|docs?|documents?|downloads?|desktop|photos?|pictures?|pics?|images?|screenshots?|"
     r"videos?|movies?|music|songs?|to\s*do|list|invoices?|receipts?|bills?|owe|cv|resume|tax|bank|statement|boarding\s+pass|"
-    r"tickets?|flights?|boarding|bookings?|reservations?|itinerar(?:y|ies)|meetings?|reports?|insurance|lease|rent|"
+    r"itinerar(?:y|ies)|meetings?|reports?|insurance|lease|rent|"
     r"contracts?|payslips?|warrant(?:y|ies)|appointments?|recipes?|disk|drive|storage|space|ram|memory|cpu|processor|specs?|"
     r"screen|monitors?|resolution|process(?:es)?|running|background|services?|logs?|errors?|slow|sluggish|junk|temp|"
     r"privacy|private|left\s+(?:this|my)\s+(?:computer|mac|laptop|machine)|sent\s+to\s+the\s+cloud)\b",
@@ -106,6 +106,16 @@ _NOTES_RE = re.compile(
 _NOTES_FILE_RE = re.compile(
     r"\bnotes?\s*\.\w|\bnotes?\s+(?:file|folder|doc|document|pdf|txt)s?\b|"
     r"\b(?:files?|folders?|desktop|downloads|documents\s+folder|pdfs?)\b|\.(?:md|txt|pdf|docx?|rtf)\b",
+    re.I,
+)
+# Tickets, flights, bookings and reservations count only when they are the owner's: "my flight",
+# "the tickets i bought", "what seat am i in on the flight". Without that they are prices and
+# timetables for the web ("how much is a ticket for the louvre these days", "cheapest flight from
+# krakow to rome"), which this loop answered from the owner's files (red3 wordings, 2026-11-12).
+_OWNED_TRAVEL_RE = re.compile(
+    r"\b(?:my|our)\s+(?:[\w'-]+\s+){0,2}(?:tickets?|flights?|bookings?|reservations?|boarding)\b|"
+    r"\b(?:tickets?|flights?|bookings?|reservations?)\s+(?:i|we|i've|we've)\b|"
+    r"\b(?:am|do|did|have|are|was|were)\s+(?:i|we)\b[^.?!]{0,40}\b(?:tickets?|flights?|bookings?|reservations?)\b",
     re.I,
 )
 # The machine itself counts only when it is the owner's: "my laptop", "this mac", not "mac or windows".
@@ -336,7 +346,9 @@ def asks_about_own_files_or_computer(text: str) -> bool:
     value = str(text or "")
     if _SELF_RE.search(value):
         return False
-    return bool(_TOPIC_RE.search(value) or _MACHINE_RE.search(value) or _OWNED_RE.search(value))
+    return bool(
+        _TOPIC_RE.search(value) or _OWNED_TRAVEL_RE.search(value) or _MACHINE_RE.search(value) or _OWNED_RE.search(value)
+    )
 
 
 def note_clean_turn(session_id: str) -> None:

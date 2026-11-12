@@ -161,6 +161,39 @@ def test_route_does_not_take_minutes_as_a_files_topic(ask):
     assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
 
 
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "how much r tickets for the champions league final this year",
+        "how much is a ticket for the louvre these days? going in december",
+        "whats the cheapest flight from krakow to rome in january",
+        "do flights to oslo get cheaper in spring?",
+    ],
+)
+def test_route_leaves_prices_and_timetables_to_the_web(ask):
+    """Tickets and flights are the owner's only when the ask says so; these are web asks the loop
+    answered from files (red3 wordings, 2026-11-12). A follow-up must not ride in after them either."""
+    route.note_clean_turn("sess-travel")
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert (decision.admit, decision.reason) == (False, "not_about_own_files"), ask
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "when is my flight to lisbon",
+        "where are our cinema tickets",
+        "what seat am i in on the flight",
+        "what time does the flight i booked leave",
+        "find my hotel booking for march",
+        "whats on my itinerary for friday",
+    ],
+)
+def test_route_keeps_the_owners_own_tickets_and_flights(ask):
+    decision = route.decide(ask, source_context=OWNER, resolve_brain=_local_brain, env=ON)
+    assert decision.admit, (ask, decision.reason)
+
+
 def test_route_still_reads_meeting_minutes_as_a_files_ask():
     assert route.decide("what did the meeting minutes say about the budget?", source_context=OWNER,
                         resolve_brain=_local_brain, env=ON).admit
