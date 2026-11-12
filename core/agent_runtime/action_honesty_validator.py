@@ -2304,6 +2304,34 @@ def enforce_url_grounding(result: dict[str, Any], *, user_input: str, fetch_atte
     return output
 
 
+#: The turn key the in-turn honesty seal judged this result with. It rides the admitted payload
+#: under the same payload-stash law as `_closure_verdict`: a boundary that re-checks the seal holds
+#: only its own pre-run context, which never saw the fresh turn id `prepare_runtime_checkpoint`
+#: mints inside `run_once`.
+SEALED_TURN_KEY = "_sealed_turn_key"
+
+
+def sealed_turn_context(
+    result: dict[str, Any] | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, object]:
+    """The context a boundary re-check of the honesty seal judges with.
+
+    The door's own context plus the turn key the in-turn seal resolved. Without it, the served
+    buffered boundary looked this turn's executions up under the request id, found none, and
+    re-judged a true reply as unbacked: measured on 247124ed, a turn whose command ran and whose
+    model then answered empty sealed the "1 of 1 tool steps succeeded. Last result: Command
+    executed ..." reply in-turn, the boundary's verify-only re-check rewrote it, and the K-08 assert
+    turned a correct turn into an HTTP 500. A result with no stashed key (a lane the in-turn seal
+    never ran on) keeps the door's context unchanged. The caller's dict is never modified.
+    """
+    context = dict(source_context or {})
+    key = str((result or {}).get(SEALED_TURN_KEY) or "").strip()
+    if key:
+        context["turn_key"] = key
+    return context
+
+
 def _collect_executed_tools(
     session_id: str | None,
     source_context: dict[str, object] | None,
@@ -2489,4 +2517,10 @@ def emit_turn_honesty_receipt(
     return result
 
 
-__all__ = ["completion_claim_kind", "emit_turn_honesty_receipt", "enforce_final_action_honesty"]
+__all__ = [
+    "SEALED_TURN_KEY",
+    "completion_claim_kind",
+    "emit_turn_honesty_receipt",
+    "enforce_final_action_honesty",
+    "sealed_turn_context",
+]

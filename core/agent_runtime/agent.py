@@ -41,6 +41,7 @@ from core.agent_runtime import turn_dispatch as agent_turn_dispatch
 from core.agent_runtime import turn_frontdoor as agent_turn_frontdoor
 from core.agent_runtime import turn_reasoning as agent_turn_reasoning
 from core.agent_runtime.action_honesty_validator import (
+    SEALED_TURN_KEY,
     emit_turn_honesty_receipt,
     enforce_final_action_honesty,
 )
@@ -1008,6 +1009,18 @@ def _seal_semantic_result(
         or str(guarded.get("route_reason") or guarded.get("reason") or ""),
         turn_id=_turn_id,
     )
+    # The seal's turn identity rides the payload (same payload-stash law as `_closure_verdict`
+    # below): the served boundaries re-check this seal against their own pre-run context, which
+    # never saw the turn id `prepare_runtime_checkpoint` minted for this run, so without it they
+    # look this turn's executions up under another key and judge a true claim as unbacked.
+    try:
+        from core.execution_truth import resolve_turn_key as _seal_turn_key_of
+
+        _sealed_key = _seal_turn_key_of(dict(source_context or {}), None)
+        if _sealed_key:
+            admitted[SEALED_TURN_KEY] = _sealed_key
+    except Exception:
+        pass
     # R-6 (K-05): discharge the turn's prose obligation from SERVED BYTES and
     # compute the closure verdict NOW — it must ride the payload so the
     # transport-shim finalize can consume it after ContextVar scope exit.

@@ -14,7 +14,7 @@ from pathlib import Path as _Path
 from typing import Any
 
 from core.adaptation_autopilot import get_adaptation_autopilot_status, schedule_adaptation_autopilot_tick
-from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty
+from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty, sealed_turn_context
 from core.control_plane_workspace import collect_control_plane_status
 from core.error_surface import safe_error_text
 from core.mode_permission_policy import (
@@ -9237,13 +9237,15 @@ def _dispatch_post_inner(
             raise RuntimeError(
                 "K-08 violation: exact-response-control would mutate post-admission bytes"
             )
-        # Honesty seal verify-only against the same unfootered canonical bytes.
+        # Honesty seal verify-only against the same unfootered canonical bytes, judged under the
+        # turn key the in-turn seal used: this door's context never saw the turn id minted inside
+        # the run, and under the request id a command that really ran looks unbacked.
         _guarded = enforce_final_action_honesty(
             {**dict(result or {}), "response": _canonical_served},
             user_input=user_text,
             effective_input=user_text,
             session_id=session_id,
-            source_context=source_context,
+            source_context=sealed_turn_context(result, source_context),
         )
         if str(_guarded.get("response") or "") != _canonical_served:
             raise RuntimeError(

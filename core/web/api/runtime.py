@@ -2311,7 +2311,11 @@ def _run_agent_locked(
         except Exception:
             pass
         return payload
-    from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty, enforce_url_grounding
+    from core.agent_runtime.action_honesty_validator import (
+        enforce_final_action_honesty,
+        enforce_url_grounding,
+        sealed_turn_context,
+    )
     from core.context_retrieval import (
         capsule_exact_response,
         get_last_retrieval_telemetry,
@@ -2513,7 +2517,8 @@ def _run_agent_locked(
             user_input=user_text,
             effective_input=user_text,
             session_id=session_id,
-            source_context=base_context,
+            # Judged under the turn key the in-turn seal used (base_context never saw it).
+            source_context=sealed_turn_context(result, base_context),
         )
         if str(result.get("response") or "") != _pre_honesty:
             _k08_verify_immutable(
