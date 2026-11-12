@@ -134,7 +134,11 @@ def database_catalog_block(max_chars: int = 1800) -> str:
             + "\n".join(lines)
             + "\nUse these exact database, table and column names; never guess one. A phrase like "
             "\"my library db\" names the DATABASE `library`, not a table. A row-limited result is not a count: "
-            "use SELECT COUNT(*) to count. A \"returned\"-style flag column means 0 = still out."
+            "use SELECT COUNT(*) to count. A \"returned\"-style flag column means 0 = still out. "
+            "Questions about the people, items or records in these tables (\"has Tomas given everything back\", "
+            "\"which member joined most recently\") are answered by querying them: a first name is a value in a "
+            "table (join through the id columns), so look it up instead of asking what is meant, and never use "
+            "a process, file or web tool for them."
         )
         return text[:max_chars]
     except Exception:

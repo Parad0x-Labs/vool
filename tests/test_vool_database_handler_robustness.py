@@ -93,8 +93,16 @@ def test_a_database_name_given_as_table_returns_the_whole_database(h, monkeypatc
 
 
 def test_truncated_text_says_it_is_not_a_count(h, monkeypatch) -> None:
+    c = sqlite3.connect(h.scratch_root() + "/databases/orders.sqlite")
+    c.execute("insert into customers values (2,'Bo')"); c.commit(); c.close()
     r = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select * from customers", "row_limit": 1})
     assert r["ok"] is True and r["observation"]["truncated"] is True and "not a count" in r["text"]
+
+
+def test_a_count_at_row_limit_one_is_the_whole_answer_not_a_cut_one(h, monkeypatch) -> None:
+    r = _call(h, monkeypatch, "vool-database.query", {"name": "orders", "sql": "select count(*) from customers", "row_limit": 1})
+    assert r["ok"] is True and r["observation"]["truncated"] is False and r["observation"]["rows"] == [[1]]
+    assert "TRUNCATED" not in r["text"]
 
 
 def test_a_change_sent_to_the_query_tool_points_to_the_preview(h, monkeypatch) -> None:

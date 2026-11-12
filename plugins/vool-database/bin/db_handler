@@ -623,17 +623,21 @@ def run_select(conn, body, params, row_limit, budget):
     columns = [d[0] for d in cur.description or []]
     rows = []
     bytes_used = 0
+    pending = None  # a row read ahead, to tell a full result from a cut one
     while True:
         batch = cur.fetchmany(64)
         if not batch:
             break
-        for row in batch:
+        for position, row in enumerate(batch):
             values = [jsonable(v) for v in row]
             rows.append(values)
             bytes_used += len(json.dumps(values, default=str).encode("utf-8"))
             if len(rows) >= row_limit or bytes_used >= budget:
+                # Truncated only when the result really had more: a COUNT(*) that returns its
+                # one row at row_limit=1 is the whole answer, not a cut one (run16c).
+                more = position + 1 < len(batch) or cur.fetchone() is not None
                 cur.close()
-                return columns, rows, True
+                return columns, rows, bool(more)
     cur.close()
     return columns, rows, False
 
