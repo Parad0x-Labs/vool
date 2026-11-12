@@ -6,7 +6,7 @@ surface that installs the product. A decoder missing from any one surface means 
 built from that surface silently degrade a format to typed-unavailable — safe, but never
 to be described as support. Pinned today:
 
-* ``pypdf==6.21.2`` — confined PDF text fallback.
+* ``pypdf==7.0.0`` — confined PDF text fallback.
 * ``xlrd==2.0.2``   — legacy XLS reader (pure Python, no native parts).
 """
 
@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: The full census: pin -> the registry format that dies without it.
 CANONICAL_DECODERS = {
-    "pypdf==6.21.2": "pdf",
+    "pypdf==7.0.0": "pdf",
     "xlrd==2.0.2": "xls",
 }
 
@@ -90,7 +90,6 @@ def test_offline_installer_dependency_projection_contains_the_canonical_decoder(
 @pytest.mark.parametrize(
     ("filename", "start", "end"),
     [
-        ("installer/bundle/build_macos_app.sh", 'uv pip install --python "${embedded}"', '|| die "lean dependency install failed"'),
         ("installer/bundle/build_bundle.ps1", "& $py -m pip install --no-build-isolation", "if ($LASTEXITCODE"),
     ],
 )
@@ -99,6 +98,19 @@ def test_self_contained_bundle_install_command_contains_the_canonical_decoder(fi
     source = (ROOT / filename).read_text(encoding="utf-8")
     install_command = source.split(start, 1)[1].split(end, 1)[0]
     assert _canonical_requirement(pin) in install_command
+
+
+@pytest.mark.parametrize("pin", sorted(CANONICAL_DECODERS))
+def test_macos_bundle_installs_the_canonical_decoder_from_the_lock(pin):
+    """The Mac app installs uv.lock's export of the base dependencies (plus its extras), so a
+    canonical runtime dependency is in it at the lock's version by construction."""
+    from ops import bundle_dependency_provenance as prov
+
+    name = _canonical_requirement(pin).split("==")[0]
+    assert name in prov.lean_requirements()
+    assert "ops/macos_locked_requirements.py\" export" in (ROOT / "installer/bundle/build_macos_app.sh").read_text(
+        encoding="utf-8"
+    )
 
 
 @pytest.mark.parametrize("pin", sorted(CANONICAL_DECODERS))

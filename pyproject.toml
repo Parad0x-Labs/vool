@@ -30,7 +30,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.21.2",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==7.0.0",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.1.0",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -124,8 +124,8 @@ desktop = [
     # Apple Calendar (core/kas/adapters/eventkit_mac.py) and Apple Contacts import
     # (core/contacts/importers/apple.py) in the packaged Mac app. Without them both report
     # os_binding_unavailable there. Pinned so the bundle's lean install resolves from the lock.
-    "pyobjc-framework-EventKit==12.2.2; sys_platform == 'darwin'",
-    "pyobjc-framework-Contacts==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-EventKit==13.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Contacts==13.0; sys_platform == 'darwin'",
 ]
 proof = [
     "pytest>=7.0",
@@ -135,10 +135,10 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     # The authoritative gate checks this exact version before collection so local and CI cannot
     # silently disagree about collection semantics.
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
-    "ruff==0.17.2",
+    "ruff==0.17.4",
     "mypy>=1.8",
     # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
     # are in flight. It was never declared, so it passed only on machines that happened to have it
@@ -205,6 +205,8 @@ constraint-dependencies = [
     "datasets>=5.0.1",
     "filelock>=4.2.1",
     "setuptools>=84.1.0",  # Patched legacy wheel namespace validation.
+    "ckzg<2.1.6; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "cryptography==50.0.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 # The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
 # 0.36 and so solders below 0.27, and uv locks all extras together: without this, every install from the lock would
@@ -219,6 +221,9 @@ conflicts = [
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+# Published benchmark evidence: scripts kept byte-for-byte as run (SHA256SUMS), with machine paths
+# scrubbed to <placeholders>, so they are records, not house code.
+extend-exclude = ["docs/benchmarks/computer-tasks-0.8"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF"]
@@ -326,5 +331,5 @@ markers = [
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
 ]

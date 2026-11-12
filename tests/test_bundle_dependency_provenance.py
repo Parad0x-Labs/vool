@@ -12,12 +12,16 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 import zipfile
 from pathlib import Path
 
 import pytest
+import tomllib
 
 from ops import bundle_dependency_provenance as prov
+
+REPO = Path(__file__).resolve().parents[1]
 
 
 def _wheel(path: Path, files: dict[str, bytes], dist: str = "demo-1.0.dist-info") -> Path:
@@ -109,13 +113,26 @@ def test_an_unpinned_lean_requirement_blocks_release_grade(tmp_path, monkeypatch
     assert report["release_grade"] is False
 
 
-def test_the_lean_list_is_read_from_the_build_script_and_holds_no_flags():
-    """One source of truth, and no option flags misread as packages."""
+def test_the_lean_list_is_the_declared_set_the_build_exports_from_the_lock():
+    """One source of truth: the project's base dependencies plus the extras the app ships."""
+    from ops.macos_locked_requirements import EXTRAS
+
+    project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     names = prov.lean_requirements()
     assert "zstandard" in names and "pywebview" in names and "cryptography" in names
-    assert not [n for n in names if n.startswith("-")]
-    for phantom in ("quiet", "no", "compile", "bytecode", "find", "links"):
-        assert phantom not in names, f"shell flag {phantom!r} read as a package"
+    assert not [n for n in names if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", n)]
+    expected = project["dependencies"] + [d for extra in EXTRAS for d in project["optional-dependencies"][extra]]
+    assert len(names) == len({re.split(r"[<>=!~\[ ;]", d, maxsplit=1)[0] for d in expected})
+
+
+def test_a_package_the_lock_forks_by_marker_keeps_every_versions_artifacts():
+    """toolz (the `pay` fork) and ckzg/cryptography (Intel macOS) are pinned twice in uv.lock. Keyed by
+    name alone, the later block overwrote the earlier one's digests."""
+    lock = prov.lock_artifacts()
+    assert lock["ckzg"]["__version__"] == "2.1.5 or 2.1.8"
+    assert any(name.startswith("ckzg-2.1.5-") for name in lock["ckzg"])
+    assert any(name.startswith("ckzg-2.1.8-") for name in lock["ckzg"])
+    assert "cryptography-50.0.1-cp311-abi3-macosx_11_0_arm64.whl" in lock["cryptography"]
 
 
 def test_the_real_repo_state_is_reported_honestly():
@@ -129,29 +146,6 @@ def test_the_real_repo_state_is_reported_honestly():
     assert built["proxy_tools-0.1.0-py3-none-any.whl"]["source_sdist_sha256"] == lock["proxy-tools"]["proxy_tools-0.1.0.tar.gz"]
     for pinned in ("zstandard", "xlrd", "cryptography", "solders"):
         assert pinned in lock
-
-
-def test_nested_shell_expansions_do_not_swallow_the_package_line():
-    """The bash-3.2 guard `${arr[@]+"${arr[@]}"}` nests a quoted expansion inside an expansion.
-    Measured on the merged build script (2026-09-07): stripping to the FIRST closing brace left a
-    stray quote that paired with the next quoted specifier and swallowed the whole first line of
-    packages -- the lean list read `['}', 'starlette', ...]` with pydantic, cryptography, requests,
-    pynacl, keyring, psutil, pyyaml and pywebview missing, and `||` read as a package."""
-    body = (
-        '  uv pip install --python "${embedded}" --no-compile-bytecode --quiet \\\n'
-        '      ${wheelhouse_args[@]+"${wheelhouse_args[@]}"} \\\n'
-        '      pydantic cryptography requests pynacl keyring psutil pyyaml \\\n'
-        '      "starlette>=0.37,<2.0" "uvicorn>=0.30,<1.0" solders pywebview "pypdf==6.19.0" "xlrd==2.0.2" \\\n'
-        '      zstandard \\\n'
-        '      "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \\\n'
-        '    || die "lean dependency install failed"\n'
-    )
-    names = prov.lean_requirements_from_text(body)
-    assert names == [
-        "pydantic", "cryptography", "requests", "pynacl", "keyring", "psutil", "pyyaml",
-        "starlette", "uvicorn", "solders", "pywebview", "pypdf", "xlrd", "zstandard",
-        "eth-abi", "eth-utils", "eth-account",
-    ], names
 
 
 def _built_record(tmp_path, monkeypatch, entries):
