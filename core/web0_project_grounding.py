@@ -73,7 +73,7 @@ _EXEC_MARKERS = (
 )
 
 WEB0_NULL_REGISTRATION_RESPONSE = (
-    f"- Yes, but not as a normal ICANN/DNS purchase. In this stack, `.null` is a wallet-owned Web0 name on Solana `null_registrar v2` (`{NULL_REGISTRAR_V2_PROGRAM}`).\n"
+    f"- Yes, but not as a normal ICANN/DNS purchase. In this stack, `.null` is a wallet-owned name on Solana `null_registrar v2` (`{NULL_REGISTRAR_V2_PROGRAM}`).\n"
     "- It costs a small amount of SOL — the on-chain registration fee plus the name account's rent (roughly ~0.01 SOL all-in right now; the exact amount is read live from the registrar config before you register). 1-3 character names are premium and are sold through the null-auction, not direct registration.\n"
     "- Register with `vool register <name>.null` — it previews the exact live cost and asks for explicit approval and a wallet prompt (Windows Hello) before spending; `vool resolve <name>.null` checks a name read-only. Any dial/x402 payment stays opt-in and needs explicit spend approval."
 )

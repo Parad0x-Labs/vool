@@ -1261,7 +1261,7 @@ if ! is_healthy; then
   if ! is_healthy; then echo "ERROR: VOOL API did not become healthy on ${HEALTH_URL}." >&2; exit 1; fi
 fi
 open_url "${WEB0_URL}"
-echo "Web0 browser opened at ${WEB0_URL}"
+echo "Special web addresses page opened at ${WEB0_URL}"
 LAUNCHER_HEAD
   chmod +x "${target_path}"
 }
@@ -2047,7 +2047,7 @@ main() {
   say "Profile: ${install_profile_display}"
   say "Start:   ${PROJECT_ROOT}/Start_VOOL.sh"
   say "Chat:    ${PROJECT_ROOT}/Open_Chat.sh (web chat UI)"
-  say "Web0:    ${PROJECT_ROOT}/Open_Web0.sh (.null browser)"
+  say "Special web addresses: ${PROJECT_ROOT}/Open_Web0.sh"
   if [[ -n "${DESKTOP_SHORTCUT_PATH}" ]]; then
     say "Desktop: ${DESKTOP_SHORTCUT_PATH}"
   fi

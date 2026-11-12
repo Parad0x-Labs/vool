@@ -462,7 +462,7 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
         return "\n".join(
             [
                 "Today we can:",
-                "- answer from local VOOL memory first, including Web0 context",
+                "- answer from local VOOL memory first",
                 "- inspect project files and run bounded validation when asked",
                 "- use live lookup for fresh public facts without exposing private paths",
                 "- keep actions explicit: I report what I did, what failed, and what needs approval",

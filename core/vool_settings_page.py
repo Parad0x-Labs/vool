@@ -1011,7 +1011,7 @@ def _settings_groups() -> list[dict]:
                     widget="advanced_links",
                     help=(
                         "Two extra pages. The activity page shows, step by step, what VOOL is doing "
-                        "while it answers. The Web0 page opens sites that an ordinary browser cannot. "
+                        "while it answers. The special web addresses page opens sites that an ordinary browser cannot. "
                         "Both open in their own tab or window and leave Settings where it is."
                     ),
                     keywords="advanced trace rail task rail events receipts web0 null browser diagnostics runtime surfaces",
@@ -1021,7 +1021,7 @@ def _settings_groups() -> list[dict]:
                     label="Special web addresses",
                     kind="custom",
                     widget="web0",
-                    help="Off by default. Switch it on to open special web addresses on the Web0 page. Switch it off and VOOL stops looking them up.",
+                    help="Off by default. Switch it on to open special web addresses on their own page. Switch it off and VOOL stops looking them up.",
                     read={"url": "/api/web0/settings"},
                     keywords="web0 null dot null names browser mesh switch off on advanced background",
                 ),
@@ -2252,7 +2252,7 @@ function widgetExtras(stack, which) {
    plain anchor to a route that exists. */
 const ADVANCED_SURFACES = [
   { href: '/trace', label: T('settings.advanced.trace', 'Open the activity page'), note: T('settings.advanced.trace_note', 'what VOOL is doing, step by step, while it answers') },
-  { href: '/web0', label: T('settings.advanced.web0', 'Open the Web0 page'), note: T('settings.advanced.web0_note', 'opens sites an ordinary browser cannot') },
+  { href: '/web0', label: T('settings.advanced.web0', 'Open the special web addresses page'), note: T('settings.advanced.web0_note', 'opens sites an ordinary browser cannot') },
 ];
 function widgetAdvancedLinks(stack) {
   ADVANCED_SURFACES.forEach(s => {
@@ -5802,7 +5802,7 @@ function widgetPhoneAccess(host) {
     finally { pair.disabled = !src.running; }
   };
 }
-/* --- The Web0 switch (Advanced). One boolean at /api/web0/settings, written the same way.
+/* --- The special web addresses switch (Advanced). One boolean at /api/web0/settings, written the same way.
    Same consent-control discipline as the boundary switches: an unreadable answer draws no
    switch (never a guessed state), a failed write re-reads and says so in plain words, and
    the confirmed state comes from the authority's own answer, not the optimistic one. */
@@ -5827,7 +5827,7 @@ function widgetWeb0(stack) {
   sw.setAttribute('role', 'switch');
   sw.setAttribute('aria-label', T('settings.row.web0.label', 'Special web addresses'));
   const note = el('div', 'subtle', T('settings.row.web0.note',
-    'Off by default. On lets the Web0 page open special web addresses and run its background work. Off starts none of it.'));
+    'Off by default. On lets VOOL open special web addresses on their own page and run the background work they need. Off starts none of it.'));
   line.appendChild(sw);
   stack.appendChild(line);
   stack.appendChild(note);

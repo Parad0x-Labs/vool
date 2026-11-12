@@ -313,7 +313,8 @@ class OpenClawToolingContextTests(unittest.TestCase):
         assert response is not None
         lowered = response.lower()
         self.assertIn("today we can", lowered)
-        self.assertIn("web0 context", lowered)
+        self.assertIn("answer from local vool memory first", lowered)
+        self.assertNotIn("web0", lowered)
         self.assertIn("without exposing private paths", lowered)
         self.assertNotIn("hello.py", lowered)
         self.assertNotIn("hello world", lowered)

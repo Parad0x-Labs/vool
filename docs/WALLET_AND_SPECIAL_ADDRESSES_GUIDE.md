@@ -1,4 +1,4 @@
-# Wallet & Web0 guide (optional, disabled by default)
+# Wallet and special web addresses guide (optional, disabled by default)
 
 Crypto is **off by default**. When you turn it on, VOOL's wallet covers the mainnet chains
 listed below, with caps, your approval and a receipt for every payment. Websites that ask
@@ -21,7 +21,7 @@ VOOL rename.
   Arbitrum One mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
 - Test networks (Solana devnet and the EVM testnets) are reachable only in
   **Settings → Crypto → Developer options**.
-- The Web0 `null_registrar v2` program: exercised in tests.
+- The `null_registrar v2` program behind special web addresses: exercised in tests.
 
 ## Custody and recovery
 

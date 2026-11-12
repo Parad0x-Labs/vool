@@ -114,7 +114,7 @@ def _insert_block(blocks: list[dict[str, Any]], block: dict[str, Any], position:
 def _safe_block(block: dict[str, Any]) -> dict[str, Any]:
     kind = _text(block.get("kind"))
     if kind not in _ALLOWED_BLOCK_KINDS:
-        raise ValueError(f"Unsupported Web0 block kind: {kind!r}")
+        raise ValueError(f"Unsupported block kind: {kind!r}")
     return dict(block)
 
 
@@ -383,12 +383,12 @@ def web0_open_builder_draft(
     base_url: str = NULL_PORTAL_URL,
     updated_at: str | None = None,
 ) -> dict[str, Any]:
-    clean_title = _text(title) or "VOOL-built Web0 draft"
+    clean_title = _text(title) or "VOOL-built site draft"
     clean_domain = _text(domain)
     html_code = str(code or "").strip()
     if not html_code:
         html_code = (
-            "<main><h1>VOOL-built Web0 draft</h1>"
+            "<main><h1>VOOL-built site draft</h1>"
             "<p>Local builder draft. Edit, preview, then publish only when ready.</p></main>"
         )
     project = {

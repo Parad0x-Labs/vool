@@ -4183,13 +4183,13 @@ def execute_runtime_tool(
 
 def _web0_open_builder_draft(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     result = web0_open_builder_draft(
-        str(arguments.get("title") or "VOOL-built Web0 draft"),
+        str(arguments.get("title") or "VOOL-built site draft"),
         str(arguments.get("code") or ""),
         domain=str(arguments.get("domain") or ""),
     )
     builder_url = str(result.get("builder_url") or "")
     response = (
-        "Web0 local builder draft ready:\n"
+        "Local site builder draft ready:\n"
         f"{builder_url}\n\n"
         "This is local preview/edit only. Publishing to Arweave/mainnet still requires an explicit publish command and wallet confirmation."
     )
@@ -4265,7 +4265,7 @@ def _web0_create_project(arguments: dict[str, Any]) -> RuntimeExecutionResult:
         "web0.create_project",
         result,
         ok_response=(
-            f"Web0 builder project `{result.get('project_id', '')}` created for "
+            f"Site builder project `{result.get('project_id', '')}` created for "
             f"{result.get('domain', '')} ({result.get('source', 'local_draft')})."
         ),
         domain=str(result.get("domain") or ""),

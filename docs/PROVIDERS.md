@@ -32,7 +32,7 @@ Optional crypto wallet, off by default. Websites that ask for x402 payment in US
 be paid from your Crypto Pilot wallet, one PIN approval within your limits; no live mainnet
 payment has been made with this yet. Every payment goes through VOOL's wallet, with its
 limits, your approval and a receipt. Details, custody and spending controls:
-[Wallet & Web0 guide](WALLET_WEB0_GUIDE.md).
+[Wallet and special web addresses guide](WALLET_AND_SPECIAL_ADDRESSES_GUIDE.md).
 
 ## Model selection and honesty
 

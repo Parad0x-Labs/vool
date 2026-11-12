@@ -340,7 +340,8 @@ def test_structured_chat_system_prompt_keeps_operational_doctrine(
     assert "these action rules apply only when using tools or proposing real-world side effects" in system_prompt
     assert "never claim you searched the web" in system_prompt
     assert "email and inbox tooling are not guaranteed" in system_prompt
-    assert "local web0 builder draft generation" in system_prompt
+    assert "local site builder draft generation" in system_prompt
+    assert "web0" not in system_prompt
     assert "do not refuse or say you can only guide setup" in system_prompt
     assert "relevant context from your memory" not in system_prompt
     assert len(context_messages) == 1

@@ -41,7 +41,7 @@ def _normalize_gate_mode(mode: str) -> str:
         return GATE_MODE_SERVER_WHITELIST
     if normalized == "kvac":
         raise ValueError("Dark Null KVAC gating is not implemented in this local runtime yet")
-    raise ValueError(f"Unsupported Web0 gate mode: {mode!r}")
+    raise ValueError(f"Unsupported gate mode: {mode!r}")
 
 
 def _content_aad(block_id: str) -> bytes:

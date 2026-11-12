@@ -168,7 +168,7 @@ If you already have a verified archive digest, pass it to the bootstrap script w
 
 - VOOL API health: `http://127.0.0.1:11435/healthz`
 - VOOL trace rail: `http://127.0.0.1:11435/trace`
-- `.null` (web0) browser: `http://127.0.0.1:11435/web0`
+- Special web addresses page: `http://127.0.0.1:11435/web0`
 
 ## Manual Developer Setup
 
@@ -250,7 +250,7 @@ The convenience launchers (on macOS every `*.sh` launcher also gets a double-cli
 
 - Chat with VOOL (the primary surface, VOOL's own chat page at `/chat`) — macOS / Linux: `Open_Chat.sh` · Windows: `Open_Chat.bat`
 - Start the VOOL API — macOS / Linux: `Start_VOOL.sh` · Windows: `Start_VOOL.bat`
-- Open the `.null` (web0) browser — macOS / Linux: `Open_Web0.sh` · Windows: `Open_Web0.bat`
+- Open the special web addresses page — macOS / Linux: `Open_Web0.sh` · Windows: `Open_Web0.bat`
 - Terminal chat — macOS / Linux: `Talk_To_VOOL.sh` · Windows: `Talk_To_VOOL.bat`
 - Stop every VOOL process + disable auto-restart — macOS / Linux: `Stop_VOOL.sh` · Windows: `Stop_VOOL.bat`
 - Machine/provider probe — macOS / Linux: `Probe_VOOL_Stack.sh` · Windows: `Probe_VOOL_Stack.bat`
