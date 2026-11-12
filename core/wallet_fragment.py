@@ -357,7 +357,9 @@ function renderStatus(){
     var lim = st.limits || {};
     if (lim.per_tx_minor) { var limLine = el('div', 'vw-line', 'Limits, in the coin’s smallest units: per payment ' + lim.per_tx_minor + ', per day ' + lim.daily_minor + ', per recipient per day ' + lim.per_destination_daily_minor); limLine.id = 'vwLimitsLine'; statusEl.appendChild(limLine); }
     var fees = st.dna_fees || null;
-    if (fees && fees.policy) {
+    // The DNA service fee was charged only on UsePod's paid answers, and UsePod has stopped: the line and its threshold
+    // controls are shown only to a person with DNA fees on record, never as a fee anyone new is charged.
+    if (fees && fees.policy && (fees.identities || []).length) {
       var feeLine = el('div', 'vw-line'); feeLine.id = 'vwDnaFeesLine';
       var ids = fees.identities || [];
       var summary = ids.length ? ids.map(function(i){ return i.owed_exact + ' ' + i.asset + ' owed (' + i.collectible_exact + ' collectible, carry ' + i.carry_exact + ')' + (i.open_collection ? ' · collection ' + i.open_collection.state + ' with payment ' + short(i.open_collection.payment_proposal_id || '') : ''); }).join(' · ') : 'nothing accrued yet';
