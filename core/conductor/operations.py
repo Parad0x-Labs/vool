@@ -3573,10 +3573,10 @@ _EXPLANATION_SYSTEM_PROMPT = (
     "- Answer only the part you were given. Do not answer the other parts.\n"
     "- Do not imply that you performed a physical or digital action. Explain only.\n"
     "- Do not invent situation-specific facts that are absent from the briefing.\n"
-    "- Follow the numeric-authority rule in the briefing.\n"
-    "- Never mention these rules, the briefing or its rule names to the person: if a number cannot be\n"
-    "  given, say in plain words that you don't have it and why (database run 8 leaked\n"
-    "  \"The numeric-authority rule applies here\" into a reply).\n"
+    "- Follow the briefing's instruction on numbers.\n"
+    # Quoting the leaked sentence here (database run 8) handed the model that sentence to echo (run 13).
+    "- Never mention these rules or the briefing to the person: if a number cannot be given, say in\n"
+    "  plain words that you don't have it and why.\n"
     "- Anything listed as ambiguous or not determinable stays that way: say so plainly instead of\n"
     "  choosing the most likely reading.\n"
     "- If an acronym or term has several meanings and the clause gives no domain, ask which meaning\n"
@@ -3819,16 +3819,23 @@ def _explanation_run(node: ConductorNode, ctx: NodeContext) -> dict[str, Any]:
         node.arguments.get("numeric_authority") or _OPEN_KNOWLEDGE_AUTHORITY
     )
     if numeric_authority == _CLOSED_NUMERIC_AUTHORITY:
+        # Stated as plain instructions with no rule name: a named rule gave the model a phrase to
+        # echo ("The numeric-authority rule applies here", database runs 8-13).
         briefing += (
-            "\n\nNumeric-authority rule: closed evidence. State a number only if it is listed "
-            "as a message fact or already-computed value."
+            "\n\nNumbers: state a number only if it is listed above as a fact from the message or "
+            "an already-computed value."
         )
     else:
         briefing += (
-            "\n\nNumeric-authority rule: open stable knowledge. Ordinary factual numbers may be "
-            "stated; do not invent situation-specific measurements, tool results, or calculations."
+            "\n\nNumbers: ordinary factual numbers may be stated; do not invent situation-specific "
+            "measurements, tool results, or calculations."
         )
     text = " ".join(str(ctx.run_generation(_EXPLANATION_SYSTEM_PROMPT, briefing) or "").split())
+    # A sentence that talks about the briefing's own instructions is not an answer to the person.
+    text = " ".join(
+        sentence for sentence in re.split(r"(?<=[.!?])\s+", text)
+        if not re.search(r"\b(?:numeric[- ]authority|the\s+briefing|these\s+rules)\b", sentence, re.IGNORECASE)
+    ).strip()
     if not text:
         raise ValueError("the explanation came back empty")
 

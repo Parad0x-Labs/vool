@@ -222,7 +222,7 @@ def _withheld_claims_target(slot_text: str, withheld_claims: tuple[str, ...] | l
 
 _NOT_A_DEMAND_RE = __import__("re").compile(
     r"^\s*(?:(?:thanks?|thank\s+you|thx|ty|cheers|ok(?:ay)?|cool|great|nice|perfect|awesome|hi|hello|hey|please|pls|"
-    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good)[\s,!.]*)+$"
+    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good|sorry|oops|my\s+bad|pardon|hmm+|um+|ah|oh|right|alright|so|and|also)[\s,!.]*)+$"
     r"|^\s*(?:according\s+to|as\s+per|per|from|on|in)\s+(?:the\s+)?[\w .'-]{1,40}?[\s,:]*$"
     # How to answer, not something to answer: "just the count", "only the number", "short answer".
     r"|^\s*(?:just|only)\s+(?:the\s+|a\s+)?(?:count|number|total|names?|list|answer|yes\s+or\s+no)(?:\s+please|\s+pls)?[\s.!]*$"

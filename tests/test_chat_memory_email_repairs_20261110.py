@@ -1680,3 +1680,49 @@ def test_only_vools_own_activity_is_a_progress_claim(reply, claim):
     from core.agent_runtime.action_honesty_validator import _FALSE_PROGRESS_CLAIM_RE
 
     assert bool(_FALSE_PROGRESS_CLAIM_RE.search(reply)) is claim
+
+
+# --- database run 13: "The numeric-authority rule applies here." and "Could not be answered: sorry" ---
+
+
+def _explain(reply: str, request: str = "why do older books cost more?"):
+    from core.conductor.node import ConductorNode
+    from core.conductor.operations import _explanation_run
+    from core.conductor.registry import NodeContext
+
+    seen: dict = {}
+
+    def generate(system_prompt: str, prompt: str) -> str:
+        seen["system"], seen["briefing"] = system_prompt, prompt
+        return reply
+
+    node = ConductorNode(node_id="n1", operation="general.explanation", request_text=request,
+                         arguments={"clause": request})
+    return _explanation_run(node, NodeContext(run_generation=generate)), seen
+
+
+def test_the_explanation_prompt_names_no_rule_for_the_model_to_repeat():
+    _result, seen = _explain("Rarity and condition drive the price of older books.")
+    for text in (seen["system"], seen["briefing"]):
+        assert "numeric-authority" not in text.lower(), text
+
+
+def test_a_sentence_about_the_rules_is_dropped_from_the_explanation():
+    result, _seen = _explain(
+        "The numeric-authority rule applies here. Older books are rarer, so collectors pay more for them."
+    )
+    assert result["text"] == "Older books are rarer, so collectors pay more for them.", result["text"]
+
+
+@pytest.mark.parametrize("said", ["sorry", "oops", "my bad", "sorry,", "oh and", "um"])
+def test_an_apology_or_filler_is_not_listed_as_an_unanswered_part(said):
+    from core.finalization import _is_a_demand
+
+    assert not _is_a_demand(said)
+
+
+@pytest.mark.parametrize("asked", ["sorry, what was the oldest book again", "oops which one was cheapest"])
+def test_an_apology_does_not_swallow_the_question_after_it(asked):
+    from core.finalization import _is_a_demand
+
+    assert _is_a_demand(asked)
