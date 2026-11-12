@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "Esta compilación no puede firmar EVM ni codificar ABI: las bibliotecas de Ethereum no están instaladas en esta máquina. No se firmó ni envió nada. Solana, la custodia y los techos de gasto no se ven afectados; instala las bibliotecas y reintenta.",
     "fault.wallet_paykit_unavailable.action": "Instala el extra opcional pay de VOOL en Python 3.11 o posterior para habilitar los pagos con pay-kit; la cartera conserva su propio firmante, sus techos de gasto y su aprobación en cualquier caso.",
     "fault.wallet_paykit_unavailable.message": "Esta compilación no puede pagar ofertas x402 o MPP de Solana: el extra opcional pay (Solana pay-kit, Python 3.11 o posterior) no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta.",
-    "fault.wallet_device_auth_denied.action": "Un desbloqueo con el dispositivo rechazado o fallido cuenta para el bloqueo del monedero tras demasiados intentos fallidos; el bloqueo se levanta solo al cabo de un rato. Los pagos también se pueden aprobar con el PIN o la contraseña del monedero; una exportación no.",
-    "fault.wallet_device_auth_denied.message": "El desbloqueo con el dispositivo se rechazó o no reconoció este monedero, así que no se desbloqueó, reveló, firmó ni envió nada. Reintenta.",
-    "fault.wallet_device_auth_unavailable.action": "Los pagos y las aprobaciones pueden usar un PIN o una contraseña en su lugar. Una exportación de la clave privada solo se abre con la autenticación del dispositivo: restaura el monedero desde su frase de recuperación en un Mac con Touch ID o contraseña de inicio de sesión y exporta allí.",
-    "fault.wallet_device_auth_unavailable.message": "La autenticación del dispositivo (Touch ID o la contraseña de tu Mac) no está disponible aquí para este monedero, así que no se desbloqueó, reveló, firmó ni envió nada. Reintenta donde esté disponible, o usa el PIN o la contraseña del monedero donde se permita.",
+    "fault.wallet_device_auth_denied.action": "Reintenta y confirma la solicitud de Touch ID o de la contraseña del Mac que muestra VOOL. Un monedero que aprueba con Touch ID no tiene PIN ni contraseña propios que usar en su lugar. Si la solicitud sigue fallando, restaura el monedero desde su frase de recuperación (un Crypto Pilot, desde la copia de respaldo mostrada en la configuración) y dale un PIN o una contraseña; una exportación de la clave privada sigue necesitando Touch ID o la contraseña del Mac.",
+    "fault.wallet_device_auth_denied.message": "Touch ID o la contraseña de tu Mac se rechazó o no abrió este monedero, así que no se creó, cambió, desbloqueó, reveló, firmó ni envió nada. Reintenta.",
+    "fault.wallet_device_auth_unavailable.action": "Un monedero nuevo puede aprobar con su propio PIN o contraseña en su lugar. Un monedero que aprueba con Touch ID no tiene PIN ni contraseña propios: si Touch ID y la contraseña del Mac siguen sin estar disponibles, restáuralo desde su frase de recuperación (un Crypto Pilot, desde la copia de respaldo mostrada en la configuración) y dale un PIN o una contraseña. Una exportación de la clave privada solo se abre con Touch ID o la contraseña del Mac, así que restaura el monedero en un Mac donde funcionen y exporta allí.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID o la contraseña de tu Mac no está disponible aquí para este monedero, así que no se creó, cambió, desbloqueó, reveló, firmó ni envió nada. Reintenta cuando esté disponible.",
     "fault.wallet_disabled.action": "Activa la cartera explícitamente (VOOL_WALLET_ENABLED=1) solo si se desean pagos en esta instalación.",
     "fault.wallet_disabled.message": "El monedero está apagado, así que no se propuso ni envió ningún pago. Actívalo primero y reintenta.",
     "fault.wallet_duplicate_payment.action": "Comprueba el recibo de la propuesta existente; usa una clave de idempotencia nueva para un pago genuinamente nuevo.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "Recupera una Cartera VOOL desde la frase anotada al crearla; no hay puerta de exportación que habilitar.",
     "fault.wallet_export_refused.message": "Este entorno nunca exporta claves privadas. La frase de recuperación se muestra una vez al crear y en ningún otro sitio. No se reveló nada.",
     "fault.wallet_export_unavailable.action": "La exportación solo existe para un VOOL Wallet sellado en este equipo, hacia Phantom o MetaMask. Un Crypto Pilot se recupera desde la copia de respaldo mostrada en la configuración. Un monedero más antiguo se exporta a MetaMask después de restaurarlo desde su frase de recuperación.",
-    "fault.wallet_export_unavailable.message": "Este monedero no se puede exportar así: es de solo lectura, no guarda ninguna clave en este equipo, es un Crypto Pilot cuya copia de respaldo se mostró una vez en la configuración, o su clave no encaja con la app de monedero que elegiste. No se reveló nada.",
+    "fault.wallet_export_unavailable.message": "Este monedero no se puede exportar así: es de solo lectura o no guarda ninguna clave en este equipo, es un Crypto Pilot cuya copia de respaldo se mostró una vez en la configuración, VOOL no exporta a la app de monedero que elegiste, o es un monedero más antiguo que debe restaurarse antes de exportarse a MetaMask. No se reveló nada.",
     "fault.wallet_insufficient_funds.action": "Lo gastable excluye otras retenciones en curso; un remanente de Solana debe quedar sin ceros finales y cubrir al menos la renta.",
     "fault.wallet_insufficient_funds.message": "El saldo no cubre el importe más lo máximo que puede costar la comisión de esta red, así que no se preparó nada. Baja el importe o añade fondos y reintenta.",
     "fault.wallet_legacy_surface_retired.action": "Usa las herramientas de cartera (wallet.propose) o la API de cartera; el firmante, gastador y exportador heredados ya no sirven.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Circuito del alba",
     "toybox.skin_dawn-circuit_description": "Un sueño de píxeles con puertas lunares, nubes de cinta y pequeños compañeros expresivos."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

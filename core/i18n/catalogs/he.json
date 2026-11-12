@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "גרסה זו אינה יכולה לחתום EVM או לקודד ABI: ספריות ה-Ethereum אינן מותקנות במכונה זו. לא נחתם ולא נשלח דבר. Solana, משמורת ותקרות הוצאה אינן מושפעות; לאחר התקנת הספריות נסו שוב.",
     "fault.wallet_paykit_unavailable.action": "התקינו את התוספת האופציונלית pay של VOOL על Python 3.11 ומעלה כדי לאפשר תשלומי pay-kit; הארנק שומר בכל מקרה על החותם שלו, תקרות ההוצאה והאישור.",
     "fault.wallet_paykit_unavailable.message": "גרסה זו אינה יכולה לשלם הצעות x402 או MPP של Solana: התוספת האופציונלית pay (Solana pay-kit, Python 3.11 ומעלה) אינה מותקנת במכונה זו. לא נחתם ולא נשלח דבר. כל שאר פונקציות הארנק עובדות בלעדיה; לאחר התקנתה נסו שוב.",
-    "fault.wallet_device_auth_denied.action": "פתיחה באמצעות המכשיר שנדחתה או נכשלה נספרת לנעילת הארנק אחרי יותר מדי ניסיונות שגויים; הנעילה מוסרת מעצמה אחרי זמן מה. אפשר לאשר תשלומים גם עם ה-PIN או הסיסמה של הארנק; ייצוא — לא.",
-    "fault.wallet_device_auth_denied.message": "הפתיחה באמצעות המכשיר נדחתה או לא זיהתה את הארנק הזה, ולכן לא נפתח, נחשף, נחתם או נשלח דבר. נסו שוב.",
-    "fault.wallet_device_auth_unavailable.action": "תשלומים ואישורים יכולים להשתמש במקום זאת ב-PIN או בסיסמה. ייצוא של המפתח הפרטי נפתח רק באימות המכשיר: שחזרו את הארנק מביטוי השחזור שלו ב-Mac עם Touch ID או סיסמת כניסה, וייצאו שם.",
-    "fault.wallet_device_auth_unavailable.message": "אימות המכשיר (Touch ID או סיסמת ה-Mac שלכם) אינו זמין כאן לארנק הזה, ולכן לא נפתח, נחשף, נחתם או נשלח דבר. נסו שוב במקום שבו הוא זמין, או השתמשו ב-PIN או בסיסמה של הארנק כשהדבר מותר.",
+    "fault.wallet_device_auth_denied.action": "נסו שוב ואשרו את בקשת ה-Touch ID או סיסמת ה-Mac ש-VOOL מציג. לארנק שמאשר עם Touch ID אין PIN או סיסמה משלו לשימוש במקום זאת. אם הבקשה ממשיכה להיכשל, שחזרו את הארנק מביטוי השחזור שלו (Crypto Pilot — מהגיבוי שהוצג בהגדרה) ותנו לו PIN או סיסמה; ייצוא של המפתח הפרטי עדיין דורש Touch ID או את סיסמת ה-Mac.",
+    "fault.wallet_device_auth_denied.message": "Touch ID או סיסמת ה-Mac שלכם נדחו או לא פתחו את הארנק הזה, ולכן לא נוצר, שונה, נפתח, נחשף, נחתם או נשלח דבר. נסו שוב.",
+    "fault.wallet_device_auth_unavailable.action": "ארנק חדש יכול לאשר במקום זאת עם PIN או סיסמה משלו. לארנק שמאשר עם Touch ID אין PIN או סיסמה משלו: אם Touch ID וסיסמת ה-Mac נשארים לא זמינים, שחזרו אותו מביטוי השחזור שלו (Crypto Pilot — מהגיבוי שהוצג בהגדרה) ותנו לו PIN או סיסמה. ייצוא של המפתח הפרטי נפתח רק עם Touch ID או סיסמת ה-Mac, ולכן שחזרו את הארנק ב-Mac שבו הם עובדים וייצאו שם.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID או סיסמת ה-Mac שלכם אינם זמינים כאן לארנק הזה, ולכן לא נוצר, שונה, נפתח, נחשף, נחתם או נשלח דבר. נסו שוב כשהם יהיו זמינים.",
     "fault.wallet_disabled.action": "הפעילו את הארנק במפורש (VOOL_WALLET_ENABLED=1) רק אם רוצים תשלומים בהתקנה זו.",
     "fault.wallet_disabled.message": "הארנק כבוי, ולכן לא הוצע ולא נשלח תשלום. הפעילו אותו קודם ואז נסו שוב.",
     "fault.wallet_duplicate_payment.action": "בדקו את קבלת ההצעה הקיימת; השתמשו במפתח חד-ערכיות חדש לתשלום חדש באמת.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "שחזרו ארנק VOOL מהביטוי שנרשם בעת היצירה; אין דלת ייצוא להפעיל.",
     "fault.wallet_export_refused.message": "סביבת ריצה זו לעולם לא מייצאת מפתחות פרטיים. ביטוי השחזור מוצג פעם אחת ביצירה ובשום מקום אחר. לא נחשף דבר.",
     "fault.wallet_export_unavailable.action": "ייצוא קיים רק עבור VOOL Wallet שנחתם במחשב הזה, אל Phantom או MetaMask. Crypto Pilot משוחזר מהגיבוי שהוצג בהגדרה. ארנק ישן יותר מיוצא אל MetaMask אחרי ששוחזר מביטוי השחזור שלו.",
-    "fault.wallet_export_unavailable.message": "אי אפשר לייצא את הארנק הזה כך: הוא לצפייה בלבד, אינו מחזיק מפתח במחשב הזה, הוא Crypto Pilot שהגיבוי שלו הוצג פעם אחת בהגדרה, או שהמפתח שלו לא מתאים לאפליקציית הארנק שבחרתם. לא נחשף דבר.",
+    "fault.wallet_export_unavailable.message": "אי אפשר לייצא את הארנק הזה כך: הוא לצפייה בלבד או אינו מחזיק מפתח במחשב הזה, הוא Crypto Pilot שהגיבוי שלו הוצג פעם אחת בהגדרה, VOOL לא מייצא לאפליקציית הארנק שבחרתם, או שזה ארנק ישן יותר שצריך לשחזר לפני שהוא מיוצא אל MetaMask. לא נחשף דבר.",
     "fault.wallet_insufficient_funds.action": "הניתן להוצאה אינו כולל עכבות אחרות שבעיצומן; שארית Solana צריכה להיות ללא אפסים בסוף ולפחות כדי השכירות.",
     "fault.wallet_insufficient_funds.message": "היתרה אינה מכסה את הסכום בתוספת המרבי שדמי הרשת עשויים להגיע אליו, ולכן לא הוכן דבר. הנמיכו את הסכום או הוסיפו כספים ונסו שוב.",
     "fault.wallet_legacy_surface_retired.action": "השתמשו בכלי הארנק (wallet.propose) או ב-API של הארנק; החותם, המשלם והמייצא הישנים אינם משרתים עוד.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "מעגל השחר",
     "toybox.skin_dawn-circuit_description": "חלום פיקסלים של שערי ירח, ענני סרט ושותפים קטנים ומלאי הבעה."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

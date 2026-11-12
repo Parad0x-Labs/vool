@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "لا يستطيع هذا الإصدار التوقيع بـ EVM أو ترميز ABI: مكتبات Ethereum غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. سولانا والحفظة وحدود الإنفاق غير متأثرة؛ بعد تثبيت المكتبات أعد المحاولة.",
     "fault.wallet_paykit_unavailable.action": "ثبّت الإضافة الاختيارية pay لـ VOOL على Python 3.11 أو أحدث لتمكين مدفوعات pay-kit؛ تحتفظ المحفظة بموقّعها وحدود إنفاقها وموافقتها في كل الأحوال.",
     "fault.wallet_paykit_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 أو MPP على Solana: الإضافة الاختيارية pay (Solana pay-kit، Python 3.11 أو أحدث) غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة.",
-    "fault.wallet_device_auth_denied.action": "يُحتسب الفتح بالجهاز المرفوض أو الفاشل ضمن قفل المحفظة بعد محاولات خاطئة كثيرة؛ ويُرفع القفل من تلقاء نفسه بعد مدة. يمكن أيضًا الموافقة على المدفوعات برمز PIN أو كلمة مرور المحفظة؛ أما التصدير فلا.",
-    "fault.wallet_device_auth_denied.message": "رُفض الفتح بالجهاز أو لم يتعرف على هذه المحفظة، فلم يُفتح أو يُكشف أو يوقَّع أو يُرسل شيء. أعد المحاولة.",
-    "fault.wallet_device_auth_unavailable.action": "يمكن للمدفوعات والموافقات استخدام رمز PIN أو كلمة مرور بدلًا منها. أما تصدير المفتاح الخاص فلا يُفتح إلا بمصادقة الجهاز: استعد المحفظة من عبارة الاسترداد على جهاز Mac فيه Touch ID أو كلمة مرور تسجيل الدخول، ثم صدّرها هناك.",
-    "fault.wallet_device_auth_unavailable.message": "مصادقة الجهاز (Touch ID أو كلمة مرور جهاز Mac) غير متاحة لهذه المحفظة هنا، فلم يُفتح أو يُكشف أو يوقَّع أو يُرسل شيء. أعد المحاولة حيث تكون متاحة، أو استخدم رمز PIN أو كلمة مرور المحفظة حيث يُسمح بذلك.",
+    "fault.wallet_device_auth_denied.action": "أعد المحاولة وأكّد طلب Touch ID أو كلمة مرور جهاز Mac الذي يعرضه VOOL. المحفظة التي توافق عبر Touch ID ليس لها رمز PIN أو كلمة مرور خاصة بها تُستخدم بدلًا من ذلك. وإن ظل الطلب يفشل، فاستعد المحفظة من عبارة الاسترداد (وتُستعاد Crypto Pilot من النسخة الاحتياطية المعروضة عند الإعداد) وامنحها رمز PIN أو كلمة مرور؛ ويبقى تصدير المفتاح الخاص بحاجة إلى Touch ID أو كلمة مرور جهاز Mac.",
+    "fault.wallet_device_auth_denied.message": "رُفض طلب Touch ID أو كلمة مرور جهاز Mac، أو لم يفتح هذه المحفظة، فلم يُنشأ أو يُغيَّر أو يُفتح أو يُكشف أو يوقَّع أو يُرسل شيء. أعد المحاولة.",
+    "fault.wallet_device_auth_unavailable.action": "تستطيع المحفظة الجديدة أن توافق برمز PIN أو كلمة مرور خاصة بها بدلًا من ذلك. أما المحفظة التي توافق عبر Touch ID فليس لها رمز PIN أو كلمة مرور خاصة بها: إن بقي Touch ID وكلمة مرور جهاز Mac غير متاحين، فاستعدها من عبارة الاسترداد (وتُستعاد Crypto Pilot من النسخة الاحتياطية المعروضة عند الإعداد) وامنحها رمز PIN أو كلمة مرور. ولا يُفتح تصدير المفتاح الخاص إلا عبر Touch ID أو كلمة مرور جهاز Mac، لذا استعد المحفظة على جهاز Mac يعملان عليه وصدّرها هناك.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID أو كلمة مرور جهاز Mac غير متاحة لهذه المحفظة هنا، فلم يُنشأ أو يُغيَّر أو يُفتح أو يُكشف أو يوقَّع أو يُرسل شيء. أعد المحاولة عندما تصبح متاحة.",
     "fault.wallet_disabled.action": "فعّل المحفظة صراحةً (VOOL_WALLET_ENABLED=1) فقط إن كانت المدفوعات مرغوبة في هذه التثبيتة.",
     "fault.wallet_disabled.message": "المحفظة مطفأة، فلم يُقترح أو يُرسل أي دفع. فعّلها أولًا ثم أعد المحاولة.",
     "fault.wallet_duplicate_payment.action": "تحقق من إيصال المقترح القائم؛ استخدم مفتاح تكرار جديد لدفعة جديدة حقًا.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "استعد محفظة VOOL من العبارة المدونة عند الإنشاء؛ لا باب تصدير لتشغيله.",
     "fault.wallet_export_refused.message": "لا تصدّر بيئة التشغيل هذه المفاتيح الخاصة أبدًا. تُعرض عبارة الاسترداد مرة واحدة عند الإنشاء ولا مكان آخر. لم يُكشف شيء.",
     "fault.wallet_export_unavailable.action": "التصدير متاح فقط لمحفظة VOOL Wallet مختومة على هذا الجهاز، إلى Phantom أو MetaMask. تُستعاد Crypto Pilot من النسخة الاحتياطية المعروضة عند الإعداد. وتُصدَّر المحفظة الأقدم إلى MetaMask بعد استعادتها من عبارة الاسترداد.",
-    "fault.wallet_export_unavailable.message": "لا يمكن تصدير هذه المحفظة بهذه الطريقة: فهي للمشاهدة فقط، أو لا تحمل مفتاحًا على هذا الجهاز، أو هي Crypto Pilot عُرضت نسختها الاحتياطية مرة واحدة عند الإعداد، أو مفتاحها لا يناسب تطبيق المحفظة الذي اخترته. لم يُكشف شيء.",
+    "fault.wallet_export_unavailable.message": "لا يمكن تصدير هذه المحفظة بهذه الطريقة: فهي للمشاهدة فقط أو لا تحمل مفتاحًا على هذا الجهاز، أو هي Crypto Pilot عُرضت نسختها الاحتياطية مرة واحدة عند الإعداد، أو أن VOOL لا يصدّر إلى تطبيق المحفظة الذي اخترته، أو هي محفظة أقدم يجب استعادتها قبل أن تُصدَّر إلى MetaMask. لم يُكشف شيء.",
     "fault.wallet_insufficient_funds.action": "القابل للإنفاق يستثني الحجوزات الجارية الأخرى؛ يجب أن يخلو رصيد سولانا المتبقي من الأصفار الأخيرة ويغطي الإيجار على الأقل.",
     "fault.wallet_insufficient_funds.message": "لا يغطي الرصيد المبلغ زائد أقصى ما قد تكون رسوم الشبكة، فلم يُجهَّز شيء. خفّض المبلغ أو أضف أموالًا ثم أعد المحاولة.",
     "fault.wallet_legacy_surface_retired.action": "استخدم أدوات المحفظة (wallet.propose) أو واجهة برمجة المحفظة؛ الموقّع والمنفق والمصدّر القدامى لم يعودوا يخدمون.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "دائرة الفجر",
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

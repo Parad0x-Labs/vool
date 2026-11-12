@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "이 빌드는 EVM 서명이나 ABI 인코딩을 할 수 없습니다: 이더리움 라이브러리가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. Solana, 보관, 지출 상한은 영향을 받지 않습니다; 라이브러리를 설치한 뒤 다시 시도하세요.",
     "fault.wallet_paykit_unavailable.action": "pay-kit 결제를 켜려면 Python 3.11 이상에서 VOOL의 선택적 pay 추가 요소를 설치하세요; 어느 경우든 지갑은 자체 서명자, 지출 상한, 승인을 유지합니다.",
     "fault.wallet_paykit_unavailable.message": "이 빌드는 Solana x402 또는 MPP 제안을 결제할 수 없습니다: 선택적 pay 추가 요소(Solana pay-kit, Python 3.11 이상)가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요.",
-    "fault.wallet_device_auth_denied.action": "거부되거나 실패한 기기 잠금 해제는 잘못된 시도가 너무 많을 때의 지갑 잠금에 포함됩니다. 잠금은 잠시 후 저절로 풀립니다. 결제는 지갑의 PIN 또는 암호로도 승인할 수 있지만, 내보내기는 그럴 수 없습니다.",
-    "fault.wallet_device_auth_denied.message": "기기 잠금 해제가 거부되었거나 이 지갑을 인식하지 못해, 아무 것도 잠금 해제·공개·서명·전송되지 않았습니다. 다시 시도하세요.",
-    "fault.wallet_device_auth_unavailable.action": "결제와 승인에는 대신 PIN이나 암호를 쓸 수 있습니다. 개인 키 내보내기는 기기 인증으로만 열립니다. Touch ID 또는 로그인 암호가 있는 Mac에서 복구 문구로 지갑을 복원한 뒤 그곳에서 내보내세요.",
-    "fault.wallet_device_auth_unavailable.message": "이 지갑은 여기서 기기 인증(Touch ID 또는 Mac 암호)을 사용할 수 없어, 아무 것도 잠금 해제·공개·서명·전송되지 않았습니다. 사용할 수 있는 곳에서 다시 시도하거나, 허용되는 경우 지갑의 PIN 또는 암호를 사용하세요.",
+    "fault.wallet_device_auth_denied.action": "다시 시도하고 VOOL이 표시하는 Touch ID 또는 Mac 암호 요청을 확인하세요. Touch ID로 승인하는 지갑에는 대신 쓸 자체 PIN이나 암호가 없습니다. 요청이 계속 실패하면 복구 문구로 지갑을 복원하고(Crypto Pilot은 설정 때 표시된 백업으로) PIN이나 암호를 지정하세요. 개인 키 내보내기에는 여전히 Touch ID 또는 Mac 암호가 필요합니다.",
+    "fault.wallet_device_auth_denied.message": "Touch ID 또는 Mac 암호가 거부되었거나 이 지갑을 열지 못해, 아무 것도 생성·변경·잠금 해제·공개·서명·전송되지 않았습니다. 다시 시도하세요.",
+    "fault.wallet_device_auth_unavailable.action": "새 지갑은 대신 자체 PIN이나 암호로 승인할 수 있습니다. Touch ID로 승인하는 지갑에는 자체 PIN이나 암호가 없습니다. Touch ID와 Mac 암호를 계속 사용할 수 없다면 복구 문구로 지갑을 복원하고(Crypto Pilot은 설정 때 표시된 백업으로) PIN이나 암호를 지정하세요. 개인 키 내보내기는 Touch ID 또는 Mac 암호로만 열리므로, 이것이 작동하는 Mac에서 지갑을 복원한 뒤 그곳에서 내보내세요.",
+    "fault.wallet_device_auth_unavailable.message": "이 지갑은 여기서 Touch ID 또는 Mac 암호를 사용할 수 없어, 아무 것도 생성·변경·잠금 해제·공개·서명·전송되지 않았습니다. 사용할 수 있게 되면 다시 시도하세요.",
     "fault.wallet_disabled.action": "이 설치에서 결제가 필요할 때만 지갑을 명시적으로 활성화하세요 (VOOL_WALLET_ENABLED=1).",
     "fault.wallet_disabled.message": "지갑이 꺼져 있어, 결제가 제안되거나 보내지지 않았습니다. 먼저 활성화한 뒤 다시 시도하세요.",
     "fault.wallet_duplicate_payment.action": "기존 제안의 영수증을 확인하세요; 정말 새 결제에는 새 멱등성 키를 쓰세요.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "생성 때 적어둔 문구에서 VOOL 지갑을 복구하세요; 켤 수 있는 내보내기 문은 없습니다.",
     "fault.wallet_export_refused.message": "이 런타임은 개인 키를 절대 내보내지 않습니다. 복구 문구는 생성 때 한 번만 표시됩니다. 아무 것도 공개되지 않았습니다.",
     "fault.wallet_export_unavailable.action": "내보내기는 이 기기에서 봉인된 VOOL Wallet을 Phantom 또는 MetaMask로 보낼 때만 가능합니다. Crypto Pilot은 설정 때 표시된 백업으로 복구합니다. 오래된 지갑은 복구 문구로 복원한 뒤 MetaMask로 내보낼 수 있습니다.",
-    "fault.wallet_export_unavailable.message": "이 지갑은 그 방식으로 내보낼 수 없습니다: 보기 전용이거나, 이 기기에 키가 없거나, 설정 때 백업이 한 번 표시된 Crypto Pilot이거나, 키가 선택한 지갑 앱에 맞지 않습니다. 아무 것도 공개되지 않았습니다.",
+    "fault.wallet_export_unavailable.message": "이 지갑은 그 방식으로 내보낼 수 없습니다: 보기 전용이거나 이 기기에 키가 없거나, 설정 때 백업이 한 번 표시된 Crypto Pilot이거나, VOOL이 선택한 지갑 앱으로 내보내지 않거나, MetaMask로 내보내기 전에 복원해야 하는 오래된 지갑입니다. 아무 것도 공개되지 않았습니다.",
     "fault.wallet_insufficient_funds.action": "쓸 수 있는 금액은 진행 중인 다른 보류를 빼니; 솔라나 잔돈은 끝자리 0이 없고 최소 렌트 이상이어야 합니다.",
     "fault.wallet_insufficient_funds.message": "잔액이 금액에 이 네트워크 수수료의 최대치를 더한 것을 덮지 못해, 아무 것도 준비되지 않았습니다. 금액을 낮추거나 자금을 추가한 뒤 다시 시도하세요.",
     "fault.wallet_legacy_surface_retired.action": "지갑 도구(wallet.propose)나 지갑 API를 쓰세요; 옛 서명자·지출자·내보내기는 더 제공되지 않습니다.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "새벽 회로",
     "toybox.skin_dawn-circuit_description": "달문과 리본 구름, 표정 풍부한 작은 친구들이 있는 픽셀 꿈."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_unlock_throttled.action corrected; fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_unlock_throttled.action corrected; fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

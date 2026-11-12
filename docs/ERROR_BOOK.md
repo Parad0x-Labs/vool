@@ -7,7 +7,7 @@ messages and next steps below are exactly what the app shows.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `ff2f8e729fbe010b434ce69499c768e53dc82dc47e0e419fef655952ee548a98`
+- **Catalog digest:** `1265bcad21fb730f5c55c29c4fbe9608f5b62646eed2e2dc21a60735d52570f3`
 - **Fault count:** 58
 
 Each code is stable and never reused for a different meaning. Every code has its own
@@ -354,9 +354,9 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Device unlock declined**
 
-- **What happened:** The device unlock was declined or did not recognize this wallet, so nothing was unlocked, revealed, signed or sent. Try again.
+- **What happened:** Touch ID or your Mac password was declined or did not open this wallet, so nothing was created, changed, unlocked, revealed, signed or sent. Try again.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** A declined or failed device unlock counts toward the wallet's lock after too many wrong tries; the lock lifts on its own after a while. Payments can also be approved with the wallet's PIN or password; an export cannot.
+- **What to do next:** Try again and confirm the Touch ID or Mac password prompt from VOOL. A wallet that approves with Touch ID has no PIN or password of its own to use instead. If the prompt keeps failing, restore the wallet from its recovery phrase (a Crypto Pilot from the backup shown at setup) and give it a PIN or a password; a private-key export still needs Touch ID or the Mac password.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** low · **Category:** policy
 
@@ -364,9 +364,9 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Device unlock unavailable**
 
-- **What happened:** Device authentication (Touch ID or your Mac password) is not available for this wallet here, so nothing was unlocked, revealed, signed or sent. Try again where it is available, or use the wallet's PIN or password where that is allowed.
+- **What happened:** Touch ID or your Mac password is not available for this wallet here, so nothing was created, changed, unlocked, revealed, signed or sent. Try again once it is available.
 - **What may already have happened:** Nothing was sent, signed or changed
-- **What to do next:** Payments and approvals can use a PIN or a password instead. A private-key export opens only with device authentication: restore the wallet from its recovery phrase on a Mac with Touch ID or a login password, then export there.
+- **What to do next:** A new wallet can approve with its own PIN or password instead. A wallet that approves with Touch ID has no PIN or password of its own: where Touch ID and the Mac password stay unavailable, restore it from its recovery phrase (a Crypto Pilot from the backup shown at setup) and give it a PIN or a password. A private-key export opens only with Touch ID or the Mac password, so restore the wallet on a Mac where they work and export there.
 - **Trying again:** Try again after making the change this entry names.
 - **Severity:** medium · **Category:** availability
 
@@ -424,7 +424,7 @@ Every code, in alphabetical order. The section heading is the code's stable anch
 
 **Export unavailable for this wallet**
 
-- **What happened:** This wallet cannot be exported that way: it is watch-only, holds no key on this machine, is a Crypto Pilot whose backup was shown once at setup, or its key does not fit the wallet app you chose. Nothing was revealed.
+- **What happened:** This wallet cannot be exported that way: it is watch-only or holds no key on this machine, it is a Crypto Pilot whose backup was shown once at setup, VOOL does not export to the wallet app you chose, or it is an older wallet that must be restored before it exports to MetaMask. Nothing was revealed.
 - **What may already have happened:** Nothing was sent, signed or changed
 - **What to do next:** Export works only for a VOOL Wallet sealed on this machine, to Phantom or MetaMask. A Crypto Pilot recovers from the backup shown at setup. An older wallet exports to MetaMask after it is restored from its recovery phrase.
 - **Trying again:** Do not send the same request again unchanged.

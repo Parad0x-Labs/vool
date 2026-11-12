@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "Esta versão não consegue assinar EVM nem codificar ABI: as bibliotecas Ethereum não estão instaladas nesta máquina. Nada foi assinado ou enviado. Solana, custódia e tetos de gasto não são afetados; com as bibliotecas instaladas, tente de novo.",
     "fault.wallet_paykit_unavailable.action": "Instale o extra opcional pay do VOOL no Python 3.11 ou mais recente para ativar os pagamentos pay-kit; a carteira mantém em qualquer caso o próprio assinante, os tetos de gasto e a aprovação.",
     "fault.wallet_paykit_unavailable.message": "Esta versão não consegue pagar ofertas x402 ou MPP na Solana: o extra opcional pay (Solana pay-kit, Python 3.11 ou mais recente) não está instalado nesta máquina. Nada foi assinado ou enviado. Toda outra função da carteira funciona sem ele; com ele instalado, tente de novo.",
-    "fault.wallet_device_auth_denied.action": "Um destravamento pelo dispositivo recusado ou que falhou conta para o bloqueio da carteira depois de tentativas erradas demais; o bloqueio sai sozinho depois de um tempo. Pagamentos também podem ser aprovados com o PIN ou a senha da carteira; uma exportação, não.",
-    "fault.wallet_device_auth_denied.message": "O destravamento pelo dispositivo foi recusado ou não reconheceu esta carteira, então nada foi destravado, revelado, assinado ou enviado. Tente de novo.",
-    "fault.wallet_device_auth_unavailable.action": "Pagamentos e aprovações podem usar um PIN ou uma senha no lugar. Uma exportação da chave privada só abre com a autenticação do dispositivo: restaure a carteira a partir da frase de recuperação num Mac com Touch ID ou senha de login e exporte lá.",
-    "fault.wallet_device_auth_unavailable.message": "A autenticação do dispositivo (Touch ID ou a senha do seu Mac) não está disponível aqui para esta carteira, então nada foi destravado, revelado, assinado ou enviado. Tente de novo onde ela estiver disponível, ou use o PIN ou a senha da carteira onde isso for permitido.",
+    "fault.wallet_device_auth_denied.action": "Tente de novo e confirme o pedido de Touch ID ou da senha do Mac mostrado pelo VOOL. Uma carteira que aprova com Touch ID não tem PIN nem senha próprios para usar no lugar. Se o pedido continuar falhando, restaure a carteira a partir da frase de recuperação (um Crypto Pilot, a partir do backup mostrado na configuração) e dê a ela um PIN ou uma senha; uma exportação da chave privada continua precisando de Touch ID ou da senha do Mac.",
+    "fault.wallet_device_auth_denied.message": "Touch ID ou a senha do seu Mac foi recusado ou não abriu esta carteira, então nada foi criado, alterado, destravado, revelado, assinado ou enviado. Tente de novo.",
+    "fault.wallet_device_auth_unavailable.action": "Uma carteira nova pode aprovar com o próprio PIN ou senha no lugar. Uma carteira que aprova com Touch ID não tem PIN nem senha próprios: se o Touch ID e a senha do Mac continuarem indisponíveis, restaure-a a partir da frase de recuperação (um Crypto Pilot, a partir do backup mostrado na configuração) e dê a ela um PIN ou uma senha. Uma exportação da chave privada só abre com Touch ID ou a senha do Mac, então restaure a carteira num Mac onde eles funcionem e exporte lá.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID ou a senha do seu Mac não está disponível aqui para esta carteira, então nada foi criado, alterado, destravado, revelado, assinado ou enviado. Tente de novo quando estiver disponível.",
     "fault.wallet_disabled.action": "Ative a carteira explicitamente (VOOL_WALLET_ENABLED=1) só se pagamentos são desejados nesta instalação.",
     "fault.wallet_disabled.message": "A carteira está desligada, então nenhum pagamento foi proposto ou enviado. Ative-a primeiro e tente de novo.",
     "fault.wallet_duplicate_payment.action": "Confira o recibo da proposta existente; use uma chave de idempotência nova para um pagamento realmente novo.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "Recupere uma Carteira VOOL da frase anotada na criação; não há porta de exportação para ativar.",
     "fault.wallet_export_refused.message": "Chaves privadas nunca são exportadas por este runtime. A frase de recuperação é mostrada uma vez na criação e em nenhum outro lugar. Nada foi revelado.",
     "fault.wallet_export_unavailable.action": "A exportação só existe para uma VOOL Wallet selada neste computador, para Phantom ou MetaMask. Um Crypto Pilot é recuperado a partir do backup mostrado na configuração. Uma carteira mais antiga é exportada para o MetaMask depois de restaurada a partir da frase de recuperação.",
-    "fault.wallet_export_unavailable.message": "Esta carteira não pode ser exportada assim: ela é somente-leitura, não guarda nenhuma chave neste computador, é um Crypto Pilot cujo backup foi mostrado uma vez na configuração, ou a chave dela não serve para o app de carteira que você escolheu. Nada foi revelado.",
+    "fault.wallet_export_unavailable.message": "Esta carteira não pode ser exportada assim: ela é somente-leitura ou não guarda nenhuma chave neste computador, é um Crypto Pilot cujo backup foi mostrado uma vez na configuração, o VOOL não exporta para o app de carteira que você escolheu, ou é uma carteira mais antiga que precisa ser restaurada antes de exportar para o MetaMask. Nada foi revelado.",
     "fault.wallet_insufficient_funds.action": "O gastável exclui outras retenções em curso; um resto na Solana deve terminar sem zeros e cobrir ao menos o aluguel.",
     "fault.wallet_insufficient_funds.message": "O saldo não cobre o valor mais o máximo que a taxa de rede pode ser, então nada foi preparado. Baixe o valor ou adicione fundos e tente de novo.",
     "fault.wallet_legacy_surface_retired.action": "Use as ferramentas da carteira (wallet.propose) ou a API da carteira; o assinante, pagador e exportador legados não servem mais.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Circuito da aurora",
     "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

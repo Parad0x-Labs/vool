@@ -8,7 +8,7 @@ it. Readers want [the Error Book](ERROR_BOOK.md); this file stays off the docs s
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `ff2f8e729fbe010b434ce69499c768e53dc82dc47e0e419fef655952ee548a98`
+- **Catalog digest:** `1265bcad21fb730f5c55c29c4fbe9608f5b62646eed2e2dc21a60735d52570f3`
 - **Fault count:** 58
 
 ## Code owners

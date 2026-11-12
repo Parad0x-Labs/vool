@@ -156,13 +156,13 @@
     },
     {
       "key": "fault.wallet_device_auth_denied.message",
-      "english": "The device unlock was declined or did not recognize this wallet, so nothing was unlocked, revealed, signed or sent. Try again.",
+      "english": "Touch ID or your Mac password was declined or did not open this wallet, so nothing was created, changed, unlocked, revealed, signed or sent. Try again.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_device_auth_denied' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
       "key": "fault.wallet_device_auth_unavailable.message",
-      "english": "Device authentication (Touch ID or your Mac password) is not available for this wallet here, so nothing was unlocked, revealed, signed or sent. Try again where it is available, or use the wallet's PIN or password where that is allowed.",
+      "english": "Touch ID or your Mac password is not available for this wallet here, so nothing was created, changed, unlocked, revealed, signed or sent. Try again once it is available.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_device_auth_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
@@ -198,7 +198,7 @@
     },
     {
       "key": "fault.wallet_export_unavailable.message",
-      "english": "This wallet cannot be exported that way: it is watch-only, holds no key on this machine, is a Crypto Pilot whose backup was shown once at setup, or its key does not fit the wallet app you chose. Nothing was revealed.",
+      "english": "This wallet cannot be exported that way: it is watch-only or holds no key on this machine, it is a Crypto Pilot whose backup was shown once at setup, VOOL does not export to the wallet app you chose, or it is an older wallet that must be restored before it exports to MetaMask. Nothing was revealed.",
       "parameters": [],
       "context": "Shown when the failure classified as 'wallet_export_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },

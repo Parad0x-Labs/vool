@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "Bu yapı EVM imzalama veya ABI kodlaması yapamaz: Ethereum kitaplıkları bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Solana, saklama ve harcama tavanları etkilenmez; kitaplıklar kurulunca tekrar deneyin.",
     "fault.wallet_paykit_unavailable.action": "pay-kit ödemelerini etkinleştirmek için VOOL'un isteğe bağlı pay ekini Python 3.11 veya daha yenisine kurun; cüzdan her durumda kendi imzalayıcısını, harcama tavanlarını ve onayını korur.",
     "fault.wallet_paykit_unavailable.message": "Bu yapı Solana x402 veya MPP tekliflerini ödeyemez: isteğe bağlı pay eki (Solana pay-kit, Python 3.11 veya daha yenisi) bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin.",
-    "fault.wallet_device_auth_denied.action": "Reddedilen veya başarısız olan bir cihazla kilit açma, çok fazla yanlış denemeden sonraki cüzdan kilidine sayılır; kilit bir süre sonra kendiliğinden kalkar. Ödemeler cüzdanın PIN'i veya parolasıyla da onaylanabilir; dışa aktarma onaylanamaz.",
-    "fault.wallet_device_auth_denied.message": "Cihazla kilit açma reddedildi veya bu cüzdanı tanımadı, bu yüzden hiçbir şeyin kilidi açılmadı, hiçbir şey açığa çıkarılmadı, imzalanmadı veya gönderilmedi. Tekrar deneyin.",
-    "fault.wallet_device_auth_unavailable.action": "Ödemeler ve onaylar bunun yerine bir PIN veya parola kullanabilir. Özel anahtarın dışa aktarılması yalnızca cihaz kimlik doğrulamasıyla açılır: cüzdanı Touch ID'si veya oturum açma parolası olan bir Mac'te kurtarma ifadesinden geri yükleyin ve orada dışa aktarın.",
-    "fault.wallet_device_auth_unavailable.message": "Cihaz kimlik doğrulaması (Touch ID veya Mac parolanız) bu cüzdan için burada kullanılamıyor, bu yüzden hiçbir şeyin kilidi açılmadı, hiçbir şey açığa çıkarılmadı, imzalanmadı veya gönderilmedi. Kullanılabildiği bir yerde tekrar deneyin veya izin verildiği durumlarda cüzdanın PIN'ini ya da parolasını kullanın.",
+    "fault.wallet_device_auth_denied.action": "Tekrar deneyin ve VOOL'un gösterdiği Touch ID veya Mac parolası isteğini onaylayın. Touch ID ile onay veren bir cüzdanın bunun yerine kullanılacak kendi PIN'i veya parolası yoktur. İstek başarısız olmaya devam ederse cüzdanı kurtarma ifadesinden geri yükleyin (bir Crypto Pilot'u kurulumda gösterilen yedekten) ve ona bir PIN veya parola verin; özel anahtarın dışa aktarılması yine Touch ID veya Mac parolası gerektirir.",
+    "fault.wallet_device_auth_denied.message": "Touch ID veya Mac parolanız reddedildi ya da bu cüzdanı açmadı, bu yüzden hiçbir şey oluşturulmadı, değiştirilmedi, hiçbir şeyin kilidi açılmadı, hiçbir şey açığa çıkarılmadı, imzalanmadı veya gönderilmedi. Tekrar deneyin.",
+    "fault.wallet_device_auth_unavailable.action": "Yeni bir cüzdan bunun yerine kendi PIN'i veya parolasıyla onay verebilir. Touch ID ile onay veren bir cüzdanın kendi PIN'i veya parolası yoktur: Touch ID ve Mac parolası kullanılamaz kalırsa onu kurtarma ifadesinden geri yükleyin (bir Crypto Pilot'u kurulumda gösterilen yedekten) ve ona bir PIN veya parola verin. Özel anahtarın dışa aktarılması yalnızca Touch ID veya Mac parolasıyla açılır; bu yüzden cüzdanı bunların çalıştığı bir Mac'te geri yükleyin ve orada dışa aktarın.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID veya Mac parolanız bu cüzdan için burada kullanılamıyor, bu yüzden hiçbir şey oluşturulmadı, değiştirilmedi, hiçbir şeyin kilidi açılmadı, hiçbir şey açığa çıkarılmadı, imzalanmadı veya gönderilmedi. Kullanılabilir olduğunda tekrar deneyin.",
     "fault.wallet_disabled.action": "Cüzdanı yalnızca bu kurulumda ödemeler isteniyorsa açıkça etkinleştirin (VOOL_WALLET_ENABLED=1).",
     "fault.wallet_disabled.message": "Cüzdan kapalı, bu yüzden önerilen veya gönderilen ödeme olmadı. Önce etkinleştirin, sonra tekrar deneyin.",
     "fault.wallet_duplicate_payment.action": "Var olan önerinin makbuzunu kontrol edin; gerçekten yeni bir ödeme için yeni bir eşgüçlülük anahtarı kullanın.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "Bir VOOL Cüzdanını oluşturulurken yazılan ifadeden kurtarın; etkinleştirilecek bir dışa aktarma kapısı yok.",
     "fault.wallet_export_refused.message": "Bu çalışma zamanı özel anahtarları asla dışa aktarmaz. Kurtarma ifadesi oluşturulurken bir kez gösterilir, başka hiçbir yerde değil. Hiçbir şey açığa çıkarılmadı.",
     "fault.wallet_export_unavailable.action": "Dışa aktarma yalnızca bu makinede mühürlenmiş bir VOOL Wallet için, Phantom veya MetaMask'e vardır. Bir Crypto Pilot, kurulumda gösterilen yedekten kurtarılır. Daha eski bir cüzdan, kurtarma ifadesinden geri yüklendikten sonra MetaMask'e aktarılır.",
-    "fault.wallet_export_unavailable.message": "Bu cüzdan bu şekilde dışa aktarılamaz: yalnızca izleme amaçlıdır, bu makinede anahtar tutmaz, yedeği kurulumda bir kez gösterilmiş bir Crypto Pilot'tur ya da anahtarı seçtiğiniz cüzdan uygulamasına uymaz. Hiçbir şey açığa çıkarılmadı.",
+    "fault.wallet_export_unavailable.message": "Bu cüzdan bu şekilde dışa aktarılamaz: yalnızca izleme amaçlıdır veya bu makinede anahtar tutmaz, yedeği kurulumda bir kez gösterilmiş bir Crypto Pilot'tur, VOOL seçtiğiniz cüzdan uygulamasına dışa aktarmaz ya da MetaMask'e dışa aktarılmadan önce geri yüklenmesi gereken daha eski bir cüzdandır. Hiçbir şey açığa çıkarılmadı.",
     "fault.wallet_insufficient_funds.action": "Harcanabilir, süren diğer ayırmaları dışlar; bir Solana kalanı sıfırsız bitmeli ve en az kirayı karşılamalı.",
     "fault.wallet_insufficient_funds.message": "Bakiye miktarı artı bu ağ ücretinin en fazla olabileceğini karşılamıyor, bu yüzden hiçbir şey hazırlanmadı. Miktarı düşürün veya fon ekleyin, sonra tekrar deneyin.",
     "fault.wallet_legacy_surface_retired.action": "Cüzdan araçlarını (wallet.propose) ya da cüzdan API'sini kullanın; eski imzalayıcı, harcayan ve dışa aktarıcı artık hizmet vermiyor.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
     "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

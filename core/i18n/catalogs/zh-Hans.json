@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "此构建无法进行 EVM 签名或 ABI 编码：这台机器上没有安装以太坊库。没有签名或发送任何内容。Solana、保管和支出上限不受影响；安装库之后请重试。",
     "fault.wallet_paykit_unavailable.action": "在 Python 3.11 或更高版本上安装 VOOL 的可选 pay 扩展以启用 pay-kit 支付；无论如何，钱包都保留自己的签名者、支出上限和审批。",
     "fault.wallet_paykit_unavailable.message": "此构建无法支付 Solana 上的 x402 或 MPP 报价：这台机器上没有安装可选的 pay 扩展（Solana pay-kit，Python 3.11 或更高版本）。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
-    "fault.wallet_device_auth_denied.action": "被拒绝或失败的设备解锁会计入多次输错后的钱包锁定；锁定会在一段时间后自动解除。付款也可以用钱包的 PIN 或密码批准；导出则不行。",
-    "fault.wallet_device_auth_denied.message": "设备解锁被拒绝，或未能识别此钱包，因此没有解锁、泄露、签名或发送任何内容。请重试。",
-    "fault.wallet_device_auth_unavailable.action": "付款和批准可以改用 PIN 或密码。导出私钥只能用设备验证打开：请在有 Touch ID 或登录密码的 Mac 上用恢复短语恢复钱包，然后在那里导出。",
-    "fault.wallet_device_auth_unavailable.message": "此钱包在这里无法使用设备验证（Touch ID 或你的 Mac 密码），因此没有解锁、泄露、签名或发送任何内容。请在可以使用的地方重试，或在允许的情况下使用钱包的 PIN 或密码。",
+    "fault.wallet_device_auth_denied.action": "请重试，并确认 VOOL 显示的 Touch ID 或 Mac 密码请求。用 Touch ID 批准的钱包没有可以替代使用的自己的 PIN 或密码。如果请求一直失败，请用恢复短语恢复钱包（Crypto Pilot 则用设置时显示的备份），并为它设置 PIN 或密码；导出私钥仍然需要 Touch ID 或 Mac 密码。",
+    "fault.wallet_device_auth_denied.message": "Touch ID 或你的 Mac 密码被拒绝，或未能打开此钱包，因此没有创建、更改、解锁、泄露、签名或发送任何内容。请重试。",
+    "fault.wallet_device_auth_unavailable.action": "新钱包可以改用自己的 PIN 或密码来批准。用 Touch ID 批准的钱包没有自己的 PIN 或密码：如果 Touch ID 和 Mac 密码一直无法使用，请用恢复短语恢复它（Crypto Pilot 则用设置时显示的备份），并为它设置 PIN 或密码。导出私钥只能用 Touch ID 或 Mac 密码打开，因此请在它们能正常使用的 Mac 上恢复钱包，然后在那里导出。",
+    "fault.wallet_device_auth_unavailable.message": "此钱包在这里无法使用 Touch ID 或你的 Mac 密码，因此没有创建、更改、解锁、泄露、签名或发送任何内容。可以使用后请重试。",
     "fault.wallet_disabled.action": "仅当此安装确实需要付款时，才显式启用钱包（VOOL_WALLET_ENABLED=1）。",
     "fault.wallet_disabled.message": "钱包处于关闭状态，因此没有提出或发送任何付款。请先启用它，然后重试。",
     "fault.wallet_duplicate_payment.action": "检查现有提案的收据；真正的新付款请使用新的幂等键。",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "用创建时记下的短语恢复 VOOL 钱包；没有可以开启的导出入口。",
     "fault.wallet_export_refused.message": "此运行时永远不会导出私钥。恢复短语只在创建时显示一次，别处不会再有。没有泄露任何内容。",
     "fault.wallet_export_unavailable.action": "只有在这台机器上封存的 VOOL Wallet 才能导出到 Phantom 或 MetaMask。Crypto Pilot 通过设置时显示的备份恢复。较旧的钱包用恢复短语恢复后，可以导出到 MetaMask。",
-    "fault.wallet_export_unavailable.message": "此钱包无法以这种方式导出：它是仅观察钱包、在这台机器上没有密钥、是设置时备份只显示过一次的 Crypto Pilot，或者它的密钥与你选择的钱包应用不匹配。没有泄露任何内容。",
+    "fault.wallet_export_unavailable.message": "此钱包无法以这种方式导出：它是仅观察钱包或在这台机器上没有密钥、是设置时备份只显示过一次的 Crypto Pilot、VOOL 不支持导出到你选择的钱包应用，或者它是较旧的钱包，需要先恢复才能导出到 MetaMask。没有泄露任何内容。",
     "fault.wallet_insufficient_funds.action": "可用余额不含其他进行中的冻结；Solana 找零不得以零结尾且至少覆盖租金。",
     "fault.wallet_insufficient_funds.message": "余额不足以覆盖金额加上此网络费用的最大值，因此没有准备任何内容。请降低金额或补充资金后重试。",
     "fault.wallet_legacy_surface_retired.action": "使用钱包工具（wallet.propose）或钱包 API；旧的签名器、支付器和导出器已不再提供。",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。"
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

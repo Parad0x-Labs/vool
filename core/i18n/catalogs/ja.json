@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "このビルドはEVM署名やABIエンコードができません：Ethereumライブラリがこのマシンにインストールされていません。署名も送信もされていません。Solana、カストディ、支出天井には影響しません。ライブラリ導入後にもう一度お試しください。",
     "fault.wallet_paykit_unavailable.action": "pay-kitでの支払いを有効にするには、Python 3.11以降でVOOLのオプションpay拡張を導入してください。いずれの場合もウォレットは自身の署名者、支出天井、承認を保ちます。",
     "fault.wallet_paykit_unavailable.message": "このビルドはSolanaのx402やMPPのオファーを支払えません：オプションのpay拡張（Solana pay-kit、Python 3.11以降）がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。",
-    "fault.wallet_device_auth_denied.action": "拒否または失敗したデバイスでのロック解除は、誤りが多すぎたときのウォレットのロックに数えられます。ロックはしばらくすると自動で解除されます。支払いはウォレットのPINまたはパスワードでも承認できますが、エクスポートはできません。",
-    "fault.wallet_device_auth_denied.message": "デバイスでのロック解除が拒否されたか、このウォレットを認識しなかったため、何もロック解除・開示・署名・送信されていません。もう一度お試しください。",
-    "fault.wallet_device_auth_unavailable.action": "支払いと承認には、代わりにPINかパスワードを使えます。秘密鍵のエクスポートはデバイス認証でしか開けません。Touch IDまたはログインパスワードのあるMacで、リカバリフレーズからウォレットを復元し、そこでエクスポートしてください。",
-    "fault.wallet_device_auth_unavailable.message": "このウォレットではここでデバイス認証（Touch IDまたはMacのパスワード）を使えないため、何もロック解除・開示・署名・送信されていません。使える場所でもう一度お試しいただくか、許可されている場面ではウォレットのPINまたはパスワードをお使いください。",
+    "fault.wallet_device_auth_denied.action": "もう一度お試しいただき、VOOLが表示するTouch IDまたはMacのパスワードの確認を承認してください。Touch IDで承認するウォレットには、代わりに使える独自のPINもパスワードもありません。確認が失敗し続ける場合は、リカバリフレーズからウォレットを復元し（Crypto Pilotはセットアップ時に表示されたバックアップから）、PINまたはパスワードを設定してください。秘密鍵のエクスポートには引き続きTouch IDまたはMacのパスワードが必要です。",
+    "fault.wallet_device_auth_denied.message": "Touch IDまたはMacのパスワードが拒否されたか、このウォレットを開けなかったため、何も作成・変更・ロック解除・開示・署名・送信されていません。もう一度お試しください。",
+    "fault.wallet_device_auth_unavailable.action": "新しいウォレットは、代わりに独自のPINまたはパスワードで承認できます。Touch IDで承認するウォレットには独自のPINもパスワードもありません。Touch IDとMacのパスワードが使えないままの場合は、リカバリフレーズから復元し（Crypto Pilotはセットアップ時に表示されたバックアップから）、PINまたはパスワードを設定してください。秘密鍵のエクスポートはTouch IDまたはMacのパスワードでしか開けないため、それらが使えるMacでウォレットを復元し、そこでエクスポートしてください。",
+    "fault.wallet_device_auth_unavailable.message": "このウォレットではここでTouch IDまたはMacのパスワードを使えないため、何も作成・変更・ロック解除・開示・署名・送信されていません。使えるようになったらもう一度お試しください。",
     "fault.wallet_disabled.action": "このインストールで支払いが必要な場合のみ、ウォレットを明示的に有効化（VOOL_WALLET_ENABLED=1）してください。",
     "fault.wallet_disabled.message": "ウォレットがオフのため、支払いは提案も送信もされていません。まず有効化してから再試行してください。",
     "fault.wallet_duplicate_payment.action": "既存提案のレシートを確認してください。本当に新しい支払いには新しい冪等キーを使ってください。",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "VOOLウォレットは作成時に書き留めたフレーズから復元してください。有効化できる書き出し口はありません。",
     "fault.wallet_export_refused.message": "このランタイムが秘密鍵をエクスポートすることはありません。リカバリフレーズは作成時に一度だけ表示されます。何も明かされていません。",
     "fault.wallet_export_unavailable.action": "エクスポートできるのは、このマシンで封印されたVOOL WalletをPhantomまたはMetaMaskへ出す場合だけです。Crypto Pilotはセットアップ時に表示されたバックアップから復元します。古いウォレットは、リカバリフレーズから復元した後にMetaMaskへエクスポートできます。",
-    "fault.wallet_export_unavailable.message": "このウォレットはその方法ではエクスポートできません。閲覧専用である、このマシンに鍵を持たない、セットアップ時にバックアップが一度だけ表示されたCrypto Pilotである、または鍵が選んだウォレットアプリに合わない、のいずれかです。何も明かされていません。",
+    "fault.wallet_export_unavailable.message": "このウォレットはその方法ではエクスポートできません。閲覧専用であるかこのマシンに鍵を持たない、セットアップ時にバックアップが一度だけ表示されたCrypto Pilotである、選んだウォレットアプリへのエクスポートにVOOLが対応していない、またはMetaMaskへエクスポートする前に復元が必要な古いウォレットである、のいずれかです。何も明かされていません。",
     "fault.wallet_insufficient_funds.action": "支払い可能額は処理中の他の保留を除外します。Solanaの残余は末尾ゼロなしで、最低レント以上である必要があります。",
     "fault.wallet_insufficient_funds.message": "残高が金額＋このネットワーク手数料の最大値をカバーしないため、何も準備されていません。金額を下げるか資金を追加してもう一度お試しください。",
     "fault.wallet_legacy_surface_retired.action": "ウォレットツール（wallet.propose）またはウォレットAPIを使ってください。旧署名者・支出者・書き出し機能はもう提供されません。",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。"
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }

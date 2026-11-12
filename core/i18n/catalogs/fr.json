@@ -532,10 +532,10 @@
     "fault.wallet_dependency_unavailable.message": "Cette version ne peut ni signer EVM ni encoder l'ABI : les bibliothèques Ethereum ne sont pas installées sur cette machine. Rien n'a été signé ni envoyé. Solana, la garde et les plafonds de dépense ne sont pas affectés ; une fois les bibliothèques installées, réessayez.",
     "fault.wallet_paykit_unavailable.action": "Installez l'extra optionnel pay de VOOL sous Python 3.11 ou plus récent pour activer les paiements pay-kit ; le portefeuille garde dans tous les cas son propre signataire, ses plafonds de dépense et son approbation.",
     "fault.wallet_paykit_unavailable.message": "Cette version ne peut pas payer les offres x402 ou MPP sur Solana : l'extra optionnel pay (Solana pay-kit, Python 3.11 ou plus récent) n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez.",
-    "fault.wallet_device_auth_denied.action": "Un déverrouillage par l'appareil refusé ou échoué compte pour le verrouillage du portefeuille après trop d'essais erronés ; le verrouillage se lève tout seul au bout d'un moment. Les paiements peuvent aussi être approuvés avec le code PIN ou le mot de passe du portefeuille ; un export, non.",
-    "fault.wallet_device_auth_denied.message": "Le déverrouillage par l'appareil a été refusé ou n'a pas reconnu ce portefeuille, donc rien n'a été déverrouillé, révélé, signé ni envoyé. Réessayez.",
-    "fault.wallet_device_auth_unavailable.action": "Les paiements et les approbations peuvent utiliser un code PIN ou un mot de passe à la place. Un export de la clé privée ne s'ouvre qu'avec l'authentification de l'appareil : restaurez le portefeuille à partir de sa phrase de récupération sur un Mac doté de Touch ID ou d'un mot de passe de session, puis exportez-le là.",
-    "fault.wallet_device_auth_unavailable.message": "L'authentification de l'appareil (Touch ID ou le mot de passe de votre Mac) n'est pas disponible ici pour ce portefeuille, donc rien n'a été déverrouillé, révélé, signé ni envoyé. Réessayez là où elle est disponible, ou utilisez le code PIN ou le mot de passe du portefeuille là où c'est autorisé.",
+    "fault.wallet_device_auth_denied.action": "Réessayez et confirmez la demande de Touch ID ou du mot de passe du Mac affichée par VOOL. Un portefeuille qui approuve avec Touch ID n'a ni code PIN ni mot de passe propre à utiliser à la place. Si la demande échoue encore, restaurez le portefeuille à partir de sa phrase de récupération (un Crypto Pilot, à partir de la sauvegarde montrée à la configuration) et donnez-lui un code PIN ou un mot de passe ; un export de la clé privée demande toujours Touch ID ou le mot de passe du Mac.",
+    "fault.wallet_device_auth_denied.message": "Touch ID ou le mot de passe de votre Mac a été refusé ou n'a pas ouvert ce portefeuille, donc rien n'a été créé, modifié, déverrouillé, révélé, signé ni envoyé. Réessayez.",
+    "fault.wallet_device_auth_unavailable.action": "Un nouveau portefeuille peut approuver avec son propre code PIN ou mot de passe à la place. Un portefeuille qui approuve avec Touch ID n'a ni code PIN ni mot de passe propre : si Touch ID et le mot de passe du Mac restent indisponibles, restaurez-le à partir de sa phrase de récupération (un Crypto Pilot, à partir de la sauvegarde montrée à la configuration) et donnez-lui un code PIN ou un mot de passe. Un export de la clé privée ne s'ouvre qu'avec Touch ID ou le mot de passe du Mac : restaurez donc le portefeuille sur un Mac où ils fonctionnent et exportez-le là.",
+    "fault.wallet_device_auth_unavailable.message": "Touch ID ou le mot de passe de votre Mac n'est pas disponible ici pour ce portefeuille, donc rien n'a été créé, modifié, déverrouillé, révélé, signé ni envoyé. Réessayez dès qu'il est disponible.",
     "fault.wallet_disabled.action": "Activez le portefeuille explicitement (VOOL_WALLET_ENABLED=1) seulement si des paiements sont voulus sur cette installation.",
     "fault.wallet_disabled.message": "Le portefeuille est désactivé, donc aucun paiement n'a été proposé ni envoyé. Activez-le d'abord, puis réessayez.",
     "fault.wallet_duplicate_payment.action": "Vérifiez le reçu de la proposition existante ; utilisez une nouvelle clé d'idempotence pour un paiement réellement nouveau.",
@@ -547,7 +547,7 @@
     "fault.wallet_export_refused.action": "Récupérez un Portefeuille VOOL depuis la phrase notée à la création ; il n'y a pas de porte d'export à activer.",
     "fault.wallet_export_refused.message": "Les clés privées ne sont jamais exportées par ce runtime. La phrase de récupération est montrée une fois à la création et nulle part ailleurs. Rien n'a été révélé.",
     "fault.wallet_export_unavailable.action": "L'export n'existe que pour un VOOL Wallet scellé sur cette machine, vers Phantom ou MetaMask. Un Crypto Pilot se récupère à partir de la sauvegarde montrée à la configuration. Un portefeuille plus ancien s'exporte vers MetaMask après avoir été restauré à partir de sa phrase de récupération.",
-    "fault.wallet_export_unavailable.message": "Ce portefeuille ne peut pas être exporté ainsi : il est en lecture seule, ne détient aucune clé sur cette machine, est un Crypto Pilot dont la sauvegarde a été montrée une fois à la configuration, ou sa clé ne convient pas à l'application de portefeuille choisie. Rien n'a été révélé.",
+    "fault.wallet_export_unavailable.message": "Ce portefeuille ne peut pas être exporté ainsi : il est en lecture seule ou ne détient aucune clé sur cette machine, c'est un Crypto Pilot dont la sauvegarde a été montrée une fois à la configuration, VOOL n'exporte pas vers l'application de portefeuille choisie, ou c'est un portefeuille plus ancien qui doit être restauré avant de s'exporter vers MetaMask. Rien n'a été révélé.",
     "fault.wallet_insufficient_funds.action": "Le dépensable exclut les autres retenues en cours ; un reliquat Solana doit être sans zéros finals et au moins le loyer.",
     "fault.wallet_insufficient_funds.message": "Le solde ne couvre pas le montant plus le maximum possible de cette frais de réseau, donc rien n'a été préparé. Baissez le montant ou ajoutez des fonds, puis réessayez.",
     "fault.wallet_legacy_surface_retired.action": "Utilisez les outils du portefeuille (wallet.propose) ou l'API du portefeuille ; le signataire, le payeur et l'exportateur hérités ne servent plus.",
@@ -3246,7 +3246,7 @@
     "toybox.skin_dawn-circuit_name": "Circuit de l'aube",
     "toybox.skin_dawn-circuit_description": "Un rêve de pixels avec portes de lune, nuages rubans et petits compagnons expressifs."
   },
-  "source_catalog_sha256": "0e4d4a95f8f6c17952053fb4e478e8919418044f9bf62e3f983534a0bd73ccb9",
+  "source_catalog_sha256": "0aee4a381c186d12cf997be076b8a1d3e56466b2e11c787ab62c6018ffcf8b01",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -3254,6 +3254,6 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended"
+    "wallet_unlock_export_faults_addendum": "12 keys translated by the lane author (single writer); fault.wallet_device_auth_unavailable.message extended; device-auth and export texts corrected after the wallet review"
   }
 }
