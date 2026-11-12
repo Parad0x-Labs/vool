@@ -2634,7 +2634,7 @@ def _dispatch_memory_extraction(
             or SEMANTIC_MEMORY_AGENT_ID
         ).strip() or SEMANTIC_MEMORY_AGENT_ID
         memory = VoolMemory(runtime_home=runtime_home, agent_id=semantic_agent_id)
-        lane_model, lane_client = _fact_extraction_lane()
+        lane_model, lane_client = _fact_extraction_lane(str(getattr(runtime, "runtime_model_tag", "") or ""))
         extractor = FactExtractor(
             memory=memory,
             ollama_url=ollama_base_url(),
@@ -2649,12 +2649,19 @@ def _dispatch_memory_extraction(
         return
 
 
-def _installed_fact_extraction_model() -> str:
+def _installed_fact_extraction_model(serving_model: str = "") -> str:
     """The extractor's model tag, chosen from the installed inventory; "" keeps its own default.
 
     Selection is structural (the installed inventory), never wording. See
     _fact_extraction_lane: another model is used only when it is SMALLER than the serving
     model; otherwise the lane runs on the serving model through the serving adapter.
+
+    `serving_model` is the model boot chose to serve (`RuntimeServices.runtime_model_tag`). The
+    machine's suggested tag (`default_runtime_model_tag`) is only the fallback: it is the model the
+    Settings Download button offers, and may not be on this computer at all. Measured on the v0.8
+    line with qwen3:8b and qwen3:4b installed: the suggested tag was qwen3.5:4b, nothing installed
+    was smaller, so every extraction batch was posted to qwen3.5:4b, a model the host did not have.
+    Whatever the reference, the tag returned is one the host installed.
     """
     with contextlib.suppress(Exception):
         from core.local_ollama_inventory import installed_ollama_model_names
@@ -2663,7 +2670,7 @@ def _installed_fact_extraction_model() -> str:
         names = [name for name in installed_ollama_model_names() if "embed" not in name.lower()]
         if not names:
             return ""
-        primary = str(default_runtime_model_tag() or "").strip().lower()
+        primary = str(serving_model or default_runtime_model_tag() or "").strip().lower()
 
         def _parameter_billions(tag: str) -> float:
             match = re.search(r":(\d+(?:\.\d+)?)b", tag.lower())
@@ -2673,7 +2680,10 @@ def _installed_fact_extraction_model() -> str:
         smaller = [name for name in names if _parameter_billions(name) < primary_size]
         if smaller:
             return min(smaller, key=_parameter_billions)
-        return primary or min(names, key=_parameter_billions)
+        installed = {name.lower(): name for name in names}
+        if primary in installed:
+            return installed[primary]
+        return min(names, key=_parameter_billions)
     return ""
 
 
@@ -2757,7 +2767,7 @@ def _serving_lane_model_client(model_tag: str, manifest: Any = None):
     return _client
 
 
-def _fact_extraction_lane() -> tuple[str, Any]:
+def _fact_extraction_lane(serving_model: str = "") -> tuple[str, Any]:
     """(model_tag, model_client) for the extraction lane, right-sized for the host.
 
     A smaller installed chat model is the lane's tag (a background lane on a smaller model is
@@ -2768,7 +2778,7 @@ def _fact_extraction_lane() -> tuple[str, Any]:
     the serving lane on the same model). Never a tag the host did not install, and never a
     second large model loaded beside the serving one.
     """
-    model = _installed_fact_extraction_model()
+    model = _installed_fact_extraction_model(serving_model)
     if not model:
         return "", None
     with contextlib.suppress(Exception):

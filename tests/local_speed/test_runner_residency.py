@@ -124,6 +124,32 @@ def test_fact_extraction_never_posts_a_model_the_host_did_not_install(
     assert _installed_fact_extraction_model() == ""  # nothing chat-capable: extractor decides
 
 
+def test_fact_extraction_sizes_against_the_serving_model_and_never_the_suggested_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The suggested tag (the model the Settings Download button offers) may not be installed at all.
+
+    Measured on the v0.8 line, qwen3:8b and qwen3:4b installed: the suggested tag was qwen3.5:4b,
+    nothing installed was smaller, so every extraction batch was posted to qwen3.5:4b.
+    """
+    from core.web.api.runtime import _fact_extraction_lane, _installed_fact_extraction_model
+
+    monkeypatch.setattr(
+        "core.runtime_provider_defaults.default_runtime_model_tag", lambda **_: "qwen3.5:4b"
+    )
+    monkeypatch.setenv("VOOL_INSTALLED_OLLAMA_MODELS", "qwen3:8b,qwen3:4b,nomic-embed-text:latest")
+    # Sized against the model boot serves: the smaller installed model.
+    assert _installed_fact_extraction_model("qwen3:8b") == "qwen3:4b"
+    assert _fact_extraction_lane("qwen3:8b")[0] == "qwen3:4b"
+    # Nothing installed is smaller than the serving model: the serving model itself.
+    assert _installed_fact_extraction_model("qwen3:4b") == "qwen3:4b"
+    # No serving model known, and the suggested tag is not installed: still an installed model.
+    assert _installed_fact_extraction_model() == "qwen3:4b"
+    monkeypatch.setenv("VOOL_INSTALLED_OLLAMA_MODELS", "qwen3:8b,nomic-embed-text:latest")
+    assert _installed_fact_extraction_model() == "qwen3:8b"
+    assert _installed_fact_extraction_model("qwen3.5:4b") == "qwen3:8b"
+
+
 def test_fact_extraction_rides_an_adapter_manifest_never_a_registration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
