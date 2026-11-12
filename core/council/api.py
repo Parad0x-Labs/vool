@@ -490,7 +490,14 @@ def status(run_id: str) -> tuple[int, dict[str, Any]]:
     except ValueError:
         return 400, {"ok": False, "error": "invalid run id"}
     if state is None:
-        return 404, {"ok": False, "error": "no such council run"}
+        with _LOCK:
+            starting = _RUNS.get(run_id)
+        if starting is None:
+            return 404, {"ok": False, "error": "no such council run"}
+        # Convened and held here, its thread not at its first write yet. A 404 now read as
+        # "this run's record is gone" to the card polling right after convene, which then
+        # stopped polling and offered neither Stop nor Watch for a run that was live.
+        return 200, {"ok": True, "live": True, "run": starting.state_view(), "seat_effects": []}
     with _LOCK:
         live = run_id in _RUNS
     return 200, {
