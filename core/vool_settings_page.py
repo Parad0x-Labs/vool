@@ -3536,6 +3536,10 @@ function xActionSummary(a) {
   return a.summary || a.kind;
 }
 
+// The X API call and the bookmark actions keep the base's own card (summary, receipt, cleanup);
+// the social card (VoolXSocial) draws the post-shaped actions it knows.
+function xBaseCard(a) { return a.kind === 'api' || String(a.kind || '').startsWith('bookmark_'); }
+
 function widgetXActivity(host) {
   host.replaceChildren();
   const draw = async (message) => {
@@ -3559,10 +3563,12 @@ function widgetXActivity(host) {
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
-      const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
+      const summary = xBaseCard(a) ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
       card.appendChild(el('strong', null, summary));
       if (a.kind === 'api') {
         xApiProposalDetails(card, a);
+      } else if (xBaseCard(a)) {
+        if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       } else {
         card.appendChild(Object.assign(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'), { dir: 'ltr' }));
         if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
@@ -3645,15 +3651,15 @@ function widgetXActivity(host) {
       recent.forEach(a => {
         const line = el('p', 'subtle');
         const word = X_STATE_WORDS[a.state];
-        const summary = a.kind === 'api' ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
+        const summary = xBaseCard(a) ? xActionSummary(a) : (window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind));
         const state = a.kind === 'api'
           ? xApiActionMessage({ ok: a.state === 'sent', j: { action: a } }, a)
-          : (window.VoolXSocial ? window.VoolXSocial.state(a) : (word ? T(word[0], word[1]) : a.message || a.state));
+          : (window.VoolXSocial && !xBaseCard(a) ? window.VoolXSocial.state(a) : (a.message || (word ? T(word[0], word[1]) : a.state)));
         line.textContent = summary + ' · ' + state;
         const url = (a.result || {}).url;
         if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, summary)); }
         host.appendChild(line);
-        if (a.kind === 'api') {
+        if (xBaseCard(a)) {
           xApiReceiptDetails(host, a);
           xApiCleanupControl(host, a, draw);
         } else if (a.state === 'sent' && window.VoolXSocial) window.VoolXSocial.rating(host, a);
