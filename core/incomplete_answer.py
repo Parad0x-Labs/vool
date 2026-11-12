@@ -149,6 +149,7 @@ _DANGLING_TAIL = "dangling_tail"
 _FEWER_ITEMS_THAN_ANNOUNCED = "fewer_items_than_announced"
 _TABLE_CUT_MID_ROW = "table_cut_mid_row"
 _PLAN_NOT_CARRIED_OUT = "plan_not_carried_out"
+_LEAD_IN_WITHOUT_CONTENT = "lead_in_without_content"
 
 # Reasons that mean there is no answer at all, as opposed to a partial one. The distinction decides
 # what the final backstop may do: replacing text costs the user nothing when the text carries
@@ -164,6 +165,7 @@ _REASON_DESCRIPTIONS = {
     _FEWER_ITEMS_THAN_ANNOUNCED: "fewer items were listed than the answer said it would list",
     _TABLE_CUT_MID_ROW: "the table stops part-way through a row",
     _PLAN_NOT_CARRIED_OUT: "it only says what I would do next, and I did not do it",
+    _LEAD_IN_WITHOUT_CONTENT: "it stops right after saying what comes next",
 }
 
 
@@ -433,6 +435,13 @@ def inspect_answer_completeness(text: str, *, question: str | None = None) -> An
     announced = _announced_item_count(text)
     if announced and markers and len(markers) < announced:
         reasons.append(_FEWER_ITEMS_THAN_ANNOUNCED)
+
+    # The last line opens something and nothing follows it: "Here's who they're from (newest
+    # first):" was the whole tail of an unread-mail answer cut at the output budget (measured
+    # 2026-11-06 on the operator's machine), and it shipped as finished. A colon at the very end
+    # of an answer promises what comes next; it is never where an answer ends.
+    if lines and lines[-1].content.rstrip("*_` ").endswith(":"):
+        reasons.append(_LEAD_IN_WITHOUT_CONTENT)
 
     stripped = str(text or "").rstrip()
     if stripped and stripped[-1] not in _TERMINAL_PUNCTUATION:

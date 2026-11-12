@@ -1115,6 +1115,26 @@ def _build_conversational_request(
                 "x_editorial_draft_room",
             ),
         }
+    mailbox_rows = _mailbox_rows_to_list(source_context)
+    if mailbox_rows:
+        # The answer lists mail the read already returned, one line per message. The chat table's
+        # few hundred tokens cut that list mid-way (measured 2026-11-06 on the operator's machine:
+        # the reply stopped at "Here's who they're from (newest first):" with nothing under it).
+        # Room for every returned row; only emitted tokens cost anything, and the lane's own caps
+        # still bind.
+        room = min(_MAILBOX_LISTING_MAX_TOKENS, _MAILBOX_LISTING_BASE_TOKENS + mailbox_rows * _MAILBOX_ROW_TOKENS)
+        if room > int(generation_profile["max_output_tokens"]):
+            generation_profile = {
+                **generation_profile,
+                "max_output_tokens": room,
+                "output_budget_intent": _intent_entry(
+                    str(generation_profile.get("output_budget_intent", {}).get("output_mode") or output_mode),
+                    room,
+                    room,
+                    0,
+                    "mailbox_listing_room",
+                ),
+            }
     memory_prompt = _memory_prompt_metadata(
         source_context=source_context,
         source_platform=source_platform,
@@ -1438,6 +1458,28 @@ def _followup_context_message(source_context: dict[str, Any] | None) -> Internal
     if not content:
         return None
     return InternalMessage(role="context", content=content, metadata={"followup_continuity": True})
+
+
+#: Room for an answer that lists the mail a read returned: an opening line, then one line per
+#: message (sender, subject, date and a few words of what it says). Capped at the same 2048 the
+#: complete-collection chat profile uses.
+_MAILBOX_LISTING_BASE_TOKENS = 320
+_MAILBOX_ROW_TOKENS = 110
+_MAILBOX_LISTING_MAX_TOKENS = 2048
+
+
+def _mailbox_rows_to_list(source_context: dict[str, Any] | None) -> int:
+    """How many messages the turn's latest successful mail read handed the answer, or 0."""
+    for item in reversed(list((source_context or {}).get("runtime_tool_observations") or [])):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("intent") or "").strip().lower() not in {"email.read", "email.open"}:
+            continue
+        if item.get("ok") is False:
+            continue
+        messages = item.get("messages")
+        return len(messages) if isinstance(messages, list) else 0
+    return 0
 
 
 def _runtime_tool_observation_message(

@@ -2808,6 +2808,11 @@ class ResearchToolLoopFacadeMixin:
             reject_reason = "claims_pending_tool"
         elif is_ungrounded(synthesis_text, synthesis_observations):
             reject_reason = "ungrounded"
+        elif _mail_listing_cut_short(synthesis_text, executed_steps):
+            # The answer about the person's mail stopped before it finished ("Here's who they're
+            # from (newest first):" and nothing under it, measured 2026-11-06). The read's own rows
+            # are on this machine and complete, so they are the answer instead of half a list.
+            reject_reason = "incomplete_mail_listing"
         if renders_final:
             # This contract publishes its complete, already-redacted runtime result.
             # A one-line activity summary is not the requested report or PR body.
@@ -3175,3 +3180,13 @@ class ResearchToolLoopFacadeMixin:
             return False
         hints = {str(item).lower() for item in getattr(interpretation, "topic_hints", []) or []}
         return bool({"news", "weather", "web", "telegram", "discord", "integration"} & hints)
+
+
+def _mail_listing_cut_short(text: str, executed_steps: list[dict[str, Any]]) -> bool:
+    """A model answer that stops before it finished, in a turn whose mail read can be listed whole."""
+    from core.agent_runtime.orchestrator import _mailbox_observation_message
+    from core.incomplete_answer import inspect_answer_completeness
+
+    if not inspect_answer_completeness(text).incomplete:
+        return False
+    return bool(_mailbox_observation_message(executed_steps))
