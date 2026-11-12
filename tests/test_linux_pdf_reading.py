@@ -1,6 +1,8 @@
 """PDF reading on Linux (fresh-eyes test 2026-10-29: "No module named 'Foundation' ... needs the macOS
-system Python"). Off macOS the text layer is read by the reader lane's pypdf fallback, confined by
-bubblewrap the way the macOS sandbox confines it: no network, no home folder, only its scratch."""
+system Python"). Off macOS the text layer is read by the reader lane's pypdf fallback, confined the way
+the macOS sandbox confines it: no network, no home folder, only its scratch. The confinement is
+bubblewrap where it starts, and Landlock where it does not (stock Ubuntu 24.04); the Landlock backend's
+own escape tests are in test_linux_reader_landlock.py."""
 from __future__ import annotations
 
 import platform
@@ -30,10 +32,17 @@ def _pdf(text: str) -> bytes:
     return bytes(out)
 
 
-needs_bwrap = pytest.mark.skipif(not _sandbox.confinement_available(), reason="bubblewrap cannot run here")
+needs_sandbox = pytest.mark.skipif(not _sandbox.confinement_available(), reason="no Linux sandbox (bubblewrap or Landlock) can run here")
+#: Tests of bubblewrap itself, which only a host where bubblewrap starts can answer.
+needs_bwrap = pytest.mark.skipif(not _sandbox._bwrap_works(), reason="bubblewrap cannot run here")
 
 
-@needs_bwrap
+def _no_sandbox_at_all(monkeypatch) -> None:
+    """Neither backend: no bubblewrap that starts, and a kernel without a usable Landlock."""
+    monkeypatch.setattr(_sandbox, "_landlock_works", lambda: False)
+
+
+@needs_sandbox
 def test_a_pdf_is_read_on_linux(tmp_path):
     from core.pdf_tools import extract_text
 
@@ -45,7 +54,7 @@ def test_a_pdf_is_read_on_linux(tmp_path):
     assert result["source"] == "pypdf"
 
 
-@needs_bwrap
+@needs_sandbox
 def test_the_linux_sandbox_sees_only_its_scratch(tmp_path):
     outside = tmp_path / "outside.txt"
     outside.write_text("private")
@@ -69,6 +78,7 @@ def test_the_linux_sandbox_has_no_network():
 def test_without_bubblewrap_the_reason_says_what_to_install(tmp_path, monkeypatch):
     from core.pdf_tools import extract_text
 
+    _no_sandbox_at_all(monkeypatch)
     monkeypatch.setattr(_sandbox, "_bwrap", lambda: "")
     monkeypatch.setattr(_sandbox, "_BWRAP_WORKS", {})
     path = tmp_path / "invoice.pdf"
@@ -78,7 +88,7 @@ def test_without_bubblewrap_the_reason_says_what_to_install(tmp_path, monkeypatc
     assert "bubblewrap" in result["reason"] and "macOS" not in result["reason"]
 
 
-@needs_bwrap
+@needs_sandbox
 def test_the_linux_sandbox_writes_nowhere_but_its_scratch():
     # Review 2026-10-29: the root, /dev and a /tmp tmpfs took 2.3 GB of memory-backed files that the
     # scratch quota never saw.
@@ -92,7 +102,7 @@ def test_the_linux_sandbox_writes_nowhere_but_its_scratch():
         assert (scratch.path / "mine").read_text() == "z\n"
 
 
-@needs_bwrap
+@needs_sandbox
 def test_the_linux_sandbox_cannot_open_a_socket_to_anywhere(tmp_path):
     import socket
     import sys
@@ -122,7 +132,7 @@ def _interpreter_scope() -> list[str]:
     return pdf._fallback_read_scope()
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_decoder_cannot_make_itself_a_user_namespace():
     if not _sandbox._bwrap_supports("--disable-userns"):
         pytest.skip("this bubblewrap is older than 0.8.0 and cannot refuse it")
@@ -131,7 +141,7 @@ def test_a_decoder_cannot_make_itself_a_user_namespace():
     assert probe.stdout.strip() == b"REFUSED"
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_decoder_cannot_take_more_memory_than_its_ceiling():
     import sys
 
@@ -142,7 +152,7 @@ def test_a_decoder_cannot_take_more_memory_than_its_ceiling():
     assert probe.stdout.strip() == b"REFUSED", probe.stdout
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_frame_the_decoder_links_elsewhere_is_not_read(tmp_path, monkeypatch):
     from core.artifact_readers import video
 
@@ -164,6 +174,7 @@ def test_a_frame_the_decoder_links_elsewhere_is_not_read(tmp_path, monkeypatch):
 def test_installing_bubblewrap_works_without_a_restart(monkeypatch):
     import time
 
+    _no_sandbox_at_all(monkeypatch)
     real = _sandbox._bwrap
     monkeypatch.setattr(_sandbox, "_BWRAP_WORKS", {})
     monkeypatch.setattr(_sandbox, "_BWRAP_OPTIONS", {})
@@ -175,7 +186,7 @@ def test_installing_bubblewrap_works_without_a_restart(monkeypatch):
     assert _sandbox.confinement_available()
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_page_asked_for_by_number_is_that_page(tmp_path):
     # The clean loop reads "page 3" of a long PDF with start_page; off macOS that read used to start
     # at page 1 and label it page 3.
@@ -199,7 +210,7 @@ def test_a_page_asked_for_by_number_is_that_page(tmp_path):
     assert past_the_end["page_start"] == 3 and "BASALT-2290" in past_the_end["text"]
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_pdf_over_the_size_ceiling_is_refused_before_it_is_copied(tmp_path, monkeypatch):
     # Review 2026-11-01 follow-up 1: the whole file was read into the serving process before any size
     # check, and one over the scratch quota was then refused as "expands to far more than its size".
@@ -221,7 +232,7 @@ def test_a_pdf_over_the_size_ceiling_is_refused_before_it_is_copied(tmp_path, mo
     assert "4 MB" in result["reason"] and "2 MB" in result["reason"] and "split it" in result["reason"]
 
 
-@needs_bwrap
+@needs_sandbox
 def test_the_timeout_the_caller_gives_bounds_the_linux_read(tmp_path, monkeypatch):
     # Review 2026-11-01 follow-up 2: extract_text(timeout=...) bounded only the macOS helper.
     import time
@@ -279,21 +290,21 @@ def _chat(documents, name: str) -> str:
     return reply
 
 
-@needs_bwrap
+@needs_sandbox
 def test_the_chat_reads_a_pdf_on_linux(documents):
     (documents / "invoice.pdf").write_bytes(_pdf("Invoice total 412 euros"))
     reply = _chat(documents, "invoice.pdf")
     assert "Invoice total 412 euros" in reply and "1 of 1 page(s)" in reply, reply
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_renamed_text_file_is_called_not_a_pdf_on_linux(documents):
     (documents / "renamed.pdf").write_text("a plain text note with a .pdf name\n")
     reply = _chat(documents, "renamed.pdf")
     assert "not a readable PDF" in reply and "renamed" in reply, reply
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_pdf_over_the_ceiling_is_told_its_size_not_called_renamed(documents, monkeypatch):
     from core.artifact_readers import _limits
 
@@ -304,7 +315,7 @@ def test_a_pdf_over_the_ceiling_is_told_its_size_not_called_renamed(documents, m
     assert "renamed" not in reply, reply
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_scanned_pdf_on_linux_is_named_without_claiming_recognition(documents):
     (documents / "scan.pdf").write_bytes(_pdf(""))  # a page with no text on it: no text layer
     reply = _chat(documents, "scan.pdf")
@@ -313,6 +324,7 @@ def test_a_scanned_pdf_on_linux_is_named_without_claiming_recognition(documents)
 
 
 def test_without_bubblewrap_the_chat_says_what_to_install(documents, monkeypatch):
+    _no_sandbox_at_all(monkeypatch)
     monkeypatch.setattr(_sandbox, "_bwrap", lambda: "")
     monkeypatch.setattr(_sandbox, "_BWRAP_WORKS", {})
     (documents / "invoice.pdf").write_bytes(_pdf("x"))
@@ -321,6 +333,7 @@ def test_without_bubblewrap_the_chat_says_what_to_install(documents, monkeypatch
 
 
 def test_a_blocked_bubblewrap_is_not_told_to_install_it_again(documents, monkeypatch):
+    _no_sandbox_at_all(monkeypatch)
     monkeypatch.setattr(_sandbox, "_bwrap", lambda: "/usr/bin/bwrap")
     monkeypatch.setattr(_sandbox, "_bwrap_works", lambda: False)
     (documents / "invoice.pdf").write_bytes(_pdf("x"))
@@ -328,7 +341,7 @@ def test_a_blocked_bubblewrap_is_not_told_to_install_it_again(documents, monkeyp
     assert "does not let it start" in reply and "install" not in reply.lower(), reply
 
 
-@needs_bwrap
+@needs_sandbox
 def test_a_decoder_missing_inside_the_sandbox_is_not_called_a_damaged_file(tmp_path, monkeypatch):
     from core import pdf_tools
     from core.artifact_readers import pdf as pdf_reader

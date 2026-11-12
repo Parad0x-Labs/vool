@@ -402,6 +402,8 @@ def capability_report() -> dict[str, Any]:
         "registry_version": REGISTRY_VERSION,
         # Stated once, at the top: everything below that spawns a decoder depends on it.
         "confinement_available": _sandbox.confinement_available(),
+        # Which one: sandbox-exec (macOS), bwrap, or landlock (Linux where bubblewrap cannot start).
+        "confinement_backend": _sandbox.confinement_backend(),
         "confinement_unavailable_reason": _sandbox.confinement_unavailable_reason(),
         "formats": formats,
         "available_extensions": sorted(ext for row in formats if row["available"] for ext in row["extensions"]),

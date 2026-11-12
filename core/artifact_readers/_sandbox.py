@@ -48,6 +48,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import _landlock
 from ._limits import (
     EXTRACTION_TIMEOUT_S,
     MAX_SCRATCH_BYTES,
@@ -252,12 +253,87 @@ def _bwrap_works() -> bool:
     return _BWRAP_WORKS["ok"]
 
 
+# Where bubblewrap cannot start -- stock Ubuntu 24.04 refuses unprivileged user namespaces through
+# AppArmor, so every PDF was refused there -- the decoder is confined by the kernel's own Landlock
+# plus a seccomp filter instead (_landlock.py). Same contract, no namespace and no privilege: reads
+# only beneath the system trees above, the paths a caller names and its scratch; writes only in its
+# scratch; no socket of any kind; no other process signalled, traced or read. bubblewrap stays first
+# wherever it starts: it is the backend the 2026-10-29 review hardened, and its namespaces also hide
+# the other processes. Landlock is checked the same way bubblewrap is: by confining a real child and
+# watching it fail to read a file outside its scratch while it writes one inside.
+_LANDLOCK_WORKS: dict[str, bool] = {}
+_LANDLOCK_CHECKED_AT: dict[str, float] = {}
+
+
+def _landlock_command(argv: Sequence[str], *, scratch: str, extra_read: Sequence[str], cpu_seconds: int) -> list[str]:
+    return _landlock.command(
+        argv,
+        scratch=scratch,
+        read=[*_BWRAP_SYSTEM_READ, *extra_read],
+        cpu_seconds=cpu_seconds,
+        address_space=SUBPROCESS_MAX_ADDRESS_SPACE_BYTES,
+        file_size=MAX_SCRATCH_BYTES,
+        open_files=SUBPROCESS_MAX_OPEN_FILES,
+    )
+
+
+def _landlock_works() -> bool:
+    """Whether a decoder started through the Landlock launcher is really held. Cached like bubblewrap:
+    a pass for good, a failure checked again after a short wait."""
+    if _LANDLOCK_WORKS.get("ok") is False and time.monotonic() - _LANDLOCK_CHECKED_AT.get("ok", 0.0) > _BWRAP_RECHECK_SECONDS:
+        _LANDLOCK_WORKS.clear()
+    if "ok" not in _LANDLOCK_WORKS:
+        ok = False
+        if _landlock.available() and os.access(_SHELL, os.X_OK):
+            probe_dir = tempfile.mkdtemp(prefix="vool-landlock-probe-")
+            canary_dir = tempfile.mkdtemp(prefix="vool-landlock-canary-")
+            try:
+                canary = Path(canary_dir) / "canary.txt"
+                canary.write_text("CANARY\n", encoding="utf-8")
+                script = 'cat "$1" 2>/dev/null; echo ok > "$2/inside" && echo WROTE'
+                command = _landlock_command([os.path.realpath(_SHELL), "-c", script, "probe", str(canary), probe_dir],
+                                            scratch=probe_dir, extra_read=(), cpu_seconds=10)
+                probe = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, timeout=30, cwd=probe_dir,
+                                       env={"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8", "HOME": probe_dir, "TMPDIR": probe_dir},
+                                       start_new_session=True)
+                inside = Path(probe_dir) / "inside"
+                ok = (probe.returncode == 0 and probe.stdout.strip() == b"WROTE"
+                      and inside.is_file() and inside.read_text(encoding="utf-8") == "ok\n")
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+            finally:
+                shutil.rmtree(probe_dir, ignore_errors=True)
+                shutil.rmtree(canary_dir, ignore_errors=True)
+        _LANDLOCK_WORKS["ok"] = ok
+        _LANDLOCK_CHECKED_AT["ok"] = time.monotonic()
+    return _LANDLOCK_WORKS["ok"]
+
+
+def _linux_backend() -> str:
+    """'bwrap' where bubblewrap starts, else 'landlock' where the kernel holds a decoder by itself,
+    else '' (nothing runs)."""
+    if _bwrap_works():
+        return "bwrap"
+    if _landlock_works():
+        return "landlock"
+    return ""
+
+
+def confinement_backend() -> str:
+    """Which sandbox a decoder runs in on this machine: 'sandbox-exec', 'bwrap', 'landlock' or ''."""
+    if platform.system() == "Darwin":
+        return "sandbox-exec" if os.path.exists(_SANDBOX_EXEC) and os.access(_SHELL, os.X_OK) else ""
+    if platform.system() == "Linux":
+        return _linux_backend()
+    return ""
+
+
 def confinement_available() -> bool:
     """Whether this machine can actually confine a decoder. Nothing external runs without it."""
     if platform.system() == "Darwin":
         return os.path.exists(_SANDBOX_EXEC) and os.access(_SHELL, os.X_OK)
     if platform.system() == "Linux":
-        return _bwrap_works()
+        return bool(_linux_backend())
     return False
 
 
@@ -265,9 +341,13 @@ def confinement_unavailable_reason() -> str:
     if confinement_available():
         return ""
     if platform.system() == "Linux":
+        if _landlock.abi_version() < _landlock.MIN_ABI:
+            kernel = "this kernel has no Landlock sandbox VOOL can use (it needs Linux 6.2 or newer with Landlock on)"
+        else:
+            kernel = "this kernel's Landlock sandbox did not pass VOOL's start check"
         if not _bwrap():
-            return "the Linux sandbox (bubblewrap) is not installed on this computer"
-        return "the Linux sandbox (bubblewrap) is installed but this system does not let it start"
+            return f"the Linux sandbox (bubblewrap) is not installed on this computer, and {kernel}"
+        return f"the Linux sandbox (bubblewrap) is installed but this system does not let it start, and {kernel}"
     if platform.system() != "Darwin":
         return f"process confinement for untrusted decoders is implemented for macOS and Linux only; this host is {platform.system()}"
     return "the macOS sandbox (/usr/bin/sandbox-exec) is not available on this machine"
@@ -370,14 +450,34 @@ def current_budget() -> ExtractionBudget | None:
     return _BUDGET.get()
 
 
+def _never_granted() -> list[str]:
+    """Folders no decoder scope may cover, whatever a caller computed: the owner's home folder and
+    VOOL's own data. An installation tree inside the home folder (a uv or pyenv interpreter, the
+    venv's site-packages) is still grantable; the home folder itself, or a tree that holds it, is
+    not -- an interpreter installed with ``--prefix=$HOME`` would otherwise hand a decoder every
+    file the owner has."""
+    protected: list[str] = []
+    with contextlib.suppress(Exception):
+        protected.append(str(Path.home().resolve()))
+    with contextlib.suppress(Exception):
+        from core.runtime_paths import active_vool_home
+
+        protected.append(str(Path(active_vool_home()).resolve()))
+    return protected
+
+
 def _resolved(paths: Sequence[str]) -> list[str]:
     """Real paths only, de-duplicated, existing directories only. A scope entry that does not
-    resolve to a real directory is dropped rather than written into the profile as dead text."""
+    resolve to a real directory is dropped rather than written into the profile as dead text, and so
+    is one that would cover the whole file system, the home folder or VOOL's data (`_never_granted`)."""
+    protected = _never_granted()
     out: list[str] = []
     for entry in paths:
         try:
             real = str(Path(entry).resolve())
         except (OSError, ValueError):
+            continue
+        if real == "/" or any(guarded == real or guarded.startswith(real.rstrip("/") + "/") for guarded in protected):
             continue
         if real not in out and os.path.isdir(real):
             out.append(real)
@@ -464,6 +564,21 @@ def _limited_argv(argv: Sequence[str], *, cpu_seconds: int) -> list[str]:
     return [_SHELL, "-c", script, *argv]
 
 
+def _exited(process: subprocess.Popen) -> bool:
+    """Whether the decoder has exited. On Linux it is NOT reaped here: while it stays a zombie its
+    process-group id cannot be handed to anyone else, so the group kill that ends every run still
+    reaches whatever it left behind, and only that. A decoder confined by Landlock shares the
+    server's process table; a child it forked and left running would otherwise outlive the read."""
+    if process.returncode is not None:
+        return True
+    if platform.system() == "Linux":
+        try:
+            return os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+        except ChildProcessError:
+            pass
+    return process.poll() is not None
+
+
 def _kill_group(process: subprocess.Popen) -> None:
     """Kill the decoder AND anything it spawned: a decoder that forked must not outlive its turn."""
     try:
@@ -515,7 +630,7 @@ def _supervise(
     try:
         while True:
             pipes_open = bool(selector.get_map())
-            if not pipes_open and process.poll() is not None:
+            if not pipes_open and _exited(process):
                 break  # the job is over: nothing left to read, nothing left running
             now = time.monotonic()
             if now >= deadline:
@@ -604,12 +719,19 @@ def run_confined(
     # `/private/tmp` on macOS, and an SBPL `subpath` matches the real path only -- an unresolved
     # entry silently grants nothing, which shows up as the decoder dying on SIGSEGV before `main`
     # rather than as a permission error. Measured 2026-09-03 on the compiled OCR helper.
+    backend = confinement_backend()
     if platform.system() == "Linux":
         # Exec the decoder by its real path: a virtualenv's interpreter is a link that sits outside
         # every tree the sandbox can see, while its target is a system or bundled interpreter.
         real = os.path.realpath(executable)
-        limited = _limited_argv([real, *argv[1:]], cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))
-        command = [*_bwrap_prefix(scratch=scratch_path, extra_read=_resolved([*extra_read, os.path.dirname(real)])), *limited]
+        scope = _resolved([*extra_read, os.path.dirname(real)])
+        cpu_seconds = min(SUBPROCESS_CPU_SECONDS, timeout)
+        if backend == "landlock":
+            # The launcher sets the same ceilings `_limited_argv` sets, itself, then execs the decoder.
+            command = _landlock_command([real, *argv[1:]], scratch=scratch_path, extra_read=scope, cpu_seconds=cpu_seconds)
+        else:
+            limited = _limited_argv([real, *argv[1:]], cpu_seconds=cpu_seconds)
+            command = [*_bwrap_prefix(scratch=scratch_path, extra_read=scope), *limited]
     else:
         limited = _limited_argv(argv, cpu_seconds=min(SUBPROCESS_CPU_SECONDS, timeout))
         profile = _profile(scratch=scratch_path, extra_read=_resolved(extra_read), allow_gpu=allow_gpu)
@@ -639,6 +761,10 @@ def run_confined(
     deadline = time.monotonic() + timeout
     try:
         stdout, stderr = _supervise(process, deadline=deadline, max_stdout=max_stdout, max_stderr=max_stderr, fmt=fmt, budget=budget)
+        if platform.system() == "Linux":
+            # The decoder has exited and is not yet reaped: anything it forked and left behind goes
+            # with its group now, before the wait below frees the group's id.
+            _kill_group(process)
         try:
             process.wait(timeout=max(0.1, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
@@ -657,6 +783,17 @@ def run_confined(
                 with contextlib.suppress(OSError):
                     stream.close()
 
+    if (backend == "landlock" and process.returncode == _landlock.LAUNCH_FAILED
+            and _landlock.MARKER.encode() in stderr):
+        # The launcher refused to start the decoder: a sandbox step failed after the start check had
+        # passed. Nothing ran. Checked again on the next read rather than trusted.
+        _LANDLOCK_WORKS.clear()
+        raise ReaderFailed(
+            f"The {fmt or 'file'} decoder could not be started inside its sandbox; the file was not read.",
+            code="sandbox_start_failed",
+            remediation="Try again; if it keeps failing, paste the text instead.",
+            fmt=fmt,
+        )
     if budget is not None:
         budget.check(fmt)
     if process.returncode is not None and process.returncode < 0:
@@ -674,6 +811,7 @@ __all__ = [
     "SandboxResult",
     "Scratch",
     "confinement_available",
+    "confinement_backend",
     "confinement_unavailable_reason",
     "current_budget",
     "extraction_budget",

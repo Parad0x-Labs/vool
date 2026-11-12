@@ -61,10 +61,11 @@ die instead of answering.
   switch that is off says "Off" with a red light, in words and color, so the state never has to
   be guessed from a control's position alone.
 - **PDFs open on Linux.** Reading a PDF on Linux used to fail with a note that it needs the
-  macOS system Python. VOOL now reads the PDF's text in a locked-down sandbox (bubblewrap) with no
-  network and no access to your home folder. If bubblewrap is missing, VOOL says how to install
-  it. If your system blocks that sandbox (stock Ubuntu 24.04 does), VOOL says so and asks you to
-  paste the text instead; it never reads the file without the sandbox.
+  macOS system Python. VOOL now reads the PDF's text in a locked-down sandbox with no network and
+  no access to your home folder: bubblewrap where it can start, and otherwise the kernel's own
+  Landlock sandbox, which stock Ubuntu 24.04 has (there, AppArmor blocks bubblewrap). Only on a
+  system with neither (a kernel older than Linux 6.2 and no working bubblewrap) does VOOL ask you to
+  install bubblewrap or paste the text instead; it never reads the file without a sandbox.
 
 ### Updating
 - **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own"
