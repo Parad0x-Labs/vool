@@ -55,6 +55,19 @@ class ModelCall:
     model_name: str
     prompt: str
     task_kind: str
+    # Everything the wire carried: system prompt, every chat message and the prompt. History reaches
+    # an answering call as chat messages, not inside `prompt`, so a leak or a recall is only visible
+    # here.
+    wire: str = ""
+
+
+def _wire_text(request) -> str:
+    parts = [str(getattr(request, "system_prompt", "") or "")]
+    for message in getattr(request, "messages", None) or []:
+        content = message.get("content") if isinstance(message, dict) else message
+        parts.append(content if isinstance(content, str) else str(content or ""))
+    parts.append(str(getattr(request, "prompt", "") or ""))
+    return "\n".join(part for part in parts if part)
 
 
 class ScriptedModel:
@@ -150,6 +163,7 @@ def _build_fake_adapter(_registry, manifest):
                     model_name=str(self.manifest.model_name),
                     prompt=str(getattr(request, "prompt", "")),
                     task_kind=str(getattr(request, "task_kind", "")),
+                    wire=_wire_text(request),
                 )
             )
             reply = SCRIPT._resolve(self.manifest, request)
