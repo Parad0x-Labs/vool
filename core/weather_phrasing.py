@@ -13,10 +13,17 @@ preposition, or that "raining" asks the same thing as "rain".
 
 from __future__ import annotations
 
-#: A time anchor that closes the clause: end of text, or punctuation that ends a clause.
+#: Politeness that may close an ask after its time word ("paris weather now pls").
+POLITE_TAIL = r"(?:\s+(?:please|pls|plz|thanks|thx|ty))?"
+
+#: A time anchor that closes the clause: end of text, or punctuation that ends a clause. The chat
+#: shorthands ("rn", "atm") and "at the moment" ask the same thing as "now" (app bugs 2026-11-12:
+#: "paris weather rn" and "is it raining in Paris at the moment" found no place and failed).
 TIME_ANCHOR_AT_END = (
-    r"(?:right\s+now|now|today|tonight|tomorrow|currently|this\s+(?:morning|afternoon|evening|"
-    r"weekend))\s*(?:$|[?.!;,])"
+    r"(?:right\s+this\s+minute|right\s+now|now|rn|atm|at\s+(?:the|this)\s+moment|this\s+minute|"
+    r"today|tonight|tomorrow|currently|this\s+(?:morning|afternoon|evening|weekend))"
+    + POLITE_TAIL
+    + r"\s*(?:$|[?.!;,])"
 )
 
 #: Words that can never be the place in a prepositionless weather ask: function words, pronouns,
@@ -37,6 +44,22 @@ NOT_A_PLACE = (
 #: One place word, and a place of one to three words, for the prepositionless shapes.
 PLACE_WORD = NOT_A_PLACE + r"[A-Za-z][A-Za-z'.-]*"
 PLACE = PLACE_WORD + r"(?:\s+" + PLACE_WORD + r"){0,2}"
+
+#: A message that STARTS with the place and the weather word, search-box style: "paris weather",
+#: "tokyo weather pls", "paris weather, gold price and ...". Anchored at the start of the line and
+#: closed by the end of the clause, so prose that only mentions the weather ("I love this weather",
+#: "such nice weather today") never reads as a place. The place is the first group.
+PLACE_FIRST_AT_START = (
+    r"^\s*(" + PLACE + r")\s+(?:weather|forecast)" + POLITE_TAIL + r"\s*(?:$|[?.!;,])"
+)
+
+#: "how cold is it in oslo", "how warm it is out in tallinn": the air at a place, asked by how it
+#: feels. The words up to the preposition; the place follows. A named place is required, so "how
+#: hot is it in the oven" (an article) and "how hot is the sun" (no in/at) stay out.
+FEEL_ASK = (
+    r"how\s+(?:cold|warm|hot|chilly|freezing|windy|humid|sunny|rainy|wet|snowy)\s+(?:is\s+it|it\s+is|it'?s)\s+"
+    r"(?:(?:out|over|up|down)\s+)?(?:in|at)\s+(?!(?:the|my|your|our|this|that|a|an|here|there)\b)"
+)
 
 #: Weather verbs in every form a person asks with: "rain", "raining", "rainy", "going to rain".
 WEATHER_VERB = (
