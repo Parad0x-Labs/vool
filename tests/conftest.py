@@ -60,6 +60,15 @@ _HERMETIC_PLUGINS = Path(tempfile.mkdtemp(prefix="vool_pytest_plugins_"))
 os.environ.setdefault("VOOL_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-desktop-tree"))
 os.environ.setdefault("VOOL_BUNDLED_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-bundled-tree"))
 
+# Memory extraction runs after every turn in the suite. The product holds it until the person goes
+# quiet (VOOL_EXTRACTION_QUIET_SECONDS, 90 at every process entry point), but a served daemon a test
+# starts applies that product default to itself, so served tests that wait for a turn's own extraction
+# never saw it, and the quiet-window timer then fired into later tests in the same process. An
+# explicit value beats the product default at every entry point, in-process and spawned alike, so
+# pinning 0 here keeps the suite on run-after-every-turn. The quiet-batch path is tested on its own
+# terms in tests/local_speed/test_extraction_quiet_batch.py, which also proves the product default.
+os.environ.setdefault("VOOL_EXTRACTION_QUIET_SECONDS", "0")
+
 # ------------------------------------------------------------------ collection integrity
 #
 # pytest 9.1.x re-collects a package once per terminal FILE argument whose parent it is:
