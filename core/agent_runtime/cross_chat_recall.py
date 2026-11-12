@@ -591,6 +591,15 @@ def cross_chat_recall(
     # and same-chat recall exactly.
     if _MEMORY_COMMAND_RE.search(_OTHER_CHAT_RE.sub(" ", text)):
         return None
+    # "what did I ask you first" and "what was my previous question" ask to read this chat's own
+    # earlier turns, which the transcript reader quotes in order (core.agent_runtime.same_chat_recall).
+    # Searched across the other chats instead, it was answered "I don't have that saved" in the
+    # served app while the first question sat two turns up (train port real-app run, 2026-11-12).
+    if not _OTHER_CHAT_RE.search(typed):
+        from core.context_history_authority import is_same_chat_history_recall
+
+        if is_same_chat_history_recall(typed):
+            return None
     if (
         _CONVERSATION_POINTER_RE.search(_OTHER_CHAT_RE.sub(" ", text))
         and not _OTHER_CHAT_RE.search(text)
