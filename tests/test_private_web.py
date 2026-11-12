@@ -536,3 +536,38 @@ def test_programs_that_go_online_are_not_started_under_a_route(route, tmp_path) 
 
     route("off")
     assert subprocess.run([sys.executable, "-c", "pass", "https://example.com/"], capture_output=True).returncode == 0
+
+
+def test_a_model_on_the_home_network_is_called_directly_not_through_the_route(route) -> None:
+    """Found by review on the v0.8 line: with Tor on, a model served from another computer at home
+    (Ollama on 192.168.x.x) was sent to Tor, whose exits cannot reach a private address, so it
+    stopped answering. Home-network calls go direct, also while the route is down."""
+    from core import provider_http
+
+    socks = _FakeSocks(9)  # would forward nowhere; it only records whether it was asked
+    try:
+        route("tor", socks.port)
+        assert provider_http._route_for_worker("http://192.168.1.20:11434/api/chat") == {"kind": "local"}
+        assert provider_http._route_for_worker("http://10.0.0.5:8080/v1/chat/completions") == {"kind": "local"}
+        assert provider_http._route_for_worker("http://127.0.0.1:11434/api/chat") is None
+        assert provider_http._route_for_worker("https://api.example.test/v1/chat")["kind"] == "tor"
+        # the worker really goes direct: an unreachable home address fails as a plain connection
+        # error after trying it, and the route is never asked
+        with pytest.raises(provider_http.exceptions.RequestException) as failure:
+            provider_http.get("http://10.255.255.1:11434/api/tags", timeout=1.5)
+        assert not isinstance(failure.value, provider_http.PrivateWebUnavailable)
+        assert socks.requests == []
+        # and the parent's own urlopen does the same
+        with pytest.raises(OSError):
+            provider_http.urlopen("http://10.255.255.1:11434/api/tags", timeout=1.5)
+        assert socks.requests == []
+    finally:
+        socks.stop()
+
+    route("tor", 0)  # route down: home-network models still answer, cloud calls are refused
+    assert provider_http._route_for_worker("http://192.168.1.20:11434/api/chat") == {"kind": "local"}
+    with pytest.raises(provider_http.PrivateWebUnavailable):
+        provider_http._route_for_worker("https://api.example.test/v1/chat")
+
+    route("off")  # Private web off: nothing changes for the home network
+    assert provider_http._route_for_worker("http://192.168.1.20:11434/api/chat") is None

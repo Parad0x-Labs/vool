@@ -61,7 +61,7 @@ class _RefuseLoopbackRedirect(urllib.request.HTTPRedirectHandler):
 def urlopen(request, *, timeout):
     """Loopback means a direct local socket, with no ambient proxy or redirects."""
     url = getattr(request, "full_url", request)
-    if is_loopback_url(url):
+    if is_loopback_url(url) or _local_under_private_web(url):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _RefuseLoopbackRedirect())
         return opener.open(request, timeout=timeout)
     route = _private_route()
@@ -95,10 +95,25 @@ def _private_route():
     return route
 
 
+def _local_under_private_web(url):
+    """True when Private web is on and the URL is on this machine or the home network (a model
+    served from another computer at home). Those calls go direct: a Tor exit or a VPN server
+    cannot reach a private address, and they never touch the internet. They also go ahead while
+    the route is down. With Private web off this is False, so nothing changes there."""
+    try:
+        from core import private_web
+    except ImportError:  # the worker process, which has no package path
+        return False
+    return private_web.current_route().active and private_web.url_stays_local(url)
+
+
 def _route_for_worker(url):
-    """What the worker must do with the route: nothing for loopback or Private web off."""
+    """What the worker must do with the route: nothing for loopback or Private web off, and a
+    direct, proxy-free call for the home network while Private web is on."""
     if is_loopback_url(url):
         return None
+    if _local_under_private_web(url):
+        return {"kind": "local"}
     route = _private_route()
     if route is None:
         return None
@@ -327,6 +342,10 @@ def _worker():
             options["timeout"] = tuple(options["timeout"])
         loopback = is_loopback_url(invocation["url"])
         private_route = invocation.get("private_route")
+        if private_route and private_route.get("kind") == "local":
+            # Home network under Private web: direct, and never through an ambient proxy that
+            # could carry it past the route. Same rules as loopback.
+            loopback, private_route = True, None
         if private_route:
             _worker_use_private_route(private_route)
         return_redirect = options.get("allow_redirects") is False
