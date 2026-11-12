@@ -26,7 +26,6 @@ from core.cloud_tool_call_contract import build_cloud_tool_definitions
 from core.execution_requirements import RequiredToolsNotOfferedError
 from core.media_analysis_pipeline import MediaAnalysisPipeline
 from core.media_ingestion import _normalize_item
-from core.model_failover import select_with_failover
 from core.model_health import reset_provider_health
 from core.model_output_contracts import json_schema_for_mode
 from core.model_registry import ModelRegistry
@@ -95,6 +94,19 @@ def _registry(*manifests: ModelProviderManifest) -> ModelRegistry:
 
 def _models(ranked) -> list[str]:
     return [manifest.model_name for manifest in ranked]
+
+
+def _failover_after(registry: ModelRegistry, attempted: list[str], **request) -> list[str]:
+    """What Auto can fail over to once ``attempted`` failed, in order.
+
+    The router walks one list for a tool step: the live ranking below (role drone, swarm 4, trust
+    floor), minus every provider it already tried. A lane missing from it is never failed over to.
+    """
+    live = rank_provider_candidates(
+        registry, task_kind="tool_intent", output_mode="tool_intent", role="drone", swarm_size=4, min_trust=0.45,
+        **request,
+    )
+    return [manifest.model_name for manifest in live if manifest.provider_id not in attempted]
 
 
 # --------------------------------------------------------------------------------------------
@@ -305,13 +317,8 @@ def test_failover_after_the_capable_model_never_reaches_an_incapable_one() -> No
         _local("general-local", "generalist:8b", GENERAL_CAPS),
     )
 
-    decision = select_with_failover(
-        registry,
-        ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent"),
-        attempted_provider_ids=["general-local:generalist:8b"],
-    )
-
-    assert decision.selected is None
+    assert _failover_after(registry, []) == ["generalist:8b"]
+    assert _failover_after(registry, ["general-local:generalist:8b"]) == []
 
 
 # --------------------------------------------------------------------------------------------
@@ -513,26 +520,20 @@ def test_pins_and_failover_follow_the_effective_dialect(flag_on) -> None:
         with runtime_flags.override("capability_tool_dialect", flag_on):
             pinned_router = _tool_step(registry, preferred_provider="openrouter-byok", preferred_model="vendor/reader-7b")
             pinned_gateway = _tool_step(registry, preferred_provider="lab-gateway", preferred_model="labmodel:14b")
-            after_router = select_with_failover(
-                registry,
-                ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True),
-                attempted_provider_ids=["openrouter-byok:vendor/reader-7b", "lab-native:nativelab:14b"],
+            after_router = _failover_after(
+                registry, ["openrouter-byok:vendor/reader-7b", "lab-native:nativelab:14b"], allow_paid_fallback=True
             )
-            after_native = select_with_failover(
-                registry,
-                ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True),
-                attempted_provider_ids=["lab-native:nativelab:14b"],
-            )
+            after_native = _failover_after(registry, ["lab-native:nativelab:14b"], allow_paid_fallback=True)
 
     # The gateway lane carries neither carrier in either state: never pinned, never failed over to.
     assert "labmodel:14b" not in pinned_gateway
-    assert after_router.selected is None
+    assert after_router == []
     if flag_on:
         assert "vendor/reader-7b" not in pinned_router
-        assert after_native.selected is None
+        assert after_native == []
     else:
         assert pinned_router[0] == "vendor/reader-7b"
-        assert after_native.selected is not None and after_native.selected.model_name == "vendor/reader-7b"
+        assert after_native == ["vendor/reader-7b"]
 
 
 @pytest.mark.parametrize("flag_on", [True, False], ids=["flag-on", "flag-off"])

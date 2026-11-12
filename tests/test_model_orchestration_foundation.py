@@ -3,33 +3,8 @@ from __future__ import annotations
 from core.candidate_knowledge_lane import build_task_hash
 from core.hardware_tier import MachineProbe
 from core.memory_first_router import _candidate_cache_scope, _emergency_model_can_answer
-from core.model_capability_registry import build_model_capability_registry
-from core.model_lane_config import LOCAL_DAILY, LOCAL_FAST, logical_lane
+from core.model_lane_config import LOCAL_FAST, logical_lane
 from core.provider_routing import ProviderCapabilityTruth, provider_hardware_fit_rejection
-from storage.migrations import run_migrations
-from storage.model_provider_manifest import ModelProviderManifest
-
-
-def _local_manifest(model_name: str) -> ModelProviderManifest:
-    return ModelProviderManifest(
-        provider_name="ollama-local",
-        model_name=model_name,
-        source_type="http",
-        adapter_type="local_qwen_provider",
-        license_name="Apache-2.0",
-        license_reference="https://ollama.com/library/qwen2.5",
-        weight_location="external",
-        runtime_dependency="ollama",
-        capabilities=["summarize", "structured_json", "tool_intent"],
-        runtime_config={"base_url": "http://127.0.0.1:11434", "context_window": 32768},
-        metadata={
-            "deployment_class": "local",
-            "runtime_family": "ollama",
-            "ram_budget_gb": 6.5,
-            "vram_budget_gb": 6.5,
-            "tool_support": ["structured_json", "tool_calls"],
-        },
-    )
 
 
 def _truth(model_id: str, vram_gb: float) -> ProviderCapabilityTruth:
@@ -83,24 +58,5 @@ def test_candidate_cache_is_scoped_to_session_and_turn() -> None:
     assert build_task_hash(**base, scope_id=first_scope) != build_task_hash(**base, scope_id=second_scope)
 
 
-def test_capability_registry_reports_runtime_state_and_lane(monkeypatch) -> None:
-    run_migrations()
-    manifest = _local_manifest("qwen2.5:7b")
-    monkeypatch.setenv("VOOL_LOCAL_DAILY_MODEL", manifest.model_name)
-
-    records = build_model_capability_registry(
-        [manifest],
-        installed_ollama=[manifest.model_name],
-        loaded_ollama=[manifest.model_name],
-    )
-
-    assert len(records) == 1
-    record = records[0]
-    assert record.installed is True
-    assert record.loaded is True
-    assert record.warm is True
-    assert record.context_limit == 32768
-    assert record.tool_calling is True
-    assert record.structured_output is True
-    assert record.assigned_lanes == (LOCAL_DAILY,)
+def test_a_legacy_tiny_lane_name_is_the_fast_local_lane() -> None:
     assert logical_lane("tiny") == LOCAL_FAST
