@@ -319,7 +319,8 @@
     "search_user_heuristics": "reader",
     "set_session_meta": "writer",
     "summarize_memory": "reader",
-    "memory_command_owns_turn": "transform"
+    "memory_command_owns_turn": "transform",
+    "whole_memory_erase_request": "transform"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",

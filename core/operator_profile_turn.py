@@ -374,6 +374,12 @@ def observe_profile_turn(
     principal = profile.principal_for_request(source_context)
     project_id = str(getattr(access_policy, "project_id", "") or (source_context or {}).get("_trusted_project_id") or "")
     bind_turn_scope(principal, session_id, project_id)
+    from core.persistent_memory import whole_memory_erase_request
+
+    if whole_memory_erase_request(raw_user_input):
+        # "Forget everything you know about me" erases saved memory AND the profile: the memory lane owns that turn
+        # and runs the profile's forget-all as part of it. Taken here, only the profile went (measured 2026-11-12).
+        return None
     # Private chat (core.private_chat): the profile is still READ for this turn, but nothing the
     # turn says is saved to it (no standing instruction, no profile fact, no candidate chip).
     from core.private_chat import turn_is_private
