@@ -3835,16 +3835,26 @@ def _stream_agent_with_events_inner(
     def worker() -> None:
         def _body() -> None:
             queue_status = "failed"
+            delivered = False
             try:
                 agent_runner = run_agent_provider or run_agent
                 result = agent_runner(runtime, user_text, session_id=session_id, source_context=stream_context)
                 queue_status = "completed"
                 event_queue.put(("result", result))
+                delivered = True
             except Exception as exc:
                 # Make it chat-safe HERE, where the exception object still exists, so the class name
                 # (the genuinely useful, safe part) survives while paths and credentials do not.
                 event_queue.put(("error", safe_error_text(exc)))
+                delivered = True
             finally:
+                # The streaming side waits on this queue with no timeout: a turn that ends WITHOUT
+                # putting a result or an error (a BaseException out of the turn) left the chat page
+                # on "…" until the person gave up. Measured on the 0.7.8 sweep (2026-11-12, blocks 1
+                # and 1c): FAILED_PROVIDER on the server, nothing ever reached the page. Whatever
+                # ended the turn, the stream always gets its terminal.
+                if not delivered:
+                    event_queue.put(("error", "This turn stopped before it finished."))
                 _finish_consumed_queue_item(queue_status)
                 # The turn is genuinely over -- completed, failed or cancelled. This is the ONLY place
                 # the live-turn entry is released, so it can neither leak nor disappear early. Its
