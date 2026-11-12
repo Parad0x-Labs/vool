@@ -25,7 +25,7 @@ A card is one JSON object with four fields, and only these four:
 | `surfaces` | Optional: the surfaces the tool is offered on. | `pc`, `phone`, `chat_app`. It can only narrow — no list means every surface. |
 
 The card for a fictional tide-times plugin looks like this
-([templates/tool-card.example.json](templates/tool-card.example.json) in this folder):
+(`docs/guides/templates/tool-card.example.json` in the VOOL source):
 
 ```json
 {
