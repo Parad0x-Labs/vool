@@ -9,7 +9,9 @@ from __future__ import annotations
 import inspect
 
 
-def test_machine_download_refused_under_remote_fetch_veto(monkeypatch):
+def test_machine_download_refused_under_remote_fetch_veto(monkeypatch, enable_web):
+    # Web lookups on, as the person would have them: with the switch off a download is refused at
+    # the switch before any network door, and the turn's veto below would never be reached.
     import urllib.request as _ur
 
     import core.agent_runtime.fast_paths_machine as fpm

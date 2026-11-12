@@ -891,7 +891,10 @@ class OpenClawToolingContextTests(unittest.TestCase):
 
         system_prompt = request.instructions().lower()
         self.assertEqual(request.output_mode, "tool_intent")
-        self.assertIn("web.search", system_prompt)
+        # The wired web lookup is stated to the model. (The tool id `web.search` reached this
+        # prompt only inside the release-gate developer skill's text, which no longer attaches to
+        # an everyday "release notes" ask since the skills work; the catalog never held it.)
+        self.assertIn("live web lookup", system_prompt)
         # Initial offers are navigators; domain tools appear after expansion.
         self.assertIn("operator.list_tools", system_prompt)
         self.assertIn("capability.expand_family", system_prompt)
