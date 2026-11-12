@@ -470,7 +470,10 @@ def test_help_turn_uses_deterministic_fast_path_when_no_cached_answer(make_agent
     )
 
     assert result["response_class"] == "utility_answer"
-    assert "here's what i can do on this computer" in result["response"].lower()
+    # Bare "help" is the short grouped reply (tests/test_help_is_short.py); the long
+    # "Here's what I can do on this computer" list stays on "what can you do".
+    assert result["response"].startswith("The short version:"), result["response"]
+    assert "here's what i can do on this computer" not in result["response"].lower()
     agent.memory_router.resolve.assert_not_called()
     assert result["model_execution"]["used_model"] is False
 
