@@ -77,7 +77,11 @@ def desktop_text(root: Path) -> str:
         executable = executable.replace(character, "\\" + character)
     executable = executable.replace("\\", "\\\\").replace("%", "%%")
     icon = str(root / "current/vool.png").replace("\\", "\\\\")
-    return f"[Desktop Entry]\nType=Application\nName=VOOL\nExec=\"{executable}\"\nIcon={icon}\nTerminal=false\nCategories=Utility;\n{DESKTOP_MARKER}\n"
+    # VOOL opens in its own window, named VOOL/vool (installer/bundle/vool_window.py): StartupWMClass
+    # matches it to this entry on X11 (on Wayland the window's app id "vool" matches the file name), so
+    # the dock shows VOOL's icon and the launch spinner stops when the window appears.
+    return (f"[Desktop Entry]\nType=Application\nName=VOOL\nExec=\"{executable}\"\nIcon={icon}\nTerminal=false\n"
+            f"Categories=Utility;\nStartupNotify=true\nStartupWMClass=VOOL\n{DESKTOP_MARKER}\n")
 
 
 def install(package: Path, home: Path) -> None:

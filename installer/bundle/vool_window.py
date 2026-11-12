@@ -5,8 +5,11 @@ its own title and taskbar/Dock entry, no browser tab strip, no address bar -- so
 desktop app rather than a browser tab. On Windows, when the WebView2 runtime is absent (WebView2 is
 not guaranteed on Windows 10), it falls back to the Edge --app opener BEFORE trying pywebview,
 because a missing runtime does not always raise from webview.start(); this keeps a launch from
-dead-ending on a blank window. macOS provides WKWebView; Linux needs separately installed
-GTK/WebKitGTK or Qt libraries. pywebview is tried directly; if no native window can be shown there, a packaged
+dead-ending on a blank window. macOS provides WKWebView. On Linux the package runs this host on the
+system python3 (installer/bundle/linux/window_host.py), because the distribution's GTK and WebKitGTK
+bindings (python3-gi, gir1.2-webkit2-4.1) are built for that interpreter only; the runtime it
+supervises keeps the package's own interpreter (VOOL_RUNTIME_PYTHON). pywebview is tried directly; if
+no native window can be shown there, a packaged
 launch FAILS CLOSED (exit 1) rather than silently opening a browser and calling it success -- an
 app-mode browser window is used only when VOOL_ALLOW_BROWSER_FALLBACK=1 opts in explicitly.
 A single-instance guard stops repeated launches from stacking windows: a named mutex on Windows,
@@ -29,11 +32,13 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -52,7 +57,7 @@ if _PROJECT_ROOT not in sys.path:
 # only because the two lines above just put it there. An `installer.bundle` import in the header
 # block raised ImportError and the window never opened -- invisible to the suite, which imports this
 # as a module with the root already on the path.
-from installer.bundle import pet_native
+from installer.bundle import linux_desktop, pet_native
 
 _WEBVIEW2_GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 _LOCK_HANDLES: list[int] = []  # POSIX: keep the flocks held for the process lifetime
@@ -146,10 +151,115 @@ def _single_instance() -> bool:
             for held in acquired:
                 with contextlib.suppress(OSError):
                     os.close(held)
+            _ask_open_window_to_come_forward()
             return False  # held by another window -- this generation or the pre-rename one
         acquired.append(fd)
     _LOCK_HANDLES.extend(acquired)
     return True
+
+
+# Linux: a second launch (the app menu again, or `vool` in a terminal) asks the open window to come
+# forward instead of exiting with nothing on screen. The request goes over a private socket beside the
+# window lock (this user's state folder, mode 0600) and carries the launch's activation token, so the
+# desktop lets the window take focus: focus-stealing prevention ignores a raise without one, and Wayland
+# requires it. Not a signal: WebKit's JavaScript engine takes SIGUSR1 over in this process for its
+# garbage collector, and a SIGUSR1 from a second launch ended the open window (measured 2026-11-12).
+_PRESENT_WINDOWS: list[object] = []
+_PRESENT_SERVER: dict[str, object] = {}
+_SUN_PATH_MAX = 107  # bytes in a Unix socket path, without the terminating NUL
+
+
+def _present_socket_path() -> str:
+    return os.path.join(_posix_lock_base(), _POSIX_LOCK_STATE_DIRS[0], "window.sock")
+
+
+def _launch_activation_token() -> str:
+    """The desktop's activation token for this launch: Wayland's, else X11's startup id."""
+    token = ""
+    if os.environ.get("WAYLAND_DISPLAY"):
+        token = str(os.environ.get("XDG_ACTIVATION_TOKEN") or "")
+    token = token or str(os.environ.get("DESKTOP_STARTUP_ID") or "")
+    return token if len(token) <= 512 and token.isprintable() else ""
+
+
+def _ask_open_window_to_come_forward() -> None:
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(3.0)
+            client.connect(_present_socket_path())
+            client.sendall((_launch_activation_token() + "\n").encode("utf-8"))
+        _log("asked the open VOOL window to come forward")
+    except Exception as exc:
+        _log(f"could not reach the open VOOL window ({exc!r})")
+
+
+def _serve_come_forward_requests() -> None:
+    """Linux, once this host holds the single-instance lock: answer second launches."""
+    if not sys.platform.startswith("linux"):
+        return
+    path = _present_socket_path()
+    if len(path.encode("utf-8")) > _SUN_PATH_MAX:
+        _log("second-launch handoff unavailable (state folder path too long for a socket)")
+        return
+    try:
+        # A leftover from a host that did not exit cleanly. This host holds the window lock, so no
+        # open window owns that path.
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(path)
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        previous = os.umask(0o177)
+        try:
+            server.bind(path)
+        finally:
+            os.umask(previous)
+        os.chmod(path, 0o600)
+        server.listen(4)
+    except OSError as exc:
+        _log(f"second-launch handoff unavailable ({exc!r})")
+        return
+    _PRESENT_SERVER.update(server=server, path=path)
+
+    def _serve() -> None:
+        while True:
+            try:
+                connection, _address = server.accept()
+            except OSError:
+                return  # closed at teardown
+            with connection:
+                connection.settimeout(2.0)
+                try:
+                    data = connection.recv(600)
+                except OSError:
+                    data = b""
+            token = data.decode("utf-8", "replace").strip()
+            if len(token) > 512 or not token.isprintable():
+                token = ""
+            with contextlib.suppress(Exception):
+                _present_open_window(token)
+
+    threading.Thread(target=_serve, name="vool-come-forward", daemon=True).start()
+
+
+def _stop_serving_come_forward_requests() -> None:
+    server = _PRESENT_SERVER.pop("server", None)
+    path = _PRESENT_SERVER.pop("path", None)
+    if server is not None:
+        with contextlib.suppress(Exception):
+            server.close()
+    if path:
+        with contextlib.suppress(OSError):
+            os.unlink(path)
+
+
+def _present_open_window(token: str = "") -> None:
+    for window in list(_PRESENT_WINDOWS):
+        if sys.platform.startswith("linux"):
+            _linux_present(window, token)
+        else:
+            _focus_window(window)
+    _log(f"second launch: open window brought forward (activation token {'passed' if token else 'none'})")
 
 
 def _has_webview2() -> bool:
@@ -313,6 +423,271 @@ def _browser_fallback_allowed() -> bool:
     return str(os.environ.get("VOOL_ALLOW_BROWSER_FALLBACK", "")).strip().lower() in ("1", "true", "yes", "on")
 
 
+# ---------------------------------------------------------------------------------------------------
+# Linux package lane. installer/bundle/linux/window_host.py runs this host on the system python3 and
+# names the package version it runs from; the runtime keeps the package's own interpreter.
+# ---------------------------------------------------------------------------------------------------
+_LINUX_PACKAGE: dict[str, Path | None] = {}
+
+
+def configure_linux_package(version_root: str | Path) -> None:
+    """Record the installed package version this host runs from (``<install>/versions/<commit>``).
+
+    ``install`` is the package's own folder (``~/.local/share/vool``), the one the updater switches
+    ``current`` in; it is None when the version folder is not inside an installed layout (an unpacked
+    tarball), and then no update handoff is attempted."""
+    root = Path(version_root).resolve()
+    install = root.parent.parent if root.parent.name == "versions" else None
+    _LINUX_PACKAGE.update(root=root, install=install, icon=root / "vool.png")
+
+
+def _linux_icon() -> Path | None:
+    icon = _LINUX_PACKAGE.get("icon")
+    return icon if icon is not None and icon.is_file() else None
+
+
+def _tell_linux_user(title: str, body: str) -> None:
+    if sys.platform.startswith("linux"):
+        linux_desktop.tell_user(title, body, icon=_linux_icon())
+
+
+def _claim_linux_app_identity() -> None:
+    """Linux: name the window ``vool``/``VOOL`` before GTK starts, so the desktop matches it to
+    vool.desktop (``StartupWMClass=VOOL`` on X11, the app id ``vool`` on Wayland) and the dock shows
+    VOOL's name and icon rather than python3's. GDK reads the program name once, when it is first
+    imported, so this runs before pywebview loads its GTK backend."""
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        import gi
+        from gi.repository import GLib
+
+        GLib.set_prgname("vool")
+        GLib.set_application_name("VOOL")
+        gi.require_version("Gdk", "3.0")
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gdk, Gtk  # noqa: F401  (Gtk: its first import initialises GTK)
+
+        # GTK's initialisation resets the program class to the capitalised program name ("Vool",
+        # measured 2026-11-12), so the class is set after it, before any window exists. pywebview's
+        # later import of Gtk does not initialise it again.
+        Gdk.set_program_class("VOOL")
+    except Exception as exc:  # the window still opens, under the interpreter's name
+        _log(f"Linux app identity not claimed ({exc!r})")
+
+
+def _linux_start_options() -> dict:
+    """Linux: always the GTK backend (pywebview picks Qt on KDE, which the package does not carry)
+    and VOOL's own icon."""
+    options: dict[str, object] = {"gui": "gtk"}
+    icon = _linux_icon()
+    if icon is not None:
+        options["icon"] = str(icon)
+    return options
+
+
+_LINUX_PAGE_STORAGE: dict[str, bool] = {}
+
+
+def _linux_keep_page_storage(window: object) -> None:
+    """``before_show`` handler: GTK main thread, after pywebview configured the view and before it
+    loads the first page.
+
+    pywebview's default private mode gives each view an ephemeral WebKit context, so nothing a page
+    stores reaches the disk (like the Mac window's nonpersistent store), but on GTK it also switches
+    the page's localStorage off. The chat page's script stops at its first localStorage use, and Send
+    and Enter did nothing (measured 2026-11-12 on Ubuntu 24.04). localStorage is switched back on,
+    and only for a context WebKit confirms is ephemeral: chat text a page keeps there never becomes a
+    file outside what VOOL's forget covers."""
+    try:
+        from webview.platforms import gtk as backend
+
+        view = backend.BrowserView.instances[window.uid].webview
+        ephemeral = bool(view.is_ephemeral())
+        if not ephemeral:
+            _log("page storage left off: the WebKit context is not ephemeral")
+            _LINUX_PAGE_STORAGE.update(ephemeral=False, local_storage=False)
+            return
+        settings = view.get_settings()
+        settings.set_enable_html5_local_storage(True)
+        enabled = bool(settings.get_enable_html5_local_storage())
+        _LINUX_PAGE_STORAGE.update(ephemeral=True, local_storage=enabled)
+        _log(f"page storage in memory only: ephemeral=True local_storage={enabled}")
+    except Exception as exc:
+        _log(f"page storage could not be switched on ({exc!r})")
+
+
+def _linux_wrap_window_factory(webview_module: object) -> None:
+    """Every window this host creates (the chat, Settings, the companion) gets the page-storage
+    handler above: they are all made through ``webview.create_window``."""
+    original = getattr(webview_module, "create_window", None)
+    if original is None or getattr(original, "_vool_page_storage", False):
+        return
+
+    def create_window(*args, **kwargs):
+        window = original(*args, **kwargs)
+        if window is not None:
+            with contextlib.suppress(Exception):
+                window.events.before_show += _linux_keep_page_storage
+        return window
+
+    create_window._vool_page_storage = True  # type: ignore[attr-defined]
+    webview_module.create_window = create_window
+
+
+# In-app update with the window open (Linux package). The updater's detached worker stops the runtime
+# this window owns, makes the new version `current` and starts it headless (core/updater/linux.py,
+# LinuxBundleHelper). That stop is not a crash: the window stays open while the worker runs, then
+# hands over to the new version's own window process, which takes over the runtime the updater
+# started, so closing the window afterwards still stops VOOL.
+_UPDATE_HANDOFF: dict[str, object] = {}
+_UPDATE_WAIT_S = 30 * 60          # the worker swaps, restarts, health-checks, and rolls back if needed
+_UPDATED_RUNTIME_WAIT_S = 180.0   # after the worker has finished, for VOOL to answer again
+_ADOPT_ENV = "VOOL_WINDOW_ADOPT_RUNTIME_PID"
+_ADOPTED_RUNTIME: dict[str, int] = {}
+
+
+def _update_worker_running() -> bool:
+    """True while VOOL's own updater is replacing the installed package's runtime."""
+    if _LINUX_PACKAGE.get("install") is None:
+        return False
+    try:
+        from core.runtime_paths import active_data_dir
+        from core.updater.worker import worker_alive
+
+        return bool(worker_alive(active_data_dir()))
+    except Exception as exc:
+        _log(f"update worker state unreadable ({exc!r})")
+        return False
+
+
+def _await_updated_runtime(supervisor: object, done: threading.Event) -> dict | None:
+    """Wait for the update worker to finish and for a VOOL runtime of this profile to answer.
+    Returns that runtime's identity, or None when VOOL did not come back (or the window closed)."""
+    deadline = time.monotonic() + _UPDATE_WAIT_S
+    answer_by: float | None = None
+    while time.monotonic() < deadline and not done.is_set():
+        if _update_worker_running():
+            answer_by = None
+        else:
+            if answer_by is None:
+                answer_by = time.monotonic() + _UPDATED_RUNTIME_WAIT_S
+            identity = supervisor.profile_runtime_identity()
+            if identity:
+                return identity
+            if time.monotonic() >= answer_by:
+                return None
+        done.wait(1.0)
+    return None
+
+
+def update_handoff_requested() -> bool:
+    """True when this window closed to hand over to the version the updater made current."""
+    return bool(_UPDATE_HANDOFF)
+
+
+def relaunch_current_version() -> int:
+    """Open the version the updater made current, as its own window process.
+
+    Called after main() returned, so this host's single-instance locks are already released and the
+    new window can take them. The new window joins the runtime the updater started and takes it
+    over (``VOOL_WINDOW_ADOPT_RUNTIME_PID``); everything else it derives from its own version."""
+    install = _LINUX_PACKAGE.get("install")
+    pid = int(_UPDATE_HANDOFF.get("pid") or 0)
+    if install is None or pid <= 1:
+        return 3
+    launcher = install / "current" / "vool"
+    env = dict(os.environ)
+    for name in ("VOOL_OWNED_BY_WINDOW_PID", "VOOL_NATIVE_REQUIRE_OWNED_RUNTIME", "VOOL_EXPECTED_COMMIT",
+                 "VOOL_RUNTIME_MODE", "VOOL_RUNTIME_PYTHON", "VOOL_PROJECT_ROOT", "VOOL_NATIVE_API_URL",
+                 "DESKTOP_STARTUP_ID", "XDG_ACTIVATION_TOKEN"):
+        env.pop(name, None)
+    env[_ADOPT_ENV] = str(pid)
+    command = [str(launcher)]
+    port = urllib.parse.urlsplit(_API_ORIGIN).port
+    if port and port != 11435:
+        command += ["--port", str(port)]
+    try:
+        subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+    except OSError as exc:
+        _log(f"could not open the updated version ({exc!r})")
+        _tell_linux_user("VOOL was updated", "Open VOOL again to continue.")
+        return 3
+    _log(f"update handoff: opened {launcher} to take over runtime pid {pid}")
+    return 0
+
+
+def _adopt_updated_runtime(supervisor: object, identity: dict, handed_pid: str) -> None:
+    """After an update handoff, take over the runtime the updater started in place of the one the
+    previous window owned: exactly the pid that window handed over, which this host has just verified
+    as this profile's runtime of this exact version (ensure_ready) and which still holds VOOL's
+    pidfile. On close it is stopped the way the updater stops it (_stop_adopted_runtime)."""
+    if not handed_pid or not getattr(supervisor, "attached_existing", False):
+        return
+    try:
+        pid = int(handed_pid)
+    except ValueError:
+        return
+    pidfile = _runtime_pidfile_path()
+    try:
+        named = int(pidfile.read_text(encoding="utf-8").strip() or "0") if pidfile is not None else 0
+    except (OSError, ValueError):
+        named = 0
+    if pid <= 1 or identity.get("pid") != pid or named != pid:
+        _log(f"handed-over runtime pid {pid} is not the serving runtime; joined without taking it over")
+        return
+    try:
+        supervisor.adopt(pid)
+    except Exception as exc:
+        _log(f"runtime pid {pid} not taken over ({exc}); joined only")
+        return
+    _ADOPTED_RUNTIME["pid"] = pid
+    _log(f"took over the runtime the updater started (pid {pid})")
+
+
+def _stop_adopted_runtime() -> None:
+    """Stop a runtime taken over after an update, through the updater's own stop
+    (LinuxBundleHelper): it signals only the pid VOOL's pidfile names, and only when that process is
+    the installed package's server running from one of its versions."""
+    pid = _ADOPTED_RUNTIME.pop("pid", 0)
+    install = _LINUX_PACKAGE.get("install")
+    pidfile = _runtime_pidfile_path()
+    if not pid or install is None or pidfile is None:
+        return
+    try:
+        named = int(pidfile.read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        named = 0
+    if named != pid:
+        _log(f"runtime pid {pid} no longer holds the pidfile; left alone")
+        return
+    from core.updater.linux import LinuxBundleHelper
+
+    helper = LinuxBundleHelper(app_path=install, pid_file=pidfile)
+    helper.shutdown_app()
+    stopped = helper.wait_until_stopped(timeout=20.0)
+    _log(f"taken-over runtime pid {pid} {'stopped' if stopped else 'did not stop within 20s'}")
+
+
+def _linux_present(window: object, token: str) -> None:
+    """GTK main thread: un-minimise and raise, with the second launch's activation token."""
+    def _present() -> bool:
+        with contextlib.suppress(Exception):
+            native = window.native
+            if token:
+                native.set_startup_id(token)
+            native.deiconify()
+            native.present()
+        return False
+
+    try:
+        from gi.repository import GLib
+
+        GLib.idle_add(_present)
+    except Exception:
+        _focus_window(window)
+
+
 def _no_native_window(reason: object) -> int:
     """macOS/Linux fail-closed handler when no real native window can be shown. Windows keeps its
     own documented WebView2-absent Edge lane (_fallback above) — that is KAS's packaging contract,
@@ -325,6 +700,9 @@ def _no_native_window(reason: object) -> int:
         _log(f"native window unavailable ({reason!r}); VOOL_ALLOW_BROWSER_FALLBACK set, using browser")
         _fallback()
         return 0
+    if sys.platform.startswith("linux"):
+        # An app-menu launch has no terminal: never just a silent exit 1 with a log line.
+        _tell_linux_user("VOOL cannot open its window", linux_desktop.window_guidance())
     _log("ERROR: native window unavailable "
          f"({reason!r}); refusing silent browser fallback (set VOOL_ALLOW_BROWSER_FALLBACK=1 to allow)")
     return 1
@@ -612,7 +990,7 @@ def _export_save_name(disposition: str | None, format_name: str, *, answer: bool
         else:
             quoted = re.search(r'filename\s*=\s*"([^"\\]*)"', header, re.IGNORECASE)
             name = quoted.group(1) if quoted else ""
-        from core.web.api.chat_export_api import filename_title
+        from core.export_filename import filename_title
     except Exception:
         return neutral
     suffix = "." + format_name
@@ -1411,6 +1789,42 @@ def _install_termination_handlers(supervisor: object, owned_pid: dict[str, int |
     threading.Thread(target=_watch, name="nulla-signal-watcher", daemon=True).start()
 
 
+def _hand_over_after_update(supervisor: object, window: object, done: threading.Event, reason: object) -> bool:
+    """The runtime stopped because VOOL's updater is replacing it (Linux package). Keep the window
+    open until the update has finished and VOOL answers again, then close every window of this host
+    so main() returns and the new version opens (relaunch_current_version). False when VOOL did not
+    come back, or the person closed the window meanwhile: the caller then treats it as a lost runtime."""
+    _log(f"runtime stopped by VOOL's updater ({reason}); the window stays open during the update")
+    identity = _await_updated_runtime(supervisor, done)
+    if done.is_set():
+        return True  # the person closed the window; nothing to hand over
+    if not identity:
+        _log("VOOL did not answer again after the update")
+        _tell_linux_user("VOOL stopped during the update", "Open VOOL again from your apps.")
+        return False
+    _UPDATE_HANDOFF.update(pid=identity.get("pid"), commit=str(identity.get("commit_full") or identity.get("commit") or ""))
+    _log(f"update finished (commit={_UPDATE_HANDOFF['commit'] or 'unknown'} pid={_UPDATE_HANDOFF['pid']}); "
+         "opening the updated version")
+    with contextlib.suppress(Exception):
+        import webview
+
+        for each in list(getattr(webview, "windows", []) or []):
+            if each is not window:
+                with contextlib.suppress(Exception):
+                    each.destroy()
+    with contextlib.suppress(Exception):
+        window.destroy()
+    if not done.wait(20.0):
+        _log("window did not close for the update handoff; releasing it and opening the updated version")
+        for held in list(_LOCK_HANDLES):
+            with contextlib.suppress(Exception):
+                os.close(held)
+        _LOCK_HANDLES.clear()
+        relaunch_current_version()
+        os._exit(0)
+    return True
+
+
 def _start_runtime_watchdog(supervisor: object, window: object, done: threading.Event) -> threading.Event:
     """Poll supervisor.assert_alive() for the whole window lifetime. The 2026-09-02 defect: the
     contract existed but nothing called it, so an externally killed daemon left the window host
@@ -1432,6 +1846,8 @@ def _start_runtime_watchdog(supervisor: object, window: object, done: threading.
             try:
                 check()
             except Exception as exc:
+                if _update_worker_running() and _hand_over_after_update(supervisor, window, done, exc):
+                    return
                 _log(f"runtime lost ({exc}); closing the window deterministically")
                 lost.set()
                 with contextlib.suppress(Exception):
@@ -1617,15 +2033,40 @@ def _start_notification_bridge(window: object) -> object | None:
         return None
 
 
+def _runtime_failure_text(exc: object) -> str:
+    """Plain words for a runtime that could not be started or joined (Linux notification)."""
+    text = str(exc)
+    if "occupied" in text or "another or unproved runtime profile" in text:
+        address = urllib.parse.urlsplit(_API_ORIGIN).netloc
+        return (f"Another program, or another copy of VOOL, is using VOOL's address ({address}). "
+                "Close it, then open VOOL again.")
+    log_file = "native-runtime-child.log"
+    with contextlib.suppress(Exception):
+        from core.runtime_paths import active_vool_home
+
+        log_file = str(active_vool_home() / "logs" / "native-runtime-child.log")
+    return f"VOOL's engine did not start. The details are in {log_file}."
+
+
 def main() -> int:
     supervisor = None
     notification_bridge = None
     owned_pid: dict[str, int | None] = {"pid": None}
     done = threading.Event()
+    # Linux package, after an in-app update: the pid of the runtime the updater started, handed over
+    # by the window this one replaces. Read once and removed, so no runtime this host starts inherits it.
+    handed_pid = os.environ.pop(_ADOPT_ENV, "")
     try:
+        if _LINUX_PACKAGE and not linux_desktop.has_display():
+            # The Linux package without a display can never show a window: say so before any runtime
+            # starts. (Its launcher serves the chat for a browser then and does not come here.)
+            _log("no desktop display (DISPLAY and WAYLAND_DISPLAY are unset); not opening a window")
+            linux_desktop.tell_user("VOOL cannot open its window", linux_desktop.window_guidance())
+            return 1
         if not _single_instance():
             _log("another VOOL window is already open; not opening a second")
             return 0
+        _serve_come_forward_requests()
 
         # A pidfile naming a provably dead daemon is leftover garbage from a SIGKILL; clear it
         # before the identity gate so nothing mistakes it for a live occupant.
@@ -1650,7 +2091,9 @@ def main() -> int:
             identity = supervisor.ensure_ready()
         except NativeRuntimeError as exc:
             _log(f"ERROR: exact native runtime unavailable ({exc})")
+            _tell_linux_user("VOOL could not start", _runtime_failure_text(exc))
             return 1
+        _adopt_updated_runtime(supervisor, identity, handed_pid)
         owned_child = getattr(supervisor, "process", None)
         if supervisor.owns_runtime and owned_child is not None:
             owned_pid["pid"] = int(owned_child.pid)
@@ -1667,11 +2110,14 @@ def main() -> int:
             _log("WebView2 runtime not found; using Edge fallback")
             _fallback_to_edge()
             return 0
+        _claim_linux_app_identity()      # Linux: before pywebview loads GTK
         try:
             import webview  # pywebview -> WebView2 (Windows) / WKWebView (macOS) / WebKitGTK (Linux)
         except Exception as exc:
             _log(f"pywebview import failed ({exc!r})")
             return _no_native_window(exc)
+        if sys.platform.startswith("linux"):
+            _linux_wrap_window_factory(webview)
 
         try:
             isolated_webkit = _install_isolated_webkit_profile()
@@ -1684,6 +2130,7 @@ def main() -> int:
         window = webview.create_window("VOOL", URL, js_api=api, width=1220, height=860, min_size=(900, 640))
         if window is None:
             raise RuntimeError("pywebview returned no native window")
+        _PRESENT_WINDOWS.append(window)
         api.set_window(window, webview)
         _register_url_scheme_handler()   # catch vool://auth/<provider>/callback launches (macOS)
         runtime_lost = _start_runtime_watchdog(supervisor, window, done)
@@ -1698,6 +2145,8 @@ def main() -> int:
         menu = _settings_menu(api)
         # An ambient Qt override must not bypass the verified Cocoa datastore.
         start_options = {"gui": "cocoa"} if isolated_webkit else {}
+        if sys.platform.startswith("linux"):
+            start_options.update(_linux_start_options())
         try:
             webview.start(_post_start_all, menu=menu, **start_options)
         except TypeError:
@@ -1706,7 +2155,7 @@ def main() -> int:
             # bar entry is missing. Never trade the whole window for the menu.
             _log("pywebview does not accept a menu; starting without the Settings menu item")
             try:
-                if isolated_webkit:
+                if start_options:
                     webview.start(_post_start_all, **start_options)
                 else:
                     webview.start(_post_start_all)
@@ -1714,6 +2163,9 @@ def main() -> int:
                 if isolated_webkit:
                     raise NativeWebKitProfileError("verified Cocoa backend could not start") from exc
                 raise
+        if _UPDATE_HANDOFF:
+            _log("native window closed for the update handoff")
+            return 0
         _log("native window closed")
         return 3 if runtime_lost.is_set() else 0
     except NativeWebKitProfileError as exc:
@@ -1734,7 +2186,11 @@ def main() -> int:
             with contextlib.suppress(Exception):
                 _sweep_stale_runtime_pidfile()
             _log("native runtime ownership released")
+        if not _UPDATE_HANDOFF:
+            with contextlib.suppress(Exception):
+                _stop_adopted_runtime()
         done.set()
+        _stop_serving_come_forward_requests()
         for held in list(_LOCK_HANDLES):
             with contextlib.suppress(Exception):
                 os.close(held)

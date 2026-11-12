@@ -36,6 +36,19 @@ class _NoHealthRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _pid_running(pid: int) -> bool:
+    """True while ``pid`` exists (a process this user may not signal still exists)."""
+    if pid <= 1:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
 def _sha_matches(expected: str, actual: str) -> bool:
     expected = str(expected or "").strip().lower()
     actual = str(actual or "").strip().lower()
@@ -84,13 +97,23 @@ class NativeRuntimeSupervisor:
         self.log_handle: Any | None = None
         self.attached_existing = False
         self.ready_identity: dict[str, Any] = {}
+        # A joined runtime this host took over (the Linux update handoff, see adopt()).
+        self.adopted_pid: int | None = None
 
     @classmethod
     def from_environment(cls, *, module_path: str | Path) -> NativeRuntimeSupervisor:
         module_root = Path(module_path).resolve().parents[2]
         root = Path(os.environ.get("VOOL_PROJECT_ROOT") or module_root).expanduser().resolve()
         mode = str(os.environ.get("VOOL_RUNTIME_MODE") or "wrapper").strip().lower()
-        if mode == "self-contained":
+        # The Linux package runs its window on the system python3 (the distribution's GTK and
+        # WebKitGTK bindings are built for that interpreter only) while the runtime keeps the
+        # package's own interpreter and dependencies: the launcher names that interpreter here.
+        runtime_python = str(os.environ.get("VOOL_RUNTIME_PYTHON") or "").strip()
+        if mode == "self-contained" and runtime_python:
+            # The same isolation the package's headless start uses: no PYTHON* variables and no
+            # user site-packages can reach the runtime from the window's environment.
+            command = [runtime_python, "-B", "-E", "-s", "-m", "apps.vool_api_server"]
+        elif mode == "self-contained":
             command = [sys.executable, "-m", "apps.vool_api_server"]
         else:
             starter = root / "Start_VOOL.sh"
@@ -292,6 +315,32 @@ class NativeRuntimeSupervisor:
         self.shutdown()
         raise NativeRuntimeError(f"runtime readiness timed out after {self.startup_timeout:.1f}s")
 
+    def profile_runtime_identity(self) -> dict[str, Any] | None:
+        """The identity of the VOOL runtime now answering for THIS profile, whatever its version, or
+        None. Used while VOOL's own updater restarts the runtime on a new version (the Linux package
+        window waits for it); never a reason to stop or replace anything."""
+        payload = self._health()
+        if not self._recognized_vool(payload):
+            return None
+        identity = self._identity(payload)
+        if identity.get("runtime_home_id") != self.runtime_home_id:
+            return None
+        return identity
+
+    def adopt(self, pid: int) -> None:
+        """Take over the joined runtime ``pid`` for this window's lifetime (Linux update handoff).
+
+        Only a runtime this host has joined, and only the exact process serving it. From then on the
+        watchdog treats it as its own: the process must stay alive and keep serving this identity,
+        and a slow health answer is tolerated for the same grace as an owned child's. Stopping it is
+        the host's job (it uses the updater's own verified stop); shutdown() still stops only what
+        this supervisor spawned."""
+        if not self.attached_existing or self.process is not None:
+            raise NativeRuntimeError("only a joined runtime can be taken over")
+        if self.ready_identity.get("pid") != int(pid) or int(pid) <= 1:
+            raise NativeRuntimeError("the runtime to take over is not the one serving")
+        self.adopted_pid = int(pid)
+
     def assert_alive(self) -> None:
         """Raise when an owned child has died, the serving identity changed, or health stays gone.
 
@@ -304,16 +353,26 @@ class NativeRuntimeSupervisor:
         """
         if self.process is not None and self.process.poll() is not None:
             raise NativeRuntimeError(f"owned runtime child exited (returncode={self.process.returncode})")
+        adopted = self.process is None and self.adopted_pid is not None
+        if adopted and not _pid_running(self.adopted_pid):
+            raise NativeRuntimeError(f"taken-over runtime exited (pid {self.adopted_pid})")
         payload = self._health()
         if payload is None:
             now = self._monotonic()
             if self._unhealthy_since is None:
                 self._unhealthy_since = now
-            if self.process is None or now - self._unhealthy_since >= self.unhealthy_grace:
+            vouched = self.process is not None or adopted
+            if not vouched or now - self._unhealthy_since >= self.unhealthy_grace:
                 raise NativeRuntimeError("runtime health endpoint is unavailable")
             return
         self._unhealthy_since = None
-        if not (self._owned_identity_matches(payload) if self.process is not None else self._identity_matches(payload)):
+        if self.process is not None:
+            matches = self._owned_identity_matches(payload)
+        else:
+            matches = self._identity_matches(payload) and (
+                not adopted or self._identity(payload).get("pid") == self.adopted_pid
+            )
+        if not matches:
             raise NativeRuntimeError("runtime identity changed while the native app was open")
 
     def _close_log(self) -> None:

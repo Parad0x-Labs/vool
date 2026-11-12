@@ -54,6 +54,32 @@ uv pip sync --python "${BUNDLE}/python/bin/python3" --no-build --require-hashes 
 "${BUNDLE}/python/bin/python3" -I "${BUNDLE}/app/installer/private_web_helpers.py" --platform linux-x64 \
   --dest "${BUNDLE}/app" --cache "${STAGE}/private-web-cache" \
   ${VOOL_WIREPROXY_FILE:+--wireproxy-file "${VOOL_WIREPROXY_FILE}"}
+# VOOL's own window (window_host.py) runs on the system python3, because the distribution builds its GTK
+# and WebKitGTK bindings for that interpreter only (the .deb Depends on python3-gi, gir1.2-gtk-3.0 and
+# gir1.2-webkit2-4.1). pywebview and its pure-Python dependencies ship here in window-lib/, exactly as
+# uv.lock pins them, from wheels only and by digest: proxy-tools has no published wheel, so its wheel is
+# built from the locked sdist by the recorded recipe and accepted by its recorded sha256.
+"${BUNDLE}/python/bin/python3" -I "${BUNDLE}/app/ops/macos_build_inputs.py" proxy-wheel \
+  --cache "${STAGE}/window-cache" --out "${STAGE}/window-wheels"
+"${BUNDLE}/python/bin/python3" -I "${BUNDLE}/app/installer/bundle/linux_window_lib.py" requirements \
+  --lock "${BUNDLE}/app/uv.lock" --built "${BUNDLE}/app/installer/bundle/built_wheels.json" \
+  --out "${STAGE}/requirements-window.txt"
+# --no-config: the project's resolver floors ([tool.uv] constraint-dependencies) are for the server's set;
+# applied here they made uv refuse the hashed install over packages this folder does not carry.
+uv pip install --no-config --python "${BUNDLE}/python/bin/python3" --target "${BUNDLE}/window-lib" --no-deps \
+  --no-build --require-hashes --no-compile-bytecode --find-links "${STAGE}/window-wheels" \
+  -r "${STAGE}/requirements-window.txt"
+# Never used by the Linux window: bottle's command-line script, the Windows WebView2 and Android
+# binaries pywebview's one wheel carries for its other platforms, and uv's install lock.
+rm -rf -- "${BUNDLE}/window-lib/bin" "${BUNDLE}/window-lib/webview/lib" "${BUNDLE}/window-lib/.lock"
+"${BUNDLE}/python/bin/python3" -I "${BUNDLE}/app/installer/bundle/linux_window_lib.py" check \
+  --target "${BUNDLE}/window-lib" --requirements "${STAGE}/requirements-window.txt"
+# The window's whole import closure loads on this build host's system python3 (ubuntu-22.04: 3.10, the
+# oldest the window supports) without GTK: anything beyond the standard library and window-lib fails here.
+python3 -I -B -c 'import sys; sys.path[0:0] = [sys.argv[1] + "/window-lib", sys.argv[1] + "/app"]
+import webview, webview.util  # noqa: E401
+from installer.bundle import vool_window
+from core.updater import linux, worker  # noqa: F401  (the update handoff)' "${BUNDLE}"
 cp "${BUNDLE}/app/installer/bundle/linux/"* "${BUNDLE}/"
 cp "${BUNDLE}/app/installer/assets/vool.png" "${BUNDLE}/vool.png"
 printf '%s\n' "${SHA}" > "${BUNDLE}/SOURCE_COMMIT"
