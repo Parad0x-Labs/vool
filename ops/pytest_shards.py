@@ -82,11 +82,26 @@ _ALLOWED_PYTEST_ARGS = frozenset(
 )
 
 
+#: The one plugin control accepted, only as this exact adjacent pair: it stops pytest writing a
+#: ``.pytest_cache`` folder into the checkout. It selects, deselects and verifies nothing (the
+#: cache-driven ``--lf``/``--ff``/``--sw`` options stay rejected). Every other ``-p`` form,
+#: including disabling the verification plugin, remains an unsafe execution control.
+_NO_CACHE_PAIR = ("-p", "no:cacheprovider")
+
+
 def validate_pytest_args(pytest_args: Sequence[str]) -> tuple[str, ...]:
     """Accept display-only options; selection and execution controls are forbidden."""
 
     normalized = tuple(str(item) for item in pytest_args)
-    rejected = tuple(item for item in normalized if item not in _ALLOWED_PYTEST_ARGS)
+    rejected: list[str] = []
+    index = 0
+    while index < len(normalized):
+        if normalized[index:index + 2] == _NO_CACHE_PAIR:
+            index += 2
+            continue
+        if normalized[index] not in _ALLOWED_PYTEST_ARGS:
+            rejected.append(normalized[index])
+        index += 1
     if rejected:
         rendered = ", ".join(repr(item) for item in rejected)
         raise ValueError(f"unsafe pytest argument(s): {rendered}")

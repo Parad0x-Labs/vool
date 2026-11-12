@@ -465,6 +465,12 @@ def _undispatchable_execution(intent: str, arguments: dict[str, Any]) -> ToolInt
         reason = str(getattr(contract, "unsupported_reason", "") or "").strip() or (
             f"`{intent}` is disabled on this runtime."
         )
+        if str(intent).startswith("x."):
+            from core.x_connect_hint import not_connected_text, x_connected
+
+            if not x_connected():
+                # Plain words and the real Settings place, not the contract's engineering reason.
+                reason = not_connected_text()
         return _explained("disabled", reason)
     if (
         contract is not None

@@ -2322,6 +2322,20 @@ def _dispatch_get(
             json_response(200, pull_status(str((query.get("model_name") or [""])[0] or ""))), runtime
         )
 
+    if normalized_path == "/api/x/oauth/callback":
+        from core import x_oauth2
+
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False}), runtime)
+        try:
+            if len(query.get("state", [])) != 1 or (not query.get("error") and len(query.get("code", [])) != 1):
+                raise x_oauth2.OAuthFailure("invalid_callback")
+            x_oauth2.finish(state=query["state"][0], code=(query.get("code") or [""])[0], denied=bool(query.get("error")))
+        except x_oauth2.OAuthFailure:
+            pass
+        return apply_runtime_headers(ApiResponse(status=303, content_type="text/plain", body=b"",
+            headers={"Location": "/settings#keys", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}), runtime)
+
     if normalized_path == "/api/oauth/status":
         # Redacted view of a pending vool:// OAuth callback (provider, state, has_code, age) — never
         # the authorization code. Used to verify the scheme delivery end-to-end.
@@ -3403,6 +3417,18 @@ def dispatch_post(
         except ServiceRefused as exc:
             return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
+    if normalized_path == "/api/lend":
+        from core.lend.api import handle
+
+        status, payload = handle(body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(status, payload), runtime)
+
+    if normalized_path == "/api/drop":
+        from core.web.api.drop_api import handle
+
+        status, payload = handle(body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(status, payload), runtime)
+
     if normalized_path == "/api/addons":
         from core.web.api.addon_api import handle_addon_post
         status, payload = handle_addon_post(body, headers, client_host)
@@ -3911,13 +3937,17 @@ CHAT_IMPORT_UPLOAD_PATH = "/api/chat/import/upload"
 
 
 def is_raw_upload_path(path: str) -> bool:
-    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH)
+    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH, "/api/drop/send", "/api/lend/send")
 
 
 def raw_upload_body_ceiling(path: str = "") -> int:
     """The largest body the raw door will hold whole: the per-file limit plus header slack,
     or the bundle ceiling for the session-bundle door, or the export-zip ceiling for the chat
     import door."""
+    if (str(path or "").rstrip("/") or "/") in {"/api/drop/send", "/api/lend/send"}:
+        from core.drop.service import MAX_FILE
+
+        return MAX_FILE
     if (str(path or "").rstrip("/") or "/") == BUNDLE_UPLOAD_PATH:
         return BUNDLE_UPLOAD_CEILING
     if (str(path or "").rstrip("/") or "/") == CHAT_IMPORT_UPLOAD_PATH:
@@ -3979,6 +4009,18 @@ def dispatch_upload(
     # owner's data: owner-local first, whatever each door checks after.
     if not is_loopback_host(client_host):
         return _out(json_response(403, {"ok": False, "error": "owner_local_required"}))
+
+    if path == "/api/lend/send":
+        from core.lend.api import upload
+
+        status, payload = upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(status, payload))
+
+    if path == "/api/drop/send":
+        from core.web.api.drop_api import upload
+
+        status, payload = upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(status, payload))
 
     if path == "/api/chat/import/upload":
         # An export zip of chats from another AI app, picked in Settings: kept owner-only under
@@ -5747,6 +5789,41 @@ def _dispatch_post_inner(
         _ci_status, _ci_payload = _chat_import_post(normalized_path, body, headers=headers, client_host=client_host)
         return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
 
+    if normalized_path == "/api/x/capabilities":
+        import json as _json
+
+        _xc_refusal = _credential_page_refusal(headers, client_host)
+        if _xc_refusal:
+            return apply_runtime_headers(json_response(
+                415 if _xc_refusal == "content_type" else 403,
+                {"ok": False, "error": "owner_local_json_required"}), runtime)
+        try:
+            if len(_json.dumps(body, allow_nan=False).encode()) > 131072:
+                return apply_runtime_headers(json_response(413, {"ok": False, "error": "request_too_large"}), runtime)
+        except (ValueError, TypeError):
+            return apply_runtime_headers(json_response(400, {"ok": False, "error": "invalid_json"}), runtime)
+        from core import x_capabilities
+
+        _xc_status, _xc_payload = x_capabilities.handle(body)
+        return apply_runtime_headers(json_response(_xc_status, _xc_payload), runtime)
+    if normalized_path == "/api/x/oauth":
+        from urllib.parse import urlsplit
+
+        from core import x_oauth2
+
+        refusal = _credential_page_refusal(headers, client_host)
+        if refusal:
+            return apply_runtime_headers(json_response(403 if refusal != "content_type" else 415,
+                {"ok": False, "state": "refused"}), runtime)
+        if set(body) - {"action", "client_id"} or len(json.dumps(body)) > 4096:
+            return apply_runtime_headers(json_response(400, {"ok": False, "state": "invalid_request"}), runtime)
+        hdr = {str(key).lower(): str(value or "") for key, value in headers.items()}
+        origin = hdr.get("origin") or ("http://" + hdr.get("host", ""))
+        if hdr.get("origin") and hdr.get("host") and urlsplit(origin).netloc.lower() != hdr["host"].lower():
+            return apply_runtime_headers(json_response(403, {"ok": False, "state": "refused"}), runtime)
+        status, payload = x_oauth2.handle(body, origin)
+        return apply_runtime_headers(json_response(status, payload, headers={"Cache-Control": "no-store"}), runtime)
+
     if normalized_path == "/api/x/setup":
         # Guided X (Twitter) connection from Settings: check, save, test or remove the user's own X
         # keys. Every check is a read (core/x_setup.py); nothing here posts to X. Owner-local and
@@ -5775,6 +5852,28 @@ def _dispatch_post_inner(
         _xs_status, _xs_payload = _cr_forward("x.setup", dict(body), client_host=client_host)
         return apply_runtime_headers(json_response(_xs_status, _xs_payload), runtime)
 
+    if normalized_path == "/api/x/cards":
+        refusal = _credential_page_refusal(headers, client_host)
+        if refusal:
+            return apply_runtime_headers(json_response(403, {"ok": False, "cards": []}), runtime)
+        from core.x_actions import valid_card_origin
+
+        if not valid_card_origin(body):
+            return apply_runtime_headers(json_response(400, {"ok": False, "cards": []}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        code, payload = _cr_forward("x.cards", dict(body), client_host=client_host, headers=headers)
+        return apply_runtime_headers(json_response(code, payload), runtime)
+
+    if normalized_path == "/api/x/feedback":
+        refusal = _credential_page_refusal(headers, client_host)
+        if refusal:
+            return apply_runtime_headers(json_response(403, {"ok": False, "status": "owner_local_required"}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        code, payload = _cr_forward("x.feedback.manage", dict(body), client_host=client_host, headers=headers)
+        return apply_runtime_headers(json_response(code, payload), runtime)
+
     if normalized_path == "/api/x/activity":
         # X usage, limits and approvals from Settings. "approve" is the user's own approval of one
         # proposed X action (core/x_actions.py) and the ONLY path that sends it; the model can never
@@ -5801,10 +5900,10 @@ def _dispatch_post_inner(
                 return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
         except (TypeError, ValueError):
             return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
-        unknown = set(body.keys()) - {"action", "action_id", "hash", "monthly_reads", "monthly_actions"}
+        unknown = set(body.keys()) - {"action", "action_id", "hash", "monthly_reads", "monthly_actions", "ui_locale"}
         if unknown:
             return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
-        if body.get("action") not in {"overview", "set_limits", "reset_usage", "approve", "decline"}:
+        if body.get("action") not in {"overview", "set_limits", "reset_usage", "approve", "decline", "cleanup_request"}:
             return apply_runtime_headers(json_response(400, {"error": "unknown action"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
@@ -8115,6 +8214,12 @@ def _dispatch_post_inner(
             is_loopback_host(client_host)
             and resolved_surface != "channel"
         )
+        # Desktop is UI provenance, not a worker/model execution surface.
+        # Overwrite the inbound marker here: it grants nothing without the actual
+        # owner-local peer and must never be inherited from a relayed request.
+        desktop_ui_request = resolved_surface == "desktop" and owner_local
+        if resolved_surface == "desktop":
+            resolved_surface = "api"
         session_id = stable_openclaw_session_id_provider(
             body=body,
             history=client_history,
@@ -8301,6 +8406,7 @@ def _dispatch_post_inner(
             "transcript_commit_boundary": True,
             **inbound_source_context,
             "surface": resolved_surface,
+            "_desktop_ui_request": desktop_ui_request,
             "platform": str(inbound_source_context.get("platform") or body.get("platform") or "api").strip() or "api",
             OWNER_LOCAL_KEY: owner_local,
             "client_conversation_history": client_history,

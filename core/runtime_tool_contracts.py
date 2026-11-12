@@ -944,7 +944,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="x.trending",
-            description="Fetch trending topics from X for a location (read-only). Off unless enabled and a bearer token is configured.",
+            description="Read X trends for a location through the owner's selected feature and cost limits in Settings.",
             tool_surface="x",
             capability_id="x.read_trending",
             capability_claim="read trending X topics for a location through a locally-configured bearer token",
@@ -3368,9 +3368,55 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
     """The X tools. Reads use the user's own keys and count against the user's X usage limit;
     actions that act as the user are only PROPOSED here and go out after the user approves them in
     the app (core.x_actions)."""
+    from core import x_oauth2
+    from core.x_feedback import mutation_declaration
+
+    bookmarks_connected = x_oauth2.connected()
     page = {"max_results": "int optional", "next_token": "string optional (from the previous page)"}
     window = {"start_time": "string optional (ISO date/time, UTC)", "end_time": "string optional (ISO date/time, UTC)"}
     return [
+        RuntimeToolContract(
+            intent="x.api.catalog", description="Discover documented X features by query, inspect one operation_id's "
+            "path/query/body schemas, or resolve a referenced schema name. Local, including before keys are connected. "
+            "Reports saved access and reservation limits; an absent entitlement is never assumed.",
+            tool_surface="x", capability_id="x.api_catalog", capability_claim="inspect documented X operations and saved access",
+            supported=True, unsupported_reason="", input_schema={"query": "string optional", "operation_id": "string optional",
+            "schema": "string optional", "offset": "int optional"}, output_schema={"features": "list", "access": "object"},
+            side_effect_class="read_only", permission_actions=("read_files",), approval_requirement="none",
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result"),
+        RuntimeToolContract(
+            intent="x.api.request", description="Call a documented X operation discovered with x.api.catalog. "
+            "Requires the owner's enabled access profile and explicit price reservation. GET reads are bounded; "
+            "mutations only create an immutable proposal for Settings approval. Never accepts a URL or an approval flag. "
+            "Bookmarks and OAuth 2-only features wait for their separate sign-in feature. Paid costs use wallet approval "
+            "and the shared spend caps; ambiguous billing stays held, never reported as free.",
+            tool_surface="x", capability_id="x.api_request", capability_claim="read X or propose a documented X mutation",
+            supported=connected, unsupported_reason=_X_UNSUPPORTED,
+            input_schema={"operation_id": "string", "path": "object optional", "query": "object optional", "body": "object optional"},
+            json_schema={"type": "object", "properties": {"operation_id": {"type": "string"},
+                "path": {"type": "object"}, "query": {"type": "object"}, "body": {"type": "object"}},
+                "required": ["operation_id"], "additionalProperties": False},
+            output_schema={"result": "object", "receipt": "object", "action": "object"},
+            side_effect_class="creative_state", permission_actions=_X_READ_ACTIONS, approval_requirement="none",
+            timeout_policy="network_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result"),
+        RuntimeToolContract(
+            intent="x.api.receipts", description="Read this chat's local X request, quota and cost-reservation receipts. "
+            "Unknown billing is not a zero cost, and a sent request is never repeated automatically.",
+            tool_surface="x", capability_id="x.api_receipts", capability_claim="inspect this chat's recorded X calls",
+            supported=True, unsupported_reason="", input_schema={"limit": "int optional"}, output_schema={"receipts": "list"},
+            side_effect_class="read_only", permission_actions=("read_files",), approval_requirement="none",
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result"),
+        _x_read_contract(
+            "x.replies.unanswered", "Read comments on one own post with no answer observed in a complete recent own-reply search. Partial candidate pages are labelled. Draft and propose each reply separately; every reply needs its own app approval. No sends or automatic proposals.",
+            "x.replies.unanswered", "read unanswered comments on own posts", {"post": "string", **page},
+            {"posts": "list", "coverage": "string", "answer_status": "string", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.results", "Refresh observed views and interactions of up to ten own posts, storing IDs and numbers only. Missing metrics are not available. Comparisons require equal ages. No automatic retry.",
+            "x.results", "observe own-post results at comparable ages", {"posts": "list[string] optional, own post IDs"},
+            {"posts": "list", "comparisons": "list", "deleted": "list", "unavailable": "list", "reset_at": "integer|null"}, connected),
         _x_read_contract(
             "x.search",
             "Search X posts. Give `token` (a contract address, a $CASHTAG or a coin name) or a raw X `query` "
@@ -3463,11 +3509,26 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             {"kind": "string (muted|blocked|trends|x_usage)", **page},
             {"users": "list", "trends": "list", "x_usage": "object"}, connected),
         RuntimeToolContract(
+            intent='x.feedback.save', description='Record an explicit 1-10 rating and verbatim user comment. A short reply such as 7 is accepted only when the stored previous assistant message in this owner-local chat asked to rate its draft; the server selects that draft, so omit text and action_id. Otherwise require explicit N/10 with action_id from this chat or text quoted in the user turn. Never infer a rating.', tool_surface="x", capability_id='x.feedback.save',
+            capability_claim='Record an explicit 1-10 rating and verbatim user comment. A short reply such as 7 is accepted only when the stored previous assistant message in this owner-local chat asked to rate its draft; the server selects that draft, so omit text and action_id. Otherwise require explicit N/10 with action_id from this chat or text quoted in the user turn. Never infer a rating.', supported=True, unsupported_reason="", input_schema={'rating': 'integer 1-10', 'comment': 'string optional, verbatim user comment', 'action_id': 'string optional', 'text': 'string optional, exact user-quoted draft', 'kind': 'string optional'}, output_schema={'id': 'string', 'rating': 'integer'},
+            side_effect_class='workspace_write', permission_actions=('create_files', 'modify_files'), approval_requirement="runtime_policy",
+            mutation=mutation_declaration(),
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
+            intent='x.feedback.list', description='Bounded best and worst ratings with comments for this project and global guidance.', tool_surface="x", capability_id='x.feedback.list',
+            capability_claim='Bounded best and worst ratings with comments for this project and global guidance.', supported=True, unsupported_reason="", input_schema={}, output_schema={'summary': 'string'},
+            side_effect_class='read_only', permission_actions=('read_files',), approval_requirement="none",
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
             intent="x.usage",
             description="How much of the X API the user's keys used this month (requests, posts and accounts "
                         "read, actions sent) against the monthly limits the user set. Local; nothing is sent.",
             tool_surface="x", capability_id="x.usage", capability_claim="report X API usage against the user's limits",
-            supported=connected, unsupported_reason=_X_UNSUPPORTED, input_schema={},
+            supported=connected or bookmarks_connected, unsupported_reason=_X_UNSUPPORTED, input_schema={},
             output_schema={"usage": "object"}, side_effect_class="read_only", permission_actions=("read_files",),
             approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
             artifact_emission="none", error_contract="returns_structured_error_result",
@@ -3499,11 +3560,25 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             artifact_emission="none", error_contract="returns_structured_error_result",
         ),
         RuntimeToolContract(
+            intent="x.bookmarks",
+            description="Propose reading, adding or removing the signed-in user's X bookmarks. Nothing is sent "
+                        "until the user approves that exact request in Settings > API Keys > X. After approval, "
+                        "x.action.status returns the posts and next_token from a read. Each next page needs approval.",
+            tool_surface="x", capability_id="x.propose_action", capability_claim="propose an X bookmark request",
+            supported=bookmarks_connected, unsupported_reason="Sign in for bookmarks in Settings > API Keys > X.",
+            input_schema={"operation": "string (read|add|remove)", "post": "string (post link or id, add/remove)",
+                          "max_results": "int optional (1-100, read)", "next_token": "string optional (read)"},
+            output_schema={"action": "object (id, kind, state)"}, side_effect_class="creative_state",
+            permission_actions=("read_files",), approval_requirement="none",
+            timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
+            error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
             intent="x.action.status",
             description="Check a proposed X action: waiting for the user's approval, declined, sent (with the "
                         "post link) or failed. Local; nothing is sent.",
             tool_surface="x", capability_id="x.action_status", capability_claim="check a proposed X action",
-            supported=connected, unsupported_reason=_X_UNSUPPORTED, input_schema={"action_id": "string optional"},
+            supported=connected or bookmarks_connected, unsupported_reason=_X_UNSUPPORTED, input_schema={"action_id": "string optional"},
             output_schema={"action": "object"}, side_effect_class="read_only", permission_actions=("read_files",),
             approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
             artifact_emission="none", error_contract="returns_structured_error_result",

@@ -14,9 +14,23 @@ Now both call `assemble_tool_offer`. It:
   families, follow-up inheritance, turn expansions — all of `model_visible_specs`);
 - ranks installed skills against the user's words and renders the matched bodies with
   **provenance** (plugin id, file) under hard **bounds** (`MAX_SKILLS`, `MAX_SKILL_CHARS`);
-- lets a matched skill's ``allowed-tools`` NARROW the ranked fill, never widen it: reserved seats
-  and explicitly demanded intents stay, an unavailable or unoffered tool is never seated because a
-  skill named it;
+- lets a matched skill's allowed-tools NARROW the ranked fill. Only two kinds of skill may also
+  ADD (seat) tools, and only on the owner's own local turn. A skill the person wrote themselves in
+  VOOL (``core.skill_origin.may_add_tools``) seats what it declares, under the graph's ordinary
+  availability, owner-only and cap laws. One of VOOL's own Browse skills, added from the
+  sha-pinned copy shipped with the app (``core.skill_origin.ORIGIN_VOOL_BROWSE``), seats only the
+  social list: the available built-ins on ``SKILL_SEATABLE_READS`` (public X reads, the owner's own
+  X results and unanswered replies, VOOL's own social and note stores, and web reads that still
+  obey the web switch) that are read-only by their contract (no approval, only read, list or
+  network read permission actions), plus ``SKILL_SEATABLE_PROPOSALS`` (an X action proposal, an X
+  rating, a saved note: each only creates an owner-approved pending proposal or records the
+  owner's own words). Imports, Browse add-ons from other makers, registry packages, bundled packs
+  and VOOL's native skills only narrow, so an imported skill can never pair the owner's notes with
+  a web fetch (red team t14). Private-data reads (X direct messages, contacts, machine or workspace
+  files, Apple Notes, mail, calendar, messages) are never on the social list; shell or exec, file
+  write or delete, code tasks and repo sessions, email or send, wallet or payment and browser
+  actions never are either. Reserved seats and explicitly demanded intents stay, unavailable and
+  owner-only tools never seat, and plugin or MCP tools stay behind their family's expansion;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
   audited against what was offered.
 
@@ -765,7 +779,7 @@ _SKILL_ASK_CLAUSE_RE = re.compile(
     r"|clean|plan|schedule|book|arrange|prepare|draft|compose|edit|fix|delete|remove|rename|move|copy"
     r"|compare|explain|describe|help|suggest|recommend|propose|remind|look|search|research|analyze"
     r"|analyse|split|merge|fill|sign|send|share|trim|crop|quote|pull|collect|gather|produce|keep|take"
-    r"|do)\b",
+    r"|run|do)\b",
     re.IGNORECASE,
 )
 #: The request framings that ask from inside a sentence ("I want a ...", "could I ...").
@@ -899,6 +913,11 @@ def matched_skill_tool_seats(
         candidates = tuple(s for s in candidates if may_add_tools(s))
     if not candidates:
         return ()
+    return _real_match_declarations(candidates, text, limit=limit)
+
+
+def _real_match_declarations(candidates: tuple[Any, ...], text: str, *, limit: int) -> tuple[str, ...]:
+    """The ``allowed-tools`` the REALLY matched candidates declare, in rank order."""
     from core.plugin_skills import rank_skills
 
     # Rank the WHOLE candidate set, then keep the real matches: the ranker itself only
@@ -918,6 +937,36 @@ def matched_skill_tool_seats(
             if clean and clean not in seats:
                 seats.append(clean)
     return tuple(seats)
+
+
+def vool_browse_skill_seats(
+    user_text: str, *, source_context: dict[str, Any] | None = None, limit: int = MAX_SKILLS
+) -> tuple[str, ...]:
+    """The social seats VOOL's own pinned Browse skills may add for these words, and nothing else.
+
+    Candidates are only skills whose origin is ``ORIGIN_VOOL_BROWSE`` (re-proved from the signed
+    receipt and the shipped pin on every read), minus the ones the owner turned off and the ones
+    whose audience this turn is not. Their declarations pass ``_social_seats``: available built-ins
+    on the social list only. The owner-local gate is the caller's (``_owner_skill_seats``).
+    """
+    del source_context  # the same candidates on every surface; the caller gates the owner
+    text = str(user_text or "").strip()
+    if not text:
+        return ()
+    from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
+
+    candidates = tuple(s for s in loaded_skills() if origin_of(s) == ORIGIN_VOOL_BROWSE)
+    disabled: set[str] = set()
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import disabled_skill_ids
+
+        disabled = set(disabled_skill_ids())
+    candidates = _audience_ok(
+        tuple(s for s in candidates if str(getattr(s, "name", "") or "") not in disabled), text
+    )
+    if not candidates:
+        return ()
+    return _social_seats(_real_match_declarations(candidates, text, limit=limit))
 
 
 def offer_fingerprint(specs: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> str:
@@ -998,6 +1047,134 @@ def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[d
     return result
 
 
+#: Permission actions a read-only contract may carry and still be seated by a skill.
+#: ``public_read_only_retrieval`` (the live browser: navigate, click, type) is left out on
+#: purpose: driving a browser acts on a page, so a skill never seats it.
+_SKILL_SEATABLE_READ_ACTIONS = frozenset({
+    "read_files", "list_directories", "use_network_access", "access_external_providers",
+})
+#: The only non-read-only built-ins a skill may seat: each creates an owner-approved pending
+#: proposal (nothing is sent until the owner taps approve) or records the owner's own typed
+#: words in an owner-local store. Everything else with a side effect keeps "narrow, never widen".
+SKILL_SEATABLE_PROPOSALS = frozenset({"x.action.propose", "x.feedback.save", "operator.save_note"})
+#: The only read-only built-ins a skill may seat. A closed list, not a tier test, because a
+#: read's contract fields cannot tell a public read from a private one (``machine.read_file`` and
+#: ``web.search`` both carry no permission action). A new read stays unseatable until it is
+#: added here. Kept out on purpose: ``x.dms``, ``contacts.*``, ``machine.*``, ``workspace.*``,
+#: ``pdf.*``, ``operator.apple_note_*``, calendar, reminders, mail and messages reads, and any
+#: other read of the owner's private stores; a skill matching the owner's words must not pair
+#: such a read with a network fetch in one turn.
+SKILL_SEATABLE_READS = frozenset({
+    # Public X reads.
+    "x.search", "x.user", "x.user_posts", "x.post", "x.trending", "x.usage",
+    # The owner's own X results and the unanswered replies on the owner's own posts.
+    "x.results", "x.replies.unanswered",
+    # VOOL's own stores that the social skills write: notes, ratings, proposal status.
+    "operator.find_notes", "operator.show_note", "x.feedback.list", "x.action.status",
+    # Web reads; execution still refuses them while the web switch is off.
+    "web.search", "web.fetch", "web.research",
+})
+#: Workflow control planes whose contracts read "read_only" because a step only moves a journal
+#: (open, propose or approve a code task, approve an email draft, open a repo session, simulate a
+#: payment) while the workflow it advances ends in an exec, write, send or spend. A skill never
+#: seats any of them; it can only narrow an offer that already holds them.
+_SKILL_UNSEATABLE_FAMILIES = (
+    "code.", "repo.", "email.", "wallet.", "pay.", "x402.", "sandbox.", "orchestration.",
+    "skill.", "vool-browser.", "marketplace.", "sell.",
+)
+
+
+def _skill_may_seat(intent: str) -> bool:
+    """A skill may widen only with an admitted public or VOOL-own read, or a proposal.
+
+    Both gates hold: the intent is on ``SKILL_SEATABLE_READS`` (or ``SKILL_SEATABLE_PROPOSALS``)
+    and its own contract still reads as a read with no approval (a proposal: the contract is not
+    read-only). A contract that changes tier drops out without editing the list.
+    """
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+
+    contract = runtime_tool_contract_map().get(intent)
+    if contract is None or contract.source != "builtin" or intent.startswith(_SKILL_UNSEATABLE_FAMILIES):
+        return False
+    if contract.read_only and contract.approval_requirement == "none":
+        return intent in SKILL_SEATABLE_READS and set(contract.permission_actions) <= _SKILL_SEATABLE_READ_ACTIONS
+    return intent in SKILL_SEATABLE_PROPOSALS
+
+
+def _available_declared(declared: tuple[str, ...], *, social_only: bool) -> tuple[str, ...]:
+    """Resolve declarations through the ordinary availability/owner-only graph.
+
+    Only built-in tools resolve this way; with ``social_only`` only the admitted reads or
+    proposal-only ones (``_skill_may_seat``). A plugin or MCP tool stays behind its family: the
+    model reaches it through ``capability.expand_family`` (or the user's own words naming it), so a
+    pack's own skill matching the user's words never seats the pack.
+    """
+    if not declared:
+        return ()
+    from core.capability_graph import (
+        _HARD_MAX_CANDIDATES,
+        _PROJECTED_SOURCE_PREFIXES,
+        ImplementationId,
+        _implementations,
+        model_visible_specs,
+    )
+
+    def _projected(intent: str) -> bool:
+        impl = _implementations.get(ImplementationId(intent))
+        return impl is not None and str(impl.source).startswith(_PROJECTED_SOURCE_PREFIXES)
+
+    allowed = set(declared)
+    return tuple(
+        str(spec["intent"])
+        for spec in model_visible_specs(explicit_intents=tuple(declared), max_candidates=_HARD_MAX_CANDIDATES)
+        if spec.get("intent") in allowed and not _projected(str(spec["intent"]))
+        and (not social_only or _skill_may_seat(str(spec["intent"])))
+    )
+
+
+def _social_seats(declared: tuple[str, ...]) -> tuple[str, ...]:
+    return _available_declared(declared, social_only=True)
+
+
+def _owner_skill_seats(user_text: str, source_context: dict[str, Any] | None) -> tuple[str, ...]:
+    """What this turn's matched skills may ADD, on the owner's own local turn only.
+
+    The person's own skills (made in VOOL) seat what they declare; VOOL's own pinned Browse
+    skills seat only the social list. Every other skill adds nothing and only narrows.
+    """
+    if not isinstance(source_context, dict):
+        return ()
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return ()
+        # Seats follow the MATCH, not the render — and only for skills the person WROTE in VOOL
+        # (skill.create, recorded at install by core.skill_origin). An import sits in the same
+        # local-skills folder and used to count as the operator's (red team t6/t14: a "save this
+        # recipe" turn gained workspace.write_file, profile.list and operator.find_notes).
+        own = matched_skill_tool_seats(user_text, source_context=source_context)
+        browse = vool_browse_skill_seats(user_text, source_context=source_context)
+    except Exception:
+        return ()
+    return tuple(dict.fromkeys((*own, *browse)))
+
+
+def matched_skill_tool_intents(
+    user_text: str, *, task_class: str = "", source_context: dict[str, Any] | None = None
+) -> tuple[str, ...]:
+    """The tools this turn's matched skills add to the offer (the same seats), plus a rating answer's.
+
+    Admission means the model may choose a tool. Execution still consults the mode,
+    network, usage and action approval authorities independently.
+    """
+    from core.x_feedback import reply_intents
+
+    del task_class  # the seats follow the real match, whatever the task class
+    seats = _available_declared(_owner_skill_seats(user_text, source_context), social_only=False)
+    return tuple(dict.fromkeys((*reply_intents(user_text, source_context), *seats)))
+
+
 def assemble_tool_offer(
     *,
     user_text: str = "",
@@ -1062,11 +1239,11 @@ def assemble_tool_offer(
     from core.tool_offer_state import turn_family_expansions
 
     expansions = turn_family_expansions(source_context) if source_context is not None else ()
-    # The skills the words match are resolved BEFORE the specs, because a matched skill the
-    # person wrote themselves in VOOL SEATS its ``allowed-tools`` (they used to only narrow the
-    # ranked fill, which left such a skill with nothing to call). Every other skill's list only
-    # narrows (core.skill_origin). The seats are owner-local only, and every other law still
-    # applies at seating time: availability, owner-only, the cap.
+    # The skills the words match are resolved BEFORE the specs, because a matched skill may SEAT
+    # tools (they used to only narrow the ranked fill, which left a skill with nothing to call):
+    # the person's own skill what it declares, VOOL's own pinned Browse skill only the social
+    # list. Every other skill's list only narrows (core.skill_origin). The seats are owner-local
+    # only, and every other law still applies at seating time: availability, owner-only, the cap.
     guidance = skill_guidance_for(
         str(user_text or ""),
         task_class=str(task_class or ""),
@@ -1074,32 +1251,29 @@ def assemble_tool_offer(
         doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
         source_context=source_context if isinstance(source_context, dict) else None,
     )
-    skill_seats: tuple[str, ...] = ()
-    if isinstance(source_context, dict):
-        try:
-            from core.request_trust import request_is_owner_local
+    skill_seats = _owner_skill_seats(user_text, source_context)
+    from core.x_feedback import reply_intents
 
-            if request_is_owner_local(source_context):
-                # Seats follow the MATCH, not the render — and only for skills the person
-                # WROTE in VOOL (skill.create, recorded at install by core.skill_origin). An
-                # import sits in the same local-skills folder and used to count as the
-                # operator's (red team t6/t14: a "save this recipe" turn gained
-                # workspace.write_file, profile.list and operator.find_notes); imports,
-                # registry installs and bundled packs keep the NARROW-only role below.
-                skill_seats = matched_skill_tool_seats(user_text, source_context=source_context)
-        except Exception:
-            skill_seats = ()
+    # A short answer to this chat's own rating question seats x.feedback.save (owner-local only,
+    # decided in core.x_feedback); it is the owner's words, not a skill's.
+    rating_seats = tuple(reply_intents(user_text, source_context))
+    # Grow only for rendered, available declarations, inside the graph's hard cap.
+    # An explicit caller budget remains authoritative; unrelated turns keep eight seats.
+    budget = max_candidates if max_candidates is not None else max(
+        _DEFAULT_MAX_CANDIDATES,
+        len(set((*task_seats, *repo_seats, *work_seats, *skill_seats, *rating_seats, *_ALWAYS_VISIBLE))),
+    )
     specs = list(
         model_visible_specs(
             family_hint=resolved_hint,
             family_hints=tuple(family_hints),
             toolset_hints=tuple(toolset_hints),
-            explicit_intents=(*task_seats, *repo_seats, *work_seats),
+            explicit_intents=(*task_seats, *repo_seats, *work_seats, *skill_seats, *rating_seats),
             user_text=str(user_text or ""),
             source_context=source_context,
             expanded_families=expansions,
             skill_allowed=skill_seats,
-            max_candidates=int(max_candidates or _DEFAULT_MAX_CANDIDATES),
+            max_candidates=int(budget),
         )
     )
     specs = _scope_download_specs(specs, str(user_text or ""))
@@ -1118,6 +1292,16 @@ def assemble_tool_offer(
                  if str(spec.get("intent") or "") in permitted
                  and browser_tool_allowed(str(spec["intent"]))
                  and (contract := tool_for_intent(str(spec["intent"]))) is not None and contract.supported]
+    from core.execution.web_tools import WEB_LOOKUP_INTENTS
+    from core.remote_fetch_policy import effective_web_available
+
+    if WEB_LOOKUP_INTENTS & set(guidance.allowed_tools) and not effective_web_available(source_context):
+        # Web lookups off on a turn guided by a skill that declares a lookup tool: the lookup
+        # tools are not offered, so the skill's own web-off wording reaches the chat.
+        # `web.search`/`web.research` are declared supported whatever the switch says, so the
+        # graph and the skill's seats would offer them, and a call ends the turn on core's
+        # refusal. Any other turn keeps the native seam's offer and a named tool its refusal.
+        specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
     if task_seats and "code.task.open" not in task_seats:
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.

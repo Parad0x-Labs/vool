@@ -2540,7 +2540,7 @@ function applyResponseCommit(run, commit) {
       _owner.history[run.historyIndex].request_id = commitRequest;
     }
     if (run.ended && run.assistantMsgEl && isDisplayed(run.chatId)) {
-      try { mountProofChip(run.assistantMsgEl, run.chatId, commitRequest, run.displayMetadata && run.displayMetadata.presentation_selection); } catch (e) {}
+      try { mountProofChip(run.assistantMsgEl, run.chatId, commitRequest, run.displayMetadata && run.displayMetadata.presentation_selection, true); } catch (e) {}
     }
   }
   return true;
@@ -2577,6 +2577,7 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
     // still keeps this message unsaved, because the person sent it believing it would be.
     ...(owner.privateChat ? { private_chat: true } : {}),
+    surface: 'desktop',
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -5331,7 +5332,10 @@ function downloadFilenameFrom(disposition, fallback) {
     .split(/[\\/]/).pop().replace(/^[.\s]+/, '').trim();
   return name || fallback;
 }
-async function mountProofChip(host, chatId, requestId, presentationSelection) {
+async function mountProofChip(host, chatId, requestId, presentationSelection, finished) {
+  // finished: an answer that just ended asks for its X cards even on a page drawn before X
+  // was connected; a history render (no flag) asks only when the page flag is on.
+  if (window.VoolXSocial && requestId) window.VoolXSocial.mount(host, chatId, requestId, finished === true);
   if (typeof mountAnswerExport === 'function') mountAnswerExport(host, chatId, requestId);
   const id = String(requestId || '');
   if (!host || !id) return null;
@@ -6351,7 +6355,7 @@ function paintFinishedCard(run) {
   // addressed by the commit's canonical request id — the same identity the server stamped on
   // the served bytes. No commit frame means no id, and no id means no chip.
   if (run.assistantMsgEl && isDisplayed(run.chatId)) {
-    try { mountProofChip(run.assistantMsgEl, run.chatId, run.responseCommit && run.responseCommit.request_id, run.displayMetadata && run.displayMetadata.presentation_selection); } catch (e) {}
+    try { mountProofChip(run.assistantMsgEl, run.chatId, run.responseCommit && run.responseCommit.request_id, run.displayMetadata && run.displayMetadata.presentation_selection, true); } catch (e) {}
   }
   if (kind !== 'awaiting_approval') applyResultSummary(run);
   if (kind === 'failed' && !run.card.dataset.brWired) {
@@ -14929,6 +14933,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.council_chat_card_fragment import render_council_card_fragment
     from core.council_fragment import render_council_fragment
     from core.goal_progress_fragment import render_goal_progress_fragment
+    from core.lend_fragment import render_lend_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
@@ -14936,6 +14941,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.toybox_fragment import render_toybox_fragment
     from core.ui_chip_fragment import render_chip_fragment
     from core.wallet_fragment import render_wallet_fragment
+    from core.x_social_fragment import render_x_social_fragment
 
     return (
         render_chip_fragment(),
@@ -14956,6 +14962,8 @@ def _page_fragments() -> tuple[str, ...]:
         render_companion_fragment(),
         render_wallet_fragment(),
         render_contacts_fragment(),
+        render_lend_fragment(),
+        render_x_social_fragment(),
     )
 
 

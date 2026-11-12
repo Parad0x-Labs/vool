@@ -1,5 +1,5 @@
 {
-  "intent_count": 154,
+  "intent_count": 158,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -154,9 +154,13 @@
     "workspace.run_tests",
     "workspace.search_text",
     "workspace.symbol_search",
-    "workspace.write_file"
+    "workspace.write_file",
+    "x.api.catalog",
+    "x.api.receipts",
+    "x.feedback.list",
+    "x.feedback.save"
   ],
-  "native_definition_count": 154,
+  "native_definition_count": 158,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -15167,6 +15171,403 @@
         "side_effecting_command": {
           "actions": [
             "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "x.api.catalog": {
+      "arguments": [
+        "offset",
+        "operation_id",
+        "query",
+        "schema"
+      ],
+      "description": "Discover documented X features by query, inspect one operation_id's path/query/body schemas, or resolve a referenced schema name. Local, including before keys are connected. Reports saved access and reservation limits; an absent entitlement is never assumed.",
+      "native_name": "x__api__catalog",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "offset": {
+            "description": "int optional",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "query": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schema": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "query",
+          "operation_id",
+          "schema",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "x.api.receipts": {
+      "arguments": [
+        "limit"
+      ],
+      "description": "Read this chat's local X request, quota and cost-reservation receipts. Unknown billing is not a zero cost, and a sent request is never repeated automatically.",
+      "native_name": "x__api__receipts",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "int optional",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "x.feedback.list": {
+      "arguments": [],
+      "description": "Bounded best and worst ratings with comments for this project and global guidance.",
+      "native_name": "x__feedback__list",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "x.feedback.save": {
+      "arguments": [
+        "action_id",
+        "comment",
+        "kind",
+        "rating",
+        "text"
+      ],
+      "description": "Record an explicit 1-10 rating and verbatim user comment. A short reply such as 7 is accepted only when the stored previous assistant message in this owner-local chat asked to rate its draft; the server selects that draft, so omit text and action_id. Otherwise require explicit N/10 with action_id from this chat or text quoted in the user turn. Never infer a rating.",
+      "native_name": "x__feedback__save",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comment": {
+            "description": "string optional, verbatim user comment",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "string optional",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rating": {
+            "description": "integer 1-10",
+            "type": "integer"
+          },
+          "text": {
+            "description": "string optional, exact user-quoted draft",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rating",
+          "comment",
+          "action_id",
+          "text",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files",
+            "modify_files"
           ],
           "effects": {
             "auto": "allow",

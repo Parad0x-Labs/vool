@@ -55,6 +55,12 @@ ORIGINS = (
     ORIGIN_CREATED_HERE, ORIGIN_DRAFTED, ORIGIN_IMPORTED, ORIGIN_REGISTRY, ORIGIN_BUNDLED, ORIGIN_NATIVE,
     ORIGIN_PACK, ORIGIN_MCP, ORIGIN_INSTALLED,
 )
+#: One of VOOL's own Browse skills, added with the local check from the copy shipped inside the
+#: app (lifecycle source ``vool-bundled:``, a local-check receipt, bytes equal to the shipped pin).
+#: Decided from those records on every read, never from an install record, so it is not in
+#: ``ORIGINS``: nothing can write it down. It still never adds a tool the way the person's own
+#: skill does; it may seat only the social list (``core.tool_offer_assembly``).
+ORIGIN_VOOL_BROWSE = "vool_browse"
 
 _LOCK = threading.Lock()
 _MAX_CREATED = 5000
@@ -214,7 +220,7 @@ def origin_of(skill: Any) -> str:
         # someone names "registry-..." is not a Skill Codex package (audit L3).
         return ORIGIN_REGISTRY
     if plugin_id.startswith("discover-"):
-        return ORIGIN_IMPORTED
+        return ORIGIN_VOOL_BROWSE if _vool_browse_install(plugin_id) else ORIGIN_IMPORTED
     row = install_record(resolved)
     recorded = str(row.get("origin") or "")
     if recorded == ORIGIN_CREATED_HERE:
@@ -269,6 +275,33 @@ def _registry_record(plugin_id: str) -> bool:
         return False
 
 
+def _vool_browse_install(plugin_id: str) -> bool:
+    """Whether a Browse install is VOOL's own skill, added from the copy shipped in the app, as shipped.
+
+    Every link is checked, and any failure reads as an ordinary import: the lifecycle source is
+    ``vool-bundled:``, the signed install receipt is authentic and records VOOL's local check, its
+    entry still equals the pin this app ships (``addon_store.is_vool_bundled``), the pack on disk is
+    the reviewed one with nothing added, and the SKILL.md bytes now are the pinned bytes.
+    """
+    try:
+        from core import addon_store
+        from core.plugin_lifecycle import record_for
+
+        record = record_for(plugin_id)
+        if record is None or not str(record.source or "").startswith("vool-bundled:"):
+            return False
+        pack = Path(str(record.root or ""))
+        addon_store.assert_reviewed(plugin_id, pack)
+        receipt = addon_store._read(addon_store._installed_receipt(plugin_id))
+        entry = dict(receipt.get("entry") or {})
+        if receipt.get("check") != addon_store.LOCAL_CHECK or not addon_store.is_vool_bundled(entry):
+            return False
+        skill_md = pack / "skills" / str(entry["skill_name"]) / "SKILL.md"
+        return hashlib.sha256(skill_md.read_bytes()).hexdigest() == str(entry.get("sha256") or "")
+    except Exception:
+        return False
+
+
 def may_add_tools(skill: Any) -> bool:
     """Whether a matched skill's ``allowed-tools`` may seat tools the turn would not otherwise get.
 
@@ -296,6 +329,7 @@ __all__ = [
     "ORIGIN_NATIVE",
     "ORIGIN_PACK",
     "ORIGIN_REGISTRY",
+    "ORIGIN_VOOL_BROWSE",
     "TOOLS_NOT_ADDED",
     "TOOLS_NOT_CONFIRMED",
     "TYPED_KEYS_IGNORED",

@@ -441,16 +441,11 @@ def _tool_step_evidence_rows(executed_steps: list[dict[str, Any]]) -> list[dict[
             continue
         summary = str(step.get("summary") or "").strip()
         body = str(step.get("response_text") or "").strip()
-        if not body:
-            observation = step.get("observation")
-            try:
-                body = (
-                    json.dumps(observation, ensure_ascii=False)
-                    if isinstance(observation, (dict, list)) and observation
-                    else str(observation or "")
-                )
-            except Exception:
-                body = ""
+        observation = step.get("observation")
+        # The short response is an activity label. The actual tool facts (post
+        # text, metrics, receipt state) live in its structured observation too.
+        if isinstance(observation, (dict, list)) and observation:
+            body = '\n'.join(filter(None, (body, json.dumps(observation, ensure_ascii=False))))
         if not body.strip():
             # A step with a label and no body binds nothing. Binding it would present a
             # one-line rendering as the turn's evidence, and every claim would then read
@@ -467,6 +462,63 @@ def _tool_step_evidence_rows(executed_steps: list[dict[str, Any]]) -> list[dict[
             }
         )
     return rows
+
+
+_MANIFEST_BLOCK = re.compile(
+    r'(?:^|\n\n)Evidence identity for this turn \(retrieved before this answer was written\):'
+    r'\nevidence_set_id: [^\n]*(?:\n- [^\n]*)*')
+
+
+def _without_evidence_manifests(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop earlier bound manifests, so a rebind replaces the identity instead of stacking it."""
+    kept = []
+    for item in history:
+        content = item.get('content')
+        if str(item.get('role') or '') == 'user' and isinstance(content, str) and _MANIFEST_BLOCK.search(content):
+            content = _MANIFEST_BLOCK.sub('', content)
+            if not content.strip():
+                continue
+            item = {**item, 'content': content}
+        kept.append(item)
+    return kept
+
+
+def _bind_tool_step_evidence(context: dict[str, Any], steps: list[dict[str, Any]], *,
+                             query: str, task_id: str, stage: str) -> None:
+    """Bind observed facts before a model can close a native or synthesis round."""
+    rows = _tool_step_evidence_rows(steps)
+    if not rows:
+        return
+    from core.agent_runtime.current_evidence_prefetch import evidence_manifest
+    from core.grounded_synthesis_binding import binding_record, emit_evidence_bound, mint_evidence_set, turn_scope
+    from core.grounding_lifecycle import adopt_lifecycle_id, record_bound
+
+    scope = turn_scope(context, task_id=task_id)
+    evidence = mint_evidence_set(rows, scope=scope, query=query)
+    record = binding_record(evidence, model_call_stage=stage)
+    adopt_lifecycle_id(context)
+    emit_evidence_bound(context, record, task_id=task_id)
+    record_bound(context, binding=record, notes=rows, scope=scope)
+    context['evidence_synthesis_binding'] = dict(record)
+    manifest = evidence_manifest(evidence)
+    history = _without_evidence_manifests(
+        [dict(item) for item in list(context.get('conversation_history') or []) if isinstance(item, dict)])
+    # The manifest rides INSIDE the turn's observation message (the line's rule): earlier manifests
+    # are dropped above, so the current one is attached once.
+    if (history and str(history[-1].get('role') or '') == 'user'
+            and 'Grounding observations for this turn' in str(history[-1].get('content') or '')
+            and manifest not in str(history[-1].get('content') or '')):
+        history[-1] = {**history[-1], 'content': str(history[-1].get('content') or '') + '\n\n' + manifest}
+    elif not any(manifest in str(item.get('content') or '') for item in history):
+        history.append({'role': 'user', 'content': manifest})
+    context['conversation_history'] = history[-12:]
+
+
+def _is_x_rate_limit_refusal(execution: Any) -> bool:
+    observation = (getattr(execution, 'details', None) or {}).get('observation') or {}
+    return (not execution.ok and execution.status == 'rate_limited'
+            and str(execution.tool_name or '').startswith('x.')
+            and observation.get('tool_surface') == 'x')
 
 #: Executor refusals made BEFORE any tool owner ran: nothing executed, so the evidence-required
 #: fallthrough to the research path still applies (the research lanes may retrieve on their own).
@@ -1337,7 +1389,13 @@ class ResearchToolLoopFacadeMixin:
         checkpoint_id = self._runtime_checkpoint_id(source_context)
         checkpoint = self._get_runtime_checkpoint(checkpoint_id) if checkpoint_id else None
         checkpoint_state = dict((checkpoint or {}).get("state") or {})
-        if self._should_keep_ai_first_chat_lane(
+        from core.tool_offer_assembly import matched_skill_tool_intents
+
+        skill_tools_available = matched_skill_tool_intents(
+            effective_input, task_class=str(classification.get("task_class", "unknown")),
+            source_context=source_context,
+        )
+        if not skill_tools_available and self._should_keep_ai_first_chat_lane(
             user_input=effective_input,
             classification=classification,
             interpretation=interpretation,
@@ -1673,6 +1731,11 @@ class ResearchToolLoopFacadeMixin:
                         arguments=redact_tool_argument_data(tool_payload.get("arguments")),
                     )
                 else:
+                    with suppress(Exception):
+                        _bind_tool_step_evidence(
+                            loop_source_context, executed_steps, query=str(effective_input or ''),
+                            task_id=str(getattr(task, 'task_id', '') or ''), stage='tool_loop_round',
+                        )
                     tool_decision = self.memory_router.resolve_tool_intent(
                         task=task,
                         classification=classification,
@@ -2190,6 +2253,7 @@ class ResearchToolLoopFacadeMixin:
             # operator or after something that failed.
             ran_inline: list[str] = []
             failed_inline: list[dict[str, Any]] = []
+            rate_limit_member = None
             deferred_members: list[dict[str, Any]] = list(batch_members)
             for position, member in enumerate(batch_members):
                 member_intent = str(member.get("intent") or "").strip()
@@ -2312,8 +2376,16 @@ class ResearchToolLoopFacadeMixin:
                 deferred_members = batch_members[position + 1 :]
                 if member_failed:
                     failed_inline.append(member)
+                    if _is_x_rate_limit_refusal(member_execution):
+                        rate_limit_member = (member_execution, member_payload, member_receipt)
                     break
                 ran_inline.append(member_intent)
+            if rate_limit_member is not None:
+                # The failed member owns the terminal refusal; the successful
+                # head stays recorded in executed_steps without authorizing more reads.
+                execution, tool_payload, action_receipt = rate_limit_member
+                tool_name = str(execution.tool_name or '')
+                step_summary = str(execution.response_text or '')
             unexecuted_calls = [
                 str(member.get("intent") or "") for member in deferred_members if member.get("intent")
             ]
@@ -2416,6 +2488,10 @@ class ResearchToolLoopFacadeMixin:
             ):
                 loop_stop_reason = "tool_completed_turn"
                 break
+            # This gateway refusal is already written for the person. Preserve
+            # its reset time and stop; another synthesis round can lose both.
+            if _is_x_rate_limit_refusal(execution):
+                execution.user_safe_response_text = str(execution.response_text or '')
             # A refused step is not a terminal turn: the correction path or grounded synthesis
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
@@ -2701,79 +2777,11 @@ class ResearchToolLoopFacadeMixin:
         except Exception:
             pass
         synthesis_context = {key: value for key, value in loop_source_context.items() if key != "runtime_event_stream_id"}
-        # M3/M2: BIND what this loop retrieved into the call that is about to write the answer.
-        #
-        # Measured on the isolated daemon (2026-09-01): a current-information question routed
-        # here rather than to the grounded lane, ran a real keyed Brave retrieval (4 sources,
-        # receipt `lifecycle=succeeded`), handed the results to the model -- and left no record
-        # anywhere that any of it reached the answering call. The receipt says a search ran; only
-        # a binding says the answer was made of what it found, and the difference is the whole
-        # fabrication class. Every other retrieving lane already binds; this one did not, so the
-        # publication gate had nothing to judge its answers against.
-        #
-        # M2's own contract is used verbatim -- `mint_evidence_set`, `binding_record`,
-        # `emit_evidence_bound` -- so the ids, the turn scope and the `proves="prompt_entry"`
-        # claim are identical to the grounded lane's. The rows are a PROJECTION of the steps this
-        # loop already executed into the note shape those functions take; nothing is
-        # re-extracted, re-judged or re-worded.
         with suppress(Exception):
-            _bound_rows = _tool_step_evidence_rows(executed_steps)
-            if _bound_rows:
-                from core.agent_runtime.current_evidence_prefetch import (
-                    evidence_manifest,
-                )
-                from core.grounded_synthesis_binding import (
-                    binding_record,
-                    emit_evidence_bound,
-                    mint_evidence_set,
-                    turn_scope,
-                )
-                from core.grounding_lifecycle import adopt_lifecycle_id, record_bound
-
-                _scope = turn_scope(
-                    loop_source_context, task_id=str(getattr(task, "task_id", "") or "")
-                )
-                _set = mint_evidence_set(
-                    _bound_rows, scope=_scope, query=str(effective_input or "")
-                )
-                _record = binding_record(_set, model_call_stage="tool_loop_synthesis")
-                adopt_lifecycle_id(loop_source_context)
-                emit_evidence_bound(
-                    loop_source_context, _record, task_id=str(getattr(task, "task_id", "") or "")
-                )
-                record_bound(
-                    loop_source_context, binding=_record, notes=_bound_rows, scope=_scope
-                )
-                synthesis_context["evidence_synthesis_binding"] = dict(_record)
-                # The ids ride INSIDE the material the answering model is shown, not merely
-                # alongside it. `proves="prompt_entry"` is checkable by reading the prompt
-                # only if the prompt carries the ids; before this the envelope stamped the
-                # claim while the synthesis conversation held the rows with no identity at
-                # all. The manifest block is the same one the grounded lane's pre-model
-                # binding appends -- ids and the sources they name, no instructions. It is
-                # ATTACHED to the turn's observation message rather than appended after it,
-                # so the evidence the model is shown and the identity naming it arrive as
-                # one piece and the observation stays the conversation's last word.
-                _manifest_text = evidence_manifest(_set)
-                _history = [
-                    dict(item)
-                    for item in list(synthesis_context.get("conversation_history") or [])
-                    if isinstance(item, dict)
-                ]
-                if (
-                    _history
-                    and str(_history[-1].get("role") or "") == "user"
-                    and "Grounding observations for this turn"
-                    in str(_history[-1].get("content") or "")
-                    and _manifest_text not in str(_history[-1].get("content") or "")
-                ):
-                    _history[-1] = {
-                        **_history[-1],
-                        "content": f"{_history[-1].get('content')}\n\n{_manifest_text}",
-                    }
-                elif not any(_manifest_text in str(item.get("content") or "") for item in _history):
-                    _history.append({"role": "user", "content": _manifest_text})
-                synthesis_context["conversation_history"] = _history[-12:]
+            _bind_tool_step_evidence(
+                synthesis_context, executed_steps, query=str(effective_input or ''),
+                task_id=str(getattr(task, 'task_id', '') or ''), stage='tool_loop_synthesis',
+            )
         # Runtime-minted support rows for THIS loop's successful steps, recorded BEFORE the
         # synthesis branch — measured 2026-11-03 (build 8af687ca, served chats): "go fetch from
         # online researches..." ran web.research 3-of-3 steps, the synthesis model failed, the

@@ -30,6 +30,8 @@
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Contacts](guides/contacts.md)
+* [Lend a job](guides/lend-a-job.md)
+* [X drafts, ratings and results](guides/x-social.md)
 
 ## Reference
 

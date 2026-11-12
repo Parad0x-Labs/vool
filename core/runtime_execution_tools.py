@@ -3537,11 +3537,18 @@ def _dispatch_runtime_tool(
             status="disabled",
             reason=contract.unsupported_reason,
         )
+        unavailable_text = contract.unsupported_reason
+        if intent.startswith("x."):
+            from core.x_connect_hint import not_connected_text, x_connected
+
+            if not x_connected():
+                # Plain words and the real Settings place, not the contract's engineering reason.
+                unavailable_text = not_connected_text()
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status="disabled",
-            response_text=contract.unsupported_reason,
+            response_text=unavailable_text,
             details={
                 "observation": _tool_observation(
                     intent=intent,
@@ -3737,7 +3744,11 @@ def _dispatch_runtime_tool(
         if intent == "file.deliver":
             return _file_deliver(arguments, source_context=source_context)
         if intent == "x.trending":
-            return _x_trending(arguments)
+            from core.x_chat_tools import run_x_tool
+
+            return run_x_tool('x.api.request', {'operation_id': 'getTrendsByWoeid',
+                              'path': {'woeid': int(arguments.get('woeid') or 1)},
+                              'query': {'max_trends': max(1, min(50, int(arguments.get('limit') or 20)))}}, source_context)
         if intent.startswith("x."):
             from core.x_chat_tools import X_INTENTS, run_x_tool
 

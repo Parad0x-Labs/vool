@@ -285,6 +285,14 @@ function centreAction(item, action, minutes){
 
 function centreRow(item, index){
   var p = item.payload || {};
+  if (p.lend_job) {
+    return '<div class="vf-item vf-centre"><a class="vf-main" href="/settings#backup/lend">' +
+      '<span class="vf-title">' + esc(NTF('lend.title', 'Lend jobs to friends')) + '</span><small>' +
+      esc(NTF('activity.ev.permission_required', 'Waiting for approval')) + ' · ' +
+      esc(NTF('lend.cap_' + p.lend_capability, '')) + ' · ' + esc(p.lend_name || '') + ' · ' +
+      esc((Number(p.lend_bytes || 0) / (p.lend_bytes >= 1000000 ? 1000000 : 1000)).toLocaleString(undefined, {maximumFractionDigits: 2})) +
+      (p.lend_bytes >= 1000000 ? ' MB' : ' KB') + '</small></a></div>';
+  }
   if (p.market_event && !p.finding) {
     return '<div data-vmarket="' + index + '" class="vf-item' + (item.read_at ? '' : ' vf-unread') + '"><span class="vf-title">' + esc(marketTitle(p.market_event)) + '</span>'
       + '<div class="vf-details">' + marketDetails(p.market_event) + '</div>'

@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
-from core import x_usage
+from core import usage_quota, x_usage
 
 API_ORIGIN = "https://api.x.com"
 REQUEST_TIMEOUT_S = 20.0
@@ -131,6 +131,24 @@ def _http_failure(status: int, body: dict[str, Any] | None) -> XReadError:
 
 def _request(path: str, params: dict[str, Any] | None = None, *, user_context: bool = False,
              saved: dict[str, Any] | None = None, worst: int = 0) -> dict[str, Any]:
+    from core import x_capabilities, x_request_gateway
+    from core.x_endpoint_catalog import InvalidXRequest
+
+    clean = {k: v for k, v in (params or {}).items() if v not in (None, "", [])}
+    try:
+        prepared = x_request_gateway.legacy_descriptor('GET', path, clean)
+        result, _receipt = x_request_gateway.perform(
+            prepared, lambda: _request_transport(path, clean, user_context=user_context, saved=saved, worst=worst),
+            context=x_request_gateway.current_context() or {})
+        return result
+    except (x_capabilities.XCapabilityRefused, InvalidXRequest, usage_quota.QuotaUnavailable) as exc:
+        raise XReadError(getattr(exc, 'status', 'invalid_request'), str(exc)) from None
+    except PermissionError:
+        raise XReadError('spend_cap_exhausted', 'The X cost reservation exceeds a spending cap. Nothing was sent.') from None
+
+
+def _request_transport(path: str, params: dict[str, Any] | None = None, *, user_context: bool = False,
+                       saved: dict[str, Any] | None = None, worst: int = 0) -> dict[str, Any]:
     """One read-only GET to the pinned X origin. Counts usage; raises XReadError on any failure.
 
     ``worst`` raises the held-back count for reads whose size no parameter states (trends, Spaces
@@ -147,10 +165,16 @@ def _request(path: str, params: dict[str, Any] | None = None, *, user_context: b
     refusal = x_usage.reserve_reads(worst_case)
     if refusal:
         raise XReadError("usage_limit_reached", refusal)
+    outcome: dict[str, bool] = {}
     try:
-        return _send_read(path, url, authorization)
+        return _send_read(path, url, authorization, outcome)
     finally:
-        x_usage.release_reads(worst_case)
+        try:
+            if not outcome.get("settled"):
+                # Sent, but the answer was lost, cut off or unusable: X may have served all of it.
+                x_usage.record_uncertain_read(worst_case)
+        finally:
+            x_usage.release_reads(worst_case)
 
 
 # What a "your plan doesn't include it" refusal means for the endpoints whose access X sells
@@ -195,23 +219,30 @@ def _worst_case(params: dict[str, Any]) -> int:
     return max(1, items) * weight
 
 
-def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
+def _send_read(path: str, url: str, authorization: str, outcome: dict[str, bool] | None = None) -> dict[str, Any]:
+    """``outcome["settled"]`` is set when the read's items were counted or X provably served none
+    (nothing sent, a redirect, a definite refusal, or an error answer with no data)."""
+    import socket
     import urllib.error
 
     from core.remote_fetch_policy import CredentialRedirectRefusedError, RemoteFetchRefusedError, open_remote_url
 
+    outcome = {} if outcome is None else outcome
     x_usage.record_request(path)
     try:
         response = open_remote_url(
             url, headers={"Authorization": authorization, "Accept": "application/json"},
             method="GET", timeout=REQUEST_TIMEOUT_S, no_proxy=True, provider_id="x.api",
             keyed_or_keyless="keyed", credential_headers=("Authorization",),
+            redirect_policy='refuse',
         )
         status = int(getattr(response, "status", None) or getattr(response, "code", None) or 200)
         raw = response.read(MAX_RESPONSE_BYTES + 1) or b""
     except RemoteFetchRefusedError:
+        outcome["settled"] = True
         raise XReadError("refused", "VOOL is not allowed to go online right now (for example Local Only is on), so X was not asked.") from None
     except CredentialRedirectRefusedError:
+        outcome["settled"] = True
         raise XReadError("redirected", "X answered with a redirect to another site; VOOL did not send your keys there.") from None
     except urllib.error.HTTPError as exc:
         body = None
@@ -219,11 +250,32 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
             body = json.loads((exc.read(64 * 1024) or b"{}").decode("utf-8"))
         except Exception:
             body = None
-        raise _for_path(path, _http_failure(int(exc.code or 0), body)) from None
+        code = int(exc.code or 0)
+        outcome["settled"] = 400 <= code < 500 and code != 408
+        failure = _for_path(path, _http_failure(code, body))
+        if code == 429:
+            raw_reset = str((exc.headers or {}).get("x-rate-limit-reset") or "").strip()
+            failure.reset_at = None
+            reset_label = "X did not provide a usable reset time."
+            try:
+                if raw_reset.isdigit() and len(raw_reset) <= 12:
+                    reset_at = int(raw_reset)
+                    label = datetime.fromtimestamp(reset_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                    failure.reset_at = reset_at
+                    reset_label = f"Reset time: {label}."
+            except (ValueError, OverflowError, OSError):
+                pass
+            failure.message = f"X is limiting requests for your app. {reset_label} Nothing was sent."
+            failure.args = (failure.message,)
+        raise failure from None
     except XReadError:
         raise
     except Exception as exc:
         from core.credential_intelligence.verification import is_timeout_error
+
+        reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+        if isinstance(reason, (ConnectionRefusedError, socket.gaierror)):
+            outcome["settled"] = True  # no connection was made, so nothing was read
 
         if is_timeout_error(exc):
             raise XReadError("timeout", "X did not answer in time. Try again.") from None
@@ -237,14 +289,17 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise XReadError("unexpected_schema", "X answered, but not in the shape VOOL expects.")
     if not 200 <= status < 300:
+        outcome["settled"] = 400 <= status < 500 and status != 408
         raise _for_path(path, _http_failure(status, payload))
     if "data" not in payload and payload.get("errors") and not payload.get("meta"):
+        outcome["settled"] = True
         err = payload["errors"][0] if isinstance(payload["errors"], list) and payload["errors"] else {}
         title = str((err or {}).get("title") or "")
         if "Not Found" in title or "not-found" in str((err or {}).get("type") or ""):
             raise XReadError("not_found", "X has no such post, account or list. " + str((err or {}).get("detail") or "")[:200])
         raise XReadError("unexpected_response", "X answered with an error: " + str((err or {}).get("detail") or title)[:300])
     x_usage.record_read(posts=_count_posts(payload), users=_count_users(payload), other=_count_other(payload))
+    outcome["settled"] = True
     return payload
 
 
@@ -285,7 +340,10 @@ def _guard(fn):
     try:
         return fn()
     except XReadError as exc:
-        return XResult(False, exc.status, exc.message, {"http_status": exc.http_status} if exc.http_status else {})
+        detail = {"http_status": exc.http_status} if exc.http_status else {}
+        if exc.status == "rate_limited":
+            detail["reset_at"] = getattr(exc, "reset_at", None)
+        return XResult(False, exc.status, exc.message, detail)
     except Exception as exc:  # never raise into the tool loop
         return XResult(False, "failed", f"Reading X failed ({type(exc).__name__}).")
 

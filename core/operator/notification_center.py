@@ -147,6 +147,23 @@ def supersede_earlier_items(
         conn.close()
 
 
+def supersede_by_key(dedupe_key: str, *, source_kind: str,
+                     get_connection_fn: Callable[[], Any] = _default_connection) -> int:
+    """Close one resolved source item without fabricating an owner read or dismissal."""
+    if source_kind not in SOURCE_KINDS or not dedupe_key:
+        raise ValueError("a known source and dedupe key are required")
+    conn = get_connection_fn()
+    try:
+        cursor = conn.execute(
+            "UPDATE notification_items SET superseded_at = ? "
+            "WHERE dedupe_key = ? AND source_kind = ? AND superseded_at IS NULL",
+            (_utcnow(), dedupe_key, source_kind))
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
+
+
 def supersede_items_for_schedules(
     schedule_ids: list[str],
     *,

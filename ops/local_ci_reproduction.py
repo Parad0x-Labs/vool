@@ -7,7 +7,7 @@ what automatic CI would do. This tool reproduces the ci.yml ``tests`` matrix
 step faithfully and records enough identity to pin every reproduction:
 
   * SELECTION: the ci.yml collection step verbatim (``pytest --collect-only
-    -q -p no:cacheprovider``, ``::``-line parse, sorted unique files, the 13
+    -q -p no:cacheprovider``, ``::``-line parse, sorted unique files, the
     macOS-only files routed out), then ``ops/shard_resolver.py`` for the
     shard partition. An explicit ordered file list (historical evidence) can
     be pinned instead -- the two are DIFFERENT selections and are never
@@ -75,7 +75,7 @@ from typing import Any
 #: Schema of the RESULT.json every run writes; consumers refuse anything else.
 SCHEMA = "vool.local-ci-reproduction.v1"
 
-#: The 13 genuinely macOS-only files ci.yml routes to the macos job. Pinned
+#: The genuinely macOS-only files ci.yml routes to the macos job. Pinned
 #: together with .github/workflows/ci.yml by tests/test_delivery_contracts.py;
 #: a drift here is a defect in this tool, not a routing decision.
 MACOS_ONLY_FILES = frozenset({
@@ -93,6 +93,12 @@ MACOS_ONLY_FILES = frozenset({
     "tests/wallet/test_wallet_approval_methods.py",
     "tests/wallet/test_wallet_device_auth_ipc.py",
     "tests/wallet/test_wallet_export_ui_served.py",
+    "tests/lend/test_invites.py",
+    "tests/lend/test_jobs.py",
+    "tests/lend/test_failures.py",
+    "tests/lend/test_control.py",
+    "tests/lend/test_browser.py",
+    "tests/lend/test_lend077_local_revoke.py",
 })
 
 #: CI installs ``.[dev,browser,companion,evm]``; these modules decide whether

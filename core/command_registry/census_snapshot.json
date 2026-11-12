@@ -1674,6 +1674,13 @@
       "registry_command_id": "settings.web0.show",
       "surface": "http"
     },
+    "http:GET:/api/x/oauth/callback": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/x/oauth/callback",
+      "note": "X sign-in callback: X's redirect back to this machine, loopback only, single-use state",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/zcash/*": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/zcash/*",
@@ -2297,6 +2304,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/drop": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/drop",
+      "note": "VOOL Drop lane: default-off local prototype controls for the owner's Settings page",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/email/accounts/add": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/email/accounts/add",
@@ -2386,6 +2400,13 @@
       "name": "POST /api/learning/procedures/*",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "learning.invalidate",
+      "surface": "http"
+    },
+    "http:POST:/api/lend": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/lend",
+      "note": "Default-off lending controls; owner-local decisions and bounded guest jobs over Drop",
+      "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/market/watches/pause": {
@@ -3081,6 +3102,34 @@
       "registry_command_id": "x.activity",
       "surface": "http"
     },
+    "http:POST:/api/x/capabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/x/capabilities",
+      "note": "X feature settings for the owner's Settings page, owner-local JSON only (the chat's x.api.request tool is the operator path)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/x/cards": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/cards",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.cards",
+      "surface": "http"
+    },
+    "http:POST:/api/x/feedback": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/feedback",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.feedback.manage",
+      "surface": "http"
+    },
+    "http:POST:/api/x/oauth": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/x/oauth",
+      "note": "X sign-in for bookmarks: starts or removes the owner's sign-in from Settings, owner-local JSON only",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/x/setup": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/x/setup",
@@ -3141,6 +3190,20 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "UPLOAD /api/chat/import/upload",
       "note": "chat-import lane (export-zip staging door; nothing parsed until preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:UPLOAD:/api/drop/send": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/drop/send",
+      "note": "VOOL Drop lane: the owner's file upload for one Drop packet, size-capped",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:UPLOAD:/api/lend/send": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/lend/send",
+      "note": "Owner-local lending upload; invitation limits and complete input digest required",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3336,8 +3399,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 318,
-    "GENERATED_ADAPTER": 149,
+    "EXTERNAL_TRANSPORT_ONLY": 325,
+    "GENERATED_ADAPTER": 151,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

@@ -173,6 +173,49 @@ def _vault_key(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def discard_local_invite_tokens(home, tokens):
+    """Drop pairing tokens from one home's local invite store, never the relay.
+
+    Local hygiene for a feature that issued Drop invites and is being turned
+    off: the relay folder keeps its bytes, Drop is never enabled, and a home
+    without a Drop store is left untouched instead of being created. The
+    store is changed under Drop's actor lock, so a live Drop actor and this
+    helper never touch the same database and session store at once.
+    """
+    root = Path(home).absolute()/"drop"
+    db = root/"drops.db"
+    unique = sorted({str(token) for token in tokens if token})
+    if not unique or not db.exists():
+        return
+    _private_directory(root)
+    lock = (root/"actor.lock").open("a+")
+    try:
+        os.chmod(root/"actor.lock", 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        marks = ",".join("?" for _ in unique)
+        con = sqlite3.connect(db, timeout=15)
+        con.row_factory = sqlite3.Row
+        try:
+            rows = con.execute(f"SELECT token, prekey FROM invites WHERE token IN ({marks})", unique).fetchall()
+            if not rows:
+                return
+            crypto = root/"crypto"
+            if (crypto/"vault.key").exists() and (crypto/"sessions").is_dir():
+                client = DropClient(crypto/"sessions", _vault_key(crypto/"vault.key"))
+                try:
+                    for row in rows:
+                        client.discard_invite(row["prekey"])
+                finally:
+                    client.close()
+            with con:
+                for row in rows:
+                    con.execute("DELETE FROM invites WHERE token=?", (row["token"],))
+        finally:
+            con.close()
+    finally:
+        lock.close()
+
+
 class DropHome:
     """One person's Drops inside a VOOL home (the active home unless one is named)."""
 
@@ -578,6 +621,11 @@ class DropHome:
             return {k: row[k] for k in ("sid", "status", "note", "manifest", "task", "task_state", "result", "executions", "expires")}
 
     def _apply_task(self, sid, payload):
+        if payload.get("type") == "lend":
+            from core.lend.service import receive
+
+            receive(self, sid, payload)
+            return
         row = self._row(sid)
         if payload.get("type") == "task":
             if not row["manifest"]:
@@ -650,6 +698,15 @@ class DropHome:
         )
         if decision.effect is not PermissionEffect.ALLOW:
             raise DropError("RECIPIENT_PERMISSION_REFUSED")
+
+    def decline(self, sid, task_id):
+        """A local refusal is durable; replaying the task cannot restore approval."""
+        with self.scope():
+            row = self._live(sid)
+            if row["task_id"] != task_id or row["task_state"] not in {"pending", "approved"}:
+                raise DropError("TASK_NOT_APPROVABLE")
+            self.db.execute("UPDATE drops SET task_state='declined' WHERE sid=?", (sid,))
+            self.db.commit()
 
     def execute_approved(self, sid):
         with self.scope():
