@@ -61,19 +61,10 @@ def build_live_info_response_result(
         # entity/current-info questions and prevents adaptive research from running.
         return None
 
-    # Weather whose notes are ALL placeholders and at least one is a FAILED lookup (`_weather_lookup_failed`
-    # is set when the retrieval broke -- every engine errored, the budget died, or the search raised --
-    # never when a provider answered with nothing; see `_weather_search_one`) defers the same way: the
-    # lookup broke, the place was not answered "nothing", and rendering the placeholders would publish
-    # the failure as "no current conditions found" -- a reading of the place nobody retrieved. A provider
-    # that answered with nothing (no failure marker anywhere) keeps the rendered table/sentence path
-    # below unchanged.
-    if live_mode == "weather" and not any(
-        isinstance(note, dict) and not note.get("_weather_no_result") for note in notes
-    ):
-        if any(isinstance(note, dict) and note.get("_weather_lookup_failed") for note in notes):
-            return None
-
+    # Weather never defers here, not even when every place's lookup failed: the weather lane states
+    # the failed reading itself ("Weather in Paris: no current conditions found.") and publishes no
+    # reading of the place, so the model is never asked to fill the gap.
+    # tests/test_live_question_is_not_answered_from_the_records.py pins that turn.
     response = (
         agent._render_live_info_response(query=query, notes=notes, mode=live_mode)
         if notes

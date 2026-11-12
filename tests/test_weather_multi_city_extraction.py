@@ -57,13 +57,13 @@ def test_live_info_search_notes_queries_each_city_by_name_never_the_raw_sentence
 
     This is the direct proof the handover asked for: "the complete user prompt must never become
     a city, ticker, or tool parameter." Sabotage: revert `_weather_search_notes` to call
-    `WebAdapter.search_query_with_status(query, ...)` with the raw query and this fails
-    immediately, since the raw sentence would appear verbatim as one of the recorded queries.
+    `WebAdapter.search_query(query, ...)` with the raw query and this fails immediately, since the
+    raw sentence would appear verbatim as one of the recorded queries.
     """
     raw_prompt = "Give me the weather in Kaunas, Tallinn, and Warsaw forecast"
     recorded_queries: list[str] = []
 
-    def _fake_search(query_text: str, **_kwargs: object) -> tuple[list[dict[str, object]], str]:
+    def _fake_search(query_text: str, **_kwargs: object) -> list[dict[str, object]]:
         recorded_queries.append(query_text)
         city = query_text.replace("weather in ", "")
         return [{
@@ -71,10 +71,10 @@ def test_live_info_search_notes_queries_each_city_by_name_never_the_raw_sentence
             "result_url": f"https://example.test/{city}",
             "origin_domain": "example.test",
             "summary": f"{city.title()}: Sunny, 20 C",
-        }], "ok"
+        }]
 
     with mock.patch(
-        "core.agent_runtime.fast_live_info_search.WebAdapter.search_query_with_status",
+        "core.agent_runtime.fast_live_info_search.WebAdapter.search_query",
         side_effect=_fake_search,
     ):
         notes = live_info_search_notes(
@@ -94,14 +94,14 @@ def test_live_info_search_notes_queries_each_city_by_name_never_the_raw_sentence
 def test_a_failed_city_search_does_not_erase_the_others() -> None:
     """Partial-failure isolation: one city's search raising must not cost the other two theirs."""
 
-    def _fake_search(query_text: str, **_kwargs: object) -> tuple[list[dict[str, object]], str]:
+    def _fake_search(query_text: str, **_kwargs: object) -> list[dict[str, object]]:
         if "tallinn" in query_text:
             raise RuntimeError("upstream timeout")
         city = query_text.replace("weather in ", "")
-        return [{"summary": f"{city.title()}: Sunny, 20 C", "result_url": "", "origin_domain": ""}], "ok"
+        return [{"summary": f"{city.title()}: Sunny, 20 C", "result_url": "", "origin_domain": ""}]
 
     with mock.patch(
-        "core.agent_runtime.fast_live_info_search.WebAdapter.search_query_with_status",
+        "core.agent_runtime.fast_live_info_search.WebAdapter.search_query",
         side_effect=_fake_search,
     ):
         notes = live_info_search_notes(

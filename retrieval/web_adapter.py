@@ -87,65 +87,6 @@ class WebAdapter:
         )
 
     @staticmethod
-    def search_query_with_status(
-        query_text: str,
-        *,
-        limit: int = 3,
-        source_label: str = "web.search",
-        total_budget_s: float | None = None,
-    ) -> tuple[list[dict], str]:
-        """`search_query` plus the retrieval's own terminal status.
-
-        The note list alone cannot say which of these an empty return is -- a transport
-        failure and a provider that answered with nothing both come back ``[]``, because
-        ``web_research`` swallows its fetch errors into ``ResearchResult.notes`` -- while
-        the result object underneath still knows. Lanes that must not publish a broken
-        lookup as an empty answer (the weather lane deferring a failed turn to the
-        reasoning lane) read the difference here instead of guessing.
-
-        Status: ``ok`` (notes returned), ``refused`` (the door declined: policy, not the
-        network), ``failed`` (the retrieval did not complete: an engine errored, the
-        specialized lane errored, or the budget died before any hit was produced -- nobody
-        answered), ``empty`` (the stack completed and the answer held nothing usable). An
-        ``_empty`` note alone does not prove an answer: the keyless scrapers swallow their
-        transport errors into "empty", which is why the completed/errored distinction reads
-        the failure and deadline markers, not the empties.
-        """
-        note_remote_fetch_attempt()
-        if remote_turn_active() or remote_fetch_forbidden():
-            return [], "refused"
-        research = WebAdapter.research_query(
-            query_text,
-            limit=limit,
-            total_budget_s=total_budget_s,
-        )
-        if research is None:
-            return [], "refused"
-        notes = _notes_from_research(
-            research,
-            query_text=query_text,
-            task_id=None,
-            source_label=source_label,
-            allowed_domains=(),
-            blocked_domains=(),
-            max_notes=limit,
-        )
-        if notes:
-            return notes, "ok"
-        diagnostic = [str(item or "") for item in (research.notes or [])]
-        produced_hits = any(
-            item.startswith("provider_accepted") or item.startswith("provider_rejected")
-            for item in diagnostic
-        )
-        broke = any(
-            "_failed:" in item
-            or item.startswith("specialized_live_failed")
-            or item.startswith("deadline_exhausted")
-            for item in diagnostic
-        )
-        return [], ("failed" if broke and not produced_hits else "empty")
-
-    @staticmethod
     def planned_search_query(
         query_text: str,
         *,
