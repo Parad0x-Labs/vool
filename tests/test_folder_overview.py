@@ -167,6 +167,11 @@ def test_creation_location_is_not_a_folder_overview(tmp_path):
         # v0.8 candidate bb35ff83: both were answered with the empty-folder listing.
         "In this project, create a small task board page with three columns.",
         "Build a one-page recipe card in this folder.",
+        # A named file asked for in other words: the named-file build lane takes these, so the
+        # overview must not answer them first. Both were answered with the folder listing on the
+        # v0.8 candidate a3648b5f.
+        "Within this repo, put together a scoreboard.html that tracks two teams with localStorage.",
+        "For this project, I'd like a timer.html page with start and stop buttons.",
     ):
         assert _overview(_StubAgent(), prompt, ctx) is None, prompt
     # Empty folders remain valid subjects of actual overview requests.

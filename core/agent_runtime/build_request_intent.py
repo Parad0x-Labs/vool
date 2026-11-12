@@ -220,6 +220,9 @@ _IMPERATIVE_LEAD = (
     r"i\s+(?:want|need|would\s+like)(?:\s+you)?\s+to|"
     r"we\s+(?:need|have)\s+to|"
     r"lets|let['’]s|"
+    # "in the current project please write invoice_total.py": the place, said before the verb
+    # without a comma, is still the place. With the comma it already starts a clause.
+    r"in\s+(?:this|the|my|our)\s+(?:current\s+)?(?:project|repo(?:sitory)?|workspace|folder|codebase|directory)|"
     r"and|but"
     r")"
 )

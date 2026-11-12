@@ -145,7 +145,7 @@ _COLLOQUIAL_BUILD_RE = re.compile(
 # "i need X" is a request for X. "i need to know what X does" is a question, and the difference is
 # the verb that follows -- so a mental verb after need/want disqualifies it.
 _NEED_RE = re.compile(
-    r"\b(?:i\s+)?(?:need|want|would\s+like)\b(?!\s+to\s+"
+    r"\b(?:i\s+)?(?:need|want|would\s+like|i['’]d\s+like)\b(?!\s+to\s+"
     r"(?:know|see|understand|read|check|find|learn|hear|ask|decide|remember))",
     re.IGNORECASE,
 )

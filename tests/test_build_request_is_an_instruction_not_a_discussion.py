@@ -66,6 +66,11 @@ NOT_AN_INSTRUCTION = (
     "our api creates a new file per request",
     "the bot writes logs to disk",
     "this service adds a header to every response",
+    # The place said first does not make a description an instruction: only a verb that follows it
+    # directly, or after "please", does.
+    "in this project we write tests first",
+    "in this project the build script creates the dist folder",
+    "in our repo the bot writes logs to disk",
 )
 
 # An imperative build verb with NO build noun — only letters of one, inside an ordinary word:
@@ -110,6 +115,10 @@ INSTRUCTIONS = (
     "in my workspace, create a fastapi service",
     "make a new folder and add three files",
     "create a file notes.txt with the text hello",
+    # The place said before the verb with no comma is still the place. Measured on the v0.8
+    # candidate a3648b5f: the first was answered by web search, not built.
+    "in the current project please write invoice_total.py that sums line items from a csv",
+    "in this repo create a cli tool for parsing logs",
 )
 
 

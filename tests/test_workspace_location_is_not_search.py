@@ -45,3 +45,33 @@ def test_explicit_searches_still_search(prompt, needle):
                               source_context={'workspace':'/tmp/demo-workspace'})
     assert plan.next_payload['intent'] == 'workspace.search_text'
     assert plan.next_payload['arguments']['query'] == needle
+
+
+# A lookup that names the repository is still a search. The first port of the creation repair above
+# dropped every one of these: none carries a search verb, and the location was what admitted them.
+@pytest.mark.parametrize('prompt, needle', [
+    ('Which file in this workspace defines renderBoard?', 'renderBoard'),
+    ('Find parse_config in this project.', 'parse_config'),
+    ('What calls renderBoard in this codebase?', 'renderBoard'),
+    ('Locate the definition of toKebabCase in this workspace.', 'toKebabCase'),
+    ('Is renderBoard used anywhere in this project?', 'renderBoard'),
+    ('How many places in this codebase call fetchUser?', 'fetchUser'),
+])
+def test_a_lookup_in_the_repository_still_searches(prompt, needle):
+    plan = plan_tool_workflow(user_text=prompt, task_class='unknown', executed_steps=[],
+                              source_context={'workspace':'/tmp/demo-workspace'})
+    assert (plan.next_payload or {}).get('intent') == 'workspace.search_text', prompt
+    assert plan.next_payload['arguments']['query'] == needle
+
+
+# A lookup word inside an instruction to make or change files does not turn it into a search.
+@pytest.mark.parametrize('prompt', [
+    'Create a helper in this repo that finds where parse_config is defined.',
+    'In this project, build a page that lets me find tasks by tag and saves them with localStorage.',
+    'In this project, fix where renderBoard is called in app.js.',
+])
+def test_a_lookup_word_inside_an_instruction_is_not_a_search(prompt):
+    assert _code_search_query(' '.join(prompt.split())) == ''
+    plan = plan_tool_workflow(user_text=prompt, task_class='unknown', executed_steps=[],
+                              source_context={'workspace':'/tmp/demo-workspace'})
+    assert (plan.next_payload or {}).get('intent') != 'workspace.search_text'

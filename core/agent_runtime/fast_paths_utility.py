@@ -1838,13 +1838,18 @@ def maybe_handle_folder_overview_request(
     if not text:
         return None
     from core.agent_runtime import build_request_intent
+    from core.agent_runtime.builder.named_file_build import looks_like_named_file_build_request
 
     # The folder is the destination of a file-creation instruction, not its requested answer.
     # Whole-project scaffolding is only one kind of write: the shared artifact intent also covers
     # "in this project, create a task board page", which names no file for the read guard below to
-    # see and was answered with the empty-folder listing.
-    if looks_like_agentic_build_request(text) or build_request_intent.is_build_instruction(
-        user_input, scope="artifact"
+    # see and was answered with the empty-folder listing, and the named-file lane covers "within
+    # this repo, put together a scoreboard.html ...".
+    overview_root = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "")
+    if (
+        looks_like_agentic_build_request(text)
+        or build_request_intent.is_build_instruction(user_input, scope="artifact")
+        or looks_like_named_file_build_request(text, workspace_root=overview_root)
     ):
         return None
     # A request for a poem or a story names its subject, and a scope such as "in this project" is part
