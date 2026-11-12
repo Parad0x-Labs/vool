@@ -3342,7 +3342,7 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             supported=connected, unsupported_reason=_X_UNSUPPORTED,
             input_schema={"operation_id": "string", "path": "object optional", "query": "object optional", "body": "object optional"},
             json_schema={"type": "object", "properties": {"operation_id": {"type": "string"},
-                "path": {"type": "object"}, "query": {"type": "object"}, "body": {}},
+                "path": {"type": "object"}, "query": {"type": "object"}, "body": {"type": "object"}},
                 "required": ["operation_id"], "additionalProperties": False},
             output_schema={"result": "object", "receipt": "object", "action": "object"},
             side_effect_class="creative_state", permission_actions=_X_READ_ACTIONS, approval_requirement="none",
