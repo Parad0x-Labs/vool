@@ -8,7 +8,8 @@ status: p1
 type: capability_skill
 id: create-pet
 risk-class: workspace_write
-task-families: [creative_ideation]
+task-families: []
+triggers: [create a pet, make a pet, make me a pet, design a pet, new pet, my own pet, pet pack, pixel pet, toybox pet, pet yard, pet for the yard]
 capability-families: [workspace]
 tool-intents: [workspace.read_file, workspace.write_file, sandbox.run_command]
 permitted-tools: [workspace.read_file, workspace.write_file, workspace.ensure_directory, sandbox.run_command]
