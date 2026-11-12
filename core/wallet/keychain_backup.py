@@ -165,7 +165,7 @@ def _owner_pilot_row(wallet_id: str, *, source_context: dict[str, Any] | None) -
         raise _fault("agent_wallet_not_backed_up_here", source_context=source_context)
     row = pilot_custody._require_pilot_row(wallet_id, source_context=source_context)
     if str(row.get("setup_state") or "") not in ("ready", "backup_revealed", "awaiting_backup"):
-        raise _fault("wallet_not_ready", source_context=source_context)
+        raise _fault("setup_not_finished", source_context=source_context)
     return row
 
 

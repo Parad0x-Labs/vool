@@ -242,7 +242,7 @@ def make_main(wallet_id: str, *, credential: str = "", source_context: dict[str,
     if profile.mode == custody.MODE_WATCH_ONLY:
         raise _fault("watch_only_cannot_be_main", source_context=source_context)
     if custody.setup_state(wallet_id) not in {"", "ready"}:
-        raise _fault("wallet_not_ready", source_context=source_context)
+        raise _fault("setup_not_finished", source_context=source_context)
     custody.prove_owner(wallet_id, credential=credential, purpose="make this wallet your main wallet", source_context=source_context)
     canonical = _canonical(network)
     with connection() as conn:
