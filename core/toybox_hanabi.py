@@ -212,7 +212,13 @@ def artwork(identifier, p):
              f"<rect x='6' y='6' width='628' height='228' fill='none' stroke='{edge}' stroke-width='3' stroke-dasharray='14 8'/>"
              + _burst(110, 70, 42, accent, 12) + _burst(530, 60, 36, p["muted"], 10)
              + lanterns + bridge + water + mascots + "</svg>")
-    return {"header": header, "empty": empty}
+    # The ledge the desktop pet stands on: a small festival bridge with two lanterns.
+    perch = (f"<svg xmlns='http://www.w3.org/2000/svg' width='160' height='32' viewBox='0 0 160 32' shape-rendering='crispEdges'>"
+             f"<path d='M4 7q76 -6 152 0v8q-76 -5 -152 0Z' fill='{p['field']}' stroke='{edge}' stroke-width='3'/>"
+             f"<path d='M22 15v13M138 15v13' stroke='{edge}' stroke-width='4'/>"
+             f"<rect x='16' y='20' width='12' height='10' rx='4' fill='{accent}'/>"
+             f"<rect x='132' y='20' width='12' height='10' rx='4' fill='{accent}'/></svg>")
+    return {"header": header, "empty": empty, "perch": perch}
 
 
 _strings = load_catalog_data("en")["messages"]

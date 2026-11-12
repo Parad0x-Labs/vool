@@ -23,7 +23,7 @@ def test_hanabi_validates_with_wallpaper_chrome_and_budgets():
         from core.toybox_hanabi import artwork
 
         drawings = artwork(skin["id"], palette)
-        assert set(drawings) == {"header", "empty"}
+        assert set(drawings) == {"header", "empty", "perch"}
         assert sum(len(value.encode()) for value in drawings.values()) < 40_000
         assert all("svg" in value and not any(word in value for word in ("<script", "href=", "<text", "<image"))
                    for value in drawings.values())

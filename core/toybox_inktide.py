@@ -202,7 +202,12 @@ def artwork(identifier, p):
     empty = (f"<svg xmlns='http://www.w3.org/2000/svg' width='640' height='240' shape-rendering='crispEdges'>"
              f"<rect width='640' height='240' fill='{p['panel']}'/>"
              f"<rect x='8' y='8' width='624' height='224' fill='none' stroke='{edge}' stroke-opacity='.6'/>{mist}{tide}{shore}{crane}{mascots}{seal}</svg>")
-    return {"header": header, "empty": empty}
+    # The ledge the desktop pet stands on: an inked plank over one small tide line.
+    perch = (f"<svg xmlns='http://www.w3.org/2000/svg' width='160' height='32' viewBox='0 0 160 32' shape-rendering='crispEdges'>"
+             f"<path d='M4 5h152v9H4Z' fill='{field}' stroke='{edge}' stroke-width='3'/>"
+             f"<path d='M8 23q18 -6 36 0t36 0t36 0t36 0' fill='none' stroke='{accent}' stroke-width='3'/>"
+             f"<path d='M44 17l3 3l-3 3l-3 -3ZM116 17l3 3l-3 3l-3 -3Z' fill='{edge}'/></svg>")
+    return {"header": header, "empty": empty, "perch": perch}
 
 
 _strings = load_catalog_data("en")["messages"]

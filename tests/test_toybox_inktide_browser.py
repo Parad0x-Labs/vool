@@ -24,7 +24,7 @@ def test_inktide_validates_with_art_chrome_and_budgets():
         from core.toybox_inktide import artwork
 
         drawings = artwork(skin["id"], palette)
-        assert set(drawings) == {"header", "empty"}
+        assert set(drawings) == {"header", "empty", "perch"}
         assert sum(len(value.encode()) for value in drawings.values()) < 40_000
         assert all("crispEdges" in value and not any(word in value for word in ("<script", "href=", "<text", "<image"))
                    for value in drawings.values())
