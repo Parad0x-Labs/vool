@@ -21,13 +21,15 @@ turn where that skill matched*, which is a budget lever, not a permission decisi
 """
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
+from core.skill_frontmatter import FRONTMATTER_RE as _FRONTMATTER_RE  # one header shape everywhere
+
 _MAX_BODY_CHARS = 8000
 
 
@@ -52,6 +54,8 @@ class Skill:
     stop_conditions: tuple[str, ...] = ()
     recovery: tuple[str, ...] = ()
     cumulative_test_law: tuple[str, ...] = ()
+    #: Who the skill is for ("developer" marks the skills VOOL is built with), as its file says.
+    audience: str = ""
 
     @property
     def match_corpus(self) -> str:
@@ -93,16 +97,19 @@ def parse_skill_content(text: str, *, path: Path, plugin_id: str = "") -> Skill 
     if not match:
         return None
 
+    from core.skill_frontmatter import FrontmatterRefused, load_header
+
     front: dict[str, Any] = {}
     try:
-        import yaml
-
-        loaded = yaml.safe_load(match.group(1))
-        if isinstance(loaded, dict):
-            front = loaded
-    except Exception:
-        # A malformed skill must not take down the plugin that ships it. Falling through with an
-        # empty header still yields a usable skill: the body is the valuable part.
+        front = load_header(match.group(1))
+    except FrontmatterRefused as refused:
+        if refused.unsafe:
+            # A header built to blow up when read (YAML aliases, or far past any real size) is
+            # refused outright: loading its body under the folder's name would still put a file
+            # nobody could check into the prompt.
+            return None
+        # A merely malformed skill must not take down the plugin that ships it. Falling through
+        # with an empty header still yields a usable skill: the body is the valuable part.
         front = {}
 
     body = (match.group(2) or "").strip()[:_MAX_BODY_CHARS]
@@ -125,6 +132,7 @@ def parse_skill_content(text: str, *, path: Path, plugin_id: str = "") -> Skill 
         cumulative_test_law=_as_tuple(
             front.get("cumulative-test-law") or front.get("cumulative_test_law")
         ),
+        audience=str(front.get("audience") or "").strip().lower(),
     )
 
 
@@ -256,8 +264,30 @@ def _stem(token: str) -> str:
 _KIND_STEMS = frozenset(_stem(word) for word in _KIND_WORDS)
 
 
+# A web address is one thing a person points at, not the words it happens to spell: "open
+# example.com" asks about a site, and nothing in "example" or "com" says so. Each address is read
+# as the word "url" in front of its own parts, so a skill whose card names urls, sites or web pages
+# can meet it. A closed list of common top-level domains keeps file names ("notes.txt",
+# "test_api.py") and abbreviations ("e.g.") out.
+_WEB_ADDRESS_RE = re.compile(
+    r"\b(?:https?://|www\.)\S+"
+    r"|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|dev|ai|app|uk|eu|info|edu|gov|tv"
+    r"|xyz|site|online|shop|blog)\b(?:/\S*)?",
+    re.IGNORECASE,
+)
+# A file or folder the person names ("tests/test_api.py", "report.pdf") is their own material, as a
+# pasted passage is. A lone slash ("and/or", "24/7") names nothing.
+_FILE_LOCATOR_RE = re.compile(
+    r"(?:[\w.-]+[/\\]){2,}[\w.-]*"
+    r"|[\w.-]+[/\\][\w-]+\.[a-z][a-z0-9]{0,4}\b"
+    r"|\b[\w-]{2,}\.(?!\d)[a-z][a-z0-9]{0,4}\b",
+    re.IGNORECASE,
+)
+
+
 def _raw_tokens(text: str) -> list[str]:
-    return [t for t in re.split(r"[^a-z0-9]+", str(text or "").lower()) if t]
+    lowered = _WEB_ADDRESS_RE.sub(lambda found: " url " + found.group(0), str(text or "").lower())
+    return [t for t in re.split(r"[^a-z0-9]+", lowered) if t]
 
 
 # Two-letter words are function words, except the handful of everyday abbreviations a person
@@ -327,6 +357,18 @@ class _Match:
     index: int
     skill: Skill
     reasons: tuple[str, ...]
+    #: Whether the ask qualifies for the skill on words alone (the rank_skills law).
+    qualified: bool = True
+    #: The weighed worth of every word the ask shares with the skill's card, qualified or not.
+    support: float = 0.0
+    #: The ask names the skill or carries one of its multi-word triggers whole.
+    anchored: bool = False
+    #: How many different content words of the ask the skill's card carries.
+    distinct: int = 0
+    #: The words qualified, and only the general-question guard held them back.
+    general: bool = False
+    #: Some shared word is one the skill's name or triggers carry, not only its description.
+    keyed: bool = False
 
 
 def _ask_words(user_text: str) -> dict[str, str]:
@@ -484,6 +526,10 @@ def _carries_material(user_text: str) -> bool:
 def _points_at_material(user_text: str, tokens: list[str], job_stems: frozenset[str] | None) -> bool:
     if any(token in _MATERIAL_WORDS for token in tokens):
         return True
+    # A named file, folder or web address is something the person holds or points at:
+    # "why is tests/test_api.py failing" is about their file, not a question about the world.
+    if _WEB_ADDRESS_RE.search(str(user_text or "")) or _FILE_LOCATOR_RE.search(str(user_text or "")):
+        return True
     if not any(token in _DEICTICS for token in tokens):
         return False
     if _carries_material(user_text):
@@ -514,6 +560,10 @@ def _general_question(user_text: str, job_stems: frozenset[str] | None = None) -
         return False
     if _REQUEST_RE.match(" ".join(tokens)):
         return False
+    # "do a vulnerability pass", "do an audit of ...": "do" before an article is the verb of a
+    # request, not the opener of a yes-or-no question ("do I need ...", "do the kids ...").
+    if tokens[0] == "do" and len(tokens) > 1 and tokens[1] in {"a", "an", "some"}:
+        return False
     if _points_at_material(user_text, tokens, job_stems):
         return False
     # "should I go to the gym more? make me a plan": a second sentence after the question is
@@ -530,11 +580,35 @@ def _general_question(user_text: str, job_stems: frozenset[str] | None = None) -
     return not re.search(r"\b(?:should|can|could|do) (?:i|we)\b", " ".join(tokens))
 
 
-def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
+def _qualify(skills: tuple[Skill, ...], user_text: str, peers: tuple[Skill, ...] = ()) -> list[_Match]:
     """Every skill this request qualifies for, best first, with the plain reasons it qualified.
 
     The one qualification and scoring path: rank_skills and match_reasons both read it, so a
     reason shown to a person is always the reason the ranker used.
+    """
+
+    matches = [match for match in _assess(skills, user_text, peers) if match.qualified]
+    matches.sort(key=lambda match: (-match.score, match.index))
+    return matches
+
+
+def _shares_pair(ask_stems: list[str], card_stems: list[str], anchors: set[str]) -> bool:
+    """An anchor word stands next to the same word, in the same order, in the ask and on the card."""
+    def pairs(stems: list[str]) -> set[tuple[str, str]]:
+        return {pair for pair in itertools.pairwise(stems) if pair[0] != pair[1]}
+
+    # In the card's order: "a packing list" is the card's "packing list"; "the rent this month"
+    # is not its "monthly rent".
+    return any(set(pair) & anchors for pair in pairs(ask_stems) & pairs(card_stems))
+
+
+def _assess(skills: tuple[Skill, ...], user_text: str, peers: tuple[Skill, ...] = ()) -> list[_Match]:
+    """Every skill weighed against this request: qualified or not, with its score and support.
+
+    ``_qualify`` keeps the qualified ones; ``word_evidence`` hands all of them to the native
+    library, which weighs words together with the turn's typed class. ``peers`` are skills the
+    turn could also pick through another lane: they count when judging how rare a word is, and
+    are never matched themselves.
     """
 
     ask_stems = _content_stems(user_text)
@@ -551,6 +625,7 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
     spoken = " " + " ".join(_raw_tokens(user_text)) + " "
 
     fields = [_fields_of(skill) for skill in skills]
+    peer_fields = [_fields_of(peer) for peer in peers]
     job_stems = frozenset().union(*(found.card for found in fields))
     asking_in_general = _general_question(user_text, job_stems)
     asking_verdict = asking_in_general and _raw_tokens(user_text)[0] in _VERDICT_OPENERS
@@ -561,12 +636,12 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
     # every set of instructions says "paste", "list" and "steps".
     owners: dict[str, int] = {}
     card_owners: dict[str, int] = {}
-    for found in fields:
+    for found in (*fields, *peer_fields):
         for stem in found.every & ask_stem_set:
             owners[stem] = owners.get(stem, 0) + 1
         for stem in found.card & ask_stem_set:
             card_owners[stem] = card_owners.get(stem, 0) + 1
-    library = max(len(skills), _LIBRARY_FLOOR)
+    library = max(len(skills) + len(peers), _LIBRARY_FLOOR)
 
     def _scale(count: int) -> float:
         return math.log(library / count) / math.log(library) if count else 0.0
@@ -613,12 +688,31 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         # word: "fix the spelling" reaches the proofreading skill, "explain how it works" must
         # not reach whichever skill happens to say "worked example".
         kind_backed = bool(ask_stem_set & _KIND_STEMS & found.card) and max(worth.values(), default=0.0) >= _KIND_PAIR_BAR
+        # One word of a name made of several ("rent" of rent-splitter, "split" of it) is half
+        # the job the name states, and an everyday word besides: "pay my rent late this month"
+        # and "split this PDF" are not asks to divide the rent between flatmates. Alone, or
+        # with one more shared word, it does not pick the skill; the rest of the name, a
+        # trigger, or two more words of its card must stand with it.
+        keys = {stem for stem in worth if stem in found.name or stem in found.triggers}
+        lone_name_word = (
+            len(found.name) >= 2 and len(keys) == 1 and not (keys & found.triggers) and len(worth) < 3
+            # ...unless it stands in the ask beside a word it stands beside on the card: "make
+            # me a packing list" says the card's own "packing list".
+            and not _shares_pair(ask_stems, _content_stems(skill.description), keys)
+        )
         qualified_without_backing = (
             named or name_covered or bool(hits) or bool((ask_stem_set - subject_only) & found.triggers)
-            or strong >= _STRONG_BAR
-            or (words >= _BAR and len(worth) >= 2)
+            or (strong >= _STRONG_BAR and not lone_name_word)
+            or (words >= _BAR and len(worth) >= 2 and not lone_name_word)
         )
         if not (qualified_without_backing or kind_backed):
+            if words > 0:
+                matches.append(
+                    _Match(score=words, index=index, skill=skill, reasons=(), qualified=False, support=words,
+                           distinct=len(worth),
+                           keyed=any(stem in found.name or stem in found.triggers or stem in found.phrase_words
+                                     for stem in worth))
+                )
             continue
         # A whole trigger adds a little on top of its words, which already count at trigger
         # weight; a larger bonus let incidental two-word phrases outrank the skill an ask
@@ -648,6 +742,8 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
                 label = "shared word " if len(rest) == 1 else "shared words "
                 reasons.append(label + shared + " backed by "
                                + ", ".join(f'"{asked.get(stem, stem)}"' for stem in backing))
+        anchored = bool(named or name_covered or hits)
+        keyed = any(stem in found.name or stem in found.triggers or stem in found.phrase_words for stem in worth)
         # The person's own question carrying a trigger word for word ("how many rows are in
         # the orders table" holds "how many rows") is the author's own wording, general or not.
         verbatim = any(
@@ -658,13 +754,19 @@ def _qualify(skills: tuple[Skill, ...], user_text: str) -> list[_Match]:
         # every email") are not the person naming the skill; only the name verbatim is.
         general_score = score - (3.5 if name_covered and asking_verdict else 0.0)
         if asking_in_general and general_score < _GENERAL_BAR and not named and not verbatim:
+            matches.append(
+                _Match(score=score, index=index, skill=skill, reasons=tuple(reasons), qualified=False, support=words,
+                       anchored=anchored, distinct=len(worth), general=True, keyed=keyed)
+            )
             continue
-        matches.append(_Match(score=score, index=index, skill=skill, reasons=tuple(reasons)))
-    matches.sort(key=lambda match: (-match.score, match.index))
+        matches.append(_Match(score=score, index=index, skill=skill, reasons=tuple(reasons), support=words,
+                              anchored=anchored, distinct=len(worth), keyed=keyed))
     return matches
 
 
-def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) -> tuple[Skill, ...]:
+def rank_skills(
+    skills: tuple[Skill, ...], user_text: str, *, limit: int = 2, peers: tuple[Skill, ...] = ()
+) -> tuple[Skill, ...]:
     """The skills this request is actually about, best first.
 
     Overlap only — nothing here decides whether a tool is available. A request that matches no
@@ -691,9 +793,14 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
     request in a second sentence still counts as a request. The subject after "about"
     ("a haiku about databases") never seats a skill alone. Naming the skill wins; `limit` caps
     the result.
+
+    ``peers`` are the other skills the turn could pick through another lane (the built-in
+    library beside a bundled pack). They count when judging how rare a word is and are never
+    returned: a lane of one skill judged alone makes every word it carries look rare, so "explain
+    how vaccines work" met the bundled database pack on "work".
     """
 
-    return tuple(match.skill for match in _qualify(skills, user_text)[:limit])
+    return tuple(match.skill for match in _qualify(skills, user_text, peers)[:limit])
 
 
 def match_reasons(skills: tuple[Skill, ...], user_text: str) -> dict[str, list[str]]:
@@ -708,6 +815,58 @@ def match_reasons(skills: tuple[Skill, ...], user_text: str) -> dict[str, list[s
     for match in _qualify(skills, user_text):
         reasons.setdefault(match.skill.name, list(match.reasons))
     return reasons
+
+
+@dataclass(frozen=True)
+class WordEvidence:
+    """What the ask's words say about one skill, through the one scoring path.
+
+    ``qualified``: the words alone pick the skill (the rank_skills law, general-question guard
+    included). ``score``: its rank_skills score. ``support``: the weighed worth of the words the
+    ask shares with the skill's card even when they do not qualify it. ``anchored`` and
+    ``distinct`` say how the words qualified: by naming the skill or carrying a whole multi-word
+    trigger, and over how many different words -- so a caller can tell one ordinary shared word
+    ("review", "migrate") from an ask about what the skill does.
+    """
+
+    qualified: bool
+    score: float
+    support: float
+    reasons: tuple[str, ...] = ()
+    #: The ask names the skill or carries one of its multi-word triggers whole.
+    anchored: bool = False
+    #: How many different content words of the ask the skill's card carries.
+    distinct: int = 0
+    #: The words would qualify, but the ask reads as a question about the world (the guard).
+    general: bool = False
+    #: Some shared word is one the skill's name or triggers carry, not only its description.
+    keyed: bool = False
+
+
+def word_evidence(skills: tuple[Skill, ...], user_text: str) -> dict[str, WordEvidence]:
+    """skill name -> WordEvidence, for every skill the ask shares a weighed word with.
+
+    Rarity is judged across ``skills`` exactly as rank_skills judges it, so a word every
+    candidate carries says little and a word one candidate carries says a lot. A skill absent
+    from the result shares nothing with the ask.
+    """
+
+    found: dict[str, WordEvidence] = {}
+    for match in _assess(skills, user_text):
+        found.setdefault(
+            match.skill.name,
+            WordEvidence(
+                qualified=bool(match.qualified),
+                score=float(match.score),
+                support=float(match.support),
+                reasons=tuple(match.reasons),
+                anchored=bool(match.anchored),
+                distinct=int(match.distinct),
+                general=bool(match.general),
+                keyed=bool(match.keyed),
+            ),
+        )
+    return found
 
 
 def instructions_for(skills: tuple[Skill, ...]) -> str:
@@ -740,10 +899,12 @@ def narrowed_tools(skills: tuple[Skill, ...]) -> tuple[str, ...]:
 
 __all__ = [
     "Skill",
+    "WordEvidence",
     "instructions_for",
     "load_skills",
     "match_reasons",
     "narrowed_tools",
     "parse_skill",
     "rank_skills",
+    "word_evidence",
 ]

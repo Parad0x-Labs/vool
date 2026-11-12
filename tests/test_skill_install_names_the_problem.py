@@ -37,15 +37,32 @@ def test_install_refusal_names_the_unknown_tool(profile):
     result = install_skill(str(_skill(profile / "src" / "note-saver", "[workspace.writefile]")))
     assert result["status"] == "refused"
     assert "workspace.writefile" in result["reason"]
-    assert "allowed-tools names tools this runtime does not have" in result["reason"]
+    # The reason is for a person (audit L1): what is wrong, and what to do; the exact check stays in problems.
+    assert "asks for tools VOOL does not have: workspace.writefile" in result["reason"]
+    assert any("allowed-tools names tools this runtime does not have" in item for item in result["problems"])
     assert any("workspace.writefile" in item for item in result["problems"])
 
 
 def test_install_tool_reply_names_the_unknown_tool(profile):
     from core.runtime_execution_tools import execute_runtime_tool
+    from core.skill_tools import staging_root
 
-    folder = _skill(profile / "src" / "note-saver", "[workspace.writefile]")
+    # A draft in VOOL's drafts folder: the refusal names the unknown tool.
+    folder = _skill(staging_root() / "note-saver", "[workspace.writefile]")
     result = execute_runtime_tool("skill.install", {"path": str(folder)})
     assert result.status == "refused"
     assert "workspace.writefile" in result.response_text
     assert "not installed" in result.response_text
+
+
+def test_install_tool_does_not_open_a_skill_file_outside_the_skill_folders(profile):
+    """The old scenario (a folder somewhere under the person's files) is refused before the file is
+    read, and the reply says what was refused, why, and what to do instead (red team t17)."""
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    folder = _skill(profile / "src" / "note-saver", "[workspace.writefile]")
+    result = execute_runtime_tool("skill.install", {"path": str(folder)})
+    assert result.status == "not_allowed"
+    assert "workspace.writefile" not in result.response_text, "the file was not read"
+    assert result.response_text.startswith("I did not open that file")
+    assert "VOOL's own skill folders" in result.response_text and "attach its zip" in result.response_text

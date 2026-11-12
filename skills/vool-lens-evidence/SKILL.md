@@ -1,6 +1,7 @@
 ---
 name: vool-lens-evidence
 description: "Automatic evidence expert lens: when a turn asserts, summarizes, or concludes, apply the evidence lens — what claim carries what support, what is receipt-backed versus asserted, and what would change the answer — bounded to five checks on the material already present. Use automatically on research and conclusion-shaped turns; never a substitute for the evidence contracts that own the turn."
+summary: "When an answer draws a conclusion, VOOL checks what backs it up and what is only a guess."
 version: 1.0.0
 license: MIT
 author: sls_0x
@@ -8,7 +9,8 @@ status: p1
 type: expert_lens
 id: lens-evidence
 risk-class: read_only
-task-families: [research, general_advisory]
+task-families: [research]
+triggers: [evidence, is it true, fact check, studies, study, research says, scientific consensus, proof, sources for, cite sources, what the data says, claim, myth, proves, prove, proven, article says, the article, headline, backed up, backed by, debunked, reliable source, trust this, is that true, is that right, is this true, accurate, misinformation, statistic, statistics, scientists say, experts say]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations naming claim and support, or states that every claim present already carries its receipt"]

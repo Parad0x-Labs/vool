@@ -3149,7 +3149,9 @@
       "arguments": [
         "count_only",
         "directories_only",
+        "kind",
         "limit",
+        "newest_first",
         "path"
       ],
       "description": "List visible entries inside a safe local directory such as Desktop, Downloads, or Documents.",
@@ -3171,10 +3173,24 @@
               "null"
             ]
           },
+          "kind": {
+            "description": "string optional (image|screenshot|video|audio|pdf|document|spreadsheet)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "limit": {
             "description": "integer optional",
             "type": [
               "integer",
+              "null"
+            ]
+          },
+          "newest_first": {
+            "description": "boolean optional",
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -3190,7 +3206,9 @@
           "path",
           "directories_only",
           "limit",
-          "count_only"
+          "count_only",
+          "kind",
+          "newest_first"
         ],
         "type": "object"
       },
@@ -3643,6 +3661,7 @@
     "machine.write_file": {
       "arguments": [
         "content",
+        "create_only",
         "path"
       ],
       "description": "Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents.",
@@ -3654,6 +3673,13 @@
             "description": "string",
             "type": "string"
           },
+          "create_only": {
+            "description": "boolean optional (true: only create a new file; refuse with status=already_exists if the path exists)",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "path": {
             "description": "string",
             "type": "string"
@@ -3661,7 +3687,8 @@
         },
         "required": [
           "path",
-          "content"
+          "content",
+          "create_only"
         ],
         "type": "object"
       },
@@ -6969,7 +6996,8 @@
     "pdf.extract_text": {
       "arguments": [
         "max_pages",
-        "path"
+        "path",
+        "start_page"
       ],
       "description": "Read the text a PDF already carries, page by page. Exact and instant. Returns no_text_layer for a scanned PDF, which pdf.ocr can read instead.",
       "native_name": "pdf__extract_text",
@@ -6986,10 +7014,18 @@
           "path": {
             "description": "string",
             "type": "string"
+          },
+          "start_page": {
+            "description": "integer optional",
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
           "path",
+          "start_page",
           "max_pages"
         ],
         "type": "object"

@@ -1,4 +1,5 @@
-"""Author SDK for native registry packages. No installs, scans-for-hire or remote writes."""
+"""Make, check and share a VOOL skill: write a starter, test which messages pick it, zip it, put it
+in VOOL's drafts, and prepare a package for the shared skill library. Nothing here publishes anything."""
 from __future__ import annotations
 
 import argparse
@@ -86,7 +87,7 @@ def starter_finding(path: str) -> dict:
 #: Frontmatter keys VOOL reads (core.plugin_skills.parse_skill_content), plus `license` and
 #: `metadata`, which the publishing tools read. Any other key is ignored by VOOL.
 KNOWN_FRONTMATTER_KEYS = frozenset({
-    "name", "description", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
+    "name", "description", "summary", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
     "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
     "cumulative-test-law", "cumulative_test_law", "license", "metadata",
 })
@@ -216,13 +217,63 @@ def zip_skill(folder: Path, output: Path | None = None) -> dict:
             "next": "In VOOL say: import this skill " + str(target.resolve())}
 
 
+def stage_skill(folder: Path, *, overwrite: bool = False) -> dict:
+    """Put a skill folder's SKILL.md into this VOOL profile's drafts folder, checked, not turned on.
+
+    VOOL's ``skill.install`` reads only VOOL's own skill folders (a path elsewhere is refused, so a
+    model cannot point it at a private file). This is the author's way in: the file is checked with
+    VOOL's own validator and safety check, copied into the drafts folder of the profile that
+    HOME / VOOL_HOME / VOOL_PLUGINS_DIR name, and its digest is kept beside it, so turning it on
+    (``skill.install path=<short name>``) installs these
+    exact bytes or nothing. Only SKILL.md is copied.
+    """
+    import hashlib
+
+    from core.skill_tools import (
+        DRAFTED_MARK,
+        _slug,
+        plain_problem,
+        reserved_name_reason,
+        staging_root,
+        validate_skill,
+    )
+
+    folder = Path(folder)
+    skill_md = folder / "SKILL.md" if folder.is_dir() else folder
+    require(skill_md.name == "SKILL.md" and skill_md.is_file(), "no SKILL.md in " + str(folder))
+    raw = skill_md.read_bytes()
+    require(not starter_text_left(raw.decode("utf-8", "replace")), "SKILL.md " + starter_finding("SKILL.md")["reason"])
+    verdict = validate_skill(str(skill_md))
+    require(verdict.get("status") == "ok", "SKILL.md does not pass the skill check: " + " ".join(
+        plain_problem(str(item)) for item in (verdict.get("problems") or ["unreadable"])))
+    short = _slug(str(verdict.get("name") or "")) or _slug(skill_md.parent.name)
+    require(bool(short), "the skill has no name; add a line name: ... at the top of SKILL.md")
+    reserved = reserved_name_reason(short)
+    require(not reserved, reserved)
+    target = staging_root() / short
+    require(overwrite or not (target / "SKILL.md").exists(),
+            "a draft named " + short + " is already in VOOL's drafts; pass --overwrite to replace it")
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "SKILL.md").write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    (target / DRAFTED_MARK).write_text(json.dumps({"sha256": digest, "scope": "global", "staged_from": "folder"}) + "\n",
+                                      encoding="utf-8")
+    return {"status": "staged", "name": str(verdict.get("name") or short), "short_name": short,
+            "sha256": digest, "check_code": " ".join(digest[i:i + 4] for i in range(0, 12, 4)),
+            "draft": str(target / "SKILL.md"),
+            "next": "Turn it on with the skill.install tool, path=" + short + ", and Allow once on its card. "
+                    "Until then it is listed under Drafts not turned on yet."}
+
+
 def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     require("icon" not in info and "banner" not in info,
             "add icon and banner to registry.json after init, once the picture files are in the package")
     metadata(info)
     require_for_new_version(info)
     require(not any(starter_text_left(info.get(key, "")) for key in ("summary", "title")),
-            "metadata summary " + starter_finding("summary")["reason"])
+            'the "summary" in the metadata file still holds the starter text from new. Open the metadata '
+            'file (the <folder>.metadata.json that new wrote beside the skill folder), replace "summary" with '
+            "one plain sentence about what the skill does, and run init again")
     require(bool(license_bytes.strip()) and len(license_bytes) <= 1024 * 1024, "licence text required")
     destination.mkdir()  # Never overwrite an existing project.
     publisher, name = info["id"].split("/")
@@ -283,41 +334,52 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="vool-community", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init", help="make a package folder from metadata.json and a licence file")
-    init.add_argument("destination", type=Path)
-    init.add_argument("--metadata", required=True, type=Path)
-    init.add_argument("--license-file", required=True, type=Path)
+    init.add_argument("destination", type=Path, help="the package folder to create (must not exist yet)")
+    init.add_argument("--metadata", required=True, type=Path,
+                      help="the metadata file, for example the <folder>.metadata.json that new wrote")
+    init.add_argument("--license-file", required=True, type=Path, help="the licence text, for example <folder>/LICENSE")
     for name in ("lint", "pack"):
         command = commands.add_parser(name, help={"lint": "check a package folder with VOOL's own validator (local only)", "pack": "lint, then write the package file for upload"}[name])
-        command.add_argument("source", type=Path)
-        command.add_argument("--scratch", required=True, type=Path)
+        command.add_argument("source", type=Path, help="the package folder init made")
+        command.add_argument("--scratch", required=True, type=Path,
+                             help="an empty folder outside the package for temporary files")
         if name == "pack":
-            command.add_argument("--output", required=True, type=Path)
+            command.add_argument("--output", required=True, type=Path, help="the package file to write (must not exist yet)")
     check = commands.add_parser("check", help="check a packed package file")
-    check.add_argument("artifact", type=Path)
-    check.add_argument("--scratch", required=True, type=Path)
+    check.add_argument("artifact", type=Path, help="the package file pack wrote")
+    check.add_argument("--scratch", required=True, type=Path, help="an empty folder for temporary files")
     submit = commands.add_parser("submission-link", help="print the GitHub link that opens a submission pull request")
-    submit.add_argument("artifact", type=Path)
-    submit.add_argument("--github-user", required=True)
-    submit.add_argument("--branch", required=True)
+    submit.add_argument("artifact", type=Path, help="the package file pack wrote")
+    submit.add_argument("--github-user", required=True, help="your GitHub user name")
+    submit.add_argument("--branch", required=True, help="the branch of your fork that holds the package")
     starter = commands.add_parser("new", help="write a starter skill folder (SKILL.md, LICENSE) and its metadata file")
-    starter.add_argument("folder", type=Path)
-    starter.add_argument("--name", required=True)
-    starter.add_argument("--namespace", default="your-namespace")
-    starter.add_argument("--author", default="")
+    starter.add_argument("folder", type=Path, help="the new skill folder to create")
+    starter.add_argument("--name", required=True,
+                         help="the skill's short name: lowercase letters, digits and hyphens, like meeting-actions")
+    starter.add_argument("--namespace", default="your-namespace",
+                         help="your publisher name for the shared library (default: your-namespace)")
+    starter.add_argument("--author", default="", help="the name for the copyright line of the licence")
     trial = commands.add_parser("try", help="install a skill in a throwaway profile and check which asks pick it")
-    trial.add_argument("folder", type=Path)
-    trial.add_argument("--pick", action="append", required=True)
-    trial.add_argument("--not-pick", action="append", default=[])
+    trial.add_argument("folder", type=Path, help="the skill folder (holding SKILL.md)")
+    trial.add_argument("--pick", action="append", required=True, metavar="MESSAGE",
+                       help="a message that must pick the skill (repeat for more)")
+    trial.add_argument("--not-pick", action="append", default=[], metavar="MESSAGE",
+                       help="a message that must not pick the skill (repeat for more)")
     trial.add_argument("--rank-with", action="append", default=[], type=Path, metavar="FOLDER",
                        help="also install every SKILL.md under FOLDER, so the skill is ranked against them "
                             "(without it the skill is ranked alone)")
     zipping = commands.add_parser("zip", help="write the importable zip of a skill folder")
-    zipping.add_argument("folder", type=Path)
-    zipping.add_argument("--output", type=Path, default=None)
+    zipping.add_argument("folder", type=Path, help="the skill folder (holding SKILL.md)")
+    zipping.add_argument("--output", type=Path, default=None,
+                         help="where to write the zip (default: <name>.zip beside the folder)")
+    staging = commands.add_parser("stage", help="put a skill folder into VOOL's drafts, checked, ready to turn on")
+    staging.add_argument("folder", type=Path, help="the skill folder (holding SKILL.md)")
+    staging.add_argument("--overwrite", action="store_true", help="replace a draft of the same name")
     calling = commands.add_parser("call", help="run one VOOL tool in a throwaway profile, through the approval check")
-    calling.add_argument("tool")
+    calling.add_argument("tool", help="the VOOL tool to call, for example operator.schedule_calendar_event")
     calling.add_argument("--args", default="{}", help="the tool's arguments as a JSON object")
-    calling.add_argument("--mode", default="manual", choices=("manual", "auto"))
+    calling.add_argument("--mode", default="manual", choices=("manual", "auto"),
+                         help="the permission mode to check the call in (default: manual)")
     calling.add_argument("--approve", action="store_true", help="allow an approval request once and call again")
     calling.add_argument("--seed-file", action="append", default=[], metavar="SRC:DEST",
                          help="copy a file into the throwaway profile first, e.g. ./a.pdf:~/Downloads/a.pdf "
@@ -342,12 +404,20 @@ def main(argv=None) -> int:
             print(canonical({"status": "created", "skill_folder": str(args.folder),
                              "metadata": str(metadata_path(args.folder)),
                              "next": "Replace every " + STARTER_MARKER + " line in SKILL.md, then: "
-                                     "vool-community try <folder> --pick ... --not-pick ...; "
-                                     "vool-community zip <folder> writes the zip to share or import. "
+                                     "python -m tools.community_skills try " + str(args.folder) +
+                                     " --pick ... --not-pick ...; python -m tools.community_skills zip " +
+                                     str(args.folder) + " writes the zip to share or import (vool-community try "
+                                     "and zip are the same commands when vool-community comes from this "
+                                     "checkout; an installed 0.7.7 release does not have them). Before "
+                                     "packaging, replace the starter \"summary\" in " + str(metadata_path(args.folder)) +
+                                     ". "
                                      "Tool names and limits: docs/guides/skill-tools-and-limits.md"}).decode())
             return 0
         if args.command == "zip":
             print(canonical(zip_skill(args.folder, args.output)).decode())
+            return 0
+        if args.command == "stage":
+            print(canonical(stage_skill(args.folder, overwrite=args.overwrite)).decode())
             return 0
         if args.command == "submission-link":
             artifact = inspect(args.artifact.read_bytes())

@@ -155,13 +155,13 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.get_by_role('button', name='View add-on').wait_for()
         if bundled:
             assert page.locator('#pluginsBody .addon-card').count() == 1
-            page.get_by_role('button',name='All listed skills',exact=True).click()
+            page.get_by_role('button',name='Show all',exact=True).click()
             page.locator('.addon-card').filter(has_text='Unsupported example').get_by_role('button',name='View add-on').click()
             assert page.get_by_text('Not supported yet',exact=True).is_visible()
             assert page.get_by_role('button',name='Check compatibility',exact=True).count() == 0
             assert not calls and not rig[2]
             page.get_by_role('button',name='← Back to list',exact=True).click()
-            page.get_by_role('button',name='Compatible with VOOL',exact=True).click()
+            page.get_by_role('button',name='Ready to add',exact=True).click()
         page.locator('#pluginsSearch').fill('FRONTEND_design')
         assert page.locator('#pluginsBody .addon-card').count() == 1
         page.get_by_role('button', name='Coding', exact=True).click()

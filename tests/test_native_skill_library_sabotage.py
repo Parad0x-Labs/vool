@@ -288,30 +288,81 @@ def test_sabotage_prompt_injection_removed_strips_guidance_from_the_seam(native_
     )
 
 
+class _ServedSkill:
+    def __init__(self, uri: str) -> None:
+        self.uri = uri
+
+
+class _InProcessMCPServer:
+    """An MCP server serving one ``skill://`` resource, in-process (no subprocess, no sandbox):
+    the skill text still goes through the REAL loader, ``load_mcp_skill_contracts``."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def list_resources(self):
+        return [_ServedSkill("skill://mcp-pack-probe")]
+
+    def read_resource_text(self, uri: str) -> str:
+        return self.text
+
+
+_INVALID_MCP_SKILL = """---
+name: mcp-pack-probe
+id: mcp-pack-probe
+version: 1.0.0
+description: "Probe a pack manifest. Use for pack audits."
+risk-class: read_only
+task-families: [not-a-family]
+stopping-conditions: []
+---
+
+INVALID_MCP_MARKER read the manifest.
+"""
+
+
 def test_sabotage_mcp_source_validation_skipped_lets_invalid_skills_ride(
     native_world, tmp_path, monkeypatch
 ) -> None:
-    """Guard: MCP-shipped skills pass the SAME contract law. Skip the validation and an invalid
-    MCP skill would be selected — the failure the convergence exists to prevent."""
-    from core import native_skill_library as nsl
+    """Guard: MCP-shipped skills pass the SAME contract law, and MCP never auto-seats.
 
-    bad_front = {
-        "id": "mcp-pack-probe", "name": "mcp-pack-probe", "version": "1.0.0",
-        "description": "invalid", "risk-class": "read_only",
-        "task-families": ["not-a-family"], "stopping-conditions": ["stop"],
-    }
-    bad = nsl.contract_from_frontmatter(bad_front, source="mcp:stub")
+    Healthy: the invalid MCP skill is refused with typed violations and is not even a plain
+    skill. Sabotaged (validation skipped): it rides the plain lane on the person's words --
+    proof the validation is what keeps it out -- yet still never becomes a typed contract,
+    because no MCP text is ever selected by task class alone.
+    """
+    from core import native_skill_library as nsl
+    from core.execution import mcp_bridge
+    from core.tool_offer_assembly import reset_skill_cache, skill_guidance_for
+
+    monkeypatch.setattr(mcp_bridge, "load_mcp_server_configs", lambda: [{"name": "stub"}])
+    monkeypatch.setattr(mcp_bridge, "_client_for", lambda name: _InProcessMCPServer(_INVALID_MCP_SKILL))
+    monkeypatch.setattr(mcp_bridge, "_config_path", lambda: None)
+    reset_skill_cache()
+    ask = "please probe this pack manifest for pack audits"
+
     healthy = nsl.load_skill_contracts()
     assert all(c.id != "mcp-pack-probe" for c in healthy.contracts)
+    refused = [e for e in healthy.invalid if e.id == "mcp-pack-probe"]
+    assert refused and "task-families" in " ".join(refused[0].violations), refused
+    assert nsl.mcp_lexical_skills() == ()
+    assert "INVALID_MCP_MARKER" not in skill_guidance_for(ask, task_class="workspace_audit").text
 
+    bad = nsl.parse_skill_text(_INVALID_MCP_SKILL, source="mcp:stub", path="skill://mcp-pack-probe")
     monkeypatch.setattr(
         nsl, "load_mcp_skill_contracts",
         lambda: nsl.LibraryLoad(contracts=(bad,), invalid=()),
     )
-    sabotaged = nsl.load_skill_contracts()
-    assert any(c.id == "mcp-pack-probe" for c in sabotaged.contracts), (
+    reset_skill_cache()
+    assert any(s.name == "mcp-pack-probe" for s in nsl.mcp_lexical_skills()), (
         "sabotage no-op: skipping MCP validation changes nothing"
     )
+    assert "INVALID_MCP_MARKER" in skill_guidance_for(ask, task_class="workspace_audit").text
+    sabotaged = nsl.load_skill_contracts()
+    assert all(c.id != "mcp-pack-probe" for c in sabotaged.contracts), "MCP text must never auto-seat"
+    assert "INVALID_MCP_MARKER" not in skill_guidance_for(
+        "how is my workspace looking", task_class="workspace_audit"
+    ).text
 
 
 def test_sabotage_budget_ceiling_raised_lets_context_flood(native_world, monkeypatch) -> None:

@@ -1,6 +1,7 @@
 ---
 name: vool-lens-market
 description: "Automatic market expert lens: when a turn reasons about positioning, customers, pricing, or competition, apply the market lens — who actually pays, what alternative they already use, and what would make them switch — bounded to five checks on the material already present. Use automatically on market-shaped turns; never a substitute for real market data."
+summary: "When you talk about customers, prices or rivals, VOOL asks who would really pay and why they would switch."
 version: 1.0.0
 license: MIT
 author: sls_0x
@@ -9,6 +10,7 @@ type: expert_lens
 id: lens-market
 risk-class: read_only
 task-families: [business_advisory, research]
+triggers: [market, pricing, price my, competitors, competition, customers, positioning, willing to pay, pay for, target audience, go to market, niche, demand for, market size, switch from, viable, viability, business idea, profitable, profit, revenue, make money, people pay, anyone pay, monthly fee, subscription, small business, startup idea, side hustle, paying customers]
 expected-outputs: [lens_observations]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens delivers at most five observations, each grounded in a claim or number already present in the turn, or states that the material carries no market claim to assess"]

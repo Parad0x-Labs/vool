@@ -1,6 +1,7 @@
 ---
 name: vool-lens-security
 description: "Automatic security expert lens: when a turn designs, reviews, or changes anything attackable, apply the security lens — name the trust boundary, the worst plausible attacker, and the fail-closed answer — bounded to five checks, evidence-first. Use automatically on security-relevant turns; never a substitute for a real audit."
+summary: "When something could be attacked or misused, VOOL names the risk and the safer choice."
 version: 1.0.0
 license: MIT
 author: sls_0x
@@ -9,6 +10,7 @@ type: expert_lens
 id: lens-security
 risk-class: read_only
 task-families: [security_hardening]
+triggers: [security, secure, threat model, attacker, trust boundary, attack surface, store passwords, encryption, authentication, permissions model, safe enough, is it safe, hacked, hackers, breach, password, passwords, password reset, login, log in, sign in, two-factor, 2fa, one-time code, otp, sms code, api key, api keys, card numbers, credit card, personal data, phishing, encrypt, encrypted, access control]
 expected-outputs: [lens_findings]
 verification: [evidence_cited, deterministic_evidence]
 stopping-conditions: ["the lens states at most five findings with their evidence, or states plainly that no security-relevant surface was found in the material already present"]

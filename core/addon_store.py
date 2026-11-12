@@ -164,7 +164,7 @@ def assert_reviewed(plugin_id: str, pack: Path) -> None:
 
 def _accepted_review(receipt: dict) -> bool:
     """A scan verdict and the owner's version-specific decision remain separate truths."""
-    report = validate_report(receipt['entry']['skill_name'], receipt['report'])
+    report = _receipt_report(receipt)
     if report['eligible']:
         return True  # Includes existing, authenticated clean-scan installation receipts.
     decision = receipt.get('acceptance', {})
@@ -272,7 +272,7 @@ def catalog() -> dict:
         plugin_id = PREFIX + item["id"]
         record = record_for(plugin_id)
         row.update(plugin_id=plugin_id, installed=bool(record and record.stage != "uninstalled"), enabled=False, scan="not_checked",
-                   first_party=is_own(item))
+                   first_party=is_own(item), local_install=is_vool_bundled(item))
         if row["installed"]:
             row["enabled"] = plugin_id not in _disabled_ids() and available(plugin_id, Path(record.root))
             row["stage"] = record.stage
@@ -280,9 +280,14 @@ def catalog() -> dict:
                 assert_reviewed(plugin_id, Path(record.root))
                 receipt = _read(_installed_receipt(plugin_id))
                 mode = receipt.get('acceptance', {}).get('mode', 'scan_passed')
-                row.update(scan="risks_accepted" if mode == 'risks_accepted' else "checked",
-                           checked_at=receipt["checked_at"], engine=receipt["report"]["engine"],
-                           scan_verdict=receipt['report']['verdict'], acceptance=receipt.get('acceptance', {}))
+                if receipt.get("check") == LOCAL_CHECK:
+                    row.update(scan="risks_accepted" if mode == 'risks_accepted' else "checked_local",
+                               checked_at=receipt["checked_at"], engine="VOOL local check",
+                               scan_verdict=str(receipt["report"].get("status", "")), acceptance=receipt.get('acceptance', {}))
+                else:
+                    row.update(scan="risks_accepted" if mode == 'risks_accepted' else "checked",
+                               checked_at=receipt["checked_at"], engine=receipt["report"]["engine"],
+                               scan_verdict=receipt['report']['verdict'], acceptance=receipt.get('acceptance', {}))
             except Exception:
                 row["scan"] = "changed_or_unverifiable"
         rows.append(row)
@@ -322,13 +327,54 @@ def security_action(action: str, value: str = "") -> dict:
     raise AddonError("unsupported_action", "Unknown security action.")
 
 
+def _shipped(entry: dict) -> bool:
+    """Whether these exact bytes ship inside VOOL (release-time reviewed), not fetched from GitHub."""
+    return bool(entry.get('bundled_source')) or any(
+        item['id'] == entry.get('id') and item.get('bundled_source')
+        and all(item.get(key) == entry.get(key) for key in ('repository', 'ref', 'sha256', 'license_sha256'))
+        for item in CATALOG)
+
+
+def _content_refusal(entry: dict, content: bytes) -> None:
+    """Hold a skill fetched from GitHub to the Skill Codex's own text checks, failing closed.
+
+    Shipped catalogue files were checked when the release was made and are pinned by digest; a
+    GitHub one was only inspected when it was found, so it is checked again on these exact bytes
+    before its review is saved and again before it is installed.
+    """
+    if _shipped(entry):
+        return
+    from core.skill_tools import content_problem
+    try:
+        problem = content_problem(content.decode("utf-8"))
+    except UnicodeDecodeError:
+        problem = "The skill is not plain text."
+    if problem:
+        raise AddonError("addon_failed_safety_check", problem + " Nothing was installed.")
+
+
+def _validation_refusal(verdict: dict) -> AddonError:
+    """The plain refusal for a skill file the validator did not pass.
+
+    A file that fails the Skill Codex's text checks is refused as a safety problem, with the line,
+    the reason and what to write instead, the same words every other way in uses. Saying "a format
+    or tools unavailable in this VOOL version" there named the wrong problem.
+    """
+    from core.skill_tools import SAFETY_LEAD
+
+    problems = [str(item).strip() for item in (verdict.get("problems") or []) if str(item).strip()]
+    safety = next((item for item in problems if item.startswith(SAFETY_LEAD)), "")
+    if safety:
+        return AddonError("addon_failed_safety_check",
+                          "This skill did not pass VOOL's safety check, so it was not added. "
+                          + safety[len(SAFETY_LEAD):] + " Nothing was installed.")
+    return AddonError("addon_incompatible", "This skill requires a format or tools unavailable in this VOOL version.")
+
+
 def _download(entry: dict, filename: str, expected: str) -> bytes:
     # All URL components are shipped catalogue constants, never caller-supplied paths.
     try:
-        shipped = next((item for item in CATALOG if item['id'] == entry['id']
-                        and item.get('bundled_source') and all(item.get(key) == entry.get(key)
-                        for key in ('repository','ref','sha256','license_sha256'))), None)
-        if entry.get('bundled_source') or shipped:
+        if _shipped(entry):
             from core.addon_packages import source
             data = source(expected)
         elif entry.get('skill_path'):
@@ -370,7 +416,8 @@ def prepare(identifier: str, *, approved: bool) -> dict:
             match = _FRONTMATTER_RE.match(text)
             if not match or len(match.group(2).strip()) > _MAX_BODY_CHARS:
                 raise AddonError("addon_incompatible", "This skill cannot be loaded in full by this VOOL version.")
-            result = validate_skill(str(stage / "SKILL.md"))
+            _content_refusal(entry, content)
+            result = validate_skill(str(stage / "SKILL.md"), content_checks=False)
             if result.get("status") != "ok":
                 raise AddonError("addon_incompatible", "This skill requires a format or tools unavailable in this VOOL version.")
             report = scan_skill(entry["skill_name"], text)
@@ -402,6 +449,97 @@ def reject(review_id: str) -> dict:
     return {"ok": True, "message": "Review discarded. Nothing was installed."}
 
 
+# ---- VOOL's own bundled skills: the free local check, no key, no network ---------------------
+#
+# A Browse row from VOOL's own skills repository whose file ships inside the app
+# (core/addon_packages.json, sha256-pinned in core/addon_directory.json and reviewed at release)
+# can be added with VOOL's local check alone. Every other row -- other publishers, GitHub
+# pastes, saved discoveries -- keeps the Eyebrow scan exactly as before. The bytes are checked
+# against the shipped pin when they are staged, again before install (_review_material), and on
+# every load (assert_reviewed's pack digest and reviewed_skill's SKILL.md digest).
+
+LOCAL_CHECK = "vool_local"
+NOT_VOOL_SKILL = ("Only skills made by VOOL can be added with the free local check. "
+                  "This one needs a scan with Eyebrow first.")
+BUNDLED_CHANGED = ("This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added. "
+                   "Update or reinstall VOOL to repair it.")
+
+
+def is_vool_bundled(entry: dict) -> bool:
+    """Whether this row is one of VOOL's own skills shipped inside the app, as shipped."""
+    if not isinstance(entry, dict) or not entry.get("bundled_source") or not is_own(entry):
+        return False
+    shipped = next((item for item in CATALOG if item.get("id") == entry.get("id")), None)
+    return bool(shipped and shipped.get("bundled_source") and is_own(shipped)
+                and all(shipped.get(key) == entry.get(key)
+                        for key in ("repository", "ref", "sha256", "license_sha256", "skill_name")))
+
+
+def _local_verdict(report: dict) -> dict:
+    if not isinstance(report, dict) or report.get("scanner") != "vool-local":
+        raise AddonError("review_untrusted", "The saved check is missing or changed. Check the skill again.")
+    return {"eligible": report.get("status") == "clean"}
+
+
+def _receipt_report(receipt: dict) -> dict:
+    if receipt.get("check") == LOCAL_CHECK:
+        return _local_verdict(receipt.get("report"))
+    return validate_report(receipt['entry']['skill_name'], receipt['report'])
+
+
+def _bundled_bytes(digest: str) -> bytes:
+    """The shipped file for this pin, from the app bundle only. Never a network call."""
+    from core.addon_packages import source
+    try:
+        data = source(digest)
+    except AddonError as exc:
+        if exc.code == "addon_source_changed":
+            raise AddonError("addon_bundled_changed", BUNDLED_CHANGED) from None
+        raise
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise AddonError("addon_bundled_changed", BUNDLED_CHANGED)
+    return data
+
+
+def prepare_local(identifier: str, *, approved: bool) -> dict:
+    """Stage one of VOOL's own bundled skills with the local check; the person still decides."""
+    if approved is not True:
+        raise AddonError("install_consent_required", "Press Add this skill to check and add it.")
+    entry = _entry(identifier)
+    if not is_vool_bundled(entry):
+        raise AddonError("local_install_not_offered", NOT_VOOL_SKILL)
+    if entry.get('discovery_only') or entry.get('import_ready') is False:
+        raise AddonError('addon_needs_compatibility', 'This skill needs compatibility work before it can be added.')
+    content = _bundled_bytes(entry["sha256"])
+    licence = _bundled_bytes(entry["license_sha256"])
+    from core.local_scan import scan_bytes
+    from core.plugin_skills import _FRONTMATTER_RE, _MAX_BODY_CHARS
+    from core.skill_tools import validate_skill
+    with _LOCK:
+        stage = _root() / "pending" / uuid.uuid4().hex
+        stage.mkdir(parents=True, mode=0o700)
+        try:
+            (stage / "SKILL.md").write_bytes(content)
+            (stage / "LICENSE.txt").write_bytes(licence)
+            match = _FRONTMATTER_RE.match(content.decode("utf-8"))
+            if not match or len(match.group(2).strip()) > _MAX_BODY_CHARS:
+                raise AddonError("addon_incompatible", "This skill cannot be loaded in full by this VOOL version.")
+            verdict = validate_skill(str(stage / "SKILL.md"))
+            if verdict.get("status") != "ok":
+                raise _validation_refusal(verdict)
+            report = scan_bytes(entry["skill_name"], content)
+            now = time.time()
+            _write(stage / "review.json", {"entry": entry, "report": report, "check": LOCAL_CHECK,
+                                           "checked_at": now, "review_id": stage.name})
+            # The same result is the skill's saved local report, so its page shows it too.
+            _write(_local_report_path(entry["id"], create=True),
+                   {"id": entry["id"], "source_sha256": entry["sha256"], "checked_at": now, "report": report})
+            return review_saved(stage.name)
+        except Exception:
+            shutil.rmtree(stage)
+            raise
+
+
 def _review_identity(entry: dict) -> dict:
     # Shipping an identical public file locally changes its transport, not the
     # version the owner reviewed. Older ready entries omitted these default flags.
@@ -424,7 +562,9 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
         raise AddonError("addon_source_changed", "The selected version changed. Inspect and scan that version before installing.")
     if entry.get('discovery_only') or entry.get('import_ready') is False:
         raise AddonError("addon_incompatible", "This package needs compatibility or licence work before it can be installed.")
-    report = validate_report(entry['skill_name'], receipt['report'])
+    if receipt.get("check") == LOCAL_CHECK and not is_vool_bundled(current):
+        raise AddonError("local_install_not_offered", NOT_VOOL_SKILL)
+    report = _receipt_report(receipt)
     files = []
     try:
         for name, digest in (("SKILL.md", "sha256"), ("LICENSE.txt", "license_sha256")):
@@ -437,6 +577,7 @@ def _review_material(stage: Path, receipt: dict) -> tuple[bytes, bytes, dict]:
             files.append(content)
     except OSError:
         raise AddonError("addon_files_missing", "The downloaded files are missing or unreadable. Download and scan again.") from None
+    _content_refusal(entry, files[0])
     return files[0], files[1], report
 
 
@@ -452,10 +593,16 @@ def review_saved(review_id: str) -> dict:
                     "reason": exc.message,
                     "vool_check": {"status": "blocked", "code": exc.code, "message": exc.message}}
         clear = report['eligible']
-        message = ("The scanned files are unchanged and this standalone skill can be installed."
-                   if clear else "The scanned files are unchanged and the format is supported. VOOL requires an explicit risk acceptance because the Eyebrow report is not clear.")
+        if receipt.get("check") == LOCAL_CHECK:
+            message = ("The file matches the copy that came with VOOL, and VOOL's local check found nothing in it. You can add it."
+                       if clear else "The file matches the copy that came with VOOL, but VOOL's local check flagged something in it. Read the findings; adding it needs your separate OK.")
+            why = "" if clear else "VOOL's local check flagged something. Adding this skill needs your separate OK."
+        else:
+            message = ("The scanned files are unchanged and this standalone skill can be installed."
+                       if clear else "The scanned files are unchanged and the format is supported. VOOL requires an explicit risk acceptance because the Eyebrow report is not clear.")
+            why = "" if clear else "Eyebrow reported findings or a failed scan policy. Installation requires your separate risk acceptance."
         return {"ok": True, **receipt, "can_install": clear, "can_override": not clear,
-                "reason": "" if clear else "Eyebrow reported findings or a failed scan policy. Installation requires your separate risk acceptance.",
+                "reason": why,
                 "vool_check": {"status": "passed", "code": "ready" if clear else "risk_acceptance_required", "message": message}}
 
 
@@ -501,7 +648,8 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
             (target / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest, sort_keys=True))
             receipt.update(plugin_id=plugin_id, pack_digest=lifecycle.manifest_digest(target))
             _write(_installed_receipt(plugin_id, create=True), receipt)
-            lifecycle.install(plugin_id, root=target, source="eyebrow-catalog:" + safe_entry_id)
+            origin = "vool-bundled:" if receipt.get("check") == LOCAL_CHECK else "eyebrow-catalog:"
+            lifecycle.install(plugin_id, root=target, source=origin + safe_entry_id)
             lifecycle.verify(plugin_id, root=target, expected_digest=receipt["pack_digest"])
             lifecycle.enable(plugin_id)
             invalidate_storage_listing()

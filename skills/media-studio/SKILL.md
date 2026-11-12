@@ -1,12 +1,13 @@
 ---
 name: media-studio
 description: Edit one video or audio file into a new copy - trim, crop, make it tall, square or wide for a post, change the volume, or make it smaller to send. The original file is never changed. Use when the user wants a clip shortened, reshaped for TikTok, Reels or X, or made smaller.
+summary: "Trims, crops, resizes or shrinks one video or audio file into a new copy. Your original file is left as it was."
 version: 0.1.0
 license: MIT
 author: sls_0x
 status: m1
 type: capability_skill
-triggers: [edit this video, edit my video, trim this video, trim the clip, shorten this video, crop the video, make this video vertical, make it square for, video for tiktok, clip for reels, make this clip smaller, mute the video]
+triggers: [edit this video, edit my video, trim this video, trim the clip, shorten this video, crop the video, make this video vertical, make it square for, video for tiktok, clip for reels, make this clip smaller, mute the video, video, clip, footage, audio, mp4, mov, mp3, wav, cut, trim, crop, shorten, compress, resize, vertical, landscape, portrait, volume, louder, quieter, mute, reels, tiktok, shorts]
 capabilities:
   - media.inspect
   - media.video.trim

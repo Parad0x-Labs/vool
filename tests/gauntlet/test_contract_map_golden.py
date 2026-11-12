@@ -400,8 +400,8 @@ def test_contract_map_and_list_agree():
     # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
-    # 204 -> 207: dry-run union of loc/delivery-077-20261029 (2 skill-master intents) and
-    # mobile-companion machine.send_to_phone (1).
+    # 204 -> 205: machine.send_to_phone, a file from the safe folders to the owner's paired phone.
+    # 205 -> 207: operator.schedule_reminder and operator.cancel_reminder (tool-seating Job 6), pinned above.
     assert len(contract_map) == len(GOLDEN_TIERS) == 207
 
 

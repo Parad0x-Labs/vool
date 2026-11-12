@@ -1431,6 +1431,18 @@ _PRESENT_OPERATOR_OBJECT_WORDS = frozenset({
     "note", "notes", "agenda",
 })
 
+# "find the root cause", "find the bug", "find out why": the object names a cause or a fault the
+# person wants worked out, not words a file's name carries. Measured on the skills merge
+# (2026-11-12): "the invoice total test started failing after my last change, find the root cause"
+# was answered with a disk search for files named "root cause" instead of reaching the model and
+# the root-cause-repair skill. Only an object made of these words alone stands down, so
+# "pull up the bug report" is still a file.
+_PRESENT_FAULT_WORDS = frozenset({
+    "root", "cause", "causes", "bug", "bugs", "problem", "problems", "issue", "issues", "reason",
+    "reasons", "culprit", "regression", "fault", "faults", "error", "errors", "mistake", "mistakes",
+    "out", "why", "fix", "solution", "answer",
+})
+
 
 class PresentFileAsk(NamedTuple):
     """A file asked for by the words of its name: "pull up the plumber invoice"."""
@@ -1464,6 +1476,8 @@ def machine_present_file_intent(text: str) -> PresentFileAsk | None:
         offset = raw.find(token, offset) + len(token)
     if not kept:
         return None  # "show me what you found" names nothing to search for
+    if all(word in _PRESENT_FAULT_WORDS for word in kept):
+        return None  # "find the root cause" asks for a diagnosis, not a file
     if any(word in _PRESENT_APP_WORDS or word in _PRESENT_FOLDER_WORDS or word in _PRESENT_DEVICE_WORDS
            or word in _PRESENT_STORAGE_WORDS or word in _PRESENT_OPERATOR_OBJECT_WORDS for word in kept):
         return None

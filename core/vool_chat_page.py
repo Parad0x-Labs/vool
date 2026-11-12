@@ -129,6 +129,7 @@ img.chat-img:hover { border-color:var(--accent); }
   text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .chat-provenance .prov-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .chat-provenance .prov-raw[hidden] { display:none; }
+.chat-provenance.chat-skills-used { margin-top:6px; }
 .chat-provenance.prov-open { white-space:normal; }
 .chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; overflow-wrap:anywhere; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
@@ -5388,6 +5389,63 @@ function renderAssistantContent(el, text, displayMetadata) {
   el.dataset.raw = normalized.content;
 }
 
+// ---- "Skill used" note: which skill shaped THIS answer ----
+// Read from this turn's own ledger rows: `tool_offer_skills` is emitted when a skill's
+// instructions joined the turn's context (core.tool_offer_assembly.skill_provenance_rows), with
+// `details` flattened onto the row. Only rows stamped with THIS turn's id count -- an untagged or
+// other-turn row never lends its skill to this answer. A row whose body was dropped or cut
+// (`complete: false` / `dropped`) did not reach the model, so it is not named. Expert lenses and
+// the answer-style rule (lane `doctrine`) ride many turns automatically and are not named here.
+// Pure and DOM-free so a test can execute it under node.
+function skillsUsedFrom(events, turnId) {
+  const want = String(turnId || '');
+  if (!want) return [];
+  const seen = new Set();
+  const out = [];
+  for (const ev of (events || [])) {
+    if (!ev || String(ev.event_type || ev.type || '') !== 'tool_offer_skills') continue;
+    if (String(ev.client_turn_id || '') !== want) continue;
+    const rows = Array.isArray(ev.skills) ? ev.skills : ((ev.details && Array.isArray(ev.details.skills)) ? ev.details.skills : []);
+    for (const row of rows) {
+      if (!row || row.complete === false || row.dropped) continue;
+      if (String(row.lane || '') === 'doctrine') continue;
+      const words = String(row.name || '').replace(/^vool[-_]/i, '').replace(/[-_]+/g, ' ').trim();
+      if (!words) continue;
+      const title = words.charAt(0).toUpperCase() + words.slice(1);
+      const k = title.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(title);
+    }
+  }
+  return out;
+}
+function paintSkillsUsed(el, names) {
+  if (!el) return;
+  const old = el.querySelector(':scope > .chat-skills-used'); if (old) old.remove();
+  if (!names || !names.length) return;
+  const p = document.createElement('p'); p.className = 'chat-provenance chat-skills-used';
+  const label = names.length === 1 ? pageT('chat.skills_used_one', 'Skill used:') : pageT('chat.skills_used_many', 'Skills used:');
+  p.textContent = label + ' ' + names.join(', ');
+  p.title = pageT('chat.skills_used_title', 'This skill\u2019s instructions were part of how VOOL wrote this answer. Turn skills on or off in Skills & Plugins, under My add-ons.');
+  el.appendChild(p);
+}
+// After a turn ends: read its ledger rows (the same bounded reader the Activity tab uses) and
+// put the note under the answer. Nothing is shown when the turn used no skill, or when the
+// ledger cannot be read -- a missing note never claims "no skill".
+async function noteSkillsUsed(run) {
+  if (!run || !run.chatId || !run.turnId) return;
+  for (let tries = 0; tries < 3; tries++) {
+    try { await pollLedger(run); } catch (e) { /* the next try, or no note */ }
+    const owner = chatState(run.chatId);
+    if (!owner.chatLedgerBusy) break;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  const names = skillsUsedFrom(run.ledger, run.turnId);
+  if (!names.length) return;
+  run.skillsUsed = names;
+  withRunDom(run, () => { if (run.textEl) paintSkillsUsed(run.textEl, names); });
+}
+
 // ---- Proof Chip: one served turn's evidence, beside the answer ----
 // Everything shown here is projected server-side (GET /api/chat/proof) from the stores that own
 // it, bound to the canonical (session, request) pair of THIS message. The page's only job is to
@@ -6017,7 +6075,7 @@ function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata);
+      if (run.ended) { renderAssistantContent(run.textEl, run.text, run.displayMetadata); if (run.skillsUsed) paintSkillsUsed(run.textEl, run.skillsUsed); }
       else {
         // The fresh node now shows everything so far: a batched paint still waiting is moot, and
         // the next piece paints straight into this node.
@@ -9890,6 +9948,7 @@ async function runTurn(text, queueItemId, opts) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
       renderAssistantContent(run.textEl, assistant, run.displayMetadata);
     });
+    noteSkillsUsed(run);
   }
   if (!run.ended) finishRun(run, run.permissionDenied ? 'failed' : (run.permission ? 'awaiting_approval' : (run.terminal ? 'failed' : 'completed')), run.permissionDenied ? pageT('run.permission_denied', 'Permission denied') : (run.permission ? pageT('run.review_action', 'Review the exact action below.') : (run.terminal ? (run.action || pageT('run.failed_safely_label', 'Failed safely')) : pageT('run.complete', 'Complete'))));
   // The turn ran to the end without asking again, so the server either matched the token or never
@@ -13577,9 +13636,16 @@ function openSkills() { return _openPanel('skills'); }
 function renderPluginPanel(d, query) { if (window.VoolAddons && window.VoolAddons.render(query)) return; if (_pluginMode === 'skills') { renderSkills(d, query); } else { renderPlugins(d, query); } }
 
 function _firstPartyBadge() {
-  const fp = document.createElement('span'); fp.className = 'p-firstparty'; fp.title = 'Built by Parad0x Labs';
+  // A person reads "comes with VOOL", never a company handle.
+  const fp = document.createElement('span'); fp.className = 'p-firstparty'; fp.title = pageT('plugins.badge_title', 'Comes with VOOL');
   const mk = document.createElement('span'); mk.className = 'fp-mark'; fp.appendChild(mk);
-  fp.appendChild(document.createTextNode('parad0x')); return fp;
+  fp.appendChild(document.createTextNode('VOOL')); return fp;
+}
+// A skill id such as `vool-answer-presentation` or `shopping-list-by-aisle` reads as plain words
+// ("Answer presentation", "Shopping list by aisle"). The id itself stays the on/off key.
+function _skillTitle(name) {
+  const words = String(name || '').replace(/^vool[-_]/i, '').replace(/[-_]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : String(name || '');
 }
 
 // Plugin STORAGE state, verbatim from the server (`storage.state`: accessible / missing / denied /
@@ -13628,7 +13694,7 @@ function renderPlugins(d, query) {
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
-    : (d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's') + ' installed · ' + d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' (see the Skills panel)');
+    : (d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's') + ' · ' + d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' (choose Skills above to see them)');
   body.appendChild(head);
   if (!plugins.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No plugins match that search.'; body.appendChild(p); return; }
   plugins.forEach((pl) => {
@@ -13656,9 +13722,21 @@ function renderPlugins(d, query) {
       : pageT('plugins.status.unknown', 'Status unknown');
     const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
     st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
-    const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
-    tg.addEventListener('click', () => togglePlugin(pl.id, off));
-    act.appendChild(st); act.appendChild(tg); card.appendChild(act);
+    act.appendChild(st);
+    if (pl.id === 'native-library') {
+      // The built-in skills are not one plugin to switch: the server has no off switch for the
+      // group (a Disable here wrote a setting nothing reads and the card stayed On). Each one
+      // turns off on its own under Skills.
+      const hint = document.createElement('span'); hint.className = 'p-status';
+      hint.textContent = pageT('plugins.native_hint', 'Turn single skills on or off under Skills.');
+      act.appendChild(hint);
+    } else {
+      const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
+      tg.setAttribute('aria-label', tg.textContent + ' ' + (pl.name || pl.id));
+      tg.addEventListener('click', () => togglePlugin(pl.id, off));
+      act.appendChild(tg);
+    }
+    card.appendChild(act);
     body.appendChild(card);
   });
 }
@@ -13690,21 +13768,23 @@ function renderSkills(d, query) {
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
-  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
-  skills.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  // `summary` is the line written for people; `description` is written for skill picking and can
+  // read as instructions, so it is only the fallback for a skill whose author wrote no summary.
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
+  if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
+  skills.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
   head.textContent = q
     ? (skills.length + ' skill' + (skills.length === 1 ? '' : 's') + ' match “' + query.trim() + '”')
-    : (d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + ' across ' + d.plugin_count + ' plugin' + (d.plugin_count === 1 ? '' : 's'));
+    : (d.skill_count + ' skill' + (d.skill_count === 1 ? '' : 's') + '. A skill that is On is used when your message is about its job.');
   body.appendChild(head);
   if (!skills.length) { const p = document.createElement('div'); p.className = 'plugins-empty'; p.textContent = 'No skills match that search.'; body.appendChild(p); return; }
   skills.forEach((s) => {
     const card = document.createElement('div'); card.className = 'plugin-card' + (s.first_party ? ' firstparty' : '');
     const h = document.createElement('div'); h.className = 'p-head';
-    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = s.name;
+    const nm = document.createElement('span'); nm.className = 'p-name'; nm.textContent = s.title || s.name;
     h.appendChild(nm);
-    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin; pill.title = 'From plugin: ' + s.plugin;
+    const pill = document.createElement('span'); pill.className = 'p-cat'; pill.textContent = s.plugin; pill.title = 'From: ' + s.plugin;
     h.appendChild(pill);
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
@@ -13717,7 +13797,7 @@ function renderSkills(d, query) {
       const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
       st.textContent = off ? pageT('plugins.status.off', 'Off') : pageT('plugins.status.on', 'On');
       const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? pageT('plugins.enable', 'Enable') : pageT('plugins.disable', 'Disable');
-      tg.setAttribute('aria-label', tg.textContent + ' ' + s.name);
+      tg.setAttribute('aria-label', tg.textContent + ' ' + (s.title || s.name));
       tg.addEventListener('click', () => toggleSkill(s.name, off, tg, st));
       act.appendChild(st); act.appendChild(tg); card.appendChild(act);
     }

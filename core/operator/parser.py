@@ -600,10 +600,11 @@ _WINDOWS_PATH_RE = re.compile(r"\b([A-Za-z]:\\[^\n\r\"']*)")
 _POSIX_PATH_RE = re.compile(r"\b(?:in|on|under|at)\s+(/[^?\n\r]+)")
 _SPACE_WORD_RE = re.compile(r"\bspace\b")
 # "delete temp files", and the everyday forms (audit 2026-10-27: "my laptop is slow, can you clear out my
-# temp files?" got the memory report instead of the cleanup preview).
+# temp files?" got the memory report instead of the cleanup preview; re-audit 2026-10-29, files:F57:
+# "clean up the temporary files", "tmp files").
 _DELETE_TEMP_FILES_RE = re.compile(
     r"\b(?:delete|remove|clear|clean|wipe|empty|get\s+rid\s+of)\s+(?:out\s+|up\s+)?(?:all\s+)?(?:of\s+)?"
-    r"(?:my\s+|the\s+|those\s+)?temp(?:orary)?\s+files?\b",
+    r"(?:my\s+|the\s+|those\s+)?(?:temp(?:orary)?|tmp)\s+files?\b",
     re.IGNORECASE,
 )
 

@@ -160,11 +160,12 @@ def test_the_search_order_is_staging_then_installed(skills) -> None:
 
     locations = module._skill_locations("qa-echo")
 
-    # P1 native skill library: the first-party package root joined the search between staging
-    # (the copy being redrafted) and installed (the active copy). Three homes, order pinned.
-    assert len(locations) == 3, "all three homes must be in the search, or the order says nothing"
+    # Two homes, order pinned: staging (the copy being redrafted), then installed (the active
+    # copy). VOOL's built-in library is NOT searched: a bare name resolving there let "turn on
+    # vool-feature-build" copy a developer skill into the person's own skills (red team t5).
+    assert len(locations) == 2, "both homes must be in the search, or the order says nothing"
     assert locations[0] == module.staging_root() / "qa-echo" / "SKILL.md"
+    assert locations[1].parent.parent.name == "skills"
     from core.native_skill_library import native_skills_root
 
-    assert locations[1] == native_skills_root() / "qa-echo" / "SKILL.md"
-    assert locations[2].parent.parent.name == "skills"
+    assert not any(location.is_relative_to(native_skills_root()) for location in locations)

@@ -80,7 +80,10 @@ _RULES = (
         r"\b(?:pip[0-9.]*|pipx|uv|conda|poetry|mamba)\s+(?:install|add)\b|\bnpm\s+(?:install|i|exec|run|x)\b|"
         r"\byarn\s+(?:global\s+)?(?:add|dlx)\b|\bpnpm\s+(?:add|install|i|dlx)\b|\bbrew\s+(?:install|tap|reinstall)\b|"
         r"\b(?:apt|apt-get|dnf|yum|pacman|apk|zypper|snap|flatpak|port|choco|winget|scoop|nix-env)\s+(?:install|add|-S)\b|"
-        r"\bcargo\s+install\b|\bgo\s+install\b|\bgem\s+install\b|\bchmod\b|\bxattr\s+-[a-z]*[dc]\b|"
+        r"\bcargo\s+install\b|\bgo\s+install\b|\bgem\s+install\b|"
+        # chmod as a command: with a mode ("chmod +x", "chmod 755", "chmod -R u+w"). The bare word, as in a
+        # skill that explains commands ("sudo, chmod, chown"), runs nothing.
+        r"\bchmod\s+(?:-[a-z]+\s+)*(?:[ugoa]*[-+=][rwxXst]*|[0-7]{3,4})(?=[\s`'\";]|$)|\bxattr\s+-[a-z]*[dc]\b|"
         r"\bspctl\b|\bsudo\s+\S|\bosascript\b|\blaunchctl\s+(?:load|bootstrap|submit|enable)\b|\bcrontab\b|"
         r"\bsource\s+\S{1,200}\.sh\b|\bdocker\s+(?:run|exec|pull)\b|\bgit\s+clone\b", re.IGNORECASE),
         "Skills on the Skill Codex can't ask anyone to install or run software. Describe the task in words instead."),
@@ -110,10 +113,19 @@ _RULES = (
         r"other|your|system|safety)\b[^.!?\n]{0,20}?\b(?:instructions|rules|messages|prompts?|guidelines|limits|"
         r"approvals?)\b|"
         r"\bsystem prompt\b|\bdeveloper mode\b|\bjailbreak\b|\byou are now\b|"
-        r"\b(?:do not|don't) (?:tell|inform|show|let|alert|notify) (?:the )?(?:user|owner|person)\b|"
+        # "do not tell the user you might write" forbids a false claim of what the skill can do; hiding
+        # something from the person ("do not tell the user about the upload") is still refused.
+        r"\b(?:do not|don't) (?:tell|inform|show|let|alert|notify) (?:the )?(?:user|owner|person)\b"
+        r"(?!\s+(?:that\s+)?(?:you|it|this skill)\s+(?:might|could|can|may)\b)|"
         r"\bwithout (?:telling|asking|informing|showing|notifying|alerting) (?:the )?(?:user|owner|person)\b|"
         r"\b(?:secretly|silently|quietly|covertly|invisibly)\b[^.!?\n]{0,40}?\b(?:send|upload|forward|copy|transfer|pay|run|"
-        r"delete|post|share|email)\b", re.IGNORECASE),
+        r"delete|post|share|email)\b|"
+        # Text dressed as the app's own voice: a closing or opening tag around the skill, a role label
+        # in capitals ("SYSTEM:"), or a claim that approval was already given or is not needed.
+        r"</?\s*(?:skill|system|assistant|developer|instructions?|guidance)\b[^<>\n]{0,40}>|"
+        r"(?-i:\b(?:SYSTEM|DEVELOPER|ASSISTANT)(?:\s+(?:MESSAGE|PROMPT|NOTE))?\s*:)|"
+        r"\bpre-?approved\b|\b(?:approvals?|confirmations?|consent|permissions?)\s+(?:is|are)\s+(?:not|no\s+longer)\s+"
+        r"(?:needed|required|necessary)\b|\bend\s+of\s+(?:the\s+)?(?:skill|system)\b", re.IGNORECASE),
         "This reads like an attempt to change VOOL's instructions or hide what the skill does. Rewrite it plainly."),
     ("hidden", re.compile(r"<!--|\[[^\]]{0,100}\]:\s*(?:#|<>)|data:[a-z]+/[a-z0-9.+-]+;base64,|"
                           r"(?<![A-Za-z0-9+/])(?:[A-Za-z0-9+/]{200,}={0,2}|(?:[A-Za-z0-9+/]{40,}={0,2}\s+){3,})|"
@@ -122,6 +134,54 @@ _RULES = (
      "Skills can't carry hidden comments, escape codes or encoded blobs. Write everything as plain visible text."),
     ("letters", re.compile(r"(?<!\w)(?=\w*[A-Za-z])(?=\w*[Ͱ-ϿЀ-ԯ])\w+"),
      "This word mixes letters from different alphabets, which can hide what it says. Retype it in one alphabet."),
+)
+#: Extra rules for a skill coming INTO VOOL (a zip, a chat import, GitHub or Browse, a draft, an install).
+#: They catch what the shared Skill Codex rules above let through and red teams wrote anyway: a claim that
+#: the person already agreed, a line dressed as VOOL's own source line or a new set of rules, a picture
+#: or link that carries the person's words out in its address, a request for card or cash-machine
+#: numbers, and a link that looks like a sign-in page. A published skill is checked by the Skill Codex
+#: rules; the skill_text_findings caller adds these.
+_ASK_FOR = r"\b(?:ask|request)\b(?:\s+\S+){0,4}?\s+for\s+(?:\S+\s+){0,6}?"
+_COLLECT = r"\b(?:collect|obtain|take\s+down|write\s+down|note\s+down|record|get)\s+(?:\S+\s+){0,4}?"
+_CARD_THING = (r"(?:(?:the|their|your|his|her)\s+)?(?:(?:bank|credit|debit|payment)\s+)?card(?:'s)?\s+"
+               r"(?:number|numbers|details|expiry|expiration|cvv|cvc|security\s+code)\b|"
+               r"long\s+number\s+on\s+the\s+(?:front|back)\b|\bcvv\b|\bcvc\b|"
+               r"(?:4|four|5|five|6|six)[\s-]+digits?\b[^.!?\n]{0,40}?\b(?:cash\s+machine|atm|cashpoint|bank|card|"
+               r"phone|unlock)|(?:their|your|his|her)\s+(?:bank\s+|card\s+|online\s+banking\s+)?(?:pin|passwords?|"
+               r"passcodes?|login\s+details)\b|online\s+banking\s+(?:login|password|details)|"
+               r"sort\s+code\s+and\s+account\s+number")
+_IMPORT_RULES = (
+    ("consent", re.compile(
+        r"\balready\s+(?:said\s+yes|agreed|approved|consented|given\s+(?:(?:their|your|his|her)\s+)?"
+        r"(?:permission|consent|approval|the\s+ok))\s+to\s+(?:every|all|any|each)\b|"
+        r"\bskip\s+(?:the\s+)?(?:asking|approvals?|confirmations?|permission(?:\s+checks?)?)\b|"
+        r"\bno\s+need\s+to\s+(?:ask|confirm|check)\s+(?:for\s+)?(?:approval|permission|confirmation|consent)\b|"
+        r"\b(?:approval|permission|consent)\s+(?:was|has\s+been|is)\s+already\s+(?:given|granted)\b",
+        re.IGNORECASE),
+     "Skills can't say the person already agreed or that asking can be skipped. Take that out."),
+    ("voice", re.compile(
+        r"\(\s*source\s*:|\bblock\s+[0-9a-f]{12}\b|"
+        r"\b(?:end|start)\s+of\s+(?:the\s+)?(?:guidance|instructions|rules)\b|"
+        r"\b(?:new|updated)\s+(?:guidance|instructions|rules)\s+from\b|"
+        r"\b(?:note|message|update|notice|guidance|instructions?)\s+from\s+(?:the\s+)?vool\b|"
+        r"\b(?:ignore|disregard|forget)\s+(?:\S+\s+){0,2}?(?:everything|anything)\b[^.!?\n]{0,40}?"
+        r"\b(?:before|above|earlier|previously|so\s+far)\b|"
+        r"\bfollow\s+only\s+(?:this|these|my)\b", re.IGNORECASE),
+     "This reads like an attempt to change VOOL's instructions or hide what the skill does. Rewrite it plainly."),
+    ("link-data", re.compile(
+        r"!\[[^\]\n]{0,200}\]\(\s*<?https?://|<img\b|"
+        r"https?://[^\s)\]>\"'`]*[?&][^\s)\]>\"'`=]{0,40}=[^\s)\]>\"'`]*(?:paste|insert|replace|fill|"
+        r"\{|\[|<|%7b|%5b|%3c)|"
+        r"\b(?:add|append|put|include|attach|encode|insert)\b[^.!?\n]{0,60}?\b(?:to|in|into|onto|at\s+the\s+end\s+of)\s+"
+        r"(?:the|this|that|a|each)\s+(?:link|url|web\s+address|address\s+bar|query)", re.IGNORECASE),
+     "Skills can't show pictures from web addresses or put the person's words into a link. Take that out."),
+    ("card-ask", re.compile(r"(?:" + _ASK_FOR + "|" + _COLLECT + r")(?:" + _CARD_THING + ")", re.IGNORECASE),
+     "Skills can't ask for card numbers, expiry dates, PINs or passwords. Take that sentence out."),
+    ("phishing", re.compile(
+        r"\[[^\]\n]{0,80}\b(?:verify|confirm|log\s*in|login|sign\s*in|unlock|reset|update|secure|restore)\b"
+        r"[^\]\n]{0,80}\]\(\s*<?https?://|"
+        r"https?://(?![^\s/]*\b(?:github\.com|vool\.dev)(?:[/:\s]|$))[^\s/]*vool[^\s/]*", re.IGNORECASE),
+     "Skills can't carry sign-in or account links, or web addresses dressed as VOOL's. Take the link out."),
 )
 # Look-alike letters from other alphabets, read as the Latin letter they imitate.
 _LOOKALIKE = str.maketrans({
@@ -174,14 +234,19 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
             findings.append(_finding("code", name, "This file isn't plain text. Skills hold text, the licence and "
                                                   "their pictures only."))
             continue
-        hidden = next((index for index, char in enumerate(text)
-                       if (unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} or char in _INVISIBLE) and
-                       char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
+        hidden = _hidden_char(text)
         if hidden is not None:
             findings.append(_finding("instructions-primary", name, "This file has invisible or control characters. "
                                      "Retype the line as plain text.", line=_line(text, hidden), rule="invisible"))
         texts[name] = text
     return texts, findings
+
+
+def _hidden_char(text: str) -> int | None:
+    """The offset of the first invisible or control character, or None."""
+    return next((index for index, char in enumerate(text)
+                 if (unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} or char in _INVISIBLE) and
+                 char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
 
 
 def _code(artifact: dict) -> list[dict]:
@@ -325,9 +390,11 @@ def _flat(lines: list[str]) -> tuple[str, str, list[int], list[int]]:
     return "".join(plain), "".join(folded), plain_starts, folded_starts
 
 
-def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]]) -> list[dict]:
+def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]], rules: tuple | None = None) -> list[dict]:
     """Every rule over every text a person or VOOL reads: the skill files, registry.json and the manifest."""
     import bisect
+
+    rules = _RULES if rules is None else rules
 
     findings = []
     for name, text in texts.items():
@@ -355,11 +422,11 @@ def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]]) -> l
                                          rule="escapes"))
         plain, folded, plain_starts, folded_starts = _flat(lines)
         seen = set()  # one finding per rule and line, however many ways the line trips it
-        for rule, pattern, reason in _RULES:
+        for rule, pattern, reason in rules:
             subject, starts = (plain, plain_starts) if rule == "letters" else (folded, folded_starts)
             for match in pattern.finditer(subject):
                 before = subject[max(0, match.start() - 30):match.start()]
-                if rule == "secret-ask" and _NEGATED_ASK.search(before):
+                if rule in ("secret-ask", "card-ask") and _NEGATED_ASK.search(before):
                     continue
                 if rule == "injection" and _SILENT.match(match.group(0)) and _NEGATED_BEFORE.search(before[-12:]):
                     continue
@@ -536,3 +603,125 @@ def evidence(outcome: dict, policy_value: dict, review: dict, *, now: int) -> di
         value["reports"][name] = report
     canonical(value)  # refuse anything that cannot be signed
     return value
+
+
+# ------------------------------------------------------------------------------------------------
+# The same text checks for a skill that never goes through the Skill Codex
+# ------------------------------------------------------------------------------------------------
+
+#: The name a skill file is checked under. Not ``*/SKILL.md``: the Codex's "escapes" rule is for
+#: published headers, and VOOL writes ``\"`` itself when it saves a description holding a quote.
+#: Escape codes that hide text (``\u200b``, ``\x41``) are still caught by the "hidden" rule.
+SKILL_FILE = "SKILL.md"
+#: Every text value of the parsed header, one per line: YAML escapes are decoded by then, so a
+#: ``"\L"`` or ``"\U0000202E"`` written in quotes is checked as the character it becomes.
+HEADER_VALUES = "SKILL.md header"
+_BOUNDARY_REASON = "This tries to override VOOL's own rules on spending, approvals or permissions. Take it out."
+
+
+def _header_strings(header: dict) -> list[str]:
+    """Every string a SKILL.md header holds, a list kept on one line as the file writes it.
+
+    The items of one list ("triggers: [sudo, chmod, chown]") are separate phrases: read one per line,
+    then joined into one run of words, they read as a command ("sudo chmod chown") that nobody wrote.
+    """
+    found: list[str] = []
+    for key, value in header.items():
+        found.append(str(key))
+        if isinstance(value, (list, tuple)):
+            found.append(", ".join(" ".join(_strings(item)) if not isinstance(item, str) else item for item in value))
+        else:
+            found.extend(_strings(value))
+    return found
+
+
+def skill_text_findings(text: str, header: dict | None = None) -> list[dict]:
+    """Every Skill Codex text check over one SKILL.md: invisible characters, secrets, the instruction
+    rules and the native-boundaries rule. Used by every way a skill comes in (a zip, a chat import,
+    GitHub and Browse, a drafted skill, an install), so none of them is weaker than the Codex.
+
+    Returns the findings (empty when clean). Never raises for content: anything unexpected is one
+    finding, so a caller that refuses on findings fails closed.
+    """
+    from core.registry.rules import analyze
+
+    try:
+        texts = {SKILL_FILE: str(text or "")}
+        values = [line for value in _header_strings(header or {}) for line in str(value).splitlines()]
+        if values:
+            texts[HEADER_VALUES] = "\n".join(values)
+        findings: list[dict] = []
+        if sum(len(item) for item in texts.values()) > MAX_TEXT:
+            return [_finding("quality", SKILL_FILE, "This skill is too long to check. Keep all its text under "
+                             "120,000 characters.", rule="too-long")]
+        for name, item in texts.items():
+            hidden = _hidden_char(item)
+            if hidden is not None:
+                findings.append(_finding("instructions-primary", name, "This file has invisible or control "
+                                         "characters. Retype the line as plain text.",
+                                         line=_line(item, hidden) if name == SKILL_FILE else None, rule="invisible"))
+        secrets, secret_lines = _secrets(texts)
+        findings += secrets
+        findings += _instructions(texts, secret_lines, _RULES + _IMPORT_RULES)
+        boundaries = analyze({name: item.encode("utf-8") for name, item in texts.items()})
+        findings += [dict(item, reason=_BOUNDARY_REASON) for item in boundaries["conflicts"]]
+        for item in findings:
+            if item.get("path") == HEADER_VALUES:
+                item.pop("line", None)
+                if secret_lines.get(HEADER_VALUES):
+                    item.pop("quote", None)
+        return findings
+    except Exception:
+        return [_finding("instructions-primary", SKILL_FILE, UNREADABLE)]
+
+
+#: For a skill coming into VOOL (not one published to the Skill Codex): why each rule refuses, in
+#: words about VOOL skills, and what to write instead. A rule without an entry keeps its own reason.
+SKILL_FIXES = {
+    "install": "VOOL skills can't carry install commands or ask anyone to run software. Describe the step in "
+               "words instead, for example: \"Open the notes folder and add a page for today.\"",
+    "download": "VOOL skills can't link to programs or archives to download. Take the link out, or name the "
+                "website in words.",
+    "address": "VOOL skills can't use short links, raw addresses or paste sites. Link to the real page, or take "
+               "the link out.",
+    "secret-ask": "VOOL skills can't ask for passwords, keys, recovery phrases or codes. Take that sentence out; "
+                  "a skill never needs them.",
+    "injection": "This reads like an attempt to change VOOL's own instructions or to hide what the skill does. "
+                 "Say plainly what the skill should do instead.",
+    "hidden": "VOOL skills can't carry hidden comments, escape codes or encoded text. Write everything as plain "
+              "visible text.",
+    "consent": "VOOL skills can't say the person already agreed, or tell VOOL to skip asking. VOOL always asks "
+               "the person itself. Take that sentence out.",
+    "voice": "This reads like an attempt to speak as VOOL or to replace what VOOL was told before. Say plainly "
+             "what the skill should do instead.",
+    "link-data": "VOOL skills can't show pictures from web addresses or put the person's words into a link, "
+                 "because that would send them to the website. Take the picture or the link out.",
+    "card-ask": "VOOL skills can't ask for card numbers, expiry dates, PINs or passwords. Take that sentence "
+                "out; a skill never needs them.",
+    "phishing": "VOOL skills can't carry sign-in or \"verify your account\" links, or web addresses made to look "
+                "like VOOL's. Take the link out, or name the website in words.",
+}
+
+
+def plain_findings(findings: list[dict], *, limit: int = 3) -> str:
+    """The findings as calm sentences a person can act on: which line, what it says, why it is not
+    allowed, and what to write instead."""
+    sentences: list[str] = []
+    for item in findings:
+        reason = SKILL_FIXES.get(str(item.get("rule") or "")) or str(item.get("reason") or "").replace(
+            "Skills on the Skill Codex can't", "VOOL skills can't")
+        if item.get("line"):
+            quote = str(item.get("quote") or "")
+            quote = (quote[:77] + "...") if len(quote) > 80 else quote
+            where = f"Line {item['line']}" + (f' ("{quote}")' if quote else "") + ": "
+        elif item.get("path") == HEADER_VALUES:
+            where = "In the skill's name or description: "
+        else:
+            where = ""
+        sentence = where + reason
+        if sentence not in sentences:
+            sentences.append(sentence)
+    shown = sentences[:limit]
+    if len(sentences) > limit:
+        shown.append("There is more to fix after that.")
+    return " ".join(shown)

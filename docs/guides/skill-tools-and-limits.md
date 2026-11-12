@@ -14,7 +14,8 @@ asked to approve, and what each refusal means. Writing, testing and sharing a sk
 | A skill can | A skill can never |
 | --- | --- |
 | Add instructions to the turns where the person's message picks it. | Grant a permission, approve an action, raise a spending limit or turn a setting on. Its text is never an approval. |
-| Narrow the tools VOOL offers on those turns with `allowed-tools` (every name must be a real tool, see the table below). | Add a tool. Naming a tool that is switched off does not switch it on. |
+| Narrow the tools VOOL offers on those turns with `allowed-tools` (every name must be a real tool, see the table below). A skill the person made in VOOL (by asking VOOL to make it) also gets its listed tools offered on those turns. | Add a tool when someone else wrote it: an imported zip, a file installed from disk, a Skill Codex package, an add-on, a pack VOOL ships or an MCP server's skill only narrows. Naming a tool that is switched off does not switch it on. |
+| Start on its own when it is one of VOOL's built-in skills, a pack VOOL ships or a signed Skill Codex package that declares `id` and `task-families`. | Start without the person's words when anyone else wrote it. Its `id`, `task-families`, `type` and `priority` are ignored, and it is used only when the person's message picks it (see [Where a skill came from](#where-a-skill-came-from)). |
 | Ask VOOL to use a tool. The call goes through the same permission check as any other call. | Run by itself. It is loaded only when a person's message picks it: SKILL.md has no timer, schedule or background setting (`lint` and `try` warn about a `schedule`, `interval`, `cron` or `every` key). For something that should be checked over time, the skill can ask for `watch.add` (a wallet or a token price); the person approves it, and a watch checks only while VOOL is open. |
 | Write files where the tool allows: the chat's project folder (`workspace.*`) or ~/Desktop, ~/Downloads and ~/Documents (`machine.*`). | Write anywhere else (`I can only write inside this lane: ~/Desktop, ~/Downloads, ~/Documents.`), or touch startup files, credentials, Git metadata or release keys unless the person allows it for that turn. |
 | Run a command through the sandbox tools. | Reach the network from a command (`Network egress is disabled by execution policy.`). |
@@ -22,6 +23,36 @@ asked to approve, and what each refusal means. Writing, testing and sharing a sk
 | Prepare a payment as a proposal the owner then approves, once the owner has switched the wallet on. | Move money by itself. The wallet is off until the owner switches it on, and every payment waits for the owner's approval in every mode. |
 | Set a reminder, by putting "remind me on <date> at <time>" in the `text` of `operator.save_note` (see [Reminders from a skill](#reminders-from-a-skill)). | Set a reminder any other way: there is no reminder tool for skills. |
 | Ship as SKILL.md plus an optional LICENSE or README. | Carry scripts, programs or any other file. A zip with one is refused at import. |
+
+## Where a skill came from
+
+VOOL records where each installed skill came from when it is turned on, and decides two things
+from that record, not from the folder the skill sits in:
+
+| Where it came from | Its `allowed-tools` | Its `id` / `task-families` |
+| --- | --- | --- |
+| Made by the person in a VOOL chat from their own words ("make me a skill that ..." then `turn it on`) | Offered on the turns it is picked, as long as the file is still the one VOOL wrote. If it is edited outside VOOL, or another skill replaces it under the same name, the list only narrows. | Not written by `skill.create`. |
+| Written by a `skill.create` tool call (a model can make that call while reading a web page, an email or someone else's skill) | Only narrows, unless the person clicks **Allow once** on the `skill.install` card for those exact bytes: the card shows the check code and lists the tools (*If you allow this, VOOL may offer these tools whenever this skill is used.*). Auto mode asks for that card too. A changed file loses it again. | Not written by `skill.create`. |
+| Imported (a zip, `import this skill`), staged with `vool-community stage`, copied by hand, or added from GitHub (Browse) | Only narrows. Turning on an imported or file skill says so: *It was not written here in VOOL, so the tools it lists are not added.* | Refused at import and from GitHub: *This skill sets id, ..., which only VOOL's own skills may set. Take those lines out of the top of the file and try again.* In a file copied by hand into VOOL's skill folders they are ignored: turning it on says so, and `skill.inspect` with its `id` answers "typed keys ignored: ...". |
+| A signed Skill Codex package | Only narrows. | Used: it can start on its own on the turns its `task-families` name. If its files change after install, it stops loading. |
+| A pack VOOL ships, or one of VOOL's built-in skills | Only narrows. | Used. |
+| A skill an MCP server ships (`skill://`) | Only narrows. | Ignored: it is checked by the same rules and the same safety check as an import each time it loads, used only when the person's message picks it, and left out if it fails them. |
+
+A file copied by hand into VOOL's skill folders (or a chat's or project's) never went through an
+import, so it meets the same safety check each time it loads. One that fails is kept off, and
+`which skills do I have?` lists it as *kept off: This skill did not pass VOOL's safety check, so VOOL
+does not use it. ...*, naming the line and what to change.
+
+A draft made with `skill.create` in a chat stays in that chat's own drafts until it is turned on;
+another chat cannot turn it on.
+
+A built-in skill cannot be installed as a copy: `skill.install vool-feature-build` says it is
+already part of VOOL and is turned on or off in Skills.
+
+In the model's instructions each skill sits in its own block: a header with its name and where it
+came from, a line saying whose text it is (VOOL's, the person's, a signed package's, or untrusted
+third-party text), and a closing line the skill's own text cannot fake. A skill name is cut to one
+line of letters, digits and simple punctuation.
 
 ## What Manual and Auto mode do with a skill's tool calls
 
@@ -48,7 +79,10 @@ of this: write the instructions so the answer still makes sense when the person 
 
 | What the skill (or you) sees | Why | What to do |
 | --- | --- | --- |
-| `allowed-tools names tools this runtime does not have: workspace.writefile` | A name in `allowed-tools` is not a VOOL tool. `skill.validate`, `try` and `skill.install` all say this. | Use a name from the table below (here `workspace.write_file`). |
+| `allowed-tools names tools this runtime does not have: workspace.writefile` (from `skill.install` and `skill.validate`: `It asks for tools VOOL does not have: workspace.writefile.`) | A name in `allowed-tools` is not a VOOL tool. `skill.validate`, `try` and `skill.install` all say this. | Use a name from the table below (here `workspace.write_file`). |
+| `This skill has the same instructions as your skill "Weather brief", which is already on, ...` | The instructions match a skill that is already installed under another name. | Keep using that skill, or change the instructions. |
+| `This draft changed after it was made, so it was not turned on. ...` | The draft's `SKILL.md` is not the file that was shown (or staged) any more. | Make or stage it again, then turn it on. |
+| `I did not open that file: I only check or turn on skills kept in VOOL's own skill folders, ...` (status `not_allowed`) | `skill.install` and `skill.validate` read only VOOL's own skill folders. | Stage the folder first: `python -m tools.community_skills stage <folder>`, then `skill.install path=<short name>`. |
 | `declared permissions ['read_files'] do not cover what operator.schedule_calendar_event requires: external_messages` | The frontmatter `permissions` list leaves out an action a named tool needs. | Add the missing id, or leave `permissions` out. See [the permissions key](build-and-test-a-skill.md#the-permissions-key). |
 | `Manual mode requires approval for this exact action. ...` (or `Auto mode ...`) | The mode asks before this call. | Nothing to fix. The person approves or declines. |
 | `Auto mode does not permit unknown side effect. The controller blocked the tool before dispatch.` | Auto mode refuses tools whose effect is not classified (marked *refused* under Auto below). | Expect it. In Manual mode the same call asks instead. |
@@ -93,7 +127,8 @@ The reply has two parts: the note saved, and the reminder scheduled.
 
 ## Can a skill with allowed-tools be shared or published?
 
-`allowed-tools` only narrows what VOOL offers, so it is accepted wherever VOOL can check the
+`allowed-tools` from a shared or published skill only narrows what VOOL offers (see
+[Where a skill came from](#where-a-skill-came-from)), so it is accepted wherever VOOL can check the
 names, and refused where it cannot:
 
 | Route | A skill with `allowed-tools` |
@@ -179,12 +214,12 @@ The full contract of a tool, with every field, is in Python:
 | `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |
 | `machine.host_state` | Report this machine's live state: uptime, battery level and power source, and whether it is a laptop or a desktop. | none | reads | `read_files` | runs | runs |
 | `machine.inspect_specs` | Inspect grounded machine hardware and runtime specs for this local host. | none | reads | none | runs | runs |
-| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?` | reads | none | runs | runs |
+| `machine.list_directory` | List visible entries inside a safe local directory such as Desktop, Downloads, or Documents. | `path?`, `directories_only?`, `limit?`, `count_only?`, `kind?`, `newest_first?` | reads | none | runs | runs |
 | `machine.list_processes` | List the heaviest running processes on this machine, ranked by memory or by CPU. | `limit?`, `sort?` | reads | none | runs | runs |
 | `machine.move_path` | Move or rename a file or folder on this machine. *Refuses protected system locations and asks for a live confirmation from the operating system before moving.* | `source`, `destination` | writes files | none | asks | asks |
 | `machine.read_file` | Read a text file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `start_line?`, `max_lines?`, `verbatim?` | reads | none | runs | runs |
 | `machine.send_to_phone` | Send one file from this computer (Desktop, Downloads, Documents and the other safe folders) to the owner's paired VOOL phone app, where it shows under "From your compu... | `path` | saves VOOL data | `read_files` | runs | runs |
-| `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content` | writes files | none | asks | runs |
+| `machine.write_file` | Write text content to a file inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path`, `content`, `create_only?` | writes files | none | asks | runs |
 
 ### market
 
@@ -246,7 +281,7 @@ The full contract of a tool, with every field, is in Python:
 
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
-| `pdf.extract_text` | **macOS only.** Read the text a PDF already carries, page by page. | `path`, `max_pages?` | reads | `read_files` | runs | runs |
+| `pdf.extract_text` | **macOS only.** Read the text a PDF already carries, page by page. | `path`, `start_page?`, `max_pages?` | reads | `read_files` | runs | runs |
 | `pdf.ocr` | **macOS only.** Recognise the text on a SCANNED PDF page, on-device. | `path`, `max_pages?`, `scale?` | reads | `read_files` | runs | runs |
 
 ### profile
@@ -372,7 +407,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | --- | --- | --- | --- |
 | `demo.plan` | Read a GitHub repo README or a docs/website page and return either a timed subtitled shot list plus image prompts (format=slideshow, default) or a continuous product-p... | `url`, `presenter?`, `seconds?`, `format?`, `set?`, `edits?` | reads |
 
-**Email drafts are part of sending, which is disabled on this runtime (set email.send_enabled).**
+**Email drafts need sending, which is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
@@ -380,31 +415,31 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | `email.draft.get` | Show the session's current draft (latest, or by id): content, version, and whether an approval is bound to exactly this content. | `draft_id?` | reads |
 | `email.draft.save` | Create or edit a reviewable email draft (recipient/account/subject/body + threading). | `to`, `subject`, `body`, `account?`, `in_reply_to?`, `references?`, `draft_id?`, `kind?` | reads |
 
-**Email open is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email open is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.open` | Open one message by its Message-ID with FULL content (whole body, decoded headers, threading headers), or its whole thread (thread=true): the transitive In-Reply-To/Re... | `message_id`, `thread?`, `account?`, `folder?` | reads |
 
-**Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email reading is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.read` | Read or search messages in a configured inbox: recent by default, or filtered by sender/subject substrings, a date window (since/before, YYYY-MM-DD) and unread state. | `account?`, `folder?`, `limit?`, `sender?`, `subject?`, `since?`, `before?`, `unseen_only?` | reads |
 
-**Email reconciliation is disabled on this runtime (set email.read_enabled and store IMAP credentials).**
+**Email reconciliation is unavailable: no email account is connected (add one in Settings), or email reading is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.draft.reconcile` | Resolve a delivery_unknown draft: check the account's own Sent folder for OUR generated Message-ID. | `draft_id` | reads |
 
-**Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+**Email reply is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
 | `email.reply` | Reply to an email (threaded, 'Re:' subject, your signature appended). | `to`, `subject`, `body`, `in_reply_to?`, `references?`, `account?`, `allow_send`, `approve` | sends out |
 
-**Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials).**
+**Email sending is unavailable: no sending account is connected (add one in Settings), or email sending is switched off in policy.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |
@@ -467,7 +502,7 @@ These tools exist, and a skill may name them in `allowed-tools` (the validator a
 | --- | --- | --- | --- |
 | `wallet.spend` | Spend from the agent wallet under the user's SpendPolicy caps, with per-spend confirmation. | `to`, `amount_lamports`, `asset?`, `allow_spend`, `approve` | spends money |
 
-**Web fetch is disabled by runtime web policy.**
+**Web lookups are off. You can turn them on in Settings, Privacy & Permissions.**
 
 | Tool | What it does | Inputs | Reads or changes |
 | --- | --- | --- | --- |

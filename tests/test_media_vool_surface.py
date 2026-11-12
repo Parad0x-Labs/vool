@@ -43,6 +43,88 @@ def test_v1_skill_declares_capabilities_but_grants_no_permission():
     assert before == policy_engine.get("media.studio_enabled", True)
 
 
+@pytest.fixture()
+def _fresh_media_graph():
+    """A capability graph as a runtime boots it, with no media family yet; restored after."""
+    from core import capability_graph
+    from core.media_worker_client import reset_media_worker
+
+    capability_graph.reset()
+    capability_graph.ensure_registry_bootstrap()
+    reset_media_worker()
+    yield
+    reset_media_worker()
+    capability_graph.reset()
+    capability_graph.ensure_registry_bootstrap()
+
+
+def _declared_media_ids() -> list[str]:
+    text = (VOOL_ROOT / "skills" / "media-studio" / "SKILL.md").read_text()
+    return [line.strip("- \n") for line in text.splitlines() if line.strip().startswith("- media.")]
+
+
+def _known(cap_id: str) -> bool:
+    from core.capability_graph import capabilities_for_skill
+
+    return bool(capabilities_for_skill("", [cap_id]))
+
+
+def test_v1_every_declared_id_is_known_after_boot_on_a_machine_with_media_tools(
+    _fresh_media_graph, tmp_path, monkeypatch
+):
+    """(a) The boot hook the runtime runs (core.web.api.runtime.bootstrap_runtime_services ->
+    register_media_capabilities_if_present) makes every id the skill declares a real, available
+    capability when the worker and ffmpeg/ffprobe are on the machine."""
+    from core.media_capabilities import register_media_capabilities_if_present
+    from tests._media_tools_stub import media_tools_env
+
+    declared = _declared_media_ids()
+    unknown_before = [cap_id for cap_id in declared if not _known(cap_id)]
+    assert unknown_before, "precondition: before the boot hook the edit ids are unknown to the graph"
+    for key, value in media_tools_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    result = register_media_capabilities_if_present()
+    assert result["registered"] and result["available"], result
+    unknown = [cap_id for cap_id in declared if not _known(cap_id)]
+    assert not unknown, f"declared but still unknown after boot: {unknown}"
+
+    from core.native_skill_library import select_native_skills
+
+    record = next(r for r in select_native_skills(task_class="", user_text="x").records if r.id == "media-studio")
+    assert record.state != "capability_unavailable", record
+
+
+@pytest.mark.parametrize("missing", ["worker", "binaries"])
+def test_v1_a_machine_without_media_tools_registers_nothing(
+    _fresh_media_graph, tmp_path, monkeypatch, missing
+):
+    """(c) No worker, or no ffmpeg/ffprobe on PATH: nothing is registered, the media ids stay
+    unknown, and the skill is refused for exactly that."""
+    from core.media_capabilities import register_media_capabilities_if_present
+    from core.native_skill_library import select_native_skills
+    from tests._media_tools_stub import media_tools_env
+
+    unknown_before = [cap_id for cap_id in _declared_media_ids() if not _known(cap_id)]
+    assert unknown_before, "precondition: the edit ids start unknown"
+    env = media_tools_env(tmp_path)
+    if missing == "worker":
+        empty = tmp_path / "no-worker"
+        empty.mkdir()
+        env["NEBULA_MEDIA_HOME"] = str(empty)
+    else:
+        bare = tmp_path / "bare-path"
+        bare.mkdir()
+        env["PATH"] = str(bare)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    result = register_media_capabilities_if_present()
+    assert result["registered"] is False, result
+    assert ("worker" in result["reason"]) if missing == "worker" else ("ffmpeg" in result["reason"]), result
+    assert [cap_id for cap_id in _declared_media_ids() if not _known(cap_id)] == unknown_before
+    record = next(r for r in select_native_skills(task_class="", user_text="x").records if r.id == "media-studio")
+    assert record.state == "capability_unavailable" and "unknown capability id" in record.reason, record
+
+
 # ---------------------------------------------------------------- V2/V4
 def test_v2_v4_bounded_media_contracts_with_platform_owned_authorization():
     from core.runtime_tool_contracts import runtime_tool_contracts

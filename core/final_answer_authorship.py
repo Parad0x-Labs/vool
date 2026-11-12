@@ -1629,6 +1629,8 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     notice = f"{EXECUTION_CLAIM_NOTICE_LEAD} {named}, which did not run in this turn."
     payload = {"execution_claims": list(dict.fromkeys(unrun)), "publication": "unrun_listed_intents_removed"}
     return (f"{body}\n\n{notice}" if body else notice), payload
+
+
 def model_authored_turn(*, turn_id: str = "", source_context: Any = None) -> tuple[bool, str]:
     """Whether a model served this turn's bytes, and the request text the recorders hold.
 
