@@ -383,6 +383,27 @@ def _log_transcript_assembled(source: str, transcript: list[dict[str, str]], ses
     return transcript
 
 
+_DATA_STORE_WORDS_RE = re.compile(
+    r"\b(?:databases?|databse|datbase|db|tables?|tabels?|spreadsheets?|sheets?|csv|workbook)\b", re.IGNORECASE
+)
+_WHAT_WAS_SAID_RE = re.compile(
+    r"\b(?:did\s+i\s+(?:say|tell|mention)|i\s+(?:said|told\s+you|mentioned)|you\s+(?:said|told\s+me)|remember|recall)\b",
+    re.IGNORECASE,
+)
+
+
+def _chat_works_on_a_data_store(transcript: list[dict[str, str]]) -> bool:
+    return any(
+        str(message.get("role") or "") == "user" and _DATA_STORE_WORDS_RE.search(str(message.get("content") or ""))
+        for message in list(transcript or [])
+        if isinstance(message, dict)
+    )
+
+
+def _asks_for_what_was_said(query: str) -> bool:
+    return bool(_WHAT_WAS_SAID_RE.search(str(query or "")))
+
+
 def _with_semantic_memory_capsule(
     transcript: list[dict[str, str]],
     *,
@@ -415,6 +436,12 @@ def _with_semantic_memory_capsule(
     query = str(current_user_text or "").strip()
     base = list(transcript or [])
     if not clean_session or not query:
+        return base
+    if _chat_works_on_a_data_store(base) and not _asks_for_what_was_said(query):
+        # A question in a chat about the person's database, table or sheet is about that data,
+        # which a tool reads. The memory capsule's "answer from these records" framing made the
+        # model answer "The records do not state how many titles we have in total" with the
+        # database tools offered, and copy that line into later answers (database run 12).
         return base
     try:
         from core.local_ollama_inventory import env_flag_enabled

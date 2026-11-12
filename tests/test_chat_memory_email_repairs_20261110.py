@@ -1584,3 +1584,25 @@ def test_a_refused_turn_seals_as_refused_with_its_request():
     as_dict = outcome if isinstance(outcome, dict) else getattr(outcome, "__dict__", {}) or outcome._asdict()
     text = str(as_dict)
     assert "blocked" in text and "web_off_lookup_refusal" in text, text
+
+
+def test_a_data_question_in_a_database_chat_gets_no_records_capsule(monkeypatch):
+    from core import bootstrap_context
+
+    monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
+
+    def _never(*_a, **_k):
+        raise AssertionError("the records capsule was built for a database question")
+
+    monkeypatch.setattr("core.context_retrieval.inject_retrieved", _never)
+    transcript = [{"role": "user", "content": "what do I have in my library db"},
+                  {"role": "assistant", "content": "books, members, loans"}]
+    out = bootstrap_context._with_semantic_memory_capsule(
+        transcript, session_id="openclaw:" + "e" * 20, current_user_text="how many titles do we have in total")
+    assert out == transcript
+
+
+def test_asking_what_was_said_in_a_database_chat_still_reads_the_records():
+    from core import bootstrap_context
+
+    assert bootstrap_context._asks_for_what_was_said("what did I say about the members table earlier?")
