@@ -285,6 +285,28 @@ def _cached_free_vram_gb() -> float | None:
     return _FREE_VRAM_GB_CACHE
 
 
+def _local_model_free_memory_gb() -> float | None:
+    """Memory a local model could load into right now, for the primary's fit check; None if unknown.
+
+    A discrete GPU reports free VRAM. On a unified-memory Mac it does not, and the RAM that is free
+    right now is the limit (0.7.8 sweep, 2026-11-12: gpt-oss:20b ranked first with ~2.1 GB free on
+    a 24 GB Mac). Read fresh through the resource snapshot's own short cache, never once per
+    process: free memory moves as models load and unload."""
+    vram = _cached_free_vram_gb()
+    if vram is not None:
+        return vram
+    try:
+        import platform
+
+        if platform.system() != "Darwin" or platform.machine() != "arm64":
+            return None
+        from core.system_resources import snapshot
+
+        return float(snapshot().available_ram_gb)
+    except Exception:
+        return None
+
+
 # The minimum per-attempt window the sequential fallback loop will ever grant a candidate,
 # whether it is the ONLY candidate attempted (see the pre-existing `max(5.0, ...)` floor at the
 # per-call cap site) or one further down a reserve-shrunk chain (see
@@ -6019,6 +6041,7 @@ class MemoryFirstRouter:
             capability_truth=capability_truth,
             source_context=source_context,
             free_vram_gb=_cached_free_vram_gb(),
+            free_memory_gb=_local_model_free_memory_gb(),
             eagle3_active=_eagle3_active,
             default_model_tag=_cached_default_model_tag(),
             resident_model_tags=_recent_resident_model_tags(),

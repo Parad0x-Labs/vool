@@ -6211,6 +6211,19 @@ function finishRun(run, kind, summaryText, tsIso) {
   if (run.historyIndex >= 0 && _owner.history[run.historyIndex]) _owner.history[run.historyIndex].ts = run.endedAt;
   clearRunTimers(run);
   if (kind !== 'awaiting_approval') applyResultSummary(run);
+  // A turn that ended without a reply the person did not stop says so in plain words. Measured on
+  // the 0.7.8 sweep (2026-11-12): a second turn failed on the server, the bubble kept its "…" and
+  // the person waited 15 minutes for nothing. The bubble's own Try again stays under it.
+  if ((kind === 'failed' || kind === 'cancelled') && !run.stopRequested && !run.responseCommit
+      && !String(run.text || '').trim()) {
+    run.text = pageT('run.no_reply_retry', "I couldn't finish that reply. Press Try again, or ask it another way.");
+    const _entry = run.historyIndex >= 0 ? _owner.history[run.historyIndex] : null;
+    if (_entry && _entry.role === 'assistant') _entry.content = run.text;
+    withRunDom(run, () => {
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+    });
+  }
   // Terminal events (task_completed/failed/cancelled) land right at stream close -- one last drain
   // if this run's chat is the one on screen with the panel open (openPanel does its own fresh read
   // when it is opened later, and a re-opened chat catches up from the run's own cursor).

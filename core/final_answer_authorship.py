@@ -842,6 +842,10 @@ def unready_local_model_names(manifests: Any) -> frozenset[str]:
     return frozenset(unready - ready)
 
 
+#: How long a turn waits for the boot model check before refusing an unchecked writer.
+_BOOT_CHECK_WAIT_SECONDS = 300.0
+
+
 def precall_author_verdict(
     *,
     manifest: Any,
@@ -885,6 +889,29 @@ def precall_author_verdict(
     )
     if decision.eligible:
         return decision
+    # The boot check may be certifying a writer right now (a fresh profile's first minutes). Wait
+    # for it, bounded, before refusing: the caller then tries its next candidate, which by then may
+    # be the newly checked model. Refusing first was measured on the 0.7.8 sweep.
+    try:
+        from core.local_model_readiness import boot_readiness_check_running, wait_for_boot_readiness_check
+
+        if boot_readiness_check_running():
+            import logging
+
+            logging.getLogger(__name__).info("final-answer author: waiting for the boot model check before refusing")
+            wait_for_boot_readiness_check(_BOOT_CHECK_WAIT_SECONDS)
+            decision = decide_final_answer_author(
+                request_text=request_text,
+                author_role=role,
+                requested_manifest=manifest,
+                requested_model=str(getattr(manifest, "provider_id", "") or ""),
+                allow_escalation=False,
+                db_path=db_path,
+            )
+            if decision.eligible:
+                return decision
+    except Exception:
+        pass
     return AuthorshipDecision(
         eligible=False,
         author_role=FINAL_ANSWER_ROLE,
@@ -1517,6 +1544,66 @@ def _turn_executed_anything(turn_id: str, source_context: Any) -> bool:
     return False
 
 
+_LISTED_INTENT_LINE_RE = re.compile(r"^[\s>*_\-\u2022\d.)]*`?(?P<name>[a-z0-9][\w-]*(?:\.[\w-]+)+)`?\s*[.:;,]?\s*$", re.IGNORECASE)
+_CHANGING_INTENT_RE = re.compile(
+    r"(?:^|[._-])(?:apply|write|delete|remove|drop|insert|update|create|send|reply|move|rename|execute|run|migrate\.apply)$",
+    re.IGNORECASE,
+)
+_ACTION_LEAD_RE = re.compile(
+    r"^\s*(?:i(?:'ve|\s+have)?\s+|i'?m\s+|now\s+)?(?:adding|added|applying|applied|creating|created|deleting|deleted|"
+    r"removing|removed|updating|updated|inserting|inserted|dropping|dropped|sending|sent|writing|wrote|renaming|renamed|"
+    r"moving|moved|changing|changed)\b",
+    re.IGNORECASE,
+)
+
+
+def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
+    """A reply that lists the runtime's own intents as if they ran, when some never ran this turn.
+
+    Measured 2026-11-12 (database run 5): "Adding the 'email' column to the 'customers' table" over
+    "- vool-database.migrate.preview / - vool-database.migrate.apply" -- only the preview ran and the
+    table was unchanged. The per-turn ledger names every intent that executed; a listed intent that
+    is not in it is removed, and a lead sentence that announces a change none of the executed
+    intents could make is replaced by the plain truth. None when there is nothing to correct."""
+    try:
+        from core.turn_model_call_ledger import turn_call_accounting
+
+        executed = {str(t).strip().lower() for t in (turn_call_accounting(source_context).get("tools") or [])}
+    except Exception:
+        return None
+    variants = _runtime_tool_names()
+    if not variants:
+        return None
+    lines = text.split("\n")
+    unrun: list[str] = []
+    removed: set[int] = set()
+    for index, line in enumerate(lines):
+        match = _LISTED_INTENT_LINE_RE.match(line)
+        if not match:
+            continue
+        intent = _claimed_intent(match.group("name"), variants)
+        if intent and intent.lower() not in executed:
+            unrun.append(intent)
+            removed.add(index)
+    if not unrun:
+        return None
+    changing_unrun = [i for i in unrun if _CHANGING_INTENT_RE.search(i)]
+    changing_ran = any(_CHANGING_INTENT_RE.search(i) for i in executed)
+    kept: list[str] = []
+    for index, line in enumerate(lines):
+        if index in removed:
+            continue
+        if changing_unrun and not changing_ran and _ACTION_LEAD_RE.match(line):
+            kept.append("This change has not been made.")
+            continue
+        kept.append(line)
+    body = "\n".join(kept).strip()
+    named = ", ".join(f"`{i}`" for i in dict.fromkeys(unrun))
+    notice = f"{EXECUTION_CLAIM_NOTICE_LEAD} {named}, which did not run in this turn."
+    payload = {"execution_claims": list(dict.fromkeys(unrun)), "publication": "unrun_listed_intents_removed"}
+    return (f"{body}\n\n{notice}" if body else notice), payload
+
+
 def gate_execution_claims(
     content: str, *, turn_id: str = "", source_context: Any = None
 ) -> tuple[str, dict[str, Any]]:
@@ -1553,6 +1640,9 @@ def gate_execution_claims(
         return text, {"publication": "stood_down:not_model_authored"}
     claims = execution_claims(text)
     if not claims:
+        listed = _unrun_listed_intents(text, source_context)
+        if listed is not None:
+            return listed
         return text, {"publication": "stood_down:no_execution_claims"}
     request_text = str(getattr(record, "request_text", "") or "") or str(
         getattr(lifecycle, "request_text", "") or ""
@@ -1564,6 +1654,9 @@ def gate_execution_claims(
     except Exception:
         pass
     if _turn_executed_anything(turn_id, source_context):
+        listed = _unrun_listed_intents(text, source_context)
+        if listed is not None:
+            return listed
         return text, {"execution_claims": [c[2] for c in claims], "publication": "execution_evidence_present"}
     lines = text.split("\n")
     removed = set()

@@ -263,6 +263,7 @@ def build_local_inference_autopilot_plan(
     resident_model_tags: Collection[str] | None = None,
     user_demand_text: str | None = None,
     unready_local_models: Collection[str] | None = None,
+    free_memory_gb: float | None = None,
 ) -> LocalInferenceAutopilotPlan:
     context = compile_context_capsule(user_text=user_text, source_context=source_context)
     capabilities = tuple(capability_truth or ())
@@ -295,6 +296,8 @@ def build_local_inference_autopilot_plan(
         eagle3_active=eagle3_active,
         default_model_tag=default_model_tag,
         unready_local_models=unready_local_models,
+        free_vram_gb=free_memory_gb if free_memory_gb is not None else free_vram_gb,
+        resident_model_tags=resident_model_tags,
     )
     risky = _needs_verifier(user_text=user_text, task_kind=task_kind, output_mode=output_mode, source_context=source_context)
     # `resident_model_tags` is measured by the CALLER (best-effort, [] on error) and defaults to
@@ -659,6 +662,8 @@ def _select_primary_capability(
     eagle3_active: bool = False,
     default_model_tag: str | None = None,
     unready_local_models: Collection[str] | None = None,
+    free_vram_gb: float | None = None,
+    resident_model_tags: Collection[str] | None = None,
 ) -> ProviderCapabilityTruth | None:
     if explicit_heavy:
         viable = [
@@ -693,6 +698,7 @@ def _select_primary_capability(
         return None
     if not explicit_heavy:
         viable = _without_unready_local_models(viable, unready_local_models)
+        viable = _without_local_models_that_do_not_fit(viable, free_vram_gb, resident_model_tags)
     daily_nonthinking_alternative = lane == "daily" and any(
         _is_reliable_daily_nonthinking_model(item) for item in viable
     )
@@ -713,6 +719,38 @@ def _select_primary_capability(
         reverse=True,
     )
     return ranked[0]
+
+
+def _without_local_models_that_do_not_fit(
+    viable: list[ProviderCapabilityTruth],
+    free_vram_gb: float | None,
+    resident_model_tags: Collection[str] | None,
+) -> list[ProviderCapabilityTruth]:
+    """Never make a local model the primary when loading it cannot fit and another candidate can.
+
+    Measured 2026-11-12 (0.7.8 sweep, 24 GB Mac with ~2.1 GB free): Auto ranked gpt-oss:20b first,
+    a model that needs several times the free memory, so the turn waited on a load the machine
+    could not hold. A model already resident costs nothing new and is always kept; with free memory
+    unknown, nothing changes; and if no local model fits, the list stays as it was (the fallbacks
+    and the memory admission gate still decide)."""
+
+    if free_vram_gb is None or float(free_vram_gb) <= 0.0:
+        return viable
+    resident = _normalized_model_tag_set(resident_model_tags)
+    fitting_local = [
+        item
+        for item in viable
+        if item.locality == "local"
+        and (
+            str(item.model_id or "").strip().lower() in resident
+            or _estimated_model_vram_gb(item) <= float(free_vram_gb)
+        )
+    ]
+    # Only a choice BETWEEN local models: when no local model fits, nothing is removed, so a
+    # momentary low-memory reading never hands a local turn to a cloud model by itself.
+    if not fitting_local:
+        return viable
+    return [item for item in viable if item.locality != "local" or item in fitting_local]
 
 
 def _without_unready_local_models(

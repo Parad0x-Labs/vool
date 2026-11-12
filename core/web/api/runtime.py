@@ -731,6 +731,16 @@ def ready_a_local_model_on_boot(
         return
     if not local_models_enabled(env=env) or not _automatic_ollama_access_allowed(env):
         return
+    from core.local_model_readiness import mark_boot_readiness_check
+
+    mark_boot_readiness_check(True)
+    try:
+        _ready_a_local_model_on_boot(registry, primary_model=primary_model, env=env)
+    finally:
+        mark_boot_readiness_check(False)
+
+
+def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str, env: dict[str, str]) -> None:
     try:
         from core.local_model_policy import manifest_is_local
         from core.local_model_readiness import READY, boot_adoptable_tags, ready_local_models

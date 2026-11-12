@@ -259,3 +259,37 @@ def ready_local_models(
         if readiness == READY:
             break
     return checked
+
+
+# --- the boot readiness check in progress -------------------------------------------------------
+#: Set while `ready_a_local_model_on_boot` is checking models. Measured 2026-11-12 (0.7.8 sweep, fresh
+#: profile): the first answer was refused as written by an unchecked qwen3:4b while the boot check
+#: was still certifying qwen3:8b a minute away. A turn that finds no checked writer while this is
+#: set waits for the check, bounded, instead of refusing.
+import threading as _threading
+
+_BOOT_CHECK_RUNNING = _threading.Event()
+
+
+def mark_boot_readiness_check(running: bool) -> None:
+    if running:
+        _BOOT_CHECK_RUNNING.set()
+    else:
+        _BOOT_CHECK_RUNNING.clear()
+
+
+def boot_readiness_check_running() -> bool:
+    return _BOOT_CHECK_RUNNING.is_set()
+
+
+def wait_for_boot_readiness_check(timeout_seconds: float) -> bool:
+    """Wait until the boot check ends. True when it is no longer running."""
+    import time
+
+    deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+    while _BOOT_CHECK_RUNNING.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(1.0, remaining))
+    return True

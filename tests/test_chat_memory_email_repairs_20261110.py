@@ -788,3 +788,111 @@ def test_an_answer_that_offers_a_next_step_is_not_a_plan(reply):
     from core.incomplete_answer import _only_a_plan
 
     assert not _only_a_plan(reply)
+
+
+# --- 0.7.8 sweep (2026-11-12) ------------------------------------------------------------------
+
+
+def test_an_unchecked_writer_waits_for_the_boot_check_before_it_is_refused(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    import core.final_answer_authorship as authorship
+    import core.local_model_readiness as readiness
+
+    calls: list[str] = []
+
+    def _decide(**kwargs):
+        calls.append("decide")
+        eligible = not readiness.boot_readiness_check_running()
+        return SimpleNamespace(eligible=eligible, task_class="chat", requested_model="ollama-local:qwen3:4b",
+                               certification_state="unchecked", certification_source="none", detail="")
+
+    monkeypatch.setattr(authorship, "resolve_author_role", lambda **_k: authorship.FINAL_ANSWER_ROLE)
+    monkeypatch.setattr(authorship, "decide_final_answer_author", _decide)
+    monkeypatch.setattr(authorship, "_BOOT_CHECK_WAIT_SECONDS", 5.0)
+    readiness.mark_boot_readiness_check(True)
+    threading.Timer(0.3, readiness.mark_boot_readiness_check, args=(False,)).start()
+    verdict = authorship.precall_author_verdict(manifest=SimpleNamespace(provider_id="ollama-local:qwen3:4b"))
+    assert calls == ["decide", "decide"] and verdict.eligible
+
+
+def test_with_no_boot_check_running_an_unchecked_writer_is_refused_at_once(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.final_answer_authorship as authorship
+    import core.local_model_readiness as readiness
+
+    readiness.mark_boot_readiness_check(False)
+    monkeypatch.setattr(authorship, "resolve_author_role", lambda **_k: authorship.FINAL_ANSWER_ROLE)
+    monkeypatch.setattr(authorship, "decide_final_answer_author", lambda **_k: SimpleNamespace(
+        eligible=False, task_class="chat", requested_model="m", certification_state="unchecked",
+        certification_source="none", detail=""))
+    verdict = authorship.precall_author_verdict(manifest=SimpleNamespace(provider_id="m"))
+    assert not verdict.eligible and verdict.reason == authorship.REASON_BLOCKED_BEFORE_GENERATION
+
+
+def _local_truth(model_id: str, vram_gb: float):
+    from core.provider_routing import ProviderCapabilityTruth
+
+    return ProviderCapabilityTruth(
+        provider_id=f"ollama-local:{model_id}", model_id=model_id, role_fit="drone", context_window=32768,
+        tool_support=(), structured_output_support=True, tokens_per_second=20.0, ram_budget_gb=vram_gb,
+        vram_budget_gb=vram_gb, quantization="q4", locality="local", privacy_class="local_private",
+        queue_depth=0, max_safe_concurrency=1,
+    )
+
+
+def test_auto_does_not_pick_a_local_model_that_cannot_fit_free_memory():
+    from core.local_inference_autopilot import _without_local_models_that_do_not_fit
+
+    big, small = _local_truth("gpt-oss:20b", 13.0), _local_truth("qwen3:4b", 2.6)
+    assert _without_local_models_that_do_not_fit([big, small], 4.0, ()) == [small]
+    # a resident model costs nothing new; unknown free memory or nothing fitting changes nothing
+    assert _without_local_models_that_do_not_fit([big, small], 2.0, ("gpt-oss:20b",)) == [big]
+    assert _without_local_models_that_do_not_fit([big, small], None, ()) == [big, small]
+    assert _without_local_models_that_do_not_fit([big], 2.0, ()) == [big]
+
+
+def test_the_plan_s_primary_skips_the_model_that_does_not_fit():
+    from core.local_inference_autopilot import build_local_inference_autopilot_plan
+
+    def _primary(free_memory_gb):
+        return build_local_inference_autopilot_plan(
+            user_text="name the planets closer to the sun than mars", task_kind="chat", output_mode="plain_text",
+            provider_role="drone", capability_truth=[_local_truth("gpt-oss:20b", 13.0), _local_truth("qwen3:8b", 5.5)],
+            free_memory_gb=free_memory_gb, default_model_tag="gpt-oss:20b",
+        ).to_dict()["selected_model"]
+
+    assert _primary(None) == "gpt-oss:20b"  # the scoring's own preference, memory unknown
+    assert _primary(8.0) == "qwen3:8b"  # 13 GB cannot load into 8 GB free
+
+
+# --- database run 5 (2026-11-12): a reply must not claim an action that never ran ---------------
+
+
+def _gate_with(monkeypatch, executed, variants):
+    import core.final_answer_authorship as authorship
+    import core.turn_model_call_ledger as ledger
+
+    monkeypatch.setattr(ledger, "turn_call_accounting", lambda _ctx: {"tools": list(executed), "completed_calls": 1})
+    monkeypatch.setattr(authorship, "_runtime_tool_names", lambda: {name.replace(".", " ").replace("-", " "): name for name in variants})
+    return authorship
+
+
+def test_a_listed_apply_that_never_ran_is_removed_and_the_change_is_not_claimed(monkeypatch):
+    authorship = _gate_with(monkeypatch, ["vool-database.migrate.preview"],
+                            ["vool-database.migrate.preview", "vool-database.migrate.apply"])
+    reply = ("Adding the 'email' column to the 'customers' table in the 'orders' database.\n"
+             "- vool-database.migrate.preview\n- vool-database.migrate.apply")
+    text, payload = authorship._unrun_listed_intents(reply, {"session_id": "s"})
+    assert "Adding the 'email' column" not in text and "This change has not been made." in text
+    assert "- vool-database.migrate.apply" not in text and "- vool-database.migrate.preview" in text
+    assert "`vool-database.migrate.apply`, which did not run in this turn" in text
+    assert payload["execution_claims"] == ["vool-database.migrate.apply"]
+
+
+def test_a_reply_whose_listed_intents_all_ran_is_left_alone(monkeypatch):
+    authorship = _gate_with(monkeypatch, ["vool-database.migrate.preview"], ["vool-database.migrate.preview"])
+    reply = "Here is the preview of the change.\n- vool-database.migrate.preview"
+    assert authorship._unrun_listed_intents(reply, {"session_id": "s"}) is None
