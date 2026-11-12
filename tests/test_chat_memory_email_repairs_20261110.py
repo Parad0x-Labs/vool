@@ -749,3 +749,19 @@ def test_a_repeat_the_task_follow_up_may_carry_the_previous_output(current):
     policy = _follow_up_policy("Run the echo plugin with ORBIT-7731.", current)
     answer = "ORBIT-7731 became BRAVO-2 in the second run."
     assert inspect_ordinary_chat_output(answer, policy, current_user_text=current).allowed
+
+
+@pytest.mark.parametrize(
+    "text", ["whats in my orders database?", "how many rows r in my orders table", "show me my databse tables",
+             "what's in my budget spreadsheet?"],
+)
+def test_a_question_about_the_owners_data_store_is_not_a_cross_chat_recall(text):
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
+
+    assert _owned_by_another_lane(as_question(text))
+
+
+def test_a_personal_fact_question_is_still_the_cross_chat_lanes():
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
+
+    assert not _owned_by_another_lane(as_question("where is my test parking spot at work"))

@@ -141,6 +141,9 @@ def _private(session_id: str, source_context: dict[str, Any] | None) -> bool:
 _LIVE_DOMAIN_RE = re.compile(
     r"\b(?:meetings?|appointments?|calendar|agenda|events?|schedule|reminders?|e-?mails?|mail|inbox|"
     r"messages?|files?|folders?|downloads?|desktop|disk|battery|weather|forecast|balance|wallet|price|"
+    # Data the owner keeps in a store a tool reads (database run 2, 2026-11-12: "whats in my orders
+    # database?" was answered "I don't have that saved" by this lane).
+    r"databases?|databse|datbase|db|tables?|tabel|spreadsheets?|sheets?|repo|repository|repositories|"
     r"today|tomorrow|tonight|this\s+(?:week|month|morning|afternoon|evening)|next\s+week|now)\b",
     re.IGNORECASE,
 )
@@ -160,6 +163,14 @@ def _owned_by_another_lane(text: str) -> bool:
         from core.tool_demand_signals import mailbox_retrieval_intents
 
         if mailbox_retrieval_intents(text):
+            return True
+    except Exception:
+        return True
+    try:
+        # Any ask a tool family is seated for (database, workspace, web, ...) is that tool's turn.
+        from core.tool_demand_signals import resolve_demand_signals
+
+        if resolve_demand_signals(text).required_families:
             return True
     except Exception:
         return True
