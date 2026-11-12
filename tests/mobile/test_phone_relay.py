@@ -96,7 +96,7 @@ def test_owner_relay_switch_in_real_settings_chromium(desktop,relay,tmp_path):
     pair(desktop)
     _,endpoint,room,token=relay
     with sync_playwright() as playwright:
-        browser=playwright.chromium.launch(executable_path=os.environ['VOOL_TEST_CHROMIUM'])
+        browser=playwright.chromium.launch(executable_path=os.environ.get('VOOL_TEST_CHROMIUM'))
         try:
             page=browser.new_page(viewport={'width':1280,'height':1000})
             page.goto(desktop[0]+'/settings#phone'); page.locator('[data-group="phone"]').click()
