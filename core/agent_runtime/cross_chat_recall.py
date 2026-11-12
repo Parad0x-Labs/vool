@@ -199,8 +199,18 @@ _LIVE_DOMAIN_RE = re.compile(
 )
 
 
+#: A question about what the person attached to this turn ("Is anything said in the attached video?")
+#: is the attachment reader's: served tests found the recall lane answering it with "I don't have
+#: that saved, but you mentioned it in a chat".
+_ATTACHMENT_RE = re.compile(
+    r"\b(?:attached|attachment|attachments|uploaded|(?:this|that|the)\s+(?:file|image|photo|picture|"
+    r"screenshot|video|clip|audio|recording|pdf|document|doc|spreadsheet|archive|zip))\b",
+    re.IGNORECASE,
+)
+
+
 def _owned_by_another_lane(text: str) -> bool:
-    if _LIVE_DOMAIN_RE.search(text):
+    if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
         return True
     try:
         from core.runtime_lane_truth import runtime_lane_question
@@ -562,6 +572,8 @@ def cross_chat_recall(
         return None
     if _owned_by_another_lane(text):
         return None
+    if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
+        return None  # a turn that carries files is about them
     if not explicit_recall and _chat_works_on_a_data_store(source_context):
         return None
     from core.chat_housekeeping import query_terms, search_chats

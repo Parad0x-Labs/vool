@@ -1155,6 +1155,20 @@ _ELLIPTICAL_FORMAT_ORDER_RE = re.compile(
 )
 
 
+#: An edit of the last answer that orders the file again: "add sunscreen and a torch and make the pdf
+#: again", "pls add sunscreen + torch, new pdf", "update it with ... and give me the pdf again". The
+#: format order rides on the edit, so neither the elliptical order above nor the "as a PDF" shape saw
+#: it, and the model claimed a file nothing made (0.7.8 sweep block 3, PDF-EDIT-01 p1-p3).
+_FILE_AGAIN_ORDER_RE = re.compile(
+    r"\b(?:(?:make|give\s+me|send\s+me|send|export|redo|regenerate|re-?make|create|generate|do)\s+"
+    r"(?:me\s+)?(?:the|a|an|another|that|this)\s+(?:new\s+|fresh\s+|updated\s+)?"
+    r"(?:pdf|docx?|word\s+(?:doc|document|file)|xlsx|excel\s+file|csv|pptx)\b(?:\s+(?:file|version|copy))?\s+(?:again|too)\b"
+    r"|(?:^|[,;+&]|\band\b)\s*(?:a\s+|an\s+)?(?:new|fresh|updated)\s+(?:pdf|docx?|xlsx|csv|pptx)\b(?:\s+(?:file|version|copy))?\s*(?:pls|please)?\s*[.!]?\s*$"
+    r"|\b(?:make|give\s+me|send\s+me|export|create|generate)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:new|fresh|updated)\s+(?:pdf|docx?|xlsx|csv|pptx)\b)",
+    re.IGNORECASE,
+)
+
+
 def asks_for_a_file(text: str) -> bool:
     """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
 
@@ -1270,7 +1284,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
 
     # Share the reader with front-door ownership: an anaphoric artifact order
     # must seat file.deliver too, not only classify as a file after seating.
-    if _separate_file_execution_clause(cleaned) or _ELLIPTICAL_FORMAT_ORDER_RE.match(cleaned):
+    if (
+        _separate_file_execution_clause(cleaned)
+        or _ELLIPTICAL_FORMAT_ORDER_RE.match(cleaned)
+        or _FILE_AGAIN_ORDER_RE.search(cleaned)
+    ):
         _note("file.deliver", "file")
 
     # A save/store request whose object is a saved contact ("save Alex Chen as a contact",

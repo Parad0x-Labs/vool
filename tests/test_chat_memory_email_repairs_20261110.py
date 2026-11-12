@@ -1487,3 +1487,28 @@ def test_the_same_number_in_the_same_unit_is_supported(answer):
 
     claims = match_claims(answer=answer, notes=_DANUBE, request_text="per wikipedia, how long is the danube?").claims
     assert claims and all(claim.status == "supported" for claim in claims)
+
+
+@pytest.mark.parametrize("asked", ["add sunscreen and a torch and make the pdf again", "pls add sunscreen + torch, new pdf",
+                                   "update it with sunscreen and a flashlight and give me the pdf again",
+                                   "swap the tent for a hammock and send me an updated pdf", "add bug spray, fresh pdf please"])
+def test_an_edit_that_orders_the_file_again_orders_a_file(asked):
+    from core.tool_demand_signals import asks_for_a_file, resolve_demand_signals
+
+    assert "file.deliver" in resolve_demand_signals(asked).explicit_intents
+    assert asks_for_a_file(asked)
+
+
+@pytest.mark.parametrize("asked", ["what is a pdf again?", "is the new pdf standard better?"])
+def test_a_question_about_pdfs_orders_nothing(asked):
+    from core.tool_demand_signals import asks_for_a_file
+
+    assert not asks_for_a_file(asked)
+
+
+@pytest.mark.parametrize("asked", ["Is anything said in the attached video?", "what's in this screenshot?",
+                                   "summarize the uploaded pdf"])
+def test_a_question_about_an_attachment_is_not_a_recall(asked):
+    from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
+
+    assert _owned_by_another_lane(as_question(asked))
