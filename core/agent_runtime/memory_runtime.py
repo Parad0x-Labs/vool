@@ -497,12 +497,47 @@ def _is_http_rate_limit(error: str) -> bool:
     ))
 
 
-def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
-    """Describe a measured local failure without exposing raw provider errors.
+#: How every runtime no-answer notice below begins and ends. A person reads one plain sentence on
+#: what happened, that nothing was made up in its place, and what they can do; the model name is
+#: plain text, never a code span. The leads are what core.context_history_authority recognizes in a
+#: later prompt (with the older wordings still stored in chats), so they stay stable.
+#:
+#: App bugs 2026-11-12 (real app, a 503 that persisted through the retry): the reply read like a log
+#: line -- "`qwen3.5:4b` failed before producing a usable answer. No cached or remembered text was
+#: substituted. Retry the turn."
+NO_ANSWER_LEAD = "I couldn't get an answer this time"
+UNFINISHED_ANSWER_LEAD = "I couldn't finish this answer"
+NOTHING_MADE_UP = "Nothing was made up in its place."
+TRY_AGAIN = "You can try again."
 
-    The turn trace keeps full diagnostics.  This surface names only the models and typed condition
-    (timeout, memory admission, output limit), which is enough to distinguish a model/runtime
-    failure from a weak answer without leaking endpoints, headers, or provider response bodies.
+
+def _attempt_failure_words(error: str, error_class: str = "") -> str:
+    """What one model attempt did, in words a person reads: never a status code, a gate name or the
+    provider's own error text (those stay in the turn trace)."""
+
+    lowered = str(error or "").casefold()
+    if error_class == "EMPTY_PROVIDER_RESPONSE":
+        return "sent back an empty reply"
+    if _is_http_rate_limit(error):
+        return "was turned away by its provider for now (rate limit)"
+    if "model_load_gated_low_memory" in lowered or "low_memory" in lowered:
+        return "could not start because this computer was short on free memory"
+    if "timed out" in lowered or "timeout" in lowered:
+        return "took too long to reply"
+    if "connection" in lowered or "unreachable" in lowered:
+        return "could not be reached"
+    if error:
+        return "stopped with an error before it replied"
+    return "did not reply"
+
+
+def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
+    """Describe a measured model failure in plain words without exposing raw provider errors.
+
+    The turn trace keeps full diagnostics.  This surface names only the models and what each one did
+    (an empty reply, too slow, short on memory, unreachable, the length limit), which is enough to
+    tell a model failure from a weak answer without leaking endpoints, headers, or provider
+    response bodies.
     """
 
     details = getattr(model_execution, "details", None)
@@ -526,22 +561,23 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
         )
         if hit_limit:
             repaired = bool(control.get("retry_attempted"))
-            suffix = " and its one bounded repair also hit the limit" if repaired else ""
+            suffix = ", and one more try stopped at the same limit" if repaired else ""
             return (
-                f"`{model_name}` hit its output limit before it completed the answer{suffix}. "
-                "No cached or remembered text was substituted. Retry the turn."
+                f"{UNFINISHED_ANSWER_LEAD}: {model_name} reached its length limit before it was done{suffix}. "
+                f"{NOTHING_MADE_UP} You can try again, or ask for a shorter answer."
             )
 
     if source == "selected_model_blocked" and details.get("model_was_attempted"):
         failure = details.get("provider_failure") or {}
+        name = str(details.get("requested_model") or "").strip() or "The model you selected"
         if failure.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
-            name = str(details.get("requested_model") or "Selected model")
-            return f"I couldn't get a usable model response: `{name}` did not return a usable reply. No cached or remembered text was substituted. Retry the turn."
+            return f"{NO_ANSWER_LEAD}: {name} sent back an empty reply. {NOTHING_MADE_UP} {TRY_AGAIN}"
         error = str(details.get("block_reason") or details.get("reason") or "")
         if _is_http_rate_limit(error):
-            name = str(details.get("requested_model") or "Selected model")
-            return (f"`{name}` was refused by its provider with HTTP 429 (rate limit). "
-                    "Wait and retry, or select another model. No alternate model was used.")
+            return (
+                f"{NO_ANSWER_LEAD}: {name} was turned away by its provider for now (rate limit). "
+                "No other model answered in its place. Wait a moment and try again, or pick another model."
+            )
     if source not in {"no_provider_available", "provider_fallback_budget_exceeded"}:
         return ""
     timings = [item for item in list(details.get("attempt_timings") or []) if isinstance(item, dict)]
@@ -554,33 +590,13 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
         if not name:
             name = provider_id.split(":", 1)[-1]
         error = str(timing.get("error") or (reasons[index] if index < len(reasons) else ""))
-        lowered = error.casefold()
-        if timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
-            kind = "did not return a usable reply"
-        elif _is_http_rate_limit(error):
-            kind = "was refused by its provider with HTTP 429 (rate limit)"
-        elif "model_load_gated_low_memory" in lowered or "low_memory" in lowered:
-            kind = "was blocked by the local memory-safety admission gate"
-        elif "timed out" in lowered or "timeout" in lowered:
-            kind = "timed out before producing a usable answer"
-        elif "connection" in lowered or "unreachable" in lowered:
-            kind = "could not reach its local runtime"
-        elif error:
-            kind = "failed before producing a usable answer"
-        else:
-            kind = "did not produce a usable answer"
-        attempts.append((name, kind))
+        attempts.append((name, _attempt_failure_words(error, str(timing.get("error_class") or ""))))
     if not attempts:
         return ""
-    clauses = [f"`{name}` {kind}" for name, kind in attempts]
-    if len(clauses) == 1:
-        summary = clauses[0]
-    else:
-        summary = "; ".join(clauses[:-1]) + f"; fallback `{attempts[-1][0]}` {attempts[-1][1]}"
-    prefix = "I couldn't get a usable model response: " if any(
-        timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE" for timing in timings
-    ) else ""
-    return f"{prefix}{summary}. No cached or remembered text was substituted. Retry the turn."
+    # Each model the turn tried, in order: "qwen3:4b took too long to reply, then qwen2.5:7b could
+    # not start because this computer was short on free memory".
+    summary = ", then ".join(f"{name} {kind}" for name, kind in attempts)
+    return f"{NO_ANSWER_LEAD}: {summary}. {NOTHING_MADE_UP} {TRY_AGAIN}"
 
 
 def _single_candidate_failure_hint(model_execution: Any) -> str:
@@ -770,6 +786,81 @@ def _provider_display_name(model_execution: Any, details: Any) -> str:
     return base
 
 
+def _local_attempt_models(details: Any) -> dict[str, str]:
+    """``provider_id -> model name`` for every attempt the router marked as running on this computer
+    (``attempt_timings[].local``, written from the manifest's own locality)."""
+
+    if not isinstance(details, dict):
+        return {}
+    found: dict[str, str] = {}
+    for timing in list(details.get("attempt_timings") or []):
+        if isinstance(timing, dict) and timing.get("local") is True:
+            provider_id = str(timing.get("provider_id") or "").strip()
+            if provider_id:
+                found[provider_id] = str(timing.get("model_id") or "").strip() or provider_id.split(":", 1)[-1]
+    if details.get("selected_model_local") is True:
+        # An explicit pin carries no per-attempt timings; the router marks the pin itself.
+        for provider_id in list(details.get("attempted") or []):
+            provider_id = str(provider_id or "").strip()
+            if provider_id:
+                found.setdefault(provider_id, provider_id.split(":", 1)[-1])
+    return found
+
+
+def _local_model_refusal_hint(details: Any, records: list[dict[str, str]], evidence: str) -> str:
+    """Plain words when the model app on THIS computer refused the request (401, 403 or 429), else "".
+
+    The cloud wording names an account, an API key and Settings → API Keys; a local model has none
+    of those, so it is used only when a refusing attempt was a cloud one. App bugs 2026-11-12 (real
+    app, C3): a 401 from a local model was told "ollama-local rejected the stored API key
+    (authentication failed), so no cloud model could run this turn ... Check the key in Settings →
+    API Keys". A 401 from a model app on this computer means it asked for a sign-in (an account-run
+    model in Ollama, or a password set in front of it).
+    """
+
+    local = _local_attempt_models(details)
+    if not local:
+        return ""
+
+    def _refused(text: str) -> bool:
+        return bool(
+            _REMOTE_AUTH_REJECTED_RE.search(text)
+            or _REMOTE_ACCESS_REFUSED_RE.search(text)
+            or _REMOTE_THROTTLED_RE.search(text)
+        )
+
+    refusing = [r for r in records if _refused(str(r.get("error") or ""))]
+    if not refusing:
+        # Only the joined reason carries the status: local only when every attempt was local.
+        if not (records and _refused(evidence) and all(str(r.get("provider") or "") in local for r in records)):
+            return ""
+        refusing = records
+    if any(str(r.get("provider") or "") not in local for r in refusing):
+        return ""
+    names: list[str] = []
+    for record in refusing:
+        name = local[str(record.get("provider") or "")]
+        if name not in names:
+            names.append(name)
+    model = " and ".join(names)
+    said = " ".join(str(r.get("error") or "") for r in refusing) or evidence
+    if _REMOTE_AUTH_REJECTED_RE.search(said):
+        return (
+            f"{NO_ANSWER_LEAD}: the model app on this computer would not run {model} because it asked "
+            f"for a sign-in. {NOTHING_MADE_UP} If this model needs an account in your model app (such "
+            "as Ollama), sign in there, then try again."
+        )
+    if _REMOTE_ACCESS_REFUSED_RE.search(said):
+        return (
+            f"{NO_ANSWER_LEAD}: the model app on this computer refused to run {model}. "
+            f"{NOTHING_MADE_UP} Check your model app (such as Ollama), then try again."
+        )
+    return (
+        f"{NO_ANSWER_LEAD}: the model app on this computer was too busy to run {model} just now. "
+        f"{NOTHING_MADE_UP} Wait a moment, then try again."
+    )
+
+
 def _provider_auth_failure_hint(model_execution: Any) -> str:
     """The actionable message when a provider CREDENTIAL stopped the turn, else "".
 
@@ -837,6 +928,9 @@ def _provider_auth_failure_hint(model_execution: Any) -> str:
         # decision says the model was never attempted, so an HTTP-shaped string in the reason is
         # a gate's own code, not the provider's reply -- never worded as provider contact.
         return ""
+    local_refusal = _local_model_refusal_hint(details, records, evidence)
+    if local_refusal:
+        return local_refusal
     throttled = [r for r in records if _REMOTE_THROTTLED_RE.search(str(r.get("error") or ""))]
     throttle_source = (
         str(throttled[0].get("error") or "") if throttled

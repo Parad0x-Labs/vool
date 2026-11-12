@@ -1010,6 +1010,10 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .tc-report { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
 .tc-report:hover { color:var(--ink); border-color:var(--accent); }
 body.vool-offline .tc-report { display:none; }
+/* "Try again" on a failed turn: the way forward, so it reads as the main action of the row. */
+.tc-retry { background:transparent; color:var(--accent); border:1px solid var(--accent); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.tc-retry:hover { background:var(--field); }
+body.vool-offline .tc-retry { display:none; }
 /* One calm line while the VOOL service cannot be reached; it clears itself when VOOL is back. */
 .offline-bar { display:flex; align-items:center; gap:10px; flex-shrink:0; padding:7px 16px; border-bottom:1px solid var(--border); background:var(--field); color:var(--ink); font-size:13px; }
 .offline-bar[hidden] { display:none; }
@@ -6411,6 +6415,22 @@ function paintFinishedCard(run) {
   if (kind !== 'awaiting_approval') applyResultSummary(run);
   if (kind === 'failed' && !run.card.dataset.brWired) {
     run.card.dataset.brWired = '1';
+    // A failed turn offers its way forward in plain sight: Try again sends the same question once
+    // more through the ordinary composer (the same rules, approvals, caps and receipts as any typed
+    // message), exactly as the answer's own Try again does. App bugs 2026-11-12: after a fault
+    // that persisted, the only buttons were View activity and Report a problem.
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'tc-retry';
+    again.textContent = pageT('msg.retry', 'Try again');
+    again.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
+    again.addEventListener('click', () => {
+      const anchor = (run.userMsgEl && run.userMsgEl.isConnected) ? run.userMsgEl : (run.assistantMsgEl || run.card);
+      resendFromBubble(anchor, true);
+    });
+    const actionsRow = run.card.querySelector('.tc-actions');
+    if (actionsRow) actionsRow.insertBefore(again, actionsRow.firstChild);   // the way forward comes first
+    else run.card.appendChild(again);
     const link = document.createElement('button');
     link.type = 'button';
     link.className = 'tc-report';

@@ -125,6 +125,10 @@ _RUNTIME_FAILURE_NOTICE_RE = re.compile(
     r"|usepod\s+answered\s+http\s+\d+"
     r"|`[^`\n]+`\s+was\s+the\s+only\s+model\s+this\s+turn\s+was\s+allowed\s+to\s+use"
     r"|`[^`\n]+`\s+failed,\s+and\s+this\s+turn's\s+fallback\s+time\s+budget\s+ran\s+out"
+    # The plain-words notices (memory_runtime NO_ANSWER_LEAD / UNFINISHED_ANSWER_LEAD, app bugs
+    # 2026-11-12). The older wordings above and the signature clause below stay: chats already
+    # hold them.
+    r"|i\s+couldn['’]t\s+(?:get\s+an\s+answer\s+this\s+time|finish\s+this\s+answer)\s*:"
     r")"
     r"|no\s+cached\s+or\s+remembered\s+text\s+was\s+substituted",
     re.IGNORECASE,

@@ -49,6 +49,11 @@ MODEL_FAILURE_WORDS = (
     "failed before producing",
     "timed out before producing",
     "could not reach its local runtime",
+    # The plain-words notices that replaced the ones above (memory_runtime NO_ANSWER_LEAD and
+    # UNFINISHED_ANSWER_LEAD); older builds still answer with the wordings above.
+    "i couldn't get an answer this time",
+    "i couldn't finish this answer",
+    "nothing was made up in its place",
 )
 
 
