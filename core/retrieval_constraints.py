@@ -16,6 +16,8 @@ token, company, or provider names here; adding another asset or place cannot cha
 
 from __future__ import annotations
 
+import bisect
+import itertools
 import json
 import re
 from dataclasses import dataclass
@@ -162,16 +164,50 @@ _CONTRASTIVE_KEYWORD_RE = re.compile(r"(?:and\s+then|but|however|instead|rather|
 _EXPLANATION_VERB_RE = re.compile(r"(?:explain|define|describe|tell\s+me|answer)\b", re.IGNORECASE)
 
 
-def _earliest_transition_start(text: str, start: int, element_start: int) -> int | None:
+# The keyword occurrences a transition can begin at: a match of the keyword pattern right after
+# whitespace (anywhere else no valid start exists). The lookahead keeps overlapping occurrences --
+# "and then" and its own "then" -- exactly as searching again one character later did.
+_SPACED_CONTRASTIVE_KEYWORD_RE = re.compile(rf"(?<=\s)(?={_CONTRASTIVE_KEYWORD_RE.pattern})", re.IGNORECASE)
+_SPACED_EXPLANATION_VERB_RE = re.compile(rf"(?<=\s)(?={_EXPLANATION_VERB_RE.pattern})", re.IGNORECASE)
+_HARD_CLAUSE_END_CHAR_RE = re.compile(r"[.!?;\n]")
+
+
+class _ClauseBoundaries:
+    """Every place in one message where a negative clause can end, found once per message.
+
+    `_negative_clause_end` runs once per directive. Searching the rest of the message on every
+    call -- the next stop, and every transition keyword up to the very end -- made a message with
+    many directives quadratic: "I'm on a plane, no markdown, for example you said no web; "
+    repeated to 116k characters took 12 s.
+    """
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.hard = [match.start() for match in _HARD_CLAUSE_END_CHAR_RE.finditer(text)]
+        self.contrastive = [match.start() for match in _SPACED_CONTRASTIVE_KEYWORD_RE.finditer(text)]
+        self.explanation = [match.start() for match in _SPACED_EXPLANATION_VERB_RE.finditer(text)]
+        self._run_starts: dict[int, int] = {}
+
+    def run_start(self, position: int) -> int:
+        """Where the whitespace run that ends right before ``position`` begins (``position`` when
+        none does). Every position asked about holds a word, so each run is walked once."""
+        known = self._run_starts.get(position)
+        if known is None:
+            known = position
+            while known > 0 and self.text[known - 1].isspace():
+                known -= 1
+            self._run_starts[position] = known
+        return known
+
+
+def _earliest_transition_start(text: str, start: int, element_start: int, run_start: int) -> int | None:
     """Earliest index in the optional-comma-plus-whitespace-run window for one keyword.
 
-    ``element_start`` is where the keyword (or the explanation chain) begins. The
-    whitespace run immediately before it is scanned once; the window of valid match
-    starts is the optional comma in front of the run plus the run itself.
+    ``element_start`` is where the keyword (or the explanation chain) begins and ``run_start``
+    where the whitespace run immediately before it begins. The window of valid match starts is
+    the optional comma in front of the run plus the run itself, from ``start`` on.
     """
-    a = element_start
-    while a - 1 >= start and text[a - 1].isspace():
-        a -= 1
+    a = max(run_start, start)
     if element_start - a < 1:
         return None
     lo = a - 1 if a - 1 >= start and text[a - 1] == "," else a
@@ -181,45 +217,45 @@ def _earliest_transition_start(text: str, start: int, element_start: int) -> int
     return max(lo, start)
 
 
-def _transition_search(pattern: re.Pattern[str], text: str, start: int, *, chain: bool) -> int | None:
-    """The exact `.start()` of `pattern.search(text, start)`, or None, without the
-    flagged `,?\\s+` lead. ``chain`` extends the leftward scan over the explanation
-    pattern's optional (pls|please) and (just|only) groups before the mandatory
-    whitespace run."""
-    best: int | None = None
-    pos = start
-    while (match := pattern.search(text, pos)) is not None:
-        element_start = match.start()
-        pos = element_start + 1
-        if chain:
-            # Greedy chain construction, then backtracking exactly as the pattern's
-            # optional groups would: if the mandatory whitespace before the chain
-            # head is missing, the front group is dropped and the next-shorter
-            # chain is tried, down to the bare verb.
-            verb_start = element_start
-            heads = [verb_start]
-            head = verb_start
-            for words in (("just", "only"), ("pls", "please")):
-                run = head
-                while run - 1 >= start and text[run - 1].isspace():
-                    run -= 1
-                if run < head:
-                    for word in words:
-                        w = run - len(word)
-                        if w >= start and text[w:run].casefold() == word:
-                            heads.insert(0, w)
-                            head = w
-                            break
-            found = None
-            for candidate in heads:
-                found = _earliest_transition_start(text, start, candidate)
-                if found is not None:
+def _transition_search(
+    occurrences: list[int], boundaries: _ClauseBoundaries, start: int, *, chain: bool
+) -> int | None:
+    """The exact `.start()` of the original transition pattern's search from `start`, or None,
+    without the flagged `,?\\s+` lead. ``chain`` extends the leftward scan over the explanation
+    pattern's optional (pls|please) and (just|only) groups before the mandatory whitespace run.
+
+    A keyword's valid starts lie in the whitespace run (or on the comma) right before it, so they
+    grow with the keyword: the first spaced occurrence after `start` decides the answer, and no
+    later one is read.
+    """
+    index = bisect.bisect_left(occurrences, start + 1)
+    if index == len(occurrences):
+        return None
+    element_start = occurrences[index]
+    text = boundaries.text
+    if not chain:
+        return _earliest_transition_start(text, start, element_start, boundaries.run_start(element_start))
+    # Greedy chain construction, then backtracking exactly as the pattern's optional groups
+    # would: if the mandatory whitespace before the chain head is missing, the front group is
+    # dropped and the next-shorter chain is tried, down to the bare verb.
+    heads = [element_start]
+    head = element_start
+    for words in (("just", "only"), ("pls", "please")):
+        run = max(boundaries.run_start(head), start)
+        if run < head:
+            for word in words:
+                w = run - len(word)
+                if w >= start and text[w:run].casefold() == word:
+                    heads.insert(0, w)
+                    head = w
                     break
-        else:
-            found = _earliest_transition_start(text, start, element_start)
-        if found is not None and (best is None or found < best):
-            best = found
-    return best
+    for candidate in heads:
+        found = _earliest_transition_start(text, start, candidate, boundaries.run_start(candidate))
+        if found is not None:
+            return found
+    return None
+
+
 # The verb that opened the cancelled request comes from the SHARED vocabulary, not a private
 # seven-word list. That list omitted `find`, so "Find me the best mechanical keyboard under $100 on
 # the web. WAIT. Abort the product lookup completely." kept its opening clause in the eligible text
@@ -438,16 +474,17 @@ class RetrievalRequestAuthority:
     structured: bool = False
 
 
-def _negative_clause_end(text: str, start: int) -> int:
-    candidates = [
-        match.start()
-        for pattern in (_HARD_CLAUSE_END_RE,)
-        if (match := pattern.search(text, start))
-    ]
-    contrastive = _transition_search(_CONTRASTIVE_KEYWORD_RE, text, start, chain=False)
+def _negative_clause_end(text: str, start: int, boundaries: _ClauseBoundaries | None = None) -> int:
+    if boundaries is None:
+        boundaries = _ClauseBoundaries(text)
+    candidates: list[int] = []
+    hard = bisect.bisect_left(boundaries.hard, start)
+    if hard < len(boundaries.hard):
+        candidates.append(boundaries.hard[hard])
+    contrastive = _transition_search(boundaries.contrastive, boundaries, start, chain=False)
     if contrastive is not None:
         candidates.append(contrastive)
-    explanation = _transition_search(_EXPLANATION_VERB_RE, text, start, chain=True)
+    explanation = _transition_search(boundaries.explanation, boundaries, start, chain=True)
     if explanation is not None and explanation > start:
         candidates.append(explanation)
     return min(candidates) if candidates else len(text)
@@ -456,10 +493,13 @@ def _negative_clause_end(text: str, start: int) -> int:
 def _negative_clause_spans(text: str) -> tuple[tuple[int, int], ...]:
     spans: list[tuple[int, int]] = []
     cursor = 0
+    boundaries: _ClauseBoundaries | None = None
     while match := _NEGATED_RETRIEVAL_DIRECTIVE_RE.search(text, cursor):
         directive_start = match.start()
         start = directive_start
-        end = _negative_clause_end(text, directive_start)
+        if boundaries is None:
+            boundaries = _ClauseBoundaries(text)
+        end = _negative_clause_end(text, directive_start, boundaries)
         if end <= directive_start:
             end = match.end()
         # A cancellation withdraws the request it cancels, and that request sits BEFORE it. The
@@ -527,9 +567,12 @@ _REPORTING_VERB = (
     r"(?:types?|typed|says?|said|asks?|asked|writes?|wrote|enters?|entered|sends?|sent|requests?|requested|"
     r"puts?|phrases?|phrased|words?|worded)\b"
 )
-_REPORTED_EXAMPLE_RE = re.compile(
+# The frames are split by how their start is found. Searched as one pattern, the frame that may
+# follow a stop ("...\n\n\nsay a user types ...") could start after every newline of a run and
+# rescanned the rest of the run from each one: 20000 newlines took 11 s. Its keyword is found
+# first instead, and its start is worked out from the whitespace before the keyword.
+_REPORTED_EXAMPLE_FRAME_RE = re.compile(
     rf"\b(?:for\s+example|for\s+instance|e\.g\.)[,:]?\s+{_REPORTED_SPEAKER}\s+{_REPORTING_VERB}"
-    rf"|(?:^|(?<=[.!?;\n]))\s*(?:say|imagine|suppose|picture\s+this)[,:]?\s+{_REPORTED_SPEAKER}\s+{_REPORTING_VERB}"
     r"|\b(?:an?|the)\s+(?:example|sample|typical|hypothetical)\s+"
     r"(?:request|prompt|query|question|message|input|utterance|sentence)\s+"
     r"(?:(?:would|might|could|may)\s+)?(?:be|is|was|reads?|looks?\s+like|goes)\b"
@@ -541,26 +584,63 @@ _REPORTED_EXAMPLE_RE = re.compile(
     r"|\b(?:you|i|we)\s+(?:just\s+|earlier\s+|then\s+)?(?:asked|said|told\s+me|wrote|typed|meant|wanted|requested)\b",
     re.IGNORECASE,
 )
+# "say a user types ...", "imagine someone asks ...": a frame of its own only at the start of the
+# message or after a stop, with nothing but whitespace between the stop and the keyword.
+_REPORTED_EXAMPLE_IMPERATIVE_RE = re.compile(
+    rf"(?:say|imagine|suppose|picture\s+this)[,:]?\s+{_REPORTED_SPEAKER}\s+{_REPORTING_VERB}",
+    re.IGNORECASE,
+)
+_STOPS_BEFORE_IMPERATIVE_FRAME = frozenset(".!?;\n")
+_EXAMPLE_CONNECTIVE_RE = re.compile(r"\s*(?:like|such\s+as)?\s*[,:]?\s*")
+_EXAMPLE_SENTENCE_END_RE = re.compile(r"[.!?\n]")
 _QUOTE_PAIRS = {'"': '"', "'": "'", "“": "”", "‘": "’", "`": "`"}
+
+
+def _imperative_frame(text: str, cursor: int) -> tuple[int, int] | None:
+    """(start, end) of the first imperative frame that starts at or after ``cursor``."""
+    position = cursor
+    while match := _REPORTED_EXAMPLE_IMPERATIVE_RE.search(text, position):
+        keyword = match.start()
+        run = keyword
+        while run > cursor and text[run - 1].isspace():
+            run -= 1
+        # The earliest start the whitespace allows opens a frame at the start of the message or
+        # right after a stop; a later start inside the run needs a newline right before it.
+        if run == 0 or text[run - 1] in _STOPS_BEFORE_IMPERATIVE_FRAME:
+            return run, match.end()
+        newline = text.find("\n", run, keyword)
+        if newline != -1:
+            return newline + 1, match.end()
+        position = keyword + 1
+    return None
 
 
 def _reported_example_spans(text: str) -> tuple[tuple[int, int], ...]:
     """The spans of reported example utterances: each frame plus the words it reports."""
     spans: list[tuple[int, int]] = []
-    cursor = 0
-    while match := _REPORTED_EXAMPLE_RE.search(text, cursor):
-        start, end = match.start(), match.end()
+    framed = _REPORTED_EXAMPLE_FRAME_RE.search(text)
+    imperative = _imperative_frame(text, 0)
+    while framed is not None or imperative is not None:
+        if imperative is None or (framed is not None and framed.start() < imperative[0]):
+            start, frame_end = framed.span()
+        else:
+            start, frame_end = imperative
         # Skip the connective that may introduce the words ("like", "such as", ":", ",").
-        tail = re.match(r"\s*(?:like|such\s+as)?\s*[,:]?\s*", text[end:])
-        content = end + (tail.end() if tail else 0)
+        content = _EXAMPLE_CONNECTIVE_RE.match(text, frame_end).end()
         if content < len(text) and text[content] in _QUOTE_PAIRS:
             close = text.find(_QUOTE_PAIRS[text[content]], content + 1)
             end = close + 1 if close != -1 else len(text)
         else:
-            sentence_end = re.search(r"[.!?\n]", text[content:])
-            end = content + sentence_end.end() if sentence_end else len(text)
+            sentence_end = _EXAMPLE_SENTENCE_END_RE.search(text, content)
+            end = sentence_end.end() if sentence_end else len(text)
         spans.append((start, end))
-        cursor = max(end, match.end())
+        cursor = max(end, frame_end)
+        # A frame found from an earlier cursor that still lies ahead is still the first one from
+        # this cursor, so only a frame the cursor has passed is looked for again.
+        if framed is not None and framed.start() < cursor:
+            framed = _REPORTED_EXAMPLE_FRAME_RE.search(text, cursor)
+        if imperative is not None and imperative[0] < cursor:
+            imperative = _imperative_frame(text, cursor)
     return tuple(spans)
 
 
@@ -575,37 +655,91 @@ def negated_directive_positions(text: str) -> tuple[int, ...]:
     return tuple(match.start() for match in _NEGATED_RETRIEVAL_DIRECTIVE_RE.finditer(str(text or "")))
 
 
+class _SpanIndex:
+    """Answers "does this span overlap any of those?" in logarithmic time.
+
+    A message can hold tens of thousands of clauses. Testing each span against every other one
+    was quadratic in the message: 20000 "offline. no markdown." pairs took 13 s.
+    """
+
+    def __init__(self, spans: tuple[tuple[int, int], ...]) -> None:
+        ordered = sorted(spans)
+        self._starts = [start for start, _end in ordered]
+        # The furthest any of the first k spans reaches, for every k.
+        self._reach = list(itertools.accumulate((end for _start, end in ordered), max))
+
+    def overlaps(self, span: tuple[int, int]) -> bool:
+        start, end = span
+        opened = bisect.bisect_left(self._starts, end)  # the spans that start before this one ends
+        return opened > 0 and self._reach[opened - 1] > start
+
+
+def _spoken_network_prohibition_spans(raw: str, excluded: _SpanIndex) -> tuple[tuple[int, int], ...]:
+    """Prohibitions stated in words the directive recognizer does not read: "I'm on a plane",
+    "our wifi is down", "answer from your own knowledge", "external sources are off limits",
+    "skip the lookup".
+
+    Words inside quotes are somebody else's, so they are not an instruction to this turn, and a
+    span inside an output-format directive or a reported example is that, not a prohibition.
+    Measured on the v0.8 line before this, 7 of 28 such messages froze a web prohibition.
+    """
+    from core.turn_prohibitions import _strip_quoted_spans
+    from core.user_network_directive import prohibition_spans
+
+    # Quote stripping keeps every offset (a quoted span becomes spaces of the same length), so
+    # the spans found in the stripped text are spans of the caller's text.
+    return tuple(
+        span for span in prohibition_spans(_strip_quoted_spans(raw)) if not excluded.overlaps(span)
+    )
+
+
 def analyze_retrieval_constraints(text: str) -> RetrievalConstraints:
     """Parse explicit negative retrieval clauses without treating ordinary negation as a veto."""
 
     raw = str(text or "")
-    spans = _negative_clause_spans(raw)
+    directive_spans = _negative_clause_spans(raw)
+    format_spans = tuple((m.start(), m.end()) for m in _OUTPUT_FORMAT_DIRECTIVE_RE.finditer(raw))
+    example_spans = _reported_example_spans(raw)
+    spoken = _spoken_network_prohibition_spans(raw, _SpanIndex(format_spans + example_spans))
+    # A spoken prohibition the directive recognizer did not read at all becomes a clause of its
+    # own. One inside a clause it did read leaves that clause's reading alone -- unless that
+    # reading named no family at all ("skip the lookup", "dont go online for it" were read as
+    # prohibitions of nothing), where the spoken reading supplies the family: the network.
+    directive_index = _SpanIndex(directive_spans)
+    spoken_alone = tuple(span for span in spoken if not directive_index.overlaps(span))
+    spoken_index = _SpanIndex(spoken)
+    spans = tuple(sorted(directive_spans + spoken_alone))
     clauses = tuple(raw[start:end].strip(" ,;:-—") for start, end in spans)
     prohibited_toolsets: set[str] = set()
-    forbids_all_tools = any(
-        _ALL_TOOL_SCOPE_RE.search(clause) or _ALL_TOOL_LIST_ITEM_RE.search(clause)
-        for clause in clauses
-    )
-    forbids_external = any(_GLOBAL_EXTERNAL_SCOPE_RE.search(clause) for clause in clauses)
+    forbids_all_tools = False
+    # A spoken prohibition names the network itself, not one live-data family, so it closes
+    # external retrieval at large.
+    forbids_external = bool(spoken_alone)
 
-    for clause in clauses:
+    for span, clause in zip(spans, clauses, strict=True):
+        all_tools = bool(_ALL_TOOL_SCOPE_RE.search(clause) or _ALL_TOOL_LIST_ITEM_RE.search(clause))
+        global_scope = bool(_GLOBAL_EXTERNAL_SCOPE_RE.search(clause))
         domains = retrieval_domains_in(clause)
         prohibited_toolsets.update(domains)
-        if _ACTION_WITHOUT_TARGET_RE.search(" ".join(clause.split())):
-            # A prohibition that is ONLY the verb ("Do not browse.", "No lookups.") closes
-            # external retrieval at large, not just the one family the verb maps to -- the
-            # old `not domains` guard let "browse" narrow it to a web_fetch veto and a web
-            # search still ran. The recognizer is already end-of-clause narrow, so this
-            # cannot widen an ordinary negation into a veto.
-            forbids_external = True
+        # A prohibition that is ONLY the verb ("Do not browse.", "No lookups.") closes external
+        # retrieval at large, not just the one family the verb maps to -- the old `not domains`
+        # guard let "browse" narrow it to a web_fetch veto and a web search still ran. The
+        # recognizer is already end-of-clause narrow, so this cannot widen an ordinary negation
+        # into a veto.
+        action_only = bool(_ACTION_WITHOUT_TARGET_RE.search(" ".join(clause.split())))
+        names_no_family = not (all_tools or global_scope or domains or action_only)
+        forbids_all_tools = forbids_all_tools or all_tools
+        forbids_external = (
+            forbids_external
+            or global_scope
+            or action_only
+            or (names_no_family and spoken_index.overlaps(span))
+        )
 
     # Format directives and reported example utterances are removed from the ELIGIBLE TEXT only. They
     # are not retrieval prohibitions, so `has_prohibition` and the toolset scopes stay derived from
     # `spans` alone -- saying "no markdown" must not be mistaken for saying "no web".
-    eligible_spans = tuple(
-        sorted(spans + tuple((m.start(), m.end()) for m in _OUTPUT_FORMAT_DIRECTIVE_RE.finditer(raw))
-               + _reported_example_spans(raw))
-    )
+    eligible_spans = tuple(sorted(spans + format_spans + example_spans))
     return RetrievalConstraints(
         eligible_text=_remove_spans(raw, eligible_spans),
         has_prohibition=bool(spans),

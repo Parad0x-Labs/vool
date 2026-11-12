@@ -759,6 +759,33 @@ def test_repeated_anchors_and_separators_stay_bounded(script):
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
+@pytest.mark.parametrize("script", [
+    # Every "x. " is a list-label candidate. Deciding whether a label opens a line used to slice
+    # the whole turn before it, once per label: 80000 labels took about 30 s.
+    "from core.turn_ir import parse_turn_ir; "
+    "parse_turn_ir('create file a.py with line: x. ' * 80000, response_shape_parser=None)",
+    "from core.turn_ir import parse_turn_ir; "
+    "parse_turn_ir('a) b ' * 120000, response_shape_parser=None)",
+])
+def test_a_long_run_of_list_labels_is_read_once(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_list_labels_still_split_where_they_did():
+    from core.turn_ir import parse_turn_ir
+
+    for text, labels in (
+        ("1. fix the bug. 2. write tests.", ["1", "2"]),
+        ("Two jobs: 1) fix the bug; 2) write tests", ["1", "2"]),
+        ("a) summarise the file. b) list the risks.", ["a", "b"]),
+        # a label after a word rather than after a stop is not a marker
+        ("look at plan a. then b. ok", [None]),
+    ):
+        doc = parse_turn_ir(text, response_shape_parser=None)
+        assert [clause.label for clause in doc.clauses] == labels, text
+
+
 @pytest.mark.parametrize("text,prohibited,kind,clause_count", [
     ("Do NOT search the web for this", True, "CONSTRAINT", None),
     ("get the rate without using the web", True, "UNKNOWN", None),

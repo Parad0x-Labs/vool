@@ -134,7 +134,7 @@ _LIFECYCLE_ACTIONS = ("install", "verify", "enable", "disable", "update", "revok
 
 def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     from core import plugin_lifecycle
-    from core.plugin_catalog import plugins_root
+    from core.plugin_catalog import discovered_plugin_sources
     from core.plugin_tools import confined_plugin_id
 
     name = str(action or "").strip().lower()
@@ -146,8 +146,13 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     pid = confined_plugin_id(pid)
     if not pid:
         return {"ok": False, "error": "plugin_id must name one directory under plugins/"}
-    base = plugins_root()
-    root = (Path(base) / "plugins" / pid) if base is not None else None
+    # The id selects one identity from the server-owned catalog -- bundled packs included --
+    # and the catalog names the directory. An id never forms a path, so a directory the
+    # catalog did not admit (an installed copy declaring a bundled pack's identity, or a folder
+    # whose manifest names another pack) cannot be installed, verified or re-registered here.
+    root = dict(discovered_plugin_sources()).get(pid)
+    if root is None and name in {"install", "verify", "update"}:
+        return {"ok": False, "action": name, "plugin_id": pid, "error": "plugin is absent from the catalog"}
     try:
         if name == "install":
             record = plugin_lifecycle.install(pid, root=root, source="operator")
@@ -170,7 +175,7 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     # verifies or enables it, its contracts re-enter the ONE registry (and a disable, revoke
     # or uninstall returns them to explained absence). The response's `available` and the
     # registry's live view must never disagree.
-    registered, register_error = _reregister_pack(pid, base)
+    registered, register_error = _reregister_pack(pid, root)
     return {
         "ok": True,
         "action": name,
@@ -184,16 +189,22 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     }
 
 
-def _reregister_pack(pid: str, base) -> tuple[bool, str]:
-    """Bring the one registry's contracts for one pack in line with its lifecycle state."""
+def _reregister_pack(pid: str, root: Path | str | None) -> tuple[bool, str]:
+    """Bring the one registry's contracts for one pack in line with its lifecycle state.
+
+    ``root`` is the directory the catalog admitted for ``pid``; with no admitted directory
+    there is nothing to register.
+    """
     from core import plugin_tools, tool_registry
     from core.plugin_tools import confined_plugin_id
 
     pid = confined_plugin_id(pid)
     if not pid:
         return False, "plugin_id must name one directory under plugins/"
+    if root is None:
+        return False, "plugin is absent from the catalog"
     try:
-        manifest = Path(base) / "plugins" / pid / ".codex-plugin" / "plugin.json"
+        manifest = Path(root) / ".codex-plugin" / "plugin.json"
         if not manifest.is_file():
             return False, f"no manifest at {manifest}"
         plugin = plugin_tools.load_manifest(manifest)

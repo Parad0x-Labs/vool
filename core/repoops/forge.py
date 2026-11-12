@@ -33,6 +33,11 @@ def transport_factory() -> Callable[..., Any] | None:
     return _TRANSPORT_FACTORY
 
 
+#: The schemes git uses to reach a hosted forge. Anything else names no forge, whatever host
+#: it carries.
+_FORGE_REMOTE_SCHEMES = frozenset({"https", "http", "ssh", "git", "git+ssh", "ssh+git"})
+
+
 def _remote_hostname(url: str) -> str:
     """The host a remote URL names: scheme forms (https://, ssh://, git://), SCP-style git
     remotes (git@host:path) and bare host/path shapes. A host that merely embeds a
@@ -83,10 +88,18 @@ def provider_for_remote(url: str) -> str:
     correct. Self-hosted and path-hosted instances classify through their configured
     authority: set VOOL_FORGE_BASE_URL_GITLAB (or _GITHUB) to the instance's origin, and
     remotes on exactly that host — any path layout — classify. Malformed remotes name no
-    host and classify nothing; callers turn that into their own refusal."""
+    host and classify nothing; callers turn that into their own refusal.
+
+    Only the transports git uses to reach a forge carry that authority. A host named under
+    any other scheme is not the forge: ``file://github.com/team/repo.git`` is a local path to
+    git, and ``ftp://`` or ``rsync://`` never reach the forge API. Whitespace inside a remote
+    is refused too: git does not read ``https://github.com /x`` as a GitHub remote, and
+    neither may this."""
 
     text = str(url or "").strip()
-    if not text:
+    if not text or any(char.isspace() for char in text):
+        return ""
+    if "://" in text and text.split("://", 1)[0].lower() not in _FORGE_REMOTE_SCHEMES:
         return ""
     host = _remote_hostname(text)
     if not host:

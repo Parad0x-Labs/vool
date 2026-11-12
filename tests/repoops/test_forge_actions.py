@@ -1257,6 +1257,35 @@ def test_every_legitimate_remote_shape_still_classifies() -> None:
         assert provider_for_remote(remote) == "gitlab", remote
     assert provider_for_remote("") == ""
     assert provider_for_remote("https://gitea.company.example/acme/api.git") == ""
+    # git's other spellings of its ssh transport, upper-case schemes and stray outer spaces
+    for remote in (
+        "git+ssh://git@github.com/acme/api.git",
+        "ssh+git://git@github.com/acme/api.git",
+        "HTTPS://GITHUB.COM/acme/api.git",
+        "  https://github.com/acme/api.git  ",
+    ):
+        assert provider_for_remote(remote) == "github", remote
+
+
+def test_a_forge_host_under_a_non_forge_transport_names_no_forge() -> None:
+    """The host only carries forge authority under a transport git uses to reach a forge."""
+    from core.repoops.forge import provider_for_remote
+
+    for remote in (
+        # git reads file:// as a local path, whatever host text it carries
+        "file://github.com/acme/api.git",
+        "file://gitlab.com/g/p.git",
+        "ftp://github.com/acme/api.git",
+        "rsync://github.com/acme/api.git",
+        "javascript://github.com/%0aalert(1)",
+        "data://gitlab.com/g/p.git",
+        # whitespace inside a remote: git does not read these as forge remotes
+        "https://github.com /acme/api.git",
+        "https://github.com\t/acme/api.git",
+        "git@github.com:acme/api.git extra",
+        "gitlab.com/g/p\n.evil",
+    ):
+        assert provider_for_remote(remote) == "", remote
 
 
 def test_the_owners_self_hosted_override_host_classifies(monkeypatch) -> None:

@@ -773,15 +773,26 @@ class _Marker:
     label: str | None
 
 
+def _last_visible_char_before(text: str, position: int) -> str:
+    """The last non-whitespace character before ``position``, or ``""`` when there is none.
+
+    Reads backwards over the whitespace run only. A label sits right after whitespace, a ``;``
+    or a line start, so successive markers never share the run they read: the whole turn costs
+    one pass. Slicing ``text[:position]`` per marker made a turn with thousands of ``x. ``
+    labels quadratic (80000 of them took about 31 s).
+    """
+    cursor = position - 1
+    while cursor >= 0 and text[cursor].isspace():
+        cursor -= 1
+    return text[cursor] if cursor >= 0 else ""
+
+
 def _structural_markers(text: str, quoted: tuple[bool, ...]) -> tuple[_Marker, ...]:
     explicit = tuple(
         _Marker(match.start("label"), match.end(), match.group("label"))
         for match in _EXPLICIT_MARKER_RE.finditer(text)
         if not quoted[match.start("label")]
-        and (
-            not text[: match.start("label")].strip()
-            or text[: match.start("label")].rstrip()[-1] in ".!?;:\n·–—-*+•"
-        )
+        and (_last_visible_char_before(text, match.start("label")) or ".") in ".!?;:\n·–—-*+•"
     )
     bullets = tuple(
         _Marker(match.start(), match.end(), None)
