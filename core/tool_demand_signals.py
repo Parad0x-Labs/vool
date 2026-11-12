@@ -1891,7 +1891,7 @@ __all__ = [
     "owner_file_intents",
     "plugin_follow_up",
     "plugin_follow_up_targets",
-    "reset_plugin_spoken_memory",
     "removed_plugins_named_in_words",
+    "reset_plugin_spoken_memory",
     "resolve_demand_signals",
 ]
