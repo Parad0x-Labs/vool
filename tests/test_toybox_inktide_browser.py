@@ -64,6 +64,17 @@ def test_inktide_controls_carry_drawn_art_and_silhouette(served):
         header = page.evaluate("()=>getComputedStyle(document.querySelector('#main > header')).clipPath")
         footer = page.evaluate("()=>getComputedStyle(document.querySelector('#main > footer')).clipPath")
         assert header.startswith("polygon") and footer.startswith("polygon")
+        # The torn edges never cut off the menus that open out of the header and the footer.
+        for button, menu in (("#modelBtn", "#modelPop"), ("#modeBtn", "#modePop")):
+            page.locator(button).click()
+            page.wait_for_selector(menu, state="visible")
+            hidden = page.evaluate("""sel=>{const e=document.querySelector(sel),r=e.getBoundingClientRect();let miss=0,seen=0;
+             for(let x=0;x<5;x++)for(let y=0;y<5;y++){const px=r.x+(x+.5)*r.width/5,py=r.y+(y+.5)*r.height/5;
+              if(px<0||py<0||px>innerWidth||py>innerHeight)continue;seen++;const t=document.elementFromPoint(px,py);if(!t||!(t===e||e.contains(t)))miss++;}
+             return {miss,seen};}""", menu)
+            assert hidden["seen"] >= 15 and hidden["miss"] == 0, (menu, hidden)
+            page.keyboard.press("Escape")
+            page.mouse.click(640, 360)
         # Sliders and checkboxes carry their own art too.
         page.goto(served + "/settings#toybox")
         page.wait_for_selector(".tb-root")

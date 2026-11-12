@@ -138,15 +138,20 @@ def chrome(identifier, p: dict) -> str:
                 + scoped + GUARD + "::-webkit-scrollbar-thumb{background-color:var(--border);background-image:var(--tb-rod);"
                 "background-size:64px 12px;border:2px solid var(--panel);border-radius:2px}\n")
     # The scroll silhouette: rods carry the header and footer; the tide edge tears
-    # the rectangle; the main column hangs inside a scroll frame.
+    # the rectangle; the main column hangs inside a scroll frame. Only the outer edge
+    # tears: each clip runs a full screen past the inner edge, so the menus that open
+    # out of the header (model picker) and the footer (mode menu) are never cut off.
     out += ("#main > header" + GUARD + "{clip-path:polygon(0 12px,3% 4px,7% 10px,12% 2px,18% 9px,26% 3px,34% 11px,"
-            "43% 5px,52% 12px,61% 4px,70% 10px,79% 3px,87% 9px,94% 4px,100% 12px,100% 100%,0 100%);"
+            "43% 5px,52% 12px,61% 4px,70% 10px,79% 3px,87% 9px,94% 4px,100% 12px,100% calc(100% + 100vh),0 calc(100% + 100vh));"
             "background-image:var(--tb-stage-header);background-repeat:repeat-x;"
             "background-size:auto 44px;background-position:center top;"
             "border-block-start:12px solid transparent;border-image:var(--tb-frame) 12 4 round;padding-block-start:56px}\n")
+    # The clip makes the header its own layer, so an open header menu would sit under the
+    # composer on a short window; while one is open the header takes the menu's own rank.
+    out += ("#main > header" + GUARD + ":has(.popover.open){z-index:30}\n")
     out += ("#main > header" + GUARD + "::after{content:'';position:absolute;inset-block-start:44px;left:0;right:0;height:12px;"
             "background-image:var(--tb-rod);background-repeat:repeat-x;background-size:auto 12px;pointer-events:none}\n")
-    out += ("#main > footer" + GUARD + "{clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),95% 100%,88% calc(100% - 7px),"
+    out += ("#main > footer" + GUARD + "{clip-path:polygon(0 -100vh,100% -100vh,100% calc(100% - 10px),95% 100%,88% calc(100% - 7px),"
             "80% 100%,72% calc(100% - 9px),63% 100%,55% calc(100% - 6px),46% 100%,38% calc(100% - 8px),29% 100%,"
             "21% calc(100% - 6px),12% 100%,5% calc(100% - 8px),0 100%);"
             "border-block-end:12px solid transparent;border-image:var(--tb-frame) 12 4 round}\n")
