@@ -298,14 +298,17 @@ def manifest_declares_reasoning(manifest: Any) -> bool:
     (2) for the OpenRouter byok lane, the cached catalog row's own ``supported_parameters``
     (OpenRouter publishes the ``reasoning`` parameter there), read cache-only so a turn never
     blocks on a refresh; (3) the legacy name markers, kept for local tags no catalog describes.
-    An explicit no-think tag still opts out. Source (4): the provider's own TERMINAL FACTS --
+    A tag with no thinking mode (a no-think build, a Qwen3 instruct release) still opts out.
+    Source (4): the provider's own TERMINAL FACTS --
     a length-finish with reasoning present, or the endpoint's typed reasoning-mandate refusal --
     recorded by the invoke loop the moment it observes one. This is the source for lanes whose
     feeds publish no capability at all (the UsePod marketplace lists pricing only), and it is
     how the FIRST exhausted call teaches the SECOND sizing without anyone inventing a capability.
     """
     name = str(getattr(manifest, "model_name", "") or "").strip().lower()
-    if "nothink" in name or "no-think" in name:
+    from core.agent_runtime.builder.controller import model_has_no_thinking_mode
+
+    if model_has_no_thinking_mode(name):
         return False
     if observed_reasoning(manifest):
         return True

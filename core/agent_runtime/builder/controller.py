@@ -219,6 +219,24 @@ def _emit_builder_model_event(
 THINKING_MODEL_MARKERS = ("qwen3", "nemotron", "deepseek-r", "qwq", "reason")
 
 
+def model_has_no_thinking_mode(model_name: str) -> bool:
+    """Whether this tag names a model with no reasoning phase at all, whatever its family.
+
+    Two kinds: VOOL's own no-think builds (`:nothink`, `no-think`), and Qwen3's 2507 instruct
+    releases (`qwen3:30b-instruct`, `qwen3:4b-instruct`, `qwen3:30b-a3b-instruct-2507-q4_K_M`),
+    which Qwen ships as non-thinking models. Ollama lists no thinking capability for them and
+    answers `think: true` with HTTP 400 ("does not support thinking", server/routes.go), so a
+    family marker alone (qwen3) must not read them as reasoning models. Their thinking twins
+    (`qwen3:30b-thinking`, and `qwen3:30b-a3b`, which Ollama now serves as Thinking-2507) keep
+    the family rule.
+    """
+    name = str(model_name or "").strip().lower()
+    if "nothink" in name or "no-think" in name:
+        return True
+    family, _, tag = name.partition(":")
+    return family == "qwen3" and "instruct" in tag
+
+
 def is_thinking_capable_model(model_name: str) -> bool:
     """Whether this Ollama tag names a model that emits hidden reasoning.
 
@@ -228,7 +246,7 @@ def is_thinking_capable_model(model_name: str) -> bool:
     OPPOSITE directions -- see builder_chat_payload for the measurement behind the builder's choice.
     """
     name = str(model_name or "").strip().lower()
-    if "nothink" in name or "no-think" in name:
+    if model_has_no_thinking_mode(name):
         return False
     # Widened 2026-07-28 beyond qwen3. `nvidia/nemotron-3-ultra-550b-a55b` returned empty content
     # on chat turns because it reasons before answering and matched nothing here, so it was never

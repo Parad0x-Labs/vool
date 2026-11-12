@@ -230,8 +230,10 @@ def default_runtime_model_tag(*, env: Mapping[str, str] | None = None) -> str:
 
 
 def _is_thinking_capable_model(model_tag: str) -> bool:
+    from core.agent_runtime.builder.controller import model_has_no_thinking_mode
+
     name = str(model_tag or "").strip().lower()
-    return "qwen3" in name and "nothink" not in name and "no-think" not in name
+    return "qwen3" in name and not model_has_no_thinking_mode(name)
 
 
 def _thinking_runtime_config(model_tag: str) -> dict[str, object]:
