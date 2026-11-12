@@ -52,6 +52,13 @@ PREVIEW_NEEDED_DETAIL = (
 REVIEW_WAITS_KEY = "disclosure_review"
 #: The served door's holder for previews a turn could not show; read back for the typed result.
 PENDING_HOLDER_KEY = "_disclosure_pending"
+#: A caller that must tell "this boundary stopped the call" from a provider failure puts a dict in its
+#: request metadata under this key; a refusal fills in its kind and message. The router copies
+#: metadata per call, so the caller's own dict is how the answer comes back (core.clean_loop.brain).
+STOP_NOTE_KEY = "_disclosure_stop_note"
+#: Set by a caller whose request carries what it read on the owner's computer in plain messages
+#: (the clean loop's tool results): such a request carries the owner's files.
+CARRIES_FILES_KEY = "_disclosure_carries_files"
 
 
 def encode_body(payload: dict[str, Any]) -> bytes:
@@ -440,7 +447,8 @@ def request_context(request: Any, *, provider: str, cloud: bool) -> dict[str, An
         catalog = None
     ingress_files = isinstance(catalog, SourceCatalog) and (catalog.has_attachments or any(kind != "conversation" for _, kind, _ in catalog.entries))
     chat_id = council_scope.chat_id if council_scope else str(bound.get("chat_id") or context.get("chat_id") or metadata.get("session_id") or "")
-    file_content = ingress_files or bool(getattr(request, "attachments", None)) or _carries_files_or_memory(sources, chat_id)
+    file_content = (ingress_files or bool(getattr(request, "attachments", None)) or _carries_files_or_memory(sources, chat_id)
+                    or metadata.get(CARRIES_FILES_KEY) is True)
     question = next((text for text, kind, _ in catalog.entries if kind == "conversation"), "") if isinstance(catalog, SourceCatalog) else ""
     attachments = getattr(request, "attachments", None) or (list(catalog.prepared.values()) if isinstance(catalog, SourceCatalog) else [])
     local_context = {"question": question, "workspace": str(bound.get("workspace") or ""),
@@ -479,6 +487,19 @@ def request_context(request: Any, *, provider: str, cloud: bool) -> dict[str, An
 
 
 def prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], request: Any, encoder=encode_body) -> WirePayload:
+    """Resolve one owner choice before the invocation gateway claims any spend (see _prepare).
+
+    A refusal is also written to the caller's stop note when it brought one (STOP_NOTE_KEY)."""
+    try:
+        return _prepare(payload, url=url, context=context, request=request, encoder=encoder)
+    except DisclosureRefused as exc:
+        note = (getattr(request, "metadata", None) or {}).get(STOP_NOTE_KEY)
+        if isinstance(note, dict):
+            note.update(kind=type(exc).__name__, message=str(exc))
+        raise
+
+
+def _prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], request: Any, encoder=encode_body) -> WirePayload:
     """Resolve one owner choice before the invocation gateway claims any spend.
 
     Every transformed payload is presented again. A retry with a different byte

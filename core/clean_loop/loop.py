@@ -43,6 +43,39 @@ REPEAT_NOTICE = "You already tried exactly that and it failed. Try a different w
 GAVE_UP_TEXT = "I couldn't finish looking that up. Could you tell me a bit more about where it might be?"
 NO_REPLY_TEXT = "I couldn't put an answer together just now. Please try asking again."
 
+#: The headings under which this loop hands its brain what it read on the owner's computer.
+TOOL_RESULT_HEADING = "[tool result]"
+STAGED_EVIDENCE_HEADING = "[Evidence gathered before you (read-only):]"
+PRIOR_EVIDENCE_HEADING = "[Evidence from your previous clean-loop turn in this session (read-only):]"
+
+
+def carries_owner_evidence(messages: Sequence[dict[str, str]]) -> bool:
+    """Whether these messages hand the brain anything this loop read on the owner's computer.
+
+    A cloud brain's step that does is a request carrying the owner's files, and the cloud
+    disclosure boundary asks before it leaves (core.disclosure.wire), as for every other request.
+    """
+    for message in messages:
+        if message.get("role") != "user":
+            continue
+        content = str(message.get("content") or "")
+        if (content.startswith(TOOL_RESULT_HEADING) or STAGED_EVIDENCE_HEADING in content
+                or PRIOR_EVIDENCE_HEADING in content):
+            return True
+    return False
+
+
+class BoundaryStop(RuntimeError):
+    """A step stopped at a boundary only the owner opens (the cloud disclosure preview): nothing was
+    sent. Not a model failure, so the loop ends the turn with it instead of counting a brain error."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+        #: Model calls this turn's loop completed before the stop (filled in by run_loop).
+        self.model_calls = 0
+
 
 def parse_action(text: str) -> dict[str, Any]:
     """The first JSON object carrying "tool" or "answer"; else the prose as the answer."""
@@ -134,9 +167,9 @@ def run_loop(
     messages: list[dict[str, str]] = [{"role": "system", "content": build_system_prompt(registry)}]
     messages.extend({"role": m["role"], "content": m["content"]} for m in history)
     staged = _staged_evidence(ask, registry, ctx)
-    user = ask if not staged else f"{ask}\n\n[Evidence gathered before you (read-only):]\n{staged}"
+    user = ask if not staged else f"{ask}\n\n{STAGED_EVIDENCE_HEADING}\n{staged}"
     if prior_evidence.strip():
-        user += "\n\n[Evidence from your previous clean-loop turn in this session (read-only):]\n"
+        user += f"\n\n{PRIOR_EVIDENCE_HEADING}\n"
         user += prior_evidence[:1500]
     messages.append({"role": "user", "content": user})
     result = LoopResult(answer="")
@@ -152,6 +185,9 @@ def run_loop(
         started = time.monotonic()
         try:
             text = brain(messages)
+        except BoundaryStop as stop:
+            stop.model_calls = result.model_calls
+            raise
         except Exception as exc:
             result.model_calls += 1
             result.think_ms += int((time.monotonic() - started) * 1000)
@@ -216,7 +252,7 @@ def run_loop(
             }
         )
         result.seen.append(outcome.text[:_TOOL_RESULT_CHARS])
-        messages.append({"role": "user", "content": "[tool result]\n" + outcome.text[:_TOOL_RESULT_CHARS]})
+        messages.append({"role": "user", "content": f"{TOOL_RESULT_HEADING}\n" + outcome.text[:_TOOL_RESULT_CHARS]})
     result.proposals = list(ctx.proposals)
     if not result.answer:
         result.answer = GAVE_UP_TEXT if result.stopped == "max_steps" else NO_REPLY_TEXT
@@ -228,4 +264,8 @@ def run_loop(
     return result
 
 
-__all__ = ["DEFAULT_MAX_STEPS", "GAVE_UP_TEXT", "LOOK_FIRST_NUDGE", "NO_REPLY_TEXT", "REPEAT_NOTICE", "LoopResult", "parse_action", "run_loop"]
+__all__ = [
+    "DEFAULT_MAX_STEPS", "GAVE_UP_TEXT", "LOOK_FIRST_NUDGE", "NO_REPLY_TEXT", "PRIOR_EVIDENCE_HEADING", "REPEAT_NOTICE",
+    "STAGED_EVIDENCE_HEADING", "TOOL_RESULT_HEADING", "BoundaryStop", "LoopResult", "carries_owner_evidence",
+    "parse_action", "run_loop",
+]
