@@ -216,6 +216,48 @@ def test_unconfirmed_and_wrong_fingerprint(homes):
     assert ok(app, b, "join", fingerprint=apin, link=link, confirmed=True)["sid"]
 
 
+def _memory_listing(app, home):
+    runtime_paths.configure_runtime_home(home)
+    status, _, raw = asgi_request(app, method="GET", path="/api/memory/entries",
+                                  headers={"Host": "127.0.0.1"}, query_string=b"limit=200")
+    assert status == 200, raw
+    return raw.decode()
+
+
+def _remember(home, words):
+    """An ordinary memory in an ordinary chat of this home, unrelated to any Drop."""
+    from core.context_namespace import ensure_chat_namespace
+    from core.drop.session import fresh_id
+    from core.memory import entries
+
+    runtime_paths.configure_runtime_home(home)
+    chat = fresh_id()
+    ensure_chat_namespace(chat, grant_current_receipts=False)
+    assert entries.add_memory_fact(words, session_id=chat,
+                                   access_policy=entries.resolve_memory_access_policy(chat_id=chat))
+
+
+def test_junk_in_the_shared_folder_never_fails_a_delete_or_hides_memory(homes):
+    import secrets
+
+    app, a, b, relay = homes
+    sid = connect(homes)
+    assert send(homes, sid)[0] == 200
+    ok(app, b, "poll")
+    fact = "The boiler service is booked for Tuesday, reference " + secrets.token_hex(4)
+    _remember(b, fact)
+    assert fact in _memory_listing(app, b)
+    apin = ok(app, a, "identity")["fingerprint"]
+    bpin = ok(app, b, "identity")["fingerprint"]
+    left = [relay / apin / "99999999999999999999-left-by-someone.wire", relay / bpin / "zz-left-by-someone.wire"]
+    for path in left:
+        path.write_bytes(b"not a Drop frame")
+    assert ok(app, b, "delete", sid=sid)["state"] == "deleted"
+    assert call(app, b, "show", sid=sid)[1]["error"] == "DROP_REVOKED"
+    assert fact in _memory_listing(app, b)
+    assert all(path.exists() for path in left)
+
+
 @pytest.fixture
 def pages(homes, monkeypatch):
     from urllib.parse import parse_qs, urlsplit

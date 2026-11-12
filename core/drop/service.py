@@ -89,7 +89,8 @@ def _read(path, limit):
 def _json(data):
     try:
         value = json.loads(data)
-    except (ValueError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        # Deep nesting is malformed input from the folder or a peer, never a local fault.
         raise DropError("INVALID_FORMAT") from exc
     if not isinstance(value, dict):
         raise DropError("INVALID_FORMAT")
@@ -156,6 +157,16 @@ def _discard(path: Path):
     # unremovable entry) is skipped, never allowed to stop the poll.
     with contextlib.suppress(OSError):
         path.unlink()
+
+
+def _names_drop(path: Path, sid) -> bool:
+    """Whether a relay file is a frame of this Drop. Anything unreadable is not."""
+    try:
+        wire = _json(_read(path, 110000))
+    except (DropError, OSError):
+        return False
+    intro = wire.get("intro")
+    return wire.get("sid") == sid or (isinstance(intro, dict) and intro.get("sid") == sid)
 
 
 def _vault_key(path: Path) -> bytes:
@@ -302,7 +313,7 @@ class DropHome:
         if row["status"] in {"deleted", "expired", "incomplete"}:
             raise DropError("DROP_REVOKED")
         if self.clock() >= row["expires"]:
-            self._forget(sid, "expired")
+            self._expire_one(sid)
             raise DropError("EXPIRED")
         if not authorize_payload({"drop": sid}, sid, self.home):
             raise DropError("DROP_WITHHELD")
@@ -356,7 +367,14 @@ class DropHome:
                                 (row["session"], intro["recipient"], intro["expires"]))
                 self.db.commit()
                 self._ensure_scope(row["session"])
-            state = self._live(row["session"])
+            try:
+                state = self._live(row["session"])
+            except DropError as exc:
+                # A Drop being deleted or expired keeps its queued send until its cleanup
+                # removes it; it never stops this home's other sends or its poll.
+                if exc.code in {"DROP_REVOKED", "EXPIRED"}:
+                    continue
+                raise
             self.relay.put(state["peer"], row["request"], wire)
             # Relay publication is durable. It is not recipient/execution proof.
             self.client.acknowledge_send(row["request"])
@@ -687,7 +705,17 @@ class DropHome:
         self._expire_invites()
         for row in self.db.execute("SELECT sid FROM drops WHERE expires<=? AND status NOT IN ('deleted','expired')",
                                    (self.clock(),)).fetchall():
-            self._forget(row["sid"], "expired")
+            self._expire_one(row["sid"])
+
+    def _expire_one(self, sid):
+        # A cleanup that cannot finish keeps its barrier and its 'incomplete' state, which
+        # Settings shows with Delete to try again. It never stops this home from opening,
+        # polling or listing its other Drops.
+        try:
+            self._forget(sid, "expired")
+        except DropError as exc:
+            if exc.code != "DROP_FORGET_INCOMPLETE":
+                raise
 
     def _forget(self, sid, state):
         from core.context_retrieval import forget_session_memory
@@ -722,12 +750,20 @@ class DropHome:
                         raise DropError("UNEXPECTED_CARRIER")
                     path.unlink()
                 folder.rmdir()
-            # Purge current queued ciphertext on both sides of this local relay.
+            # Purge current queued ciphertext on both sides of this local relay. Relay copies
+            # are outside what a forget can promise (other people can read and write that
+            # folder), so this is best effort: a file that is not this Drop's own frame (junk,
+            # another user's file, an unreadable entry) or an unavailable mailbox is left
+            # alone and never fails the cleanup.
             for peer in (self.fingerprint, row["peer"]):
-                for path in self.relay.messages(peer):
-                    wire = _json(_read(path, 110000))
-                    if wire.get("sid") == sid or wire.get("intro", {}).get("sid") == sid:
-                        path.unlink()
+                try:
+                    queued = self.relay.messages(peer)
+                except (DropError, OSError):
+                    continue
+                for path in queued:
+                    if _names_drop(path, sid):
+                        with contextlib.suppress(OSError):
+                            path.unlink()
             status = {}
             forget_session_memory(sid, sid, source_context={"runtime_home": str(self.home), "chat_id": sid},
                                   store_status=status)

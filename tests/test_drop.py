@@ -439,3 +439,51 @@ def test_out_of_order_folder_sync_and_junk_entries_do_not_lose_or_block_frames(p
     assert "received" in outcomes and b.show(sid)["status"] == "ready"
     assert (b.root / sid / "selected.bin").read_bytes() == selected.read_bytes()
     assert b.client.pending_receives() == []
+
+
+def _foreign(mailbox, name, data=None):
+    mailbox.mkdir(mode=0o700, exist_ok=True)
+    path = mailbox / name
+    if data is None:
+        path.mkdir()
+    else:
+        path.write_bytes(data)
+    return path
+
+
+def test_files_another_folder_user_left_never_fail_a_delete(pair):
+    """Anyone who can write to the shared folder can leave files in either mailbox. None of them
+    is this Drop's frame, so none of them may stop the delete (or its forget barrier would stay)."""
+    a, b, sid, relay = pair
+    left = [
+        _foreign(relay / a.fingerprint, "99-not-json.wire", b"not json"),
+        _foreign(relay / a.fingerprint, "99-array.wire", b"[]"),
+        _foreign(relay / a.fingerprint, "99-intro.wire", b'{"intro": 1}'),
+        _foreign(relay / a.fingerprint, "99-nested.wire", b"[" * 100000),
+        _foreign(relay / a.fingerprint, "99-large.wire", b" " * 110001),
+        _foreign(relay / b.fingerprint, "99-directory.wire"),
+    ]
+    selected = relay.parent / "f.bin"
+    selected.write_bytes(os.urandom(100))
+    a.send_packet(sid, "queued for B", selected)
+    own = [p for p in a.relay.messages(b.fingerprint) if p not in left]
+    assert own
+    b.delete(sid)
+    assert b._row(sid)["status"] == "deleted"
+    assert not any(p.exists() for p in own)  # this Drop's queued frames are purged
+    assert all(p.exists() for p in left)  # other people's files are left alone
+
+
+def test_unfinished_expiry_cleanup_never_stops_the_home_from_opening(pair, tmp_path):
+    a, b, sid, relay = pair
+    expires = b._row(sid)["expires"]
+    (b.root / sid).mkdir(mode=0o700, exist_ok=True)
+    (b.root / sid / "unexpected-directory").mkdir()  # a real cleanup failure, no mocked exception
+    home = b.home
+    b.close()
+    with DropHome(home, relay, clock=lambda: expires + 1) as reopened:
+        assert [row["status"] for row in reopened.list()] == ["incomplete"]
+        assert reopened.poll() == []
+        (reopened.root / sid / "unexpected-directory").rmdir()
+        reopened.delete(sid)  # retried by the owner
+        assert reopened._row(sid)["status"] == "deleted"
