@@ -20,6 +20,7 @@ from __future__ import annotations
 import html
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -332,11 +333,15 @@ def test_checker_catches_a_line_break_that_shows_as_a_space_in_japanese(
 
 def test_checker_rejects_a_summary_that_lists_an_untranslated_page(tmp_path: Path) -> None:
     root = _copy_docs(tmp_path)
-    summary = root / "docs" / "translations" / "de" / "SUMMARY.md"
-    summary.write_text(summary.read_text(encoding="utf-8") + "* [Wallet](guides/wallet.md)\n",
+    de = root / "docs" / "translations" / "de"
+    english = re.findall(r"\]\(([^)#]+\.md)\)",
+                         (root / "docs" / "SUMMARY.md").read_text(encoding="utf-8"))
+    page = next(rel for rel in english if not (de / rel).exists())
+    summary = de / "SUMMARY.md"
+    summary.write_text(summary.read_text(encoding="utf-8") + "* [Page](%s)\n" % page,
                        encoding="utf-8")
     report = _checker(root / "docs").check_all()
-    assert any("guides/wallet.md does not exist" in p for p in report.blocking("de")), \
+    assert any("%s does not exist" % page in p for p in report.blocking("de")), \
         report.blocking("de")
 
 
@@ -385,6 +390,18 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> dict:
     ct = _checker(root / "docs")
     for lang in ct._languages():
         assert ct.main(["stamp", lang, *ct._translated_pages(lang)]) == 0
+    # German loses one page, so a translated page links to an untranslated one in English.
+    de = root / "docs" / "translations" / "de"
+    (de / "guides" / "local-models.md").unlink()
+    summary = de / "SUMMARY.md"
+    summary.write_text("".join(line for line in summary.read_text(encoding="utf-8")
+                               .splitlines(keepends=True) if "guides/local-models.md" not in line),
+                       encoding="utf-8")
+    for page in de.rglob("*.md"):
+        text = page.read_text(encoding="utf-8")
+        if "](../guides/local-models.md" in text:
+            page.write_text(text.replace("](../guides/local-models.md",
+                                         "](../../../guides/local-models.md"), encoding="utf-8")
     readme = root / "docs" / "README.md"
     readme.write_text(readme.read_text(encoding="utf-8") + "\nOne more English line.\n",
                       encoding="utf-8")
