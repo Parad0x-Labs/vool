@@ -9,6 +9,10 @@ Page half of the restart contract (core/vool_chat_page.py loadSessions / paintSe
 * "No past chats yet." appears ONLY on a real ready answer with an empty array;
 * a real ready answer with rows renders the chat rows.
 
+The retry row reads the catalog's sidebar.load_retry ("Could not load your chats yet, retrying"),
+the one wording the reload job (tests/test_reload_keeps_chat.py) pins too: the two 0.7.7 jobs
+added the same key with different words, and the train kept the reload job's.
+
 The page boots itself in the node harness (loadSessions() runs at boot). Each scenario re-routes
 globalThis.fetch by URL and answers benign empty payloads for every other endpoint the page
 touches at boot -- the same driving pattern as tests/test_activity_lifecycle_idempotency.py.
@@ -93,11 +97,11 @@ out({
     assert result["errors"] == []
     assert result["fastRetry"] is True, "sessionsRetryDelayMs must stay reassignable for a fast retry"
     assert result["calls"] >= 2, "the failure was never retried"
-    assert "Couldn't load your chats yet" in result["afterFail"]
+    assert "Could not load your chats yet" in result["afterFail"]
     assert "No past chats yet" not in result["afterFail"]
     assert "Restart survivor chat" in result["afterRetry"]
     assert "Loading your chats" not in result["afterRetry"]
-    assert "Couldn't load your chats yet" not in result["afterRetry"]
+    assert "Could not load your chats yet" not in result["afterRetry"]
     assert result["loaded"] is True
 
 
@@ -124,7 +128,7 @@ out({
   calls: __calls,
   text: __text,
   empty: __text.includes('No past chats yet'),
-  retrying: __text.includes("Couldn't load your chats yet"),
+  retrying: __text.includes("Could not load your chats yet"),
   loaded: (typeof sessionsLoaded === 'boolean') ? sessionsLoaded : 'missing',
 });
 """
