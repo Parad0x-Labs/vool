@@ -360,8 +360,17 @@ def _plain_refusal_sentence(reason: str, author: str, attempted: tuple[str, ...]
     elif reason == REASON_CLOUD_ESCALATION_NOT_PERMITTED:
         tail = ". A cloud model could answer, but cloud models are switched off."
     elif attempted:
-        tail = ", and the checked model I tried instead couldn't finish." if len(attempted) == 1 else (
-            ", and the checked models I tried instead couldn't finish.")
+        # A checked model WAS tried and failed (run 11a: qwen3:8b ran out of time, then the ladder
+        # reached an unchecked qwen3:4b). Lead with what happened to the checked one: naming the
+        # unchecked fallback first read as if VOOL had chosen it to write the answer.
+        tried = ", ".join(_short_model_name(model) for model in attempted if model)
+        return (
+            f"The checked model ({tried}) couldn't finish this answer, and the other models here "
+            "haven't passed VOOL's answer check yet."
+            if len(attempted) == 1
+            else f"The checked models ({tried}) couldn't finish this answer, and the other models here "
+            "haven't passed VOOL's answer check yet."
+        )
     else:
         tail = ", and no model that has passed it is available right now."
     return f"{named} hasn't passed VOOL's answer check yet{tail}"

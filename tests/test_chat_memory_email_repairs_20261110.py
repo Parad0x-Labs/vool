@@ -1512,3 +1512,11 @@ def test_a_question_about_an_attachment_is_not_a_recall(asked):
     from core.agent_runtime.cross_chat_recall import _owned_by_another_lane, as_question
 
     assert _owned_by_another_lane(as_question(asked))
+
+
+def test_a_refusal_after_the_checked_model_failed_names_that_model_first():
+    from core.final_answer_authorship import _plain_refusal_sentence
+
+    sentence = _plain_refusal_sentence("", "ollama-local:qwen3:4b", ("ollama-local:qwen3:8b",))
+    assert sentence.startswith("The checked model (qwen3:8b) couldn't finish this answer")
+    assert "qwen3:4b" not in sentence
