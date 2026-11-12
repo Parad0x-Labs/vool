@@ -683,7 +683,14 @@ def update_session_summary(
         access_policy=resolved_policy,
         limit=2,
     )
-    last_assistant = memory_entries.sanitize_fact(assistant_output) or memory_entries.sanitize_fact(str(recent[-1].get("assistant") or ""))
+    from core.context_history_authority import assistant_text_is_no_answer
+
+    def _outcome(text: str) -> str:
+        # The runtime's own no-answer notice or refusal is not an outcome of the chat: a summary that
+        # quotes it is served to other chats as what happened here (Database run 14a, 2026-11-12).
+        return "" if assistant_text_is_no_answer(text) else memory_entries.sanitize_fact(text)
+
+    last_assistant = _outcome(assistant_output) or _outcome(str(recent[-1].get("assistant") or ""))
 
     # Recent asks (verbatim) are the truthful signal — a keyword-token "Session topics" line was dropped:
     # it surfaced filler and typos ("hey, check, pls, waht") as if they were topics.

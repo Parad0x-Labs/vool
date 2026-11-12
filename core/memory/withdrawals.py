@@ -24,9 +24,15 @@ def payload_is_withdrawn(payload: Any, revoked_tokens: Sequence[str]) -> bool:
     Only the temporal owner's live retraction grammar grants this authority;
     arbitrary revoked values do not become subject queries. Both synthetic
     candidates describe authority order, not a fabricated source timestamp.
+    A stored target that opens with the speaker's own saying ("i said in this
+    chat", "i told you earlier") is the forget command's description of what
+    to forget, cut from a longer request, not a retraction of the speaker's
+    words: the forms that name the saying grant nothing here (measured
+    2026-11-12: "Forget the exact identifier I mentioned in this chat, but keep
+    the budget note" withdrew the kept budget note through "chat").
     """
     controls = ["Forget " + str(token) for token in revoked_tokens
-                if retraction_marker("Forget " + str(token)) is not None]
+                if retraction_marker("Forget " + str(token), naming_the_saying=False) is not None]
     if not controls:
         return False
 

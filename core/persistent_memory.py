@@ -141,6 +141,7 @@ __all__ = [
     "load_memory_excerpt",
     "load_operator_dense_profile",
     "maybe_handle_memory_command",
+    "memory_command_owns_turn",
     "memory_entries_path",
     "memory_lifecycle_snapshot",
     "memory_path",
@@ -785,6 +786,47 @@ def _is_memory_recall_question(text: str) -> bool:
     )
 
 
+#: Words that may stand before a forget order in a sentence: "please forget ...", "ok, forget ...", "can you forget ...".
+_FORGET_ORDER_LEAD_IN_RE = re.compile(
+    r"^(?:(?:please|pls|ok(?:ay)?|and|also|now|then|so|just)[\s,]+"
+    r"|(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+    r"|(?:i\s+want|i'?d\s+like)\s+you\s+to\s+)*",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
+
+
+def memory_command_owns_turn(user_text: str) -> bool:
+    """Whether this message carries one of the memory lane's own commands: a forget order in any of its
+    sentences, a "remember that" / "note that" capture, the memory list, or a memory-scope command.
+
+    Pure: it reads and writes nothing. It is for the lanes that run ahead of the memory lane and must leave
+    these turns to it. Measured 2026-11-12 on the v0.8 candidate (clean loop on by default): "Forget my name.
+    Forget storage label MINT-84." right after a question about the owner's files was taken by the clean loop as
+    a follow-up and answered by its model; nothing was forgotten, and the reply said the forget could not be
+    verified. Save/store/keep/retain captures are left out (their object can be a file another lane writes),
+    and so are recall questions, whose words ("saved", "note") are also ordinary questions about files."""
+    text = str(user_text or "").strip()
+    if not text:
+        return False
+    for sentence in _SENTENCE_SPLIT_RE.split(text):
+        clause = _FORGET_ORDER_LEAD_IN_RE.sub("", sentence.strip(), count=1)
+        if clause and _FORGET_RE.match(clause):
+            return True
+    lowered = " ".join(text.lower().split())
+    if lowered in {"/memory", "what do you remember", "show memory"} or _MEMORY_INVENTORY_RE.fullmatch(lowered.strip(" ?.!")):
+        return True
+    if _parse_session_scope_command(text) is not None:
+        return True
+    capture = _memory_capture_match(text)
+    if capture is None:
+        return False
+    verb = " ".join(str(capture.group("verb") or "").lower().split())
+    fact = str(capture.group("fact") or "")
+    return (verb not in _OBJECT_CAPTURE_VERBS and not _ANSWER_REQUEST_RE.search(fact)
+            and not _is_a_reminiscence(fact, text))
+
+
 def _memory_recall_value(text: str) -> str:
     """Render a stored fact's value while retaining the source text when it has no delimiter."""
     clean = " ".join(str(text or "").strip().strip(".!?").split())
@@ -1151,15 +1193,6 @@ def _run_held_work(work: list[Any], answer: str | None = None) -> None:
             item(answer)
         except Exception:
             logging.getLogger(__name__).exception("work held for the transcript record failed")
-
-
-def _is_agent_session(session_id: str) -> bool:
-    try:
-        from core.agent_team.gate import is_agent_session
-
-        return is_agent_session(session_id)
-    except Exception:
-        return False
 
 
 def append_conversation_event(
@@ -1641,6 +1674,14 @@ def _write_conversation_event(
         is_image_turn = bool(image_generation_intent(redacted_user))
     except Exception:
         is_image_turn = False
+    # A team agent's turn (a session a team holds, or a request that says an agent wrote it) carries the
+    # orchestrator's brief as its "user" side, not the owner speaking. The row is logged and marked
+    # agent_session below; nothing that learns about the owner reads it: no statement index, no captured
+    # fact or shorthand, no heuristic, no feedback signal, no session summary, no dense-profile refresh
+    # (agent-team rows, 2026-11-12).
+    from core.request_trust import turn_speaks_for_owner
+
+    agent_turn = not turn_speaks_for_owner(source_context, session_id)
     # Every finalized turn retains its attributed source, including an
     # image brief. A fictional render subject remains evidence of an ask;
     # it is neither mined above nor indexed as a standing user assertion.
@@ -1653,7 +1694,7 @@ def _write_conversation_event(
             redacted_assistant,
             access_policy=resolved_policy,
             source_context=source_context,
-            index_user_statements=not is_image_turn,
+            index_user_statements=not is_image_turn and not agent_turn,
         )
         if semantic_result.get("status") == "failed":
             LOGGER.warning(
@@ -1699,8 +1740,9 @@ def _write_conversation_event(
         payload.update(extra_fields)
     # A turn in a session a team bound to one of its agents is the agent's, not the owner's: its
     # "user" side is the orchestrator's task prompt. The row says so, so search and recall never
-    # quote it back as something the owner said (agent-spending test, 2026-11-12).
-    if _is_agent_session(session_id):
+    # quote it back as something the owner said (agent-spending test, 2026-11-12). A turn whose request says an
+    # agent wrote it is marked the same way, bound or not.
+    if agent_turn:
         payload["agent_session"] = True
     # Serialize the whole write sequence: the append+trim and every downstream load-modify-rewrite
     # touch process-global shared files, so concurrent turns must not interleave.
@@ -1725,9 +1767,10 @@ def _write_conversation_event(
         append_sequenced_jsonl(path, payload)
         _trim_jsonl_file(path, max_bytes=_MAX_CONVERSATION_LOG_BYTES)
         if stopped_turn:
-            _auto_capture_memory(session_id=session_id, user_input=redacted_user, project_id=project_id)
-            _update_user_heuristics(session_id=session_id, user_input=redacted_user, project_id=project_id)
-            refresh_operator_dense_profile(session_id=session_id)
+            if not agent_turn:
+                _auto_capture_memory(session_id=session_id, user_input=redacted_user, project_id=project_id)
+                _update_user_heuristics(session_id=session_id, user_input=redacted_user, project_id=project_id)
+                refresh_operator_dense_profile(session_id=session_id)
             return
         _record_assistant_dialogue_turn(
             session_id=session_id,
@@ -1742,8 +1785,9 @@ def _write_conversation_event(
         # An image-generation turn's text describes the RENDER SUBJECT, not the user. Harvesting it
         # as a fact/preference/"recent ask" is what let an image prompt ("Rick and Morty ... 4K")
         # bleed into the operator profile and make the model confabulate the user's name. Log the
-        # turn (above) but never mine a render prompt for standing user facts.
-        if not is_image_turn:
+        # turn (above) but never mine a render prompt for standing user facts. An agent's brief is not mined
+        # either: the dialogue record and topic closure above are the agent's own session's, nothing below is.
+        if not is_image_turn and not agent_turn:
             _auto_capture_memory(
                 session_id=session_id,
                 user_input=redacted_user,
@@ -1766,7 +1810,8 @@ def _write_conversation_event(
                 project_id=project_id,
                 access_policy=resolved_policy,
             )
-        refresh_operator_dense_profile(session_id=session_id)
+        if not agent_turn:
+            refresh_operator_dense_profile(session_id=session_id)
         try:
             from core.active_context_capsule import create_shadow_capsule
 
@@ -2290,6 +2335,25 @@ def _capture_object_is_a_set_or_picture(verb: str, text: str) -> bool:
     return set_save_request(text) is not None or picture_edit_request(text)
 
 
+#: The answer to a forget a team agent's brief carries: the brief is not the owner speaking, and a forget cannot be
+#: undone, so an agent never erases what the owner saved (as it never takes back a standing instruction).
+AGENT_TURN_FORGET_REFUSED = (
+    "This chat belongs to a team agent, so nothing was forgotten. "
+    "Ask me in your own chat and I'll forget it there."
+)
+
+
+def _agent_turn_forget_refusal(user_text, *, session_id, source_context):
+    """A forget in a team agent's turn, refused before any erasure starts. Recorded as this turn's forget outcome
+    (not started), so the reply stands as the executor's own and claims nothing was removed."""
+    parsed = _FORGET_RE.match(user_text)
+    return _forget_outcomes.record(
+        AGENT_TURN_FORGET_REFUSED, request=user_text, session=session_id or "", source_context=source_context,
+        argument=parsed.group(1) if parsed else user_text, status="not_started",
+        stores={"agent_turn": {"status": "refused"}},
+    )
+
+
 def _forget_start_failure(user_text, *, session_id, source_context, started):
     reply = ("Forget could not be verified as fully applied: independent revocation authority is unavailable. Please retry the forget."
              if started else
@@ -2316,6 +2380,11 @@ def _preadmit_forget_turn(user_text, *, session_id, source_context):
     live_text = intake_request_text(user_text)
     if not requires_forget_outcome({}, user_input=live_text, source_context=source_context):
         return False, None
+    from core.request_trust import turn_speaks_for_owner
+
+    if not turn_speaks_for_owner(source_context, str(session_id or "")):
+        # A team agent's brief erases nothing of the owner's: refused before any barrier or erasure begins.
+        return True, _agent_turn_forget_refusal(user_text, session_id=session_id, source_context=source_context)
     owner = dict(request=user_text, session=session_id, source_context=source_context)
     if _forget_outcomes.admission(**owner) is not None:
         return True, None
@@ -2405,6 +2474,13 @@ def _command_erasure_fence(fn):
     return wrapped
 
 
+#: The answer to a "remember" a team agent's brief carries: the brief is not the owner speaking.
+AGENT_TURN_REMEMBER_REFUSED = (
+    "This chat belongs to a team agent, so I won't keep that. "
+    "Say it in your own chat and I'll remember it."
+)
+
+
 @_command_erasure_fence
 def maybe_handle_memory_command(
     user_text: str,
@@ -2461,10 +2537,22 @@ def maybe_handle_memory_command(
 
         if turn_is_private(source_context, session_id):
             return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+        # A team agent's turn carries the orchestrator's brief, not the owner speaking: a "remember" in it
+        # would file the brief as the owner's fact (core.request_trust.turn_speaks_for_owner).
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            return True, AGENT_TURN_REMEMBER_REFUSED
     independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
     forget_arguments = _forget_command_arguments(text)
     if parsed_forget:
+        from core.request_trust import turn_speaks_for_owner
+
+        if not turn_speaks_for_owner(source_context, str(session_id or "")):
+            # A team agent's brief erases nothing of the owner's (core.request_trust.turn_speaks_for_owner).
+            barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
+            return True, _agent_turn_forget_refusal(text, session_id=barrier_chat, source_context=source_context)
         from pathlib import Path
 
         from core.memory import revocation

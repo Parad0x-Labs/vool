@@ -1482,6 +1482,50 @@ def normalize_chat_history(messages: list[dict[str, Any]]) -> list[dict[str, str
     return history
 
 
+def history_without_forgotten_words(
+    history: list[dict[str, str]], *, chat_id: str, current_user_text: str = ""
+) -> list[dict[str, str]]:
+    """The page's re-sent messages without the ones that carry a word this chat forgot.
+
+    The chat page keeps every earlier message on screen and sends them all back with each turn. After
+    "Forget X" the messages that held X came back with the next turn and were written into its
+    checkpoint (the source context and the loop state): the forgotten words were in the runtime
+    database again one turn after "Forget applied", and the checkpoint, refused at finalization for
+    carrying an erased answer, stayed "running" with them (measured 2026-11-12 on a served build driven
+    through the chat page). The prompt already drops such messages (``core.bootstrap_context``, forget
+    law F14-01); this drops them at the door, before anything records the turn.
+
+    The current message is the person's new words and stays. When the forget list cannot be read only
+    the current message stays: unknown is "may carry", as in the prompt.
+    """
+    items = [dict(item) for item in list(history or []) if isinstance(item, dict)]
+    if not items:
+        return items
+    last = items[-1]
+    current = (
+        last
+        if str(last.get("role") or "") == "user"
+        and str(last.get("content") or "").strip() == str(current_user_text or "").strip()
+        else None
+    )
+    earlier = items[:-1] if current is not None else items
+    try:
+        from core.context_retrieval import revoked_tokens_for_chat, text_carries_revoked_token
+
+        revoked = revoked_tokens_for_chat(str(chat_id or ""))
+        kept = [
+            item for item in earlier
+            if not text_carries_revoked_token(str(item.get("content") or ""), revoked)
+        ]
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "page history kept to the current message: the forget list could not be read (%s)",
+            type(exc).__name__,
+        )
+        kept = []
+    return [*kept, *([current] if current is not None else [])]
+
+
 def extract_user_message(messages: list[dict[str, Any]]) -> str:
     for message in reversed(normalize_chat_history(messages)):
         if message.get("role") == "user":
@@ -2434,6 +2478,13 @@ def _admit_turn_context_page(
 
         user_part = str(user_text or "").strip()
         assistant_part = str(assistant_output or "").strip()
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        if assistant_text_is_no_answer(assistant_part):
+            # The runtime's word that no answer existed is not the exchange. Served from this page as
+            # "assistant said", it stood beside a later question and the model answered that it had no
+            # context (Database run 14a, 2026-11-12). The person's words are kept.
+            assistant_part = ""
         if not user_part and not assistant_part:
             return
         content = f"[user]\n{user_part}\n[/user]\n[assistant]\n{assistant_part}\n[/assistant]"
@@ -2478,11 +2529,12 @@ def schedule_memory_extraction(
 ) -> None:
     if not _memory_capture_allowed(source_context):
         return
-    from core.request_trust import request_is_owner_local, turn_is_owner_authored
+    from core.request_trust import request_is_owner_local, turn_speaks_for_owner
 
-    if not turn_is_owner_authored(source_context):
+    if not turn_speaks_for_owner(source_context, str(session_id or "")):
         # An agent's turn (an agent team's brief and its reply) is not the owner speaking: measured on the
         # live agent-team run (2026-10-07), an agent brief's reply format was stored as the owner's preference.
+        # A session a team holds is an agent's even when its request did not say so.
         return
     if not request_is_owner_local(source_context):
         # This legacy extractor writes user-profile blocks. Until those blocks
@@ -2932,6 +2984,8 @@ def _messages_for_memory_extraction(
     assistant_output: str,
     source_context: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
+    from core.context_history_authority import assistant_text_is_no_answer
+
     context = dict(source_context or {})
     history = list(context.get("conversation_history") or context.get("client_conversation_history") or [])
     messages: list[dict[str, str]] = []
@@ -2942,13 +2996,14 @@ def _messages_for_memory_extraction(
         if role not in {"user", "assistant"}:
             continue
         content = message_text(item.get("content") or "")
-        if content:
+        # A refusal or no-answer notice is the runtime's own word, not a fact to learn from.
+        if content and not (role == "assistant" and assistant_text_is_no_answer(content)):
             messages.append({"role": role, "content": content})
     clean_user = str(user_text or "").strip()
     if clean_user and (not messages or messages[-1] != {"role": "user", "content": clean_user}):
         messages.append({"role": "user", "content": clean_user})
     clean_assistant = str(assistant_output or "").strip()
-    if clean_assistant:
+    if clean_assistant and not assistant_text_is_no_answer(clean_assistant):
         messages.append({"role": "assistant", "content": clean_assistant})
     return messages[-20:]
 

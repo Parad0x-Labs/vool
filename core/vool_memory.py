@@ -974,8 +974,10 @@ class VoolMemory:
                     semantic[node.node_id] = sem
 
         lexical = {nid: v for nid, v in (bm25 or {}).items() if v > 0.0}
-        sem_rank = _rank_map(semantic)
-        lex_rank = _rank_map(lexical)
+        # newest first on a tie, as the recency law ranks a restatement above the value it replaced
+        tie_order = {node.node_id: (-float(node.timestamp or 0.0), str(node.content or "")) for node in nodes}
+        sem_rank = _rank_map(semantic, tie_order)
+        lex_rank = _rank_map(lexical, tie_order)
         max_fused = (self._W_LEXICAL + self._W_SEMANTIC) / (self._RRF_K + 1)
 
         scored: list[tuple[MemoryNode, float, str]] = []
@@ -1830,6 +1832,13 @@ class VoolMemory:
         if not self._row_is_current(row):
             return None
         occurrence = _row_to_occurrence(row)
+        if not diagnostic and _assistant_row_is_no_answer(occurrence.role, occurrence.body):
+            # The runtime's own word that no answer existed (a NO-ANSWER notice or a refusal) is not
+            # evidence of anything. The write no longer keeps one; a profile written before that
+            # still holds them, and no lane serves them (Database run 14a, 2026-11-12: refusals
+            # served as "assistant said" made the model answer that it had no context). The row
+            # stays on disk for the forget law and for diagnostic reads.
+            return None
         if occurrence.body_integrity == "mismatch":
             with self._lock:
                 self.integrity_refusals_total += 1
@@ -3095,9 +3104,12 @@ def _backends_comparable(a: str, b: str) -> bool:
     return str(a or "").strip() == str(b or "").strip()
 
 
-def _rank_map(scores: dict[str, float]) -> dict[str, int]:
-    """Dense rank (0 = best) over a score dict; deterministic ties by node id."""
-    ordered = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+def _rank_map(scores: dict[str, float], tie_order: dict[str, tuple[float, str]] | None = None) -> dict[str, int]:
+    """Dense rank (0 = best) over a score dict. Equal scores break by *tie_order* (newest first, then content),
+    then node id. A node id hashes its ingest wall-clock, so ties broken by id alone ordered the same history
+    differently on every ingest (tests/test_rank_ties_follow_insertion_order.py)."""
+    tie_order = tie_order or {}
+    ordered = sorted(scores.items(), key=lambda kv: (-kv[1], *tie_order.get(kv[0], (0.0, "")), kv[0]))
     return {nid: rank for rank, (nid, _value) in enumerate(ordered)}
 
 
@@ -3130,6 +3142,18 @@ def _redacted_node(node: MemoryNode) -> MemoryNode:
     if not node.content or not contains_secret(node.content):
         return node
     return replace(node, content=redact_secrets(node.content))
+
+
+def _assistant_row_is_no_answer(role: Any, body: Any) -> bool:
+    """An assistant row whose text is the runtime saying no answer exists (never served as evidence)."""
+    if str(role or "").strip().lower() != "assistant" or not str(body or "").strip():
+        return False
+    try:
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        return assistant_text_is_no_answer(body)
+    except Exception:
+        return False
 
 
 def _redacted_occurrence(occurrence: SourceOccurrence) -> SourceOccurrence:

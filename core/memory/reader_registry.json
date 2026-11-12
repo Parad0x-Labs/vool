@@ -196,6 +196,7 @@
   "core/memory/reader_registry.py": {},
   "core/memory/revocation.py": {
     "serialized": "authority",
+    "fence_first": "authority",
     "begin_group": "authority",
     "prepare": "authority",
     "initialize_memory_home": "authority",
@@ -239,7 +240,8 @@
     "summarize_attempt_timings": "transform",
     "apply_verifier_draft_caveat": "transform",
     "execution_visibility": "transform",
-    "pin_reservation_clearance": "authority"
+    "pin_reservation_clearance": "authority",
+    "turn_has_private_content": "transform"
   },
   "core/memory_grounding.py": {
     "memory_record_rows": "transform",
@@ -316,7 +318,8 @@
     "search_session_summaries": "reader",
     "search_user_heuristics": "reader",
     "set_session_meta": "writer",
-    "summarize_memory": "reader"
+    "summarize_memory": "reader",
+    "memory_command_owns_turn": "transform"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",

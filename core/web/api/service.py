@@ -8320,6 +8320,14 @@ def _dispatch_post_inner(
 
         client_history = redacted_copy(client_history)
         history = redacted_copy(history)
+        # The page re-sends the messages that carried a word this chat has since forgotten: they are
+        # dropped here, as the prompt drops them, so no record of this turn writes the words back.
+        from core.web.api.runtime import history_without_forgotten_words
+
+        client_history = history_without_forgotten_words(
+            client_history, chat_id=session_id, current_user_text=user_text
+        )
+        history = history_without_forgotten_words(history, chat_id=session_id, current_user_text=user_text)
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""

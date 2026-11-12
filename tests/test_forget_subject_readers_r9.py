@@ -120,6 +120,7 @@ def test_unrelated_source_survives_subject_withdrawal(tmp_path):
         "has_relevant_memory_candidate", "ensure_memory_files", "append_conversation_event",
         "open_transcript_commit_boundary", "transcript_commit_boundary_open", "has_staged_conversation_event",
         "persist_staged_conversation_event", "flush_staged_conversation_events", "append_assistant_artifact_event",
+        "memory_command_owns_turn",
     }),
     ("core.agent_runtime.same_chat_recall", {
         "gate_transcript_recall", "same_chat_transcript_recall_fast_path", "same_chat_math_recall_fast_path",

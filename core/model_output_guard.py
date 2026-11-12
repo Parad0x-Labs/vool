@@ -3276,7 +3276,7 @@ def _derived_reference_values(question: str, spans, clock: ReferenceClock | None
         # so a correct "17 days ago (on 12 February)" was withdrawn as unsupported (measured
         # 2026-10-06 on the memory benchmark); a wrong count is still withdrawn.
         elapsed = (clock.day - day).days
-        receipt = {"method": "elapsed_days", "event_date": day.isoformat(),
+        receipt = {"rule": "interval_from_dated_record_to_reference_clock", "method": "elapsed_days", "event_date": day.isoformat(),
                    "reference_date": clock.day.isoformat(), "source_units": sorted({span["unit"] for span in related})}
         if elapsed < 0:
             return set(), {**receipt, "reason": "event_after_reference_clock"}
@@ -3285,7 +3285,7 @@ def _derived_reference_values(question: str, spans, clock: ReferenceClock | None
         weeks = sorted({elapsed // 7, round(elapsed / 7)})
         return {f"d{count}week" for count in weeks}, {**receipt, "quantity": weeks, "unit": "week", "reason": "derived"}
     months = _completed_calendar_months(day, clock.day)
-    receipt = {"method": "completed_calendar_anniversaries", "event_date": day.isoformat(),
+    receipt = {"rule": "interval_from_dated_record_to_reference_clock", "method": "completed_calendar_anniversaries", "event_date": day.isoformat(),
                "reference_date": clock.day.isoformat(), "source_units": sorted({span["unit"] for span in related})}
     if months is None:
         return set(), {**receipt, "reason": "reversed_or_ambiguous_month_end"}
@@ -5100,6 +5100,48 @@ def _date_interval_values(clause: str, day_candidates, *, statement_days, event_
     return values, receipt
 
 
+def _record_duration_difference_values(question: str, spans):
+    """A goal/finish difference in the asked unit, with both source operands bound."""
+    empty = (set(), {"reason": "missing_or_ambiguous_recorded_operands"})
+    if not re.search(r"\bhow many minutes\b", question, re.I) or not re.search(
+            r"\b(?:beat|faster|quicker|difference|improve)\b", question, re.I):
+        return empty
+    actors = _support_question_actors(question) or ("user",)
+    asked = _support_terms(question) - {"beat", "faster", "quicker", "differenc", "improv", "goal", "target"}
+    operands = {"goal": [], "finish": []}
+    for span in spans:
+        if span["actor"] not in actors or span.get("polarity", "positive") != "positive":
+            continue
+        body = span["body"]
+        if asked and not asked <= _support_terms(span["context"]):
+            continue
+        kind = "goal" if re.search(r"\b(?:goal|target)\b", body, re.I) else (
+            "finish" if re.search(r"\bfinish(?:ed|ing)?\b", body, re.I) else "")
+        matches = list(re.finditer(r"(?<![\w:])(\d+):(\d{2})(?![\w:])", body))
+        if not kind or len(matches) != 1 or re.search(r"\b(?:hours?|hrs?|a\.?m\.?|p\.?m\.?)\b", body, re.I):
+            continue
+        match = matches[0]
+        if int(match.group(2)) >= 60 or not _hm_is_duration(body, match.start(), match.end()):
+            continue
+        seconds = int(match.group(1)) * 60 + int(match.group(2))
+        legacy = {f"d{int(match.group(1)) * 60 + int(match.group(2)):g}minute"}
+        if int(match.group(2)) == 0:
+            legacy.add(f"d{int(match.group(1)):g}hour")
+        operands[kind].append((seconds, span["unit"], legacy))
+    if len(operands["goal"]) != 1 or len(operands["finish"]) != 1:
+        return empty
+    goal, finish = operands["goal"][0], operands["finish"][0]
+    delta = goal[0] - finish[0]
+    if delta < 0:
+        return empty
+    unit = "minute"
+    quantity = delta / 60
+    value = f"d{quantity:g}{unit}"
+    return {f"d{goal[0] / 60:g}minute", f"d{finish[0] / 60:g}minute", value}, {
+        "rule": "difference_of_recorded_durations", "reason": "derived", "unit": unit, "quantity": quantity,
+        "operand_seconds": [goal[0], finish[0]], "legacy_values": sorted(goal[2] | finish[2]), "source_units": sorted({goal[1], finish[1]})}
+
+
 def stated_past_time_claims(
     answer: Any, *, question: str, evidence_texts: Sequence[str] | None = None,
     current_year: int | None = None, reference_clock: ReferenceClock | None = None,
@@ -5189,6 +5231,13 @@ def stated_past_time_claims(
                         units.append(span["unit"])
         derived = _derived_past_values(question, clause, spans) if not conflict and polarity == "positive" else set()
         calendar_values, calendar_receipt = _derived_reference_values(question, spans, reference_clock)
+        record_values, record_receipt = (_record_duration_difference_values(question, spans)
+                                         if not conflict and polarity == "positive" else (set(), {}))
+        supported.difference_update(record_receipt.get("legacy_values") or [])
+        if calendar_values & _canonical_time_values(clause):
+            units.extend(calendar_receipt.get("source_units") or [])
+        if record_values & _canonical_time_values(clause):
+            units.extend(record_receipt.get("source_units") or [])
         subject_record = (_anaphoric_subject_record_values(question, clause, spans)
                           if not conflict and polarity == "positive" else set())
         statement_values, statement_receipt = (_statement_time_values(question, clause, answer_actor, spans)
@@ -5197,13 +5246,13 @@ def stated_past_time_claims(
         # under the license is read against this and its month, never against a licensed year.
         core = set(supported)
         if not conflict and polarity == "positive":
-            supported.update(derived | calendar_values | subject_record | statement_values)
-            core.update(derived | calendar_values | subject_record)
+            supported.update(derived | calendar_values | record_values | subject_record | statement_values)
+            core.update(derived | calendar_values | record_values | subject_record)
             core.update(value for entry in statement_receipt if entry["rule"] != "request_licensed_statement_time"
                         for value in entry["values"])
         items.append(dict(sentence=sentence, clause=clause, clock_clause_verified=clock_clause_verified, core=core,
                           answer_actor=answer_actor, conflict=conflict, polarity=polarity, supported=supported,
-                          units=units, derived=derived, calendar_receipt=calendar_receipt,
+                          units=units, derived=derived, calendar_receipt=calendar_receipt, record_receipt=record_receipt,
                           subject_record=subject_record, statement_receipt=communicative_receipt + statement_receipt,
                           citations=citations, clock_receipt=clock_receipt, bound_clocks=bound_clocks))
     # An answer's computed value may sit in a different sentence from its operands ("19 days. You
@@ -5239,6 +5288,33 @@ def stated_past_time_claims(
     for item in items:
         conflict, supported, clause = item["conflict"], item["supported"], item["clause"]
         values = _canonical_time_values(clause)
+        invalid_record_results = set()
+        if item["record_receipt"].get("reason") == "derived":
+            # A recorded operand is not the difference the question asks for. Check
+            # explicit minute claims by their role, even when a citation in the same
+            # sentence carries that same numeric value.
+            record = item["record_receipt"]
+            duration_claims = (() if _question_echo_or_decline(clause, question)
+                               else _PAST_DURATION_RE.finditer(clause))
+            for match in duration_claims:
+                if _UNIT_NORMALIZER.get(match.group(2).lower()) != record["unit"]:
+                    continue
+                label = (re.search(r"\b(goal|target|finish)\s*(?:(?:was|of|is|in|time|:)\s*)?$",
+                                   clause[:match.start()], re.I)
+                         or re.match(r"\s*(goal|target|finish)\b", clause[match.end():], re.I))
+                expected = (record["operand_seconds"][0 if label.group(1).lower() in {"goal", "target"} else 1] / 60
+                            if label else record["quantity"])
+                quantity = _duration_quantity(match.group(1))
+                if quantity is None or abs(quantity - expected) > 1e-9:
+                    invalid_record_results |= _canonical_time_values(match.group(0))
+            record["unsupported_result_values"] = sorted(invalid_record_results)
+            for match in re.finditer(r"(?<![\w:])(\d+):(\d{2})(?![\w:])", clause):
+                if int(match.group(2)) < 60 and _hm_is_duration(clause, match.start(), match.end()):
+                    first, seconds = int(match.group(1)), int(match.group(2))
+                    values.discard(f"d{first * 60 + seconds:g}minute")
+                    if seconds == 0:
+                        values.discard(f"d{first:g}hour")
+                    values.add(f"d{first + seconds / 60:g}minute")
         def supported_value(value, supported=supported, conflict=conflict, span_values=item["span_values"]):
             if value in span_values:
                 return True
@@ -5320,12 +5396,14 @@ def stated_past_time_claims(
         for group in _ambiguous_clock_groups(clause):
             if any(supported_value(value) for value in group):
                 missing -= group - explicit_clock_values
+        missing |= invalid_record_results
         unsupported.update(missing)
         checks.append({"sentence_sha256": hashlib.sha256(item["sentence"].encode()).hexdigest(),
                        "question_actor": question_actor, "answer_actor": item["answer_actor"], "actor_conflict": conflict,
                        "polarity": item["polarity"], "extracted_values": sorted(values), "supported_values": sorted(supported),
                        "unsupported_values": sorted(missing), "supporting_source_units": sorted(set(item["units"])),
                        "day_interval_values": sorted(item["derived"]), "calendar_derivation": item["calendar_receipt"],
+                       "record_time_derivation": item["record_receipt"],
                        "anaphoric_subject_record_values": sorted(item["subject_record"]),
                        "statement_time_derivation": item["statement_receipt"] + item["span_receipt"],
                        "statement_clock_derivation": item["clock_receipt"],

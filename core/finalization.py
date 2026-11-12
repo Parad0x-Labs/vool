@@ -2094,6 +2094,24 @@ async def public_governed_async_read_scope():
         yield
 
 
+@contextlib.contextmanager
+def _a8_traversal():
+    """`A8_TRAVERSAL_LOCK` for the erase path, always taken inside the forget fence.
+
+    A forget holds the fence (`revocation.serialized()`) for its whole run and erases the chat's
+    finalizations inside it, so it takes this lock under the fence. The derivative sweep reaches
+    the fence under this lock (its memory step: `sweep_governed_memory_rows` ->
+    `initialize_memory_home`), so it takes the fence first (`revocation.fence_first`): a chat
+    delete or a finalization erase then cannot deadlock against a forget in another thread. Inside
+    a forget the fence is already held and this re-enters it. The transition (`set_availability`)
+    never enters the fence under this lock and keeps the bare lock, so public writers that take it
+    (`create_post_record`) do not wait for the fence either."""
+    from core.memory.revocation import fence_first
+
+    with fence_first(), A8_TRAVERSAL_LOCK:
+        yield
+
+
 def text_is_unserveable_on(conn: sqlite3.Connection, text: str) -> bool:
     """Is this payload text unserveable, asked THROUGH the caller's own connection?
 
@@ -2594,7 +2612,9 @@ def set_availability(
     # Lock ordering is unchanged and uniform — A8_TRAVERSAL_LOCK is always taken BEFORE any
     # sqlite transaction, never after — so this introduces no inversion. The lock is an RLock,
     # so an erase path that re-enters through here on the same thread still proceeds. Both
-    # critical sections are short and hold no network or model call.
+    # critical sections are short and hold no network or model call. The transition itself never
+    # enters the forget fence under this lock, so it needs no fence of its own; the sweep, which
+    # does, takes the fence first (`_a8_traversal`).
     with A8_TRAVERSAL_LOCK:
         return _set_availability_locked(
             clean_fid,
@@ -4058,8 +4078,9 @@ def _run_derivative_sweep(
     failed = False
     # ERASE dominates late writers: no in-flight writer that consults this
     # lock can slip a durable write between its eligibility check and commit
-    # while the traversal runs (mirror publish TOCTOU closure).
-    with A8_TRAVERSAL_LOCK:
+    # while the traversal runs (mirror publish TOCTOU closure). The forget fence is taken first
+    # (`_a8_traversal`): the memory step enters it, and a forget holds it while it takes this lock.
+    with _a8_traversal():
         for store_name, step in steps:
             try:
                 outcome = str(step() or _SWEEP_STEP_OK)
