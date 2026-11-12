@@ -1175,7 +1175,7 @@
     "setup.step.permissions.later": "Ajustes → Privacidade e permissões → O que o VOOL pode fazer sozinho",
     "setup.step.permissions.sentence": "Escolha com que frequência ele deve parar e perguntar antes de mudar qualquer coisa.",
     "setup.step.permissions.title": "O que ele pode fazer sozinho?",
-    "setup.step.thinking.later": "Ajustes → Modelos e provedores, e Ajustes → Chaves de API",
+    "setup.step.thinking.later": "Configurações → Modelos e provedores, e Configurações → Chaves de API",
     "setup.step.thinking.sentence": "No meu Mac mantém tudo privado. Online com uma chave é mais esperto, mas custa dinheiro.",
     "setup.step.thinking.title": "Onde ele deve pensar?",
     "setup.thinking.hint": "Você pode trocar entre os dois quando quiser.",
