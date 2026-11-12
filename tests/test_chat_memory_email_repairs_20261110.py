@@ -1264,7 +1264,7 @@ def _fetch_with(monkeypatch, body: bytes, content_type: str):
     import core.runtime_execution_tools as rt
 
     monkeypatch.setattr(rt, "_remote_fetch_allowed", lambda _ctx: True)
-    monkeypatch.setattr("core.remote_fetch_policy.open_remote", lambda _req, timeout=0: _HtmlResponse(body, content_type))
+    monkeypatch.setattr("core.remote_fetch_policy.open_remote", lambda _req, timeout=0, **_kw: _HtmlResponse(body, content_type))
     return rt._web_fetch({"url": "https://www.iana.org/help/example-domains"}, source_context={})
 
 
