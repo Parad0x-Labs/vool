@@ -20,6 +20,10 @@ Execute (pass 2): steps in reverse journal order, each re-checked immediately be
 each journaled INTENDED -> TERMINAL under a ``rollback:<uuid>`` identity linked to the original
 effect and turn, then ``rollback_committed``. A crash between steps leaves a resumable state:
 the next attempt finds the restored paths at their initial bytes and only performs the rest.
+
+Command runs (shell, tests, lint, formatter) are recorded by the coverage lane as workspace
+scans. The same pass plans them with ``core.blackbox.coverage.restore`` -- same token, same lock,
+same disk-safety law -- so one operator rollback undoes the whole turn or refuses it whole.
 """
 from __future__ import annotations
 
@@ -57,6 +61,7 @@ STATUS_INTEGRITY = "blackbox_journal_integrity"
 STATUS_NOT_AUTHORIZED = "blackbox_rollback_not_authorized"
 STATUS_ALREADY = "already_rolled_back"
 STATUS_UNKNOWN_TURN = "blackbox_unknown_turn"
+STATUS_NOT_REVERSIBLE = "blackbox_not_reversible"
 
 
 @dataclass
@@ -263,6 +268,111 @@ def _rollback_identity(source_context: dict[str, Any], *, task_id: str) -> Effec
     return EffectIdentity(**{**base.to_dict(), "turn_id": f"rollback:{uuid.uuid4().hex}"})
 
 
+def _plan_command_effects(store: BlackboxStore, *, turn_id: str, root: Path) -> Any:
+    """The coverage lane's plan for this turn under this root (command runs recorded by
+    workspace scan, plus irreversible local effects), or None when the turn recorded none here."""
+    from core.blackbox.coverage.restore import plan_restore_turn
+
+    try:
+        return plan_restore_turn(store, turn_id, workspace_root=root)
+    except LookupError:
+        return None
+
+
+def _command_conflict(row: dict[str, Any]) -> dict[str, Any]:
+    """A coverage plan conflict in the shape this module reports (path + reason)."""
+    return {"path": str(row.get("path") or ""), "reason": str(row.get("reason") or "conflict"),
+            "effect_id": str(row.get("effect_id") or ""), "detail": str(row.get("detail") or "")}
+
+
+def _execute_file_steps(
+    store: BlackboxStore,
+    plan: Plan,
+    *,
+    root: Path,
+    base: dict[str, Any],
+    turn_id: str,
+    operator: str,
+    nonce: str,
+    restored: list[str],
+    removed: list[str],
+    already: list[str],
+    left_nonempty: list[str],
+) -> dict[str, Any] | None:
+    """Act on the file-effect steps, newest first. None when every step landed; otherwise the
+    typed refusal to return (the journal already says how far this got)."""
+    for step in reversed(plan.steps):
+        if step.state == "already" or step.action == "none":
+            continue
+        current = observe_path(step.target)
+        reason = _diagnose_conflict(root, step, current)
+        if reason is not None:
+            # The world moved between plan and act. Stop here; nothing else is touched, the
+            # journal shows exactly how far this got, and the next attempt resumes.
+            store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                          "operator": operator, "nonce": nonce, "reason": "conflict_during_execution",
+                          "conflicts": [{"path": step.path, "reason": reason, "expected_sha256": step.final.sha256,
+                                         "current_sha256": current.sha256}]})
+            return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "restored_paths": restored,
+                    "removed_paths": removed, "conflicts": [{"path": step.path, "reason": reason,
+                                                             "expected_sha256": step.final.sha256,
+                                                             "current_sha256": current.sha256}]}
+        if current.same_content_as(step.initial):
+            already.append(step.path)
+            continue
+        effect_id = f"effect-{uuid.uuid4().hex}"
+        started_at = utcnow()
+        before = store.snapshot(step.target)
+        store.append({**base, "kind": "effect_intended", "effect_id": effect_id, "path": step.path,
+                      "path_unresolved": False, "unresolved_reason": "", "operation": step.action,
+                      "rollback_of_effect": step.effect_ids[-1], "rollback_of_effects": list(step.effect_ids),
+                      "before": before.to_dict(),
+                      "intended": {"description": f"rollback {step.action}", "after_sha256": step.initial.sha256 or None,
+                                   "after_exists": step.initial.exists},
+                      "missing_parents": [], "started_at": started_at})
+        outcome = OUTCOME_SUCCEEDED
+        error = ""
+        try:
+            if step.action == "restore":
+                data = store.blobs.get(str(step.initial.blob))
+                _restore_file_bytes(step.target, data, step.initial.mode)
+                restored.append(step.path)
+            elif step.action == "remove":
+                if step.target.is_symlink():
+                    raise RuntimeError("target became a symlink before remove")
+                step.target.unlink()
+                _fsync_directory(step.target.parent)
+                removed.append(step.path)
+                for parent in step.missing_parents:
+                    parent_path = root / parent
+                    try:
+                        parent_path.rmdir()
+                        removed.append(parent)
+                    except OSError:
+                        left_nonempty.append(parent)
+                        break
+            elif step.action == "rmdir":
+                step.target.rmdir()
+                _fsync_directory(step.target.parent)
+                removed.append(step.path)
+        except Exception as exc:
+            outcome = OUTCOME_FAILED
+            error = f"{type(exc).__name__}: {exc}"
+        after = store.snapshot(step.target)
+        terminal = {**base, "kind": "effect_terminal", "effect_id": effect_id, "path": step.path, "operation": step.action,
+                    "rollback_of_effect": step.effect_ids[-1], "outcome": outcome, "status": "executed" if not error else "error",
+                    "ok": not error, "after": after.to_dict(), "started_at": started_at, "completed_at": utcnow()}
+        if error:
+            terminal["exception"] = error
+        store.append(terminal)
+        if error:
+            return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "restored_paths": restored,
+                    "removed_paths": removed, "conflicts": [{"path": step.path, "reason": f"restore_failed:{error}",
+                                                             "expected_sha256": step.final.sha256,
+                                                             "current_sha256": after.sha256}]}
+    return None
+
+
 def execute_turn_rollback(
     store: BlackboxStore,
     *,
@@ -273,7 +383,17 @@ def execute_turn_rollback(
     nonce: str,
     task_id: str = "",
 ) -> dict[str, Any]:
-    """Plan under the store lock, then act step by step. Returns a typed summary dict."""
+    """Plan under the store lock, then act step by step. Returns a typed summary dict.
+
+    A turn's workspace effects come from two recorders: file tools (``effect_intended``/
+    ``effect_terminal``, planned here) and command runs -- shell, tests, lint, formatter --
+    recorded by workspace scan (``coverage_scan_*``, planned by
+    ``core.blackbox.coverage.restore``). Both are planned before anything is written, under this
+    one lock and this one token: a conflict in either refuses the whole turn, and a path both
+    recorders changed in the same turn is refused rather than unwound in a guessed order.
+    Effects declared irreversible before they ran (an irreversible local effect, an approved
+    downgrade) are never restored and never claimed: the summary names them in ``not_undone``,
+    and a turn with nothing else to restore refuses with ``STATUS_NOT_REVERSIBLE``."""
     root = workspace_root.resolve()
     authority_payload = source_context.get("_blackbox_permission")
     if not isinstance(authority_payload, dict):
@@ -284,107 +404,117 @@ def execute_turn_rollback(
         if not chain.ok:
             return {"status": STATUS_INTEGRITY, "reason": chain.reason, "first_bad_seq": chain.first_bad_seq,
                     "entries": chain.entries, "head_count": chain.head_count}
+        try:
+            store.recover_open_coverage_effects()
+            commands = _plan_command_effects(store, turn_id=turn_id, root=root)
+        except Exception as exc:
+            reason = f"command_effects_unreadable:{type(exc).__name__}: {exc}"
+            store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                          "operator": operator, "nonce": nonce, "reason": reason, "conflicts": []})
+            return {"status": STATUS_UNRECOVERABLE, "rollback_of_turn": turn_id, "reason": reason}
         plan = plan_turn_rollback(store, turn_id=turn_id, workspace_root=root)
         if plan.already_committed:
             return {"status": STATUS_ALREADY, "rollback_of_turn": turn_id, "restored_paths": [], "removed_paths": [],
                     "already_restored_paths": [], "resumed": False}
-        if plan.unrecoverable == "unknown_turn":
+        has_file_effects = plan.unrecoverable != "unknown_turn"
+        if not has_file_effects and commands is None:
             return {"status": STATUS_UNKNOWN_TURN, "rollback_of_turn": turn_id, "reason": "unknown_turn"}
-        if plan.unrecoverable:
+        if has_file_effects and plan.unrecoverable:
             store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
                           "operator": operator, "nonce": nonce, "reason": plan.unrecoverable, "conflicts": []})
             return {"status": STATUS_UNRECOVERABLE, "rollback_of_turn": turn_id, "reason": plan.unrecoverable}
+        if commands is not None and has_file_effects:
+            file_paths = {s.path for s in plan.steps} | {str(c.get("path") or "") for c in plan.conflicts}
+            shared = sorted({p.replace("\\", "/") for p in file_paths if p} & {p.replace("\\", "/") for p in commands.paths})
+            if shared:
+                reason = "same_path_in_file_and_command_effects"
+                conflicts = [{"path": path, "reason": reason} for path in shared]
+                store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                              "operator": operator, "nonce": nonce, "reason": reason, "conflicts": conflicts})
+                return {"status": STATUS_UNRECOVERABLE, "rollback_of_turn": turn_id, "reason": reason, "paths": shared}
         if plan.conflicts:
             store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
                           "operator": operator, "nonce": nonce, "reason": "conflict", "conflicts": plan.conflicts})
             return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "conflicts": plan.conflicts}
+        not_undone: list[str] = []
+        if commands is not None:
+            unusable = [str(c.get("reason") or "") for c in commands.conflicts
+                        if str(c.get("reason") or "") in {"blobs_pruned", "cas_key_unavailable"}]
+            if unusable:
+                reason = unusable[0]
+                store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                              "operator": operator, "nonce": nonce, "reason": reason, "conflicts": []})
+                return {"status": STATUS_UNRECOVERABLE, "rollback_of_turn": turn_id, "reason": reason}
+            if commands.conflicts:
+                conflicts = [_command_conflict(c) for c in commands.conflicts]
+                store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                              "operator": operator, "nonce": nonce, "reason": "conflict", "conflicts": conflicts})
+                return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "conflicts": conflicts}
+            not_undone = list(commands.not_reversible)
+            if not has_file_effects and not commands.effect_ids:
+                # Everything this turn recorded here was declared irreversible before it ran.
+                store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
+                              "operator": operator, "nonce": nonce, "reason": "not_reversible", "conflicts": [],
+                              "not_undone": not_undone})
+                return {"status": STATUS_NOT_REVERSIBLE, "rollback_of_turn": turn_id, "not_undone": not_undone}
 
         identity = _rollback_identity(source_context, task_id=task_id or f"rollback:{turn_id}")
-        store.append({"schema": SCHEMA, "kind": "rollback_started", "rollback_of_turn": turn_id, "root": str(root),
-                      "operator": operator, "nonce": nonce, "rollback_turn_id": identity.turn_id, "resumed": plan.resumed,
-                      "steps": [{"path": s.path, "action": s.action, "state": s.state} for s in plan.steps]})
+        started = {"schema": SCHEMA, "kind": "rollback_started", "rollback_of_turn": turn_id, "root": str(root),
+                   "operator": operator, "nonce": nonce, "rollback_turn_id": identity.turn_id, "resumed": plan.resumed,
+                   "steps": [{"path": s.path, "action": s.action, "state": s.state} for s in plan.steps]}
+        if commands is not None:
+            started["command_steps"] = [{"path": s.path, "action": s.action} for s in commands.steps]
+            started["command_effect_ids"] = list(commands.effect_ids)
+            started["not_undone"] = not_undone
+        store.append(started)
         restored: list[str] = []
         removed: list[str] = []
         already: list[str] = [s.path for s in plan.steps if s.state == "already"]
         left_nonempty: list[str] = []
         base = {"schema": SCHEMA, **identity.to_dict(), "root": str(root), "intent": "workspace.rollback_last_change",
                 "authority": dict(authority_payload), "rollback_of_turn": turn_id, "group_id": identity.turn_id}
-        for step in reversed(plan.steps):
-            if step.state == "already" or step.action == "none":
+        # Newest first: the recorder whose last effect is younger is unwound before the other.
+        last_file_seq = max((int(r.terminal.get("seq") or 0) for r in plan.effects if r.terminal), default=0)
+        lanes = ["files"] if commands is None else (
+            ["commands", "files"] if commands.last_seq >= last_file_seq else ["files", "commands"]
+        )
+        for lane in lanes:
+            if lane == "files":
+                if not has_file_effects:
+                    continue
+                failure = _execute_file_steps(store, plan, root=root, base=base, turn_id=turn_id, operator=operator,
+                                              nonce=nonce, restored=restored, removed=removed, already=already,
+                                              left_nonempty=left_nonempty)
+                if failure is not None:
+                    return failure
                 continue
-            current = observe_path(step.target)
-            reason = _diagnose_conflict(root, step, current)
-            if reason is not None:
-                # The world moved between plan and act. Stop here; nothing else is touched, the
-                # journal shows exactly how far this got, and the next attempt resumes.
+            from core.blackbox.coverage.restore import execute_restore
+
+            outcome = execute_restore(store, commands, operator=operator)
+            for item in outcome.get("performed") or []:
+                (restored if item.get("action") == "restore" else removed).append(str(item.get("path")))
+            if not outcome.get("ok"):
+                conflict = {"path": str(outcome.get("path") or ""),
+                            "reason": str(outcome.get("reason") or "conflict_during_execution")}
                 store.append({"schema": SCHEMA, "kind": "rollback_refused", "rollback_of_turn": turn_id, "root": str(root),
                               "operator": operator, "nonce": nonce, "reason": "conflict_during_execution",
-                              "conflicts": [{"path": step.path, "reason": reason, "expected_sha256": step.final.sha256,
-                                             "current_sha256": current.sha256}]})
+                              "conflicts": [conflict]})
                 return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "restored_paths": restored,
-                        "removed_paths": removed, "conflicts": [{"path": step.path, "reason": reason,
-                                                                 "expected_sha256": step.final.sha256,
-                                                                 "current_sha256": current.sha256}]}
-            if current.same_content_as(step.initial):
-                already.append(step.path)
-                continue
-            effect_id = f"effect-{uuid.uuid4().hex}"
-            started_at = utcnow()
-            before = store.snapshot(step.target)
-            store.append({**base, "kind": "effect_intended", "effect_id": effect_id, "path": step.path,
-                          "path_unresolved": False, "unresolved_reason": "", "operation": step.action,
-                          "rollback_of_effect": step.effect_ids[-1], "rollback_of_effects": list(step.effect_ids),
-                          "before": before.to_dict(),
-                          "intended": {"description": f"rollback {step.action}", "after_sha256": step.initial.sha256 or None,
-                                       "after_exists": step.initial.exists},
-                          "missing_parents": [], "started_at": started_at})
-            outcome = OUTCOME_SUCCEEDED
-            error = ""
-            try:
-                if step.action == "restore":
-                    data = store.blobs.get(str(step.initial.blob))
-                    _restore_file_bytes(step.target, data, step.initial.mode)
-                    restored.append(step.path)
-                elif step.action == "remove":
-                    if step.target.is_symlink():
-                        raise RuntimeError("target became a symlink before remove")
-                    step.target.unlink()
-                    _fsync_directory(step.target.parent)
-                    removed.append(step.path)
-                    for parent in step.missing_parents:
-                        parent_path = root / parent
-                        try:
-                            parent_path.rmdir()
-                            removed.append(parent)
-                        except OSError:
-                            left_nonempty.append(parent)
-                            break
-                elif step.action == "rmdir":
-                    step.target.rmdir()
-                    _fsync_directory(step.target.parent)
-                    removed.append(step.path)
-            except Exception as exc:
-                outcome = OUTCOME_FAILED
-                error = f"{type(exc).__name__}: {exc}"
-            after = store.snapshot(step.target)
-            terminal = {**base, "kind": "effect_terminal", "effect_id": effect_id, "path": step.path, "operation": step.action,
-                        "rollback_of_effect": step.effect_ids[-1], "outcome": outcome, "status": "executed" if not error else "error",
-                        "ok": not error, "after": after.to_dict(), "started_at": started_at, "completed_at": utcnow()}
-            if error:
-                terminal["exception"] = error
-            store.append(terminal)
-            if error:
-                return {"status": STATUS_CONFLICT, "rollback_of_turn": turn_id, "restored_paths": restored,
-                        "removed_paths": removed, "conflicts": [{"path": step.path, "reason": f"restore_failed:{error}",
-                                                                 "expected_sha256": step.final.sha256,
-                                                                 "current_sha256": after.sha256}]}
-        store.append({"schema": SCHEMA, "kind": "rollback_committed", "rollback_of_turn": turn_id, "root": str(root),
-                      "operator": operator, "nonce": nonce, "rollback_turn_id": identity.turn_id,
-                      "restored_paths": restored, "removed_paths": removed, "already_restored_paths": already,
-                      "left_nonempty_dirs": left_nonempty, "resumed": plan.resumed})
-        return {"status": "executed", "rollback_of_turn": turn_id, "rollback_turn_id": identity.turn_id,
-                "restored_paths": restored, "removed_paths": removed, "already_restored_paths": already,
-                "left_nonempty_dirs": left_nonempty, "resumed": plan.resumed}
+                        "removed_paths": removed, "conflicts": [conflict]}
+            already.extend(s.path for s in commands.steps if s.action == "already")
+        committed = {"schema": SCHEMA, "kind": "rollback_committed", "rollback_of_turn": turn_id, "root": str(root),
+                     "operator": operator, "nonce": nonce, "rollback_turn_id": identity.turn_id,
+                     "restored_paths": restored, "removed_paths": removed, "already_restored_paths": already,
+                     "left_nonempty_dirs": left_nonempty, "resumed": plan.resumed}
+        summary = {"status": "executed", "rollback_of_turn": turn_id, "rollback_turn_id": identity.turn_id,
+                   "restored_paths": restored, "removed_paths": removed, "already_restored_paths": already,
+                   "left_nonempty_dirs": left_nonempty, "resumed": plan.resumed}
+        if commands is not None:
+            committed["command_effect_ids"] = list(commands.effect_ids)
+            committed["not_undone"] = not_undone
+            summary["not_undone"] = not_undone
+        store.append(committed)
+        return summary
 
 
 # ------------------------------------------------------------------- the intent seam ----
@@ -433,11 +563,24 @@ def execute_rollback_directive(directive: dict[str, Any], *, workspace_root: Pat
         lines += [f"- restored `{p}`" for p in summary.get("restored_paths") or []]
         lines += [f"- removed `{p}`" for p in summary.get("removed_paths") or []]
         lines += [f"- already at its original bytes: `{p}`" for p in summary.get("already_restored_paths") or []]
+        lines += [f"- not undone, it cannot be undone: {item}" for item in summary.get("not_undone") or []]
         return _result(True, "executed", "\n".join(lines), summary)
     if status == STATUS_ALREADY:
         return _result(True, STATUS_ALREADY, f"Turn `{turn_id}` was already rolled back; nothing was written.", summary)
+    if status == STATUS_NOT_REVERSIBLE:
+        lines = [f"- {item}" for item in summary.get("not_undone") or []]
+        return _result(False, STATUS_NOT_REVERSIBLE,
+                       f"Turn `{turn_id}` cannot be undone: everything it recorded in this workspace was declared "
+                       "irreversible before it ran. Nothing was written.\n" + "\n".join(lines), summary)
+    if status == STATUS_UNRECOVERABLE and summary.get("reason") == "same_path_in_file_and_command_effects":
+        lines = [f"- `{p}`" for p in summary.get("paths") or []]
+        return _result(False, STATUS_UNRECOVERABLE,
+                       f"Turn `{turn_id}` cannot be restored: a file tool and a command both changed the same file in "
+                       "that turn, and the two records cannot be unwound together safely. Nothing was written.\n"
+                       + "\n".join(lines), summary)
     if status == STATUS_CONFLICT:
-        lines = [f"- `{c.get('path')}`: {c.get('reason')}" for c in summary.get("conflicts") or []]
+        lines = [f"- `{c.get('path')}`: {c.get('reason')}" if c.get("path") else f"- {c.get('reason')}"
+                 for c in summary.get("conflicts") or []]
         return _result(False, STATUS_CONFLICT,
                        f"I did not roll back turn `{turn_id}`: the workspace no longer matches what that turn left "
                        "on disk, so restoring would overwrite something that happened since. Nothing was written.\n"
@@ -457,6 +600,7 @@ __all__ = [
     "STATUS_CONFLICT",
     "STATUS_INTEGRITY",
     "STATUS_NOT_AUTHORIZED",
+    "STATUS_NOT_REVERSIBLE",
     "STATUS_UNKNOWN_TURN",
     "STATUS_UNRECOVERABLE",
     "Plan",
