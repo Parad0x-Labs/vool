@@ -651,6 +651,15 @@ class DropHome:
         if decision.effect is not PermissionEffect.ALLOW:
             raise DropError("RECIPIENT_PERMISSION_REFUSED")
 
+    def decline(self, sid, task_id):
+        """A local refusal is durable; replaying the task cannot restore approval."""
+        with self.scope():
+            row = self._live(sid)
+            if row["task_id"] != task_id or row["task_state"] not in {"pending", "approved"}:
+                raise DropError("TASK_NOT_APPROVABLE")
+            self.db.execute("UPDATE drops SET task_state='declined' WHERE sid=?", (sid,))
+            self.db.commit()
+
     def execute_approved(self, sid):
         with self.scope():
             row = self._live(sid)

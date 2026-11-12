@@ -11,9 +11,9 @@ from typing import Any
 
 X_READ_INTENTS = frozenset({
     "x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists", "x.usage",
-    "x.spaces", "x.dms", "x.account",
+    "x.spaces", "x.dms", "x.account", "x.api.catalog", "x.api.receipts", "x.api.request",
 })
-X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status"})
+X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status", "x.bookmarks"})
 X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS
 
 
@@ -44,9 +44,60 @@ def _result(intent: str, outcome: Any, *, keys: tuple[str, ...]):
 
 
 def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict[str, Any] | None = None):
+    from core.x_request_gateway import chat_scope
+
+    with chat_scope(source_context):
+        return _run_x_tool(intent, arguments, source_context)
+
+
+def _run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict[str, Any] | None = None):
     from core import x_api
 
     args = dict(arguments or {})
+    if intent.startswith("x.api."):
+        from core import x_capabilities, x_request_gateway
+        from core.x_endpoint_catalog import InvalidXRequest, needs_approval, operation, operations, schema_details
+
+        try:
+            context = dict(source_context or {})
+            if intent == "x.api.catalog":
+                if set(args) - {"query", "operation_id", "schema", "offset"}:
+                    raise InvalidXRequest("Unknown X catalog field.")
+                if args.get("schema"):
+                    data = {"schema": schema_details(str(args["schema"]))}
+                elif args.get("operation_id"):
+                    data = {"features": [operation(str(args["operation_id"]))]}
+                else:
+                    query = str(args.get("query") or "").lower()[:200]
+                    entries = [row for row in operations() if query in
+                               " ".join(str(row[key]) for key in ("id", "path", "summary")).lower()]
+                    offset = args.get("offset", 0)
+                    if type(offset) is not int or not 0 <= offset <= 1000:
+                        raise InvalidXRequest("Use a valid catalog offset.")
+                    data = {"features": [{key: row[key] for key in ("id", "method", "path", "summary", "auth", "deferred")}
+                                         for row in entries[offset:offset + 25]], "total": len(entries),
+                            "next_offset": offset + 25 if offset + 25 < len(entries) else None}
+                policy = x_capabilities.load()
+                data["access"] = {"enabled": policy["enabled"], "access_label": policy["access_label"],
+                                  "allowed_operations": policy["operations"], "limits": policy["limits"]}
+                outcome = x_api.XResult(True, "executed", "X feature information is local; nothing was sent to X.", data)
+                return _result(intent, outcome, keys=("features", "schema", "total", "next_offset", "access"))
+            if intent == "x.api.receipts":
+                if set(args) - {"limit"}:
+                    raise InvalidXRequest("Unknown X receipt field.")
+                outcome = x_api.XResult(True, "executed", "These are this chat's recorded X calls.",
+                                        {"receipts": x_request_gateway.receipts(context, limit=args.get("limit", 20))})
+                return _result(intent, outcome, keys=("receipts",))
+            prepared = x_request_gateway.prepared_arguments(args, context)
+            if not needs_approval(operation(prepared["operation_id"])):
+                outcome = x_request_gateway.execute(prepared, context)
+                return _result(intent, outcome, keys=("result", "receipt"))
+            from core import x_actions
+
+            outcome = x_actions.propose_api(prepared, source_context=context)
+            return _result(intent, outcome, keys=("action",))
+        except (InvalidXRequest, x_capabilities.XCapabilityRefused) as exc:
+            return _result(intent, x_api.XResult(False, getattr(exc, "status", "invalid_request"), str(exc)), keys=())
     if intent == "x.search":
         if str(args.get("mode") or "").strip().lower() == "counts":
             outcome = x_api.count_posts(str(args.get("query") or ""), token=str(args.get("token") or ""),
@@ -124,7 +175,10 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
     if intent in X_ACTION_INTENTS:
         from core import x_actions
 
-        if intent == "x.action.propose":
+        if intent == "x.bookmarks":
+            operation = str(args.get("operation") or "read")
+            outcome = x_actions.propose({**args, "kind": "bookmark_" + operation}, source_context=source_context)
+        elif intent == "x.action.propose":
             outcome = x_actions.propose(args, source_context=source_context)
         else:
             outcome = x_actions.status_for_model(str(args.get("action_id") or ""), source_context=source_context)
@@ -143,7 +197,7 @@ def _usage_text(snap: dict[str, Any]) -> str:
     reads, actions = snap["reads"], snap["actions"]
     limit, alimit = snap.get("monthly_reads"), snap.get("monthly_actions")
     reads_txt = f"{reads:,} posts and accounts" + (f" (of your {limit:,} limit)" if limit is not None else " (no limit set)")
-    sent_txt = f"{actions:,} posts, replies, likes and follows" + (f" (of {alimit:,})" if alimit is not None else " (no limit set)")
+    sent_txt = f"{actions:,} approved requests" + (f" (of {alimit:,})" if alimit is not None else " (no limit set)")
     return (f"In {month} VOOL has read {reads_txt} on X and sent {sent_txt}. "
             "X charges these to your X developer account.")
 

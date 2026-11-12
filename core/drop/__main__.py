@@ -73,6 +73,9 @@ def main():
     approve = sub.add_parser("approve")
     approve.add_argument("sid")
     approve.add_argument("task_id")
+    decline = sub.add_parser("decline")
+    decline.add_argument("sid")
+    decline.add_argument("task_id")
     args = parser.parse_args(_positionals_last(sys.argv[1:], sub.choices))
     print(WARNING, file=sys.stderr)
     try:
@@ -105,6 +108,9 @@ def main():
                 elif args.command == "approve":
                     home.approve(args.sid, args.task_id)
                     out = {"state": "approved"}
+                elif args.command == "decline":
+                    home.decline(args.sid, args.task_id)
+                    out = {"state": "declined"}
                 elif args.command == "execute":
                     out = {"result": home.execute_approved(args.sid)}
                 elif args.command == "delete":

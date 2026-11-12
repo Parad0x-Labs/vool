@@ -3737,7 +3737,11 @@ def _dispatch_runtime_tool(
         if intent == "file.deliver":
             return _file_deliver(arguments, source_context=source_context)
         if intent == "x.trending":
-            return _x_trending(arguments)
+            from core.x_chat_tools import run_x_tool
+
+            return run_x_tool('x.api.request', {'operation_id': 'getTrendsByWoeid',
+                              'path': {'woeid': int(arguments.get('woeid') or 1)},
+                              'query': {'max_trends': max(1, min(50, int(arguments.get('limit') or 20)))}}, source_context)
         if intent.startswith("x."):
             from core.x_chat_tools import X_INTENTS, run_x_tool
 

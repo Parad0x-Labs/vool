@@ -522,6 +522,7 @@ class XActivityInput:
     hash: str = ""
     monthly_reads: Any = "keep"
     monthly_actions: Any = "keep"
+    ui_locale: str = "en"
 
 
 def _handle_x_activity(inp, ctx):
@@ -537,6 +538,7 @@ def _handle_x_activity(inp, ctx):
                               "message": "X approvals are only available in Settings inside this VOOL app. Nothing was sent."})
 
     body: dict[str, Any] = {"action": inp.action}
+    body["ui_locale"] = inp.ui_locale
     if inp.action_id:
         body["action_id"] = inp.action_id
     if inp.hash:
