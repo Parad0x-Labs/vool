@@ -692,6 +692,48 @@ def skill_selected(skill_rows: Any) -> bool:
     )
 
 
+def turn_selects_editorial_skill(
+    user_text: str, *, source_context: dict[str, Any] | None = None, task_class: str = ""
+) -> bool:
+    """Whether the X editorial studio owns this turn: the same typed selection the chat lane's
+    prompt build uses (``core.tool_offer_assembly.skill_guidance_for`` -> provenance rows)."""
+    from core.tool_offer_assembly import skill_guidance_for, skill_provenance_rows
+
+    text = str(user_text or "").strip()
+    if not text:
+        return False
+    try:
+        guidance = skill_guidance_for(
+            text, task_class=str(task_class or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
+        )
+    except Exception:
+        return False
+    return skill_selected(skill_provenance_rows(guidance.skills))
+
+
+def edge_for_unvalidated_envelope(
+    text: str, *, user_text: str, source_context: dict[str, Any] | None = None, task_class: str = ""
+) -> XEditorialApplication | None:
+    """The response edge for an answer that reached a lane's end still carrying an XDraft envelope.
+
+    Applies ``apply_x_editorial_output`` only when the X editorial studio owns the turn. ``None``
+    means leave the text as it is: no envelope; an envelope the edge already rendered as withheld
+    findings; or a turn the skill does not own (an answer that merely QUOTES an envelope, say from
+    a fetched page, is never turned into "validated" copy).
+    """
+    body = str(text or "")
+    if ENVELOPE_BEGIN not in body or _WITHHELD_HEADER in body:
+        return None
+    if not turn_selects_editorial_skill(user_text, source_context=source_context, task_class=task_class):
+        return None
+    return apply_x_editorial_output(
+        body,
+        user_text=str(user_text or ""),
+        state=x_editorial_turn_state(str(user_text or ""), source_context=source_context),
+    )
+
+
 __all__ = [
     "ENVELOPE_BEGIN",
     "ENVELOPE_END",
@@ -701,6 +743,7 @@ __all__ = [
     "apply_x_editorial_output",
     "compose_xdraft",
     "copy_ready_text",
+    "edge_for_unvalidated_envelope",
     "envelope_for",
     "extract_claims",
     "findings_of",
@@ -709,5 +752,6 @@ __all__ = [
     "requested_mode",
     "skill_selected",
     "sludge_hits",
+    "turn_selects_editorial_skill",
     "x_editorial_turn_state",
 ]

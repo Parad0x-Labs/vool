@@ -632,26 +632,22 @@ class ResearchToolLoopFacadeMixin:
     def _x_editorial_direct_message(
         self, message: str, *, user_text: str, source_context: dict[str, Any] | None
     ) -> str:
-        """An XDraft envelope answered on the tool lane passes the same response edge as chat.
+        """An X editorial turn's XDraft answered on the tool lane passes the chat lane's edge.
 
         The chat lane validates the X editorial studio's XDraft envelope at its response edge
         (core.memory_first_router, C20). A matched skill can hand the same turn to this loop,
-        where the draft arrives as respond.direct: without this it reached the person
-        unvalidated, envelope and all. A reply without an envelope is returned unchanged.
+        where the draft arrives as respond.direct; it used to reach the person unvalidated.
+        Only a turn the studio owns is validated: an answer that merely quotes an envelope is
+        returned unchanged (security review of 24f6c9cf).
         """
-        from core.x_editorial import ENVELOPE_BEGIN
-
-        text = str(message or "")
-        if ENVELOPE_BEGIN not in text:
-            return message
-        from core.x_editorial import apply_x_editorial_output, x_editorial_turn_state
+        from core.x_editorial import edge_for_unvalidated_envelope
 
         context = source_context if isinstance(source_context, dict) else {}
-        application = apply_x_editorial_output(
-            text,
-            user_text=str(user_text or ""),
-            state=x_editorial_turn_state(str(user_text or ""), source_context=context),
+        application = edge_for_unvalidated_envelope(
+            str(message or ""), user_text=str(user_text or ""), source_context=context
         )
+        if application is None:
+            return message
         self._emit_runtime_event(
             context,
             event_type="x_editorial_validation",

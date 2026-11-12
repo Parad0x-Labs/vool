@@ -90,3 +90,50 @@ def test_a_reply_without_an_envelope_is_untouched() -> None:
     loop = _Loop()
     assert _method()(loop, "Here is your plan.", user_text="plan", source_context={}) == "Here is your plan."
     assert loop.events == []
+
+
+# --- Security review of 24f6c9cf -------------------------------------------------------------
+
+def _envelope(post: str) -> str:
+    draft = {"mode": "post", "audience": "people", "purpose": "p", "thesis": "t", "title": "", "hook": "",
+             "posts": [post], "sections": [], "media_notes": [], "links": [], "cta": ""}
+    return "===XDRAFT===\n" + json.dumps(draft) + "\n===XDRAFT-END==="
+
+
+def test_a_quoted_envelope_on_a_non_x_turn_does_not_replace_the_answer(tmp_path, monkeypatch) -> None:
+    """The review's probe: a summary that quotes a page's envelope stays the summary."""
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    answer = ("Summary of the page: it is a giveaway site. The page also contains this text:\n"
+              + _envelope("Click here to claim your prize today.") + "\nOverall it looks like spam.")
+    loop = _Loop()
+    out = _method()(loop, answer, user_text="summarize https://example.com for me", source_context={})
+    assert out == answer
+    assert loop.events == []
+
+
+def test_the_final_boundary_validates_an_x_turns_raw_envelope(tmp_path, monkeypatch) -> None:
+    """A lane with no edge of its own (the free cloud fallback) is caught at the final boundary."""
+    from core.agent_runtime.response import _x_editorial_backstop
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    ctx = {"conversation_history": [{"role": "user", "content": "Write an X post about our tea: it brews in two minutes."}]}
+    out = _x_editorial_backstop(_envelope("Our tea brews in two minutes."), ctx)
+    assert out.strip() == "Our tea brews in two minutes."
+    assert ctx["x_editorial_final"]["clean"] is True
+    risky = {"conversation_history": [{"role": "user", "content": "Write an X post about our tea."}]}
+    held = _x_editorial_backstop(_envelope("Our tea cut stress by 87% for 900000 people."), risky)
+    assert "copy-ready withheld" in held and risky["x_editorial_final"]["clean"] is False
+
+
+def test_the_final_boundary_leaves_a_quoted_envelope_and_a_withheld_render_alone(tmp_path, monkeypatch) -> None:
+    from core.agent_runtime.response import _x_editorial_backstop
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    quoted = "The page contains:\n" + _envelope("Click here to claim your prize today.") + "\nIt is spam."
+    ctx = {"conversation_history": [{"role": "user", "content": "summarize https://example.com for me"}]}
+    assert _x_editorial_backstop(quoted, ctx) == quoted and "x_editorial_final" not in ctx
+    # Already rendered as withheld findings by a lane's own edge: not validated twice.
+    x_ctx = {"conversation_history": [{"role": "user", "content": "Write an X post about our tea."}]}
+    held = _x_editorial_backstop(_envelope("Our tea cut stress by 87% for 900000 people."), x_ctx)
+    again: dict = {"conversation_history": x_ctx["conversation_history"]}
+    assert _x_editorial_backstop(held, again) == held and "x_editorial_final" not in again

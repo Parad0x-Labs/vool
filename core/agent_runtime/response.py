@@ -419,12 +419,58 @@ def _last_user_text(source_context: dict[str, object] | None) -> str:
     return next((str(item.get("content") or "") for item in reversed(history) if isinstance(item, dict) and item.get("role") == "user"), "")
 
 
+def _current_user_text(source_context: dict[str, object] | None) -> str:
+    """This turn's own user message: the turn request, else the last user history entry."""
+    ctx = source_context if isinstance(source_context, dict) else {}
+    turn = ctx.get("turn_request")
+    text = str(getattr(turn, "user_text", "") or "")
+    if text.strip():
+        return text
+    for item in reversed(list(ctx.get("conversation_history") or [])):
+        if isinstance(item, dict) and item.get("role") == "user":
+            return str(item.get("content") or "")
+    return ""
+
+
+def _x_editorial_backstop(text: str, source_context: dict[str, object] | None) -> str:
+    """One last XDraft edge for every lane (security review of 24f6c9cf).
+
+    An answer that still carries an XDraft envelope here skipped its lane's edge (the free cloud
+    fallback had none). On a turn the X editorial studio owns it is validated now, exactly as the
+    chat lane does; anywhere else it is left as it is, never rendered as copy.
+    """
+    if "===XDRAFT===" not in str(text or ""):
+        return text
+    from core.x_editorial import edge_for_unvalidated_envelope
+
+    ctx = source_context if isinstance(source_context, dict) else None
+    application = edge_for_unvalidated_envelope(
+        str(text or ""), user_text=_current_user_text(ctx), source_context=ctx
+    )
+    if application is None:
+        return text
+    if ctx is not None:
+        ctx["x_editorial_final"] = dict(application.record)
+        try:
+            from core.runtime_task_events import emit_runtime_event
+
+            emit_runtime_event(
+                ctx, event_type="x_editorial_validation",
+                message="xdraft validated at the final answer boundary",
+                details=dict(application.record),
+            )
+        except Exception:
+            pass  # the audit trail must never break the answer it records
+    return application.text
+
+
 def _validate_final_chat_output(
     text: str,
     *,
     source_context: dict[str, object] | None,
 ) -> str:
     """Backstop the exact text rendered and later retained as chat memory."""
+    text = _x_editorial_backstop(text, source_context)
     raw_contract = raw_output_contract_from_metadata(source_context)
     ordinary_policy = dict(
         (source_context or {}).get("ordinary_chat_output_policy") or {}
