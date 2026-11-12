@@ -24,7 +24,7 @@ from core.cloud_tool_call_contract import (
     openai_tool_payload,
     parse_native_tool_calls,
 )
-from core.compute_mode import get_active_compute_budget
+from core.compute_mode import ollama_runner_thread_count
 from core.execution_requirements import assert_envelope_carries_tools
 from core.local_model_admission import local_model_slot
 from core.memory_prompt_builder import apply_memory_prefix_to_messages, build_memory_prefix_for_request
@@ -1443,10 +1443,15 @@ class OpenAICompatibleAdapter(ModelAdapter):
         and the plain lane refused the whole turn. Direct timing of the same clause split:
         20.3 s on a cold runner (load 14.0 s + prompt eval 5.0 s + 1.1 s generation), 1.4 s on
         the warm one. Every native-ollama payload the runtime sends -- serving, certification,
-        prewarm -- takes these keys from this one seam so they all name ONE runner.
+        prewarm -- takes these keys from this one seam so they all name ONE runner. Lanes that
+        post to Ollama directly take the same keys from
+        `core.runtime_provider_defaults.ollama_direct_runner_options`.
+
+        The thread count is fixed for the machine (`core.compute_mode.ollama_runner_thread_count`),
+        not read from the live compute budget: that budget changes whenever the user steps away,
+        and a `num_thread` that followed it reloaded the model at every change.
         """
-        budget = get_active_compute_budget()
-        options: dict[str, Any] = {"num_thread": int(max(1, budget.cpu_threads))}
+        options: dict[str, Any] = {"num_thread": ollama_runner_thread_count()}
         context_window = self._ollama_context_window(request)
         if context_window > 0:
             options["num_ctx"] = context_window

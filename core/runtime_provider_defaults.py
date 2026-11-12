@@ -639,6 +639,35 @@ def _ollama_context_window_for_bundle_role(
     )
 
 
+def ollama_direct_runner_options(
+    model_tag: str,
+    *,
+    bundle_role: str,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, int]:
+    """The runner keys for a lane that posts straight to Ollama: the same window, thread count and
+    GPU-layer setting the provider adapter sends for this model, so both name ONE Ollama runner.
+
+    Ollama reloads a resident model whenever a request's runner options differ from the loaded
+    runner's (server/sched.go, needsReload). The memory-extraction lane sent `num_ctx` alone while
+    every adapter call also sends `num_thread`, so the helper model reloaded twice in every turn:
+    measured on the v0.8 line (bb35ff83) against a recording Ollama, 48 reloads of qwen3:0.6b in
+    a 42-turn chat. `bundle_role` is the role the model is registered under (the helper model is
+    lightweight_utility, the chat model general); it sizes the window exactly as registration does.
+    """
+    env_map = os.environ if env is None else env
+    from core.compute_mode import ollama_runner_thread_count
+
+    options = {
+        "num_ctx": _ollama_context_window_for_bundle_role(bundle_role, model_tag=str(model_tag or ""), env=env_map),
+        "num_thread": ollama_runner_thread_count(),
+    }
+    forced_num_gpu = _resolve_ollama_num_gpu(env_map)
+    if forced_num_gpu is not None:
+        options["num_gpu"] = forced_num_gpu
+    return options
+
+
 def default_local_provider_base_url(env: Mapping[str, str] | None = None) -> str:
     """The base_url written into the auto-registered local provider's manifest. Resolved from the environment,
     so the certification probe -- which reads the manifest -- follows the same fence as every other client."""
@@ -2072,5 +2101,6 @@ def _profile_allows_generic_remote_provider(profile_id: str) -> bool:
 __all__ = [
     "default_runtime_model_tag",
     "ensure_default_runtime_providers",
+    "ollama_direct_runner_options",
     "preferred_fast_local_model",
 ]

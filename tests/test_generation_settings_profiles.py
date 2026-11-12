@@ -9,7 +9,7 @@ import requests
 
 from adapters.base_adapter import ModelRequest
 from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
-from core.compute_mode import ComputeBudget, set_active_compute_budget
+from core.compute_mode import ComputeBudget, ollama_runner_thread_count, set_active_compute_budget
 from core.prompt_normalizer import normalize_prompt
 
 
@@ -388,7 +388,9 @@ def _host_memory(available_gb: float):
     return stack
 
 
-def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() -> None:
+def test_openai_adapter_uses_native_ollama_chat_and_sends_the_machine_thread_count() -> None:
+    """The live budget says 3 threads; the payload still carries the machine's fixed count, because
+    Ollama reloads a model whose `num_thread` changes (see core.compute_mode.ollama_runner_thread_count)."""
     adapter = OpenAICompatibleAdapter(
         SimpleNamespace(
             provider_id="ollama-local:qwen2.5:14b",
@@ -418,7 +420,7 @@ def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() ->
     set_active_compute_budget(
         ComputeBudget(
             mode="balanced",
-            cpu_threads=3,
+            cpu_threads=ollama_runner_thread_count() + 7,  # a live budget unlike the runner's count
             gpu_memory_fraction=0.5,
             worker_pool_cap=1,
             reason="test",
@@ -432,12 +434,12 @@ def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() ->
 
     assert result.output_text == "native ollama answer"
     assert post_mock.call_args.args[0] == "http://127.0.0.1:11434/api/chat"
-    assert post_mock.call_args.kwargs["json"]["options"]["num_thread"] == 3
+    assert post_mock.call_args.kwargs["json"]["options"]["num_thread"] == ollama_runner_thread_count()
     assert post_mock.call_args.kwargs["json"]["options"]["num_ctx"] == 2048
     assert post_mock.call_args.kwargs["json"]["think"] is False
 
 
-def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_thread_budget() -> None:
+def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_the_runner_thread_count() -> None:
     adapter = OpenAICompatibleAdapter(
         SimpleNamespace(
             provider_id="ollama-local:qwen2.5:7b",
@@ -467,7 +469,7 @@ def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_thread
     set_active_compute_budget(
         ComputeBudget(
             mode="balanced",
-            cpu_threads=3,
+            cpu_threads=ollama_runner_thread_count() + 7,  # a live budget unlike the runner's count
             gpu_memory_fraction=0.5,
             worker_pool_cap=1,
             reason="test",
@@ -479,7 +481,7 @@ def test_openai_adapter_prefers_manifest_openai_path_for_ollama_and_keeps_thread
     payload = dict(post_mock.call_args.kwargs["json"])
     assert result.output_text == "OPENAI-COMPAT-OK"
     assert post_mock.call_args.args[0] == "http://127.0.0.1:11434/v1/chat/completions"
-    assert payload["options"]["num_thread"] == 3
+    assert payload["options"]["num_thread"] == ollama_runner_thread_count()
     assert payload["options"]["num_ctx"] == 4096
     assert payload["max_tokens"] == request.max_output_tokens
     assert payload["temperature"] == pytest.approx(0.05)

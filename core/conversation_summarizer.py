@@ -97,12 +97,16 @@ Rules:
 - No preamble, no commentary — output ONLY the four sections above"""
 
 
-def _summarizer_num_ctx(model_tag: str) -> int:
-    """Sized context for this direct-to-Ollama lane, from the existing sizing authority."""
+def _summarizer_runner_options(model_tag: str) -> dict[str, int]:
+    """Sized context and runner keys for this direct-to-Ollama lane: the chat model's own runner.
 
-    from core.runtime_provider_defaults import _ollama_context_window_for_bundle_role
+    The summarizer runs on the box's chat model, so it takes the same window, thread count and
+    GPU-layer setting the provider adapter sends for it; any difference reloads the chat model.
+    """
 
-    return _ollama_context_window_for_bundle_role("general", model_tag=str(model_tag or ""))
+    from core.runtime_provider_defaults import ollama_direct_runner_options
+
+    return ollama_direct_runner_options(str(model_tag or ""), bundle_role="general")
 
 
 def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
@@ -125,7 +129,7 @@ def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
         "options": {
             "temperature": 0.1,
             "num_predict": 1024,
-            "num_ctx": _summarizer_num_ctx(model),
+            **_summarizer_runner_options(model),
         },
     }
     invocation_context = dict(_SUMMARY_CONTEXT.get() or {})

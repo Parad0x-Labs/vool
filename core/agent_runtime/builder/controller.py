@@ -263,11 +263,27 @@ def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUI
         "model": model_tag,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "options": {"temperature": 0.2, "num_predict": int(num_predict), "num_ctx": _BUILDER_NUM_CTX},
+        "options": {"temperature": 0.2, "num_predict": int(num_predict), **builder_runner_options(model_tag)},
     }
     if is_thinking_capable_model(model_tag):
         payload["think"] = True
     return payload
+
+
+def builder_runner_options(model_tag: str) -> dict[str, int]:
+    """The runner keys for a builder call: the chat model's own runner whenever it has the room.
+
+    The builder writes whole files (a 6144-token output budget), so it needs a window of at least
+    8192. A fixed 8192 also named a different Ollama runner than chat whenever the model's sized
+    window was bigger (16K for a 9B on a 24 GB Mac), so a build reloaded the chat model and the next
+    chat turn reloaded it back. Where the sized window is smaller than 8192 the builder still asks
+    for 8192: there the reload is the price of a build that can finish its files.
+    """
+    from core.runtime_provider_defaults import ollama_direct_runner_options
+
+    options = ollama_direct_runner_options(model_tag, bundle_role="general")
+    options["num_ctx"] = max(_BUILDER_NUM_CTX, int(options.get("num_ctx") or 0))
+    return options
 
 
 def builder_user_visible_text(text: str) -> str:

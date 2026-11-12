@@ -221,6 +221,8 @@ def test_every_direct_to_ollama_lane_sizes_the_model_it_loads() -> None:
         "core/fact_extractor.py",
         "core/conversation_summarizer.py",
         "core/craft_upgrade.py",
+        "core/brain_hive_research.py",
+        "core/agent_runtime/builder/controller.py",
     }
     root = pathlib.Path(__file__).resolve().parents[1]
     offenders: list[str] = []
@@ -240,7 +242,18 @@ def test_every_direct_to_ollama_lane_sizes_the_model_it_loads() -> None:
             option_keys = [
                 k.value for k in options.keys if isinstance(k, ast.Constant) and isinstance(k.value, str)
             ]
-            if "num_ctx" not in option_keys:
+            # `**ollama_direct_runner_options(...)`, a lane's own *_runner_options wrapper, or a
+            # `runner_options` value computed from one, carries num_ctx with the other runner keys.
+            def _names_runner_options(value: ast.expr) -> bool:
+                target = value.func if isinstance(value, ast.Call) else value
+                name = getattr(target, "id", "") or getattr(target, "attr", "")
+                return str(name).endswith("runner_options")
+
+            spreads_runner_options = any(
+                key is None and _names_runner_options(value)
+                for key, value in zip(options.keys, options.values, strict=True)
+            )
+            if "num_ctx" not in option_keys and not spreads_runner_options:
                 offenders.append(f"{relative}:{node.lineno} options={option_keys}")
     assert not offenders, (
         "these lanes post straight to Ollama and load the model UNSIZED, at its native context:\n  "

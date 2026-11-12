@@ -194,14 +194,17 @@ _EXTRACTION_SLOTS = threading.BoundedSemaphore(_MAX_CONCURRENT_EXTRACTIONS)
 
 
 
-def _direct_lane_num_ctx(model_tag: str) -> int:
-    """Sized context for a lane that posts straight to Ollama, from the existing authority."""
+def _direct_lane_runner_options(model_tag: str) -> dict[str, int]:
+    """Sized context and runner keys for a lane that posts straight to Ollama.
 
-    from core.runtime_provider_defaults import _ollama_context_window_for_bundle_role
+    The same keys the provider adapter sends for the helper model, so this lane and the other
+    helper calls in a turn share ONE Ollama runner (see
+    `core.runtime_provider_defaults.ollama_direct_runner_options`).
+    """
 
-    return _ollama_context_window_for_bundle_role(
-        "lightweight_utility", model_tag=str(model_tag or "")
-    )
+    from core.runtime_provider_defaults import ollama_direct_runner_options
+
+    return ollama_direct_runner_options(str(model_tag or ""), bundle_role="lightweight_utility")
 
 
 class FactExtractor:
@@ -358,11 +361,13 @@ class FactExtractor:
             # Sized: this lane posts straight to Ollama, so the adapter's num_ctx never reaches
             # it and the model loads at its NATIVE context. Its default model is qwen3:0.6b,
             # measured at 4.99 GiB unsized against 2.30 GiB at the adaptive default -- a 0.6B
-            # model costing as much as a 7B. See core.intent_arbiter._arbiter_num_ctx.
+            # model costing as much as a 7B. See core.intent_arbiter._arbiter_runner_options.
+            # The runner keys come with the window: with `num_ctx` alone this lane named another
+            # runner than the turn's other helper calls, and the helper reloaded twice a turn.
             "options": {
                 "temperature": 0.1,
                 "num_predict": 512,
-                "num_ctx": _direct_lane_num_ctx(self._model),
+                **_direct_lane_runner_options(self._model),
             },
         }
         try:
