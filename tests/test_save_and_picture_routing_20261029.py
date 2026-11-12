@@ -230,7 +230,8 @@ def test_turn_picture_edits_are_answered_plainly(turn):
 
 def test_turn_keep_a_note_saves_a_note_with_its_words(turn):
     result = turn("keep a note for me: garage keypad code is 5523")
-    assert "Note saved" in str(result.get("response")) and "5523" in str(result.get("response"))
+    # The keep-a-note job (fdbf23df, audit R6) words the saved reply "Saved your note '...'." with no path.
+    assert "Saved your note" in str(result.get("response")) and "5523" in str(result.get("response"))
     notes = list((turn.workspace / "notes").glob("*.md"))
     assert len(notes) == 1 and "garage keypad code is 5523" in notes[0].read_text()
 

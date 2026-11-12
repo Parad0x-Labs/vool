@@ -261,6 +261,20 @@ def _owned_by_another_lane(text: str) -> bool:
     return False
 
 
+def _operator_store_ask(text: str) -> bool:
+    """The person's own notes, reminders and calendar ("show me my notes", "find my notes about the
+    boiler") are the operator's stores, read by its own lane. Read on the words as typed: the
+    question form this lane builds ("what are my notes?") is not what the operator parser reads.
+    On the line merged with the full 0.7.7 train this lane answered "I don't have that saved"
+    over the person's notes, where the train listed them (audit N10)."""
+    try:
+        from core.local_operator_actions import parse_operator_action_intent
+
+        return parse_operator_action_intent(text) is not None
+    except Exception:
+        return False
+
+
 def _covers(terms: tuple[str, ...], found: tuple[str, ...] | list[str]) -> bool:
     if not terms:
         return False
@@ -553,6 +567,7 @@ def cross_chat_recall(
     text = " ".join(str(question or "").split())
     if not text or len(text) > 300:
         return None
+    typed = text
     explicit_recall = bool(_EXPLICIT_RECALL_RE.match(text))
     text = as_question(text)
     if not _chat_has_owner_statements(source_context):
@@ -587,7 +602,7 @@ def cross_chat_recall(
     if not _owner_local(source_context) or _private(session_id, source_context):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
-    if _owned_by_another_lane(text):
+    if _owned_by_another_lane(text) or _operator_store_ask(typed):
         return None
     if (source_context or {}).get("attachments") or (source_context or {}).get("attachment_ids"):
         return None  # a turn that carries files is about them

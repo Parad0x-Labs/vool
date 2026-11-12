@@ -330,8 +330,14 @@ _KEEP_NOTE_RE = re.compile(
 )
 # "save this one: buy zucchini and halloumi for saturdays bbq": the note is the "one" the chat is
 # holding and the colon carries its words. Under the same ask gate as the keep family, because
-# "I'll save this: ..." is a promise, not a request.
-_SAVE_DEMONSTRATIVE_RE = re.compile(r"\b(?:save|store)\s+(?:this|that)(?:\s+one)?\s*:(?!\d)", re.IGNORECASE)
+# "I'll save this: ..." is a promise, not a request. A statement about the owner after the colon
+# ("save this: my bike rack is spot 12", "save this: I take the 8:10 train") is a fact to
+# remember, not a note: the same owner-word guard as the colon form in _STORE_NOTE_RE above.
+_SAVE_DEMONSTRATIVE_RE = re.compile(
+    r"\b(?:save|store)\s+(?:this|that)(?:\s+one)?\s*:(?!\d)"
+    r"(?!\s*(?:my|i|i'm|im|i've|ive|i'd|our|we|we're|we've|mine)\b)",
+    re.IGNORECASE,
+)
 # The same family holding the chat's own referent as the object ("stick this in my notes: call
 # the bank", "pop this in my notes: renew passport"): the notes store is REQUIRED as the
 # destination, because "this" offers no words of its own — "put this on the fridge" pins paper
