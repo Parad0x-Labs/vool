@@ -464,7 +464,9 @@ def test_unsupported_publish_request_returns_typed_guidance(x_rig) -> None:
     reply = x_rig.daemon.chat("Can you publish this thread for me on X?")
     session_id = str(reply.get("vool_session_id") or "")
     served = _served_text(reply)
-    assert "cannot publish" in served, served
+    # X is not connected in this rig, so the X reply answers before the model: nothing was posted,
+    # and where to connect X. Connected, the editorial lane gives its own refusal.
+    assert "nothing was posted" in served and "Connect X" in served, served
     assert x_rig.daemon.executed_tools(session_id) == [], "no tool may execute for a publish ask"
     # The publish door must not exist at all.
     import urllib.error
