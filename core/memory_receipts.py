@@ -931,6 +931,17 @@ def _raw_receipts_for_scope(mem, chat_scope, role=None):
         return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
 
 
+def _assistant_receipt_is_no_answer(row: Any, body: str) -> bool:
+    if str(row.get("role") or "").strip().lower() != "assistant" or not body.strip():
+        return False
+    try:
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        return assistant_text_is_no_answer(body)
+    except Exception:
+        return False
+
+
 def _serve_receipt(mem, row):
     from core.memory.carriers import schema_json_fields
     from core.memory.revocation import authorize_payload
@@ -941,6 +952,10 @@ def _serve_receipt(mem, row):
             "SELECT body FROM source_occurrences WHERE agent_id = ? AND occurrence_id = ? AND status = 'active'",
             (mem._agent_id, row["occurrence_id"]),
         ).fetchone()
+    if _assistant_receipt_is_no_answer(row, str(source[0]) if source is not None else str(row.get("head_text") or "")):
+        # The receipt of the runtime's own no-answer notice or refusal is not a fact of the chat; the
+        # same rule as the occurrence door (core.vool_memory, Database run 14a, 2026-11-12).
+        return None
     payload = receipt_payload_for_erasure(
         row, source_body=str(source[0]) if source is not None else None, json_fields=json_fields,
     )

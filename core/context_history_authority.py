@@ -153,6 +153,28 @@ def assistant_text_is_runtime_failure_notice(text: Any) -> bool:
 
     return bool(_RUNTIME_FAILURE_NOTICE_RE.search(str(text or "").strip()))
 
+
+def assistant_text_is_no_answer(text: Any) -> bool:
+    """Whether an assistant row says that no answer exists: a runtime NO-ANSWER notice or a refusal.
+
+    The two families the prompt-history gate already keeps out of the next prompt: the notices
+    above (the failed-exchange marker) and every refusal `core.grounding_publication` lists in
+    `is_typed_refusal_text` (the closed marker, `_assistant_text_unavailable`). Memory keeps them out
+    of recall for the same reason. Stored as "assistant said", a refusal ("I can't publish this
+    answer: ... `qwen3:4b` is not certified to author on this runtime ...") was served beside a later
+    question as a fact of the chat, and the model answered that it had no context (Database run
+    14a, 2026-11-12). The person's own words from that turn are kept. Self-recognition only: the
+    runtime's own leads, never a model's wording, so an answer that explains a failure stays.
+    """
+    if assistant_text_is_runtime_failure_notice(text):
+        return True
+    try:
+        from core.grounding_publication import is_typed_refusal_text
+
+        return bool(is_typed_refusal_text(str(text or "")))
+    except Exception:
+        return False
+
 _SAME_CHAT_HISTORY_RECALL_RE = re.compile(
     r"^\s*(?:can|could|would\s+you\s+)?(?:"
     r"what|which|list|show|repeat|recall|remind|summarize|tell\s+me"
@@ -678,6 +700,7 @@ __all__ = [
     "EXPANDED_HISTORY_MESSAGES",
     "HISTORY_MAX_CHARS",
     "ContextHistorySelection",
+    "assistant_text_is_no_answer",
     "closed_exchange_marker",
     "enforce_history_budget",
     "history_authority_for_source",

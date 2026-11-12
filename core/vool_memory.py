@@ -1832,6 +1832,13 @@ class VoolMemory:
         if not self._row_is_current(row):
             return None
         occurrence = _row_to_occurrence(row)
+        if not diagnostic and _assistant_row_is_no_answer(occurrence.role, occurrence.body):
+            # The runtime's own word that no answer existed (a NO-ANSWER notice or a refusal) is not
+            # evidence of anything. The write no longer keeps one; a profile written before that
+            # still holds them, and no lane serves them (Database run 14a, 2026-11-12: refusals
+            # served as "assistant said" made the model answer that it had no context). The row
+            # stays on disk for the forget law and for diagnostic reads.
+            return None
         if occurrence.body_integrity == "mismatch":
             with self._lock:
                 self.integrity_refusals_total += 1
@@ -3135,6 +3142,18 @@ def _redacted_node(node: MemoryNode) -> MemoryNode:
     if not node.content or not contains_secret(node.content):
         return node
     return replace(node, content=redact_secrets(node.content))
+
+
+def _assistant_row_is_no_answer(role: Any, body: Any) -> bool:
+    """An assistant row whose text is the runtime saying no answer exists (never served as evidence)."""
+    if str(role or "").strip().lower() != "assistant" or not str(body or "").strip():
+        return False
+    try:
+        from core.context_history_authority import assistant_text_is_no_answer
+
+        return assistant_text_is_no_answer(body)
+    except Exception:
+        return False
 
 
 def _redacted_occurrence(occurrence: SourceOccurrence) -> SourceOccurrence:

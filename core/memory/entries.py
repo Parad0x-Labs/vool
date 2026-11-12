@@ -1810,9 +1810,27 @@ def search_session_summaries(
     # ("Last assistant outcome: I'm VOOL") -- a self-reinforcing loop that survives any system-prompt
     # override. Neutralise on read; already-stored rows need no migration.
     return [
-        {**row, "summary": _canonical_agent_name_in_memory(str(row.get("summary") or ""))}
+        {**row, "summary": _canonical_agent_name_in_memory(_without_no_answer_outcome(str(row.get("summary") or "")))}
         for _, row in ranked[: max(1, int(limit))]
     ]
+
+
+_LAST_OUTCOME_LEAD = "Last assistant outcome: "
+
+
+def _without_no_answer_outcome(summary: str) -> str:
+    """A summary written before the write stopped quoting refusals, served without that clause.
+
+    "Last assistant outcome: I can't publish this answer: ..." is the runtime's own word that no
+    answer existed, not an outcome of the chat (Database run 14a, 2026-11-12). The clause is
+    always the summary's last; the row on disk is not rewritten.
+    """
+    head, lead, tail = summary.rpartition(_LAST_OUTCOME_LEAD)
+    if not lead:
+        return summary
+    from core.context_history_authority import assistant_text_is_no_answer
+
+    return head.rstrip() if assistant_text_is_no_answer(tail) else summary
 
 
 @_memory_reader

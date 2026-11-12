@@ -7353,13 +7353,15 @@ def store_turn(
             if not body:
                 continue
             if role == "assistant":
-                from core.context_history_authority import assistant_text_is_runtime_failure_notice
+                from core.context_history_authority import assistant_text_is_no_answer
 
-                # A runtime NO-ANSWER notice ("... hit its output limit ... Retry the turn") is not
-                # something the assistant said about anything: recalled as evidence it would hold
-                # the failed request open beside a later question, the 2026-09-15 incident the
-                # prompt-history gate already closes. The user's request is still retained.
-                if assistant_text_is_runtime_failure_notice(raw_text):
+                # A runtime NO-ANSWER notice ("... hit its output limit ... Retry the turn") or a
+                # published refusal ("I can't publish this answer: ... is not certified ...") is not
+                # something the assistant said about anything: recalled as evidence it holds the
+                # failed request open beside a later question (the 2026-09-15 incident the
+                # prompt-history gate already closes) or tells the model the chat has nothing to go
+                # on (Database run 14a, 2026-11-12). The user's request is still retained.
+                if assistant_text_is_no_answer(raw_text):
                     continue
             if body != raw_text.strip():
                 result["secret_redacted"] = True
