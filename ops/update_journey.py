@@ -10,6 +10,11 @@ HTTP surface (the same calls the header chip makes):
   4. the restarted app must report the new build commit on /healthz, the status must end in ``done``,
      and data written before the update must still be there.
 
+Before Update is pressed, the person's state is put in through the old version's own doors (chats brought
+in with Settings' chat import, a pinned chat, a project, preferences and facts; ``ops/update_preservation.py``).
+After the update, or after a broken update restored itself, the running version must still show all of it,
+and no profile file, key or database row may be gone.
+
 Feeds:
   ``--feed live``  the shipped feed and pinned publisher key, exactly as users get them;
   ``--feed DIR``   a test feed: DIR holds a manifest signed with a throwaway key plus the payload ZIPs. It is
@@ -41,6 +46,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+import update_preservation  # ops/, the script's own folder
 
 PORT = 11435
 ORIGIN = f"http://127.0.0.1:{PORT}"
@@ -153,6 +160,9 @@ class LinuxPackage:
     def data_dir(self) -> Path:
         return self.home / ".vool_runtime/data"
 
+    def person_home(self) -> Path:
+        return self.home
+
     def start(self) -> None:
         subprocess.Popen([str(self.home / ".local/bin/vool"), "--headless"], cwd=self.home, env=self.env,
                          stdout=self.log, stderr=self.log, start_new_session=True)
@@ -188,6 +198,9 @@ class MacApp:
 
     def data_dir(self) -> Path:
         return Path.home() / "Library/Application Support/VOOL/runtime/data"
+
+    def person_home(self) -> Path:
+        return Path.home()
 
     def start(self) -> None:
         subprocess.Popen([str(self.app / "Contents/MacOS/VOOL")], env=self.env, stdout=self.log, stderr=self.log,
@@ -237,6 +250,14 @@ def journey(args: argparse.Namespace) -> None:
              {k: runtime.get(k) for k in ("app_version", "commit_full")})
     marker = target.data_dir() / "update-journey-marker.txt"
     marker.write_text("written before the update\n")
+    try:
+        seen_before = update_preservation.seed(ORIGIN, target.person_home())
+    except update_preservation.PreservationFailure as exc:
+        log.step("the person's chats, pin, project, preferences and facts saved in the old version", False, str(exc))
+    log.step("the person's chats, pin, project, preferences and facts saved in the old version", True,
+             {"chats": {title: len(messages) for title, messages in seen_before["chats"].items()},
+              "pinned": seen_before["pinned"], "projects": seen_before["projects"],
+              "prefs": seen_before["prefs"], "facts": seen_before["facts"]})
 
     status = call("/api/update/status")
     log.step("updater configured", status.get("configured") is True,
@@ -264,6 +285,7 @@ def journey(args: argparse.Namespace) -> None:
              offered.get("target_version") == args.new_version,
              {k: offered.get(k) for k in ("phase", "target_version", "message")})
 
+    profile_before = update_preservation.inventory(target.data_dir().parent)
     started = call("/api/update/install", {}, timeout=60)
     log.step("Update pressed", started.get("ok") is not False and started.get("accepted", True) is not False, started)
 
@@ -297,6 +319,17 @@ def journey(args: argparse.Namespace) -> None:
     log.step("serving the expected build", target.current_commit() == expect,
              {"expected": expect, "current": target.current_commit()})
     log.step("data from before the update kept", marker.read_text() == "written before the update\n")
+    try:
+        seen_after = update_preservation.person_view(ORIGIN)
+    except update_preservation.PreservationFailure as exc:
+        log.step("the person still sees their chats, pin, project, preferences and facts", False, str(exc))
+    lost = update_preservation.view_losses(seen_before, seen_after)
+    log.step("the person still sees their chats, pin, project, preferences and facts", not lost,
+             lost or {"chats": len(seen_after["chats"]), "pinned": seen_after["pinned"]})
+    gone, changed = update_preservation.inventory_losses(profile_before, update_preservation.inventory(
+        target.data_dir().parent))
+    log.step("no profile file, key or database row lost", not gone,
+             {"lost": gone, "changed_in_place": changed, "files_before": len(profile_before)})
 
     if args.platform == "linux":
         relaunch = subprocess.run([str(target.home / ".local/bin/vool")], env=target.env, capture_output=True,
