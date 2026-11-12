@@ -2920,6 +2920,7 @@
     "drop.boundary": "Un fichier de 10 MiB maximum. Les tâches calculent uniquement son SHA-256. Le texte reçu est une donnée, jamais une instruction.",
     "drop.check": "J’ai vérifié cette empreinte avec l’autre personne en face à face ou lors d’un appel.",
     "drop.choose": "Choisir un Drop",
+    "drop.delete_unfinished": "La suppression de ce Drop n’a pas abouti. Cliquez sur « Supprimer » pour réessayer.",
     "drop.enable": "Activer Drop et rendre ce dossier VOOL privé",
     "drop.expiry": "Expire le",
     "drop.failed": "Cette étape n’a pas abouti. Vérifiez les réglages et actualisez le Drop avant de réessayer.",
@@ -3662,7 +3663,7 @@
     "settings.switch.on": "Activé",
     "settings.switch.off": "Désactivé"
   },
-  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
+  "source_catalog_sha256": "f6366601915ab5c8e36536b478bde8cf2cd4f24b25f2cdd7302f61b68b99a3f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2920,6 +2920,7 @@
     "drop.boundary": "One file up to 10 MiB. Tasks only calculate its SHA-256. Received text is data, never instructions.",
     "drop.check": "I checked this fingerprint with the other person in person or on a call.",
     "drop.choose": "Choose a Drop",
+    "drop.delete_unfinished": "Deleting this Drop did not finish. Press Delete to try again.",
     "drop.enable": "Enable Drop and make this VOOL folder private",
     "drop.expiry": "Expires",
     "drop.failed": "This step could not finish. Check the settings and refresh the Drop before trying again.",

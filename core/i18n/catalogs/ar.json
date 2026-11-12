@@ -2920,6 +2920,7 @@
     "drop.boundary": "ملف واحد بحجم لا يتجاوز 10 MiB. تقتصر المهام على حساب SHA-256 له. النص المستلم بيانات وليس تعليمات.",
     "drop.check": "تحققت من هذه البصمة مع الشخص الآخر وجهًا لوجه أو خلال مكالمة.",
     "drop.choose": "اختيار Drop",
+    "drop.delete_unfinished": "لم يكتمل حذف Drop هذا. اضغط «حذف» للمحاولة مجددًا.",
     "drop.enable": "تفعيل Drop وجعل مجلد VOOL هذا خاصًا",
     "drop.expiry": "تنتهي الصلاحية",
     "drop.failed": "تعذر إكمال هذه الخطوة. تحقق من الإعدادات وحدّث Drop قبل المحاولة مجددًا.",
@@ -3662,7 +3663,7 @@
     "settings.switch.on": "مفعل",
     "settings.switch.off": "معطل"
   },
-  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
+  "source_catalog_sha256": "f6366601915ab5c8e36536b478bde8cf2cd4f24b25f2cdd7302f61b68b99a3f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

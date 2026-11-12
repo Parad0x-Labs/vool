@@ -477,6 +477,35 @@ def test_browser_decisions_reject_late_content(pages, homes, decision):
     expect(b.locator(".vd-file-info")).to_have_text("")
 
 
+def test_browser_unfinished_delete_is_shown_and_can_be_tried_again(pages, homes):
+    """A deletion that could not finish stays visible with Delete, which tries it again."""
+    from playwright.sync_api import expect
+
+    a, b, _ = pages
+    sid = browser_pair(pages)
+    browser_send(a, b)
+    stuck = homes[2] / "drop" / sid / "unexpected-directory"
+    stuck.mkdir()  # a real cleanup failure, no mocked exception
+
+    def deleted(response):
+        return response.url.endswith("/api/drop") and response.request.post_data_json.get("action") == "delete"
+
+    with b.expect_response(deleted) as first:
+        b.get_by_role("button", name="Delete", exact=True).click()
+    assert first.value.json() == {"ok": False, "error": "DROP_FORGET_INCOMPLETE"}
+    expect(b.locator(".vd-unfinished")).to_have_text("Deleting this Drop did not finish. Press Delete to try again.")
+    assert b.locator(".vd-select").input_value() == sid
+    expect(b.locator(".vd-note")).to_have_text("")
+    expect(b.get_by_role("button", name="Send", exact=True)).to_be_hidden()
+    stuck.rmdir()
+    with b.expect_response(deleted) as second:
+        b.get_by_role("button", name="Delete", exact=True).click()
+    assert second.value.json() == {"ok": True, "state": "deleted"}
+    expect(b.locator(".vd-select option")).to_have_count(0)
+    expect(b.locator(".vd-unfinished")).to_have_text("")
+    assert not (homes[2] / "drop" / sid).exists()
+
+
 def test_browser_approval_keeps_the_original_drop_after_selection_changes(pages):
     from playwright.sync_api import expect
 

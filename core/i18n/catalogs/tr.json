@@ -2920,6 +2920,7 @@
     "drop.boundary": "En fazla 10 MiB boyutunda tek dosya. Görevler yalnızca dosyanın SHA-256 değerini hesaplar. Alınan metin veridir, talimat değildir.",
     "drop.check": "Bu parmak izini diğer kişiyle yüz yüze veya bir görüşmede doğruladım.",
     "drop.choose": "Bir Drop seç",
+    "drop.delete_unfinished": "Bu Drop'un silinmesi tamamlanmadı. Yeniden denemek için “Sil” düğmesine basın.",
     "drop.enable": "Drop'u aç ve bu VOOL klasörünü özel yap",
     "drop.expiry": "Son geçerlilik",
     "drop.failed": "Bu adım tamamlanamadı. Yeniden denemeden önce ayarları kontrol edin ve Drop'u yenileyin.",
@@ -3662,7 +3663,7 @@
     "settings.switch.on": "Açık",
     "settings.switch.off": "Kapalı"
   },
-  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
+  "source_catalog_sha256": "f6366601915ab5c8e36536b478bde8cf2cd4f24b25f2cdd7302f61b68b99a3f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

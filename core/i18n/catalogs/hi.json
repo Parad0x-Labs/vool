@@ -2920,6 +2920,7 @@
     "drop.boundary": "अधिकतम 10 MiB की एक फ़ाइल। कार्य केवल उसका SHA-256 निकालते हैं। मिला हुआ पाठ डेटा है, निर्देश नहीं।",
     "drop.check": "मैंने इस फ़िंगरप्रिंट की पुष्टि दूसरे व्यक्ति से आमने-सामने या कॉल पर की है।",
     "drop.choose": "एक Drop चुनें",
+    "drop.delete_unfinished": "इस Drop को मिटाना पूरा नहीं हुआ। फिर कोशिश करने के लिए “मिटाएँ” दबाएँ।",
     "drop.enable": "Drop चालू करें और इस VOOL फ़ोल्डर को निजी बनाएँ",
     "drop.expiry": "समाप्ति",
     "drop.failed": "यह चरण पूरा नहीं हो सका। फिर कोशिश करने से पहले सेटिंग जाँचें और Drop ताज़ा करें।",
@@ -3662,7 +3663,7 @@
     "settings.switch.on": "चालू",
     "settings.switch.off": "बंद"
   },
-  "source_catalog_sha256": "e977b639915d2cee565aeede4efc8c44a730a829a134893d33f6fe2be8927d35",
+  "source_catalog_sha256": "f6366601915ab5c8e36536b478bde8cf2cd4f24b25f2cdd7302f61b68b99a3f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
