@@ -120,6 +120,14 @@ SCHEMA = (
         origin TEXT NOT NULL DEFAULT '', pay_to TEXT NOT NULL DEFAULT '', amount_minor INTEGER NOT NULL DEFAULT 0, decision TEXT NOT NULL,
         reason TEXT NOT NULL, created_at REAL NOT NULL)""",
     "CREATE INDEX IF NOT EXISTS idx_wallet_agent_decisions_agent ON wallet_agent_decisions(agent_id, created_at)",
+    # the person's own wallets by role (core.wallet.wallet_roles): a wallet's kind, and the Main wallet of each network
+    """CREATE TABLE IF NOT EXISTS wallet_roles (
+        wallet_id TEXT PRIMARY KEY, kind TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS wallet_main (
+        network TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+    # which wallets have a password-sealed backup in the computer's secure store (core.wallet.keychain_backup); no key here
+    """CREATE TABLE IF NOT EXISTS wallet_keychain_backups (
+        wallet_id TEXT PRIMARY KEY, network TEXT NOT NULL, address TEXT NOT NULL, saved_at TEXT NOT NULL)""",
 )
 
 TABLES: tuple[str, ...] = (
@@ -127,12 +135,15 @@ TABLES: tuple[str, ...] = (
     "wallet_card_tokens", "wallet_receipts", "wallet_signing_requests", "wallet_x402_bindings", "wallet_controls",
     "wallet_facilitators", "wallet_unlock_attempts", "wallet_quotes", "wallet_transfers", "wallet_usepod_operations",
     "wallet_agent_allowances", "wallet_agent_allowance_services", "wallet_agent_spends", "wallet_agent_decisions", "wallet_agent_helper_terms",
+    "wallet_roles", "wallet_main", "wallet_keychain_backups",
 )
 
 #: Columns added after a table first shipped. Additive, idempotent, checked on every connection.
 _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_spend_ledger", "state", "TEXT NOT NULL DEFAULT 'settled'"),
     ("wallet_signing_requests", "family", "TEXT NOT NULL DEFAULT 'svm'"),
+    # at most this many payments of an allowance inside its window (core.wallet.allowances; 0 = no such count)
+    ("wallet_agent_allowances", "window_payments", "INTEGER NOT NULL DEFAULT 0"),
     ("wallet_signing_requests", "typed_data_b64", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_spend_ledger", "fee_minor", "INTEGER NOT NULL DEFAULT 0"),
     ("wallet_profiles", "device_sealed_blob", "TEXT NOT NULL DEFAULT ''"),

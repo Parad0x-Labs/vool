@@ -38,6 +38,8 @@ TRUSTED_DOORS: frozenset[str] = frozenset({
     "/api/wallet/dna-fees/policy",
     "/api/wallet/recovery/backup", "/api/wallet/recovery/device",
     "/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state",
+    "/api/wallet/wallets/name", "/api/wallet/wallets/main", "/api/wallet/wallets/remove", "/api/wallet/addons/allowance",
+    "/api/wallet/keychain/save", "/api/wallet/keychain/recover", "/api/wallet/keychain/restore", "/api/wallet/keychain/forget",
 })
 
 _LOOPBACK_NAMES = frozenset({"127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"})

@@ -113,13 +113,23 @@ _SELECT = "SELECT wallet_id, mode, network, public_key, label, created_at, appro
 
 
 def _insert(profile: WalletProfile, *, sealed_blob: str = "", pin_hash: str = "", pin_salt: str = "", device_sealed_blob: str = "", seal_kind: str = "") -> WalletProfile:
+    from core.wallet import wallet_roles
+
     with connection() as conn:
-        conn.execute("UPDATE wallet_profiles SET is_default = 0")
+        # once the person has named a Main wallet anywhere, a wallet added later never takes the default from it
+        roles_in_use = conn.execute("SELECT 1 FROM wallet_main LIMIT 1").fetchone() is not None
+        if roles_in_use:
+            wallet_roles.freeze(conn)
+        else:
+            conn.execute("UPDATE wallet_profiles SET is_default = 0")
         conn.execute(
             "INSERT INTO wallet_profiles (wallet_id, mode, network, public_key, label, created_at, sealed_blob, pin_hash, pin_salt, device_sealed_blob, seal_kind, approval_method, is_default)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-            (profile.wallet_id, profile.mode, profile.network, profile.public_key, profile.label, profile.created_at, sealed_blob, pin_hash, pin_salt, device_sealed_blob, seal_kind, profile.approval_method or APPROVAL_PIN),
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (profile.wallet_id, profile.mode, profile.network, profile.public_key, profile.label, profile.created_at, sealed_blob, pin_hash, pin_salt, device_sealed_blob, seal_kind, profile.approval_method or APPROVAL_PIN,
+             0 if roles_in_use else 1),
         )
+        if roles_in_use:
+            wallet_roles.freeze(conn)
     return profile
 
 
@@ -710,9 +720,12 @@ def require_wallet(wallet_id: str, *, source_context: dict[str, Any] | None = No
 def default_wallet() -> WalletProfile | None:
     with connection() as conn:
         # an agent's own wallet is never the owner's default: nothing the owner starts without naming a wallet lands on it
-        row = conn.execute(_SELECT + " WHERE is_default = 1 AND COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
+        # and never a burner (core.wallet.wallet_roles): a one-time wallet pays only when the person names it
+        mine = (" AND COALESCE(agent_id, '') = '' AND COALESCE(setup_state, '') <> 'removed'"
+                " AND wallet_id NOT IN (SELECT wallet_id FROM wallet_roles WHERE kind = 'burner')")
+        row = conn.execute(_SELECT + " WHERE is_default = 1" + mine + " ORDER BY created_at DESC LIMIT 1").fetchone()
         if row is None:
-            row = conn.execute(_SELECT + " WHERE COALESCE(agent_id, '') = '' ORDER BY created_at DESC LIMIT 1").fetchone()
+            row = conn.execute(_SELECT + " WHERE 1 = 1" + mine + " ORDER BY created_at DESC LIMIT 1").fetchone()
     return _row_to_profile(row) if row else None
 
 
@@ -720,19 +733,26 @@ def list_wallets() -> list[dict[str, Any]]:
     """Every registered account with its setup state and seal policy: a Crypto Pilot wallet in setup is listed, never hidden."""
     with connection() as conn:
         rows = conn.execute(
-            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy, agent_id FROM wallet_profiles ORDER BY created_at ASC"
+            # a wallet the person deleted (core.wallet.wallet_roles.remove_wallet) is listed nowhere
+            "SELECT wallet_id, mode, network, public_key, label, created_at, approval_method, setup_state, seal_policy, agent_id FROM wallet_profiles "
+            "WHERE COALESCE(setup_state, '') <> 'removed' ORDER BY created_at ASC"
         ).fetchall()
+    from core.wallet import wallet_roles
+
     owner_method = shown_approval_method("")
     listed = []
-    for row in rows:
-        entry = _row_to_profile(row[:7]).to_dict()
-        entry["setup_state"] = str(row[7] or "")
-        entry["seal_policy"] = str(row[8] or "")
-        entry["agent_id"] = str(row[9] or "")
-        if entry["agent_id"]:
-            # the credential the owner is asked for on an agent's wallet is their own wallet's, never the machine's
-            entry["approval_method"] = owner_method
-        listed.append(entry)
+    with connection() as conn:
+        for row in rows:
+            entry = _row_to_profile(row[:7]).to_dict()
+            entry["setup_state"] = str(row[7] or "")
+            entry["seal_policy"] = str(row[8] or "")
+            entry["agent_id"] = str(row[9] or "")
+            if entry["agent_id"]:
+                # the credential the owner is asked for on an agent's wallet is their own wallet's, never the machine's
+                entry["approval_method"] = owner_method
+            # Main / everyday / burner (core.wallet.wallet_roles); an agent's wallet carries none
+            entry.update(wallet_roles.describe(entry, conn=conn))
+            listed.append(entry)
     return listed
 
 
