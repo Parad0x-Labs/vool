@@ -4,12 +4,13 @@ The provider is controlled: this proves routing, disk effects and reporting, not
 live model competence. Every daemon and storage seed uses its own disposable home.
 """
 import json
-import pytest
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from tests._blackbox_served_rig import SEED_MANIFEST, ServedDaemon, run_in_home, pending_session_approvals
-from tests.test_task_board_reaches_the_model_served import _TaskBoardProvider, TASK_BOARD_HTML, _answer
+import pytest
+
+from tests._blackbox_served_rig import SEED_MANIFEST, ServedDaemon, pending_session_approvals, run_in_home
+from tests.test_task_board_reaches_the_model_served import TASK_BOARD_HTML, _answer, _TaskBoardProvider
 from tests.test_workspace_location_is_not_search import DEMO_REQUEST
 
 ROOT = Path(__file__).resolve().parents[1]

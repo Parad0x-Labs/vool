@@ -17,8 +17,8 @@ import urllib.error
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import update_preservation as keep  # noqa: E402
-from linux_bundle_smoke import fetch  # noqa: E402
+import update_preservation as keep
+from linux_bundle_smoke import fetch
 
 SYSTEM_PACKAGE = Path("/opt/vool/package")
 

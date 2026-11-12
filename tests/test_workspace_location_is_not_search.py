@@ -1,7 +1,8 @@
 """A workspace location selects where to act; it does not itself prompt a search."""
 import pytest
-from core.execution.planner import _code_search_query, plan_tool_workflow
+
 from core.agent_runtime.builder.named_file_build import looks_like_named_file_build_request
+from core.execution.planner import _code_search_query, plan_tool_workflow
 
 DEMO_REQUEST = '''In this project, create a single-file HTML task board called index.html.
 

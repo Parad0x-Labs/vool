@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 import shutil
@@ -155,7 +156,7 @@ def test_deb_versions_order_like_the_updater():
     versions = ["0.7.9", "0.8.0-alpha", "0.8.0-beta", "0.8.0-beta.2", "0.8.0-beta.10", "0.8.0-rc.1", "0.8.0",
                 "0.8.1-beta", "0.10.0"]
     assert sorted(versions, key=parse_semver) == versions
-    for older, newer in zip(versions, versions[1:]):
+    for older, newer in itertools.pairwise(versions):
         compared = subprocess.run(["dpkg", "--compare-versions", deb.deb_version(older), "lt", deb.deb_version(newer)])
         assert compared.returncode == 0, (older, newer)
     assert deb.deb_version("0.8.0-beta") == "0.8.0~beta"
