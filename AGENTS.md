@@ -151,11 +151,12 @@ itself is wrong. CI runs `audit` on every push and `gate` on every pull request
 (`.github/workflows/impact.yml`).
 
 To govern a behavior, add an invariant to `ops/impact/invariants.yaml` (statement in product
-terms, scenario, proofs, surfaces, and for a blocker the sabotage that would break it), list its
-files under `governed_scope`, then run `record` and `audit`. A surface none of its own proofs is
-seen executing is reported as a false claim. A `record` run that captured a failing proof keeps
-that failure in `ops/impact/proof_map.json`, including the registry check's own: fix the cause,
-move the map aside, and run `record` twice.
+terms, scenario, proofs, surfaces, and for a blocker the sabotage that would break it) and list
+its files under `governed_scope`. The registry check audits the stored map, which does not know
+the new proof yet, so move `ops/impact/proof_map.json` aside, run `record` twice, then `audit`.
+A surface none of its own proofs is seen executing is reported as a false claim. A `record` run
+that captured a failing proof keeps that failure in the map, including the registry check's own:
+fix the cause and record the same way.
 
 ## Evidence
 

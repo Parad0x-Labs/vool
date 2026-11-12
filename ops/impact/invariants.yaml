@@ -68,6 +68,7 @@ governed_scope:
   - tests/test_ordinary_chat_response_guard.py
   - tests/test_response_constraints.py
   - tests/test_context_history_authority.py
+  - tests/test_a_lane_must_not_answer_the_conversation_from_a_store.py
   - tests/gauntlet/test_wallet_safety_gaps.py
   - tests/gauntlet/test_prompt_injection_containment.py
   - tests/test_change_impact_governor.py
@@ -171,9 +172,12 @@ invariants:
     severity: blocker
     kill: >
       Make canonical_runtime_transcript assemble the transcript without the chat id it was
-      asked for, so a follow-up no longer resolves against this chat's own history.
+      asked for, so a follow-up no longer resolves against this chat's own history; or make
+      enforce_history_budget drop the newest optional turn instead of the oldest, so recent
+      turns are cut while stale ones are kept.
     proofs:
       - tests/test_context_history_authority.py
+      - tests/test_a_lane_must_not_answer_the_conversation_from_a_store.py
     surfaces:
       - core/context_history_authority.py
       - core/context_namespace.py
