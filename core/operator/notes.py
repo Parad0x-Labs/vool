@@ -786,7 +786,8 @@ def handle_find_notes(
         else:
             lines = [f"Notes in this workspace ({total})" + (f", newest {len(shown)} first:" if total > len(shown) else ", newest first:")]
         for row in shown:
-            lines.append(f"- {row['title']} [{row['note_path']}]" + (f" (event {row['linked_event_uid'][:8]})" if row["linked_event_uid"] else ""))
+            # Titles only: a path or an event id is the runtime's, kept in the details (train fix).
+            lines.append(f"- {row['title']}" + (" (linked to an event)" if row["linked_event_uid"] else ""))
         if total > len(shown):
             lines.append(f"…and {total - len(shown)} older.")
         return OperatorActionResult(ok=True, status="reported", response_text="\n".join(lines), details={"count": total, "notes": shown})
