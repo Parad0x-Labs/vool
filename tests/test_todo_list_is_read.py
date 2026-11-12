@@ -251,11 +251,18 @@ class TestHowTheFileIsResolved:
 class TestNoMatch:
     def test_no_list_anywhere_names_the_folders_searched(self, home: Path) -> None:
         reply = _text(_ask(_COMPUTER_AGENT, "what's on my to do list?"))
-        assert reply == "I couldn't find a to-do list file in Desktop or Documents. Tell me where it is."
+        # 0.8: on the owner's own computer the miss also says VOOL can keep the list itself.
+        assert reply == (
+            "I couldn't find a to-do list file in Desktop or Documents. Tell me where it is."
+            " Or say \"add milk to my to-do list\" and I'll keep one for you in VOOL."
+        )
 
     def test_no_list_in_the_place_the_ask_named(self, home: Path) -> None:
         reply = _text(_ask(_COMPUTER_AGENT, "what's on my todo list on my desktop"))
-        assert reply == "I couldn't find a to-do list file on your Desktop. Tell me where it is."
+        assert reply == (
+            "I couldn't find a to-do list file on your Desktop. Tell me where it is."
+            " Or say \"add milk to my to-do list\" and I'll keep one for you in VOOL."
+        )
 
 
 # --------------------------------------------------------------------------------------

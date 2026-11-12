@@ -2884,6 +2884,19 @@ class VoolAgent(
         if x_hint is not None:
             return _guard_final_result(x_hint)
 
+        # The to-do list VOOL keeps (core/todo_list_turn.py): add, tick off, take off and show, from
+        # the store, before the clean loop or any model can answer a list change with words alone.
+        # A read that names a to-do FILE, or a plain read before the person ever kept a VOOL list,
+        # returns None here and keeps the file lanes below.
+        if not browser_turn:
+            from core.todo_list_turn import maybe_answer as _todo_list_answer
+
+            todo_result = _todo_list_answer(
+                self, text=raw_turn_text, session_id=session_id, source_context=runtime_source_context,
+            )
+            if todo_result is not None:
+                return _guard_final_result(todo_result)
+
         # Opt-in clean local path (VOOL_CLEAN_LOCAL_LOOP, default off): a local-model turn about the
         # owner's own files or computer runs one plain tool loop instead of the lanes below. None
         # (flag off, not admitted, RED, owned elsewhere) falls through unchanged. core/clean_loop.

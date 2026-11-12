@@ -224,17 +224,22 @@ def _owned_by_another_lane(text: str) -> bool:
         return True
     try:
         # Files on this computer ("which pdfs are in my documents", "find my tax folder") are the
-        # machine lanes' (real-app check 2026-11-12: answered "I don't have that saved").
+        # machine lanes' (real-app check 2026-11-12: answered "I don't have that saved"). So is a
+        # to-do list ask: "what's on my to do list?" with Desktop/todo.txt there was answered "I
+        # don't have that saved" while "read me my to do list" read the file (0.8 to-do list work,
+        # 2026-11-12); the file lane, or the list VOOL keeps (core/todo_list_turn.py), answers it.
         from core.execution.constants import (
             machine_file_search_intent,
             machine_folder_search_intent,
             machine_kind_listing_intent,
+            machine_todo_list_read_intent,
         )
 
         if (
             machine_kind_listing_intent(text)
             or machine_file_search_intent(text)
             or machine_folder_search_intent(text)
+            or machine_todo_list_read_intent(text)
         ):
             return True
     except Exception:

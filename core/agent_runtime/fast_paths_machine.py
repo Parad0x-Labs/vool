@@ -2603,6 +2603,11 @@ def read_the_named_todo_list(
             roots = chosen
             named = ", ".join(_todo_label(folder) for folder in chosen) or "the folders you allowed"
             miss_text = f"I couldn't find a to-do list file in {named}. Tell me where it is."
+    else:
+        # On the owner's own computer, no file is also the moment to say VOOL can keep the list
+        # itself (core/todo_list_turn.py); a plain list ask reaches this lane only while that list
+        # has never been used.
+        miss_text += " Or say \"add milk to my to-do list\" and I'll keep one for you in VOOL."
     matches = _todo_list_files(roots)
     if not matches:
         return agent._fast_path_result(
