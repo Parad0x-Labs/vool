@@ -4,8 +4,6 @@ The Skills & Plugins page has four tabs: **Browse**, **Skill Codex**, **My add-o
 
 ## Skills made by VOOL: the local check
 
-Planned for VOOL 0.7.8, not released yet. In VOOL 0.7.7 every Browse skill uses the Eyebrow steps below.
-
 The 51 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no Eyebrow key, no scan allowance and no network request.
 
 1. VOOL reads the skill and licence from the app's own copy and refuses them unless their SHA-256 matches the pin (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was not added.*).
@@ -34,7 +32,7 @@ These checks do not isolate malicious code already executing as the operating-sy
 
 ## API and failure handling
 
-`GET /api/addons` returns catalogue and local status without a connection test or scan. `POST /api/addons` supports `save_key`, `remove_key`, `test_key`, `scan`, `local_install` (skills made by VOOL only; planned for 0.7.8), `install` and `reject`. Mutations require loopback, JSON and same-origin browser requests; only operation-specific fields are accepted. Caller-provided source URLs and paths are refused.
+`GET /api/addons` returns catalogue and local status without a connection test or scan. `POST /api/addons` supports `save_key`, `remove_key`, `test_key`, `scan`, `local_install` (skills made by VOOL only), `install` and `reject`. Mutations require loopback, JSON and same-origin browser requests; only operation-specific fields are accepted. Caller-provided source URLs and paths are refused.
 
 The client uses Eyebrow v1's inline skill source request at `/v1/scan`, with bearer authentication, a fixed HTTPS origin, no redirects, bounded response size and no automatic retries. `/v1/version` is used for the explicit connection test. API reference: https://eyebrow.cc/api/reference .
 

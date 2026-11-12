@@ -17,10 +17,9 @@ refusal a skill can run into are listed in [Skill tools and limits](skill-tools-
 
 From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
 
-The `new`, `try`, `zip` and `call` commands are in the source checkout and planned for VOOL 0.7.8,
-not released yet (VOOL 0.7.7 shipped without them). A `vool-community` command from an installed release has only `init`, `lint`,
-`pack`, `check` and `submission-link`, so run every command on this page from the checkout as
-shown. `python -m tools.community_skills --help` lists the commands the checkout has.
+The `new`, `try`, `zip` and `call` commands came after VOOL 0.7.7: a `vool-community` command from
+0.7.7 or earlier has only `init`, `lint`, `pack`, `check` and `submission-link`. Run every command
+on this page from the checkout as shown. `python -m tools.community_skills --help` lists the commands the checkout has.
 
 ```sh
 PYTHONPATH="$VOOL_SRC" python -m tools.community_skills new meeting-actions --name meeting-actions --author "Your Name"

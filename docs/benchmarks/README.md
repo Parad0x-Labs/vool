@@ -25,7 +25,7 @@ every round and the weak spots: [v0.7-memory-locomo.md](v0.7-memory-locomo.md).
 | Benchmark | What it measures | Release | Page |
 | --- | --- | --- | --- |
 | Memory (LoCoMo) | How well VOOL remembers a long conversation, against Hermes Agent, OpenClaw and the whole chat pasted into the prompt | Released in 0.7 | [v0.7-memory-locomo.md](v0.7-memory-locomo.md) |
-| Prompt caching and cost | What caching saves on Claude, and VOOL's cost and answer quality next to Claude Code on the same messages | Planned for 0.7.7, not released yet | [v0.7.3-prompt-caching.md](v0.7.3-prompt-caching.md) |
+| Prompt caching and cost | What caching saves on Claude, and VOOL's cost and answer quality next to Claude Code on the same messages | Off by default; on by default is planned, not released yet | [v0.7.3-prompt-caching.md](v0.7.3-prompt-caching.md) |
 | Computer tasks | Everyday "do this on my computer" requests against OpenClaw and Hermes Agent, blind-graded, with every task and answer published | Planned for 0.8, not released yet | [v0.8-computer-tasks.md](v0.8-computer-tasks.md) |
 
 Page names start with the VOOL release they test. "Released" means that build is out; "planned" means
