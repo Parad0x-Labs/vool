@@ -146,7 +146,13 @@ class Tracked:
         waits = bool(blocking) and timeout == -1
         if waits:
             note_waiting(self._name)
-        ok = self._inner.acquire(blocking, timeout)
+            # A plain wait goes through the lock's own no-argument acquire: v0.8's A8 traversal gate
+            # (finalization._A8TraversalGate, a writer-reentrant read/write gate) takes no arguments,
+            # blocks until it is held and returns None.
+            ok = self._inner.acquire()
+            ok = True if ok is None else ok
+        else:
+            ok = self._inner.acquire(blocking, timeout)
         if ok:
             note_acquired(self._name, blocking=waits)
         return ok
