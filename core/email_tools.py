@@ -487,10 +487,20 @@ def send_email(
         # configured for. The adapter proves it under the dispatching credential.
         bound_identity = str(expected_identity or "") or configured_identity(account, creds)
         try:
-            return adapter.send(raw_mime=message.as_bytes(), thread_id="", reply_to_rfc=reply_to_rfc,
-                                expected_identity=bound_identity)
+            result = adapter.send(raw_mime=message.as_bytes(), thread_id="", reply_to_rfc=reply_to_rfc,
+                                  expected_identity=bound_identity)
         except Exception as exc:
             return _provider_error_result(exc)
+        # The receipt id is read back off the wire, where a runtime can keep a fold's
+        # whitespace ('\n <id>', ' <id>'). Whatever the adapter's parse kept, the id this
+        # result carries into every receipt store and reconciliation is the canonical one,
+        # identical to the id the draft reserved.
+        details = getattr(result, "details", None)
+        if isinstance(details, dict) and details.get("message_id"):
+            receipt_id = normalize_message_id(details.get("message_id"))
+            if receipt_id:
+                details["message_id"] = receipt_id
+        return result
     username = str(creds.get("username") or "")
     password = str(creds.get("password") or "")
     try:
