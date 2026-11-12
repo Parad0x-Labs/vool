@@ -747,7 +747,14 @@ class DropHome:
         # Memory first, then the Drop's own state. A retry after the memory part
         # finished goes straight to the Drop's own cleanup.
         if self.db.execute("SELECT 1 FROM memory_erased WHERE sid=?", (sid,)).fetchone() is None:
-            self._erase_memory(sid)
+            if self._memory_part_finished(sid):
+                # An earlier attempt stopped between completing the barrier and writing
+                # its row. Running the memory part again could never finish (the Drop's
+                # chat is already deleted) and would withhold the home for good.
+                self.db.execute("INSERT OR IGNORE INTO memory_erased(sid) VALUES(?)", (sid,))
+                self.db.commit()
+            else:
+                self._erase_memory(sid)
         try:
             # The Drop's own state: session keys and inbox, received files, queued
             # frames. If this cannot finish, the Drop stays 'incomplete' (never served,
@@ -787,6 +794,29 @@ class DropHome:
         except Exception as exc:
             # Not a successful deletion: the Drop stays 'incomplete' and is never served.
             raise DropError("DROP_FORGET_INCOMPLETE") from exc
+
+    def _memory_part_finished(self, sid):
+        """True only when the memory part of this Drop's forget provably finished: its
+        barrier completed, nothing is pending anywhere in the home, the owner erasure for
+        this Drop is complete and its chat is deleted. Any doubt answers False, so the
+        memory part runs again and a failure keeps the home withheld."""
+        from core.context_namespace import chat_namespace_deleted_for_identity
+        from core.memory import revocation
+        from core.vool_memory import VoolMemory, _normalize_forget_token
+
+        try:
+            # Raises while any forget in this home is still pending.
+            if _normalize_forget_token(sid) not in revocation.snapshot(None, self.home):
+                return False
+            if not chat_namespace_deleted_for_identity(sid):
+                return False
+            memory = VoolMemory(runtime_home=self.home)
+            try:
+                return not memory.erasure_incomplete(sid)
+            finally:
+                memory.close()
+        except Exception:
+            return False
 
     def _erase_memory(self, sid):
         from core.context_retrieval import forget_session_memory
