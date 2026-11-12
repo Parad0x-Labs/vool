@@ -5,8 +5,11 @@ import hashlib
 import importlib.util
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import time
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -232,3 +235,77 @@ def test_the_installed_launcher_keeps_vool_out_of_its_own_install_folder(tmp_pat
     with pytest.raises(Started):
         launch.main()
     assert os.environ["VOOL_PROJECT_ROOT"] == str(package.resolve() / "app")
+
+
+def _installed_launcher(tmp_path):
+    package = tmp_path / "package"
+    package.mkdir()
+    shutil.copy2(LINUX / "launch.py", package / "launch.py")
+    (package / "app").symlink_to(ROOT, target_is_directory=True)
+    (package / "SOURCE_COMMIT").write_text("a" * 40 + "\n")
+    spec = importlib.util.spec_from_file_location("linux_launch_port", package / "launch.py")
+    launch = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launch)
+    return launch
+
+
+def test_opening_vool_right_after_closing_it_finds_its_address_free(tmp_path):
+    # Closing VOOL leaves its port in TIME_WAIT for up to a minute. The launcher probed the port with
+    # a plain bind, which fails then (Errno 98), so opening VOOL again at once failed with a traceback
+    # (the .deb update journey closes VOOL and opens it again from the menu straight away).
+    launch = _installed_launcher(tmp_path)
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as VOOL's server listens
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        client = socket.create_connection(("127.0.0.1", port))
+        served, _ = listener.accept()
+        served.close()  # the server side closes first, so its end of the connection waits in TIME_WAIT
+        client.close()
+
+    def plain_bind_refused() -> bool:
+        with socket.socket() as plain:
+            try:
+                plain.bind(("127.0.0.1", port))
+            except OSError:
+                return True
+        return False
+
+    deadline = time.monotonic() + 5
+    while not plain_bind_refused() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert plain_bind_refused(), "the closed port is not in TIME_WAIT; this test reproduces nothing"
+    assert launch._port_is_free(port) is True
+
+
+def test_an_address_another_program_listens_on_is_not_free(tmp_path):
+    launch = _installed_launcher(tmp_path)
+    with socket.socket() as other:
+        other.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        other.bind(("127.0.0.1", 0))
+        other.listen()
+        assert launch._port_is_free(other.getsockname()[1]) is False
+
+
+def test_an_unknown_program_on_vools_address_gets_one_plain_line(tmp_path, monkeypatch, capsys):
+    launch = _installed_launcher(tmp_path)
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "vool-home"))
+    for name in ("VOOL_PROJECT_ROOT", "VOOL_WORKSPACE_ROOT", "PYTHONDONTWRITEBYTECODE", "PYTHONHOME", "PYTHONPATH",
+                 "DISPLAY", "WAYLAND_DISPLAY"):
+        monkeypatch.setenv(name, "")
+        monkeypatch.delenv(name)
+    monkeypatch.setattr(launch.os, "chdir", lambda path: None)
+
+    def not_vool(*args, **kwargs):
+        raise urllib.error.URLError("not VOOL")
+
+    monkeypatch.setattr(launch.urllib.request, "urlopen", not_vool)
+    monkeypatch.setattr(launch.subprocess, "Popen", lambda *a, **k: pytest.fail("started a second server"))
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen()
+        monkeypatch.setattr(sys, "argv", ["launch.py", "--port", str(other.getsockname()[1])])
+        assert launch.main() == 1
+    err = capsys.readouterr().err
+    assert "another program is using http://127.0.0.1:" in err and "Traceback" not in err

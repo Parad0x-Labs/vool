@@ -15,6 +15,20 @@ import webbrowser
 from pathlib import Path
 
 
+def _port_is_free(port: int) -> bool:
+    """True when nothing listens on VOOL's address. SO_REUSEADDR, as the server's own listener sets
+    it: right after VOOL closes, its port sits in TIME_WAIT for up to a minute, and a plain bind failed
+    with EADDRINUSE, so reopening VOOL straight after closing it showed nothing. On Linux the option
+    still refuses a port another process is listening on."""
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="VOOL Linux runtime (local browser desktop)")
     parser.add_argument("--headless", action="store_true", help="serve without opening a browser")
@@ -43,10 +57,7 @@ def main() -> int:
     expected = (root / "SOURCE_COMMIT").read_text().strip()
     # Never open a page served by an unknown port occupant, or stop that process. This exact package
     # already serving (an update restarts it in the background) is not unknown: open its chat.
-    try:
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", args.port))
-    except OSError:
+    if not _port_is_free(args.port):
         try:
             with urllib.request.urlopen(origin + "/healthz", timeout=3) as response:
                 health = json.load(response)
@@ -56,7 +67,8 @@ def main() -> int:
             if not webbrowser.open(origin + "/chat"):
                 print(f"Open {origin}/chat in your browser.", file=sys.stderr)
             return 0
-        raise
+        print(f"VOOL cannot start: another program is using {origin}. Close it, then open VOOL again.", file=sys.stderr)
+        return 1
     process = subprocess.Popen(command)
 
     def stop(_signum: int, _frame: object) -> None:
