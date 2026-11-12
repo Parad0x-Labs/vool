@@ -13,6 +13,10 @@ from tests import test_chat_export_api as export
 from tests import test_chat_visuals_browser as visual_browser
 from tests.test_chat_export_copy_ui import HTML
 
+EN_MESSAGES = json.loads(
+    (Path(__file__).resolve().parents[1] / 'core' / 'i18n' / 'catalogs' / 'en.json').read_text(encoding='utf-8')
+)['messages']
+
 _isolated_home = export._isolated_home
 browser = visual_browser.browser
 
@@ -250,9 +254,12 @@ def test_native_transcript_export_uses_save_bridge_without_blob_navigation(brows
     markup = HTML[HTML.index('<div id="exportOverlay"'):HTML.index('<div id="bugReportOverlay"')]
     script = HTML[HTML.index('(function wireExport()'):HTML.index('xpCloseEl.addEventListener')]
     response = {'ok': True} if outcome == 'save' else ({'ok': False, 'cancelled': True} if outcome == 'cancel' else {'ok': False, 'message': 'Export unavailable'})
+    # The page's catalog reader; with no catalog loaded it returns the fallback, which equals
+    # the English catalog (tests/test_chat_page_plain_words_2.py pins that law).
     setup = '''
       let displayedChat = 'chosen-chat';
       function chatTitleFor(){return 'Chosen';}
+      function pageT(key, fallback){return fallback;}
       window.saved = [];
       window.pywebview = {api:{save_chat_export:async (...args)=>{window.saved.push(args);return RESULT;}}};
       window.fetch = async (url) => {
@@ -276,7 +283,11 @@ def test_native_transcript_export_uses_save_bridge_without_blob_navigation(brows
             assert page.locator('#exportOverlay').is_hidden()
         else:
             assert page.locator('#exportOverlay').is_visible()
-            assert page.locator('#exportStatus').inner_text() == ('Export cancelled.' if outcome == 'cancel' else 'Export unavailable')
+            # A refusal from the app reads one keyed sentence; the app's own words ("Export
+            # unavailable") go to the console only (plain error words, 05eb3412).
+            refused = EN_MESSAGES['chat.try_again']
+            assert page.locator('#exportStatus').inner_text() == ('Export cancelled.' if outcome == 'cancel' else refused)
+            assert 'Export unavailable' not in page.locator('#exportOverlay').inner_text()
     finally:
         page.close()
 
