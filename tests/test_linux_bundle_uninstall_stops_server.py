@@ -248,7 +248,10 @@ def test_remove_data_deletes_only_the_vool_profile_after_confirmation(package, h
     sentinel.write_text("keep this")
     installer.uninstall(home, remove_data=True, prompt=lambda _question: "y")
     assert not runtime_home.exists()
-    assert "Deleted your saved chats and settings." in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Deleted your saved chats and settings." in out
+    # Reported after the delete step: never "kept" (or "nothing was kept") once they are deleted.
+    assert "were kept" not in out and "nothing was kept" not in out
     decoy_intact(home)
 
     installer.install(package, home)

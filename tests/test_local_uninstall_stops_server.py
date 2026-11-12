@@ -239,6 +239,10 @@ def test_remove_data_with_yes_deletes_runtime_home(home, install_root, runtime_h
     assert result.returncode == 0, result.stdout + result.stderr
     assert not os.path.lexists(runtime_home)
     assert "Deleted your saved chats and settings." in result.stdout
+    # The kept-data report runs after the delete step: a run that deleted the chats never also
+    # says they were kept, or that nothing was found.
+    assert "were kept" not in result.stdout and "A fresh VOOL install will find them" not in result.stdout
+    assert "nothing was kept" not in result.stdout
     assert not install_root.exists()
     decoy_intact(home)
 
@@ -256,6 +260,7 @@ def test_remove_data_confirmation_declined_keeps_runtime_home(home, install_root
     assert runtime_home.is_dir()
     assert (runtime_home / "data" / "saved-chat.txt").read_text() == "keep this chat"
     assert "Kept your saved chats and settings." in result.stdout
+    assert f"Your chats and settings were kept, in: {runtime_home}" in result.stdout
     assert not install_root.exists()
     decoy_intact(home)
 

@@ -46,6 +46,14 @@ def test_uninstall_script_keeps_chats_by_default_and_offers_remove_data() -> Non
     assert "REMOVE_DATA=1" in script
     assert "Delete your saved chats and settings in ${RUNTIME_HOME} too?" in script
     assert "Deleted your saved chats and settings." in script
+    # The first question says what the answer does: the chats and settings stay unless
+    # --remove-data asks about them on their own.
+    assert "Remove this local VOOL install? Your chats and settings are kept." in script
+    assert "Remove this local VOOL install? You will be asked about your chats and settings next." in script
+    assert "runtime state?" not in script
+    # What was kept is reported after the delete step, never before it.
+    main = script[script.index("\nmain() {"):]
+    assert main.index("remove_profile_data") < main.index("report_kept_data")
     # The kept runtime home and Ollama's own models are not removal targets.
     assert '    "${RUNTIME_HOME}"' not in script
     assert '    "${OLLAMA_MODELS_DIR}"' not in script

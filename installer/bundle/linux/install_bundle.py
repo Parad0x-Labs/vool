@@ -300,21 +300,23 @@ def stop_running_server(home: Path, root: Path, *, term_wait: float = TERM_WAIT_
     return False, CANNOT_STOP_MESSAGE
 
 
-def _report_kept_data(home: Path) -> None:
+def _report_kept_data(home: Path, *, deleted: bool = False) -> None:
+    """Called after the delete step, so a run that deleted the chats never also says they were kept."""
     runtime_home = runtime_home_for(home)
     if runtime_home.is_dir():
         print(f"Your chats and settings were kept, in: {runtime_home}")
         print("A fresh VOOL install will find them there again.")
         print("To delete them too, delete that folder.")
-    else:
+    elif not deleted:
         print("No saved chats and settings were found; nothing was kept.")
 
 
 def _remove_profile_data(home: Path, *, assume_yes: bool,
-                         prompt: Callable[..., str] = input) -> None:
+                         prompt: Callable[..., str] = input) -> bool:
+    """True when the saved chats and settings were deleted."""
     runtime_home = runtime_home_for(home)
     if not runtime_home.exists() and not runtime_home.is_symlink():
-        return
+        return False
     resolved = runtime_home.resolve()
     home_resolved = Path(home).resolve()
     if runtime_home.is_symlink() or not runtime_home.is_dir():
@@ -325,9 +327,10 @@ def _remove_profile_data(home: Path, *, assume_yes: bool,
         answer = prompt(f"Delete your saved chats and settings in {runtime_home} too? [no]: ")
         if answer.strip().lower() not in ("y", "yes"):
             print("Kept your chats and settings.")
-            return
+            return False
     shutil.rmtree(runtime_home)
     print("Deleted your saved chats and settings.")
+    return True
 
 
 def uninstall(home: Path, *, remove_data: bool = False, assume_yes: bool = False,
@@ -335,9 +338,8 @@ def uninstall(home: Path, *, remove_data: bool = False, assume_yes: bool = False
     root, binary, desktop = layout(home)
     if not root.exists():
         print("VOOL Linux package is already absent.")
-        _report_kept_data(home)
-        if remove_data:
-            _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
+        deleted = remove_data and _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
+        _report_kept_data(home, deleted=deleted)
         return
     stopped, refusal = stop_running_server(home, root)
     if not stopped:
@@ -375,9 +377,8 @@ def uninstall(home: Path, *, remove_data: bool = False, assume_yes: bool = False
         (root / ".vool-linux-bundle").unlink()
         root.rmdir()
     print("Uninstalled VOOL Linux package; unrelated files were preserved.")
-    _report_kept_data(home)
-    if remove_data:
-        _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
+    deleted = remove_data and _remove_profile_data(home, assume_yes=assume_yes, prompt=prompt)
+    _report_kept_data(home, deleted=deleted)
 
 
 def main() -> int:

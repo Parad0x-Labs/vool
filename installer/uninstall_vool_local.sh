@@ -15,6 +15,7 @@ OLLAMA_MODELS_DIR="${OLLAMA_MODELS:-$HOME/.ollama/models}"
 VOOL_LLAMACPP_MODELS_DIR="${VOOL_LLAMACPP_MODELS_DIR:-${RUNTIME_HOME}/models/llamacpp}"
 AUTO_YES=0
 REMOVE_DATA=0
+PROFILE_DELETED=0
 
 
 say() {
@@ -195,11 +196,13 @@ remove_targets() {
 
 
 report_kept_data() {
+  # Runs after the delete step, so a --remove-data run that deleted the chats never also says
+  # they were kept.
   if [[ -d "${RUNTIME_HOME}" ]]; then
     say "Your chats and settings were kept, in: ${RUNTIME_HOME}"
     say "A fresh VOOL install will find them there again."
     say "To delete them too, delete that folder, or run this uninstall again with --remove-data."
-  else
+  elif [[ "${PROFILE_DELETED}" -eq 0 ]]; then
     say "No saved chats and settings were found; nothing was kept."
   fi
   if [[ -d "${OLLAMA_MODELS_DIR}" ]]; then
@@ -228,6 +231,7 @@ remove_profile_data() {
     fi
   fi
   trash_or_remove "${RUNTIME_HOME}"
+  PROFILE_DELETED=1
   say "Deleted your saved chats and settings."
 }
 
@@ -242,7 +246,13 @@ main() {
   say "Ollama models:  ${OLLAMA_MODELS_DIR}"
   say "llama.cpp data: ${VOOL_LLAMACPP_MODELS_DIR}"
   if [[ "${AUTO_YES}" -eq 0 ]]; then
-    if ! prompt_yn "Remove this local VOOL install and runtime state?" "N"; then
+    # Say what the answer does: the install goes, the chats and settings stay unless
+    # --remove-data was given, and then they get their own question.
+    local question="Remove this local VOOL install? Your chats and settings are kept."
+    if [[ "${REMOVE_DATA}" -eq 1 ]]; then
+      question="Remove this local VOOL install? You will be asked about your chats and settings next."
+    fi
+    if ! prompt_yn "${question}" "N"; then
       say "Cancelled."
       exit 0
     fi
@@ -252,10 +262,10 @@ main() {
   stop_runtime_processes
   remove_targets
   say "Local VOOL install removed."
-  report_kept_data
   if [[ "${REMOVE_DATA}" -eq 1 ]]; then
     remove_profile_data
   fi
+  report_kept_data
 }
 
 
