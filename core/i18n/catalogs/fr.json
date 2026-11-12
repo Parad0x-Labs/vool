@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "Les recherches web sont désactivées. Vous pouvez coller le texte de l’article, les liens ou les notes que je dois utiliser, et je travaillerai à partir de ceux-ci. Pour les activer : Réglages > Confidentialité et permissions > Recherches web. (Ligne de commande : la recherche web est optionnelle ; activez-la avec VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X n’est pas encore connecté. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. En attendant, je peux tout de même vous aider à rédiger des posts.",
     "x.not_connected.post_draft": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Voici votre post en brouillon, à copier et publier vous-même :",
-    "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier."
+    "x.not_connected.post_ask": "X n’est pas connecté, donc rien n’a été publié. Pour le connecter, ouvrez {settings} > {keys} > {x_row}, choisissez {connect} et suivez les étapes. Dites-moi ce que le post doit dire et je vous écrirai un brouillon à copier.",
+    "xs.summary_bookmark_read": "Lire vos signets X",
+    "xs.summary_bookmark_add": "Ajouter la publication {post} à vos signets",
+    "xs.summary_bookmark_remove": "Retirer la publication {post} de vos signets"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "ウェブ検索はオフです。使ってほしい記事の本文、リンク、メモを貼り付けてください。それをもとに作業します。オンにするには: 設定 > プライバシーと権限 > ウェブ検索。(コマンドライン: ウェブ検索は任意です。VOOL_ENABLE_WEB=1 で有効にします。)",
     "x.not_connected.reply": "X はまだ接続されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。それまでの間も、投稿の下書きはお手伝いできます。",
     "x.not_connected.post_draft": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。コピーしてご自身で投稿できる下書きはこちらです:",
-    "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。"
+    "x.not_connected.post_ask": "X が接続されていないため、何も投稿されていません。接続するには、{settings} > {keys} > {x_row} を開き、{connect} を選んで手順に従ってください。投稿の内容を教えていただければ、コピーできる下書きを書きます。",
+    "xs.summary_bookmark_read": "自分のXのブックマークを読む",
+    "xs.summary_bookmark_add": "投稿{post}をブックマークに追加する",
+    "xs.summary_bookmark_remove": "投稿{post}をブックマークから削除する"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

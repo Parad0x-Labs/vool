@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "As pesquisas na web estão desativadas. Você pode colar o texto do artigo, os links ou as notas que quer que eu use, e eu trabalharei com eles. Para ativá-las: Configurações > Privacidade e permissões > Pesquisas na web. (Linha de comando: a pesquisa na web é opcional; ative com VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "O X ainda não está conectado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Enquanto isso, ainda posso ajudar você a rascunhar posts.",
     "x.not_connected.post_draft": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Aqui está seu post como rascunho para você copiar e publicar:",
-    "x.not_connected.post_ask": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Diga o que o post deve dizer e eu escrevo um rascunho para você copiar."
+    "x.not_connected.post_ask": "O X não está conectado, então nada foi publicado. Para conectá-lo, abra {settings} > {keys} > {x_row}, escolha {connect} e siga as etapas. Diga o que o post deve dizer e eu escrevo um rascunho para você copiar.",
+    "xs.summary_bookmark_read": "Ler seus favoritos do X",
+    "xs.summary_bookmark_add": "Adicionar a publicação {post} aos seus favoritos",
+    "xs.summary_bookmark_remove": "Remover a publicação {post} dos seus favoritos"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

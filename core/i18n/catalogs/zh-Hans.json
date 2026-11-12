@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "网络查询已关闭。你可以粘贴希望我使用的文章正文、链接或笔记，我会据此工作。要开启：设置 > 隐私与权限 > 网络查询。（命令行：网络查询需主动开启；用 VOOL_ENABLE_WEB=1 开启。）",
     "x.not_connected.reply": "X 尚未连接。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。在此之前，我仍然可以帮你起草帖子。",
     "x.not_connected.post_draft": "X 尚未连接，因此没有发布任何内容。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。下面是你的帖子草稿，可以复制后自行发布：",
-    "x.not_connected.post_ask": "X 尚未连接，因此没有发布任何内容。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。告诉我帖子要写什么，我会为你写一份可以复制的草稿。"
+    "x.not_connected.post_ask": "X 尚未连接，因此没有发布任何内容。要连接，请打开{settings} > {keys} > {x_row}，选择“{connect}”并按步骤操作。告诉我帖子要写什么，我会为你写一份可以复制的草稿。",
+    "xs.summary_bookmark_read": "读取你的 X 书签",
+    "xs.summary_bookmark_add": "将帖子 {post} 加入你的书签",
+    "xs.summary_bookmark_remove": "将帖子 {post} 从你的书签移除"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

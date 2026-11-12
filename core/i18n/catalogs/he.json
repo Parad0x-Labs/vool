@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "חיפושים באינטרנט כבויים. אפשר להדביק את טקסט הכתבה, קישורים או הערות שתרצה שאשתמש בהם, ואעבוד מהם. כדי להפעיל: הגדרות > פרטיות והרשאות > חיפושים באינטרנט. (שורת פקודה: חיפוש באינטרנט הוא לבחירה; הפעל עם VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X עדיין לא מחובר. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. עד אז אני עדיין יכול לעזור לך לנסח פוסטים.",
     "x.not_connected.post_draft": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. הנה הפוסט שלך כטיוטה שאפשר להעתיק ולפרסם בעצמך:",
-    "x.not_connected.post_ask": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. ספר לי מה הפוסט צריך לומר ואכתוב לך טיוטה להעתקה."
+    "x.not_connected.post_ask": "X לא מחובר, ולכן שום דבר לא פורסם. כדי לחבר אותו, פתח את {settings} > {keys} > {x_row}, בחר {connect} ופעל לפי השלבים. ספר לי מה הפוסט צריך לומר ואכתוב לך טיוטה להעתקה.",
+    "xs.summary_bookmark_read": "קריאת הסימניות שלך ב-X",
+    "xs.summary_bookmark_add": "הוספת הפוסט {post} לסימניות שלך",
+    "xs.summary_bookmark_remove": "הסרת הפוסט {post} מהסימניות שלך"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

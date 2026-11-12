@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "Web aramaları kapalı. Kullanmamı istediğiniz makale metnini, bağlantıları veya notları yapıştırabilirsiniz; onlarla çalışırım. Açmak için: Ayarlar > Gizlilik ve İzinler > Web aramaları. (Komut satırı: web araması isteğe bağlıdır; VOOL_ENABLE_WEB=1 ile açın.)",
     "x.not_connected.reply": "X henüz bağlı değil. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. O zamana kadar gönderi taslakları hazırlamanıza yine de yardımcı olabilirim.",
     "x.not_connected.post_draft": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Kopyalayıp kendiniz paylaşabileceğiniz taslak şu:",
-    "x.not_connected.post_ask": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Gönderide ne yazması gerektiğini söyleyin, size kopyalayabileceğiniz bir taslak yazayım."
+    "x.not_connected.post_ask": "X bağlı değil, bu yüzden hiçbir şey paylaşılmadı. Bağlamak için {settings} > {keys} > {x_row} bölümünü açın, {connect} seçeneğini seçin ve adımları izleyin. Gönderide ne yazması gerektiğini söyleyin, size kopyalayabileceğiniz bir taslak yazayım.",
+    "xs.summary_bookmark_read": "X yer işaretlerini oku",
+    "xs.summary_bookmark_add": "{post} gönderisini yer işaretlerine ekle",
+    "xs.summary_bookmark_remove": "{post} gönderisini yer işaretlerinden kaldır"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

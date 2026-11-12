@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "Wyszukiwanie w sieci jest wyłączone. Możesz wkleić tekst artykułu, linki lub notatki, których mam użyć, a ja na nich popracuję. Aby je włączyć: Ustawienia > Prywatność i uprawnienia > Wyszukiwanie w sieci. (Wiersz poleceń: wyszukiwanie w sieci jest opcjonalne; włącz je przez VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X nie jest jeszcze połączony. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Do tego czasu nadal mogę pomóc Ci przygotować szkice postów.",
     "x.not_connected.post_draft": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Oto Twój post jako szkic, który możesz skopiować i opublikować samodzielnie:",
-    "x.not_connected.post_ask": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Napisz, co ma zawierać post, a przygotuję szkic do skopiowania."
+    "x.not_connected.post_ask": "X nie jest połączony, więc nic nie zostało opublikowane. Aby go połączyć, otwórz {settings} > {keys} > {x_row}, wybierz {connect} i wykonaj kolejne kroki. Napisz, co ma zawierać post, a przygotuję szkic do skopiowania.",
+    "xs.summary_bookmark_read": "Przeczytaj swoje zakładki w X",
+    "xs.summary_bookmark_add": "Dodaj wpis {post} do swoich zakładek",
+    "xs.summary_bookmark_remove": "Usuń wpis {post} ze swoich zakładek"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

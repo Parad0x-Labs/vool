@@ -4293,9 +4293,12 @@
     "web.off.tool_refusal": "Interneto paieška išjungta. Galite įklijuoti straipsnio tekstą, nuorodas ar pastabas, kurias turėčiau naudoti, ir aš dirbsiu su jomis. Kad įjungtumėte: Nustatymai > Privatumas ir leidimai > Interneto paieška. (Komandinė eilutė: interneto paieška pasirenkama; įjunkite su VOOL_ENABLE_WEB=1.)",
     "x.not_connected.reply": "X dar neprijungtas. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Kol kas vis tiek galiu padėti jums parengti įrašų juodraščius.",
     "x.not_connected.post_draft": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Štai jūsų įrašas kaip juodraštis, kurį galite nukopijuoti ir paskelbti patys:",
-    "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti."
+    "x.not_connected.post_ask": "X neprijungtas, todėl niekas nebuvo paskelbta. Kad jį prijungtumėte, atidarykite {settings} > {keys} > {x_row}, pasirinkite {connect} ir sekite žingsnius. Pasakykite, ką turėtų sakyti įrašas, ir parašysiu jums juodraštį nukopijuoti.",
+    "xs.summary_bookmark_read": "Skaityti savo X žymes",
+    "xs.summary_bookmark_add": "Pridėti įrašą {post} prie savo žymių",
+    "xs.summary_bookmark_remove": "Pašalinti įrašą {post} iš savo žymių"
   },
-  "source_catalog_sha256": "5b732713b39795ab130d425343c860d1d25369f1acffec0e023bf8bf98022b63",
+  "source_catalog_sha256": "db05f92dd7723eb6a490ac8a7bb8632c333bf5bc5ae0be936f06f644ea0f2e2f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

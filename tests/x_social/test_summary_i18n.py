@@ -62,13 +62,13 @@ def test_action_summaries_use_every_catalog_on_served_settings(fake_x, vault_hom
             assert card.locator('strong').text_content() == expected
             rows = [{'kind': kind, 'target': {'username': 'morgan', 'name': 'Morgan Lee',
                 'author': 'late_whale', 'list_name': 'Launch board', 'private': True,
-                'description': 'A curated list.'}} for kind in x_actions.KINDS]
+                'description': 'A curated list.', 'post_id': '1857000000000000001'}} for kind in x_actions.KINDS]
             rows.append({'kind': 'list_create', 'target': {'name': 'Launch board', 'private': False}})
             actual = page.evaluate('(rows)=>rows.map(a=>VoolXSocial.summary(a))', rows)
             for row, rendered in zip(rows, actual, strict=True):
                 key = 'xs.summary_' + row['kind']; assert key in catalog.locale_keys, (locale, key)
                 target = row['target']
-                values = {'author': 'late_whale', 'who': isolate('Morgan Lee (@morgan)'),
+                values = {'author': 'late_whale', 'who': isolate('Morgan Lee (@morgan)'), 'post': isolate(target.get('post_id', '?')),
                     'name': isolate(target.get('list_name', target['name'])),
                     'privacy': catalog.text('xs.private' if target['private'] else 'xs.public'),
                     'description': catalog.text('xs.description').replace('{description}', isolate(target['description'])) if target.get('description') else ''}
