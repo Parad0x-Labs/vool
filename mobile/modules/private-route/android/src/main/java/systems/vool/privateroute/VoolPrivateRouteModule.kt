@@ -10,6 +10,7 @@ import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import okhttp3.ConnectionPool
 import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -105,6 +106,9 @@ class VoolPrivateRouteModule : Module() {
       .followRedirects(false)
       .followSslRedirects(false)
       .retryOnConnectionFailure(false) // a request is never sent twice by this layer
+      // One connection per request: the computer closes each connection after its answer, and a
+      // reused one would fail without ever reaching it.
+      .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
       .build().also { client = it; clientPort = port }
   }
 
@@ -134,6 +138,7 @@ class VoolPrivateRouteModule : Module() {
           val left = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1_000L)
           val request = Request.Builder().url(url).apply {
             headers.forEach { (name, value) -> header(name, value) }
+            header("Connection", "close")
             if (method == "POST") post((body ?: "").toRequestBody("application/json".toMediaType())) else get()
           }.build()
           val call = clientFor(port).newBuilder()
