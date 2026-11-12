@@ -755,6 +755,156 @@ def skill_guidance_for(
     return SkillGuidance(text="\n\n".join(blocks), skills=tuple(provenance), allowed_tools=tuple(allowed))
 
 
+def added_skill_for(user_text: str, *, source_context: dict[str, Any] | None = None) -> str:
+    """The name of a skill the person added that this ask picks, or "".
+
+    Added means every skill VOOL did not ship: one the person made (in a chat, a project or for
+    every chat), one installed from Browse, the Skill Codex or a file, and an MCP server's. VOOL's
+    built-in library and the packs bundled with VOOL do not count. The candidates, filters and
+    word picker are those of skill_guidance_for's first and third lanes, and nothing is rendered.
+    The clean local loop asks this before it takes a turn (core.clean_loop.route), because its
+    brain never sees skills: with the loop on, six of the 22 VOOL tool skills added from Browse
+    were passed over for their own asks (measured 2026-11-12 on the v0.8 candidate c9a7f426).
+    """
+    text = str(user_text or "")
+    if not text.strip():
+        return ""
+    from core import plugin_skills
+    from core.skill_origin import ORIGIN_BUNDLED, ORIGIN_NATIVE, origin_of
+
+    disabled = _disabled_skill_names()
+    added = tuple(
+        skill for skill in _installed_and_scoped_skills(source_context)
+        if str(skill.name or "") not in disabled and origin_of(skill) not in (ORIGIN_NATIVE, ORIGIN_BUNDLED)
+    )
+    added = _people_safe_lexical(_audience_ok(added, text), text)
+    if not added:
+        return ""
+    # The person's own skills are ranked alone, as in the first lane; every other added skill
+    # against the built-in library too, as in the third (a word every built-in uses is not rare).
+    own = tuple(skill for skill in added if _user_authored(skill))
+    ranked = plugin_skills.rank_skills(own, text, limit=1) if own else ()
+    if not ranked:
+        peers: tuple[Any, ...] = ()
+        with contextlib.suppress(Exception):
+            from core.native_skill_library import skill_cards
+
+            peers = skill_cards()
+        others = tuple(skill for skill in added if not _user_authored(skill))
+        ranked = plugin_skills.rank_skills(others, text, limit=1, peers=peers) if others else ()
+    return str(ranked[0].name) if ranked else ""
+
+
+def _disabled_skill_names() -> set[str]:
+    """The ONE disable store (core.native_skill_library): ids of typed skills, names of the rest."""
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import disabled_skill_ids
+
+        return set(disabled_skill_ids())
+    return set()
+
+
+def _installed_and_scoped_skills(source_context: dict[str, Any] | None) -> list[Any]:
+    """Every installed skill (bundled and add-on packs, MCP servers' skills), then this chat's,
+    this project's and the person's global skills when the turn can say which chat it is."""
+    candidates: list[Any] = list(loaded_skills())
+    if isinstance(source_context, dict):
+        with contextlib.suppress(Exception):
+            from core.skill_scopes import scope_keys
+            from core.skill_tools import scoped_skills
+
+            candidates.extend(scoped_skills(scope_keys(source_context)))
+    return candidates
+
+
+#: The longest skill name read before (or after) the word "skill", in words.
+_MAX_SKILL_NAME_WORDS = 6
+
+
+def _skill_name_key(name: str) -> str:
+    """A skill name as people write it: lower case, hyphens and underscores as spaces, and no
+    "vool " in front, so "vool-project-archaeology", "project-archaeology" and "Project
+    archaeology" are one key (the skill chat lane's own key, fast_paths_skill._plain_key)."""
+    key = re.sub(r"[-_\s]+", " ", str(name or "").strip().lower()).strip()
+    return key[len("vool "):] if key.startswith("vool ") else key
+
+
+def _skill_name_windows(text: str) -> list[str]:
+    """Every name the words beside the word "skill" could be, in reading order, longest first.
+
+    "<name> skill", "skill called <name>", "skill named <name>" and "the skill <name>". A name never
+    runs across punctuation, and quotes and backticks around it are dropped; "skills" is not read.
+    """
+    keys: list[str] = []
+    for piece in re.split(r"[.!?;:,()\[\]{}]+", text):
+        words = re.findall(r"[\w'’-]+", piece)
+        lowered = [word.lower() for word in words]
+        for at, word in enumerate(lowered):
+            if word != "skill":
+                continue
+            for size in range(min(_MAX_SKILL_NAME_WORDS, at), 0, -1):
+                keys.append(_skill_name_key(" ".join(words[at - size:at])))
+            start = at + 1 + (1 if lowered[at + 1:at + 2] in (["called"], ["named"]) else 0)
+            for size in range(min(_MAX_SKILL_NAME_WORDS, len(words) - start), 0, -1):
+                keys.append(_skill_name_key(" ".join(words[start:start + size])))
+    return [key for key in keys if key]
+
+
+_native_names: tuple[tuple[tuple[str, int], ...], dict[str, str]] = ((), {})
+
+
+def _native_skill_names() -> dict[str, str]:
+    """{name key: id} for VOOL's built-in library: each contract by its id and its name. Parsed
+    again only when a SKILL.md there changes (parsing the library costs tens of milliseconds)."""
+    global _native_names
+    from core.native_skill_library import load_native_library, native_skills_root
+
+    try:
+        stamp = tuple(sorted((str(path), path.stat().st_mtime_ns) for path in native_skills_root().glob("*/SKILL.md")))
+    except OSError:
+        stamp = ()
+    with _lock:
+        if stamp and _native_names[0] == stamp:
+            return _native_names[1]
+    names: dict[str, str] = {}
+    for contract in load_native_library().contracts:
+        for label in (contract.id, contract.name):
+            names.setdefault(_skill_name_key(label), contract.id)
+    names.pop("", None)
+    with _lock:
+        _native_names = (stamp, names)
+    return names
+
+
+def named_skill_for(user_text: str, *, source_context: dict[str, Any] | None = None) -> str:
+    """The name of a skill VOOL has that the person names in this ask, or "".
+
+    Named means written out beside the word "skill": "use the project archaeology skill for the
+    file history", "with my invoice-summary skill", "the skill called csv insights". Any skill
+    that is on counts, built-in or added; "skills" does not ("my database skills are rusty" is
+    about the person). A skill only matched by its words is added_skill_for's question. The clean
+    local loop asks this before it takes a turn (core.clean_loop.route): its brain never sees
+    skills, so it took "... Use the project archaeology skill for the file history." as a files
+    ask and the skill never reached the turn (tests/project_archaeology, measured 2026-11-12).
+    """
+    text = " ".join(str(user_text or "").split())
+    if "skill" not in text.lower():
+        return ""
+    windows = _skill_name_windows(text)
+    if not windows:
+        return ""
+    off = {_skill_name_key(name) for name in _disabled_skill_names()}
+    known: dict[str, str] = {}
+    with contextlib.suppress(Exception):
+        known.update((key, shown) for key, shown in _native_skill_names().items() if key not in off)
+    for skill in _installed_and_scoped_skills(source_context):
+        name = str(skill.name or "")
+        key = _skill_name_key(name)
+        if key and key not in off:
+            known.setdefault(key, name)
+    return next((known[key] for key in windows if key in known), "")
+
+
 #: R3 (round 2): the request verbs that can open a clause. A closed class, in the repo's
 #: instructional_request idiom: the ordinary ways an English turn asks for something to be
 #: DONE, not reported. A verb behind any other word ("she loved the pictures") is narration.
