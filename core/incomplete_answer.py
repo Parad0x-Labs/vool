@@ -251,6 +251,14 @@ def _announced_item_count(text: str) -> int:
     match = _ANNOUNCED_ITEMS_RE.search(str(text or ""))
     if match is None:
         return 0
+    if match.group(0).lower().startswith("there are"):
+        # "There are 3 PDF files in your Documents folder." states a count; it announces no list. Only
+        # a "there are N ...:" that opens a list counts (real-app check 2026-11-12: a correct count
+        # was marked "fewer items were listed than the answer said it would list").
+        tail = str(text or "")[match.end():]
+        stop = re.search(r"[.:!?\n]", tail)
+        if stop is None or stop.group(0) != ":":
+            return 0
     raw = str(match.group("count") or "").strip().lower()
     if raw.isdigit():
         value = int(raw)

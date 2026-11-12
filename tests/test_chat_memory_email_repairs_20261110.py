@@ -1633,3 +1633,18 @@ def test_no_listing_without_a_folder_in_view(asked):
 
     hint = {} if asked == "same for videos" else {"folder_hint": "~/Documents", "kind_hint": "pdf"}
     assert machine_kind_listing_intent(asked, **hint) is None
+
+
+@pytest.mark.parametrize("text", ["just the count", "only the number please", "keep it short", "count only"])
+def test_how_to_answer_is_not_a_demand(text):
+    from core.finalization import _is_a_demand
+
+    assert not _is_a_demand(text)
+
+
+def test_a_stated_count_is_not_an_announced_list():
+    from core.incomplete_answer import _announced_item_count
+
+    assert _announced_item_count("There are 3 PDF files in your Documents folder.") == 0
+    assert _announced_item_count("There are 3 options:\n- a\n- b") == 3
+    assert _announced_item_count("Here are 3 options") == 3
