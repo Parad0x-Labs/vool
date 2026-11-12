@@ -248,10 +248,12 @@ out({ afterFail: __afterFail, afterOk: __text(__body) });
 """
     )
     assert result["errors"] == []
-    assert "Receipts unavailable." in result["afterFail"]
+    # receipts.unavailable reads "Receipts are not available right now. Try again in a moment."
+    # since the plain error words (the old "Receipts unavailable." said the same thing).
+    assert "Receipts are not available right now." in result["afterFail"]
     assert "No signed receipts" not in result["afterFail"]
     assert "No signed receipts for this chat yet" in result["afterOk"]
-    assert "Receipts unavailable." not in result["afterOk"]
+    assert "Receipts are not available right now." not in result["afterOk"]
 
 
 def test_queue_read_failure_keeps_the_chips() -> None:

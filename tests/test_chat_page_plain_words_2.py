@@ -250,7 +250,7 @@ def test_the_raw_detail_code_shapes_are_gone() -> None:
 
 def test_the_pdf_export_status_is_one_keyed_sentence() -> None:
     body = _fn("msg-export-pdf", "actions.appendChild(button); host.appendChild(status);")
-    assert "label('msg.pdf_failed', 'PDF export failed')" in body
+    assert "label('msg.pdf_failed', 'PDF export failed. Try again.')" in body
     assert "console.warn('pdf export failed', error)" in body
     assert "console.warn('pdf export refused'" in body
 

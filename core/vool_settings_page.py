@@ -3243,7 +3243,7 @@ function widgetKeys(stack) {
       case 'invalid': return tfmt('keys.outcome.invalid', '{label} rejected this key{http}. Check that you copied all of it and that it is a {label} key. Nothing was stored.', p);
       case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid. Nothing was stored.', p);
       case 'exhausted': return tfmt('keys.outcome.exhausted', '{label} reports no credit or quota left for this key{http}. Add credit, then save again. Nothing was stored.', p);
-      case 'gateway_blocked': console.warn('key check blocked before the key service', label, http); return tfmt('keys.outcome.gateway_blocked', '{label} blocked this check before it reached the key service. The key was not judged. Try again later or from another network. Nothing was stored.', p);
+      case 'gateway_blocked': return tfmt('keys.outcome.gateway_blocked', '{label} blocked this check before it reached the key service. The key was not judged. Try again later or from another network. Nothing was stored.', p);
       case 'rate_limited': return tfmt('keys.outcome.rate_limited', '{label} is limiting requests right now; {retry}. The key was not judged. Nothing was stored.',
         { label: label, retry: j.retry_after_s ? tfmt('keys.outcome.rate_limited.retry_secs', 'try again in {n} s', { n: Math.ceil(j.retry_after_s) }) : T('keys.outcome.rate_limited.retry_shortly', 'try again shortly') });
       case 'timeout': return tfmt('keys.outcome.timeout', '{label} did not answer in time. The key was not judged; try again. Nothing was stored.', p);
@@ -3715,7 +3715,7 @@ function widgetProviderGuide(host) {
         add.addEventListener('click', () => {
           const picker = document.querySelector('.key-provider-picker');
           if (!picker || !Array.from(picker.options).some(o => o.value === r.provider)) {
-            note.textContent = T('keyguide.still_loading', 'Provider list is still loading. Try again shortly.'); return;
+            note.textContent = T('keyguide.still_loading', 'The list of AI services is still loading. Try again in a moment.'); return;
           }
           picker.value = r.provider; picker.dispatchEvent(new Event('change', {bubbles:true}));
           const form = document.querySelector('.key-entry-form');

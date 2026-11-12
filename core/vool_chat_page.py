@@ -9162,7 +9162,7 @@ async function renderReceipts(body) {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
     const d = await r.json().catch(() => null);
     // A failed read is not "no receipts": only a real OK answer may show the empty state.
-    if (!r.ok || !d) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; return; }
+    if (!r.ok || !d) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; return; }
     const list = d.receipts || [];
     if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
@@ -9197,7 +9197,7 @@ async function renderScopedReceipts(body) {
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
   // Every read failed: that is an unreachable panel, not a scope with no receipts.
-  if (!groups.length && failed && capped.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; return; }
+  if (!groups.length && failed && capped.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts are not available right now. Try again in a moment.')) + '</div>'; return; }
   if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')

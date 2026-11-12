@@ -102,7 +102,10 @@ def test_upload_and_doc_gone_texts_carry_no_status_code() -> None:
     en = catalog_for("en")
     assert "{status}" not in en.text("attach.upload_failed_http")
     assert "{status}" not in en.text("attach.doc_gone_http")
-    assert "site" in en.text("attach.doc_gone_http")
+    # v0.8 had already reworded both keys without the status code ("This document is no longer
+    # available.", "The file could not be uploaded."); its words stand, the law is the same.
+    assert "HTTP" not in en.text("attach.doc_gone_http")
+    assert "HTTP" not in en.text("attach.upload_failed_http")
 
 
 @pytest.mark.parametrize("key", PLAIN_LABEL_ROWS)
@@ -129,10 +132,12 @@ def test_every_locale_keeps_the_same_placeholders_as_english(key: str) -> None:
 
 def test_chat_page_serves_the_new_fallbacks_not_the_old_ones() -> None:
     html = render_vool_chat_html(build_commit="t")
+    # Where v0.8 had already put the same failure into plain words (the document, upload and
+    # model-mode lines), its words stand; the old raw forms below stay gone either way.
     for fragment in (
-        "'This document is no longer available on the site.'",
-        "'The upload failed. Try again in a moment.'",
-        "'Could not turn on {label}. It was not changed. Try again.'",
+        "'This document is no longer available.'",
+        "'The file could not be uploaded.'",
+        "'Couldn\u2019t do that just now. Try again.'",
         "'Receipts are not available right now. Try again in a moment.'",
         "'Update failed. Try again later.'",
         "'Updates are not available right now. Try again later.'",
@@ -159,7 +164,7 @@ def test_chat_page_serves_the_new_fallbacks_not_the_old_ones() -> None:
 def test_settings_page_serves_the_new_fallbacks_not_the_old_ones() -> None:
     html = render_vool_settings_html(build_commit="t")
     for fragment in (
-        "T('settings.widget.unavailable', 'This section could not load. Try again.'",
+        "tfmt('settings.widget.unavailable', \"Couldn\\u2019t load this right now. Try again.\"",
         "T('setup.checklist.not_saved', 'Not saved. Try again.'",
         "'{label} blocked this check before it reached the key service.",
     ):
@@ -174,9 +179,9 @@ def test_settings_page_serves_the_new_fallbacks_not_the_old_ones() -> None:
 
 # ---- the worst-30 rows: driven through the functions that build them -----------------------------
 
-from core.agent_runtime.fast_paths_pdf import _failure_text  # noqa: E402
-from core.agent_runtime.fast_paths_utility import ui_command_fast_path  # noqa: E402
-from core.agent_runtime.provider_failure import (  # noqa: E402
+from core.agent_runtime.fast_paths_pdf import _failure_text
+from core.agent_runtime.fast_paths_utility import ui_command_fast_path
+from core.agent_runtime.provider_failure import (
     EMPTY_CHOICES,
     EMPTY_CONTENT,
     MISSING_USAGE,

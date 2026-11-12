@@ -155,7 +155,7 @@ def test_chrome_and_widget_states_resolve_through_catalog() -> None:
     assert "tfmt('setup.checklist.later_prefix'" in html
     # the transient widget states ride the generic keys, not raw literals
     assert "'Unavailable — ' + err" not in html
-    assert "T('settings.widget.unavailable'" in html
+    assert "tfmt('settings.widget.unavailable'" in html
 
 
 def test_chat_greetings_and_toasts_ride_keys() -> None:
