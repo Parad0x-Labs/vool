@@ -1392,8 +1392,6 @@ def evaluate_direct_math_request(text: str) -> str | None:
             return _eval(node.body)
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return float(node.value)
-        if isinstance(node, ast.Num):  # pragma: no cover
-            return float(node.n)
         if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_ARITHMETIC_OPERATORS:
             return _SAFE_ARITHMETIC_OPERATORS[type(node.op)](_eval(node.left), _eval(node.right))
         if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_ARITHMETIC_OPERATORS:

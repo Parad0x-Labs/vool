@@ -138,7 +138,8 @@ def issue_work_receipt(
 
 def _iso(ts: float) -> str:
     import datetime
-    return datetime.datetime.utcfromtimestamp(ts).isoformat() + "Z"
+    # Same wire format as before (naive UTC isoformat + "Z"), without the deprecated naive-UTC call.
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).replace(tzinfo=None).isoformat() + "Z"
 
 
 __all__ = [
