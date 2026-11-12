@@ -9,7 +9,9 @@ until the forget law is reviewed for them.
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -50,19 +52,90 @@ def _ask(text: str) -> tuple[bool, str]:
     return maybe_handle_memory_command(text, session_id=CHAT, access_policy=resolve_memory_access_policy(chat_id=CHAT))
 
 
-def test_after_forget_no_recall_question_serves_the_words_from_my_things(home: Path) -> None:
-    ThingsStore().save({"name": "Pine lamp", "model": "PL-7731", "notes": "PL-7731 bulb is warm white"})
+QUESTIONS = ("What do you remember about PL-7731?", "Do you have notes about PL-7731?",
+             "What is the saved model of my Pine lamp?", "Which lamp model did I save?")
+PLAIN = QUESTIONS[2:]
+# Only My things holds this: it must never reach the model, whatever the question.
+RECORD_ONLY = "QX93"
+
+
+def test_after_forget_the_memory_lane_never_answers_from_my_things(home: Path) -> None:
+    ThingsStore().save({"name": "Pine lamp", "model": "PL-7731", "notes": f"PL-7731 bulb {RECORD_ONLY} is warm white"})
     _ask("Remember that the Pine lamp model is PL-7731")
+    # The probe can see the words: before the forget, memory answers every question with them.
+    for question in ("What do you remember", *QUESTIONS):
+        handled, answer = _ask(question)
+        assert handled and "7731" in answer, (question, answer)
+
     handled, reply = _ask("Forget PL-7731")
     assert handled and reply.startswith("Forget applied"), reply
 
-    for question in ("What do you remember", "What do you remember about PL-7731?",
-                     "Do you have notes about PL-7731?", "What is the saved model of my Pine lamp?",
-                     "Which lamp model did I save?"):
-        _handled, answer = _ask(question)
-        assert "7731" not in answer, (question, answer)
+    handled, answer = _ask("What do you remember")
+    assert handled and "7731" not in answer and RECORD_ONLY not in answer, answer
+    for question in QUESTIONS:
+        handled, answer = _ask(question)
+        # Memory holds no record now and hands the turn on; what the model then sees is proven served below.
+        assert "7731" not in answer and RECORD_ONLY not in answer, (question, handled, answer)
     # The record itself is still the person's, on their own page.
     assert [t["model"] for t in ThingsStore().list()] == ["PL-7731"]
+
+
+def _judge(body: dict) -> str | None:
+    """Answer the entity-ambiguity probe as a model would; every other call gets the scripted reply."""
+    if "well-known referents" in json.dumps(body.get("messages") or []):
+        return '{"ambiguous": false, "referents": [], "clarification": ""}'
+    return None
+
+
+def _reply(payload: dict) -> str:
+    message = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    return str(message.get("content") or payload.get("response") or "")
+
+
+def _owner(daemon, path: str, body: dict | None = None) -> dict:
+    """The My things page's own request: same origin, JSON."""
+    request = Request(daemon.base_url + path, data=None if body is None else json.dumps(body).encode("utf-8"),
+                      headers={"Content-Type": "application/json", "Origin": daemon.base_url},
+                      method="GET" if body is None else "POST")
+    with urlopen(request, timeout=60) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def test_served_turns_after_forget_never_carry_the_record_to_the_model(tmp_path: Path) -> None:
+    from tests._reader_served_rig import CapturingProvider, ServedDaemon, canonical_session
+
+    with CapturingProvider(default="A lamp glows by the window.", reply_fn=_judge) as provider, \
+            ServedDaemon(tmp_path / "home", provider=provider) as daemon:
+        assert daemon.certify().get("state") == "verified"
+        saved = _owner(daemon, "/api/my-things/save", {"confirm": True, "fields": {
+            "name": "Pine lamp", "model": "PL-7731", "notes": f"PL-7731 bulb {RECORD_ONLY} is warm white"}})
+        assert saved.get("ok") is True, saved
+        chat = canonical_session("things-recall-served")
+        assert "Locked in" in _reply(daemon.chat("Remember that the Pine lamp model is PL-7731", session_id=chat))
+        provider.reset()
+        daemon.chat("Write one short line about a lamp by the window.", session_id=chat)
+        assert provider.any_payload_has("7731"), "probe is blind: the remembered words never reached the model"
+        assert not provider.any_payload_has(RECORD_ONLY), "My things reached the model before any forget"
+
+        reply = _reply(daemon.chat("Forget PL-7731", session_id=chat))
+        assert reply.startswith("Forget applied") and "1 saved thing in My things" in reply, reply
+
+        seen = []
+        for session in (chat, canonical_session("things-recall-served-another-chat")):
+            for question in QUESTIONS:
+                provider.reset()
+                answer = _reply(daemon.chat(question, session_id=session))
+                seen.append((session == chat, question, bool(provider.payloads()), answer))
+                # Whether the forget law refuses the turn itself or the model answers it, the words
+                # come back from nowhere: not in the answer, and never in what the model is sent.
+                assert "7731" not in answer and RECORD_ONLY not in answer, seen[-1]
+                assert not provider.any_payload_has(RECORD_ONLY), seen[-1]
+                if question in PLAIN:
+                    assert not provider.any_payload_has("7731"), seen[-1]
+        # Measured: in the forgetting chat both plain questions reach the model; elsewhere the law refuses.
+        assert any(called for _same, question, called, _answer in seen if question in PLAIN), \
+            ("no plain question reached the model, so nothing was proven about what it sees", seen)
+        assert [t["model"] for t in _owner(daemon, "/api/my-things")["things"]] == ["PL-7731"]
 
 
 def test_only_the_owner_doors_and_the_forget_count_reach_the_records_store() -> None:

@@ -11,8 +11,6 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-UNCHECKED_NOTE = "Forget could not check your saved things in My things or your saved contacts in Contacts for these words."
-
 
 def _count(word: str, n: int) -> str:
     return f"{n} saved {word}{'s' if n != 1 else ''}"

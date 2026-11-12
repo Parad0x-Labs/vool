@@ -2682,7 +2682,10 @@ def maybe_handle_memory_command(
                 # What a finished forget leaves holding the words (the forget list itself) is said, never implied.
                 note = kept_note(erasures) if status in {"applied", "already_erased", "no_match"} else ""
                 reply = f"{reply} {note}" if note else reply
-                return (f"{reply} {record_scope['note']}" if record_scope["note"] else reply), status, erasures
+                # Where saved records hold the same words is said only after a forget that went through.
+                if record_scope["note"] and status in {"applied", "already_erased", "no_match"}:
+                    reply = f"{reply} {record_scope['note']}"
+                return reply, status, erasures
 
             referential, token = _referential_forget_token(
                 argument,
@@ -2719,15 +2722,15 @@ def maybe_handle_memory_command(
             # with confirmation: forget never deletes them. It says how many of them hold the same words, or
             # that they could not be checked, read before any erasure. A record store that cannot be read
             # never blocks forgetting memory.
+            unchecked = ("Forget could not check your saved things in My things or your saved contacts in Contacts "
+                         "for these words.")
             try:
                 from core.my_things.erasure import memory_scope_note
 
                 record_scope["note"] = memory_scope_note(token)
             except Exception as exc:
                 LOGGER.warning("saved record scope unavailable: %s", type(exc).__name__)
-                from core.my_things.erasure import UNCHECKED_NOTE
-
-                record_scope["note"] = UNCHECKED_NOTE
+                record_scope["note"] = unchecked
 
             def _mirror_text() -> str:
                 try:

@@ -106,6 +106,28 @@ def test_an_unreadable_records_store_never_blocks_forget(home: Path) -> None:
     assert (store / "records.sqlite3").read_bytes() == broken, "forget never repairs or deletes the records store"
 
 
+def test_a_forget_that_did_not_go_through_says_nothing_about_saved_records(home: Path) -> None:
+    # A chat document holding the words cannot be read, so the forget is not verified as applied.
+    import os
+
+    from core.chat_attachments import bind_to_turn, stage_dir, stage_document
+
+    ThingsStore().save({"name": "Pine lamp", "model": "PL-7731"})
+    ensure_chat_namespace(CHAT, grant_confirmed_profile=True)
+    text = "The Pine lamp model is PL-7731.\n" + "".join(f"Shelf note {n:03d}: spare bulbs.\n" for n in range(200))
+    record = stage_document(session_id=CHAT, data=text.encode("utf-8"), declared_name="lamp.txt")
+    bind_to_turn(session_id=CHAT, turn_id="t1", attachment_ids=[record["id"]])
+    path = stage_dir() / f"{record['id']}.bin"
+    held = path.with_name("held-elsewhere.bin")
+    path.rename(held)
+    os.symlink(held, path)
+
+    reply = _say("Forget PL-7731")
+
+    assert reply.startswith("Forget could not be verified as fully applied: "), reply
+    assert "My things" not in reply and "saved records" not in reply and "could not check" not in reply, reply
+
+
 def test_numbers_match_records_the_way_forget_matches_memory(home: Path) -> None:
     # "forget 12" never erases "room 312" from memory, so it never points at a thing saved as "Room 312 lamp".
     ThingsStore().save({"name": "Room 312 lamp"})
