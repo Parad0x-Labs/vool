@@ -140,7 +140,9 @@ def test_plugin_lifecycle_single_component_ids_reach_the_owner(monkeypatch, tmp_
         calls.append((plugin_id, None if root is None else str(root)))
         raise lifecycle.LifecycleError("stop-here-after-confinement")
 
-    monkeypatch.setattr(catalog, "plugins_root", lambda: base)
+    # The id passes confinement unchanged and then selects its catalog identity; the catalog,
+    # not the id, names the directory the owner receives.
+    monkeypatch.setattr(catalog, "discovered_plugin_sources", lambda: ((pid, base / "plugins" / pid),))
     monkeypatch.setattr(lifecycle, "install", fake_install)
     result = repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
     assert result["ok"] is False  # the stub raised after the id passed confinement
