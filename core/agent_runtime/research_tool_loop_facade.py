@@ -629,6 +629,37 @@ def synthesis_grounding_observations(executed_steps: list[dict[str, Any]]) -> li
 
 
 class ResearchToolLoopFacadeMixin:
+    def _x_editorial_direct_message(
+        self, message: str, *, user_text: str, source_context: dict[str, Any] | None
+    ) -> str:
+        """An XDraft envelope answered on the tool lane passes the same response edge as chat.
+
+        The chat lane validates the X editorial studio's XDraft envelope at its response edge
+        (core.memory_first_router, C20). A matched skill can hand the same turn to this loop,
+        where the draft arrives as respond.direct: without this it reached the person
+        unvalidated, envelope and all. A reply without an envelope is returned unchanged.
+        """
+        from core.x_editorial import ENVELOPE_BEGIN
+
+        text = str(message or "")
+        if ENVELOPE_BEGIN not in text:
+            return message
+        from core.x_editorial import apply_x_editorial_output, x_editorial_turn_state
+
+        context = source_context if isinstance(source_context, dict) else {}
+        application = apply_x_editorial_output(
+            text,
+            user_text=str(user_text or ""),
+            state=x_editorial_turn_state(str(user_text or ""), source_context=context),
+        )
+        self._emit_runtime_event(
+            context,
+            event_type="x_editorial_validation",
+            message="xdraft validated at the response edge",
+            **dict(application.record),
+        )
+        return application.text
+
     def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
         """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
 
@@ -1915,6 +1946,9 @@ class ResearchToolLoopFacadeMixin:
                                 # The exact workspace result is stronger evidence than a model
                                 # paraphrase and avoids losing filenames/query tokens in synthesis.
                                 direct_message = grounded_tool_text
+                        direct_message = self._x_editorial_direct_message(
+                            direct_message, user_text=effective_input, source_context=loop_source_context
+                        )
                         self._emit_runtime_event(
                             loop_source_context,
                             event_type="tool_loop_completed",

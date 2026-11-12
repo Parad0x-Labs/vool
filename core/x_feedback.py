@@ -266,6 +266,15 @@ def _comment_words(text: str) -> str:
     return ' '.join(str(text).split()).lstrip(_COMMENT_EDGES)
 
 
+#: A typed rating the owner opens the turn with ("9/10 ...", "Rating: 9/10 ...", "I rate it 9/10 ...").
+_EXPLICIT_RATING_RE = re.compile(r'(?:Rating:\s*|I rate (?:this|it)\s+)?(?:[1-9]|10)\s*/\s*10(?!\d)')
+
+
+def opens_with_typed_rating(user_text: str) -> bool:
+    """True when the turn opens with a typed N/10 rating: the owner asking VOOL to record it."""
+    return bool(_EXPLICIT_RATING_RE.match(str(user_text or '').strip()))
+
+
 def _plain_rating(text: str) -> tuple[int, str] | None:
     # The score is the whole leading token. A comment may follow only after "/10" or
     # a separator (",", "-", ":", ";", "."), so "10 more ideas please" is not a rating.
@@ -317,7 +326,7 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
         return save(x_voice_profile.turn_scope(ctx), rating, target, comment=parsed[1])
     # Only an unambiguous explicit score, verbatim in THIS immutable user turn.
     scores = re.findall(r'(?<![\w/])([1-9]|10)\s*/\s*10(?!\d)', turn.user_text)
-    explicit = re.match(r'(?:Rating:\s*|I rate (?:this|it)\s+)?(?:[1-9]|10)\s*/\s*10(?!\d)', turn.user_text.strip())
+    explicit = _EXPLICIT_RATING_RE.match(turn.user_text.strip())
     if not explicit or scores != [str(rating)]:
         return {'ok': False, 'status': 'user_rating_required'}
     # The comment is the owner's own words around the draft, never a span the model picked.

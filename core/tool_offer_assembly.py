@@ -936,7 +936,7 @@ _SKILL_ASK_CLAUSE_RE = re.compile(
     r"|clean|plan|schedule|book|arrange|prepare|draft|compose|edit|fix|delete|remove|rename|move|copy"
     r"|compare|explain|describe|help|suggest|recommend|propose|remind|look|search|research|analyze"
     r"|analyse|split|merge|fill|sign|send|share|trim|crop|quote|pull|collect|gather|produce|keep|take"
-    r"|run|do)\b",
+    r"|run|do|use)\b",
     re.IGNORECASE,
 )
 #: The request framings that ask from inside a sentence ("I want a ...", "could I ...").
@@ -976,7 +976,13 @@ def _turn_asks_for_something(text: str) -> bool:
     """A question or an imperative clause; narration and musing are not asks."""
     if "?" in text:
         return True
-    return bool(_SKILL_ASK_CLAUSE_RE.search(text) or _SKILL_ASK_MARK_RE.search(text))
+    if _SKILL_ASK_CLAUSE_RE.search(text) or _SKILL_ASK_MARK_RE.search(text):
+        return True
+    # A turn that opens with a typed N/10 rating asks for that rating to be recorded
+    # (core.x_feedback.save_from_turn reads exactly this grammar).
+    from core.x_feedback import opens_with_typed_rating
+
+    return opens_with_typed_rating(text)
 
 
 #: How many shared content words (stemmed, stopwords out) make a real topical match. One

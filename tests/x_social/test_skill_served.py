@@ -107,16 +107,26 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
     skill.parent.mkdir()
     skill.write_text('---\nname: social-manager\ndescription: orchard social-manager workflow\ntriggers: [orchard, social-manager]\nallowed-tools: [' + ', '.join(DECLARED_TOOLS) + ']\n---\nCheck usage, search, read post context, then propose one quote for owner approval.\n')
     # Only external X routing changes. Skill activation uses the production validator/installer.
+    # The daemon restarts itself once to move keys out of its starting environment
+    # (core.secret_env.shed_starting_secrets), and its children start without keys: this file runs
+    # in each of them, before the key handoff. The on-disk setup (X connection, skill install) runs
+    # once, in the first process, which still has the suite's key passphrase; the in-memory routing
+    # runs in every process.
     (bootstrap / 'sitecustomize.py').write_text('''import os
 import socket
 if os.environ.get('SOCIAL_SKILL_FIXTURE'):
  from core import x_api, policy_engine
  x_api.API_ORIGIN=os.environ['SOCIAL_SKILL_FIXTURE']
- from tests.test_x_api_reads import _connect
- _connect()
- from core.skill_tools import install_skill
- verdict=install_skill(os.environ['SOCIAL_SKILL_FILE'])
- assert verdict['status']=='ok',verdict
+ marker=os.path.join(os.environ['VOOL_HOME'],'social-skill-fixture.done')
+ if not os.path.exists(marker):
+  from tests.test_x_api_reads import _connect
+  _connect()
+  from core.skill_tools import install_skill
+  verdict=install_skill(os.environ['SOCIAL_SKILL_FILE'])
+  assert verdict['status']=='ok',verdict
+  open(marker,'w').close()
+ from tests.x_social.support import served_as_vool_browse
+ served_as_vool_browse('social-manager')
 ''')
     config = vault_home / 'config' / 'default_policy.yaml'
     config.parent.mkdir(parents=True, exist_ok=True)

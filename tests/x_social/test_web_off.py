@@ -11,6 +11,7 @@ import pytest
 
 from tests._credential_intelligence_support import isolated_home, vault_home
 from tests._toolchain_fixtures import make_plugin, reset_toolchain_state
+from tests.x_social.support import as_vool_browse
 
 TEXT = 'Use press-pr-manager to research recent coverage of checkpoint recovery tools for an Orchard pitch.'
 WEB = {'web.search', 'web.research', 'web.fetch'}
@@ -27,6 +28,7 @@ def press(vault_home, tmp_path, monkeypatch):
         'triggers: [press-pr-manager, pitch]\nallowed-tools: [operator.save_note, operator.find_notes, web.search, web.fetch]\n'
         '---\nResearch coverage for the pitch. If web research is off, say "Web research is off. Paste the '
         'article text, links or notes you want me to use, and I will build the pitch from them."\n'})
+    as_vool_browse(monkeypatch, 'press-pr-manager')
     reset_toolchain_state()
     policy_engine.load(force_reload=True)
     with override('plugin_runtime_tools', True):

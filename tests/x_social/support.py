@@ -52,3 +52,23 @@ def as_vool_browse(monkeypatch, *names: str) -> None:
         return real(skill)
 
     monkeypatch.setattr(skill_origin, "origin_of", origin_of)
+
+
+def served_as_vool_browse(*names: str) -> None:
+    """``as_vool_browse`` for a served daemon: called from the daemon's own test bootstrap.
+
+    A skill installed from a file is only a narrowing skill under the trust boundary; the served
+    X flow is about VOOL's own pinned Browse social-manager, whose real origin proof (signed local
+    check of a pinned Browse copy) is covered in tests/x_social/test_skill_origin_policy.py.
+    """
+    from core import skill_origin
+
+    real = skill_origin.origin_of
+    wanted = set(names)
+
+    def origin_of(skill):
+        if str(getattr(skill, "name", "") or "") in wanted:
+            return skill_origin.ORIGIN_VOOL_BROWSE
+        return real(skill)
+
+    skill_origin.origin_of = origin_of
