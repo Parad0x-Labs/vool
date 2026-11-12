@@ -12,7 +12,7 @@ from core.clean_loop import route
 from core.clean_loop.loop import is_bare_question, run_loop
 from core.clean_loop.registry import Registry, ToolContext
 from core.clean_loop.tools import NOT_FOUND_TEXT, UNSEARCHED_TEXT, install_builtin_tools
-from tests.test_clean_local_loop_turn import turn_setup  # noqa: F401  (fixture)
+from tests.test_clean_local_loop_turn import turn_setup
 
 
 @pytest.fixture(autouse=True)
@@ -88,7 +88,7 @@ def test_a_thanks_with_a_task_is_not_a_closing(message):
     assert not cs.is_closing(message)
 
 
-def test_a_closing_after_a_found_nothing_loop_turn_gets_small_talk_not_work(turn_setup, monkeypatch):  # noqa: F811
+def test_a_closing_after_a_found_nothing_loop_turn_gets_small_talk_not_work(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
     monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
     fake.replies[:] = ['{"tool": "find", "query": "zzqq"}', '{"answer": "I found no vet bill in your files."}', '{"answer": "You are welcome."}']
@@ -134,7 +134,7 @@ def test_a_pick_with_no_printed_list_has_no_invented_answer():
     assert res.kind == "referent_unresolved" and not res.answer
 
 
-def test_the_turn_answers_a_pick_outside_the_recorded_list_without_a_model(turn_setup, monkeypatch):  # noqa: F811
+def test_the_turn_answers_a_pick_outside_the_recorded_list_without_a_model(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
     monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
     sc = {"surface": "cli", "platform": "cli", "session_id": "pick-chat"}
@@ -149,7 +149,7 @@ def test_the_turn_answers_a_pick_outside_the_recorded_list_without_a_model(turn_
     assert not fake.chats
 
 
-def test_an_unresolved_pointer_is_not_handed_to_the_loop(turn_setup, monkeypatch):  # noqa: F811
+def test_an_unresolved_pointer_is_not_handed_to_the_loop(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
     monkeypatch.setenv("VOOL_CLEAN_LOCAL_LOOP", "1")
     result = agent.run_once("and what about that folder", source_context={"surface": "cli", "platform": "cli"})
@@ -249,7 +249,7 @@ def test_a_clarifying_question_after_a_read_that_found_things_is_left_alone(home
     assert result.answer == "Do you mean plumber_invoice.txt?"
 
 
-def test_the_whole_turn_says_plainly_it_found_none(turn_setup, monkeypatch):  # noqa: F811
+def test_the_whole_turn_says_plainly_it_found_none(turn_setup, monkeypatch):
     agent, fake, _home = turn_setup
     fake.replies[:] = [
         '{"tool": "find", "query": "zzqq"}',
