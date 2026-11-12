@@ -619,3 +619,30 @@ def test_a_stuck_drop_folder_hides_only_that_drop(pair, tmp_path):
     assert not (b.root / sid).exists()
     assert marker not in str(real_readers(b, sid, drop_refs))
     assert other_marker in str(real_readers(b, other_chat, other_refs)["entries"])
+
+
+def test_a_retry_after_a_crash_between_the_memory_part_and_its_record_finishes(pair, tmp_path):
+    """The process can die after the memory barrier completed and before the Drop recorded
+    that. The retry must finish, not rerun a memory forget that can no longer succeed."""
+    import secrets
+
+    from core.drop.session import fresh_id
+
+    a, b, sid, _ = pair
+    selected = tmp_path / "selected.txt"
+    selected.write_text("Scoped file.")
+    a.send_packet(sid, "note", selected)
+    b.poll()
+    other_chat, other_marker = fresh_id(), secrets.token_hex(6)
+    other_refs = seed_real_derivatives(b, other_chat, other_marker)
+    stuck = b.root / sid / "unexpected-directory"
+    stuck.mkdir()
+    with pytest.raises(DropError, match="DROP_FORGET_INCOMPLETE"):
+        b.delete(sid)
+    # The on-disk state such a crash leaves: barrier complete, chat deleted, no record.
+    b.db.execute("DELETE FROM memory_erased WHERE sid=?", (sid,))
+    b.db.commit()
+    stuck.rmdir()
+    b.delete(sid)
+    assert b._row(sid)["status"] == "deleted"
+    assert other_marker in str(real_readers(b, other_chat, other_refs)["entries"])
