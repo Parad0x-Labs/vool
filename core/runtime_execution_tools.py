@@ -8057,6 +8057,72 @@ def workspace_path_refusal(intent: str, raw_path: Any, *, workspace_root: Path) 
 
 
 SANDBOX_CWD_OUTSIDE_WORKSPACE = "cwd_outside_workspace"
+#: The working directory a command was given is not a folder in the workspace. Refused before anything
+#: starts, like an outside one: a process cannot start in a folder that is not there.
+SANDBOX_CWD_NOT_FOUND = "cwd_not_found"
+
+#: What a model calls the workspace itself when it means "start in the workspace". Measured 2026-11-12
+#: on the real app (247124ed, qwen3.5:4b): "run the command: sed -n 2p orders/week.csv" was sent with
+#: cwd "workspace", the tool joined it onto the workspace root, and the person read "Sandbox execution
+#: failure: [Errno 2] No such file or directory: '.../workspace/workspace'".
+_WORKSPACE_SELF_NAMES = frozenset({"workspace"})
+
+
+def sandbox_working_directory(raw_cwd: Any, *, workspace_root: Path) -> str:
+    """The working directory a command asked for, read the way the caller meant it.
+
+    A folder that exists inside the workspace is taken as written. A path whose first part names the
+    workspace ITSELF (its own folder name, or "workspace") and that is not a folder as written is read
+    from the workspace root: "workspace" is the root, "/workspace/orders" is "orders", when that
+    folder exists. Anything else comes back unchanged, for the refusals below to decide.
+    """
+    text = str(raw_cwd or "").strip()
+    if not text:
+        return ""
+    try:
+        if _resolve_workspace_path(text, workspace_root=workspace_root).exists():
+            return text
+    except ValueError:
+        pass
+    parts = [part for part in text.replace("\\", "/").split("/") if part not in {"", "."}]
+    if parts and parts[0].casefold() in {*_WORKSPACE_SELF_NAMES, workspace_root.name.casefold()}:
+        rest = "/".join(parts[1:])
+        try:
+            if _resolve_workspace_path(rest, workspace_root=workspace_root).exists():
+                return rest
+        except ValueError:
+            pass
+    return text
+
+
+_ERRNO_PREFIX_RE = re.compile(r"\[Errno -?\d+\]\s*")
+_ABSOLUTE_LOCAL_PATH_RE = re.compile(r"(?:(?<=[\s'\"`(=])|^)(?:~?/|[A-Za-z]:\\)[^\s'\"`)]*")
+
+
+def without_local_paths(text: str, *, workspace_root: Path) -> str:
+    """`text` as the person may read it: a path inside the workspace shown relative to it, any other
+    local path by its last name only, and no raw error numbers. A tool's failure is said in words the
+    person knows; the folder layout of their machine is not one of them (2026-11-12, the
+    '.../workspace/workspace' error above)."""
+
+    root = Path(workspace_root)
+    with contextlib.suppress(OSError):
+        root = root.resolve()
+
+    def _shown(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        core_text = raw.rstrip(".,;:!?")
+        tail = raw[len(core_text):]
+        if not core_text or core_text in {"/", "~/"}:
+            return raw
+        path = Path(core_text).expanduser()
+        try:
+            relative = path.resolve().relative_to(root).as_posix()
+            return (relative if relative not in {"", "."} else "your workspace") + tail
+        except (ValueError, OSError, RuntimeError):
+            return (path.name or "a folder") + tail
+
+    return _ABSOLUTE_LOCAL_PATH_RE.sub(_shown, _ERRNO_PREFIX_RE.sub("", str(text or "")))
 
 
 def sandbox_cwd_refusal(raw_cwd: Any, *, workspace_root: Path) -> RuntimeExecutionResult | None:
@@ -8070,15 +8136,15 @@ def sandbox_cwd_refusal(raw_cwd: Any, *, workspace_root: Path) -> RuntimeExecuti
     this same function before asking an operator to approve the action, so nobody approves a
     command the runtime was always going to refuse.
     """
-    cwd_text = str(raw_cwd or "").strip()
+    cwd_text = sandbox_working_directory(raw_cwd, workspace_root=workspace_root)
     if not cwd_text:
         return None
     try:
-        _resolve_workspace_path(cwd_text, workspace_root=workspace_root)
+        resolved = _resolve_workspace_path(cwd_text, workspace_root=workspace_root)
     except ValueError as exc:
         text = (
-            f"sandbox.run_command refused: the working directory `{cwd_text}` is outside the active "
-            f"workspace (`{workspace_root}`). Nothing was run. {exc}"
+            f"I didn't run that command: the folder `{cwd_text}` is outside your workspace. Nothing was "
+            f"run. {exc}"
         )
         return RuntimeExecutionResult(
             handled=True,
@@ -8095,6 +8161,29 @@ def sandbox_cwd_refusal(raw_cwd: Any, *, workspace_root: Path) -> RuntimeExecuti
                     ok=False,
                     status=SANDBOX_CWD_OUTSIDE_WORKSPACE,
                     error=str(exc),
+                ),
+            },
+        )
+    if not resolved.exists():
+        shown = _relative_path(resolved, workspace_root=workspace_root)
+        text = (
+            f"I didn't run that command: there is no folder `{shown}` in your workspace. Nothing was "
+            "run. Leave the folder out to start in the workspace, or name a folder that exists."
+        )
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=SANDBOX_CWD_NOT_FOUND,
+            response_text=text,
+            details={
+                "executed": False,
+                "cwd": shown,
+                "observation": _tool_observation(
+                    intent="sandbox.run_command",
+                    tool_surface="sandbox",
+                    ok=False,
+                    status=SANDBOX_CWD_NOT_FOUND,
+                    error=f"no folder `{shown}` in the workspace",
                 ),
             },
         )
@@ -8131,7 +8220,7 @@ def _run_command(
                 ),
             },
         )
-    raw_cwd = arguments.get("cwd")
+    raw_cwd = sandbox_working_directory(arguments.get("cwd"), workspace_root=workspace_root)
     refusal = sandbox_cwd_refusal(raw_cwd, workspace_root=workspace_root)
     if refusal is not None:
         return refusal
@@ -8188,13 +8277,18 @@ def _run_command(
                     summary=failure_summary,
                 )
             )
+        error_text = without_local_paths(
+            str(result.get("error") or f"Command could not run: {status}"), workspace_root=workspace_root
+        )
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
             status=status,
-            response_text=str(result.get("error") or f"Command could not run: {status}"),
+            response_text=error_text,
             details={
                 **dict(result),
+                "error": error_text,
+                "cwd": relative_cwd,
                 "artifacts": [command_artifact, *failure_artifacts],
                 "observation": _tool_observation(
                     intent="sandbox.run_command",
@@ -8206,7 +8300,7 @@ def _run_command(
                     returncode=int(result.get("returncode", 0) or 0),
                     stdout=stdout,
                     stderr=stderr,
-                    error=str(result.get("error") or ""),
+                    error=without_local_paths(str(result.get("error") or ""), workspace_root=workspace_root),
                     failure_summary=failure_summary,
                 ),
             },

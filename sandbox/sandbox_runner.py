@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import shutil
 import subprocess
@@ -336,5 +337,18 @@ class SandboxRunner:
             return {"error": f"Sandbox isolation unavailable: {e!s}", "status": "sandbox_unavailable"}
         except ValueError as e:
             return {"error": f"Sandbox execution blocked: {e!s}", "status": "blocked_by_policy"}
+        except OSError as e:
+            # The process never started: its folder or its program is not there, or the system
+            # refused it. Said in words, with no machine path and no error number (measured
+            # 2026-11-12 on the real app: the person read "Sandbox execution failure: [Errno 2] No
+            # such file or directory: '.../workspace/workspace'").
+            logging.getLogger(__name__).warning("sandbox command could not start: %r", e)
+            reason = str(e.strerror or "the system refused to start it").rstrip(".").lower()
+            missing = Path(str(e.filename)).name if getattr(e, "filename", None) else ""
+            return {
+                "error": f"The command could not start: {reason}" + (f" ({missing})." if missing else "."),
+                "status": "failed_to_start",
+            }
         except Exception as e:
-            return {"error": f"Sandbox execution failure: {e!s}"}
+            logging.getLogger(__name__).warning("sandbox command could not start: %r", e)
+            return {"error": "The command could not start.", "status": "failed_to_start"}
