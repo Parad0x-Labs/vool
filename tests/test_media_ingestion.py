@@ -4,6 +4,8 @@ import unittest
 import uuid
 from unittest import mock
 
+import pytest
+
 from apps.vool_agent import VoolAgent
 from core.media_analysis_pipeline import MediaAnalysisPipeline
 from core.media_ingestion import build_multimodal_attachments, ingest_media_evidence
@@ -214,5 +216,45 @@ class MediaIngestionTests(unittest.TestCase):
         self.assertEqual(evidence.text, "")
         self.assertEqual(evidence.metadata.get("fetch_status"), "not_a_web_reference")
         self.assertNotIn("SHOULD NEVER APPEAR", repr(evidence.to_dict()))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://attacker.example/youtube.com/watch",
+        "https://attacker.example/?next=https://youtu.be/clip",
+        "https://attacker.example/x.com/post",
+        "https://attacker.example/reddit.com/r/test",
+        "https://notyoutube.com/watch",
+        "https://notx.com/post",
+        "https://youtube.com.attacker.example/watch",
+        "https://[unclosed/youtube.com/watch",
+    ],
+)
+def test_media_kind_uses_url_host_not_embedded_site_text(url: str) -> None:
+    from core.media_ingestion import _infer_kind_from_url
+
+    assert _infer_kind_from_url(url) == "text"
+
+
+@pytest.mark.parametrize(
+    ("url", "kind"),
+    [
+        ("https://m.youtube.com/watch?v=one", "video"),
+        ("https://youtu.be/one", "video"),
+        ("https://www.youtube.com./watch?v=one", "video"),
+        ("https://x.com:443/post", "social_post"),
+        ("https://old.reddit.com/r/test", "social_post"),
+        ("https://Twitter.com/someone/status/1", "social_post"),
+        ("https://attacker.example/clip.mp4", "video"),
+        ("https://attacker.example/photo.png", "image"),
+    ],
+)
+def test_media_kind_preserves_provider_subdomains_and_ports(url: str, kind: str) -> None:
+    from core.media_ingestion import _infer_kind_from_url
+
+    assert _infer_kind_from_url(url) == kind
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -270,13 +270,31 @@ def _normalize_item(item: Any, *, fetch_text_reference: bool = False, public_onl
     )
 
 
+_SOCIAL_POST_HOSTS = ("x.com", "twitter.com", "facebook.com", "instagram.com", "reddit.com")
+_VIDEO_HOSTS = ("youtube.com", "youtu.be")
+
+
+def _host_is_one_of(host: str, domains: tuple[str, ...]) -> bool:
+    return any(host == domain or host.endswith("." + domain) for domain in domains)
+
+
 def _infer_kind_from_url(url: str) -> str:
+    """The media kind a link names, decided by the host it points at.
+
+    A provider's name in the path or the query (``attacker.example/youtube.com/watch``,
+    ``?next=https://youtu.be/clip``) or inside a longer host (``notyoutube.com``) is not that
+    provider. Subdomains (``m.youtube.com``, ``old.reddit.com``) and ports are.
+    """
     lower = (url or "").lower()
-    if any(token in lower for token in ("x.com/", "twitter.com/", "facebook.com/", "instagram.com/", "reddit.com/")):
+    try:
+        host = (urlparse(url or "").hostname or "").lower().rstrip(".")
+    except ValueError:
+        host = ""
+    if _host_is_one_of(host, _SOCIAL_POST_HOSTS):
         return "social_post"
     if any(lower.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp")):
         return "image"
-    if any(lower.endswith(ext) for ext in (".mp4", ".mov", ".webm", ".mkv")) or "youtube.com/" in lower or "youtu.be/" in lower:
+    if any(lower.endswith(ext) for ext in (".mp4", ".mov", ".webm", ".mkv")) or _host_is_one_of(host, _VIDEO_HOSTS):
         return "video"
     return "text"
 
