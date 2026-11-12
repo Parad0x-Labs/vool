@@ -223,8 +223,8 @@ def model_has_no_thinking_mode(model_name: str) -> bool:
     """Whether this tag names a model with no reasoning phase at all, whatever its family.
 
     Two kinds: VOOL's own no-think builds (`:nothink`, `no-think`), and Qwen3's 2507 instruct
-    releases (`qwen3:30b-instruct`, `qwen3:4b-instruct`, `qwen3:30b-a3b-instruct-2507-q4_K_M`),
-    which Qwen ships as non-thinking models. Ollama lists no thinking capability for them and
+    releases (`qwen3:30b-instruct`, `qwen3:4b-instruct`, `qwen3:30b-a3b-instruct-2507-q4_K_M`, and
+    the same models pulled from Hugging Face), which Qwen ships as non-thinking models. Ollama lists no thinking capability for them and
     answers `think: true` with HTTP 400 ("does not support thinking", server/routes.go), so a
     family marker alone (qwen3) must not read them as reasoning models. Their thinking twins
     (`qwen3:30b-thinking`, and `qwen3:30b-a3b`, which Ollama now serves as Thinking-2507) keep
@@ -234,7 +234,17 @@ def model_has_no_thinking_mode(model_name: str) -> bool:
     if "nothink" in name or "no-think" in name:
         return True
     family, _, tag = name.partition(":")
-    return family == "qwen3" and "instruct" in tag
+    if family == "qwen3" and "instruct" in tag:
+        return True
+    # The same releases pulled from Hugging Face carry the model in the repository name and the
+    # quantisation in the tag: `hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M`. The
+    # template that repository serves to Ollama has no thinking block, so Ollama lists no thinking
+    # capability for it either.
+    source, _, path = family.partition("/")
+    if source in {"hf.co", "huggingface.co"}:
+        repository = path.rsplit("/", 1)[-1]
+        return repository.startswith("qwen3-") and "-instruct" in repository
+    return False
 
 
 def is_thinking_capable_model(model_name: str) -> bool:
