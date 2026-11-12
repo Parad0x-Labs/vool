@@ -86,8 +86,29 @@ def _ok(payload: dict[str, Any]) -> Any:
     return _json(200, {"ok": True, **payload})
 
 
+#: Plain words for the wallet-role refusals (core.wallet.wallet_roles) the page shows.
+_ROLE_REFUSALS = {
+    "backup_not_confirmed": "Confirm that you have this wallet's backup key, or that it is empty, before deleting it. Nothing was deleted.",
+    "payment_in_flight": "A payment from this wallet is still on its way. Delete it once that payment has finished. Nothing was deleted.",
+    "payment_waiting": "A payment from this wallet is waiting for your approval. Approve or decline it first. Nothing was deleted.",
+    "burner_cannot_be_main": "A burner wallet cannot be your main wallet. Nothing changed.",
+    "name_required": "Type a name for the wallet. Nothing changed.",
+    "backup_password_mismatch": "The two backup passwords differ. Nothing was saved.",
+    "backup_password_weak": "Use a backup password of at least 12 characters that is not only numbers. Nothing was saved.",
+    "backup_password_is_the_pin": "Use a backup password different from this wallet's PIN or password. Nothing was saved.",
+    "secure_store_unavailable": "This computer's secure store (Keychain) could not be used right now. Nothing was saved. Write the backup key down instead, or try again.",
+    "secure_store_readback_failed": "The backup could not be read back from the secure store, so it was not kept. Try again.",
+    "no_backup_in_secure_store": "There is no backup of this wallet in this computer's secure store.",
+    "backup_password_wrong": "That backup password does not open this backup. Nothing changed.",
+    "restore_not_supported_on_this_network": "Restoring from the secure store works for Solana wallets for now. Use the backup key for this one.",
+}
+
+
 def _fault(exc: WalletFault) -> Any:
     payload: dict[str, Any] = {"ok": False, "error": exc.code, "message": exc.user_message, "fault": exc.to_dict()}
+    said = _ROLE_REFUSALS.get(str(exc.context.get("reason") or ""))
+    if said and exc.code == "wallet_setup_state_invalid":
+        payload["message"] = said
     if exc.code == "wallet_confirmation_required":
         payload["warning"] = custody.POCKET_WARNING_TEXT
         payload["confirmation_phrase"] = custody.POCKET_CONFIRMATION_PHRASE
@@ -218,6 +239,10 @@ def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: st
         except (TypeError, ValueError):
             limit = 50
         return _ok({"transfers": transfers.list_transfers(limit=limit, wallet_id=str((query.get("wallet_id") or [""])[0] or ""), network=str((query.get("network") or [""])[0] or ""))})
+    if path == "/api/wallet/keychain":
+        from core.wallet import keychain_backup
+
+        return _json(200, {"ok": True, "keychain": keychain_backup.overview()}, headers=_NO_STORE)
     if path == "/api/wallet/agents":
         # Settings, Crypto, Agent spending: each agent's own wallet, its allowance and use, what waits for the owner
         from core.wallet import agent_settings
@@ -261,7 +286,7 @@ def _setup_door(path: str, body: dict[str, Any], *, source_context: dict[str, An
         view = pilot_custody.create_pilot_wallet(
             network=str(body.get("network") or ""), method=str(body.get("method") or "pin"), credential=credential,
             credential_confirmation=str(body.get("credential_confirmation") or ""), creation_key=str(body.get("creation_key") or ""),
-            label=str(body.get("label") or ""), source_context=source_context,
+            label=str(body.get("label") or ""), source_context=source_context, kind=str(body.get("kind") or ""),
         )
         return _json(200, {"ok": True, "setup": view}, headers=_NO_STORE)
     if path == "/api/wallet/setup/reveal":
@@ -315,6 +340,9 @@ def _agent_door(path: str, body: dict[str, Any], *, source_context: dict[str, An
             answer = agent_settings.save_allowance(body, source_context=source_context)
         elif path == "/api/wallet/agents/allowance/state":
             answer = agent_settings.set_state(body, source_context=source_context)
+        elif path == "/api/wallet/addons/allowance":
+            # the Skills & plugins wallet: tick a plugin with its own limits, or change them
+            answer = agent_settings.save_addon(body, source_context=source_context)
         else:
             return _json(404, {"ok": False, "error": "not found"})
     except agent_settings.SettingsRefused as exc:
@@ -343,7 +371,8 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
         if reason:
             return _fault(wallet_fault("wallet_caller_refused", authority=caller_binding.AUTHORITY, context={"reason": reason, "door": path}, source_context=source_context))
     try:
-        if path in ("/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state"):
+        if path in ("/api/wallet/agents/wallet", "/api/wallet/agents/backup", "/api/wallet/agents/allowance", "/api/wallet/agents/allowance/state",
+                    "/api/wallet/addons/allowance"):
             # listed door by door: each is its own registered command
             return _agent_door(path, body, source_context=source_context)
         if path == "/api/wallet/transfers/refresh":
@@ -353,6 +382,38 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             return _ok({"observer": {"woken": settlement.wake_observer(), **settlement.observer_state()}})
         if not config.wallet_enabled():
             custody.require_enabled(source_context=source_context)
+        if path in ("/api/wallet/keychain/save", "/api/wallet/keychain/recover", "/api/wallet/keychain/restore", "/api/wallet/keychain/forget"):
+            # a wallet's backup key sealed with the person's backup password, in the computer's secure store
+            from core.wallet import keychain_backup as kb
+
+            wid, pw = str(body.get("wallet_id") or ""), str(body.get("backup_password") or "")
+            if path == "/api/wallet/keychain/save":
+                answer = kb.save(wid, credential=str(body.get("credential") or ""), password=pw, confirmation=str(body.get("backup_password_confirmation") or ""), source_context=source_context)
+            elif path == "/api/wallet/keychain/recover":
+                answer = kb.recover(wid, password=pw, method=str(body.get("method") or "pin"), credential=str(body.get("credential") or ""),
+                                    credential_confirmation=str(body.get("credential_confirmation") or ""), source_context=source_context)
+            elif path == "/api/wallet/keychain/restore":
+                answer = kb.restore(str(body.get("network") or ""), str(body.get("address") or ""), password=pw, method=str(body.get("method") or "pin"),
+                                    credential=str(body.get("credential") or ""), credential_confirmation=str(body.get("credential_confirmation") or ""),
+                                    label=str(body.get("label") or ""), source_context=source_context)
+            else:
+                answer = kb.forget(wid, source_context=source_context)
+            return _json(200, {"ok": True, "keychain": answer}, headers=_NO_STORE)
+        if path == "/api/wallet/wallets/remove":
+            from core.wallet import wallet_roles
+
+            removed = wallet_roles.remove_wallet(str(body.get("wallet_id") or ""), credential=str(body.get("credential") or ""),
+                                                 backup_confirmed=body.get("backup_confirmed") is True, source_context=source_context)
+            return _json(200, {"ok": True, "removed": removed}, headers=_NO_STORE)
+        if path in ("/api/wallet/wallets/name", "/api/wallet/wallets/main"):
+            # the person's wallets by name and role (core.wallet.wallet_roles): renaming loosens nothing; making a
+            # wallet Main is proven with that wallet's own credential
+            from core.wallet import wallet_roles
+
+            if path == "/api/wallet/wallets/name":
+                return _json(200, {"ok": True, "wallet": wallet_roles.rename(str(body.get("wallet_id") or ""), body.get("name"), source_context=source_context)}, headers=_NO_STORE)
+            moved = wallet_roles.make_main(str(body.get("wallet_id") or ""), credential=str(body.get("credential") or ""), source_context=source_context)
+            return _json(200, {"ok": True, "main": moved}, headers=_NO_STORE)
         if path == "/api/wallet/watch-only":
             profile = custody.create_watch_only_wallet(str(body.get("public_key") or ""), network=str(body.get("network") or config.NETWORK_SOLANA_DEVNET), label=str(body.get("label") or ""), source_context=source_context)
             return _ok({"wallet": profile.to_dict()})
