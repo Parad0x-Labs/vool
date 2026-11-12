@@ -2306,7 +2306,9 @@ def _withdrawn_in_chain(
             or any(_token_kin(a, b) for a in lo_sig for b in j_sig)
             or bool(lo_values & value_tokens(jbody))
         )
-        if not tied:
+        if not tied or _names_another_field(loser.body, jbody):
+            # a retraction of "my gate code" never takes back "my spare gate
+            # code" or "my sister's gate code" (field identity, see there)
             continue
         for k in members:
             if (rank.get(k) is not None and _spoken_before(normalized[j], normalized[k])
@@ -2419,7 +2421,146 @@ def _marker_sentence_bears_on(loser_body: str, winner_body: str) -> bool:
     return not any_marker_sentence
 
 
+#: Words that say WHICH VERSION of one field a statement gives, never which
+#: field it is: "my new gate code", "the current wifi password", "my real
+#: PIN", "the old address".
+_FIELD_VERSION_WORDS = frozenset({
+    "new", "old", "current", "actual", "real", "correct", "right", "proper",
+    "updated", "latest", "previous", "former", "original", "present",
+    "earlier", "last", "first", "final", "newest", "usual", "same", "whole",
+    "full", "exact", "entire", "own",
+})
+#: Modifiers whose meaning presupposes a sibling field of the same head: a
+#: "spare key" implies the key, a "work phone" the personal phone, a "guest
+#: wifi password" the household one. Closed class (see _names_another_field).
+_CONTRASTIVE_FIELD_MODIFIERS = frozenset({
+    "spare", "backup", "back-up", "second", "secondary", "alternate",
+    "alternative", "extra", "guest", "work", "office", "business", "home",
+    "personal", "private", "emergency", "master", "admin", "front", "side",
+    "garage", "temporary", "temp", "joint", "shared", "family", "school",
+    "company", "corporate", "travel", "holiday", "vacation", "kid", "kids",
+})
+#: Words that open a noun phrase: what stands between one of them and the
+#: shared head is the phrase's own modifier material.
+_NP_OPENERS = frozenset({
+    "my", "our", "your", "his", "her", "their", "its", "the", "a", "an",
+    "this", "that", "these", "those", "i", "we", "you", "he", "she", "they",
+    "it", "me", "us", "him", "them",
+})
+_FIRST_PERSON_POSSESSIVES = frozenset({"my", "our"})
+_NP_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’\-]*")
+
+
+def _possessor_of(token: str) -> str | None:
+    lowered = token.lower().replace("’", "'")
+    if lowered.endswith("'s") and len(lowered) > 2:
+        return lowered[:-2]
+    if lowered.endswith("s'") and len(lowered) > 2:
+        return lowered[:-1]
+    return None
+
+
+def _field_np(body: str, shared: frozenset[str]) -> tuple[frozenset[str], str | None, bool] | None:
+    """The modifiers, the possessor and first-person ownership of the noun
+    phrase in *body* that holds its first run of *shared* head words, read
+    leftwards from that run to the word that opens the phrase ("my sister's
+    wifi password" -> ({}, "sister", False); "my spare gate code" ->
+    ({"spare"}, None, True)); None when no shared word is found."""
+    matches = list(_NP_TOKEN_RE.finditer(str(body or "")))
+    tokens = [m.group(0).lower().replace("’", "'") for m in matches]
+    start = next((k for k, tok in enumerate(tokens) if _stem(tok) in shared), None)
+    if start is None:
+        return None
+    modifiers: set[str] = set()
+    possessor: str | None = None
+    first_person = False
+    k = start - 1
+    while k >= 0:
+        gap = str(body)[matches[k].end():matches[k + 1].start()]
+        if gap.strip():
+            break  # punctuation ends the phrase
+        token = tokens[k]
+        owner = _possessor_of(token)
+        if owner is not None:
+            if possessor is None and not modifiers:
+                possessor = owner
+            else:
+                break
+            k -= 1
+            continue
+        if token in _NP_OPENERS:
+            first_person = possessor is None and token in _FIRST_PERSON_POSSESSIVES
+            break
+        if (token in _STOPWORDS or token in _NUMBER_WORDS or any(ch.isdigit() for ch in token)
+                or token in _TEMPORAL_WORDS or token in _UNIT_WORDS):
+            break
+        stem = _stem(token)
+        if (stem not in shared and token not in _FIELD_VERSION_WORDS
+                and token not in _REASSIGNMENT_TOKENS and token not in _LIGHT_VERB_TOKENS):
+            modifiers.add(stem)
+        k -= 1
+    return frozenset(modifiers), possessor, first_person
+
+
+def _mentions(body: str) -> set[str]:
+    words: set[str] = set()
+    for token in _NP_TOKEN_RE.findall(str(body or "")):
+        lowered = token.lower().replace("’", "'")
+        owner = _possessor_of(lowered)
+        for word in (lowered, owner) if owner else (lowered,):
+            words.add(word)
+            words.add(_stem(word))
+    return words
+
+
+def _names_another_field(loser_body: str, winner_body: str) -> bool:
+    """Whether a later statement is about ANOTHER FIELD than an earlier one
+    that shares its head words, so it neither supersedes nor withdraws it.
+
+    Field identity is not word containment (memory review 2026-10-05, D1/E1;
+    probe of the v0.8 line 2026-11-12): "I changed my wifi password" retired
+    "My sister's wifi password is ...", and "My gate code is ..." or "I
+    changed my gate code" retired "My spare gate code is ...", because the
+    later bag of words is contained in the earlier one. Two laws:
+
+    * possessor: one statement names the speaker's own field ("my wifi
+      password") and the other the same field of another possessor ("my
+      sister's wifi password") that the first never mentions;
+    * sibling field: one statement narrows its head with a CONTRASTIVE
+      modifier - a closed class whose meaning presupposes a sibling of the
+      same head ("spare", "backup", "guest", "work", "second") - that the
+      other statement never mentions. Any other modifier is description,
+      not identity: a first mention is usually fuller than the next ("We
+      booked the island ferry for noon." / "Cancel that, the ferry is
+      full." is ONE ferry), so word containment cannot tell a sibling field
+      from a shortened reference.
+
+    Version words ("new", "current", "old") never make another field."""
+    shared = frozenset(
+        tok for tok in slot_signature(loser_body) & slot_signature(winner_body)
+        if tok not in _REASSIGNMENT_TOKENS and tok not in _LIGHT_VERB_TOKENS
+        and tok not in _FIELD_VERSION_WORDS and not any(ch.isdigit() for ch in tok))
+    if not shared:
+        return False
+    loser_np = _field_np(loser_body, shared)
+    winner_np = _field_np(winner_body, shared)
+    if loser_np is None or winner_np is None:
+        return False
+    lo_mods, lo_owner, lo_mine = loser_np
+    wi_mods, wi_owner, wi_mine = winner_np
+    winner_words, loser_words = _mentions(winner_body), _mentions(loser_body)
+    if lo_owner and wi_mine and lo_owner not in winner_words:
+        return True
+    if wi_owner and lo_mine and wi_owner not in loser_words:
+        return True
+    return bool((lo_mods & _CONTRASTIVE_FIELD_MODIFIERS) - winner_words
+                or (wi_mods & _CONTRASTIVE_FIELD_MODIFIERS) - loser_words)
+
+
 def _conflicts_with_winner(loser_body: str, winner_body: str) -> bool:
+    if _names_another_field(loser_body, winner_body):
+        # another field (possessor or narrower sibling) is never replaced
+        return False
     # A pure REVERSION winner replaces nothing: the closed exception
     # expires by its own dates and the standing value COEXISTS with the
     # statement that confirms its return (measured: the lane-price pair —
@@ -3073,7 +3214,8 @@ def apply_temporal_selection(
                         or _ANAPHORIC_FROM_DATE_RE.search(
                             normalized[winner].body))
                     and value_tokens(cand.body)
-                    != value_tokens(normalized[winner].body)):
+                    != value_tokens(normalized[winner].body)
+                    and not _names_another_field(cand.body, normalized[winner].body)):
                 # A DIGIT-LESS pair still replaces: "moves to a ten o'clock
                 # opening" / "has carried an LED cluster since 2019" carry
                 # their values as noun phrases with no numerals, so the
