@@ -901,6 +901,15 @@ def _term_matcher(terms: tuple[str, ...]):
     return found
 
 
+def _is_agent_session(session_id: str) -> bool:
+    try:
+        from core.agent_team.gate import is_agent_session
+
+        return is_agent_session(session_id)
+    except Exception:
+        return False
+
+
 def search_chats(
     query: str,
     *,
@@ -930,6 +939,10 @@ def search_chats(
     handled = _handled_fingerprints()
     log_path = conversation_log_path()
     rows = load_jsonl(log_path)
+    # A team agent's session (its rows say so, or a team holds it now) is not one of the owner's
+    # chats: neither its turns nor its title, which is the orchestrator's task prompt, are searched.
+    agent_sids = {str(row.get("session_id") or "") for row in rows if row.get("agent_session")}
+    sessions = {sid: meta for sid, meta in sessions.items() if sid not in agent_sids and not _is_agent_session(sid)}
     try:
         log_trimmed = log_path.stat().st_size >= MAX_CONVERSATION_LOG_BYTES // 2
     except OSError:
@@ -946,6 +959,9 @@ def search_chats(
         if not sid or sid not in sessions:
             continue
         if str(row.get("artifact_kind") or "").strip():
+            continue
+        # A team agent's session holds the orchestrator's task prompts, not the owner's words.
+        if row.get("agent_session") or _is_agent_session(sid):
             continue
         if not include_archived and sessions[sid].get("archived"):
             continue

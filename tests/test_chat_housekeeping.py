@@ -362,3 +362,28 @@ def test_a_pinned_chat_is_listed_even_outside_the_newest_100() -> None:
     pinned = [row for row in rows if row["pinned"]]
     assert [row["session_id"] for row in pinned] == [STAKING]
     assert len([row for row in rows if not row["pinned"]]) == 100
+
+
+def test_a_team_agent_session_is_never_searched_or_recalled_as_the_owners_words() -> None:
+    """A team agent's session holds the orchestrator's task prompt as its "user" turn. While the
+    team ran, "What does the config loader do?" in the owner's chat was answered by quoting that
+    prompt back as something the owner said (agent-spending test, 2026-11-12). The rows written
+    while the session is bound are marked, and neither search nor recall reads them, before or
+    after the team lets the session go."""
+    from core.agent_runtime.cross_chat_recall import cross_chat_recall
+    from core.agent_team import gate
+
+    agent_sid = "openclaw:" + "a9" * 10
+    gate.bind_session(agent_sid, object(), "reviewer-1")
+    try:
+        _seed(agent_sid, "The config loader reads settings.toml and merges environment overrides. "
+                         "Begin your reply with one line RESULT: {...}", "RESULT: {\"ok\": true}")
+        assert not hk.search_chats("config loader settings overrides", current_session_id=CURRENT).hits
+        # The agent's own turn does not recall the owner's chats either.
+        assert cross_chat_recall("what does the config loader do?", session_id=agent_sid,
+                                 source_context={"surface": "api"}) is None
+    finally:
+        gate.unbind_session(agent_sid)
+    assert not hk.search_chats("config loader settings overrides", current_session_id=CURRENT).hits
+    _seed(GARDEN, "the config loader reads settings.toml", "Noted.")
+    assert [hit.session_id for hit in hk.search_chats("config loader settings", current_session_id=CURRENT).hits] == [GARDEN]

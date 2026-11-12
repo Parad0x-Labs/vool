@@ -209,6 +209,16 @@ _ATTACHMENT_RE = re.compile(
 )
 
 
+def _agent_turn(session_id: str) -> bool:
+    """A team agent's own turn never recalls the owner's other chats."""
+    try:
+        from core.agent_team.gate import is_agent_session
+
+        return is_agent_session(session_id)
+    except Exception:
+        return False
+
+
 def _owned_by_another_lane(text: str) -> bool:
     if _LIVE_DOMAIN_RE.search(text) or _ATTACHMENT_RE.search(text):
         return True
@@ -584,7 +594,7 @@ def cross_chat_recall(
         _LOG.info("cross-chat recall considered: %s", text[:80])
     except Exception:
         return None
-    if not _owner_local(source_context) or _private(session_id, source_context):
+    if not _owner_local(source_context) or _private(session_id, source_context) or _agent_turn(session_id):
         _LOG.info("cross-chat recall declined: owner_local=%s private=%s", _owner_local(source_context), _private(session_id, source_context))
         return None
     if _owned_by_another_lane(text):

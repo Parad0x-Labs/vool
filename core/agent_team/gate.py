@@ -51,6 +51,11 @@ def binding(session_id: str) -> tuple[Any, str] | None:
         return _BINDINGS.get(str(session_id or ""))
 
 
+def is_agent_session(session_id: str) -> bool:
+    """Whether a team has bound this session to one of its agents right now."""
+    return binding(session_id) is not None
+
+
 def check_write(path: str, *, session_id: str = "") -> tuple[bool, str]:
     """``(allowed, reason)`` for a write the tool layer is about to make."""
     bound = binding(session_id)

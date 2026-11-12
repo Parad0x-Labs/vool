@@ -1153,6 +1153,15 @@ def _run_held_work(work: list[Any], answer: str | None = None) -> None:
             logging.getLogger(__name__).exception("work held for the transcript record failed")
 
 
+def _is_agent_session(session_id: str) -> bool:
+    try:
+        from core.agent_team.gate import is_agent_session
+
+        return is_agent_session(session_id)
+    except Exception:
+        return False
+
+
 def append_conversation_event(
     *,
     session_id: str,
@@ -1688,6 +1697,11 @@ def _write_conversation_event(
     payload.update(_attachment_receipt_fields(session_id, source_context))
     if extra_fields:
         payload.update(extra_fields)
+    # A turn in a session a team bound to one of its agents is the agent's, not the owner's: its
+    # "user" side is the orchestrator's task prompt. The row says so, so search and recall never
+    # quote it back as something the owner said (agent-spending test, 2026-11-12).
+    if _is_agent_session(session_id):
+        payload["agent_session"] = True
     # Serialize the whole write sequence: the append+trim and every downstream load-modify-rewrite
     # touch process-global shared files, so concurrent turns must not interleave.
     from contextlib import ExitStack
