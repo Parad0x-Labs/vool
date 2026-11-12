@@ -1049,12 +1049,13 @@ _CODE_SEARCH_VERB_RE = re.compile(
     r"|\breferences?\s+to\b"
     r"|\bwhere\s+(?:is|are)\b[^.\n]{0,60}?\b(?:defined|declared|implemented|wired|used|set|called)\b"
     r"|\bwhere\b[^.\n]{0,40}?\bis\s+used\b"
+    r"|\bwhere\s+(?:does|do)\s+[^\s.?!]+\s+come\s+from\b"
     r"|\b(?:which|what)\s+files?\s+(?:mention|contain|use|reference|have)\b"
     r"|\blook\s+for\s+the\s+(?:string|text|symbol|function|class|constant|name)\b"
     r"|\bhunt\s+(?:down|for)\b",
     re.IGNORECASE,
 )
-# Naming the repository is enough on its own -- "hunt down X in the repo".
+# Workspace context can qualify a search, but cannot establish search intent.
 _IN_THE_CODEBASE_RE = re.compile(
     r"\bin\s+(?:this|the|my|our)\s+(?:workspace|repo(?:sitory)?|project|codebase|code\s?base|source)\b"
     r"|\bin\s+(?:the\s+)?code\b",
@@ -1107,7 +1108,10 @@ def _code_search_query(normalized: str) -> str:
 
     if _SEARCH_MEANS_THE_WEB_RE.search(normalized):
         return ""
-    if not (_CODE_SEARCH_VERB_RE.search(normalized) or _IN_THE_CODEBASE_RE.search(normalized)):
+    # A location plus an identifier also occurs in authoring and explanation requests.
+    # Require an actual search action before extracting a needle; otherwise "create
+    # ... in this project ... localStorage" steals the named-file build workflow.
+    if not _CODE_SEARCH_VERB_RE.search(normalized):
         return ""
     quoted = _QUOTED_TOKEN_RE.search(normalized)
     if quoted:
