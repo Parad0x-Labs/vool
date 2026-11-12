@@ -927,6 +927,61 @@ _OUTPUT_INTEGRITY_HARM_RE = re.compile(
 )
 
 
+_SCENARIO_LITERAL_RE = re.compile(r"\d|'[^'\n]+'|\"[^\"\n]+\"|`[^`\n]+`")
+_CODE_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
+_NOT_GROUNDING = frozenset({
+    "self", "None", "True", "False", "return", "raise", "import", "from", "with", "while", "lambda", "else",
+    "elif", "pass", "break", "continue", "global", "class", "def", "for", "not", "and", "the", "this", "that",
+})
+
+
+#: A story that only says what MIGHT happen ("may be hard to read", "could be slow") states no outcome.
+_SPECULATIVE_RE = re.compile(r"\b(?:may|might|could|can|would)\s+(?:be|become|get|seem|look|feel)\b", re.IGNORECASE)
+#: A wrong outcome is a contrast or an error, never a connective. Connectives ("so", "then", "still", "returns",
+#: "results in") carry praise and hunches as easily as bugs (review of 1b91da89, 2026-10-07: "clear, so the logic
+#: is correct" and "takes a while, so it is slow" reached the top severity). What a bug story states instead:
+#: expected against actual ("should be", "instead of", "but", "although", "3, not 4"), a bad value (negative
+#: stock, a coupon applied twice), a raised error, or a refused operation.
+_CONTRAST_OR_ERROR_RE = re.compile(
+    r"\bshould(?:n't|\s+not)?\s+(?:be|have|equal|return|give|stay|remain|get)\b"
+    r"|\b(?:instead\s+of|rather\s+than|although|even\s+though|despite|whereas)\b"
+    r"|(?<!nothing\s)(?<!anything\s)(?<!all\s)\bbut\b|\b(?:and|yet)\s+still\b"
+    r"|,\s*not\s+[\d'\"`]|(?<![\w.\-])-\d"
+    r"|\b(?:twice|a\s+second\s+time|doubled|double[- ](?:counted|charged|applied|discount(?:ed)?))\b"
+    r"|\b(?:refuses?|rejects?)\b|\b[Tt]raceback\b|(?-i:\b[A-Z]\w*(?:Error|Exception)\b)",
+    re.IGNORECASE,
+)
+
+
+def _scenario_states_a_wrong_outcome(text: str) -> bool:
+    """Whether the story says what goes wrong (a contrast or an error), not only what might."""
+    return bool(_CONTRAST_OR_ERROR_RE.search(text)) and not _SPECULATIVE_RE.search(text)
+
+
+def _scenario_is_concrete_and_grounded(scenario: str, evidence: Any, path: str, start: int, end: int) -> bool:
+    """Whether a failure scenario can be settled by running something: it gives a concrete input (a number or
+    a quoted value) AND names code that sits on the cited lines (±1).
+
+    The harm vocabulary alone decided this before, so a real, concrete bug worded "the 2 units remain reserved"
+    rather than "incorrect" was demoted and refused as the primary finding (live agent-team comparison,
+    2026-10-07: three correct nominations failed that way). Grounding keeps the old guard's purpose: a model
+    cannot buy the provable tier with a vague or unrelated story, only with one tied to the source it cites.
+    """
+    text = str(scenario or "")
+    # A literal and a nearby name are not enough on their own (independent review, 2026-10-07: "With 2 orders,
+    # order.lines may be hard to read" and "The 3 lines that update order.lines are clear and correct" were
+    # promoted to the top severity). The story must also state the wrong outcome it claims.
+    if not _SCENARIO_LITERAL_RE.search(text) or not _scenario_states_a_wrong_outcome(text):
+        return False
+    lines = str(evidence.sources.get(path, "") or "").splitlines()
+    window = "\n".join(lines[max(0, start - 2): min(len(lines), end + 1)])
+    tokens = {t for t in _CODE_TOKEN_RE.findall(window) if len(t) >= 4 and t not in _NOT_GROUNDING}
+    # Inside a method `self.available` is called `available` (review of 6ad76ec7: "can_reserve('A', 5) with
+    # available 5 -> False, should be True" did not ground).
+    tokens |= {t[5:] for t in tokens if t.startswith("self.") and len(t) >= 9}
+    return any(re.search(r"(?<![\w.])" + re.escape(token) + r"(?![\w])", text) for token in tokens)
+
+
 def _finding_defect(
     candidate: dict[str, Any],
     evidence: Any,
@@ -976,20 +1031,26 @@ def _finding_defect(
     declared = str(candidate.get("harm_class") or "").strip().lower()
     if declared and declared not in HARM_CLASSES:
         return f"harm_class {declared!r} is not one of {', '.join(HARM_CLASSES)}"
-    provable = bool(_OUTPUT_INTEGRITY_HARM_RE.search(claim_text))
-    if declared in PROVABLE_HARM_CLASSES and not provable:
-        if allow_observations:
-            # A survey row is shown without any challenge, so its declared crash/integrity has to be
-            # backed by its words or it is downgraded to the undeclared-inference rule below.
-            declared = ""
-        else:
-            # The PRIMARY candidate keeps its declared class, and the source challenge decides
-            # (`_challenge_finding`, fail-closed: only a clean `supported` is ever shown). The vocabulary
-            # used to decide instead, and refused real bugs worded in plain language: VOOL-only pass u3,
-            # 2026-10-07, refused the right orders.py bug three times ("the 2 cancelled units stay
-            # reserved forever"). Measured on Pack 1's 42 cases through the real challenge on a paid
-            # model: 1/28 non-bugs and 12/14 real bugs shown, against 0/28 and 0/14 for the vocabulary.
-            candidate["claim_needs_challenge"] = True
+    # Words back a provable class in two ways: the harm vocabulary, or a story that gives a concrete input,
+    # names code on the cited lines and states the wrong outcome (`_scenario_is_concrete_and_grounded`).
+    # Words decide only where no challenge runs: a survey row's declared class and an undeclared class.
+    # A declared primary goes to the challenge either way, so its flag below follows the vocabulary as before.
+    worded = bool(_OUTPUT_INTEGRITY_HARM_RE.search(claim_text))
+    provable = worded or _scenario_is_concrete_and_grounded(
+        failure_scenario, evidence, resolved, line_start, line_end
+    )
+    if declared in PROVABLE_HARM_CLASSES and allow_observations and not provable:
+        # A survey row is shown without any challenge, so its declared crash/integrity has to be
+        # backed by its words or it is downgraded to the undeclared-inference rule below.
+        declared = ""
+    elif declared in PROVABLE_HARM_CLASSES and not allow_observations and not worded:
+        # The PRIMARY candidate keeps its declared class, and the source challenge decides
+        # (`_challenge_finding`, fail-closed: only a clean `supported` is ever shown). The vocabulary
+        # used to decide instead, and refused real bugs worded in plain language: VOOL-only pass u3,
+        # 2026-10-07, refused the right orders.py bug three times ("the 2 cancelled units stay
+        # reserved forever"). Measured on Pack 1's 42 cases through the real challenge on a paid
+        # model: 1/28 non-bugs and 12/14 real bugs shown, against 0/28 and 0/14 for the vocabulary.
+        candidate["claim_needs_challenge"] = True
     if not declared:
         # An undeclared class falls back to the historical rule, so a model that ignores the field
         # cannot smuggle an unprovable claim into the provable tier by omission.
