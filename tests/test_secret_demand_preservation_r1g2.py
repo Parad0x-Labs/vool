@@ -129,7 +129,12 @@ def _model_stand_in(agent, text: str, also: dict[str, str] | None = None):
     stack.enter_context(
         mock.patch(
             "core.agent_runtime.agent.render_response",
-            side_effect=lambda *a, **_k: _answer_for(" ".join(map(str, a))),
+            # The child's own words travel as `input_interpretation`; the plan alone can carry
+            # another turn's text (a retained-context echo), which is not the request.
+            side_effect=lambda *a, **k: _answer_for(
+                str(getattr(k.get("input_interpretation"), "raw_text", "") or "")
+                or " ".join(map(str, a))
+            ),
         )
     )
     return stack
