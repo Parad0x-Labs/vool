@@ -366,7 +366,7 @@ def test_the_failed_row_under_an_unanswered_browser_step_names_the_step() -> Non
         with mock.patch.object(
             agent,
             "_emit_runtime_event",
-            side_effect=lambda source_context, **payload: events.append(payload),
+            side_effect=lambda source_context, _events=events, **payload: _events.append(payload),
         ), mock.patch.object(agent, "_finalize_runtime_checkpoint") as finalize_checkpoint, turn_scope(
             f"use the browser to open {url} and list the top story", "row-test"
         ):

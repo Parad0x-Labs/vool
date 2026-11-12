@@ -119,7 +119,7 @@ def world(pact_rig, request):
                 <a href="/other" title="Timetable archive"><span style="display:inline-block;width:20px;height:20px"></span></a>
                 <a href="https://maps.example/riga/station" style="display:inline-block;width:20px;height:20px"></a>
                 <a href="#top" style="display:inline-block;width:20px;height:20px"></a>
-                <input name="q" placeholder="Search trains"><a href="/other">  Next 
+                <input name="q" placeholder="Search trains"><a href="/other">  Next\x20
   page </a>'''
             if path == '/many': content=('<h1>Gallery</h1>'+''.join(f'<img src="/many-{i}.png" width="8" height="8">' for i in range(100))).encode()
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()

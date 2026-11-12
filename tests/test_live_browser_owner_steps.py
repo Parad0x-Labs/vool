@@ -10,7 +10,8 @@ import time
 import pytest
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
-from tests.test_live_browser import ASSET_HEADERS, PNG, finish, world as world
+from tests.test_live_browser import ASSET_HEADERS, PNG, finish
+from tests.test_live_browser import world as world
 
 CONTEXT = {'session_id': 'live-test', 'surface': 'api', 'platform': 'web_companion'}
 

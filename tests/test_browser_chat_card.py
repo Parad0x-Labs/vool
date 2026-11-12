@@ -16,7 +16,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
-from tests.test_live_browser import ROOT_LOAD, world as world
+from tests.test_live_browser import ROOT_LOAD
+from tests.test_live_browser import world as world
 
 
 def _serve(rig, tmp_path):

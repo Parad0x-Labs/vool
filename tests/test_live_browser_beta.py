@@ -14,7 +14,8 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
-from tests.test_live_browser import ROOT_LOAD, page_load, world as world
+from tests.test_live_browser import ROOT_LOAD, page_load
+from tests.test_live_browser import world as world
 
 
 def _until(predicate, seconds=20):

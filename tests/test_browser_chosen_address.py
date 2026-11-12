@@ -13,7 +13,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
-from tests.test_live_browser import ROOT_LOAD, finish, world as world
+from tests.test_live_browser import ROOT_LOAD, finish
+from tests.test_live_browser import world as world
 
 ASK = 'Use the browser to find the Riga timetable and tell me the next train'
 

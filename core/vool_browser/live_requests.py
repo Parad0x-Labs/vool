@@ -32,9 +32,7 @@ def _trim(raw: str) -> str:
     value = str(raw or "")
     while value:
         last = value[-1]
-        if last in ".,;:!?\"\x27":
-            value = value[:-1]
-        elif last in ")]}" and value.count({")": "(", "]": "[", "}": "{"}[last]) < value.count(last):
+        if last in ".,;:!?\"\x27" or (last in ")]}" and value.count({")": "(", "]": "[", "}": "{"}[last]) < value.count(last)):
             value = value[:-1]
         else:
             break
@@ -285,7 +283,7 @@ def _misspelt(destination: str, written: str) -> bool:
     return previous[-1] <= 2
 
 
-def _may_choose(boundary: "_TurnBoundary") -> bool:
+def _may_choose(boundary: _TurnBoundary) -> bool:
     return bool(boundary.asked and not boundary.followup and not boundary.urls and boundary.chosen is None
                 and not boundary.proposed_urls and not boundary.completed and not boundary.page_read)
 

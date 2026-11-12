@@ -2093,7 +2093,7 @@ def browser_synthesis_failed_reply() -> str:
     return _BROWSER_READ_SYNTHESIS_FAILED.format(url=read) if read else ""
 
 
-def _step_reply_pattern() -> "re.Pattern[str]":
+def _step_reply_pattern() -> re.Pattern[str]:
     import re as _re
 
     shapes = [*_UNANSWERED_BROWSER_RESPONSES.values(), _UNANSWERED_BROWSER_FALLBACK, _BROWSER_SYNTHESIS_FAILED,

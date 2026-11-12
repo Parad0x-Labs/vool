@@ -153,10 +153,9 @@ def is_typed_refusal_text(text: str) -> bool:
     attestation claim ("provider said ...") and replacing with a non-sequitur about model
     attestation, destroying the actionable reason the operator was refused for.
     """
+    from core.agent_runtime.action_honesty_validator import is_browser_step_reply
     from core.agent_runtime.builder.pinned_generation import PINNED_BUILD_REFUSAL_LEAD
     from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD, no_model_notice_leads
-
-    from core.agent_runtime.action_honesty_validator import is_browser_step_reply
 
     body = str(text or "").lstrip()
     if is_browser_step_reply(body):
