@@ -1097,3 +1097,15 @@ def test_a_structured_path_argument_is_never_shown_as_a_file():
 
     assert _affected_resources({"path": {"username": "bob"}, "url": "https://example.test/a"}) == ["https://example.test/a"]
     assert _affected_resources({"path": "notes/today.md", "paths": ["a.txt", {"x": 1}]}) == ["notes/today.md", "a.txt"]
+
+
+def test_the_saved_x_keys_note_says_what_the_keys_can_do():
+    """With the full X integration the account keys can post, reply, like or follow, each only after the owner
+    approves it in Settings. The note under the saved X keys still said "VOOL does not post with them"
+    (found 2026-11-12 while writing the v0.8 X guide)."""
+    from core.vool_settings_page import render_vool_settings_html
+
+    page = render_vool_settings_html()
+    assert "VOOL does not post with them" not in page
+    assert "VOOL posts or acts on X only after you approve each action." in page
+

@@ -2787,7 +2787,7 @@ const KEY_FAMILIES = [
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
   { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
   { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
-  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
+  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL posts or acts on X only after you approve each action.' },
   { id: 'market.data.', title: 'Market data', blurb: 'Raises crypto price limits. Verified when saved; if the provider later refuses it, VOOL answers prices without it.' },
 ];
 
