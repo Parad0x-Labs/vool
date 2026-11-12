@@ -1938,6 +1938,18 @@ def present_named_file(ask: Any, *, session_id: str, source_context: dict | None
     )
 
 
+def _names_a_file_just_shown(ask: Any, session_id: str) -> bool:
+    """Whether a bare "which is bigger, A or B" names, by all of its words, a file this chat was
+    just shown -- the follow-up "which is bigger, the trailer or the school play?" right after the
+    school play video was pulled up. Without that, the ask names no file and is not this lane's."""
+    shown = [str(path) for path in (_recall_file_answer(session_id) or {}).get("paths") or []]
+    return any(
+        all(_word_in_name(path, str(word)) for word in words)
+        for words in ask.names if words
+        for path in shown
+    )
+
+
 def compare_named_files(ask: Any, *, session_id: str, source_context: dict | None) -> Any:
     """``"which of my videos is the biggest, A or B"``: measure the named files and answer with sizes.
 
@@ -3054,6 +3066,9 @@ def maybe_handle_direct_machine_read_request(
     from core.execution.constants import machine_named_compare_intent
 
     compare_ask = machine_named_compare_intent(user_input)
+    if compare_ask is not None and not compare_ask.says_files and not _names_a_file_just_shown(compare_ask, session_id):
+        # "Which is bigger, a kilometre or a mile?" names no file: the answering model owns it.
+        compare_ask = None
     if compare_ask is not None:
         compared = compare_named_files(compare_ask, session_id=session_id, source_context=source_context)
         if compared is not None:

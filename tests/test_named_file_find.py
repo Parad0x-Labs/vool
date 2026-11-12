@@ -288,6 +288,60 @@ def test_the_biggest_of_all_videos_is_named_without_asking_where_they_live(machi
     assert "where your videos" not in text
 
 
+# ---- A comparison that names no file is not a file lookup (v0.8 head 247124ed, 2026-11-12) ----
+# Measured in the real app (auto model selection run 1, qwen3.5:4b): "Which is bigger, a kilometre
+# or a mile? One sentence." was answered "I couldn't find a file called 'kilometre' or 'mile' in
+# your files, so I can't compare them." -- the size compare read every "which is bigger, A or B"
+# as a question about files. The first wording is the measured one; the rest are new wordings.
+
+GENERAL_COMPARISONS = (
+    "Which is bigger, a kilometre or a mile? One sentence.",
+    "which is larger, the sun or the moon?",
+    "Which is bigger: an elephant or a blue whale?",
+    "which is bigger, a megabyte or a gigabyte",
+    "Which is the biggest, Texas, Alaska or California?",
+    "which is larger, a litre or a gallon? just tell me",
+    "Which is bigger, a desktop or a laptop?",
+    "which is bigger, my car or my house?",
+)
+
+
+@pytest.mark.parametrize("text", GENERAL_COMPARISONS)
+def test_a_comparison_that_names_no_file_is_left_to_the_answering_model(machine_tools, text):
+    reply = _ask(text, session_id="s-general", source_context=_PC_TURN)
+    assert reply is None, reply  # no file answer: the turn goes on to the model that answers it
+    assert machine_tools == []  # and nothing on the disk was searched for it
+
+
+@pytest.mark.parametrize("text", GENERAL_COMPARISONS)
+def test_a_comparison_that_names_no_file_still_names_no_file_after_files_were_shown(machine_tools, text):
+    shown = _ask("pull up the school play video", session_id="s-general-after", source_context=_PC_TURN)
+    assert shown is not None and "school_play.mp4" in shown["response"]
+    assert _ask(text, session_id="s-general-after", source_context=_PC_TURN) is None
+
+
+@pytest.mark.parametrize("text", [
+    "which is bigger, school_play.mp4 or movie_night_trailer.mp4?",  # the file names themselves
+    "which of my files is bigger, the trailer or the school play?",  # "of my files"
+    "Which is bigger, my school play video or my trailer video?",  # "my ... video"
+])
+def test_a_comparison_of_named_files_is_still_measured(machine_tools, text):
+    reply = _ask(text, session_id="s-files", source_context=_PC_TURN)
+    assert reply is not None
+    answer = reply["response"]
+    assert "school_play.mp4" in answer and "1.1 MB" in answer, answer
+
+
+def test_a_bare_comparison_right_after_the_files_were_shown_compares_those_files(machine_tools):
+    shown = _ask("pull up the school play video", session_id="s-follow", source_context=_PC_TURN)
+    assert shown is not None and "school_play.mp4" in shown["response"]
+    reply = _ask("which is bigger, the trailer or the school play?", session_id="s-follow", source_context=_PC_TURN)
+    assert reply is not None
+    answer = reply["response"]
+    assert "The bigger one is school_play.mp4" in answer
+    assert "movie_night_trailer.mp4" in answer and "885 KB" in answer
+
+
 # ---- F46: "is that invoice from this month?" answered from the file that was just named ----
 
 
