@@ -272,7 +272,9 @@ def _native_library_entry() -> dict[str, Any] | None:
             "version": row.get("version") or "",
             "enabled": bool(row.get("enabled")),
             "available": bool(row.get("available")),
-            "reason": row.get("reason") or "",
+            # Shown to people: the plain reason. The typed one stays under reason_code.
+            "reason": row.get("plain_reason") or row.get("reason") or "",
+            "reason_code": row.get("reason") or "",
         }
         for row in rows
     ]
