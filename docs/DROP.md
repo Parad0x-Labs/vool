@@ -1,7 +1,8 @@
 # VOOL Drop (off by default, unreviewed)
 
 **UNREVIEWED: not for real messages.** The session protocol has had no independent
-cryptographic review. Drop stays off unless `VOOL_DROP=1` is set.
+cryptographic review. Drop stays off until the owner enables it in Settings. Without a saved setting,
+`VOOL_DROP=1` can enable a CLI laboratory; a saved setting takes precedence.
 
 Drop sends a private handoff from one VOOL to another: a short note, one selected file of
 up to 10 MiB, and one task that the receiving person must approve before anything runs.
@@ -38,6 +39,27 @@ The result comes back to the sender. Every Drop expires seven days after its inv
 
 ## Try it
 
+In the app, open **Settings → Backup & restore → Send with Drop**. Enable Drop,
+choose a private shared folder owned by you, and save. This only uses that folder;
+it starts no online service. File checks are separately off until the receiver allows them.
+The switch and folder are saved in the active runtime home's configuration.
+Enabling Drop makes that VOOL profile directory owner-only, as the switch states. Its files
+are kept. The controller refuses to change the user's HOME, a filesystem root or a foreign-owned
+directory; it never changes the selected relay folder's permissions.
+
+Compare fingerprints with the other person in person or on a call. Tick the confirmation
+only after checking, then create an invite or join their link. A link alone is insufficient.
+Use **Check for Drops**, choose the Drop, select one file, and send it with a note.
+The sender can request the selected file's SHA-256. The receiver can decline, or approve
+and run that exact file check. Declining is durable locally; it sends no new protocol message.
+Approval and execution both recheck the receiver's permission policy. Other tasks are refused.
+Received text is displayed as text, never passed to a model or interpreted as instructions.
+The screen clears received content when the local copy expires or is deleted.
+
+The owner-local, same-origin controller is `POST /api/drop`; file bytes use
+`POST /api/drop/send`, capped at 10 MiB. Neither accepts a caller-selected runtime home
+or an arbitrary local input path. The original CLI remains available:
+
 ```sh
 export VOOL_DROP=1
 python -m core.drop --home ~/drop-a --relay /shared/relay relay-init
@@ -56,7 +78,6 @@ including the failure paths.
 ## Not done yet
 
 - An independent review of the protocol composition and its storage.
-- In-app screens and API routes. Today there is only the CLI.
 - A hosted relay with admission control and quotas, and phone support.
 - General agent tasks through the planner.
 - Paid tasks. When added, they must go through VOOL's wallet, caps, approval and receipts.

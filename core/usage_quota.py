@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -97,6 +98,26 @@ def capability_limit(capability: str, tier: str) -> int | None:
 _usage_lock = threading.RLock()
 
 
+class QuotaUnavailable(RuntimeError):
+    """The shared counter cannot be admitted safely; the caller must send nothing."""
+
+    status = 'quota_unavailable'
+
+
+@contextmanager
+def _mutation():
+    from core.cross_process_lock import LockUnavailable, PublicationLock
+
+    with _usage_lock:
+        try:
+            with PublicationLock(_usage_path().with_suffix('.lock')):
+                if not store_readable():
+                    raise QuotaUnavailable('The daily usage counter cannot be read.')
+                yield
+        except LockUnavailable:
+            raise QuotaUnavailable('Another process is updating the daily usage counter. Nothing was admitted.') from None
+
+
 def _usage_path():
     return data_path(_USAGE_FILE)
 
@@ -136,7 +157,11 @@ def store_readable() -> bool:
     if not path.exists():
         return True
     try:
-        return isinstance(json.loads(path.read_text(encoding="utf-8")), dict)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(data, dict) and all(
+            isinstance(day, str) and isinstance(counts, dict) and all(
+                isinstance(capability, str) and type(count) is int and count >= 0
+                for capability, count in counts.items()) for day, counts in data.items())
     except Exception:
         return False
 
@@ -158,25 +183,24 @@ def check_quota(capability: str, *, tier: str, today: str | None = None) -> Quot
 def consume_quota(capability: str, *, tier: str, units: int = 1, today: str | None = None) -> QuotaCheck:
     """Try to consume `units`. Under the cap -> increment + allowed=True. At/over -> no change, allowed=False."""
     day = _today(today)
-    with _usage_lock:
+    with _mutation():
         used = usage_today(capability, today=day)
         limit = capability_limit(capability, tier)
-        if limit is None:
-            return QuotaCheck(capability, tier, used, None, None, True, day)
-        if used >= limit:
-            return QuotaCheck(capability, tier, used, limit, 0, False, day)
-        new_used = min(limit, used + max(1, int(units)))
+        requested = max(1, int(units))
+        if limit is not None and used + requested > limit:
+            return QuotaCheck(capability, tier, used, limit, max(0, limit - used), False, day)
+        new_used = used + requested
         usage = _load_usage()
         usage.setdefault(day, {})[str(capability)] = new_used
         _save_usage(_prune(usage, day))
-    return QuotaCheck(capability, tier, new_used, limit, max(0, limit - new_used), True, day)
+    return QuotaCheck(capability, tier, new_used, limit, None if limit is None else max(0, limit - new_used), True, day)
 
 
 def release_quota(capability: str, *, units: int = 1, today: str | None = None) -> None:
     """Give back units consumed for something that provably never happened (refused before it left
     the machine, or refused outright by the provider). Never goes below zero."""
     day = _today(today)
-    with _usage_lock:
+    with _mutation():
         usage = _load_usage()
         used = int(usage.get(day, {}).get(str(capability), 0))
         if used <= 0:

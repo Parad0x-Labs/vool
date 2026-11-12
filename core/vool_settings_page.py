@@ -699,6 +699,11 @@ def _settings_groups() -> list[dict]:
                     ),
                     keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
                 ),
+                _row(
+                    id="drop", label="Send with Drop", kind="custom", widget="drop",
+                    help="Exchange a note and one file through a shared folder.",
+                    keywords="drop handoff fingerprint invite shared folder file digest",
+                ),
             ],
         },
         {
@@ -2016,6 +2021,7 @@ function renderWidget(row, host) {
   if (w === 'bundle_export') return widgetBundleExport(stack);
   if (w === 'bundle_import') return widgetBundleImport(stack);
   if (w === 'chat_import') return widgetSurface(stack, 'VoolChatImport', T('settings.pane.chat_import_missing', 'The panel for bringing in chats did not load.'));
+  if (w === 'drop') return widgetSurface(stack, 'VoolDrop', T('drop.failed', 'This step could not finish. Check the settings and refresh the Drop before trying again.'));
   stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
 }
 
@@ -2810,7 +2816,7 @@ function widgetKeys(stack) {
   if (err) list.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err })));
   else if (!src) list.appendChild(el('div', 'empty', 'Loading…'));
   else {
-    const creds = src.credentials || src.items || [];
+    const creds = (src.credentials || src.items || []).filter(c => c.name !== 'x.oauth2.default');
     const yours = creds.filter(c => isOperatorKey(c.name));
     if (!yours.length) list.appendChild(el('div', 'empty', T('keys.empty_plain', 'No keys yet. Without a key VOOL can only use a model installed on this computer.')));
     const groups = [...KEY_FAMILIES.map(f => f.id), 'managed'];
@@ -3284,9 +3290,9 @@ function widgetKeys(stack) {
   xBtn.addEventListener('click', () => openXSetupDialog(async () => { await readSource('/api/settings/credentials'); renderPane(); }));
   xRow.appendChild(xBtn);
   stack.appendChild(xRow);
-  if ((state.sources['/api/settings/credentials']?.credentials || []).some(c => c.name === 'x.api.default')) {
-    const xActivity = el('div', 'x-activity'); stack.appendChild(xActivity); widgetXActivity(xActivity);
-  }
+  const xFeatures = el('div', 'x-features'); stack.appendChild(xFeatures); widgetXFeatures(xFeatures);
+  const bookmarkSetup = el('div', 'x-bookmark-setup'); stack.appendChild(bookmarkSetup); widgetXBookmarks(bookmarkSetup);
+  const xActivity = el('div', 'x-activity'); stack.appendChild(xActivity); widgetXActivity(xActivity);
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -3504,11 +3510,13 @@ function keyGuideIcon(id) {
   });
   wrap.appendChild(svg); return wrap;
 }
+/*__X_FEATURES__*/
 /* X usage, limits and approvals (core/x_actions.py, core/x_usage.py). Anything VOOL would post,
    reply, like, repost or follow as the user waits here; "Approve and send" is the user's approval
    and the only thing that sends it. Usage is counted on this machine; X charges it to the user's
    own X developer account. */
 async function xActivityCall(payload) {
+  payload = { ...payload, ui_locale: document.documentElement.lang || 'en' };
   const r = await fetch('/api/x/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const j = await r.json().catch(() => ({}));
   return { ok: r.ok, j: j || {} };
@@ -3522,6 +3530,53 @@ function xOpenLink(url, summary) {
   link.setAttribute('aria-label', tfmt('xact.open_aria', 'Open on X: {summary}', { summary: summary }));
   return link;
 }
+function widgetXBookmarks(host) {
+  host.appendChild(el('h4', 'row-label', T('xbook.title', 'X bookmarks')));
+  host.appendChild(el('p', 'subtle', tfmt('xbook.help', 'In your X developer app, enable OAuth 2.0 for a public client and register this callback: {redirect}. Paste its Client ID below. X may charge for API use. Every bookmark request waits for your approval here.', { redirect: location.origin + '/api/x/oauth/callback' })));
+  const row = el('div', 'inline'); const label = el('label');
+  label.appendChild(el('span', null, T('xbook.client_id', 'X Client ID')));
+  const client = el('input', 'inp x-bookmark-client'); client.type = 'text'; client.autocomplete = 'off'; client.maxLength = 512;
+  label.appendChild(client); row.appendChild(label);
+  const start = el('button', 'btn x-bookmark-sign-in', T('xbook.sign_in', 'Prepare sign-in')); start.type = 'button'; row.appendChild(start);
+  const leave = el('button', 'btn x-bookmark-disconnect', T('xbook.disconnect', 'Disconnect bookmarks')); leave.type = 'button'; leave.hidden = true; row.appendChild(leave);
+  const link = el('a', 'btn x-bookmark-continue', T('xbook.continue', 'Continue on X')); link.target = '_blank'; link.rel = 'noopener noreferrer'; link.hidden = true; row.appendChild(link);
+  const note = el('p', 'subtle x-bookmark-state'); note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite');
+  host.appendChild(row); host.appendChild(note);
+  const call = async (body) => {
+    const r = await fetch('/api/x/oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json(); if (!r.ok || !j.ok) throw new Error('sign-in failed'); return j;
+  };
+  const sync = async () => {
+    try { const j = await call({ action: 'status' }); leave.hidden = !j.connected;
+      note.textContent = j.connected ? T('xbook.connected', 'Bookmarks are connected. Requests still need your approval.') : T('xbook.off', 'Bookmarks are off until you sign in.');
+    } catch (e) { note.textContent = T('xbook.failed', 'Could not complete sign-in. Check the Client ID and callback, then try again.'); }
+  };
+  start.addEventListener('click', async () => {
+    start.disabled = true; link.hidden = true; link.removeAttribute('href');
+    try { const j = await call({ action: 'begin', client_id: client.value.trim() });
+      const url = new URL(j.authorize_url);
+      if (url.origin !== 'https://x.com' || url.pathname !== '/i/oauth2/authorize') throw new Error('invalid destination');
+      link.href = url.href; link.hidden = false; note.textContent = T('xbook.off', 'Bookmarks are off until you sign in.'); link.focus();
+    } catch (e) { note.textContent = T('xbook.failed', 'Could not complete sign-in. Check the Client ID and callback, then try again.'); }
+    finally { start.disabled = false; }
+  });
+  leave.addEventListener('click', async () => {
+    leave.disabled = true;
+    try { await call({ action: 'disconnect' }); link.hidden = true; link.removeAttribute('href'); await readSource('/api/settings/credentials'); renderPane(); }
+    catch (e) { note.textContent = T('xbook.failed', 'Could not complete sign-in. Check the Client ID and callback, then try again.'); leave.disabled = false; }
+  });
+  sync();
+}
+function xActionSummary(a) {
+  const account = (a.account || {}).username;
+  const suffix = account ? ' · @' + account : '';
+  if (a.kind === 'bookmark_read') return tfmt('xbook.read', 'Read up to {count} of your X bookmarks', { count: a.max_results }) + ' · ' + (a.next_page ? T('xbook.next_page', 'Next page') : T('xbook.first_page', 'First page')) + suffix;
+  if (a.kind === 'bookmark_add') return tfmt('xbook.add', 'Bookmark X post {post}', { post: (a.target || {}).post_id || '' }) + suffix;
+  if (a.kind === 'bookmark_remove') return tfmt('xbook.remove', 'Remove bookmark for X post {post}', { post: (a.target || {}).post_id || '' }) + suffix;
+  if (a.kind === 'api' && a.operation_id) return T('xop.' + a.operation_id, a.summary || a.kind) + suffix;
+  return a.summary || a.kind;
+}
+
 function widgetXActivity(host) {
   host.replaceChildren();
   const draw = async (message) => {
@@ -3545,9 +3600,10 @@ function widgetXActivity(host) {
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
-      const summary = a.summary || a.kind;
+      const summary = xActionSummary(a);
       card.appendChild(el('strong', null, summary));
-      if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
+       if (a.kind === 'api') xApiProposalDetails(card, a);
+       else if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       const t = a.target || {};
       const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
       if (t.text) card.appendChild(Object.assign(el('p', 'subtle x-action-target', reply
@@ -3568,7 +3624,9 @@ function widgetXActivity(host) {
           ? T('xact.lost_answer', 'VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.')
           : T('xact.failed', 'That did not work. Nothing was sent.');
         try { out = await xActivityCall(payload); } catch (e) { out = { ok: false, j: { message: lost } }; }
-        await draw(out.j.message || (out.ok ? '' : lost));
+        await draw(a.kind === 'api' ? xApiActionMessage(out, a)
+          : out.j.state === 'needs_account' && a.kind.startsWith('bookmark_') ? T('xbook.off', 'Bookmarks are off until you sign in.')
+          : (out.j.message || (out.ok ? '' : lost)));
       };
       yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
       no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));
@@ -3623,10 +3681,14 @@ function widgetXActivity(host) {
       recent.forEach(a => {
         const line = el('p', 'subtle');
         const word = X_STATE_WORDS[a.state];
-        line.textContent = (a.summary || a.kind) + ' · ' + (a.message || (word ? T(word[0], word[1]) : a.state));
+        line.textContent = xActionSummary(a) + ' · ' + (a.kind === 'api'
+          ? xApiActionMessage({ ok: a.state === 'sent', j: { action: a } }, a)
+          : (a.message || (word ? T(word[0], word[1]) : a.state)));
         const url = (a.result || {}).url;
-        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, a.summary || a.kind)); }
+        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, xActionSummary(a))); }
         host.appendChild(line);
+        xApiReceiptDetails(host, a);
+        xApiCleanupControl(host, a, draw);
       });
     }
     showNote();
@@ -6771,19 +6833,21 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.chat_import_settings_fragment import render_chat_import_settings_fragment
+    from core.drop_settings_fragment import render_drop_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.toybox_fragment import current_skin_style, render_toybox_fragment
     from core.wallet_fragment import render_wallet_fragment
+    from core.x_settings_fragment import X_FEATURES_JS
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
-    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace(
+    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
+        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_toybox_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the

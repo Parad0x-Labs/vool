@@ -234,6 +234,13 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'workspace.symbol_search': ('read_only', 'none'),
     'workspace.write_file': ('workspace_write', 'runtime_policy'),
     'x.action.propose': ('creative_state', 'none'),  # drafts only; the user's approval in Settings sends
+    # 0.7.3 full X: x.api.request reads go out at once like x.search; a write is only parked for the
+    # user's approval in Settings (the same tier as x.action.propose). x.bookmarks parks each
+    # bookmark read or change the same way.
+    'x.api.catalog': ('read_only', 'none'),
+    'x.api.request': ('creative_state', 'none'),
+    'x.api.receipts': ('read_only', 'none'),
+    'x.bookmarks': ('creative_state', 'none'),
     'x.account': ('read_only', 'none'),
     'x.action.status': ('read_only', 'none'),
     'x.dms': ('read_only', 'none'),
@@ -395,7 +402,8 @@ def test_contract_map_and_list_agree():
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
     # 204 -> 205: machine.send_to_phone, a file from the safe folders to the owner's paired phone.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 205
+    # 205 -> 209: the full X tools (x.api.catalog, x.api.request, x.api.receipts, x.bookmarks).
+    assert len(contract_map) == len(GOLDEN_TIERS) == 209
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

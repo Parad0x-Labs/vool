@@ -120,7 +120,9 @@ class FakeX:
 
 
 def _connect(bearer=True, account=True):
+    from core import os_consent_gate, x_capabilities
     from core.credential_store import store_credential
+    from core.x_endpoint_catalog import operations
 
     blob = {}
     if bearer:
@@ -129,6 +131,13 @@ def _connect(bearer=True, account=True):
         blob.update(KEYS)
         blob["account"] = {"username": "fixture_owner", "id": "1234567890"}
     store_credential("x.api.default", json.dumps(blob), label="X (Twitter)")
+    # This fixture explicitly enables free calls to the local provider; keys alone grant no calls.
+    policy = x_capabilities.defaults()
+    policy.update(enabled=True, access_label='Local endpoint fixture',
+                  operations={entry['id']: 0 for entry in operations() if not entry['deferred']})
+    with pytest.MonkeyPatch.context() as consent:
+        consent.setattr(os_consent_gate, 'require_os_user_consent', lambda reason: True)
+        x_capabilities.save(policy)
 
 
 @pytest.fixture

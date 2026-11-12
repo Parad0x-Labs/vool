@@ -670,6 +670,9 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    ("x.bookmarks", "x", re.compile(
+        r"\b(?:my\s+)?(?:x|twitter)\s+bookmarks?\b|\bbookmarks?\s+(?:on|from)\s+(?:x|twitter)\b"
+        r"|\b(?:bookmark|unbookmark)\s+(?:this|that|the)\s+(?:tweet|x\s+post)\b", re.I)),
     (
         "x.search",
         "x",

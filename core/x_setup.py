@@ -106,7 +106,39 @@ def oauth1_authorization(method: str, url: str, keys: OAuth1Keys, *, nonce: str 
 
 
 def _get(path: str, authorization: str, *, secrets_in_use: tuple[str, ...]) -> dict[str, Any]:
-    """One read-only GET to the pinned X API origin. Returns the parsed object or raises XSetupError."""
+    """One read-only GET to the pinned X API origin. Returns the parsed object or raises XSetupError.
+
+    The check is a real X read, so it counts against the owner's monthly X read limit like any
+    other: one read is held before sending and kept whenever X may have served it."""
+    from core import x_usage
+
+    refusal = x_usage.reserve_reads(1)
+    if refusal:
+        raise XSetupError("usage_limit_reached", refusal + " Nothing was saved.")
+    served = False
+    try:
+        x_usage.record_request(path)
+        data, served = _send_check(path, authorization, secrets_in_use=secrets_in_use)
+        return data
+    except _Served as exc:
+        served = True
+        raise exc.error from None
+    finally:
+        if served:
+            x_usage.record_read(users=1)
+        x_usage.release_reads(1)
+
+
+class _Served(Exception):
+    """X received the check (it answered, or its answer was lost after sending): the read counts."""
+
+    def __init__(self, error: XSetupError):
+        super().__init__(error.state)
+        self.error = error
+
+
+def _send_check(path: str, authorization: str, *, secrets_in_use: tuple[str, ...]) -> tuple[dict[str, Any], bool]:
+    import socket
     import urllib.error
 
     from core.credential_intelligence.verification import is_timeout_error
@@ -128,24 +160,35 @@ def _get(path: str, authorization: str, *, secrets_in_use: tuple[str, ...]) -> d
     except RemoteFetchRefusedError:
         raise XSetupError("refused", "VOOL is not allowed to go online right now (for example Local Only is on), so X was not asked. Nothing was saved.") from None
     except CredentialRedirectRefusedError:
-        raise XSetupError("redirected", "X answered with a redirect to another site; VOOL did not send your keys there. Nothing was saved.") from None
+        raise _Served(XSetupError("redirected", "X answered with a redirect to another site; VOOL did not send your keys there. Nothing was saved.")) from None
     except urllib.error.HTTPError as exc:
-        raise _http_failure(int(exc.code or 0)) from None
+        code = int(exc.code or 0)
+        failure = _http_failure(code)
+        # A definite refusal served nothing; any other failed answer may still have been a read.
+        if 400 <= code < 500 and code != 408:
+            raise failure from None
+        raise _Served(failure) from None
     except Exception as exc:
+        reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+        never_connected = isinstance(reason, (ConnectionRefusedError, socket.gaierror))
         if is_timeout_error(exc):
-            raise XSetupError("timeout", "X did not answer in time. Try again. Nothing was saved.") from None
-        raise XSetupError("unreachable", "Could not reach X from this machine. Nothing was saved.") from None
+            failure = XSetupError("timeout", "X did not answer in time. Try again. Nothing was saved.")
+        else:
+            failure = XSetupError("unreachable", "Could not reach X from this machine. Nothing was saved.")
+        if never_connected:
+            raise failure from None
+        raise _Served(failure) from None
     if not 200 <= status < 300:
-        raise _http_failure(status)
+        raise _Served(_http_failure(status))
     if len(raw) > MAX_RESPONSE_BYTES:
-        raise XSetupError("malformed_response", "X answered with more than a profile read returns. Nothing was saved.")
+        raise _Served(XSetupError("malformed_response", "X answered with more than a profile read returns. Nothing was saved."))
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        raise XSetupError("malformed_response", "X answered with something that is not an API response. Nothing was saved.") from None
+        raise _Served(XSetupError("malformed_response", "X answered with something that is not an API response. Nothing was saved.")) from None
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict):
-        raise XSetupError("unexpected_schema", "X answered, but not with the profile VOOL asked for. Nothing was saved.")
-    return payload["data"]
+        raise _Served(XSetupError("unexpected_schema", "X answered, but not with the profile VOOL asked for. Nothing was saved."))
+    return payload["data"], True
 
 
 def _http_failure(status: int) -> XSetupError:

@@ -1667,6 +1667,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/x/oauth/callback": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/x/oauth/callback",
+      "note": "X sign-in callback: X's redirect back to this machine, loopback only, single-use state",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/zcash/*": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/zcash/*",
@@ -2287,6 +2294,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/discovery/refresh",
       "note": "provider discovery lane operator action (refresh)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/drop": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/drop",
+      "note": "VOOL Drop lane: default-off local prototype controls for the owner's Settings page",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3067,6 +3081,20 @@
       "registry_command_id": "x.activity",
       "surface": "http"
     },
+    "http:POST:/api/x/capabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/x/capabilities",
+      "note": "X feature settings for the owner's Settings page, owner-local JSON only (the chat's x.api.request tool is the operator path)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/x/oauth": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/x/oauth",
+      "note": "X sign-in for bookmarks: starts or removes the owner's sign-in from Settings, owner-local JSON only",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/x/setup": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/x/setup",
@@ -3127,6 +3155,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "UPLOAD /api/chat/import/upload",
       "note": "chat-import lane (export-zip staging door; nothing parsed until preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:UPLOAD:/api/drop/send": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/drop/send",
+      "note": "VOOL Drop lane: the owner's file upload for one Drop packet, size-capped",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3322,7 +3357,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 318,
+    "EXTERNAL_TRANSPORT_ONLY": 323,
     "GENERATED_ADAPTER": 147,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
