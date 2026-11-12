@@ -165,6 +165,16 @@ def classify_delete_safety(name: str) -> str:
     return "review before deleting"
 
 
+def _vool_own_dirs() -> frozenset[str]:
+    """VOOL's own runtime home (its databases, logs and models), resolved; empty if unknown."""
+    try:
+        from core.runtime_paths import active_vool_home
+
+        return frozenset({os.path.realpath(str(active_vool_home()))})
+    except Exception:
+        return frozenset()
+
+
 def largest_entries(
     root: str,
     *,
@@ -190,9 +200,12 @@ def largest_entries(
     except OSError:
         return {"root": root, "entries": [], "error": "unreadable", "complete": False}
 
+    own = _vool_own_dirs()
     for child in children:
         if now() > deadline:
             break
+        if os.path.realpath(child.path) in own:
+            continue
         try:
             is_dir = child.is_dir(follow_symlinks=False)
         except OSError:
@@ -267,14 +280,21 @@ def largest_files(
     deadline = now() + max(2.0, float(time_budget_s))
     capped = max(1, min(int(top), 500))
     heap: list[tuple[int, str]] = []  # min-heap of (size_bytes, path), holds the top-N seen
+    own = _vool_own_dirs()
     complete = True
     try:
         for dirpath, dirnames, filenames in walk_fn(root):
             if now() > deadline:
                 complete = False
                 break
-            # Do not descend into reparse points / junctions (avoid loops + double counting).
-            dirnames[:] = [d for d in dirnames if not _is_reparse_point(os.path.join(dirpath, d))]
+            # Do not descend into reparse points / junctions (avoid loops + double counting), nor
+            # into VOOL's own home: its databases and logs are not the owner's files ("the largest
+            # file in that one" listed vool_web0_v2.db and vool_api.log, red team R3-04).
+            dirnames[:] = [
+                d for d in dirnames
+                if not _is_reparse_point(os.path.join(dirpath, d))
+                and os.path.realpath(os.path.join(dirpath, d)) not in own
+            ]
             for filename in filenames:
                 fpath = os.path.join(dirpath, filename)
                 try:

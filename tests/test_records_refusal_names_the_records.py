@@ -21,7 +21,11 @@ JAMES = (
     "</retrieved_context>"
 )
 RECORDS_LEAD = "That is not mentioned in the records I have from our conversations"
-LIVE_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
+#: No lookup ran in these lifecycles, so the live-family notice says so instead of claiming one did
+#: ("I looked this up" with no search was red team R3-03, 2026-11-12). The point kept here is that a
+#: live ask in a chat with records gets the live family, not the records notice.
+LIVE_LEAD = "I didn't look anything up for this"
+LOOKED_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
 
 
 def _verdict(answer, *, records=JAMES, notes=()):
@@ -48,7 +52,7 @@ def test_a_turn_with_a_lookup_keeps_the_current_information_notice():
     note = {"summary": "Dance studio price list: beginner classes are $18 per session.", "source": "web"}
     verdict = _verdict("James pays $25 per dance class.", notes=(note,))
     assert verdict.state in {"refused", "failed"}, verdict
-    assert verdict.content.startswith(LIVE_LEAD), verdict.content
+    assert verdict.content.startswith(LOOKED_LEAD), verdict.content
 
 
 def test_a_live_ask_in_a_chat_with_records_keeps_the_current_information_notice():
@@ -71,3 +75,16 @@ def test_the_guard_names_the_records_only_for_a_question_about_someone_they_name
     assert not question_names_someone_in_the_records(
         "How much does James pay?", "- [2022-05-02] assistant said: James pays $10.\n"
     )
+
+
+def test_a_refusal_never_says_it_looked_something_up_when_no_lookup_ran():
+    """Red team R3-03 (2026-11-12): a retry was answered "I looked this up, but what I found doesn't
+    back the answer I wrote" while no search ran that turn."""
+    lifecycle = GroundingLifecycle(
+        lifecycle_id="no-lookup", identity=TurnIdentity(),
+        request_text="how much is a pint of beer in london these days", model_authored=True,
+    )
+    verdict = publication_verdict(lifecycle, "A pint of beer in London costs about £7.50.")
+    assert verdict.state in {"refused", "failed"}, verdict
+    assert "looked this up" not in verdict.content and "search came back" not in verdict.content, verdict.content
+    assert "£7.50" not in verdict.content
