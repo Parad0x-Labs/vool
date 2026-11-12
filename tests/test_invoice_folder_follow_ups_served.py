@@ -121,13 +121,17 @@ def test_a_count_of_the_folder_just_listed(served, count_ask):
     assert "did not establish" not in reply and "path target" not in reply, reply
 
 
-@pytest.mark.parametrize("size_ask", ["which is the biggest one there", "whats the largest file in that folder"])
+@pytest.mark.parametrize("size_ask", [
+    "which is the biggest one there", "whats the largest file in that folder", "whats the largest file in that one",
+])
 def test_the_biggest_file_of_the_folder_just_listed(served, size_ask):
     session = _session()
     _chat(served, session, "whats in my Invoices old folder in documents?")
     reply = _chat(served, session, size_ask)
     assert BIGGEST in reply, reply
     assert "don't have access to file sizes" not in reply, reply
+    # VOOL's own home sits in this home folder; its databases and logs are never the owner's files (R3-04).
+    assert ".db" not in reply and ".log" not in reply and ".jsonl" not in reply, reply
 
 
 def test_an_ordinal_pick_reads_that_invoice_and_never_invents_an_amount(served):

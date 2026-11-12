@@ -1726,3 +1726,43 @@ def test_an_apology_does_not_swallow_the_question_after_it(asked):
     from core.finalization import _is_a_demand
 
     assert _is_a_demand(asked)
+
+
+def test_a_real_word_is_not_spell_corrected_into_a_tool_word():
+    # Red team R3-02: "how much does a pint of beer cost" ran (and was searched) as "a print of beer".
+    from core.input_normalizer import normalize_user_text
+
+    for typed in ("how much does a pint of beer cost in london", "i need a pint glass", "whats a pint in ml"):
+        assert "pint" in normalize_user_text(typed).normalized_text.split(), typed
+
+
+@pytest.mark.parametrize("asked, path", [
+    ("count the pdfs in documents/Invoices for me", "~/Documents/Invoices"),
+    ("list the pics in downloads/trip-2026", "~/Downloads/trip-2026"),
+    ("how many pdfs in my documents", "~/Documents"),
+])
+def test_a_subfolder_typed_after_a_known_folder_is_the_folder_asked_about(asked, path):
+    # Red team R3-07: "count the pdfs in documents/Invoices" counted ~/Documents.
+    from core.execution.constants import machine_kind_listing_intent
+
+    assert machine_kind_listing_intent(asked)["path"] == path
+
+
+def test_the_largest_file_scan_never_lists_voolS_own_home(tmp_path, monkeypatch):
+    # Red team R3-04: a largest-file scan of the home folder listed vool_web0_v2.db and vool_api.log.
+    from core import machine_diagnostics, runtime_paths
+
+    vool = tmp_path / "vool"
+    (vool / "data").mkdir(parents=True)
+    (vool / "data" / "vool_web0_v2.db").write_bytes(b"x" * 9000)
+    (tmp_path / "Documents").mkdir()
+    (tmp_path / "Documents" / "report.pdf").write_bytes(b"x" * 500)
+    monkeypatch.setenv("VOOL_HOME", str(vool))
+    runtime_paths.configure_runtime_home(vool)
+    try:
+        files = [row["name"] for row in machine_diagnostics.largest_files(str(tmp_path))["entries"]]
+        folders = [row["name"] for row in machine_diagnostics.largest_entries(str(tmp_path))["entries"]]
+    finally:
+        runtime_paths.configure_runtime_home(None)
+    assert files == ["report.pdf"], files
+    assert "vool" not in folders, folders

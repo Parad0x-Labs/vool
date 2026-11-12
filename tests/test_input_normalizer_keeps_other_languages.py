@@ -239,7 +239,9 @@ def test_english_shorthand_still_reaches_the_model_corrected(served) -> None:
     _stream(daemon, "pls hlp im stuck", chat, "en")
     sent = provider.user_messages[before:]
     assert any("please help i am stuck" in message for message in sent), sent
-    assert _user_rows(daemon, chat) == ["please help i am stuck"]
+    # The chat keeps what was typed; only the model and the routers read the corrected text
+    # (red team R3-01, 2026-11-12: the reloaded chat showed words nobody typed).
+    assert _user_rows(daemon, chat) == ["pls hlp im stuck"]
 
 
 def test_a_typoed_machine_question_still_reaches_its_tool(served) -> None:

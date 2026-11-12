@@ -4229,7 +4229,7 @@ _COUNT_ASK_RE = re.compile(r"\bhow\s+many\b|\bcount\b|\bnumber\s+of\b", re.IGNOR
 # "in it", "in that folder", or "there" after a word for an entry ("the biggest one there"). A bare
 # trailing "there" is not a pointer: "how many planets are there" asks about planets.
 _POINTS_AT_IT_RE = re.compile(
-    r"\b(?:in|from|inside)\s+(?:there|it|that\s+folder|that\s+directory|the\s+same\s+folder|this\s+folder)\b"
+    r"\b(?:in|from|inside)\s+(?:there|it|that\s+folder|that\s+directory|the\s+same\s+folder|this\s+folder|that\s+one)\b"
     r"|\b(?:ones?|files?|items?|entries|things|pics|pictures|photos|docs|documents)\s+(?:are\s+|is\s+)?(?:in\s+)?there\b",
     re.IGNORECASE,
 )
@@ -4301,6 +4301,12 @@ def machine_kind_listing_intent(
     kind_words = {kind_match.span(1)}
     folder = next((m for m in _KNOWN_FOLDER_RE.finditer(clean) if m.span(1) not in kind_words), None)
     path = _KNOWN_USER_FOLDERS[folder.group(1).lower()] if folder else ""
+    if folder is not None:
+        # "count the pdfs in documents/Invoices" names a folder INSIDE Documents; counting Documents
+        # itself gave the right number only by chance (red team R3-07, 2026-11-12).
+        below = re.match(r"/((?:[\w.'-]+/)*[\w.'-]+)", clean[folder.end(1):])
+        if below:
+            path = f"{path}/{below.group(1)}"
     if not path and folder_hint and (
         _FOLDER_ANAPHORA_RE.search(clean) or re.search(r"\bsame\s+for\b", clean, re.IGNORECASE)
     ):

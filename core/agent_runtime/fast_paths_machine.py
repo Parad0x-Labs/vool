@@ -3622,7 +3622,12 @@ def maybe_answer_exact_read_first(
         or machine_named_folder_contents_intent(text) is not None
         or machine_folder_audit_intent(text) is not None
         or machine_path_listing_intent(text) is not None
-        or (machine_largest_intent(text) is not None and bool(folder_hint) and points_back_at_the_folder(text))
+        or machine_largest_intent(text) is not None
+        # The size of one named thing, and the drive's free space: measured by their own lanes, which
+        # also keep drive numbers out of a file-size answer (head 4 with the loop on: "how big is
+        # report.pdf" and "how mcuh disk sapce do i havee left" went to the loop's model instead).
+        or size_answer_for_ask(text) is not None
+        or machine_diagnostics_intent(text) == "machine.disk_usage"
     )
     picked = list(slots.get("picked") or [])
     if picked and pdf_read_request(text) is not None:

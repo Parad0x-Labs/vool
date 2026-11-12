@@ -415,6 +415,9 @@ _FUZZY_PROTECT = {
     "warm",       # -> "swarm"
     # Taken by the tool VERBS below. Same rule, same sweep.
     "ruin", "rung", "runt",   # -> "run"
+    # "how much does a pint of beer cost" ran as "a print of beer" (red team R3-02, 2026-11-12); the
+    # sweep of the system word list over the "print" entry takes only this word.
+    "pint",                   # -> "print"
     "shown", "showy",         # -> "show"
     "insect",                 # -> "inspect"
     # ---- Taken by the ORDINARY NOUNS below ----------------------------------------------------

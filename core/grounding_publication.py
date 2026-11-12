@@ -91,6 +91,13 @@ _REFUSAL_LEAD = (
     "I looked this up, but what I found doesn't back the answer I wrote, so I'm not sending it."
 )
 
+#: The same refusal for a turn that never ran a lookup. "I looked this up" there was a false statement
+#: about VOOL's own actions: a retry was answered with it while no search ran (red team R3-03, 2026-11-12).
+_NO_LOOKUP_REFUSAL_LEAD = (
+    "I didn't look anything up for this, and I had nothing to check the answer I wrote against, so I'm not "
+    "sending it."
+)
+
 #: The same refusal for a turn whose only support was this chat's own records: the answer was checked against what
 #: the user's conversations hold, not against a live lookup, so the notice says so instead of "current information".
 _RECORDS_REFUSAL_LEAD = (
@@ -128,6 +135,7 @@ _LEGACY_REFUSAL_LEAD = (
 
 _ALL_REFUSAL_LEADS = (
     _REFUSAL_LEAD,
+    _NO_LOOKUP_REFUSAL_LEAD,
     _LEGACY_REFUSAL_LEAD,
     _RE_PRESENTATION_REFUSAL_LEAD,
     _RE_PRESENTATION_OF_WITHHELD_LEAD,
@@ -751,6 +759,15 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
 
             return RECORDS_WITHDRAWAL_NOTICE
         return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
+    looked = bool(
+        lifecycle.retrieval_outcome
+        or lifecycle.retrieved_source_count
+        or lifecycle.retrieved_notes
+        or lifecycle.bound_notes
+        or lifecycle.typed_observations
+    )
+    if not looked:
+        return _NO_LOOKUP_REFUSAL_LEAD if not subject else f'{_NO_LOOKUP_REFUSAL_LEAD} (request: "{subject[:160]}")'
     parts = [_REFUSAL_LEAD]
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
     if explanation:

@@ -328,7 +328,19 @@ def is_privacy_ask(text: str) -> bool:
 
 def is_online_ask(text: str) -> bool:
     value = str(text or "")
-    return bool(_ONLINE_RE.search(value)) and not is_privacy_ask(value)
+    if is_privacy_ask(value):
+        return False
+    if _ONLINE_RE.search(value):
+        return True
+    # A web address with no scheme ("go to example.net and give me the gist") is a page to read,
+    # which the web lane owns: with the loop on it was answered by the loop's model instead, and
+    # with Web lookups off that skipped the plain "Web lookups are off" answer.
+    try:
+        from core.agent_runtime.fast_paths_web import url_read_request
+
+        return url_read_request(value) is not None
+    except Exception:
+        return False
 
 
 def asks_about_own_files_or_computer(text: str) -> bool:
