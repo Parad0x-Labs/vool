@@ -1671,7 +1671,7 @@ function hitsFor(groupId, q) { return ALL_ROWS.filter(r => r.group === groupId &
 const SETTINGS_NAV_ICONS = {
   setup: 'check', general: 'settings', permissions: 'shield', keys: 'key', email: 'mail', models: 'models',
   memory: 'memory', backup: 'backup', network: 'globe', budgets: 'budgets', calendars: 'calendar',
-  notifications: 'bell', wallet: 'wallet', toybox: 'palette', companion: 'appearance', advanced: 'advanced', about: 'about',
+  notifications: 'bell', wallet: 'wallet', toybox: 'palette', companion: 'appearance', phone: 'phone', advanced: 'advanced', about: 'about',
 };
 function renderNav() {
   const nav = $('#nav');
