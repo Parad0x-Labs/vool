@@ -34,6 +34,12 @@ from core.agent_runtime.intent_claims import (
     FAMILY_READ_FILE,
     IntentClaim,
 )
+from core.disclosure.direct import (
+    local_metadata_options,
+    received_headers,
+    refuse_redirected_metadata,
+    request_options,
+)
 from core.prompt_debug import dump_outbound_prompt
 from core.provider_invocation_gateway import seal_direct_provider_invocation
 from core.runtime_provider_defaults import ollama_direct_runner_options
@@ -133,7 +139,10 @@ def _resolve_model() -> str:
         import requests
 
         base = _ollama_chat_url().rsplit("/api/", 1)[0]
-        tags = requests.get(f"{base}/api/tags", timeout=1.5).json().get("models") or []
+        _disclosure_metadata_url = f"{base}/api/tags"
+        tags = refuse_redirected_metadata(
+            requests.get(_disclosure_metadata_url, **local_metadata_options(_disclosure_metadata_url), timeout=1.5)
+        ).json().get("models") or []
         names = [str(t.get("name") or "").strip() for t in tags if t.get("name")]
         pick = ""
         for preferred in ("qwen3:0.6b", "qwen3:1.7b", "qwen3:4b", "qwen3:8b"):
@@ -304,7 +313,9 @@ def arbitrate(
         manifest_context.setdefault("items_included", [])
         manifest_context.setdefault("items_excluded", [])
         manifest_context.setdefault("capsule_version", "none")
+        _disclosure_endpoint = _ollama_chat_url()
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
             provider_id="ollama",
             model_id=model,
             operation="intent_arbitration",
@@ -330,11 +341,13 @@ def arbitrate(
             model_id=str(model or ""),
             cost_class="free_local",
         )
+        _disclosure_body = permit.consume()
         response = requests.post(
-            _ollama_chat_url(),
-            json=permit.consume(),
+            _disclosure_endpoint,
+            **request_options(_disclosure_body, _disclosure_endpoint),
             timeout=(1.5, _TIMEOUT_S),
         )
+        received_headers(_disclosure_body)
         response.raise_for_status()
         content = str(((response.json().get("message") or {}).get("content")) or "")
     except Exception as exc:
@@ -470,6 +483,7 @@ def arbitrate_followup(
             "options": {"temperature": 0, "num_predict": 24, **_arbiter_runner_options(model)},
         }
         permit = seal_direct_provider_invocation(
+            destination_url=_ollama_chat_url(),
             provider_id="ollama",
             model_id=model,
             operation="followup_arbitration",
@@ -550,7 +564,11 @@ def prewarm_async() -> None:
                 "keep_alive": "30m",
                 "options": {"num_predict": 1, **_arbiter_runner_options(model)},
             }
+            _disclosure_endpoint = _ollama_chat_url()
             permit = seal_direct_provider_invocation(
+                destination_url=_disclosure_endpoint,
+                control_only=True,
+                privacy_class='public',
                 provider_id="ollama",
                 model_id=model,
                 operation="intent_arbiter_prewarm",
@@ -565,11 +583,13 @@ def prewarm_async() -> None:
                 },
                 max_output_tokens=1,
             )
+            _disclosure_body = permit.consume()
             requests.post(
-                _ollama_chat_url(),
-                json=permit.consume(),
+                _disclosure_endpoint,
+                **request_options(_disclosure_body, _disclosure_endpoint),
                 timeout=(2.0, 60.0),
             )
+            received_headers(_disclosure_body)
         except Exception:
             pass
 

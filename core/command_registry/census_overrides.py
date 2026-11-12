@@ -110,6 +110,16 @@ _ADAPTERS: dict[str, str] = {
 _EXTERNAL: dict[str, str] = {
     **{f"http:GET:{path}": "owner-local supervised browser view and evidence feed" for path in ("/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download", "/api/browser/*")},
     "http:GET:/api/private-web": "owner-local Private web state for Settings (route, whether it is up, plain reason)",
+    # Household records are served by their owner door, outside command dispatch.
+    "http:GET:/my-things": "household records page transport",
+    "http:GET:/api/my-things": "household records owner-local listing",
+    "http:GET:/api/my-things/*": "household records owner-local views",
+    "http:POST:/api/my-things/*": "household records owner-local actions with confirmation",
+    "http:GET:/routines": "My routines page transport",
+    "http:GET:/api/routines": "routines owner-local listing",
+    "http:GET:/api/routines/*": "routines owner-local views (folders, watch, names)",
+    "http:POST:/api/routines/*": "routines owner-local actions with confirmation",
+
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",
     "cli-script:vool-api": "API server entry point",
@@ -417,6 +427,8 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/money/rules": "money contract lane read feed (rules)",
     "http:POST:/api/money/grants/revoke": "money contract lane operator action (grant revocation)",
     "http:POST:/api/money/reconcile": "money contract lane operator action (reconcile)",
+    "http:GET:/api/disclosure/*": "cloud disclosure lane read feed family (pending preview, settings, projects, local models, comparison job; loopback-only)",
+    "http:POST:/api/disclosure/*": "cloud disclosure lane operator surface family (preview decision, local retry, settings, source rules, comparisons; loopback, host and origin gated)",
 }
 
 # frozen prose demand-routing families + REPL chrome are EXTERNAL by rule in

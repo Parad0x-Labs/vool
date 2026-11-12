@@ -64,6 +64,17 @@ class LocalSubprocessAdapter(ModelAdapter):
             "provider_name": self.manifest.provider_name,
             "model_name": self.manifest.model_name,
         }
+        from core.model_compare.prepared import input_digest, replay_for
+
+        comparison = replay_for(request)
+        if comparison is not None:
+            from core.disclosure.timing import CallTiming
+            from core.model_compare.subprocess_replay import prepare
+
+            payload = prepare(request, self.manifest)
+            timeout_seconds = min(timeout_seconds, comparison.timeout_seconds)
+            deadline = timeout_started + timeout_seconds
+            request.metadata['_disclosure_timing'] = CallTiming()
         permit = seal_provider_invocation(
             request=request,
             provider_id=self.manifest.provider_id,
@@ -72,6 +83,10 @@ class LocalSubprocessAdapter(ModelAdapter):
             payload=payload,
         )
         sealed_payload = permit.consume()
+        if comparison is not None:
+            if sealed_payload != payload:
+                raise ValueError('The prepared comparison changed before dispatch.')
+            request.metadata['_comparison_input_sha256'] = input_digest(sealed_payload)
         input_text: str | None = json.dumps(sealed_payload, sort_keys=True)
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         if time.monotonic() >= deadline:
@@ -86,6 +101,15 @@ class LocalSubprocessAdapter(ModelAdapter):
             creationflags=creationflags,
             start_new_session=os.name != "nt",
         )
+        if comparison is not None:
+            try:
+                comparison.source()
+                if request.is_cancelled():
+                    raise ValueError('The comparison was stopped.')
+                request.metadata['_disclosure_timing'].dispatch()
+            except Exception:
+                _terminate_process_tree(process)
+                raise
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -116,6 +140,7 @@ class LocalSubprocessAdapter(ModelAdapter):
                 confidence=float(obj.get("confidence") or 0.5),
                 raw_response=obj,
                 usage=dict(obj.get("usage") or {}),
+                finish_reason=str(obj.get('finish_reason') or ''),
             )
         except Exception:
             return ModelResponse(output_text=stdout, confidence=0.5, raw_response={"stdout": stdout})

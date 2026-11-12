@@ -150,16 +150,30 @@ class PolicyBoundCloudTransport:
             request_headers = apply_openrouter_attribution_headers(request_headers)
 
         note_remote_fetch_attempt(url)
+        from core.disclosure.wire import DisclosureRefused, WirePayload
+
+        wire_options: dict[str, Any] = {"json": body}
+        preview_id = ""
+        if isinstance(body, WirePayload):
+            wire_options = {"data": body.consume_wire(url)}
+            request_headers["Content-Type"] = "application/json"
+            preview_id = body.preview_id
+        elif isinstance(body, dict) and ("messages" in body or "prompt" in body):
+            raise DisclosureRefused("Cloud model requests must pass the disclosure boundary.")
         try:
             response = self._requester(
                 str(method or "GET").upper(),
                 url,
                 headers=request_headers,
-                json=body,
+                **wire_options,
                 timeout=max(1.0, min(float(timeout_seconds), 300.0)),
                 allow_redirects=False,
                 stream=True,
             )
+            if preview_id:
+                from core.disclosure.wire import note_sent
+
+                note_sent(preview_id)
         except requests.Timeout as exc:
             raise CloudTransportError("cloud_provider_timeout") from exc
         except requests.RequestException as exc:

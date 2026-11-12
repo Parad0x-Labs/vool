@@ -15,7 +15,7 @@ import time
 from typing import Any
 
 from core.clean_loop import route
-from core.clean_loop.loop import NO_REPLY_TEXT, run_loop
+from core.clean_loop.loop import NO_REPLY_TEXT, BoundaryStop, run_loop
 from core.clean_loop.registry import ToolContext, default_registry
 from core.clean_loop.tools import content_absence_claim
 
@@ -288,14 +288,20 @@ def maybe_answer(
     from core.clean_loop.brain import make_brain, model_label
     ctx = route_ctx
     provider_id, model_id = model_label(decision.brain)
-    loop_result = run_loop(
-        text,
-        brain=make_brain(router, decision.brain, context),
-        registry=default_registry(),
-        ctx=ctx,
-        history=_history(context, text),
-        prior_evidence=prior_evidence,
-    )
+    try:
+        loop_result = run_loop(
+            text,
+            brain=make_brain(router, decision.brain, context),
+            registry=default_registry(),
+            ctx=ctx,
+            history=_history(context, text),
+            prior_evidence=prior_evidence,
+        )
+    except BoundaryStop as stop:
+        return _boundary_stopped(
+            agent, stop, context=context, session_id=session_id, effective_input=effective_input, ctx=ctx,
+            provider_id=provider_id, model_id=model_id,
+        )
     _LOG.info(
         "clean loop: stopped=%s model_calls=%d tools=%s think_ms=%d tool_ms=%d",
         loop_result.stopped, loop_result.model_calls, ",".join(loop_result.tools_used),
@@ -401,6 +407,47 @@ def _exact_read_first(agent: Any, text: str, *, session_id: str, context: dict[s
     except Exception:
         _LOG.exception("exact read lane failed; the clean loop answers")
         return None
+
+
+def _boundary_stopped(
+    agent: Any, stop: BoundaryStop, *, context: dict[str, Any], session_id: str, effective_input: str,
+    ctx: ToolContext, provider_id: str, model_id: str,
+) -> dict[str, Any] | None:
+    """A step stopped at the owner's cloud disclosure boundary, and nothing of theirs was sent.
+
+    A preview this caller cannot show (only the chat page answers one while its turn waits) is the
+    turn's answer: it says where the preview is, and the served door returns the preview as pending.
+    Any other stop (the owner chose not to send, or a local model instead, or the chat's privacy
+    could not be checked) is the normal pipeline's to word: its own request meets the same boundary,
+    which stays closed for the rest of this turn, so it sends nothing either.
+    """
+    context["clean_local_loop_route"] = "disclosure_stopped"
+    _clear_evidence(session_id)
+    if stop.kind != "DisclosurePreviewNeeded" or not stop.message:
+        return None
+    _record_observations(context, ctx.receipts)
+    context["tool_receipts"] = list(context.get("tool_receipts") or []) + ctx.receipts
+    _emit_tool_events(agent, context, ctx.receipts)
+    result = agent._fast_path_result(
+        session_id=session_id,
+        user_input=effective_input,
+        response=stop.message,
+        confidence=0.8,
+        source_context=context,
+        reason=REASON,
+    )
+    result["model_execution"] = {
+        "source": REASON,
+        "used_model": stop.model_calls > 0,
+        "provider_id": provider_id,
+        "model_id": model_id,
+        "model_calls": stop.model_calls,
+        "stopped": "disclosure_preview_needed",
+    }
+    result["model_selected"] = model_id
+    result["fast_path_hit"] = False
+    result["tool_receipts"] = list(ctx.receipts)
+    return result
 
 
 def _settle_change(

@@ -17,12 +17,11 @@ import contextlib
 import json
 import subprocess
 import time
-import urllib.error
-import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from core.disclosure import urllib_transport as urllib
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
@@ -323,7 +322,11 @@ def _post_completion_tokens_per_second(*, remaining_seconds: float) -> float:
         "max_tokens": PROBE_PREDICT_TOKENS,
         "temperature": 0.0,
     }
+    _disclosure_endpoint = f"http://127.0.0.1:{PROBE_PORT}/v1/chat/completions"
     permit = seal_direct_provider_invocation(
+        destination_url=_disclosure_endpoint,
+        control_only=True,
+        privacy_class='public',
         provider_id="llamacpp:capability-probe",
         model_id="probe-fixture",
         operation="generation_probe",
@@ -334,7 +337,7 @@ def _post_completion_tokens_per_second(*, remaining_seconds: float) -> float:
     )
     request = urllib.request.Request(
         f"http://127.0.0.1:{PROBE_PORT}/v1/chat/completions",
-        data=json.dumps(permit.consume()).encode("utf-8"),
+        data=permit.consume(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )

@@ -43,6 +43,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'code.task.report': ('read_only', 'none'),
     'code.task.rollback': ('workspace_write', 'runtime_policy'),
     'code.task.step': ('workspace_write', 'runtime_policy'),
+    'things.search': ('read_only', 'none'),
+    'things.match': ('read_only', 'none'),
+    'things.prepare': ('read_only', 'none'),
     'contacts.delete': ('creative_state', 'runtime_policy'),
     'contacts.resolve': ('read_only', 'none'),
     'contacts.save': ('creative_state', 'runtime_policy'),
@@ -415,7 +418,8 @@ def test_contract_map_and_list_agree():
     # 205 -> 207: operator.schedule_reminder and operator.cancel_reminder (tool-seating Job 6), pinned above.
     # 207 -> 211: the full X tools (x.api.catalog, x.api.request, x.api.receipts, x.bookmarks).
     # 211 -> 215: social core (x.feedback.save, x.feedback.list, x.results, x.replies.unanswered).
-    assert len(contract_map) == len(GOLDEN_TIERS) == 215
+    # 215 -> 218: the household record tools (things.search, things.match, things.prepare), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 218
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

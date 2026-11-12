@@ -94,6 +94,24 @@ function NTFF(key, fallback, params){
   } catch (e) {}
   return String(t).replace(/\\{(\\w+)\\}/g, function(m, name){ return (params && params[name] != null) ? String(params[name]) : m; });
 }
+/* A routine item (My routines) is worded here, in the page's language, from its payload; the stored
+   English title and body stay the words a system notification shows. */
+function routineItem(item){
+  var p = item.payload || {};
+  return p.kind === 'routine' && /^rt-[0-9a-f]{10}$/.test(String(p.routine_id || ''));
+}
+function itemTitle(item){
+  if (!routineItem(item)) return item.title;
+  var p = item.payload;
+  return p.problem ? NTFF('notif.routine_problem', '{name} could not get ready', { name: p.name })
+    : NTFF('notif.routine_ready', '{name} is ready to run', { name: p.name });
+}
+function itemBody(item){
+  if (!routineItem(item)) return String(item.body || '');
+  var p = item.payload;
+  return p.problem ? NTF('notif.routine_problem_body', 'Open My routines to see what stopped it.')
+    : NTFF('notif.routine_ready_body', 'Changes ready: {n}. Open My routines to look at them and run them.', { n: p.changes || 0 });
+}
 var centre = [];          // the DB-backed notification centre (calendar alerts, reminders)
 var centreUnread = 0;
 var centreBusy = false;
@@ -307,7 +325,7 @@ function centreRow(item, index){
   acts += '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   var cls = 'vf-item vf-centre' + (item.source_kind === 'calendar_catch_up' ? ' vf-warn' : '') + (item.read_at ? '' : ' vf-unread');
   return '<div class="' + cls + '">' +
-    '<button type="button" class="vf-main" data-vc-open="' + index + '"><span class="vf-title">' + esc(item.title) + '</span><small>' + esc(centreMeta(item)) + '</small></button>' +
+    '<button type="button" class="vf-main" data-vc-open="' + index + '"><span class="vf-title">' + esc(itemTitle(item)) + '</span><small>' + esc(centreMeta(item)) + '</small></button>' +
     '<div class="vf-acts">' + acts + '</div></div>';
 }
 
@@ -325,7 +343,7 @@ function centreMeta(item){
     var meta = acts && acts.sessionMeta ? acts.sessionMeta(item.session_id) : null;
     chatName = meta && meta.title ? '\\u201c' + meta.title + '\\u201d' : '';
   }
-  return [chatName, String(item.body || '')].filter(Boolean).join(' \\u00b7 ');
+  return [chatName, itemBody(item)].filter(Boolean).join(' \\u00b7 ');
 }
 
 function snoozable(item){
@@ -417,11 +435,12 @@ function openCard(item){
     var acts0 = pageActions();
     var meta0 = item.session_id && acts0 && acts0.sessionMeta ? acts0.sessionMeta(item.session_id) : null;
     if (meta0 && meta0.title) rows.push(['Chat', meta0.title]);
-    if (item.body) rows.push(['What happened', String(item.body)]);
+    var bodyText = itemBody(item);
+    if (bodyText) rows.push(['What happened', bodyText]);
   }
   var mac = (item.channels || {}).macos;
   if (mac && mac.state) rows.push([NTF('notif.row.macos', 'macOS'), (MAC_STATE_TEXT[mac.state] || mac.state) + (mac.detail ? ' \\u00b7 ' + mac.detail : '')]);
-  var html = '<div class="vf-card"><div class="vf-card-head"><strong>' + esc(item.title) + '</strong>' +
+  var html = '<div class="vf-card"><div class="vf-card-head"><strong>' + esc(itemTitle(item)) + '</strong>' +
     '<button type="button" class="vf-x" data-vcard="close" aria-label="' + NTF('notif.close', 'Close') + '">\\u00d7</button></div>';
   rows.forEach(function(row){ html += '<div class="vf-row"><span>' + esc(row[0]) + '</span><b>' + esc(row[1]) + '</b></div>'; });
   html += '<div class="vf-card-acts">';
@@ -433,6 +452,8 @@ function openCard(item){
       '<button type="button" class="vf-btn" data-vcard="snooze" data-min="15">' + NTF('notif.snooze_15', '15 min') + '</button>' +
       '<button type="button" class="vf-btn" data-vcard="snooze" data-min="60">' + NTF('notif.snooze_60', '1 hour') + '</button>';
   }
+  // A routine never runs from here: this opens its list in My routines, where the person chooses Run.
+  if (routineItem(item)) html += '<button type="button" class="vf-btn vf-primary" data-vcard="routine">' + NTF('notif.open_routines', 'Open My routines') + '</button>';
   if (!item.dismissed_at) html += '<button type="button" class="vf-btn" data-vcard="dismiss">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   html += '</div>';
   if (item.source_kind === 'calendar_alert' && item.event_key) {
@@ -497,6 +518,7 @@ card.addEventListener('click', function(ev){
   else if (what === 'dismiss') { closeCard(); centreAction(current, 'dismiss'); }
   else if (what === 'policy-off') { savePolicy(current, []); }
   else if (what === 'chat') { closeCard(); window.openSession(current.session_id); }
+  else if (what === 'routine' && routineItem(current)) { closeCard(); window.location.href = '/routines?run=' + current.payload.routine_id; }
 });
 card.addEventListener('submit', function(ev){
   var form = ev.target.closest('form[data-vcard-form="policy"]');

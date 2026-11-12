@@ -2769,11 +2769,17 @@ def maybe_handle_memory_command(
         def forget_target(argument: str, independent_operations: list[Any]) -> tuple[str, str, dict[str, Any]]:
             """Forget one named target; the reply, its status and the erasure stores."""
             erasures: dict[str, Any] = {}
+            # Saved records (My things, Contacts) the words also match: said once, after the reply.
+            record_scope = {"note": ""}
 
             def outcome(reply: str, status: str) -> tuple[str, str, dict[str, Any]]:
                 # What a finished forget leaves holding the words (the forget list itself) is said, never implied.
                 note = kept_note(erasures) if status in {"applied", "already_erased", "no_match"} else ""
-                return (f"{reply} {note}" if note else reply), status, erasures
+                reply = f"{reply} {note}" if note else reply
+                # Where saved records hold the same words is said only after a forget that went through.
+                if record_scope["note"] and status in {"applied", "already_erased", "no_match"}:
+                    reply = f"{reply} {record_scope['note']}"
+                return reply, status, erasures
 
             referential, token = _referential_forget_token(
                 argument,
@@ -2805,6 +2811,20 @@ def maybe_handle_memory_command(
             # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
             from core.memory.entries import _record_erasure_store, _text_is_erased
             from core.memory.files import memory_path
+
+            # Saved things and contacts are records the person keeps by hand and deletes on their own pages,
+            # with confirmation: forget never deletes them. It says how many of them hold the same words, or
+            # that they could not be checked, read before any erasure. A record store that cannot be read
+            # never blocks forgetting memory.
+            unchecked = ("Forget could not check your saved things in My things or your saved contacts in Contacts "
+                         "for these words.")
+            try:
+                from core.my_things.erasure import memory_scope_note
+
+                record_scope["note"] = memory_scope_note(token)
+            except Exception as exc:
+                LOGGER.warning("saved record scope unavailable: %s", type(exc).__name__)
+                record_scope["note"] = unchecked
 
             def _mirror_text() -> str:
                 try:

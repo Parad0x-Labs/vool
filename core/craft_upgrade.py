@@ -173,6 +173,7 @@ def write_overlay(overlay: dict) -> object:
 
 def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float = 180.0) -> Callable[[str], str]:
     """A model_client bound to a local Ollama model (POST /api/generate, non-streaming)."""
+    from core.disclosure.direct import received_headers, request_options
     from core.ollama_endpoint import ollama_base_url
 
     base = str(ollama_url or ollama_base_url()).rstrip("/")
@@ -194,6 +195,7 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
         }
         permit = seal_direct_provider_invocation(
             provider_id="ollama:craft-upgrade",
+            destination_url=f"{base}/api/generate",
             model_id=model,
             operation="craft_generation",
             payload=payload,
@@ -205,11 +207,10 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
             ),
             header_names=("Content-Type",),
         )
-        resp = requests.post(
-            f"{base}/api/generate",
-            json=permit.consume(),
-            timeout=timeout,
-        )
+        endpoint = f"{base}/api/generate"
+        body = permit.consume()
+        resp = requests.post(endpoint, **request_options(body, endpoint), timeout=timeout)
+        received_headers(body)
         resp.raise_for_status()
         return str(resp.json().get("response") or "")
 

@@ -41,7 +41,7 @@ _PAUSED: dict[str, CouncilOrchestrator] = {}
 _PAUSED_STATE = "needs_attention"
 
 _ALLOWED_CONVENE_FIELDS = {
-    "problem", "exhibits", "seats", "chat_session", "max_rounds", "seat_capabilities",
+    "problem", "exhibits", "seats", "chat_session", "max_rounds", "seat_capabilities", "local_only",
 }
 
 #: HARD STOP (operator rule, 2026-08-28): council seats run on CLOUD models only. A single
@@ -249,10 +249,26 @@ def _start_run_thread(
         raise
 
 
+def disclosure_scope(capability: str, *, owner_local: bool):
+    """Resolve only the server-minted live run; body fields carry no authority."""
+    if not pin_lock.is_dispatch_capability(capability, owner_local=owner_local):
+        return None
+    pin = pin_lock.snapshot()
+    with _LOCK:
+        run = _RUNS.get(str((pin or {}).get("run_id") or ""))
+        return getattr(run, "disclosure_scope", None)
+
+
 def convene(body: dict[str, Any], *, base_url: str, workspace_root: str) -> tuple[int, dict[str, Any]]:
     unknown = set(body.keys()) - _ALLOWED_CONVENE_FIELDS
     if unknown:
         return 400, {"ok": False, "error": f"unknown fields: {sorted(unknown)}"}
+    from core.auto_local_only_mode import turn_is_local_only
+    from core.remote_fetch_policy import remote_fetch_forbidden
+    if "local_only" in body and type(body["local_only"]) is not bool:
+        return 400, {"ok": False, "error": "local_only must be a boolean"}
+    if body.get("local_only") is True or turn_is_local_only(None) or remote_fetch_forbidden():
+        return 409, {"ok": False, "error": "Cloud models are off for this turn."}
     # ONE live council at a time: v1 seat dispatch owns the global composer pin, and five
     # silent duplicate runs (measured live, 2026-08-28) all raced it. A second convene while
     # one is live is a typed refusal, never a queue.
@@ -323,6 +339,8 @@ def convene(body: dict[str, Any], *, base_url: str, workspace_root: str) -> tupl
                 run_id, str(event.get("state") or "")
             ),
         )
+        from core.council.disclosure import capture_parent
+        orchestrator.disclosure_scope = capture_parent(orchestrator)
     except CouncilRunError as exc:
         pin_lock.release(run_id)
         return 400, {"ok": False, "error": str(exc)}

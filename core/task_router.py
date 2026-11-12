@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 from core import policy_engine
 from core.canonical_project_knowledge import has_canonical_project_entity
+from core.disclosure.direct import assert_helper_endpoint, received_headers, request_options
 from core.hive_command_shape import is_short_hive_clause, matches_hive_command
 from core.learning import load_procedure_shards, rank_reusable_procedures
 from core.learning_integration import _inert_guidance_line
@@ -2455,6 +2456,7 @@ def _classify_via_model(user_input: str) -> str:
         from core.ollama_endpoint import ollama_base_url
 
         base_url = ollama_base_url()
+        assert_helper_endpoint(base_url)
         parsed = urlparse(base_url)
         host = str(parsed.hostname or "127.0.0.1").strip() or "127.0.0.1"
         port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
@@ -2475,7 +2477,9 @@ def _classify_via_model(user_input: str) -> str:
             "temperature": 0.1,
             "max_tokens": 20,
         }
+        _disclosure_endpoint = f"{base_url}/v1/chat/completions"
         permit = seal_direct_provider_invocation(
+            destination_url=_disclosure_endpoint,
             provider_id="ollama:task-classifier",
             model_id=model,
             operation="classification",
@@ -2489,11 +2493,13 @@ def _classify_via_model(user_input: str) -> str:
             max_output_tokens=20,
             header_names=("Content-Type",),
         )
+        _disclosure_body = permit.consume()
         resp = _req.post(
-            f"{base_url}/v1/chat/completions",
-            json=permit.consume(),
+            _disclosure_endpoint,
+            **request_options(_disclosure_body, _disclosure_endpoint),
             timeout=4,
         )
+        received_headers(_disclosure_body)
         resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"]["content"].strip().lower()
         clean = raw.strip().strip("'\"`.").strip()
