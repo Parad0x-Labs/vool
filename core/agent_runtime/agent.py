@@ -2900,6 +2900,26 @@ class VoolAgent(
             )
         semantic_reach.declined("currency_value_contract")
 
+        # A name said beside a request ("Hi, I'm Kofi, what is the capital of Portugal?") is the
+        # profile's to take before any several-part lane below reads the introduction as a
+        # request it cannot serve (core.operator_profile_turn.observe_name_beside_request).
+        parts_raw_text, parts_effective_input, parts_single_request, parts_plan_text = raw_turn_text, effective_input, False, ""
+        if not browser_turn:
+            from core.operator_profile_turn import observe_name_beside_request, turn_only_states_a_name
+
+            name_beside = observe_name_beside_request(
+                raw_turn_text, effective_input, session_id=session_id,
+                source_context=runtime_source_context, access_policy=access_policy,
+            )
+            if name_beside is not None:
+                parts_raw_text = name_beside["raw"] or raw_turn_text
+                parts_effective_input = name_beside["effective"] or effective_input
+                parts_single_request = bool(name_beside["single"])
+                parts_plan_text = str(name_beside.get("plan") or "")
+            elif turn_only_states_a_name(raw_turn_text):
+                # "my name isnt Agnes, its Sam": the profile seat answers it; there are no parts to plan.
+                parts_single_request = True
+
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor
         # first bought a real local-model planner call for exact haikus and user-supplied FX math,
         # then returned a fast-path envelope claiming model_calls=0.  Admit only reviewed contracts
@@ -2952,9 +2972,11 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = None if browser_turn else self._maybe_answer_conductor_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        conductor_result = None if browser_turn or parts_single_request else self._maybe_answer_conductor_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
+            # Named only when there is one: every other turn calls the conductor exactly as before.
+            **({"plan_text": parts_plan_text} if parts_plan_text else {}),
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -2973,9 +2995,9 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = None if browser_turn else self._maybe_answer_demand_owned_turn(
-            effective_input=effective_input,
-            raw_input=raw_turn_text,
+        demand_owned_result = None if browser_turn or parts_single_request else self._maybe_answer_demand_owned_turn(
+            effective_input=parts_effective_input,
+            raw_input=parts_raw_text,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -3001,8 +3023,8 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = None if browser_turn else self._maybe_answer_planned_turn(
-            effective_input=effective_input,
+        planned_result = None if browser_turn or parts_single_request else self._maybe_answer_planned_turn(
+            effective_input=parts_effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
         )
@@ -5753,10 +5775,15 @@ class VoolAgent(
         *,
         effective_input: str,
         raw_input: str = "",
+        plan_text: str = "",
         session_id: str,
         source_context: dict[str, object] | None,
     ) -> dict | None:
         """Answer a message that spans several domains, or None to leave the turn as it was.
+
+        `plan_text`, when given, is the message with a part the profile already took (a name said
+        beside the requests) blanked out at the same length: the parts are PLANNED from it, while
+        everything that accounts for what was asked keeps reading the message as written.
 
         None is the common path and stays cheap: `turn_may_hold_several_requests` rejects a
         single-request message inside `plan_conductor_turn` before any model call is made.
@@ -5858,7 +5885,7 @@ class VoolAgent(
             # could not be resolved) plans the RECORDED request again, exactly as the
             # live-data lane re-asks its own. The raw text stays what the user wrote; the
             # plan text is the request it refers to.
-            conductor_text = str(raw_input or effective_input)
+            conductor_text = str(plan_text or raw_input or effective_input)
             try:
                 from core.live_data_continuation import continuation_inherits_live_data
 

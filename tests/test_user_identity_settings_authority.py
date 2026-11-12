@@ -282,7 +282,8 @@ def test_with_nothing_saved_the_answer_says_so_instead_of_naming_the_assistant(n
 
     assert name == ""
     assert provenance == ""
-    assert "remember" in text.lower() and "settings" in text.lower()
+    # The person is asked to just say it; they are not sent to Settings for it.
+    assert "remember" in text.lower() and "tell me" in text.lower() and "settings" not in text.lower()
     assert assistant_display_name().lower() not in text.lower()
 
 
@@ -488,7 +489,7 @@ def test_with_nothing_stored_the_runtime_says_no_name_is_saved_rather_than_guess
 
     assert result is not None
     assert result["identity_name"] == ""
-    assert "settings" in result["response"].lower()
+    assert "tell me" in result["response"].lower() and "settings" not in result["response"].lower()
     assert get_agent_display_name().lower() not in result["response"].lower()
 
 

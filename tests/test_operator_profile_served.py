@@ -50,7 +50,7 @@ def _profile_items(agent, session: str = "") -> dict:
 def test_served_explicit_preference_persists_across_restart(profile_env):
     agent = make_agent()
     turn = chat(agent, "remember to call me Alex", A)
-    assert "Saved to your profile" in turn["text"] and "preferred name -> Alex" in turn["text"]
+    assert turn["text"] == "Got it, Alex. I'll remember that."
     saved = turn["payload"].get("vool_profile") or {}
     assert saved.get("saved") and saved["saved"][0]["category"] == "preferred_name"
     simulate_restart(profile_env)
@@ -66,18 +66,32 @@ def test_served_explicit_preference_persists_across_restart(profile_env):
 
 def test_served_implicit_preference_becomes_candidate_chip_not_fact(profile_env):
     agent = make_agent()
-    turn = chat(agent, "call me Alex", A)
+    turn = chat(agent, "be concise", A)
     chip = (turn["payload"].get("vool_profile") or {}).get("candidates") or []
-    assert chip and chip[0]["text"] == "Remember: address you as Alex"
+    assert chip and chip[0]["text"] == "Remember: concise replies"
     assert chip[0]["actions"] == ["save", "edit", "only_this_chat"]
     assert chip[0]["candidate_id"].startswith("opi-")
     listing = _profile_items(agent)
     assert listing["items"] == [] and listing["candidates"][0]["candidate_id"] == chip[0]["candidate_id"]
-    assert "Alex" not in chat(agent, "what's my name?", A)["text"]
     # the streamed door carries the same chip
-    streamed = chat_stream(agent, "call me Alex", A)
+    streamed = chat_stream(agent, "be concise", A)
     frames = [f["vool_profile"] for f in streamed["frames"] if isinstance(f.get("vool_profile"), dict)]
-    assert frames and frames[0]["candidates"][0]["text"] == "Remember: address you as Alex"
+    assert frames and frames[0]["candidates"][0]["text"] == "Remember: concise replies"
+
+
+def test_served_stated_name_is_saved_at_once_with_no_chip(profile_env):
+    """Nobody confirms their own name with a button: said once, it is saved for every chat."""
+    agent = make_agent()
+    turn = chat(agent, "call me Alex", A)
+    frame = turn["payload"].get("vool_profile") or {}
+    assert not frame.get("candidates") and not frame.get("conflicts")
+    assert frame["saved"][0]["category"] == "preferred_name" and frame["saved"][0]["item_id"].startswith("opi-")
+    assert turn["text"] == "Got it, Alex. I'll remember that."
+    listing = _profile_items(agent)
+    assert [i["value"] for i in listing["items"]] == ["Alex"] and listing["candidates"] == []
+    assert "Alex" in chat(agent, "what's my name?", B)["text"]
+    streamed = chat_stream(agent, "call me Alex", A)
+    assert not [f for f in streamed["frames"] if isinstance(f.get("vool_profile"), dict) and f["vool_profile"].get("candidates")]
 
 
 # --- 3. Only-this-chat never leaks ------------------------------------------
@@ -85,15 +99,23 @@ def test_served_implicit_preference_becomes_candidate_chip_not_fact(profile_env)
 
 def test_served_only_this_chat_never_leaks_to_another_chat(profile_env):
     agent = make_agent()
-    chip = (chat(agent, "call me Alex", A)["payload"]["vool_profile"])["candidates"][0]
+    chip = (chat(agent, "be concise", A)["payload"]["vool_profile"])["candidates"][0]
     response = served_post(agent, "/api/profile/candidate", {"candidate_id": chip["candidate_id"], "action": "only_this_chat"})
     assert int(response.status) == 200 and body_json(response)["change"]["kind"] == "saved"
+    assert _profile_items(agent)["items"] == []
+    assert [i["scope"] for i in _profile_items(agent, A)["items"]] == ["chat"]
+    assert _profile_items(agent, B)["items"] == []
+    exported = body_json(served_get(agent, "/api/profile/export"))
+    assert exported["items"] == []
+
+
+def test_served_name_for_this_chat_only_never_leaks(profile_env):
+    agent = make_agent()
+    chat(agent, "call me Alex just for now", A)
     assert "Alex" in chat(agent, "what's my name?", A)["text"]
     assert "Alex" not in chat(agent, "what's my name?", B)["text"]
     assert _profile_items(agent)["items"] == []
-    assert [i["scope"] for i in _profile_items(agent, A)["items"]] == ["chat"]
-    exported = body_json(served_get(agent, "/api/profile/export"))
-    assert exported["items"] == []
+    assert body_json(served_get(agent, "/api/profile/export"))["items"] == []
 
 
 # --- 4. work / personal overrides -------------------------------------------
@@ -120,15 +142,28 @@ def test_served_work_personal_overrides(profile_env):
 
 def test_served_contradiction_requires_resolution(profile_env):
     agent = make_agent()
-    chat(agent, "remember to call me Alex", A)
-    turn = chat(agent, "remember to call me Rick", A)
-    assert "Replace" in turn["text"] and "Alex" in turn["text"]
+    chat(agent, "remember to reply in Lithuanian", A)
+    turn = chat(agent, "remember to reply in German", A)
+    assert "Replace" in turn["text"] and "Lithuanian" in turn["text"]
     conflict = (turn["payload"].get("vool_profile") or {}).get("conflicts") or []
     assert conflict and conflict[0]["actions"] == ["replace", "scope", "keep"]
-    assert "Alex" in chat(agent, "what's my name?", A)["text"]
+    assert [i["value"] for i in _profile_items(agent)["items"]] == ["Lithuanian"]
     response = served_post(agent, "/api/profile/resolve", {"candidate_id": conflict[0]["candidate_id"], "action": "replace"})
     assert int(response.status) == 200 and body_json(response)["change"]["kind"] == "updated"
-    assert "Rick" in chat(agent, "what's my name?", A)["text"]
+    assert [i["value"] for i in _profile_items(agent)["items"]] == ["German"]
+    undo = chat(agent, "undo that", A)["text"]
+    assert "Restored" in undo and "Lithuanian" in undo
+
+
+def test_served_a_new_name_replaces_the_old_one_without_a_question(profile_env):
+    """A correction always wins: a second stated name is the name, and undo brings the first back."""
+    agent = make_agent()
+    chat(agent, "remember to call me Alex", A)
+    turn = chat(agent, "remember to call me Rick", A)
+    frame = turn["payload"].get("vool_profile") or {}
+    assert not frame.get("conflicts") and "Replace" not in turn["text"]
+    assert turn["text"] == "Got it, Rick it is. I won't call you Alex any more."
+    assert "Rick" in chat(agent, "what's my name?", B)["text"]
     undo = chat(agent, "undo that", A)["text"]
     assert "Restored" in undo and "Alex" in undo
     assert "Alex" in chat(agent, "what's my name?", B)["text"]
@@ -355,7 +390,7 @@ def test_served_channel_user_a_never_reaches_user_b(profile_env):
     ctx_a = {"surface": "telegram", "platform": "telegram", "source_user_id": "111", "runtime_session_id": "tg-111"}
     ctx_b = {"surface": "telegram", "platform": "telegram", "source_user_id": "222", "runtime_session_id": "tg-222"}
     reply = run_once_in_thread(agent, "remember to call me Alice", session_id="tg-111", source_context=dict(ctx_a))
-    assert "Saved to your profile" in str(reply.get("response") or "")
+    assert "Got it, Alice" in str(reply.get("response") or "")
     from core import operator_profile
 
     assert operator_profile.resolve("channel:telegram:111", "preferred_name").value_text == "Alice"
