@@ -14,7 +14,6 @@ import os
 import re
 import shutil
 import sqlite3
-import unicodedata
 import uuid
 import zipfile
 from contextlib import contextmanager
@@ -102,6 +101,25 @@ def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = Tr
         payload["extracted_text"] = reading.get("text", "")
         payload["text_state"] = reading["state"]
     return payload
+
+
+# A phone keyboard's wide mode types "ＫＸ－２０４１" for "KX-2041". Only these fullwidth forms are written
+# narrow; nothing else is normalized, so a composed and a decomposed spelling stay distinct entries
+# exactly as the memory forget law keeps them.
+_FULLWIDTH_TO_ASCII = {code: code - 0xFEE0 for code in range(0xFF01, 0xFF5F)} | {0x3000: 0x20}
+
+
+def record_text_carries(value: str, needle: str) -> bool:
+    """Whether saved record text carries the words a forget names.
+
+    The memory owner's own matcher, core.memory.carriers.forget_needle_in (case and digit script
+    folded, a number only where it stands as its own, so "12" never points at "Room 312"), so chat
+    Forget and My things agree on what "matches" means. Fullwidth letters are written narrow first
+    on both sides; when that folding is part of the shared matcher this step changes nothing.
+    """
+    from core.memory.carriers import forget_needle_in
+
+    return forget_needle_in(str(value).translate(_FULLWIDTH_TO_ASCII), str(needle).translate(_FULLWIDTH_TO_ASCII))
 
 
 class ThingsStore:
@@ -300,11 +318,11 @@ class ThingsStore:
     def _forget_needle(token):
         if not isinstance(token, str) or len(token.strip()) < 2:
             raise ThingsError("bad_target", "Give the exact words to forget.")
-        return unicodedata.normalize("NFKC", token.strip()).casefold()
+        return token.strip()
 
     def _forget_matches(self, conn, needle):
         def carries(value):
-            return isinstance(value, str) and needle in unicodedata.normalize("NFKC", value).casefold()
+            return isinstance(value, str) and record_text_carries(value, needle)
 
         matches = []
         for (thing_id,) in conn.execute("SELECT id FROM records ORDER BY id").fetchall():
