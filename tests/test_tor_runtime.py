@@ -95,6 +95,20 @@ def test_tor_that_cannot_reach_the_network_fails_the_private_web_user_only(runti
     assert runtime.running and runtime.users() == {"phone_away"}
 
 
+def test_how_far_tor_has_connected_is_shown_while_it_connects(runtime, monkeypatch) -> None:
+    from core import private_web_service
+
+    assert runtime.bootstrap_percent() == 0, "not running yet"
+    monkeypatch.setenv("FAKE_TOR_BOOTSTRAP", "never")
+    runtime.start("phone_away", wait_for_network=False)
+    assert runtime.bootstrap_percent() == 14
+    monkeypatch.setattr(tor_runtime, "shared", lambda: runtime)
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState("tor", runtime.socks_port))
+    monkeypatch.setattr(private_web_service, "_starter", type("Alive", (), {"is_alive": lambda self: True})())
+    status = private_web_service.status()
+    assert status["state"] == "starting" and status["detail"] == "Tor network: 14% connected."
+
+
 def test_private_web_uses_the_running_tor_port(runtime, monkeypatch) -> None:
     from core import policy_engine
 

@@ -121,8 +121,12 @@ def status() -> dict[str, Any]:
     detail = ""
     if state == "down":
         detail = _last_error.get(route.kind) or problem or ""
-    elif state == "starting":
-        detail = "Connecting. Until it is ready, nothing goes online."
+    elif state == "starting" and route.kind == private_web.ROUTE_TOR:
+        # The Settings row already says "Connecting. Until it is ready, nothing goes online.";
+        # the detail only adds how far Tor has got.
+        percent = tor_runtime.shared().bootstrap_percent()
+        if percent:
+            detail = f"Tor network: {percent}% connected."
     return {
         "ok": True,
         "route": route.kind,
