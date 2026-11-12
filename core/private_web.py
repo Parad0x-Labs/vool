@@ -30,6 +30,9 @@ import contextlib
 import hashlib
 import http.client
 import ipaddress
+import os
+import re
+import shlex
 import socket
 import sys
 import threading
@@ -542,7 +545,78 @@ def _guard_allows_public() -> bool:
     return state.kind == ROUTE_SYSTEM_VPN and _system_vpn_verified()
 
 
+#: Programs that go online by themselves. A child process does not inherit this process's audit
+#: hook, so while a route is on these are not started at all (fail closed), whatever asked.
+_NETWORK_PROGRAMS = frozenset({
+    "curl", "wget", "pip", "pip3", "uv", "uvx", "npm", "npx", "pnpm", "yarn", "brew", "ssh",
+    "scp", "sftp", "rsync", "yt-dlp", "youtube-dl", "aria2c", "nc", "ncat", "telnet", "ftp",
+})
+_GIT_NETWORK_COMMANDS = frozenset({"clone", "fetch", "pull", "push", "ls-remote", "submodule", "remote"})
+_URL_ARG = re.compile(r"^[a-z][a-z0-9+.-]*://([^/:@]*@)?(\[[^\]]+\]|[^/:?#]+)", re.I)
+
+
+def _program_goes_online(argv: list[str]) -> str:
+    """The program's name when starting it would send traffic past the route, else ""."""
+    if not argv:
+        return ""
+    name = os.path.basename(argv[0]).lower().removesuffix(".exe")
+    rest = [str(arg) for arg in argv[1:]]
+    if any(arg.startswith("--proxy-server=") for arg in rest):
+        return ""  # a browser launched with the route (core.private_web.browser_route)
+    if name in {"open", "xdg-open"}:
+        return ""  # hands a link to the person's own browser, which is theirs, not VOOL's traffic
+    if name in _NETWORK_PROGRAMS:
+        return name
+    if name.startswith("python") and len(rest) >= 2 and rest[0] == "-m" and rest[1] in {"pip", "ensurepip"}:
+        return "pip"
+    if name == "git" and any(arg in _GIT_NETWORK_COMMANDS for arg in rest):
+        return "git"
+    if name == "ollama" and rest[:1] in (["pull"], ["push"]):
+        return "ollama"
+    for arg in rest:
+        match = _URL_ARG.match(arg.strip())
+        if match and not _host_stays_local(match.group(2).strip("[]")):
+            return name
+    return ""
+
+
+def _host_stays_local(host: str) -> bool:
+    if _is_ip_literal(host):
+        return _ip_stays_local(host)
+    return _name_stays_local(host)
+
+
+def _argv_of(event: str, args: tuple[Any, ...]) -> list[str]:
+    if event == "subprocess.Popen":
+        executable, argv = (args + (None, None))[:2]
+        if isinstance(argv, (str, bytes, os.PathLike)):
+            argv = shlex.split(os.fsdecode(argv)) if isinstance(argv, (str, bytes)) else [os.fspath(argv)]
+        argv = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in (argv or [])]
+        if executable:
+            argv = [os.fsdecode(executable), *argv[1:]] if argv else [os.fsdecode(executable)]
+        return argv
+    if event == "os.system":
+        command = args[0] if args else ""
+        command = os.fsdecode(command) if isinstance(command, bytes) else str(command or "")
+        with contextlib.suppress(ValueError):
+            return shlex.split(command)
+        return command.split()
+    if event in ("os.posix_spawn", "os.exec"):
+        argv = args[1] if len(args) > 1 else []
+        return [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in (argv or [])]
+    return []
+
+
 def _audit(event: str, args: tuple[Any, ...]) -> None:
+    if event in ("subprocess.Popen", "os.system", "os.posix_spawn", "os.exec"):
+        if _guard_allows_public():
+            return
+        program = _program_goes_online(_argv_of(event, args))
+        if program:
+            raise PrivateWebBlocked(
+                f"Private web is switched on, so {program} was not started: it would go online directly"
+            )
+        return
     if not event.startswith("socket."):
         return
     if _guard_allows_public():

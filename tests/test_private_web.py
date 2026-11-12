@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import socket
 import socketserver
 import struct
+import sys
 import threading
 import urllib.request
 from collections.abc import Iterator
@@ -508,3 +510,29 @@ def test_a_weather_question_while_the_route_is_down_says_so_plainly(route, monke
         Agent(), question, session_id="s", source_context={}, interpretation=None
     )
     assert mode == "weather" and query and result is None, "with Private web off the lookup goes ahead"
+
+
+def test_programs_that_go_online_are_not_started_under_a_route(route, tmp_path) -> None:
+    """A child process does not inherit the guard, so `git clone`, curl and the like would leave
+    from the home address. Under a route they are not started; local programs still are."""
+    import subprocess
+
+    from core.private_web import PrivateWebBlocked
+
+    route("tor", 0)
+    for argv in (
+        ["git", "clone", "https://github.com/example/repo", str(tmp_path / "r")],
+        ["curl", "-s", "https://example.com/"],
+        [sys.executable, "-m", "pip", "download", "requests"],
+        ["ffmpeg", "-i", "https://example.com/video.mp4", "out.mp4"],
+    ):
+        with pytest.raises(PrivateWebBlocked, match="was not started"):
+            subprocess.run(argv, capture_output=True, check=False)
+    with pytest.raises(PrivateWebBlocked):
+        os.system("curl -s https://example.com/")
+    # local work and links to this machine still run
+    assert subprocess.run(["git", "--version"], capture_output=True, check=False).returncode == 0
+    assert subprocess.run([sys.executable, "-c", "print(1)", "http://127.0.0.1:9/"], capture_output=True).returncode == 0
+
+    route("off")
+    assert subprocess.run([sys.executable, "-c", "pass", "https://example.com/"], capture_output=True).returncode == 0
