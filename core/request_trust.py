@@ -91,6 +91,11 @@ RESERVED_TRUST_KEYS = (
     # honoring it, but stripping it keeps the trust surface honest — only the runtime's own
     # tool executions may raise the privacy ceiling.
     "private_content_touch",
+    # Server-authored by the tool loop on the one call that writes the answer after the loop
+    # ended (core.agent_runtime.research_tool_loop_facade): that call's prompt says the actions
+    # already ran and its reply is the final answer. A caller-written mark would tell every call
+    # inside the loop to stop asking for tools.
+    "tool_loop_terminal_synthesis",
     # "Use the model's own tools" turn stamps (core.model_own_tools.STAMP_KEYS): server-written
     # at run_once; a caller copy would claim a provider search the owner's switch never granted.
     "model_own_tools_turn",

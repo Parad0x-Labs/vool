@@ -1525,11 +1525,25 @@ def _runtime_tool_observation_message(
         return None
     withheld_entirely = [_observation_label(item) for item in every[: len(every) - len(observations)]]
 
-    header = (
-        "Real tool observations from this same turn follow. Use them as ground truth. "
-        "Do not repeat an identical tool call. Continue the tool actions needed to fulfill the user's request; "
-        "finish with respond.direct only when the requested work is complete or a real blocker prevents it."
-    )
+    if (source_context or {}).get("tool_loop_terminal_synthesis"):
+        # The call that WRITES the answer after the tool loop ended: it has no tools, and the
+        # actions below already ran. Telling it to "continue the tool actions" made a model asked to
+        # "run the command" open its answer with "I can't run that command." although the command
+        # had run and its output was quoted in the same answer (app bugs 2026-11-12, real app,
+        # F1c: the model asked to run the same command again, the repeat guard stopped the loop,
+        # and this synthesis followed).
+        header = (
+            "Real tool observations from this same turn follow. Use them as ground truth. "
+            "These actions already ran for the user's request in this turn, so this reply is the final "
+            "answer: say what was done and what it showed, and say plainly if an action failed. "
+            "Do not say that an action listed here cannot be run, and do not offer to run it again."
+        )
+    else:
+        header = (
+            "Real tool observations from this same turn follow. Use them as ground truth. "
+            "Do not repeat an identical tool call. Continue the tool actions needed to fulfill the user's request; "
+            "finish with respond.direct only when the requested work is complete or a real blocker prevents it."
+        )
     unfinished_code = list((source_context or {}).get("code_task_completion_feedback") or [])
     if unfinished_code:
         # Each row names the stage's lawful next actions (from the task runtime's stage machine),

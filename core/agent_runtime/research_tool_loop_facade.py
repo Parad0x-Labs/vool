@@ -2624,6 +2624,9 @@ class ResearchToolLoopFacadeMixin:
         except Exception:
             pass
         synthesis_context = {key: value for key, value in loop_source_context.items() if key != "runtime_event_stream_id"}
+        # The answer-writing call: its prompt says the observed actions already ran
+        # (core.prompt_normalizer._runtime_tool_observation_message), never "continue the tool actions".
+        synthesis_context["tool_loop_terminal_synthesis"] = loop_stop_reason or "completed"
         # M3/M2: BIND what this loop retrieved into the call that is about to write the answer.
         #
         # Measured on the isolated daemon (2026-09-01): a current-information question routed
