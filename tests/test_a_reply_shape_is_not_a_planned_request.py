@@ -72,7 +72,7 @@ def test_a_reply_shape_proposed_as_a_clause_is_not_a_node(text, asked, shape):
 
 
 @pytest.mark.parametrize("text", [
-    "Two sentences were missing from my report. Which page were they on?",
+    "Were two sentences missing from my report? Which page were they on?",
     "Get the current weather for Vilnius. Then convert 100 USD to EUR.",
     "What is 137 x 29? Also get the current weather for Vilnius",
 ])
@@ -86,3 +86,19 @@ def test_sentences_that_ask_something_are_still_planned(text):
     plan_conductor_turn(text, ask_model=ask_model, plan_id="t")
     assert calls, "a turn with two asking sentences still reaches the planner"
     assert without_reply_directives(text) == text
+
+
+def test_a_statement_shaped_like_a_reply_shape_is_content_not_a_directive():
+    """The directive grammar keeps "Two sentences were missing from my report." as content. Being
+    what the person tells beside one question, it spends no planner call either (the context gate,
+    `core.conductor.planner.without_sentences_that_ask_nothing`)."""
+    text = "Two sentences were missing from my report. Which page were they on?"
+    calls: list[str] = []
+
+    def ask_model(_system: str, prompt: str) -> str:
+        calls.append(prompt)
+        return "[]"
+
+    assert without_reply_directives(text) == text
+    assert plan_conductor_turn(text, ask_model=ask_model, plan_id="t") is None
+    assert calls == []

@@ -345,6 +345,12 @@ def plan_turn(
     # Sentences that only shape the reply are not requests (see `without_reply_directives`).
     if not turn_may_hold_several_requests(without_reply_directives(text)):
         return []
+    # Nor is what the person tells about themselves ("i sell handmade candles at markets"). One
+    # reading for both planners, the conductor's, so a decline there never buys the call here.
+    from core.conductor.planner import without_sentences_that_ask_nothing
+
+    if not turn_may_hold_several_requests(without_sentences_that_ask_nothing(text)):
+        return []
     # A STIPULATED turn supplies the premises for ONE computation: its bullet list is that
     # computation's parts, never several independent requests. Measured live 2026-09-16: a
     # self-contained provider-comparison ("A test run produced: ... Calculate: - total tokens -

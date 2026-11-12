@@ -324,26 +324,19 @@ _REMARK_ON_WHAT_YOU_KNOW_RE = re.compile(
 )
 
 
-def _without_clauses_that_ask_nothing(
-    clauses: Sequence[ProposedClause], original: str
-) -> list[ProposedClause]:
-    """The proposed clauses minus those lying wholly inside what the message says but does not ask.
+def _spans_that_ask_nothing(original: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]] | None:
+    """`(what the message says but does not ask, what it asks)` as spans of `original`, or None.
 
-    The model proposes, the runtime disposes: the ONE interpretation of the message
-    (`answer_coverage.interpret_request`) already reads "my mate says her life is like one big locked
-    file" as the context of "whats she on about?", and "you know this one" as a remark on "whats my
-    sisters name?". Planned as their own requests they became unresolved nodes, and the reply ended
-    in "Could not be answered: - my mate says her life is like one big locked file" (measured
-    2026-10-28 on qwen3:8b, the PC and a phone alike). Only a clause no request unit overlaps is
-    dropped, and the dependency indexes are renumbered; when anything cannot be read the proposal
-    stands as it was.
+    The ONE interpretation of the message (`answer_coverage.interpret_request`) already reads "my
+    mate says her life is like one big locked file" as the context of "whats she on about?", and
+    "you know this one" as a remark on "whats my sisters name?". None when it cannot be read.
     """
     try:
         from core.agent_runtime.answer_coverage import interpret_request
 
         units = tuple(interpret_request(original).units)
     except Exception:
-        return list(clauses)
+        return None
     # A constraint can be a deliverable the planner is right to plan ("and show the working", "say
     # exactly what cannot be determined"), so of the constraints only a remark on what the assistant
     # knows asks nothing; every context statement does. A sentence that only shapes the reply ("Two
@@ -365,8 +358,57 @@ def _without_clauses_that_ask_nothing(
         return unit.kind == "constraint" and bool(_REMARK_ON_WHAT_YOU_KNOW_RE.fullmatch(
             " ".join(str(unit.text or "").split()).strip(" .,!?")))
 
-    asks_nothing = [(u.start, u.end) for u in units if _asks_nothing(u)]
-    asks = [(u.start, u.end) for u in units if not _asks_nothing(u)]
+    return ([(u.start, u.end) for u in units if _asks_nothing(u)],
+            [(u.start, u.end) for u in units if not _asks_nothing(u)])
+
+
+def without_sentences_that_ask_nothing(original: str) -> str:
+    """The message minus the spans its one reading holds as context or a remark.
+
+    Only decides whether a planner call is worth spending; the turn itself is never rewritten. A
+    turn that is one request plus "i sell handmade candles at markets" can only plan as that one
+    request once `_without_clauses_that_ask_nothing` drops the context clause, so the planner call
+    buys nothing. Fails toward the turn: a reading that cannot be had, that holds no request, or
+    whose spans are not the message's own characters keeps the whole message.
+    """
+    read = _spans_that_ask_nothing(original)
+    if read is None:
+        return original
+    asks_nothing, asks = read
+    if not asks_nothing or not asks:
+        return original
+    kept: list[str] = []
+    cursor = 0
+    for start, end in sorted(asks_nothing):
+        if not 0 <= start < end <= len(original) or start < cursor:
+            return original
+        kept.append(original[cursor:start])
+        cursor = end
+    kept.append(original[cursor:])
+    # The comma or dash that joined a cut span to the rest goes with it: "i make leather wallets by
+    # hand, what should i post this week?" is one question, not ", what should i post ...".
+    pieces = (" ".join(piece.split()).strip(" ,;:–—-") for piece in kept)
+    remainder = " ".join(piece for piece in pieces if piece)
+    return remainder or original
+
+
+def _without_clauses_that_ask_nothing(
+    clauses: Sequence[ProposedClause], original: str
+) -> list[ProposedClause]:
+    """The proposed clauses minus those lying wholly inside what the message says but does not ask.
+
+    The model proposes, the runtime disposes: the message's one reading (`_spans_that_ask_nothing`)
+    holds "my mate says her life is like one big locked file" as context and "you know this one"
+    as a remark. Planned as their own requests they became unresolved nodes, and the reply ended
+    in "Could not be answered: - my mate says her life is like one big locked file" (measured
+    2026-10-28 on qwen3:8b, the PC and a phone alike). Only a clause no request unit overlaps is
+    dropped, and the dependency indexes are renumbered; when anything cannot be read the proposal
+    stands as it was.
+    """
+    read = _spans_that_ask_nothing(original)
+    if read is None:
+        return list(clauses)
+    asks_nothing, asks = read
     if not asks_nothing or not asks:
         return list(clauses)
     kept: list[ProposedClause] = []
@@ -2692,6 +2734,12 @@ def plan_conductor_turn(
     # is not spent on it: measured at 38 s of a 79 s turn on qwen3.5:4b (2026-11-12).
     if not turn_may_hold_several_requests(without_reply_directives(original)):
         return None
+    # The same for one request plus what the person tells about themselves: "what should i post
+    # each day next week? i sell handmade candles at markets" spent a planner call to learn that
+    # the second sentence asks nothing (case X11, qwen3:8b, the Oct 28 rechecks), and before that
+    # clause was dropped the reply ended in "Could not be answered: - i sell handmade candles ...".
+    if not turn_may_hold_several_requests(without_sentences_that_ask_nothing(original)):
+        return None
     # One question about the speaker's own facts is one reader call from memory. A planner call
     # here returns a single clause (and so None) at the price of a whole model call; the joiner
     # inside "between the day I X and the day I Y" is what admitted it above.
@@ -2850,6 +2898,7 @@ __all__ = [
     "conductor_system_prompt",
     "parse_clauses",
     "plan_conductor_turn",
+    "without_sentences_that_ask_nothing",
 ]
 
 
