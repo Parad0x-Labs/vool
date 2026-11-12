@@ -20,7 +20,9 @@ from core.memory_grounding import memory_record_rows, question_names_someone_in_
 from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 RECORDS_LEAD = "That is not mentioned in the records I have from our conversations"
-LIVE_LEAD = "I looked this up, but what I found doesn't back the answer I wrote"
+#: The live notice for these turns. They ran no lookup, so since red team R3-03 (2026-11-12) the notice says so
+#: instead of "I looked this up"; what this file pins is that it is the live notice, not the records refusal.
+LIVE_LEAD = "I didn't look anything up for this, and I had nothing to check the answer I wrote against"
 TIM = ("<retrieved_context>\n- user said (stated 2024-01-07): Session date: 7 January, 2024\n"
        "Tim: Great news - I'm finally in the study abroad program I applied for! Next month, I'm off to Ireland.\n"
        "</retrieved_context>")
