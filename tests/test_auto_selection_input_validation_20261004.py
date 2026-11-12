@@ -31,7 +31,6 @@ from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
 from core import provider_routing
 from core.cloud_tool_call_contract import build_cloud_tool_definitions
 from core.execution_requirements import RequiredToolsNotOfferedError
-from core.model_failover import select_with_failover
 from core.model_health import reset_provider_health
 from core.model_output_contracts import json_schema_for_mode
 from core.model_registry import ModelRegistry
@@ -339,6 +338,15 @@ def _tool_rank(registry: ModelRegistry, **request) -> list[str]:
     ]
 
 
+def _failover_after(registry: ModelRegistry, attempted: list[str]) -> list[str]:
+    """What Auto can fail over to once ``attempted`` failed: the router's live ranking for a tool
+    step (role drone, swarm 4, trust floor) minus every provider it already tried, in order."""
+    live = rank_provider_candidates(
+        registry, task_kind="tool_intent", output_mode="tool_intent", role="drone", swarm_size=4, min_trust=0.45
+    )
+    return [m.model_name for m in live if m.provider_id not in attempted]
+
+
 def test_prompted_dialect_without_structured_output_is_refused_at_the_wire() -> None:
     """Deciding receipt for the endpoint contract: the real adapter builds the real payload and
     the final guard refuses it before any byte reaches the scripted endpoint."""
@@ -382,14 +390,9 @@ def test_a_pin_or_failover_never_reaches_the_prompted_lane_without_a_carrier() -
         registry = _registry(prompted, native)
 
         pinned = _tool_rank(registry, preferred_provider="prompt-local", preferred_model="promptish:8b")
-        decision = select_with_failover(
-            registry,
-            ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent"),
-            attempted_provider_ids=["native-local:nativeish:8b"],
-        )
-
         assert "promptish:8b" not in pinned
-        assert decision.selected is None
+        assert _failover_after(registry, []) == ["nativeish:8b"]
+        assert _failover_after(registry, ["native-local:nativeish:8b"]) == []
 
 
 @pytest.mark.parametrize(
