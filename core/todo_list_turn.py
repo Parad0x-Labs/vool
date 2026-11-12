@@ -622,10 +622,13 @@ def erase_followup(session_id: str) -> str:
             _ERASE_PENDING.move_to_end(session_id)
             while len(_ERASE_PENDING) > 256:
                 _ERASE_PENDING.popitem(last=False)
+    done_count = len(tasks) - open_count
     what = (
         f"{open_count} thing{'s' if open_count != 1 else ''} on your to-do list"
         if open_count else "a to-do list with only ticked-off items"
     )
+    if open_count and done_count:
+        what += f" (and {done_count} ticked off)"
     return (
         f"You also have {what}. I haven't touched it. Should I delete it too, or keep it for later? "
         "Say \"delete it\" or \"keep it\"."
