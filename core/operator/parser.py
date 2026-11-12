@@ -1099,6 +1099,8 @@ def _apple_note_title(text: str) -> str | None:
     return _spoken_note_title(match) if match else None
 
 
+_NOTE_TOPIC_SPAN_RE = re.compile(r"\bnotes?\s+(?:about|on|for|containing|matching|with)\s+(.+)$", re.IGNORECASE)
+_NOTE_ABOUT_SPAN_RE = re.compile(r"\bnotes?\b(?:\s+down)?\s+(?:about|for)\s+(.+)$", re.IGNORECASE | re.DOTALL)
 _SPOKEN_TITLE_RE = re.compile(r"\bnotes?\s+(?P<how>titled|called|named)\s+(?P<title>[^\n,.]+)", re.IGNORECASE)
 
 
@@ -1126,9 +1128,20 @@ def _apple_notes_read(text: str) -> OperatorActionIntent | None:
     spoken = _spoken_note_title(spoken_match) if spoken_match else None
     quoted = quoted_note_values(raw)
     payload = str(parse_note_request(raw).get("body") or "").strip()
+    # A save takes the words after "note about/for ..." as the note's body when they say more than a bare topic
+    # (core.operator.notes.parse_note_request). In a read those words are what the read looks for, never words to
+    # keep: 'show my note about rent in apple notes' names the store after its topic.
+    about = _NOTE_ABOUT_SPAN_RE.search(raw)
+    if about and payload == about.group(1).strip():
+        payload = ""
     # A value inside a longer one is blanked with it: blanking the find topic "boxes" first would leave the payload
     # "find the Apple note about boxes" unfindable, and its words would read as the request's own.
-    values = [value for value in dict.fromkeys((query, spoken, payload)) if value and value not in quoted]
+    # The find topic is blanked as the request wrote it: the search reading drops the note and app words from it
+    # (core.operator.notes.notes_search_topic), and "find notes about the Apple note migration" names no store.
+    topic_match = _NOTE_TOPIC_SPAN_RE.search(raw)
+    topic = (_strip_title_trailer(topic_match.group(1).strip()).strip("\"'\u201c\u201d\u2018\u2019 ")
+             if topic_match else "") or query
+    values = [value for value in dict.fromkeys((topic, spoken, payload)) if value and value not in quoted]
     data = tuple(value for value in sorted(values, key=len, reverse=True)
                  if not any(value != other and value in other for other in values))
     taken = note_read_object(raw, data=data)
