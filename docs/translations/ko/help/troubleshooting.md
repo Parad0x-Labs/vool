@@ -1,7 +1,7 @@
 ---
 description: 가장 자주 생기는 문제의 해결 방법.
 translation: machine
-source_sha256: 792c90fd68caf7409212d3742109c46e49d1f7e640aa3e9f70db9fe61ca55d77
+source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 ---
 
 # 문제 해결
@@ -34,7 +34,13 @@ curl http://localhost:11434/api/tags
 대개 사용 가능한 메모리에 비해 모델이 큰 경우입니다.
 [로컬 모델 실행](../../../guides/local-models.md)을 참고하세요.
 
+## 오류에 코드가 표시될 때
+
+모든 실패에는 고정된 코드가 있습니다. [오류와 오류 코드](../../../reference/errors.md)에서 코드 읽는 법을 설명하고,
+[오류 사전](../../../ERROR_BOOK.md)에서는 코드마다 무슨 일이 있었는지, 이미 무슨 일이 일어났을 수 있는지, 다음에 무엇을 해야 하는지 알려 줍니다.
+
 ## 처음부터 다시 시작
 
-VOOL을 종료하고 [구성](../../../reference/configuration.md)에 나와 있는 구성 디렉터리를
-삭제하세요. 작업 공간의 파일은 건드리지 않습니다.
+VOOL을 종료하고 [구성](../../../reference/configuration.md)에 나와 있는 'runtime home' 폴더를 삭제하세요. 이렇게 하면 채팅, 메모리, 설정,
+저장된 키, 그리고 VOOL이 이 컴퓨터에 보관하는 모든 지갑이 삭제되므로 필요한 것은 먼저 저장하세요. [백업 및 복구](../../../help/backup-and-recovery.md)를 참고하세요.
+작업 공간의 파일은 건드리지 않습니다.

@@ -1,7 +1,7 @@
 ---
 description: En sık karşılaşılan sorunların çözümleri.
 translation: machine
-source_sha256: 792c90fd68caf7409212d3742109c46e49d1f7e640aa3e9f70db9fe61ca55d77
+source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 ---
 
 # Sorun giderme
@@ -34,7 +34,15 @@ Bu komut hiçbir şey döndürmezse çalışma ortamı çalışmıyordur.
 Genellikle sebep, kullanılabilir belleğe göre modelin boyutudur. Bkz.
 [Yerel model çalıştırma](../../../guides/local-models.md).
 
+## Bir hata kod gösteriyor
+
+Her hatanın sabit bir kodu vardır. [Hatalar ve hata kodları](../../../reference/errors.md) bir kodun nasıl
+okunacağını açıklar; [Hata Kitabı](../../../ERROR_BOOK.md) ise her kod için ne olduğunu, neyin zaten olmuş
+olabileceğini ve sonra ne yapılacağını söyler.
+
 ## Temiz bir başlangıç
 
-VOOL'dan çıkın ve [Yapılandırma](../../../reference/configuration.md) sayfasında belirtilen yapılandırma dizinini
-kaldırın. Çalışma alanındaki dosyalara dokunulmaz.
+VOOL'dan çıkın ve [Yapılandırma](../../../reference/configuration.md) sayfasında belirtilen "runtime home"
+klasörünü kaldırın. Bu, sohbetlerinizi, hafızanızı, ayarlarınızı, kayıtlı anahtarlarınızı ve VOOL'un
+bu bilgisayarda tuttuğu her cüzdanı siler; bu yüzden önce ihtiyacınız olanı kaydedin: bkz.
+[Yedekleme ve kurtarma](../../../help/backup-and-recovery.md). Çalışma alanındaki dosyalara dokunulmaz.

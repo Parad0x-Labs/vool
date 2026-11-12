@@ -1,7 +1,7 @@
 ---
 description: Rozwiązania najczęstszych problemów.
 translation: machine
-source_sha256: 792c90fd68caf7409212d3742109c46e49d1f7e640aa3e9f70db9fe61ca55d77
+source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 ---
 
 # Rozwiązywanie problemów
@@ -34,7 +34,17 @@ Jeśli to polecenie nic nie zwróci, środowisko uruchomieniowe nie działa.
 Zwykle chodzi o rozmiar modelu w stosunku do dostępnej pamięci RAM. Zobacz
 [Uruchamianie modelu lokalnego](../../../guides/local-models.md).
 
+## Błąd pokazuje kod
+
+Każdy błąd ma stały kod. Strona [Błędy i kody błędów](../../../reference/errors.md) wyjaśnia, jak go
+odczytać, a [Księga błędów](../../../ERROR_BOOK.md) podaje dla każdego kodu, co się stało, co mogło się
+już stać i co zrobić dalej.
+
 ## Zaczynanie od nowa
 
-Zamknij VOOL i usuń katalog konfiguracji wskazany w sekcji
-[Konfiguracja](../../../reference/configuration.md). Pliki obszaru roboczego pozostają nietknięte.
+Zamknij VOOL i usuń folder „runtime home” wskazany w sekcji
+[Konfiguracja](../../../reference/configuration.md). Spowoduje to usunięcie twoich czatów, pamięci,
+ustawień, zapisanych kluczy i każdego portfela, który VOOL przechowuje na tym komputerze, więc
+najpierw zapisz to, czego potrzebujesz: zobacz
+[Kopia zapasowa i odzyskiwanie](../../../help/backup-and-recovery.md). Pliki obszaru roboczego pozostają
+nietknięte.

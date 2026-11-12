@@ -1,7 +1,7 @@
 ---
 description: Les solutions aux problèmes les plus fréquents.
 translation: machine
-source_sha256: 792c90fd68caf7409212d3742109c46e49d1f7e640aa3e9f70db9fe61ca55d77
+source_sha256: 809bae11bc4bf8c2d707cfef616f80056a5d98d35b0786cc937a40526e802689
 ---
 
 # Dépannage
@@ -34,7 +34,17 @@ Si cette commande ne renvoie rien, le moteur local n’est pas démarré.
 En général, c’est la taille du modèle par rapport à la mémoire vive disponible. Voir
 [Exécuter un modèle local](../../../guides/local-models.md).
 
+## Une erreur affiche un code
+
+Chaque échec a un code stable. [Erreurs et codes d’erreur](../../../reference/errors.md) explique comment
+le lire, et le [Livre des erreurs](../../../ERROR_BOOK.md) indique pour chaque code ce qui s’est passé, ce
+qui a peut-être déjà eu lieu et ce qu’il faut faire ensuite.
+
 ## Repartir de zéro
 
-Quittez VOOL et supprimez le dossier de configuration indiqué dans
-[Configuration](../../../reference/configuration.md). Les fichiers de l’espace de travail ne sont pas touchés.
+Quittez VOOL et supprimez le dossier « runtime home » indiqué dans
+[Configuration](../../../reference/configuration.md). Cela efface vos discussions, votre mémoire, vos
+réglages, vos clés enregistrées et tout portefeuille que VOOL conserve sur cet ordinateur.
+Sauvegardez donc d’abord ce dont vous avez besoin (voir
+[Sauvegarde et restauration](../../../help/backup-and-recovery.md)). Les fichiers de l’espace de travail ne sont
+pas touchés.
