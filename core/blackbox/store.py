@@ -12,6 +12,11 @@ Entry kinds (``kind``):
     rollback_authorized / rollback_authorization_consumed
     rollback_started / rollback_refused / rollback_committed
     retention_pruned  which turns lost their blobs and can no longer be restored
+
+The coverage lane (``core.blackbox.coverage``) writes its own kinds into the same journal:
+``coverage_scan_intended``/``coverage_scan_terminal`` around a command run,
+``coverage_post_terminal`` for an irreversible local effect, ``coverage_downgrade``, and
+``coverage_restore_started``/``_refused``/``_committed`` when a turn's command runs are undone.
 """
 from __future__ import annotations
 
@@ -252,25 +257,82 @@ class BlackboxStore:
         self._recovered_once = True
         return recovered
 
+    def recover_open_coverage_effects(self) -> list[dict[str, Any]]:
+        """The coverage lane's half of crash recovery: close every ``coverage_scan_intended``
+        that never reached a terminal (a command whose process died mid-run) with a truthful
+        ``unknown_crashed`` terminal diffed against the disk now -- see
+        ``core.blackbox.coverage.restore.recover_open_coverage``. Raises
+        ``JournalIntegrityError`` rather than extend a journal that does not verify."""
+        from core.blackbox.coverage.restore import recover_open_coverage
+
+        with self.exclusive():
+            return recover_open_coverage(self)
+
     def ensure_recovered(self) -> None:
         with self._lock:
             if self._recovered_once:
                 return
             self.recover_open_effects()
+            from storage.blackbox.journal import JournalIntegrityError
+
+            # A journal that does not verify is never extended by recovery; its open command
+            # effects stay open and visible in status() until an operator looks at it.
+            with contextlib.suppress(JournalIntegrityError):
+                self.recover_open_coverage_effects()
 
     # -- retention -----------------------------------------------------------------------------
     def _blob_references(self, entries: list[dict[str, Any]]) -> dict[str, set[str]]:
-        """blob sha -> set of turn ids referencing it (before or after)."""
+        """blob sha -> set of turn ids referencing it: a file effect's before or after, and every
+        copy a command run captured -- its preimage table, its drift rows' before and after, an
+        irreversible effect's postimages. A copy is only ever dropped once EVERY turn that refers
+        to it is pruned, so a command's undo copy cannot vanish under it with a file turn's."""
         refs: dict[str, set[str]] = {}
+
+        def _add(observation: Any, turn_id: str) -> None:
+            blob = observation.get("blob") if isinstance(observation, dict) else None
+            if blob:
+                refs.setdefault(str(blob), set()).add(turn_id)
+
         for entry in entries:
             kind = str(entry.get("kind") or "")
-            if kind not in {"effect_intended", "effect_terminal"}:
-                continue
-            observation = entry.get("before") if kind == "effect_intended" else entry.get("after")
-            blob = (observation or {}).get("blob") if isinstance(observation, dict) else None
-            if blob:
-                refs.setdefault(str(blob), set()).add(str(entry.get("turn_id") or ""))
+            turn_id = str(entry.get("turn_id") or "")
+            if kind == "effect_intended":
+                _add(entry.get("before"), turn_id)
+            elif kind == "effect_terminal":
+                _add(entry.get("after"), turn_id)
+            elif kind == "coverage_scan_intended":
+                for row in dict(entry.get("files") or {}).values():
+                    _add(row, turn_id)
+            elif kind == "coverage_scan_terminal":
+                for row in list(entry.get("drift") or []):
+                    if isinstance(row, dict):
+                        _add(row.get("before"), turn_id)
+                        _add(row.get("after"), turn_id)
+            elif kind == "coverage_post_terminal":
+                for row in list(entry.get("postimages") or []):
+                    if isinstance(row, dict):
+                        _add(row.get("after"), turn_id)
         return refs
+
+    @staticmethod
+    def pruned_turn_ids(entries: list[dict[str, Any]]) -> set[str]:
+        """Every turn a ``retention_pruned`` entry names (retention or a chat forget): its undo
+        copies are gone, and it refuses restoration -- file effects and command runs alike."""
+        return {
+            str(turn_id)
+            for entry in entries
+            if str(entry.get("kind") or "") == "retention_pruned"
+            for turn_id in list(entry.get("turn_ids") or [])
+        }
+
+    @staticmethod
+    def _command_turn_sessions(entries: list[dict[str, Any]]) -> dict[str, set[str]]:
+        """turn id -> the sessions of its command runs (the coverage lane's entries)."""
+        sessions: dict[str, set[str]] = {}
+        for entry in entries:
+            if str(entry.get("kind") or "") in {"coverage_scan_intended", "coverage_scan_terminal", "coverage_post_terminal"}:
+                sessions.setdefault(str(entry.get("turn_id") or ""), set()).add(str(entry.get("session_id") or ""))
+        return sessions
 
     def prune(self, *, keep_turns: int | None = None, max_total_blob_bytes: int | None = None) -> dict[str, Any]:
         """Drop the blobs of the oldest turns and SAY SO in the journal. The journal entries stay
@@ -300,7 +362,7 @@ class BlackboxStore:
             if not to_prune:
                 return {"pruned_turn_ids": [], "blobs_deleted": 0, "bytes_freed": 0}
             pruned_ids = [t.turn_id for t in to_prune]
-            pruned_set = set(pruned_ids) | {t.turn_id for t in turns.values() if t.pruned}
+            pruned_set = set(pruned_ids) | {t.turn_id for t in turns.values() if t.pruned} | self.pruned_turn_ids(entries)
             refs = self._blob_references(entries)
             deleted = 0
             freed = 0
@@ -328,9 +390,19 @@ class BlackboxStore:
         A copy another chat's turn also refers to stays that turn's."""
         entries = self.entries()
         turns = self.turn_index(entries)
+        command_sessions = self._command_turn_sessions(entries)
+        pruned = self.pruned_turn_ids(entries)
+
+        def _sessions(turn: str) -> set[str]:
+            # a turn's chats across both recorders: its file effects and its command runs
+            return (turns[turn].sessions if turn in turns else set()) | command_sessions.get(turn, set())
+
         found: set[str] = set()
         for blob, owners in self._blob_references(entries).items():
-            eligible = {turn for turn in owners if turn in turns and not turns[turn].pruned and turns[turn].sessions <= sessions}
+            eligible = {
+                turn for turn in owners
+                if (turn in turns or turn in command_sessions) and turn not in pruned and _sessions(turn) <= sessions
+            }
             if eligible and self.blobs.has(blob) and carries(self.blobs.get(blob)):
                 found |= eligible
         return sorted(found)
@@ -343,7 +415,7 @@ class BlackboxStore:
             if not turn_ids:
                 return 0
             entries = self.entries()
-            pruned = set(turn_ids) | {t.turn_id for t in self.turn_index(entries).values() if t.pruned}
+            pruned = set(turn_ids) | {t.turn_id for t in self.turn_index(entries).values() if t.pruned} | self.pruned_turn_ids(entries)
             deleted = 0
             freed = 0
             for blob, owners in self._blob_references(entries).items():
@@ -390,6 +462,19 @@ class BlackboxStore:
         with contextlib.suppress(OSError):
             journal_bytes = self.journal.journal_path.stat().st_size
         recoverable = [t for t in effect_turns if not t.pruned]
+        scan_intended: dict[str, str] = {}
+        scan_closed: set[str] = set()
+        command_turn_roots: set[tuple[str, str]] = set()
+        committed: set[tuple[str, str]] = set()
+        for entry in entries:
+            kind = str(entry.get("kind") or "")
+            if kind == "coverage_scan_intended":
+                scan_intended[str(entry.get("effect_id") or "")] = str(entry.get("turn_id") or "")
+                command_turn_roots.add((str(entry.get("turn_id") or ""), str(entry.get("root") or "")))
+            elif kind == "coverage_scan_terminal":
+                scan_closed.add(str(entry.get("effect_id") or ""))
+            elif kind == "rollback_committed":
+                committed.add((str(entry.get("rollback_of_turn") or ""), str(entry.get("root") or "")))
         return {
             "store": str(self.root),
             "journal_entries": len(entries),
@@ -405,6 +490,14 @@ class BlackboxStore:
             "effects_total": len(records),
             "effects_open": open_effects,
             "effects_uncaptured": uncaptured,
+            # Command runs (shell, tests, lint, formatter) recorded by workspace scan: counted on
+            # their own so the file-effect figures above keep their meaning.
+            "command_effects_total": len(scan_intended),
+            "command_effects_open": sorted(effect for effect in scan_intended if effect not in scan_closed),
+            "command_turns": len({turn for turn in scan_intended.values() if turn}),
+            # A command turn the operator rolled back: without it the figures above read "0 rolled
+            # back" after a command-run undo, because turns_rolled_back counts file-effect turns only.
+            "command_turns_rolled_back": len({turn for turn, root in command_turn_roots & committed if turn}),
             "blob_count": sum(1 for _ in self.blobs.iter_sha256()),
             "blob_bytes": self.blobs.total_bytes(),
             "limits": {
