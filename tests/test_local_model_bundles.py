@@ -4,6 +4,7 @@ from core.llamacpp_capability_probe import CapabilityProbeResult
 from core.local_model_bundles import (
     SPEED_TIER_ROLES,
     bundle_spec,
+    installed_ollama_role_for_model,
     llamacpp_offload_layers,
     model_parameter_billions,
     resolve_local_bundle_recommendation,
@@ -245,6 +246,23 @@ def test_model_parameter_billions_unaffected_for_registered_moe_models() -> None
     # active, count) -- the metadata lookup returns before the regex fallback is ever reached, so
     # this fix must not change its answer.
     assert model_parameter_billions("qwen3:30b-a3b") == 30.0
+
+
+def test_an_installed_mixture_of_experts_model_is_filed_by_its_total_size() -> None:
+    # The Q3_K_M build of Qwen3-30B-A3B-Instruct-2507 pulled from Hugging Face has no metadata row.
+    # Read by its active count (3B) it was registered as a lightweight helper; it is the 30B model
+    # its library twin is, and takes the same role.
+    twin = installed_ollama_role_for_model(model_name="qwen3:30b-instruct", primary_model="qwen3.5:9b")
+    assert twin == "heavy_reasoning"
+    assert (
+        installed_ollama_role_for_model(
+            model_name="hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M", primary_model="qwen3.5:9b"
+        )
+        == twin
+    )
+    # Small models still take the helper role, and the daily model stays general.
+    assert installed_ollama_role_for_model(model_name="qwen3:0.6b", primary_model="qwen3.5:9b") == "lightweight_utility"
+    assert installed_ollama_role_for_model(model_name="qwen3.5:9b", primary_model="qwen3.5:9b") == "general"
 
 
 # --- scan bounds (CodeQL polynomial-redos 109 and its storage twin) ------------------------------

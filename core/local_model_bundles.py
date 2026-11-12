@@ -840,7 +840,11 @@ def installed_ollama_role_for_model(*, model_name: str, primary_model: str = "")
         return "coding"
     if "deepseek-r1" in clean or "reason" in clean:
         return "reasoning"
-    parameter_b = model_parameter_billions(clean)
+    # The size class is the model's TOTAL parameter count, which is what a listed tag's metadata
+    # gives. For an unlisted mixture-of-experts name `model_parameter_billions` reads the active
+    # count instead, and filed hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q3_K_M (a 30B model,
+    # 3B active) as a lightweight helper, while its library twin qwen3:30b-instruct is a 30B model.
+    parameter_b = model_total_parameter_billions(clean)
     if parameter_b <= 3.0:
         return "lightweight_utility"
     if parameter_b >= 24.0:
