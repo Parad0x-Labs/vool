@@ -214,6 +214,16 @@ def turn_is_offline(source_context: dict[str, Any] | None) -> bool:
         return False
 
 
+def turn_selected_offline(source_context: dict[str, Any] | None) -> bool:
+    """Whether the operator chose the Offline lane for this turn (not the machine-wide setting)."""
+    context = source_context if isinstance(source_context, dict) else {}
+    return (
+        bool(context.get(OFFLINE_KEY))
+        or bool(context.get(OFFLINE_SELECTED_KEY))
+        or is_offline_selection(context.get("requested_model"))
+    )
+
+
 def turn_selected_local_only(source_context: dict[str, Any] | None) -> bool:
     """Whether the operator chose the Local Only lane for this turn, specifically.
 
@@ -384,5 +394,6 @@ __all__ = [
     "refusal_result",
     "turn_is_local_only",
     "turn_is_offline",
+    "turn_selected_offline",
     "turn_selected_local_only",
 ]
