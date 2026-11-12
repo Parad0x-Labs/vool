@@ -1,20 +1,22 @@
-"""VOOL's own bundled Browse skills install with the local check only; other makers' keep Eyebrow.
+"""VOOL's own bundled Browse skills install in one step with the local check only, and no key.
 
 Every proof goes through the route the page calls (POST /api/addons via the served dispatcher)
 and the real plugin lifecycle. Nothing here mocks the store's decisions:
 
-1. A skill made by VOOL installs with no Eyebrow key and opens ZERO network connections: socket
+1. A skill made by VOOL installs with no key and opens ZERO network connections: socket
    connect, create_connection and name lookup are patched at the lowest level and any attempt
-   fails the test, and the Eyebrow client and public download are patched to fail too.
+   fails the test, and the public download is patched to fail too.
 2. A bundled file whose bytes do not match the shipped sha256 pin is refused with a plain
    message, and nothing is staged or installed.
 3. An installed VOOL skill whose file is changed afterwards stops loading (the load-time check).
 4. A local check that flags something still needs the person's explicit, version-bound OK, and a
    file that fails the Skill Codex text checks is refused outright, in plain words.
-5. A skill from another maker (Anthropic's bundled frontend-design, or Superpowers) is refused
-   without a key exactly as before, and cannot take the local path.
+5. A skill from another maker (Anthropic's bundled frontend-design, or Superpowers) cannot take
+   the one-step local path. Eyebrow left VOOL in 0.8 (ledger S-017), so its scan is VOOL's own
+   check on this computer, with no key and nothing downloaded, and the scan installs nothing.
 6. The served page: a VOOL skill shows "Add this skill" and the local result; another maker's
-   skill with no key shows why and the options in place, with no jump to the Security tab.
+   skill offers its installation checks in place, never an Eyebrow key or button, with no jump
+   to the Security tab.
 """
 from __future__ import annotations
 
@@ -30,7 +32,6 @@ from urllib.parse import urlsplit
 import pytest
 
 from core import addon_store as store
-from core import eyebrow_client as eb
 from core import plugin_lifecycle as lifecycle
 
 HEADERS = {"content-type": "application/json", "host": "localhost:1234", "origin": "http://localhost:1234"}
@@ -53,10 +54,10 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "lifecycle.json"))
     monkeypatch.setattr(store, "_root", lambda: tmp_path / "reviews")
     monkeypatch.setattr(store, "_key", lambda: b"test-only-review-key" * 2)
-    # No Eyebrow key anywhere: neither the store's check nor the catalogue's flag.
+    # No key anywhere: neither the store's check nor the catalogue's flag. Eyebrow's client left
+    # VOOL in 0.8 (ledger S-017); the network guard below still refuses any call out.
     monkeypatch.setattr(credential_store, "has_credential", lambda name: False)
     monkeypatch.setattr(credential_store, "credential_is_indexed", lambda name: False)
-    monkeypatch.setattr(eb, "request_api", lambda *a, **k: pytest.fail("Eyebrow must not be called"))
     monkeypatch.setattr(store, "fetch_bytes", lambda *a, **k: pytest.fail("nothing may be downloaded"))
     plugin_catalog.reset_storage_state()
     yield tmp_path
@@ -271,22 +272,23 @@ def test_a_flagged_vool_skill_needs_an_explicit_version_bound_ok(home, no_networ
 
 
 # ---------------------------------------------------------------------------
-# 5. Other makers keep today's rule
+# 5. Other makers: VOOL's own check, never the one-step local path
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("name", ["Frontend design", "receiving-code-review"])
-def test_another_makers_skill_without_a_key_is_still_refused(home, no_network, name):
+def test_another_makers_skill_is_checked_here_and_cannot_take_the_one_step_path(home, no_network, name):
     entry = _entry_named(name)
     assert not store.is_vool_bundled(entry)
     row = next(r for r in _read_catalog()["entries"] if r["id"] == entry["id"])
     assert row["local_install"] is False
 
-    status, refused = _post({"action": "scan", "id": entry["id"], "approved": True})
-    assert status == 400 and refused["error"] in {"eyebrow_key_missing", "addon_needs_compatibility"}
-    if entry.get("import_ready", True) and not entry.get("discovery_only"):
-        assert refused["error"] == "eyebrow_key_missing"
-        assert "Eyebrow key" in refused["message"]
+    # Eyebrow left VOOL in 0.8 (ledger S-017): the scan is VOOL's own check on this computer, with
+    # no key, no connection and no download (the fixtures fail the test on any), and the scan
+    # alone installs nothing.
+    status, checked = _post({"action": "scan", "id": entry["id"], "approved": True})
+    assert status == 200 and checked["report"]["service"] == "VOOL local check", checked
+    assert not lifecycle.records()
 
     status, refused = _post({"action": "local_install", "id": entry["id"], "approved": True})
     assert status == 400 and refused["error"] == "local_install_not_offered"
@@ -316,7 +318,7 @@ def test_local_install_needs_the_press_and_exact_fields(home, no_network):
 # ---------------------------------------------------------------------------
 
 
-def test_the_page_adds_a_vool_skill_without_a_key_and_explains_the_key_in_place(home, monkeypatch, tmp_path):
+def test_the_page_adds_a_vool_skill_without_a_key_and_offers_other_makers_the_checks_in_place(home, monkeypatch, tmp_path):
     from core.vool_chat_page import render_vool_chat_html
     from core.web.api.service import dispatch_get, dispatch_post
     from tests.served_browser import launch_chromium
@@ -362,22 +364,21 @@ def test_the_page_adds_a_vool_skill_without_a_key_and_explains_the_key_in_place(
         page.goto(f"http://127.0.0.1:{server.server_port}/chat")
         page.evaluate("openSkills()")
         page.locator("#addonNav").get_by_role("button", name="Browse", exact=True).click()
-        intro = page.locator(".addon-hero p").first.inner_text()
-        assert "Skills made by VOOL are checked on your computer and need no key" in intro
+        # Eyebrow left VOOL in 0.8 (ledger S-017): nothing on Browse asks for its key.
+        assert "Eyebrow" not in page.locator(".addon-hero").first.inner_text()
 
-        # Another maker's skill, no key: the reason and the options, on this page.
+        # Another maker's skill: its installation checks in place, no key asked for, no Eyebrow
+        # button, no one-step add and no jump to the Security tab.
         page.locator("#pluginsSearch").fill(other["name"])
         page.locator(".addon-card").filter(has_text=other["name"]).get_by_role("button", name="View add-on").click()
-        needs = page.locator(".addon-needs-key")
-        needs.wait_for()
-        assert "This skill needs a scan with Eyebrow first" in needs.inner_text()
-        assert "Add an Eyebrow key in Settings, API Keys" in needs.inner_text()
-        assert "free local check" in needs.inner_text()
-        assert "made by VOOL" in needs.inner_text()
+        detail = page.locator(".addon-detail")
+        detail.get_by_role("button", name="Run installation checks", exact=True).wait_for()
+        assert detail.get_by_role("button", name="Add this skill", exact=True).count() == 0
+        assert "Eyebrow" not in detail.inner_text()
         assert page.get_by_role("button", name="Scan with Eyebrow").count() == 0
         assert page.locator("#addonNav").get_by_role("button", name="Browse", exact=True).get_attribute("aria-pressed") == "true"
         assert page.locator("#addonNav").get_by_role("button", name="Security", exact=True).get_attribute("aria-pressed") == "false"
-        page.get_by_role("button", name="Show VOOL skills", exact=True).click()
+        page.get_by_role("button", name="← Back to list", exact=True).click()
         page.locator("#pluginsSearch").fill("")
         title = own["name"][:1].upper() + own["name"][1:].replace("-", " ")
         page.locator("#pluginsSearch").fill(title)

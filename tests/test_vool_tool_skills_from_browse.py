@@ -2,10 +2,13 @@
 
 VOOL's skills repository writes its ``allowed-tools`` in VOOL's own tool names, so Browse lists
 those skills (core.addon_discovery) where every other repository's tool list stays refused. Added
-from Browse, a skill is an import: its list only narrows what VOOL offers, and its text carries the
-untrusted label (core.skill_origin, core.tool_offer_assembly). These tests take the real route a
-person takes: POST /api/addons local_install and install with no key and no network, then the
-real tool-turn offer for an ask the skill is meant for.
+from Browse, one of VOOL's own skills keeps the untrusted label on its text, and its list narrows
+what VOOL offers. The only tools it may add are the ones its own list names from the social list
+(core.tool_offer_assembly: public X reads, VOOL's own notes, ratings and proposal status, web
+reads, an owner-approved proposal), and only because it is the copy shipped in the app
+(core.skill_origin.ORIGIN_VOOL_BROWSE). These tests take the real route a person takes: POST
+/api/addons local_install and install with no key and no network, then the real tool-turn offer
+for an ask the skill is meant for.
 
 Measured 2026-11-12 before this change: 18 of the 19 tool skills were longer than a tool turn's
 4,200 characters as a Browse block, so they could never be used once added; and on every security
@@ -43,7 +46,7 @@ TOOL_TURNS = {
     "phishing-email-check": "is this email phishing",
     "price-compare": "compare these product links, which is cheaper with shipping",
     "research-brief": "research brief on heat pumps with sources",
-    "social-manager": "help me plan my social media posts for my tea shop",
+    "social-manager": "how did my X posts do this week",
     "wallet-explainer": "explain my wallet balance",
     "what-vool-knows": "what does VOOL know about me",
     "test-failure-helper": "assertion error in my tests, what is the cause",
@@ -114,9 +117,11 @@ def _offer(ask: str):
 
 @pytest.mark.parametrize("name", sorted(TOOL_TURNS))
 def test_a_vool_tool_skill_added_from_browse_is_used_whole_on_a_tool_turn(home, no_network, monkeypatch, name):
+    from core.skill_origin import ORIGIN_VOOL_BROWSE, origin_of
     from core.tool_offer_assembly import (
         MAX_TOOL_LANE_DOCTRINE_CHARS,
         MAX_TOOL_LANE_SKILL_CHARS,
+        _skill_may_seat,
         loaded_skills,
         render_complete_block,
     )
@@ -134,8 +139,12 @@ def test_a_vool_tool_skill_added_from_browse_is_used_whole_on_a_tool_turn(home, 
     block = render_complete_block(skill, MAX_TOOL_LANE_SKILL_CHARS)
     assert row["plugin_id"] == pid and row["chars"] == len(block) and block in offer.skill_guidance.text
     assert row["tools"] == "narrow_only"
-    # Its tool list narrows the offer and never adds to it.
-    assert set(offer.intents) <= before, sorted(set(offer.intents) - before)
+    # Its tool list narrows the offer. What it adds is only what its own list names from the
+    # social list VOOL lets its own Browse skills seat: never a private read, a write or a send.
+    assert origin_of(skill) == ORIGIN_VOOL_BROWSE
+    added = set(offer.intents) - before
+    assert added <= set(skill.allowed_tools), sorted(added - set(skill.allowed_tools))
+    assert all(_skill_may_seat(intent) for intent in added), sorted(i for i in added if not _skill_may_seat(i))
     assert len(offer.skill_guidance.text) <= MAX_TOOL_LANE_SKILL_CHARS + MAX_TOOL_LANE_DOCTRINE_CHARS
 
 
@@ -199,3 +208,15 @@ def test_where_vool_has_its_own_skill_for_the_job_that_skill_takes_the_turn(home
     assert rows["root-cause-repair"]["complete"]
     assert rows["test-failure-helper"]["reason"] == "instruction_budget_exceeded"
     assert rows["test-failure-helper"]["chars"] == 0
+
+
+def test_a_posting_plan_goes_to_vools_own_social_content_manager_first(home, no_network, monkeypatch):
+    """VOOL's own social content manager plans posts. With social-manager added from Browse, a
+    posting-plan ask still goes to VOOL's skill whole, and social-manager is recorded as left out,
+    never cut short. Its own asks about the person's X posts reach it whole (TOOL_TURNS)."""
+    entry = next(e for e in _OWN_ROWS if e["skill_name"] == "social-manager")
+    _install(entry["id"], home, monkeypatch)
+    rows = {r.get("name"): r for r in _offer("help me plan my social media posts for my tea shop").skill_guidance.skills}
+    assert rows["vool-social-content-manager"]["complete"]
+    assert rows["social-manager"]["reason"] == "instruction_budget_exceeded"
+    assert rows["social-manager"]["chars"] == 0
