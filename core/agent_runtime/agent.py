@@ -1387,6 +1387,44 @@ def _conductor_conversation_context(
         return ""
 
 
+_CALENDAR_QUESTION_RE = None
+
+
+def _no_calendar_reply(text: str) -> str | None:
+    """A question about the person's own schedule with no calendar connected gets the plain truth.
+
+    0.7.8 sweep block 3 (2026-11-12): with no calendar connected the model answered "No meetings"
+    and "No events found" -- a look that never happened. None when a calendar is connected (the
+    calendar lanes answer) or the text is not a schedule question."""
+    import re as _re
+
+    global _CALENDAR_QUESTION_RE
+    if _CALENDAR_QUESTION_RE is None:
+        _CALENDAR_QUESTION_RE = _re.compile(
+            r"^\s*(?:(?:what|when|which|where|how\s+many|do|does|did|am|is|are|have|any|anything)\b[^?]{0,60}?)?"
+            r"\b(?:my\s+)?(?:meetings?|appointments?|events?|calendar|schedule|agenda|plans?|booked|busy|free\s+(?:on|at|tomorrow|today|this|next))\b"
+            r"[^?]{0,60}?(?:\?|$)",
+            _re.IGNORECASE,
+        )
+    clean = " ".join(str(text or "").split())
+    personal = _re.search(r"\b(?:my|i|i'm|am\s+i|do\s+i|have\s+i|me)\b", clean, _re.IGNORECASE)
+    if not clean or len(clean.split()) > 16 or not personal or not _CALENDAR_QUESTION_RE.match(clean):
+        return None
+    if _re.search(r"\b(?:schedule|book|add|create|move|cancel|set)\s+(?:a|an|the|my)\b", clean, _re.IGNORECASE):
+        return None  # an order to change the calendar goes to its own lane and approval
+    try:
+        import os as _os
+
+        from core.operator.calendar_agenda import selected_sources
+
+        if selected_sources() or str(_os.environ.get("VOOL_CALENDAR_PROVIDER") or "").strip():
+            return None
+    except Exception:
+        return None
+    return ("No calendar is connected yet, so I can't see your meetings or events. Choose a calendar in "
+            "Settings under Calendars, then ask again.")
+
+
 def _no_mailbox_reply(text: str) -> str | None:
     """A mail question with no mailbox connected gets the plain truth and the way to connect one.
 
@@ -2916,7 +2954,7 @@ class VoolAgent(
                 effective_input, session_id=session_id
             )
             if counted is None:
-                counted = _no_mailbox_reply(effective_input)
+                counted = _no_mailbox_reply(effective_input) or _no_calendar_reply(effective_input)
             if counted is None:
                 # A document ask in a chat bound to a project reads the project's own files first.
                 from core.agent_runtime.project_documents import project_document_answer
@@ -6411,6 +6449,17 @@ class VoolAgent(
                 if _re.match(r"\s*(?:and|or|plus|also|but|so|then|what\s+about|how\s+about)\b", question, _re.IGNORECASE):
                     return None
                 asked = set(_terms(question))
+                # A chat about the person's own data (a database, table, sheet, file) answers its
+                # names from that data: "who wrote Ulysses" in a library-database chat got a
+                # world-entity clarifier (database run 8, 2026-11-12).
+                _store_re = _re.compile(
+                    r"\b(?:databases?|db|tables?|spreadsheets?|sheets?|csv|records?|rows?|columns?)\b", _re.IGNORECASE
+                )
+                if any(
+                    _store_re.search(" ".join(str((_e or {}).get(k) or "") for k in ("user", "assistant")))
+                    for _e in prior_events if isinstance(_e, dict)
+                ):
+                    return None
                 for _event in prior_events:
                     _said = " ".join(
                         str((_event or {}).get(key) or "") for key in ("user", "assistant", "content", "text")

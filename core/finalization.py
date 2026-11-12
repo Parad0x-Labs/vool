@@ -220,8 +220,24 @@ def _withheld_claims_target(slot_text: str, withheld_claims: tuple[str, ...] | l
     return False
 
 
+_NOT_A_DEMAND_RE = __import__("re").compile(
+    r"^\s*(?:(?:thanks?|thank\s+you|thx|ty|cheers|ok(?:ay)?|cool|great|nice|perfect|awesome|hi|hello|hey|please|pls|"
+    r"sure|yes|yeah|no|nope|got\s+it|sounds\s+good)[\s,!.]*)+$"
+    r"|^\s*(?:according\s+to|as\s+per|per|from|on|in)\s+(?:the\s+)?[\w .'-]{1,40}?[\s,:]*$",
+    __import__("re").IGNORECASE,
+)
+
+
+def _is_a_demand(text: str) -> bool:
+    """A courtesy ("thanks,") or a bare source attribution ("according to wikipedia") is part of how
+    the person asked, not something to answer. Listing them under "Could not be answered" told the
+    person a "thanks" had failed (database run 8; sweep block 2, 2026-11-12)."""
+    return not _NOT_A_DEMAND_RE.match(str(text or ""))
+
+
 def _render_closure_rows(pending: list[dict[str, Any]], content: str) -> str:
     """The closure section: unanswered slots under one header, partially answered under another."""
+    pending = [row for row in pending if _is_a_demand(str(row.get("text") or ""))]
     unanswered = [row for row in pending if not row.get("answered_in_part")]
     partial = [row for row in pending if row.get("answered_in_part")]
     blocks: list[str] = []

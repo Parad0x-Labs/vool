@@ -323,6 +323,16 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     return conversation_recall_remainder(words) is not None
 
 
+_ASKS_ABOUT_EXISTING_REMINDER_RE = re.compile(
+    r"^\s*(?:(?:did|have|had)\s+i\s+(?:already\s+)?(?:set|make|made|create|created|schedule|scheduled|add|added|get|got)"
+    r"\s+(?:up\s+)?(?:a|an|any|the|my)?\s*reminders?\b"
+    r"|(?:do|did)\s+i\s+(?:still\s+)?have\s+(?:a|an|any)\s+reminders?\b"
+    r"|(?:is|was|are)\s+there\s+(?:a|an|any)\s+reminders?\b"
+    r"|(?:any\s+|a\s+|the\s+|my\s+)?reminders?\s+(?:for|about|to|on)\b[^.!]*\?\s*$)",
+    re.IGNORECASE,
+)
+
+
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     text = str(user_text or "").strip()
     if not text:
@@ -344,6 +354,11 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # "remind me to clean temp files tomorrow" is a reminder, not a cleanup; and before
     # _SCHEDULE_HINTS so "reschedule a meeting" is a MOVE, not a new draft ("schedule a
     # meeting" is a substring of "reschedule a meeting" and would otherwise win).
+    # A question about a reminder that may already exist is a lookup, not a new reminder:
+    # "did i set a reminder to feed the iguana" was parsed as a schedule order and leaked the time
+    # parser's error text (0.7.8 sweep block 3).
+    if _ASKS_ABOUT_EXISTING_REMINDER_RE.search(words):
+        return OperatorActionIntent(kind="list_reminders", raw_text=text)
     if _REMINDER_HINT_RE.search(words) and not _asks_to_recall_not_to_be_reminded(words):
         return OperatorActionIntent(kind="schedule_reminder", raw_text=text)
     reminder_id_match = re.search(

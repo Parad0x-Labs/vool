@@ -1048,3 +1048,43 @@ def test_a_connected_mailbox_leaves_mail_questions_to_the_email_tools(one_accoun
     from core.agent_runtime.agent import _no_mailbox_reply
 
     assert _no_mailbox_reply("any new mail from the bank today?") is None
+
+
+@pytest.mark.parametrize("asked", ["have i got any appointments on monday?", "what's on my agenda for the weekend",
+                                   "am i busy thursday afternoon?"])
+def test_a_schedule_question_with_no_calendar_gets_the_plain_truth(monkeypatch, asked):
+    from core.agent_runtime.agent import _no_calendar_reply
+
+    monkeypatch.setattr("core.operator.calendar_agenda.selected_sources", lambda **_k: [])
+    monkeypatch.delenv("VOOL_CALENDAR_PROVIDER", raising=False)
+    assert "No calendar is connected" in _no_calendar_reply(asked)
+
+
+@pytest.mark.parametrize("asked", ["what is a calendar year?", "schedule a meeting with Ana on friday",
+                                   "how do events in javascript work?"])
+def test_non_schedule_questions_and_orders_are_left_alone(monkeypatch, asked):
+    from core.agent_runtime.agent import _no_calendar_reply
+
+    monkeypatch.setattr("core.operator.calendar_agenda.selected_sources", lambda **_k: [])
+    assert _no_calendar_reply(asked) is None
+
+
+def test_a_connected_calendar_leaves_schedule_questions_to_the_calendar(monkeypatch):
+    from core.agent_runtime.agent import _no_calendar_reply
+
+    monkeypatch.setattr("core.operator.calendar_agenda.selected_sources", lambda **_k: ["one"])
+    assert _no_calendar_reply("am i busy thursday afternoon?") is None
+
+
+@pytest.mark.parametrize("text", ["thanks", "thanks,", "ok thank you!", "according to wikipedia", "per the docs"])
+def test_courtesies_and_attributions_are_not_unanswered_demands(text):
+    from core.finalization import _is_a_demand
+
+    assert not _is_a_demand(text)
+
+
+@pytest.mark.parametrize("text", ["what's 7 plus 8", "how tall is the tower", "thanks for the list, now sort it"])
+def test_real_asks_stay_demands(text):
+    from core.finalization import _is_a_demand
+
+    assert _is_a_demand(text)

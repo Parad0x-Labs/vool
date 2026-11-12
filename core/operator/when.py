@@ -125,6 +125,25 @@ def has_passed(resolution: WhenResolution) -> bool:
     return due < read_at
 
 
+_TIME_SHORTHAND = (
+    (re.compile(r"\b(?:tmrw|tmr|tmw|tomoz|2moro|2morrow)\b", re.IGNORECASE), "tomorrow"),
+    (re.compile(r"\b(?:tonite|2nite)\b", re.IGNORECASE), "tonight"),
+    (re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s+in\s+the\s+morning\b", re.IGNORECASE), lambda m: f"{m.group(1)}{':' + m.group(2) if m.group(2) else ''}am"),
+    (re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s+in\s+the\s+(?:afternoon|evening)\b", re.IGNORECASE), lambda m: f"{m.group(1)}{':' + m.group(2) if m.group(2) else ''}pm"),
+    (re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s+at\s+night\b", re.IGNORECASE), lambda m: f"{m.group(1)}{':' + m.group(2) if m.group(2) else ''}pm"),
+)
+
+
+def normalize_time_words(text: str) -> str:
+    """Everyday shorthand for times read as the clock words the parser knows: "tmrw" -> "tomorrow",
+    "10 in the morning" -> "10am". 0.7.8 sweep block 3: "remind me tmrw 10am…" was scheduled for
+    today and kept "tmrw" in its title; "tomorrow 10 in the morning" was asked back for a time."""
+    clean = str(text or "")
+    for pattern, replacement in _TIME_SHORTHAND:
+        clean = pattern.sub(replacement, clean)
+    return clean
+
+
 def parse_when_expression(
     text: str,
     *,

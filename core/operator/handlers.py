@@ -840,6 +840,12 @@ def handle_schedule_reminder(
     schedule_reminder_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
+    from core.operator.when import normalize_time_words
+
+    import dataclasses as _dc
+
+    if _dc.is_dataclass(intent):
+        intent = _dc.replace(intent, raw_text=normalize_time_words(intent.raw_text))
     when = parse_when_fn(intent.raw_text)
     if not when.ok:
         return OperatorActionResult(
@@ -896,6 +902,11 @@ def handle_schedule_reminder(
     )
 
 
+def _asked_reminder_subject(text: str) -> str:
+    match = re.search(r"\breminders?\s+(?:to|for|about|on)\s+(?P<subject>[^?.!]{2,80})", str(text or ""), re.IGNORECASE)
+    return " ".join(match.group("subject").split()).strip(" ,") if match else ""
+
+
 def handle_list_reminders(
     intent: OperatorActionIntent,
     *,
@@ -905,9 +916,22 @@ def handle_list_reminders(
     now_fn: Any,
     audit_log_fn: Any,
 ) -> OperatorActionResult:
-    del intent
     rows = list_reminders_fn(session_id=session_id, include_delivered=False)
     now = now_fn()
+    # "did i set a reminder to feed the iguana?" / "reminder for the dentist?": answer about THAT
+    # reminder -- found or plainly not found -- never with tips or parser text.
+    subject = _asked_reminder_subject(str(getattr(intent, "raw_text", "") or ""))
+    if subject:
+        words = [w for w in re.findall(r"[a-z0-9']{3,}", subject.lower()) if w not in {"the", "and", "for", "about"}]
+        hits = [row for row in rows if words and all(w in str(row.get("note") or "").lower() for w in words)]
+        if not hits:
+            others = f" You have {len(rows)} other pending reminder{'' if len(rows) == 1 else 's'} here." if rows else ""
+            return OperatorActionResult(
+                ok=True, status="reported",
+                response_text=f"I don't have a reminder about “{subject}” in this chat.{others}",
+                details={"count": 0, "asked_subject": subject},
+            )
+        rows = hits
     if not rows:
         return OperatorActionResult(
             ok=True,
